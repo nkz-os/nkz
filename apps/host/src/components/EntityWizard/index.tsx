@@ -125,6 +125,13 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
     dispatchPlacement({ type: 'RESET' });
   }, []);
 
+  // useCallback MUST be called before any conditional return (React hooks rule)
+  const handleClose = useCallback(() => {
+    reset();
+    dispatchPlacement({ type: 'RESET' });
+    onClose();
+  }, [reset, onClose]);
+
   // Hide during active Cesium drawing/placement modes
   if (mapMode === 'PREVIEW_MODEL' || mapMode === 'STAMP_INSTANCES' || mapMode === 'DRAW_GEOMETRY') {
     return null;
@@ -180,12 +187,6 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
       setLoading(false);
     }
   };
-
-  const handleClose = useCallback(() => {
-    reset();
-    dispatchPlacement({ type: 'RESET' });
-    onClose();
-  }, [reset, onClose]);
 
   return (
     <>
