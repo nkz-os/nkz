@@ -95,19 +95,22 @@ def validate_api_key(api_key: str, tenant_id: str = None) -> dict:
         logger.error(f"Error validating API key: {e}")
         return None
 
+def get_request_token():
+    """Extract JWT token from Authorization header or httpOnly cookie (fallback)"""
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        return auth_header.split(' ')[1]
+    return request.cookies.get('nkz_token')
+
 def require_auth(f):
     """
     Authentication decorator that accepts both JWT tokens and API Keys.
-    Priority: JWT Token (Bearer) > API Key (X-API-Key header)
+    Priority: JWT Token (Bearer) > httpOnly Cookie > API Key (X-API-Key header)
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Try JWT token first (from Authorization header)
-        token = None
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            if auth_header.startswith('Bearer '):
-                token = auth_header.split(" ")[1]
+        # Try JWT token first (from Authorization header or httpOnly cookie)
+        token = get_request_token()
         
         # If token exists, try JWT validation
         if token:

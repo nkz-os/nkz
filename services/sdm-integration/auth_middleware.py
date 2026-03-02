@@ -28,14 +28,17 @@ try:
 except ImportError:
     KEYCLOAK_AUTH_AVAILABLE = False
 
+def get_request_token():
+    """Extract JWT token from Authorization header or httpOnly cookie (fallback)"""
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        return auth_header.split(' ')[1]
+    return request.cookies.get('nkz_token')
+
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = None
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            if auth_header.startswith('Bearer '):
-                token = auth_header.split(" ")[1]
+        token = get_request_token()
 
         if not token:
             return jsonify({'message': 'Token is missing!'}), 401
