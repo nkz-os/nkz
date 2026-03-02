@@ -124,11 +124,11 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
         handlerRef.current.setInputAction((click: any) => {
             if (!isDrawingRef.current) return;
 
-            // Use pickEllipsoid as primary (stable, no depth buffer artifacts from markers).
-            // Only fall back to pickPosition when pickEllipsoid fails (e.g. looking at the sky).
-            let cartesian = viewer.camera.pickEllipsoid(click.position);
+            // pickPosition accounts for terrain elevation (accurate).
+            // Fallback to pickEllipsoid when depth buffer is unavailable.
+            let cartesian = viewer.scene.pickPosition(click.position);
             if (!cartesian) {
-                cartesian = viewer.scene.pickPosition(click.position);
+                cartesian = viewer.camera.pickEllipsoid(click.position);
                 if (!cartesian) return;
             }
 
@@ -304,10 +304,10 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
             handlerRef.current.setInputAction((movement: any) => {
                 if (!isDrawingRef.current || cartesianPositionsRef.current.length === 0) return;
 
-                // Use pickEllipsoid as primary (consistent with click handler)
-                let cartesian = viewer.camera.pickEllipsoid(movement.endPosition);
+                // pickPosition for terrain accuracy, fallback to pickEllipsoid
+                let cartesian = viewer.scene.pickPosition(movement.endPosition);
                 if (!cartesian) {
-                    cartesian = viewer.scene.pickPosition(movement.endPosition);
+                    cartesian = viewer.camera.pickEllipsoid(movement.endPosition);
                 }
                 if (!cartesian) return;
 
