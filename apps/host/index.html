@@ -12,9 +12,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
   <!-- Runtime Configuration -->
-  <script src="/config.js"></script>
   <script>
-    // Fallback if config.js fails to load or for local dev. Keys must match what getConfig() reads (VITE_* and API_URL).
+    // Fallback if runtime injection fails. Keys must match what getConfig() reads.
     if (!window.__ENV__) {
       window.__ENV__ = {};
     }

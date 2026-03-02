@@ -95,6 +95,9 @@ RUN apk add --no-cache bash
 # Copiar archivos estáticos del build
 COPY --from=build-host /app/apps/host/dist /usr/share/nginx/html
 
+# Copiar assets de Cesium desde node_modules
+COPY --from=build-host /app/node_modules/cesium/Build/Cesium /usr/share/nginx/html/cesium
+
 # Copiar script de entrypoint para runtime config
 COPY apps/host/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

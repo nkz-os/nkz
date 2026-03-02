@@ -163,6 +163,7 @@ services:
       KC_PROXY: edge
       KC_HTTP_ENABLED: "true"
       KC_FEATURES: scripts
+      KC_HTTP_RELATIVE_PATH: /auth
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     command: start-dev --import-realm
