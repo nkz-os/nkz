@@ -282,6 +282,11 @@ spec:
               value: "assets-3d"
             - name: ASSETS_PUBLIC_URL
               value: "https://nekazari.robotika.cloud/assets"
+            - name: MODULE_LIFECYCLE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: module-lifecycle-secret
+                  key: LIFECYCLE_WEBHOOK_SECRET
           resources:
             requests:
               memory: "128Mi"

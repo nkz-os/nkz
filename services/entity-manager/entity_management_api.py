@@ -5897,7 +5897,8 @@ def get_tenant_modules():
 def _dispatch_module_lifecycle_webhook_if_configured(module_id, tenant_id, enabled, user_email=None):
     """Fire-and-forget: POST lifecycle event to a module's webhook if configured.
 
-    The webhook URL and HMAC secret are read from marketplace_modules.metadata.
+    The webhook URL is read from marketplace_modules.metadata.
+    The HMAC secret comes from an env var (never stored in the DB).
     Follows the same HMAC-SHA256 pattern used by risk-orchestrator.
     """
     import hmac
@@ -5907,8 +5908,7 @@ def _dispatch_module_lifecycle_webhook_if_configured(module_id, tenant_id, enabl
         with get_db_connection_with_tenant(tenant_id) as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("""
-                SELECT metadata->>'lifecycle_webhook_url' AS webhook_url,
-                       metadata->>'lifecycle_webhook_secret' AS webhook_secret
+                SELECT metadata->>'lifecycle_webhook_url' AS webhook_url
                 FROM marketplace_modules WHERE id = %s
             """, (module_id,))
             row = cur.fetchone()
@@ -5918,7 +5918,7 @@ def _dispatch_module_lifecycle_webhook_if_configured(module_id, tenant_id, enabl
             return
 
         url = row['webhook_url']
-        secret = row.get('webhook_secret') or ''
+        secret = os.environ.get('MODULE_LIFECYCLE_WEBHOOK_SECRET', '')
 
         payload = json.dumps({
             'event': 'module.enabled' if enabled else 'module.disabled',
