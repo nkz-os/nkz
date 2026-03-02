@@ -124,17 +124,18 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
         handlerRef.current.setInputAction((click: any) => {
             if (!isDrawingRef.current) return;
 
-            // Try pickPosition first (accounts for terrain/3D), fallback to pickEllipsoid
-            let cartesian = viewer.scene.pickPosition(click.position);
+            // Use pickEllipsoid as primary (stable, no depth buffer artifacts from markers).
+            // Only fall back to pickPosition when pickEllipsoid fails (e.g. looking at the sky).
+            let cartesian = viewer.camera.pickEllipsoid(click.position);
             if (!cartesian) {
-                cartesian = viewer.camera.pickEllipsoid(click.position);
+                cartesian = viewer.scene.pickPosition(click.position);
                 if (!cartesian) return;
             }
 
             cartesianPositionsRef.current.push(cartesian);
             clickTimestampsRef.current.push(Date.now());
 
-            // Add point marker
+            // Add point marker (no CLAMP_TO_GROUND to avoid terrain-load jitter)
             const pointEntity = viewer.entities.add({
                 position: cartesian,
                 point: {
@@ -142,7 +143,6 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
                     color: Cesium.Color.YELLOW,
                     outlineColor: Cesium.Color.BLACK,
                     outlineWidth: 2,
-                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
                 },
             });
             pointEntitiesRef.current.push(pointEntity);
@@ -163,8 +163,9 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
                 return;
             }
 
-            // Update drawing entity (Polygon or Line)
-            const minPoints = drawingType === 'Polygon' ? 2 : 2;
+            // Update drawing entity — Polygon needs 3 points minimum (valid polygon),
+            // Lines need 2. Before that, the rubber-band line provides visual feedback.
+            const minPoints = drawingType === 'Polygon' ? 3 : 2;
 
             if (cartesianPositionsRef.current.length >= minPoints) {
                 if (!drawingEntityRef.current) {
@@ -173,6 +174,8 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
                             return new Cesium.PolygonHierarchy(cartesianPositionsRef.current);
                         }, false);
 
+                        // No classificationType during drawing to avoid terrain tile
+                        // loading that causes camera/view jitter.
                         drawingEntityRef.current = viewer.entities.add({
                             polygon: {
                                 hierarchy: dynamicHierarchyRef.current,
@@ -180,8 +183,6 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
                                 outline: true,
                                 outlineColor: Cesium.Color.YELLOW,
                                 outlineWidth: 2,
-                                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-                                classificationType: Cesium.ClassificationType.TERRAIN,
                             },
                         });
                     } else { // LineString or MultiLineString
@@ -303,10 +304,10 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
             handlerRef.current.setInputAction((movement: any) => {
                 if (!isDrawingRef.current || cartesianPositionsRef.current.length === 0) return;
 
-                // Pick position
-                let cartesian = viewer.scene.pickPosition(movement.endPosition);
+                // Use pickEllipsoid as primary (consistent with click handler)
+                let cartesian = viewer.camera.pickEllipsoid(movement.endPosition);
                 if (!cartesian) {
-                    cartesian = viewer.camera.pickEllipsoid(movement.endPosition);
+                    cartesian = viewer.scene.pickPosition(movement.endPosition);
                 }
                 if (!cartesian) return;
 
@@ -322,7 +323,6 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
                             color: Cesium.Color.CYAN,
                             outlineColor: Cesium.Color.BLACK,
                             outlineWidth: 1,
-                            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
                         },
                     });
                 } else {
