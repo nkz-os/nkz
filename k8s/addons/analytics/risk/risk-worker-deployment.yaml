@@ -36,7 +36,7 @@ spec:
           containers:
           - name: risk-worker
             image: ghcr.io/k8-benetis/nkz/risk-worker:latest
-            imagePullPolicy: Always
+            imagePullPolicy: IfNotPresent
             env:
             # PostgreSQL Configuration
             - name: POSTGRES_HOST
