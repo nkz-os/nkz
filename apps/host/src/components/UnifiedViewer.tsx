@@ -636,10 +636,10 @@ const UnifiedViewerInner: React.FC = () => {
                     terrainProvider="auto"
                     selectedEntity={getSelectedEntityData()}
                     // vegetationLayerConfig removed - modules use slot system
-                    // Disable entity selection when in drawing/editing/placement modes
-                    // For SELECT_CADASTRAL and PICK_LOCATION, use picker mode to capture clicks
-                    // For PREVIEW_MODEL and STAMP_INSTANCES, use picker mode for model placement
-                    mode={mapMode === 'VIEW' ? 'view' : (['SELECT_CADASTRAL', 'PICK_LOCATION', 'PREVIEW_MODEL', 'STAMP_INSTANCES'].includes(mapMode)) ? 'picker' : 'view'}
+                    // Disable entity selection when in drawing/editing/placement modes.
+                    // 'picker' mode disables entity selection click handler, preventing
+                    // interference with drawing overlays (MapDrawingOverlay).
+                    mode={mapMode === 'VIEW' ? 'view' : 'picker'}
                     onMapClick={mapMode === 'SELECT_CADASTRAL' ? handleMapClickForCadastral : mapMode === 'PICK_LOCATION' ? handleMapClickForPicking : undefined}
                     onEntitySelect={handleEntityMapSelect}
                     riskOverlay={riskOverlay}
