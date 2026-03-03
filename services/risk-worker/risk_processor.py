@@ -183,7 +183,7 @@ class RiskProcessor:
         
         try:
             cursor = self.postgres.cursor()
-            set_tenant_context(cursor, tenant_id)
+            set_tenant_context(self.postgres, tenant_id)
             
             query = """
                 SELECT
@@ -226,7 +226,7 @@ class RiskProcessor:
         
         try:
             cursor = self.postgres.cursor()
-            set_tenant_context(cursor, tenant_id)
+            set_tenant_context(self.postgres, tenant_id)
             
             query = """
                 SELECT 
@@ -275,7 +275,7 @@ class RiskProcessor:
 
         try:
             cursor = self.postgres.cursor()
-            set_tenant_context(cursor, tenant_id)
+            set_tenant_context(self.postgres, tenant_id)
 
             # Build the season start date from DOY (current year)
             query = """
@@ -319,7 +319,7 @@ class RiskProcessor:
         
         try:
             cursor = self.postgres.cursor()
-            set_tenant_context(cursor, tenant_id)
+            set_tenant_context(self.postgres, tenant_id)
             
             cursor.execute("""
                 SELECT metric_name, value, unit, time, metadata
@@ -427,7 +427,7 @@ class RiskProcessor:
         
         try:
             cursor = self.postgres.cursor()
-            set_tenant_context(cursor, tenant_id)
+            set_tenant_context(self.postgres, tenant_id)
             
             cursor.execute("""
                 INSERT INTO risk_daily_states (
