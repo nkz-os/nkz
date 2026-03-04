@@ -382,19 +382,17 @@ class EnhancedTenantWebhookService:
                 logger.error(f"Failed to apply admin context: {admin_err}")
                 raise
 
-            # If a tenant already references this email, reuse its tenant_id
-            # Use metadata->>'primary_email' since email column may not exist
-            # This query is safe and will work regardless of whether email column exists
+            # Search by email OR by tenant name to avoid duplication
             cursor.execute(
                 """
                 SELECT tenant_id, 
-                       COALESCE(metadata->>'primary_email', '') as email, 
                        metadata
                 FROM tenants
                 WHERE (metadata IS NOT NULL AND metadata->>'primary_email' = %s)
+                   OR (tenant_name = %s)
                 LIMIT 1
                 """,
-                (email_lower,)
+                (email_lower, tenant_name or desired_name)
             )
             existing = cursor.fetchone()
             if existing and existing.get('tenant_id'):
@@ -3704,6 +3702,114 @@ def delete_tenant_user(user_id: str):
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
         return jsonify({'error': f'Failed to delete user: {str(e)}'}), 500
+
+@app.route('/webhook/register', methods=['POST'])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def register_tenant():
+    """
+    Public registration endpoint (Identity-First Provisioning).
+    Creates a Keycloak user, a Tenant record, and an initial welcome parcel.
+    """
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        organization_name = data.get('organization_name')
+        password = data.get('password')
+        plan = data.get('plan', 'pro')  # Defaults to pro for the 30-day trial
+        
+        if not all([email, organization_name, password]):
+            return jsonify({'error': 'Email, organization name and password are required'}), 400
+        
+        # 1. Normalize and check existence
+        tenant_slug = webhook_service._normalize_tenant_slug(organization_name)
+        
+        conn = webhook_service.get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database unavailable'}), 500
+            
+        # 2. Setup initial limits (SOTA Matrix: Pro Trial)
+        limits = {
+            'max_users': 10,
+            'max_robots': 5,
+            'max_sensors': 50,
+            'duration': 30
+        }
+        
+        try:
+            # 3. Provision Tenant in DB
+            tenant_id = webhook_service.ensure_tenant_record(
+                conn=conn,
+                email=email,
+                plan=plan,
+                limits=limits,
+                tenant_name=organization_name,
+                source='self-service-onboarding'
+            )
+            
+            # 4. Create User in Keycloak
+            # We map plan info for Keycloak attributes
+            plan_info = {
+                'plan': plan,
+                'max_users': limits['max_users'],
+                'max_robots': limits['max_robots'],
+                'max_sensors': limits['max_sensors'],
+                'code': f"TRIAL-{secrets.token_hex(4).upper()}"
+            }
+            
+            kc_result = webhook_service.create_keycloak_user(
+                email=email,
+                tenant_id=tenant_id,
+                plan_info=plan_info,
+                password=password,
+                is_owner=True
+            )
+            
+            if not kc_result.get('success'):
+                return jsonify({'error': f"Identity creation failed: {kc_result.get('error')}"}), 500
+            
+            # 5. Create Welcome Parcel (1 Ha in Alava)
+            cursor = conn.cursor()
+            webhook_service._apply_admin_context(conn)
+            
+            welcome_parcel_name = f"Parcela Bienvenida - {organization_name}"
+            # Centered at 42.85, -2.67 (Alava) - Approx 100m x 100m = 1 Ha
+            cursor.execute("""
+                INSERT INTO cadastral_parcels (
+                    tenant_id, cadastral_reference, municipality, province, 
+                    geometry, name, ndvi_enabled
+                ) VALUES (
+                    %s, %s, 'Vitoria-Gasteiz', 'Araba',
+                    ST_Multi(ST_GeomFromText('POLYGON((-2.6705 42.8505, -2.6695 42.8505, -2.6695 42.8495, -2.6705 42.8495, -2.6705 42.8505))', 4326)),
+                    %s, true
+                ) ON CONFLICT DO NOTHING
+            """, (tenant_id, f"WELCOME-{secrets.token_hex(4).upper()}", welcome_parcel_name))
+            
+            # 6. Set initial plan level in tenants table (SOTA Migration 058)
+            cursor.execute("""
+                UPDATE tenants SET plan_level = %s WHERE tenant_id = %s
+            """, (1 if plan == 'pro' else 2 if plan == 'enterprise' else 0, tenant_id))
+            
+            conn.commit()
+            cursor.close()
+            
+            logger.info(f"Onboarding successful: Tenant {tenant_id} created for {email}")
+            
+            return jsonify({
+                'success': True,
+                'tenant_id': tenant_id,
+                'message': 'Account created successfully. You can now log in.'
+            }), 201
+            
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Onboarding failed for {email}: {str(e)}")
+            return jsonify({'error': f"Provisioning failed: {str(e)}"}), 500
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        logger.error(f"Error in registration endpoint: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 def handle_tenant_deleted(tenant_id: str, payload: Dict[str, Any]) -> tuple:
     """Handle tenant deletion event"""

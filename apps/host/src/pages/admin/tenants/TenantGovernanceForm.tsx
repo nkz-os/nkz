@@ -15,12 +15,17 @@ import { Card, Button } from '@nekazari/ui-kit';
 import { X, Save, RefreshCw, AlertCircle, CheckCircle, Calendar, Mail, FileText, User, Building2 } from 'lucide-react';
 
 interface TenantGovernanceData {
-  plan_type: 'basic' | 'premium' | 'enterprise';
+  plan_type: 'basic' | 'pro' | 'premium' | 'enterprise';
+  plan_level: number;
   contract_end_date: string | null;
   billing_email: string | null;
   notes: string | null;
   sales_contact: string | null;
   support_level: 'standard' | 'priority' | 'enterprise' | null;
+  max_users: number | null;
+  max_robots: number | null;
+  max_sensors: number | null;
+  max_area_hectares: number | null;
 }
 
 interface TenantLimits {
@@ -50,25 +55,21 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   
-  // Governance data (PostgreSQL)
+  // Unified Governance data (PostgreSQL)
   const [governance, setGovernance] = useState<TenantGovernanceData>({
     plan_type: 'basic',
+    plan_level: 0,
     contract_end_date: null,
     billing_email: null,
     notes: null,
     sales_contact: null,
-    support_level: 'standard'
+    support_level: 'standard',
+    max_users: null,
+    max_robots: null,
+    max_sensors: null,
+    max_area_hectares: null
   });
   
-  // Limits data (Orion-LD)
-  const [limits, setLimits] = useState<TenantLimits>({
-    maxUsers: null,
-    maxRobots: null,
-    maxSensors: null,
-    maxAreaHectares: null
-  });
-  
-  const [, setCurrentPlan] = useState<string>('basic');
   const [hasChanges, setHasChanges] = useState(false);
 
   const isPlatformAdmin = hasRole('PlatformAdmin');
@@ -90,44 +91,45 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
         getTenantId: () => tenantId,
       });
 
-      // Load governance data from PostgreSQL and limits from Orion-LD
-      const governanceResponse = await client.get<{
+      // Load unified governance data from PostgreSQL
+      const response = await client.get<{
         tenant_id: string;
         tenant_name: string;
+        plan_level: number;
         governance: {
           plan_type: string;
+          plan_level: number;
           contract_end_date: string | null;
           billing_email: string | null;
           notes: string | null;
           sales_contact: string | null;
           support_level: string | null;
         };
-        limits: TenantLimits;
+        limits: {
+          maxUsers: number | null;
+          maxRobots: number | null;
+          maxSensors: number | null;
+          maxAreaHectares: number | null;
+        };
         plan_type: string;
       }>(`/admin/tenants/${tenantId}/governance`);
       
-      if (governanceResponse) {
-        const plan = governanceResponse.plan_type || governanceResponse.governance.plan_type || 'basic';
-        setCurrentPlan(plan);
-        
-        // Set governance data
+      if (response) {
+        // Set unified data
         setGovernance({
-          plan_type: (governanceResponse.governance.plan_type || plan) as any,
-          contract_end_date: governanceResponse.governance.contract_end_date 
-            ? governanceResponse.governance.contract_end_date.split('T')[0] 
+          plan_type: (response.governance.plan_type || response.plan_type || 'basic') as any,
+          plan_level: response.plan_level ?? response.governance.plan_level ?? 0,
+          contract_end_date: response.governance.contract_end_date 
+            ? response.governance.contract_end_date.split('T')[0] 
             : null,
-          billing_email: governanceResponse.governance.billing_email,
-          notes: governanceResponse.governance.notes,
-          sales_contact: governanceResponse.governance.sales_contact,
-          support_level: (governanceResponse.governance.support_level || 'standard') as any,
-        });
-        
-        // Set limits data
-        setLimits(governanceResponse.limits || {
-          maxUsers: null,
-          maxRobots: null,
-          maxSensors: null,
-          maxAreaHectares: null,
+          billing_email: response.governance.billing_email,
+          notes: response.governance.notes,
+          sales_contact: response.governance.sales_contact,
+          support_level: (response.governance.support_level || 'standard') as any,
+          max_users: response.limits.maxUsers,
+          max_robots: response.limits.maxRobots,
+          max_sensors: response.limits.maxSensors,
+          max_area_hectares: response.limits.maxAreaHectares,
         });
       }
     } catch (err) {
@@ -156,24 +158,19 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
         getTenantId: () => tenantId,
       });
 
-      // Save governance (PostgreSQL)
+      // Save everything to PostgreSQL (syncs to Orion-LD in backend)
       await client.put(`/admin/tenants/${tenantId}/governance`, {
         plan_type: governance.plan_type,
+        plan_level: governance.plan_level,
         contract_end_date: governance.contract_end_date || null,
         billing_email: governance.billing_email || null,
         notes: governance.notes || null,
         sales_contact: governance.sales_contact || null,
         support_level: governance.support_level || null,
-      });
-
-      // Save limits (Orion-LD) - separate endpoint
-      await client.patch('/admin/tenant-limits', {
-        tenant_id: tenantId,
-        planType: governance.plan_type,
-        maxUsers: limits.maxUsers,
-        maxRobots: limits.maxRobots,
-        maxSensors: limits.maxSensors,
-        maxAreaHectares: limits.maxAreaHectares,
+        max_users: governance.max_users,
+        max_robots: governance.max_robots,
+        max_sensors: governance.max_sensors,
+        max_area_hectares: governance.max_area_hectares,
       });
 
       setSuccess(t('tenant_governance_updated'));
@@ -193,12 +190,20 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
   };
 
   const handleGovernanceChange = (field: keyof TenantGovernanceData, value: any) => {
-    setGovernance(prev => ({ ...prev, [field]: value }));
-    setHasChanges(true);
-  };
-
-  const handleLimitsChange = (field: keyof TenantLimits, value: number | null) => {
-    setLimits(prev => ({ ...prev, [field]: value }));
+    setGovernance(prev => {
+      const newData = { ...prev, [field]: value };
+      
+      // Automatic mapping between type and level
+      if (field === 'plan_type') {
+        const mapping: Record<string, number> = { 'basic': 0, 'pro': 1, 'premium': 1, 'enterprise': 2 };
+        newData.plan_level = mapping[value] ?? 0;
+      } else if (field === 'plan_level') {
+        const mapping: Record<number, string> = { 0: 'basic', 1: 'pro', 2: 'enterprise' };
+        newData.plan_type = (mapping[value] ?? 'basic') as any;
+      }
+      
+      return newData;
+    });
     setHasChanges(true);
   };
 
@@ -274,12 +279,26 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <option value="basic">{t('basic')}</option>
+                    <option value="pro">{t('pro')}</option>
                     <option value="premium">{t('premium')}</option>
                     <option value="enterprise">{t('enterprise')}</option>
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {t('plan_type_desc')}
-                  </p>
+                </div>
+
+                {/* Plan Level (Numeric) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {t('plan_level')} (0-2) *
+                  </label>
+                  <select
+                    value={governance.plan_level}
+                    onChange={(e) => handleGovernanceChange('plan_level', parseInt(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value={0}>0 - Basic</option>
+                    <option value={1}>1 - Pro/Premium</option>
+                    <option value={2}>2 - Enterprise</option>
+                  </select>
                 </div>
 
                 {/* Contract End Date */}
@@ -359,7 +378,7 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
               </div>
             </div>
 
-            {/* Section 2: Quantitative Limits (Orion-LD) */}
+            {/* Section 2: Quantitative Limits (PostgreSQL Unified) */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                 <Building2 className="w-5 h-5 mr-2 text-gray-600" />
@@ -377,8 +396,8 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
                   <input
                     type="number"
                     min="0"
-                    value={limits.maxUsers ?? ''}
-                    onChange={(e) => handleLimitsChange('maxUsers', e.target.value === '' ? null : parseInt(e.target.value))}
+                    value={governance.max_users ?? ''}
+                    onChange={(e) => handleGovernanceChange('max_users', e.target.value === '' ? null : parseInt(e.target.value))}
                     placeholder={t('unlimited')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
@@ -391,8 +410,8 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
                   <input
                     type="number"
                     min="0"
-                    value={limits.maxRobots ?? ''}
-                    onChange={(e) => handleLimitsChange('maxRobots', e.target.value === '' ? null : parseInt(e.target.value))}
+                    value={governance.max_robots ?? ''}
+                    onChange={(e) => handleGovernanceChange('max_robots', e.target.value === '' ? null : parseInt(e.target.value))}
                     placeholder={t('unlimited')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
@@ -405,8 +424,8 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
                   <input
                     type="number"
                     min="0"
-                    value={limits.maxSensors ?? ''}
-                    onChange={(e) => handleLimitsChange('maxSensors', e.target.value === '' ? null : parseInt(e.target.value))}
+                    value={governance.max_sensors ?? ''}
+                    onChange={(e) => handleGovernanceChange('max_sensors', e.target.value === '' ? null : parseInt(e.target.value))}
                     placeholder={t('unlimited')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
@@ -420,8 +439,8 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
                     type="number"
                     min="0"
                     step="0.01"
-                    value={limits.maxAreaHectares ?? ''}
-                    onChange={(e) => handleLimitsChange('maxAreaHectares', e.target.value === '' ? null : parseFloat(e.target.value))}
+                    value={governance.max_area_hectares ?? ''}
+                    onChange={(e) => handleGovernanceChange('max_area_hectares', e.target.value === '' ? null : parseFloat(e.target.value))}
                     placeholder={t('unlimited')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                   />

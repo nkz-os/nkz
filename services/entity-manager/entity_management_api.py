@@ -6129,13 +6129,22 @@ def get_marketplace_modules():
         conn = get_db_connection_simple()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # PlatformAdmin sees all, others see only active
+        # Get tenant plan level
+        tenant_id = getattr(g, 'tenant', None)
+        plan_level = 0
+        if tenant_id and not is_platform_admin:
+            cur.execute("SELECT plan_level FROM tenants WHERE tenant_id = %s", (tenant_id,))
+            tenant_row = cur.fetchone()
+            if tenant_row:
+                plan_level = tenant_row['plan_level']
+
+        # PlatformAdmin sees all, others see only active and compatible with their plan
         if is_platform_admin:
             query = """
                 SELECT id, name, display_name, description, version, author, 
                        category, icon_url, is_active, required_roles, metadata,
                        module_type, required_plan_type, pricing_tier, installation_restrictions,
-                       created_at, updated_at
+                       required_plan_level, created_at, updated_at
                 FROM marketplace_modules
                 ORDER BY display_name
             """
@@ -6144,12 +6153,12 @@ def get_marketplace_modules():
             query = """
                 SELECT id, name, display_name, description, version, author,
                        category, icon_url, is_active, required_roles, metadata,
-                       module_type, required_plan_type, pricing_tier
+                       module_type, required_plan_type, pricing_tier, required_plan_level
                 FROM marketplace_modules
-                WHERE is_active = true
+                WHERE is_active = true AND required_plan_level <= %s
                 ORDER BY display_name
             """
-            cur.execute(query)
+            cur.execute(query, (plan_level,))
         
         modules = cur.fetchall()
         cur.close()
@@ -6915,8 +6924,9 @@ def get_tenant_governance(tenant_id):
         
         # Get tenant governance data
         cur.execute("""
-            SELECT tenant_id, tenant_name, plan_type, status, contract_end_date,
+            SELECT tenant_id, tenant_name, plan_type, plan_level, status, contract_end_date,
                    billing_email, notes, sales_contact, support_level,
+                   max_area_hectares, max_users, max_sensors, max_robots,
                    created_at, updated_at, expires_at, email
             FROM tenants
             WHERE tenant_id = %s
@@ -6928,7 +6938,7 @@ def get_tenant_governance(tenant_id):
             return_db_connection(conn)
             return jsonify({'error': 'Tenant not found'}), 404
         
-        # Get limits from Orion-LD
+        # Get limits from Orion-LD (as fallback/secondary)
         limits = get_limits_for_tenant(tenant_id) or {}
         
         cur.close()
@@ -6937,8 +6947,10 @@ def get_tenant_governance(tenant_id):
         return jsonify({
             'tenant_id': tenant['tenant_id'],
             'tenant_name': tenant['tenant_name'],
+            'plan_level': tenant.get('plan_level', 0),
             'governance': {
                 'plan_type': tenant['plan_type'],
+                'plan_level': tenant.get('plan_level', 0),
                 'contract_end_date': tenant['contract_end_date'].isoformat() if tenant['contract_end_date'] else None,
                 'billing_email': tenant['billing_email'],
                 'notes': tenant['notes'],
@@ -6949,12 +6961,12 @@ def get_tenant_governance(tenant_id):
                 'expires_at': tenant['expires_at'].isoformat() if tenant['expires_at'] else None,
             },
             'limits': {
-                'maxUsers': int(limits.get('maxUsers') or 0) if limits.get('maxUsers') is not None else None,
-                'maxRobots': int(limits.get('maxRobots') or 0) if limits.get('maxRobots') is not None else None,
-                'maxSensors': int(limits.get('maxSensors') or 0) if limits.get('maxSensors') is not None else None,
-                'maxAreaHectares': float(limits.get('maxAreaHectares') or 0.0) if limits.get('maxAreaHectares') is not None else None,
+                'maxUsers': int(tenant.get('max_users')) if tenant.get('max_users') is not None else int(limits.get('maxUsers') or 0) if limits.get('maxUsers') is not None else None,
+                'maxRobots': int(tenant.get('max_robots')) if tenant.get('max_robots') is not None else int(limits.get('maxRobots') or 0) if limits.get('maxRobots') is not None else None,
+                'maxSensors': int(tenant.get('max_sensors')) if tenant.get('max_sensors') is not None else int(limits.get('maxSensors') or 0) if limits.get('maxSensors') is not None else None,
+                'maxAreaHectares': float(tenant.get('max_area_hectares')) if tenant.get('max_area_hectares') is not None else float(limits.get('maxAreaHectares') or 0.0) if limits.get('maxAreaHectares') is not None else None,
             },
-            'plan_type': limits.get('planType') or tenant['plan_type']
+            'plan_type': tenant['plan_type'] or limits.get('planType')
         }), 200
         
     except Exception as e:
@@ -6971,8 +6983,9 @@ def update_tenant_governance(tenant_id):
     Update tenant governance configuration (administrative fields).
     Only PlatformAdmin can modify.
     
-    Updates: plan_type, contract_end_date, billing_email, notes, sales_contact, support_level
-    Note: Limits (max_users, max_robots, etc.) remain in Orion-LD and should be updated separately.
+    Updates: plan_type, plan_level, contract_end_date, billing_email, notes, sales_contact, support_level,
+             max_area_hectares, max_users, max_sensors, max_robots
+    Note: Limits are now primarily stored in PostgreSQL but synced to Orion-LD for compatibility.
     """
     user_roles = g.roles or []
     
@@ -6986,7 +6999,7 @@ def update_tenant_governance(tenant_id):
         # Validate tenant exists
         conn = get_db_connection_simple()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT tenant_id, plan_type FROM tenants WHERE tenant_id = %s", (tenant_id,))
+        cur.execute("SELECT tenant_id, plan_type, plan_level FROM tenants WHERE tenant_id = %s", (tenant_id,))
         tenant = cur.fetchone()
         
         if not tenant:
@@ -6999,31 +7012,41 @@ def update_tenant_governance(tenant_id):
         values = []
         old_values = dict(tenant)
         
+        # Plan mapping logic
+        plan_type = data.get('plan_type')
+        plan_level = data.get('plan_level')
+        
+        if plan_type and plan_level is None:
+            # Map string to level
+            mapping = {'basic': 0, 'premium': 1, 'pro': 1, 'enterprise': 2}
+            plan_level = mapping.get(plan_type, 0)
+        elif plan_level is not None and not plan_type:
+            # Map level to string
+            mapping = {0: 'basic', 1: 'pro', 2: 'enterprise'}
+            plan_type = mapping.get(plan_level, 'basic')
+
         # Allowed fields to update
         allowed_fields = {
-            'plan_type': data.get('plan_type'),
+            'plan_type': plan_type,
+            'plan_level': plan_level,
             'contract_end_date': data.get('contract_end_date'),
             'billing_email': data.get('billing_email'),
             'notes': data.get('notes'),
             'sales_contact': data.get('sales_contact'),
-            'support_level': data.get('support_level')
+            'support_level': data.get('support_level'),
+            'max_area_hectares': data.get('max_area_hectares'),
+            'max_users': data.get('max_users'),
+            'max_sensors': data.get('max_sensors'),
+            'max_robots': data.get('max_robots')
         }
         
         # Validate plan_type if provided
-        if 'plan_type' in allowed_fields and allowed_fields['plan_type']:
+        if allowed_fields['plan_type']:
             plan = allowed_fields['plan_type']
-            if plan not in ('basic', 'premium', 'enterprise'):
+            if plan not in ('basic', 'premium', 'pro', 'enterprise'):
                 cur.close()
                 return_db_connection(conn)
-                return jsonify({'error': f'Invalid plan_type: {plan}. Must be basic, premium, or enterprise'}), 400
-        
-        # Validate support_level if provided
-        if 'support_level' in allowed_fields and allowed_fields['support_level']:
-            level = allowed_fields['support_level']
-            if level not in ('standard', 'priority', 'enterprise'):
-                cur.close()
-                return_db_connection(conn)
-                return jsonify({'error': f'Invalid support_level: {level}'}), 400
+                return jsonify({'error': f'Invalid plan_type: {plan}.'}), 400
         
         # Build update statement
         for field, value in allowed_fields.items():
@@ -7036,7 +7059,7 @@ def update_tenant_governance(tenant_id):
             return_db_connection(conn)
             return jsonify({'error': 'No fields to update'}), 400
         
-        # Add updated_at
+        # Add updated_at and WHERE clause ID
         updates.append("updated_at = NOW()")
         values.append(tenant_id)
         
@@ -7045,15 +7068,24 @@ def update_tenant_governance(tenant_id):
         cur.execute(query, values)
         updated_tenant = cur.fetchone()
         
-        # If plan_type changed, sync with Orion-LD
-        if 'plan_type' in allowed_fields and allowed_fields['plan_type']:
-            new_plan = allowed_fields['plan_type']
-            if old_values.get('plan_type') != new_plan:
-                limits_update = {'planType': new_plan}
-                upsert_limits_in_orion(tenant_id, limits_update)
-                # Invalidate cache
-                _limits_cache.pop(tenant_id, None)
-                _limits_cache_ts.pop(tenant_id, None)
+        # Sync with Orion-LD for backwards compatibility
+        limits_update = {}
+        if allowed_fields['plan_type']:
+            limits_update['planType'] = allowed_fields['plan_type']
+        if allowed_fields['max_users'] is not None:
+            limits_update['maxUsers'] = allowed_fields['max_users']
+        if allowed_fields['max_robots'] is not None:
+            limits_update['maxRobots'] = allowed_fields['max_robots']
+        if allowed_fields['max_sensors'] is not None:
+            limits_update['maxSensors'] = allowed_fields['max_sensors']
+        if allowed_fields['max_area_hectares'] is not None:
+            limits_update['maxAreaHectares'] = allowed_fields['max_area_hectares']
+            
+        if limits_update:
+            upsert_limits_in_orion(tenant_id, limits_update)
+            # Invalidate cache
+            _limits_cache.pop(tenant_id, None)
+            _limits_cache_ts.pop(tenant_id, None)
         
         # Log audit trail
         try:
@@ -7066,7 +7098,7 @@ def update_tenant_governance(tenant_id):
                 g.username,
                 'governance_update',
                 json.dumps(old_values),
-                json.dumps(dict(updated_tenant)),
+                json.dumps(dict(updated_tenant), default=str),
                 data.get('audit_notes')
             ))
         except Exception as audit_err:
@@ -7076,12 +7108,9 @@ def update_tenant_governance(tenant_id):
         cur.close()
         return_db_connection(conn)
         
-        logger.info(f"Tenant {tenant_id} governance updated by {g.username}")
-        
         return jsonify({
             'message': 'Tenant governance updated successfully',
             'tenant_id': tenant_id,
-            'updated_fields': list(allowed_fields.keys()),
             'tenant': dict(updated_tenant)
         }), 200
         
