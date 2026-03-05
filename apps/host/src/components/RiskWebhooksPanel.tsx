@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/services/api';
 import type { RiskWebhook } from '@/types';
-import { Webhook, Plus, Trash2, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Webhook, Plus, Trash2, X, ChevronUp } from 'lucide-react';
 
 interface RiskWebhooksPanelProps {
   readOnly?: boolean;

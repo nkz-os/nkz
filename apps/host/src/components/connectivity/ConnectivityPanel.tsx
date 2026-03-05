@@ -14,7 +14,6 @@ import {
     FileCode,
     Wifi,
     Key,
-    Download,
     TriangleAlert,
     Copy,
     Server,
@@ -199,8 +198,8 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                 <button
                     onClick={() => setActiveTab('status')}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'status'
-                            ? 'bg-purple-600 text-white'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
                         }`}
                 >
                     <Wifi className="w-4 h-4" />
@@ -209,8 +208,8 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                 <button
                     onClick={() => setActiveTab('profile')}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'profile'
-                            ? 'bg-purple-600 text-white'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
                         }`}
                 >
                     <FileCode className="w-4 h-4" />

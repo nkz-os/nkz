@@ -28,12 +28,6 @@ interface TenantGovernanceData {
   max_area_hectares: number | null;
 }
 
-interface TenantLimits {
-  maxUsers: number | null;
-  maxRobots: number | null;
-  maxSensors: number | null;
-  maxAreaHectares: number | null;
-}
 
 interface TenantGovernanceFormProps {
   tenantId: string;
@@ -54,7 +48,7 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
+
   // Unified Governance data (PostgreSQL)
   const [governance, setGovernance] = useState<TenantGovernanceData>({
     plan_type: 'basic',
@@ -69,7 +63,7 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
     max_sensors: null,
     max_area_hectares: null
   });
-  
+
   const [hasChanges, setHasChanges] = useState(false);
 
   const isPlatformAdmin = hasRole('PlatformAdmin');
@@ -83,7 +77,7 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
   const loadTenantData = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const client = new NekazariClient({
         baseUrl: '/api',
@@ -113,14 +107,14 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
         };
         plan_type: string;
       }>(`/admin/tenants/${tenantId}/governance`);
-      
+
       if (response) {
         // Set unified data
         setGovernance({
           plan_type: (response.governance.plan_type || response.plan_type || 'basic') as any,
           plan_level: response.plan_level ?? response.governance.plan_level ?? 0,
-          contract_end_date: response.governance.contract_end_date 
-            ? response.governance.contract_end_date.split('T')[0] 
+          contract_end_date: response.governance.contract_end_date
+            ? response.governance.contract_end_date.split('T')[0]
             : null,
           billing_email: response.governance.billing_email,
           notes: response.governance.notes,
@@ -175,7 +169,7 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
 
       setSuccess(t('tenant_governance_updated'));
       setHasChanges(false);
-      
+
       setTimeout(() => {
         if (onSuccess) onSuccess();
         onClose();
@@ -192,7 +186,7 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
   const handleGovernanceChange = (field: keyof TenantGovernanceData, value: any) => {
     setGovernance(prev => {
       const newData = { ...prev, [field]: value };
-      
+
       // Automatic mapping between type and level
       if (field === 'plan_type') {
         const mapping: Record<string, number> = { 'basic': 0, 'pro': 1, 'premium': 1, 'enterprise': 2 };
@@ -201,7 +195,7 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
         const mapping: Record<number, string> = { 0: 'basic', 1: 'pro', 2: 'enterprise' };
         newData.plan_type = (mapping[value] ?? 'basic') as any;
       }
-      
+
       return newData;
     });
     setHasChanges(true);
@@ -254,10 +248,10 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
         )}
 
         {loading ? (
-            <div className="text-center py-8">
-              <RefreshCw className="w-8 h-8 text-gray-400 mx-auto mb-2 animate-spin" />
-              <p className="text-gray-600">{t('loading_tenant_data')}</p>
-            </div>
+          <div className="text-center py-8">
+            <RefreshCw className="w-8 h-8 text-gray-400 mx-auto mb-2 animate-spin" />
+            <p className="text-gray-600">{t('loading_tenant_data')}</p>
+          </div>
         ) : (
           <div className="space-y-6">
             {/* Section 1: Contract & Administrative Data (PostgreSQL) */}
@@ -266,7 +260,7 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
                 <Building2 className="w-5 h-5 mr-2 text-gray-600" />
                 {t('contract_administrative_info')}
               </h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Plan Type */}
                 <div>
@@ -387,7 +381,7 @@ export const TenantGovernanceForm: React.FC<TenantGovernanceFormProps> = ({
               <p className="text-sm text-gray-600 mb-4">
                 {t('resource_limits_desc')}
               </p>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
