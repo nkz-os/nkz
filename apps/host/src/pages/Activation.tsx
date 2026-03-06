@@ -9,7 +9,7 @@ import { useI18n } from '@/context/I18nContext';
 import { TermsAcceptance } from '@/components/TermsAcceptance';
 import axios from 'axios';
 import { getConfig } from '@/config/environment';
-import { validateTenantId, normalizeTenantId, getTenantIdRules } from '@/utils/tenantValidation';
+import { validateTenantId, normalizeTenantId } from '@/utils/tenantValidation';
 import {
   Key,
   CheckCircle,
@@ -17,8 +17,6 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  Check,
-  X,
   UserPlus
 } from 'lucide-react';
 
@@ -274,7 +272,6 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
       } else if (errorMessage.includes('Code and email are required')) {
         setError(t('activation.code_required') + ' ' + t('activation.email_required'));
       } else if (errorMessage.includes('duplicate') || errorMessage.includes('already exists')) {
-        const normalized = normalizeTenantId(formData.tenant_name);
         setError(`La organización "${formData.tenant_name}" ya está en uso.`);
         setErrorReason('Por favor, elige un nombre diferente.');
       }
