@@ -230,9 +230,9 @@ def create_session():
         'nkz_token',
         token,
         httponly=True,
-        secure=True,
-        samesite='Strict',
-        domain=COOKIE_DOMAIN,
+        secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
+        samesite='Lax' if os.getenv('COOKIE_SECURE', 'true').lower() == 'false' else 'Strict',
+        domain=COOKIE_DOMAIN or None,
         path='/',
         max_age=max_age,
     )
@@ -242,7 +242,7 @@ def create_session():
 def delete_session():
     """Clear httpOnly session cookie"""
     resp = make_response(jsonify({'ok': True}))
-    resp.delete_cookie('nkz_token', domain=COOKIE_DOMAIN, path='/')
+    resp.delete_cookie('nkz_token', domain=COOKIE_DOMAIN or None, path='/')
     return set_cors_headers(resp)
 
 @app.route('/health', methods=['GET'])
@@ -1384,8 +1384,8 @@ def proxy_admin_requests(subpath):
         # Forward request body for POST/PUT/PATCH
         data = None
         json_data = None
-        if request.is_json:
-            json_data = request.json
+        if request.method in ["POST", "PUT", "PATCH"] and request.is_json:
+            json_data = request.get_json(silent=True)
         elif request.data:
             data = request.data
         
@@ -1516,8 +1516,8 @@ def proxy_ndvi_requests(subpath):
         # Forward request body for POST/PUT/PATCH
         data = None
         json_data = None
-        if request.is_json:
-            json_data = request.json
+        if request.method in ["POST", "PUT", "PATCH"] and request.is_json:
+            json_data = request.get_json(silent=True)
         elif request.data:
             data = request.data
         
@@ -1640,8 +1640,8 @@ def proxy_weather_requests(subpath):
         
         # Forward request body for POST/PUT/PATCH
         json_data = None
-        if request.is_json:
-            json_data = request.json
+        if request.method in ["POST", "PUT", "PATCH"] and request.is_json:
+            json_data = request.get_json(silent=True)
         elif request.data:
             json_data = request.get_json(silent=True)
         
@@ -1753,8 +1753,8 @@ def proxy_modules_requests(subpath):
         
         # Forward request body
         json_data = None
-        if request.is_json:
-            json_data = request.json
+        if request.method in ["POST", "PUT", "PATCH"] and request.is_json:
+            json_data = request.get_json(silent=True)
         elif request.data:
             json_data = request.get_json(silent=True)
         
@@ -1865,8 +1865,8 @@ def proxy_cadastral_api_requests(subpath):
         
         # Forward request body for POST/PUT/PATCH
         json_data = None
-        if request.is_json:
-            json_data = request.json
+        if request.method in ["POST", "PUT", "PATCH"] and request.is_json:
+            json_data = request.get_json(silent=True)
         elif request.data:
             json_data = request.get_json(silent=True)
         data = request.data if not request.is_json else None
