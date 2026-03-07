@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  ShieldCheck, Zap, Info, HelpCircle, Database, CloudSun, ToggleLeft, ToggleRight,
-  Search, Settings2, BellRing, Loader2, AlertTriangle
+  ShieldCheck, Zap, HelpCircle, CloudSun, ToggleLeft, ToggleRight,
+  Search, Settings2, BellRing, Loader2
 } from 'lucide-react';
 import api from '@/services/api';
-import { RISK_CATALOG, RiskPreset, RiskCategory } from '@/config/riskCatalog';
+import { RISK_CATALOG, RiskCategory } from '@/config/riskCatalog';
 import { RiskSubscription } from '@/types';
 
 export const SmartRiskPanel: React.FC = () => {
