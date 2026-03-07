@@ -219,6 +219,9 @@
     "description": "Plateforme IoT de nouvelle génération pour l'agriculture intelligente",
     "subdescription": "Gérez vos opérations agricoles, capteurs, robots et données avec une sécurité de niveau entreprise et une architecture multi-tenant alimentée par FIWARE",
     "cta": "Commencer",
+    "try_free": "Essayez 30 jours gratuitement",
+    "access": "Accéder",
+    "register_with_code": "Inscription avec Code",
     "trust_enterprise_security": "Sécurité Entreprise",
     "trust_fiware": "Alimenté par FIWARE",
     "trust_multitenant": "Multi-Tenant",
@@ -382,12 +385,12 @@
     "user_management_title": "User Management"
   },
   "cookies": {
-    "accept": "Aceptar",
-    "learn_more": "Más información",
-    "message": "Utilizamos cookies para mejorar tu experiencia en nuestra plataforma. Al continuar navegando, aceptas nuestro uso de cookies.",
+    "accept": "Accepter",
+    "learn_more": "En savoir plus",
+    "message": "Nous utilisons des cookies pour améliorer votre expérience sur notre plateforme. En continuant à naviguer, vous acceptez notre utilisation des cookies.",
     "policy_link": "/cookies-policy",
-    "reject": "Rechazar",
-    "title": "Política de Cookies"
+    "reject": "Refuser",
+    "title": "Politique de Cookies"
   },
   "forgot_password": {
     "back_to_login": "Volver al Login",

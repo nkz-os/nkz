@@ -341,6 +341,9 @@
     "description": "Next-generation IoT platform for smart agriculture",
     "subdescription": "Manage your farm operations, sensors, robots, and data with enterprise-grade security and multi-tenant architecture powered by FIWARE",
     "cta": "Get Started",
+    "try_free": "Try 30 days for free",
+    "access": "Log In",
+    "register_with_code": "Register with Code",
     "trust_enterprise_security": "Enterprise Security",
     "trust_fiware": "Powered by FIWARE",
     "trust_multitenant": "Multi-Tenant",
@@ -611,12 +614,12 @@
     "user_management_title": "User Management"
   },
   "cookies": {
-    "accept": "Aceptar",
-    "learn_more": "Más información",
-    "message": "Utilizamos cookies para mejorar tu experiencia en nuestra plataforma. Al continuar navegando, aceptas nuestro uso de cookies.",
+    "accept": "Accept",
+    "learn_more": "Learn more",
+    "message": "We use cookies to improve your experience on our platform. By continuing to browse, you agree to our use of cookies.",
     "policy_link": "/cookies-policy",
-    "reject": "Rechazar",
-    "title": "Política de Cookies"
+    "reject": "Reject",
+    "title": "Cookies Policy"
   },
   "forgot_password": {
     "back_to_login": "Volver al Login",

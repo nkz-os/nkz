@@ -229,6 +229,9 @@
     "description": "Nekazarientzako IoT plataformarik berriena",
     "subdescription": "Kudeatu zure nekazaritza eragiketak, sentsoreak, robotak eta datuak enpresaren segurtasun mailarekin eta FIWARE-k indartutako multi-tenant arkitekturarekin",
     "cta": "Hasi",
+    "try_free": "Probatu 30 egunez doan",
+    "access": "Sartu",
+    "register_with_code": "Erregistroa Kodearekin",
     "trust_enterprise_security": "Enpresaren Segurtasuna",
     "trust_fiware": "FIWARE-k indartuta",
     "trust_multitenant": "Multi-Tenant",
@@ -392,12 +395,12 @@
     "user_management_title": "User Management"
   },
   "cookies": {
-    "accept": "Aceptar",
-    "learn_more": "Más información",
-    "message": "Utilizamos cookies para mejorar tu experiencia en nuestra plataforma. Al continuar navegando, aceptas nuestro uso de cookies.",
+    "accept": "Onartu",
+    "learn_more": "Informazio gehiago",
+    "message": "Gure plataforma erabiltzean esperientzia hobea izateko cookieak erabiltzen ditugu. Nabigatzen jarraituz gero, gure cookieen erabilera onartzen duzula ulertuko dugu.",
     "policy_link": "/cookies-policy",
-    "reject": "Rechazar",
-    "title": "Política de Cookies"
+    "reject": "Baztertu",
+    "title": "Cookie Politika"
   },
   "forgot_password": {
     "back_to_login": "Volver al Login",

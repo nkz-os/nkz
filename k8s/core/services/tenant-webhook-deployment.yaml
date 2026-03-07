@@ -136,6 +136,14 @@ spec:
               optional: true
         - name: TENANT_NAMESPACE_PREFIX
           value: "nekazari-tenant-"
+        # Redis (rate limiting persistence)
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+        - name: REDIS_URL
+          value: "redis://:$(REDIS_PASSWORD)@redis-service:6379/0"
         livenessProbe:
           httpGet:
             path: /health
