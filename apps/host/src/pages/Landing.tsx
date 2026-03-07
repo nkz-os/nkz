@@ -179,44 +179,40 @@ export const Landing: React.FC = () => {
               </p>
 
               {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4 pt-4">
+              <div className="flex flex-col sm:flex-row items-stretch justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4 pt-6">
                 <button
                   onClick={() => navigate('/register')}
-                  className="group relative inline-flex items-center px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 w-full sm:w-auto"
+                  className="group relative inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
                 >
-                  <span className="flex items-center">
-                    {t('landing.try_free') || 'Probar 30 días gratis'}
-                    <Sparkles className="ml-2 h-5 w-5 text-green-300 animate-pulse" />
-                  </span>
+                  <span>{t('landing.try_free')}</span>
+                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </button>
                 <button
                   onClick={handleLogin}
-                  className="inline-flex items-center px-8 py-4 bg-white text-green-600 text-lg font-semibold rounded-xl border-2 border-green-600 shadow-md hover:shadow-lg transform hover:-translate-y-1 transition-all duration-300 w-full sm:w-auto"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-green-700 text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
                 >
-                  <ArrowRight className="mr-2 h-5 w-5" />
-                  {t('landing.access') || t('auth.login') || 'Acceder'}
+                  {t('landing.access')}
                 </button>
                 <button
                   onClick={() => navigate('/activate')}
-                  className="inline-flex items-center px-6 py-4 bg-gray-50 text-gray-600 text-base font-medium rounded-xl border border-gray-200 hover:bg-gray-100 transition-all duration-300 w-full sm:w-auto"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-gray-50 text-gray-600 text-lg font-medium rounded-xl border border-gray-200 hover:bg-gray-100 transition-all duration-300 sm:w-auto"
                 >
-                  <Key className="mr-2 h-4 w-4" />
-                  {t('landing.register_with_code') || 'Código'}
+                  {t('landing.register_with_code')}
                 </button>
               </div>
 
-              {/* Trust Badges */}
-              <div className="flex flex-wrap justify-center lg:justify-start items-center gap-6 pt-8 text-sm text-gray-600">
-                <div className="flex items-center space-x-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
+              {/* Trust Badges - Perfectly aligned to left on desktop */}
+              <div className="flex flex-wrap justify-center lg:justify-start items-center gap-x-8 gap-y-4 pt-10 text-sm font-medium text-gray-600">
+                <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-green-100">
+                  <Shield className="h-4 w-4 text-green-600" />
                   <span>{t('landing.trust_enterprise_security')}</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Leaf className="h-5 w-5 text-green-600" />
+                <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-green-100">
+                  <Zap className="h-4 w-4 text-green-600" />
                   <span>{t('landing.trust_fiware')}</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Shield className="h-5 w-5 text-green-600" />
+                <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-green-100">
+                  <Users className="h-4 w-4 text-green-600" />
                   <span>{t('landing.trust_multitenant')}</span>
                 </div>
               </div>

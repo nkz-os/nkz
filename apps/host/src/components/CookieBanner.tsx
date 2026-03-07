@@ -46,7 +46,7 @@ export const CookieBanner: React.FC = () => {
                 {t('cookies.message')}{' '}
                 <a
                   href={t('cookies.policy_link')}
-                  className="text-green-600 hover:text-green-700 underline"
+                  className="text-green-700 hover:text-green-800 font-semibold underline"
                   target="_blank"
                   rel="noopener noreferrer"
                 >

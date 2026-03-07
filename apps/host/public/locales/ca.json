@@ -219,6 +219,9 @@
     "description": "Plataforma IoT de nova generació per a agricultura intel·ligent",
     "subdescription": "Gestiona les teves operacions agrícoles, sensors, robots i dades amb seguretat empresarial i arquitectura multi-tenant impulsada per FIWARE",
     "cta": "Començar",
+    "try_free": "Prova 30 dies gratis",
+    "access": "Accedir",
+    "register_with_code": "Registre amb Codi",
     "trust_enterprise_security": "Seguretat Empresarial",
     "trust_fiware": "Powered by FIWARE",
     "trust_multitenant": "Multi-Tenant",
@@ -382,11 +385,11 @@
     "user_management_title": "User Management"
   },
   "cookies": {
-    "accept": "Aceptar",
-    "learn_more": "Más información",
-    "message": "Utilizamos cookies para mejorar tu experiencia en nuestra plataforma. Al continuar navegando, aceptas nuestro uso de cookies.",
+    "accept": "Acceptar",
+    "learn_more": "Més informació",
+    "message": "Utilitzem cookies per millorar la teva experiència a la nostra plataforma. En continuar navegant, acceptes el nostre ús de cookies.",
     "policy_link": "/cookies-policy",
-    "reject": "Rechazar",
+    "reject": "Rebutjar",
     "title": "Política de Cookies"
   },
   "forgot_password": {
