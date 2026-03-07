@@ -10,9 +10,9 @@ import sys
 import json
 import logging
 import importlib.util
-from typing import Dict, Any, Optional, List, Union, Literal
+from typing import Optional, List, Union, Literal
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
@@ -21,9 +21,11 @@ from psycopg2.extras import RealDictCursor
 
 # --- Pydantic Models for Recursive Risk Logic ---
 
+
 class LogicalOperator(str, Enum):
     AND = "AND"
     OR = "OR"
+
 
 class ComparisonOperator(str, Enum):
     LT = "<"
@@ -33,6 +35,7 @@ class ComparisonOperator(str, Enum):
     EQ = "=="
     NEQ = "!="
 
+
 class Condition(BaseModel):
     attribute: str
     operator: ComparisonOperator
@@ -40,9 +43,11 @@ class Condition(BaseModel):
     duration_minutes: int = 0
     unit: Optional[str] = None
 
+
 class ConditionGroup(BaseModel):
     logical_operator: LogicalOperator = LogicalOperator.AND
-    conditions: List[Union[Condition, 'ConditionGroup']]
+    conditions: List[Union[Condition, "ConditionGroup"]]
+
 
 class RiskRuleSchema(BaseModel):
     name: str
@@ -50,13 +55,14 @@ class RiskRuleSchema(BaseModel):
     logic_tree: ConditionGroup
     severity: Literal["low", "medium", "high", "critical"] = "medium"
 
+
 ConditionGroup.model_rebuild()
 
 # Add common directory to path
 sys.path.insert(0, "/app/common")
 sys.path.insert(0, "/app/task-queue")
-from auth_middleware import require_auth
-from db_helper import set_tenant_context
+from auth_middleware import require_auth  # noqa: E402
+from db_helper import set_tenant_context  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -505,7 +511,7 @@ def trigger_evaluation():
         return jsonify({"error": "Internal server error"}), 500
 
 
-@app.route('/api/risks/catalog/custom', methods=['POST'])
+@app.route("/api/risks/catalog/custom", methods=["POST"])
 @require_auth
 def create_custom_risk():
     """Create a new custom risk model for the tenant"""
@@ -517,66 +523,81 @@ def create_custom_risk():
         try:
             risk_rule = RiskRuleSchema(**data)
         except Exception as ve:
-            return jsonify({'error': 'Invalid risk definition', 'details': str(ve)}), 400
+            return jsonify(
+                {"error": "Invalid risk definition", "details": str(ve)}
+            ), 400
 
         conn = get_db_connection()
         if not conn:
-            return jsonify({'error': 'Database unavailable'}), 500
+            return jsonify({"error": "Database unavailable"}), 500
 
         cursor = conn.cursor()
 
         # Generate a unique risk_code for this custom risk
         import uuid
+
         risk_code = f"custom_{uuid.uuid4().hex[:8]}"
 
         # Insert into risk_catalog (marking it as specific to this tenant if column exists)
         # Note: We assume the logic_tree is stored as JSON in model_config
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO admin_platform.risk_catalog (
                 risk_code, risk_name, risk_description, 
                 risk_domain, target_sdm_type, is_active, 
                 model_type, model_config, severity_levels
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING risk_code
-        """, (
-            risk_code, 
-            risk_rule.name, 
-            risk_rule.description,
-            'custom', 
-            'AgriParcel', 
-            True,
-            'complex_logic', 
-            risk_rule.logic_tree.model_dump_json(),
-            json.dumps({'high': risk_rule.severity})
-        ))
+        """,
+            (
+                risk_code,
+                risk_rule.name,
+                risk_rule.description,
+                "custom",
+                "AgriParcel",
+                True,
+                "complex_logic",
+                risk_rule.logic_tree.model_dump_json(),
+                json.dumps({"high": risk_rule.severity}),
+            ),
+        )
 
         new_risk = cursor.fetchone()
 
         # Also auto-subscribe the tenant to their own custom risk
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO tenant_risk_subscriptions (
                 tenant_id, risk_code, is_active,
                 user_threshold, notification_channels, entity_filters
             ) VALUES (%s, %s, %s, %s, %s, %s)
-        """, (
-            tenant, risk_code, True,
-            50, json.dumps({'email': True, 'push': True}), json.dumps({})
-        ))
+        """,
+            (
+                tenant,
+                risk_code,
+                True,
+                50,
+                json.dumps({"email": True, "push": True}),
+                json.dumps({}),
+            ),
+        )
 
         conn.commit()
         cursor.close()
         conn.close()
 
-        return jsonify({'message': 'Custom risk created and activated', 'risk_code': risk_code}), 201
+        return jsonify(
+            {"message": "Custom risk created and activated", "risk_code": risk_code}
+        ), 201
 
     except Exception as e:
         logger.error(f"Error creating custom risk: {e}")
-        if 'conn' in locals() and conn:
+        if "conn" in locals() and conn:
             conn.rollback()
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
-@app.route('/health', methods=['GET'])
+@app.route("/health", methods=["GET"])
 def health_check():
     """Health check endpoint (no authentication required)"""
     try:
