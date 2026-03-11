@@ -245,12 +245,30 @@ class RiskProcessor:
                 f"No weather data for tenant '{tenant_id}' in last 24h, "
                 f"falling back to 'platform' weather"
             )
+            # Try with municipality first
             data = _query("platform", "48 hours")
             if data:
                 return data
 
+            # 3. Last resort: platform weather ignoring municipality
+            # If the specific municipality has no data, get the latest global platform data
+            if municipality_code:
+                logger.debug(
+                    f"No weather for municipality {municipality_code} in platform, "
+                    f"trying global platform fallback"
+                )
+                # Temporarily clear municipality_code to get any platform data
+                original_mc = municipality_code
+                municipality_code = None
+                data = _query(
+                    "platform", "72 hours"
+                )  # Wider window for global fallback
+                municipality_code = original_mc
+                if data:
+                    return data
+
         logger.warning(
-            f"No weather data found for tenant '{tenant_id}' (checked own + platform)"
+            f"No weather data found for tenant '{tenant_id}' (checked own + platform + global)"
         )
         return None
 
