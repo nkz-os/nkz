@@ -149,8 +149,9 @@ class RiskOrchestrator:
                 'Fiware-ServicePath': '/'
             }
             
-            # Prepare riskStatus attribute
+            # Prepare riskStatus attribute with required NGSI-LD @context
             update_payload = {
+                "@context": self.context_url or "https://nkz.robotika.cloud/ngsi-ld-context.json",
                 "riskStatus": {
                     "type": "Property",
                     "value": risk_status.get('severity', 'NORMAL').upper(),

@@ -1,5 +1,8 @@
 FROM python:3.11-alpine
 
+# Cache buster to force re-build after task-queue fix
+# Build ID: 2026-03-11-06-25
+
 WORKDIR /app
 
 # Install system dependencies
@@ -15,6 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy common modules
 COPY services/common /app/common
+COPY services/task-queue /app/task-queue
 
 # Copy application code
 COPY services/risk-api/*.py /app/
