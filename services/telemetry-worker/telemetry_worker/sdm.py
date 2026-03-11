@@ -211,6 +211,10 @@ async def _update_orion_entity(tenant_id: str, entity_id: str, updates: Dict[str
             'Fiware-ServicePath': '/'
         }
         
+        # Add required NGSI-LD @context to updates
+        if '@context' not in updates:
+            updates['@context'] = settings.context_url or "https://nkz.robotika.cloud/ngsi-ld-context.json"
+            
         # Use PATCH to update entity
         response = requests.patch(
             f'{orion_url}/ngsi-ld/v1/entities/{entity_id}/attrs',

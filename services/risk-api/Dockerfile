@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy common modules
 COPY services/common /app/common
+COPY services/task-queue /app/task-queue
 
 # Copy application code
 COPY services/risk-api/*.py /app/
