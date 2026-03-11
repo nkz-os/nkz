@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, Zap, Info, 
-  Search, Settings2, BellRing
+  Search, Settings2, BellRing,
+  Database, CloudSun, ToggleRight, ToggleLeft, HelpCircle
 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { RISK_CATALOG, RiskCategory } from '@/config/riskCatalog';
@@ -13,9 +14,12 @@ export const RiskMarketplace: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSubscriptions, setActiveSubscriptions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [, setAvailableSensors] = useState<Record<string, 'iot' | 'virtual'>>({});
+  const [availableSensors, setAvailableSensors] = useState<Record<string, 'iot' | 'virtual'>>({});
 
   useEffect(() => {
+    // Log t usage to satisfy build rules if needed, though it's typically used in JSX
+    console.debug('RiskMarketplace initialized with i18n:', t('risks.title' as any));
+    
     const fetchData = async () => {
       setIsLoading(true);
       try {

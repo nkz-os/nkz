@@ -130,7 +130,7 @@ const DynamicRoutes = () => {
           element={
             <AdminRoute>
               <Layout>
-                <AdminPanel />
+                <AdminManagement />
               </Layout>
             </AdminRoute>
           }
