@@ -9,7 +9,6 @@ import {
   Layers,
   Settings,
   Shield,
-  Bell,
   Package,
 } from 'lucide-react';
 import type { ComponentType } from 'react';

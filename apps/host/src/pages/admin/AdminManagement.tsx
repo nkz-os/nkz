@@ -371,8 +371,7 @@ export const AdminManagement: React.FC = () => {
               activeTab === `module-${module.id}` && (
                 <div key={`module-content-${module.id}`} className="p-6">
                   <SlotRenderer 
-                    slotName="admin-tab" 
-                    moduleId={module.id}
+                    slot="admin-tab" 
                   />
                 </div>
               )
