@@ -71,7 +71,6 @@ GEOSERVER_URL = os.getenv("GEOSERVER_URL", "http://geoserver-service:8080")
 TENANT_WEBHOOK_URL = os.getenv(
     "TENANT_WEBHOOK_URL", "http://tenant-webhook-service:8080"
 )
-NDVI_SERVICE_URL = os.getenv("NDVI_SERVICE_URL", "http://entity-manager-service:5000")
 ENTITY_MANAGER_URL = os.getenv(
     "ENTITY_MANAGER_URL", "http://entity-manager-service:5000"
 )
@@ -236,10 +235,12 @@ def inject_fiware_headers(headers, tenant=None):
 
 
 def get_request_token():
-    """Extract JWT token from Authorization header or httpOnly cookie (fallback)"""
+    """Extract JWT token from Authorization header or nkz_token cookie (fallback)"""
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         return auth_header.split(" ")[1]
+    
+    # Check cookie for browser requests
     return request.cookies.get("nkz_token")
 
 
@@ -1600,18 +1601,25 @@ def proxy_admin_requests(subpath):
 
     try:
         # Route logic:
-        # 1. audit-logs -> entity-manager
-        # 2. tenants/.../purge -> entity-manager (nuclear purge)
-        # 3. Everything else -> tenant-webhook
+        # A. TO ENTITY-MANAGER:
+        # 1. audit-logs
+        # 2. terms
+        # 3. tenant-limits
+        # 4. assets
+        # 5. purge requests
         
-        is_purge = subpath.endswith("/purge")
-        is_audit = subpath == "audit-logs" or subpath.startswith("audit-logs")
+        is_em_route = (
+            subpath.startswith("audit-logs") or 
+            subpath.startswith("terms") or 
+            subpath.startswith("tenant-limits") or 
+            subpath.startswith("assets") or
+            subpath.endswith("/purge")
+        )
         
-        if is_audit or is_purge:
+        if is_em_route:
             target_url = f"{ENTITY_MANAGER_URL}/api/admin/{subpath}"
         else:
-            # For tenant-webhook, some routes have /api/admin and some have /admin
-            # We'll try to be consistent and use /api/admin if it exists there
+            # B. TO TENANT-WEBHOOK (Default for activations, api-keys, tenants list, credentials)
             target_url = f"{TENANT_WEBHOOK_URL}/api/admin/{subpath}"
 
         # Forward request

@@ -382,6 +382,16 @@ def verify_hmac_signature(signature_header: str, token: str, tenant_id: str) -> 
         return False
 
 
+def get_request_token():
+    """Extract token from Authorization header or nkz_token cookie (fallback)."""
+    auth_header = request.headers.get('Authorization')
+    if auth_header and auth_header.startswith('Bearer '):
+        return auth_header.split(' ')[1]
+    
+    # Fallback to cookie for browser requests (centralized auth)
+    return request.cookies.get('nkz_token')
+
+
 def require_keycloak_auth(f):
     """
     Decorator to require Keycloak authentication
@@ -563,6 +573,7 @@ __all__ = [
     'TokenValidationError',
     'validate_keycloak_token',
     'extract_tenant_id',
+    'get_request_token',
     'require_keycloak_auth',
     'get_current_user',
     'get_current_tenant',
