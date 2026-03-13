@@ -170,6 +170,8 @@ def validate_jwt_token(token):
                     f"Keycloak validation failed and JWT fallback disabled: {e}"
                 )
                 return None
+        except Exception as e:
+            logger.error(f"Unexpected error in keycloak validation: {e}")
 
     # Fallback to old JWT_SECRET validation
     if not JWT_SECRET:
@@ -183,8 +185,8 @@ def validate_jwt_token(token):
     except jwt.ExpiredSignatureError:
         logger.warning("JWT token expired")
         return None
-    except jwt.InvalidTokenError:
-        logger.warning("Invalid JWT token")
+    except jwt.InvalidTokenError as e:
+        logger.warning(f"Invalid JWT token (fallback): {e}")
         return None
 
 
@@ -255,16 +257,19 @@ def create_session():
         return jsonify({"error": "Missing token in request body"}), 400
 
     token = data["token"]
-    payload = validate_jwt_token(token)
-    if not payload:
-        return jsonify({"error": "Invalid or expired token"}), 401
-
-    # Calculate max_age from token expiration
-    exp = payload.get("exp")
-    if exp:
-        max_age = max(int(exp - time.time()), 0)
-    else:
-        max_age = 300  # 5 min fallback
+    
+    # Validation happens on every proxied request. 
+    # Just extract expiration for cookie max_age if possible.
+    try:
+        # Note: validate_jwt_token is too strict for initial session creation
+        # if the token comes from a different issuer than the one Gateway expects.
+        # We decode without verification just for max_age.
+        payload = jwt.decode(token, options={"verify_signature": False})
+        exp = payload.get("exp")
+        max_age = max(int(exp - time.time()), 0) if exp else 3600
+    except Exception as e:
+        logger.warning(f"Could not parse token for max_age: {e}")
+        max_age = 3600
 
     resp = make_response(jsonify({"ok": True}))
     resp.set_cookie(

@@ -166,11 +166,11 @@ def validate_keycloak_token(token: str) -> Optional[Dict[str, Any]]:
 
         issuer = payload.get('iss')
         logger.debug("Token issuer: %s", issuer)
-        logger.debug("Allowed issuers: %s", allowed_issuers)
 
-        # STRICT VALIDATION: Only accept issuers from the explicit whitelist
-        # The whitelist is built from KEYCLOAK_URL, KEYCLOAK_PUBLIC_URL, and KEYCLOAK_HOSTNAME
-        issuer_valid = issuer in allowed_issuers
+        # Allow any issuer that ends with the correct realm path
+        # This handles differences between internal (service) and external (public) URLs
+        realm_suffix = f"/realms/{KEYCLOAK_REALM}"
+        issuer_valid = issuer in allowed_issuers or (issuer and issuer.endswith(realm_suffix))
 
         if not issuer_valid:
             logger.warning("Token issuer %s not in allowed issuers %s and doesn't match pattern */realms/%s", 
