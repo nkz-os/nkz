@@ -1488,6 +1488,44 @@ def save_aemet_credentials():
         return jsonify({"error": "Internal server error"}), 500
 
 
+@app.route("/api/assets/<path:subpath>", methods=["GET", "POST", "DELETE", "OPTIONS"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def proxy_assets_requests(subpath):
+    """Proxy asset management requests to entity-manager"""
+    if request.method == "OPTIONS":
+        return "", 204
+
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing authorization"}), 401
+
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid token"}), 401
+
+    target_url = f"{ENTITY_MANAGER_URL}/api/assets/{subpath}"
+    headers = {"Authorization": f"Bearer {token}"}
+
+    try:
+        if request.method == "GET":
+            response = requests.get(target_url, headers=headers, params=request.args, timeout=10)
+        elif request.method == "POST":
+            # Handle multipart upload if present
+            if "multipart/form-data" in request.content_type:
+                response = requests.post(target_url, headers=headers, data=request.data, files=request.files, timeout=30)
+            else:
+                response = requests.post(target_url, headers=headers, json=request.get_json(silent=True), timeout=30)
+        elif request.method == "DELETE":
+            response = requests.delete(target_url, headers=headers, timeout=10)
+        else:
+            return jsonify({"error": "Method not supported"}), 405
+
+        return (response.content, response.status_code, response.headers.items())
+    except Exception as e:
+        logger.error(f"Error proxying asset request: {e}")
+        return jsonify({"error": "Internal service connection error"}), 502
+
+
 @app.route("/api/tenant/<path:subpath>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 def proxy_tenant_requests(subpath):
