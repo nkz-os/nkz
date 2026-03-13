@@ -7,7 +7,7 @@ protected endpoints.  All external dependencies are mocked.
 
 import os
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -43,15 +43,23 @@ def api_client(monkeypatch):
     monkeypatch.setenv("KEYCLOAK_REALM", "nekazari")
     monkeypatch.setenv("TRUST_API_GATEWAY", "false")
     monkeypatch.setenv("ALLOW_JWT_FALLBACK", "false")
+    monkeypatch.setenv("POSTGRES_URL", "postgresql://user:pass@localhost:5432/db")
+
+    # Mock psycopg2 before import
+    mock_psycopg2 = MagicMock()
+    sys.modules["psycopg2"] = mock_psycopg2
+    sys.modules["psycopg2.extras"] = MagicMock()
 
     import importlib
 
     # Reload keycloak_auth first so it picks up the mocked env vars
     import keycloak_auth
+
     importlib.reload(keycloak_auth)
 
     # Now import (or reload) the gateway module
     import fiware_api_gateway as gw
+
     importlib.reload(gw)
 
     return gw.app.test_client()
