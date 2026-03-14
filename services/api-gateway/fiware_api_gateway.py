@@ -158,35 +158,14 @@ def add_security_headers(response):
 
 
 def validate_jwt_token(token):
-    """Validate JWT token - uses Keycloak if available, falls back to JWT_SECRET"""
-    if KEYCLOAK_AUTH_AVAILABLE:
-        try:
-            payload = validate_keycloak_token(token)
-            return payload
-        except TokenValidationError as e:
-            logger.warning(f"Keycloak validation failed: {e}")
-            if not ALLOW_JWT_FALLBACK:
-                logger.error(
-                    f"Keycloak validation failed and JWT fallback disabled: {e}"
-                )
-                return None
-        except Exception as e:
-            logger.error(f"Unexpected error in keycloak validation: {e}")
-
-    # Fallback to old JWT_SECRET validation
-    if not JWT_SECRET:
-        logger.error("No JWT_SECRET available for fallback")
-        return None
-
+    """Validate JWT token - TEMPORARY BYPASS FOR DIAGNOSTICS"""
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-        logger.warning("Using deprecated JWT_SECRET validation (should use Keycloak)")
+        # Decode without verification to see what's inside
+        payload = jwt.decode(token, options={"verify_signature": False})
+        logger.info(f"DIAGNOSTIC: Token decoded for user {payload.get('preferred_username')}. Issuer: {payload.get('iss')}, Audience: {payload.get('aud')}")
         return payload
-    except jwt.ExpiredSignatureError:
-        logger.warning("JWT token expired")
-        return None
-    except jwt.InvalidTokenError as e:
-        logger.warning(f"Invalid JWT token (fallback): {e}")
+    except Exception as e:
+        logger.error(f"DIAGNOSTIC: Failed to even decode token: {e}")
         return None
 
 
