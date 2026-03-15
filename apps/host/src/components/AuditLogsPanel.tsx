@@ -46,6 +46,7 @@ interface AuditLogsResponse {
     pages: number;
   };
   filters: Record<string, string | null>;
+  _meta?: { table_exists?: boolean };
 }
 
 export const AuditLogsPanel: React.FC = () => {
@@ -53,6 +54,7 @@ export const AuditLogsPanel: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tableExists, setTableExists] = useState<boolean>(true);
   const [pagination, setPagination] = useState({
     page: 1,
     per_page: 50,
@@ -89,8 +91,9 @@ export const AuditLogsPanel: React.FC = () => {
 
       const response = await api.get(`/api/admin/audit-logs?${params.toString()}`);
       const data = response.data as AuditLogsResponse;
-      setLogs(data.logs);
-      setPagination(data.pagination);
+      setLogs(data.logs ?? []);
+      setPagination(data.pagination ?? { page: 1, per_page: 50, total: 0, pages: 0 });
+      setTableExists(data._meta?.table_exists !== false);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load audit logs');
       console.error('Error loading audit logs:', err);
@@ -332,7 +335,14 @@ export const AuditLogsPanel: React.FC = () => {
           </div>
         ) : logs.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            No hay logs disponibles
+            {!tableExists ? (
+              <>
+                <p className="font-medium mb-1">Tabla de auditoría no creada</p>
+                <p className="text-sm">Ejecute la migración <code className="bg-gray-100 px-1 rounded">036_create_sys_audit_logs.sql</code> en la base de datos para habilitar los logs.</p>
+              </>
+            ) : (
+              'No hay registros de auditoría aún.'
+            )}
           </div>
         ) : (
           <>

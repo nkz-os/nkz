@@ -379,6 +379,7 @@ export const AdminManagement: React.FC = () => {
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Código NEK</th>
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Email Destino</th>
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Plan Pre-asig</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Estado</th>
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Expiración</th>
                     <th className="px-6 py-4 font-semibold text-gray-700 text-sm text-right">Acciones</th>
                   </tr>
@@ -390,6 +391,11 @@ export const AdminManagement: React.FC = () => {
                       <td className="px-6 py-4 text-sm text-gray-500">{activation.email}</td>
                       <td className="px-6 py-4">
                         <span className="text-xs font-bold uppercase text-blue-600">{activation.plan}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`text-xs font-medium px-2 py-1 rounded ${activation.status === 'active' ? 'bg-green-100 text-green-800' : activation.status === 'revoked' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700'}`}>
+                          {activation.status === 'active' ? 'Usado' : activation.status === 'revoked' ? 'Revocado' : 'Pendiente'}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {format(new Date(activation.expires_at), 'dd/MM/yyyy')}

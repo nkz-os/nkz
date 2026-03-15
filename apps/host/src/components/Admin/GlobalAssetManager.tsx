@@ -35,9 +35,9 @@ export const GlobalAssetManager: React.FC = () => {
             // Assuming api.get handles auth headers
             const response = await api.get('/api/assets/public');
             setAssets(response.data.assets || []);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to load assets:', err);
-            setError('Failed to load public assets.');
+            setError(err.response?.data?.error || 'Failed to load public assets.');
         } finally {
             setLoading(false);
         }

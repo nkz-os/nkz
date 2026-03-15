@@ -4934,41 +4934,35 @@ def get_weather_alerts():
 
 @app.route('/api/admin/terms/<language>', methods=['GET'])
 def get_terms(language):
-    """Get terms and conditions for a specific language (public endpoint for registration)"""
+    """Get terms and conditions for a specific language (public endpoint for registration). Returns 200 with empty content on DB error or missing table."""
     try:
-        # Allow read access without authentication (needed for registration page)
         conn = get_db_connection_simple()
         if not conn:
-            return jsonify({'error': 'Database connection failed'}), 500
-        
+            return jsonify({'content': '', 'last_updated': None, 'language': language}), 200
+
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            
             cur.execute("""
-                SELECT content, last_updated, language 
-                FROM terms_and_conditions 
-                WHERE language = %s 
-                ORDER BY last_updated DESC 
+                SELECT content, last_updated, language
+                FROM terms_and_conditions
+                WHERE language = %s
+                ORDER BY last_updated DESC
                 LIMIT 1
             """, (language,))
-            
             result = cur.fetchone()
             cur.close()
-            
             if result:
                 return jsonify({
                     'content': result['content'],
                     'last_updated': result['last_updated'].isoformat() if result['last_updated'] else None,
                     'language': result['language']
                 }), 200
-            else:
-                return jsonify({'error': 'Terms not found'}), 404
+            return jsonify({'content': '', 'last_updated': None, 'language': language}), 200
         finally:
             return_db_connection(conn)
-            
     except Exception as e:
-        logger.error(f"Error getting terms: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.warning(f"Error getting terms (returning empty): {e}")
+        return jsonify({'content': '', 'last_updated': None, 'language': language}), 200
 
 
 @app.route('/api/admin/terms/<language>', methods=['POST'])
@@ -5321,7 +5315,6 @@ def authorize_upload():
 
 ASSETS_BUCKET = os.getenv('ASSETS_BUCKET', 'assets-3d')
 PUBLIC_ASSETS_PREFIX = 'public'
-PUBLIC_ASSETS_PREFIX = 'public'
 ASSETS_URL_EXPIRATION = int(os.getenv('ASSETS_URL_EXPIRATION', '86400'))  # 24 hours default
 
 def get_assets_s3_client():
@@ -5569,17 +5562,19 @@ def list_public_assets():
     List GLOBAL/PUBLIC assets from MinIO assets-3d bucket.
     """
     try:
+        s3_client = get_assets_s3_client()
         if not s3_client:
             return jsonify({'error': 'Asset storage not configured'}), 503
 
-        # List objects in assets-3d bucket
         try:
-            response = s3_client.list_objects_v2(Bucket=ASSETS_BUCKET)
+            response = s3_client.list_objects_v2(
+                Bucket=ASSETS_BUCKET,
+                Prefix=PUBLIC_ASSETS_PREFIX + '/',
+            )
             assets = []
             if 'Contents' in response:
                 for obj in response['Contents']:
                     filename = obj['Key']
-                    # Only include relevant 3D models and images
                     if any(filename.lower().endswith(ext) for ext in ['.glb', '.gltf', '.png', '.jpg', '.jpeg']):
                         assets.append({
                             'id': filename,
@@ -5588,7 +5583,6 @@ def list_public_assets():
                             'size': obj['Size'],
                             'last_modified': obj['LastModified'].isoformat()
                         })
-            
             return jsonify({'assets': assets}), 200
         except ClientError as e:
             logger.error(f"Failed to list public assets: {e}")
@@ -7479,7 +7473,6 @@ def get_audit_logs():
             table_exists = cursor.fetchone()['exists']
             
             if not table_exists:
-                # Table doesn't exist, return empty result
                 logger.warning("sys_audit_logs table does not exist, returning empty audit logs")
                 cursor.close()
                 return jsonify({
@@ -7498,7 +7491,8 @@ def get_audit_logs():
                         'event_type': filter_event_type,
                         'date_from': date_from,
                         'date_to': date_to,
-                    }
+                    },
+                    '_meta': {'table_exists': False},
                 }), 200
             
             # Build WHERE clause
@@ -7581,9 +7575,10 @@ def get_audit_logs():
                 'event_type': filter_event_type,
                 'date_from': date_from,
                 'date_to': date_to,
-            }
+            },
+            '_meta': {'table_exists': True},
         }), 200
-        
+
     except Exception as e:
         logger.error(f"Error fetching audit logs: {e}")
         import traceback

@@ -671,47 +671,19 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
           return; // Salir - no procesar más
         }
 
-        logger.debug('[Auth] 🔴 ERROR=LOGIN_REQUIRED detectado en mount - redirigiendo INMEDIATAMENTE');
+        logger.debug('[Auth] 🔴 ERROR=LOGIN_REQUIRED detectado - redirigiendo a login (evitar bucle)');
 
-        // Marcar este error como procesado
         errorProcessedRef.current = errorHash;
-
-        // Limpiar hash INMEDIATAMENTE
         window.history.replaceState({}, document.title, window.location.pathname);
 
-        // Inicializar Keycloak y redirigir
-        const config = getConfig();
-        const kc = new Keycloak({
-          url: config.keycloak.url,
-          realm: config.keycloak.realm,
-          clientId: config.keycloak.clientId,
-        });
-
-        setKeycloak(kc);
-
-        // Inicializar y redirigir inmediatamente
-        kc.init({
-          onLoad: 'check-sso',
-          pkceMethod: 'S256',
-          checkLoginIframe: false,
-          enableLogging: true,
-        }).then(() => {
-          logger.debug('[Auth] Keycloak inicializado, redirigiendo con prompt=login');
-          kc.login({
-            prompt: 'login',
-            redirectUri: `${window.location.origin}/dashboard`
-          }).catch(err => {
-            logger.error('[Auth] Error en redirect:', err);
-            setIsLoading(false);
-            errorProcessedRef.current = null; // Reset si falla
-          });
-        }).catch(err => {
-          logger.error('[Auth] Error inicializando Keycloak:', err);
-          setIsLoading(false);
-          errorProcessedRef.current = null; // Reset si falla
-        });
-
-        return; // Salir - no procesar más
+        // Redirect to login with session_expired flag instead of calling kc.login() again
+        // (avoids loop when Keycloak returns login_required again)
+        const loginPath = '/login';
+        const params = new URLSearchParams(window.location.search);
+        params.set('session_expired', '1');
+        window.location.replace(`${window.location.origin}${loginPath}?${params.toString()}`);
+        setIsLoading(false);
+        return;
       }
     }
 
