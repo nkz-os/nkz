@@ -68,16 +68,10 @@ if not CONTEXT_URL:
     raise ValueError("CONTEXT_URL environment variable is required")
 
 GEOSERVER_URL = os.getenv("GEOSERVER_URL", "http://geoserver-service:8080")
-TENANT_WEBHOOK_URL = os.getenv(
-    "TENANT_WEBHOOK_URL", "http://tenant-webhook:8080"
-)
-ENTITY_MANAGER_URL = os.getenv(
-    "ENTITY_MANAGER_URL", "http://entity-manager:5000"
-)
+TENANT_WEBHOOK_URL = os.getenv("TENANT_WEBHOOK_URL", "http://tenant-webhook:8080")
+ENTITY_MANAGER_URL = os.getenv("ENTITY_MANAGER_URL", "http://entity-manager:5000")
 NDVI_SERVICE_URL = os.getenv("NDVI_SERVICE_URL", "http://entity-manager:5000")
-TENANT_USER_API_URL = os.getenv(
-    "TENANT_USER_API_URL", "http://tenant-user-api:5000"
-)
+TENANT_USER_API_URL = os.getenv("TENANT_USER_API_URL", "http://tenant-user-api:5000")
 CADASTRAL_API_URL = os.getenv("CADASTRAL_API_URL", "http://cadastral-api-service:5000")
 VEGETATION_API_URL = os.getenv(
     "VEGETATION_API_URL", "http://vegetation-prime-api-service:8000"
@@ -242,7 +236,7 @@ def get_request_token():
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         return auth_header.split(" ")[1]
-    
+
     # Check cookie for browser requests
     return request.cookies.get("nkz_token")
 
@@ -259,7 +253,7 @@ def create_session():
         return jsonify({"error": "Missing token in request body"}), 400
 
     token = data["token"]
-    
+
     # STRICT VALIDATION: Restore JWKS signature and issuer check
     payload = validate_jwt_token(token)
     if not payload:
@@ -276,7 +270,7 @@ def create_session():
         token,
         httponly=True,
         secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
-        samesite="Strict", # Standard SOTA for BFF session cookies
+        samesite="Strict",  # Standard SOTA for BFF session cookies
         domain=COOKIE_DOMAIN or None,
         path="/",
         max_age=max_age,
@@ -1508,13 +1502,26 @@ def proxy_assets_requests(subpath):
 
     try:
         if request.method == "GET":
-            response = requests.get(target_url, headers=headers, params=request.args, timeout=10)
+            response = requests.get(
+                target_url, headers=headers, params=request.args, timeout=10
+            )
         elif request.method == "POST":
             # Handle multipart upload if present
             if "multipart/form-data" in request.content_type:
-                response = requests.post(target_url, headers=headers, data=request.data, files=request.files, timeout=30)
+                response = requests.post(
+                    target_url,
+                    headers=headers,
+                    data=request.data,
+                    files=request.files,
+                    timeout=30,
+                )
             else:
-                response = requests.post(target_url, headers=headers, json=request.get_json(silent=True), timeout=30)
+                response = requests.post(
+                    target_url,
+                    headers=headers,
+                    json=request.get_json(silent=True),
+                    timeout=30,
+                )
         elif request.method == "DELETE":
             response = requests.delete(target_url, headers=headers, timeout=10)
         else:
@@ -1526,7 +1533,10 @@ def proxy_assets_requests(subpath):
         return jsonify({"error": "Internal service connection error"}), 502
 
 
-@app.route("/api/tenant/<path:subpath>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+@app.route(
+    "/api/tenant/<path:subpath>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 def proxy_tenant_requests(subpath):
     """Proxy tenant requests to tenant-user-api or tenant-webhook"""
@@ -1557,21 +1567,43 @@ def proxy_tenant_requests(subpath):
         "Authorization": f"Bearer {token}",
         "Content-Type": request.content_type or "application/json",
     }
-    
+
     # Forward query parameters
     params = dict(request.args)
 
     try:
         if request.method == "GET":
-            response = requests.get(target_url, headers=headers, params=params, timeout=10)
+            response = requests.get(
+                target_url, headers=headers, params=params, timeout=10
+            )
         elif request.method == "POST":
-            response = requests.post(target_url, headers=headers, params=params, json=request.get_json(silent=True), timeout=10)
+            response = requests.post(
+                target_url,
+                headers=headers,
+                params=params,
+                json=request.get_json(silent=True),
+                timeout=10,
+            )
         elif request.method == "PUT":
-            response = requests.put(target_url, headers=headers, params=params, json=request.get_json(silent=True), timeout=10)
+            response = requests.put(
+                target_url,
+                headers=headers,
+                params=params,
+                json=request.get_json(silent=True),
+                timeout=10,
+            )
         elif request.method == "PATCH":
-            response = requests.patch(target_url, headers=headers, params=params, json=request.get_json(silent=True), timeout=10)
+            response = requests.patch(
+                target_url,
+                headers=headers,
+                params=params,
+                json=request.get_json(silent=True),
+                timeout=10,
+            )
         elif request.method == "DELETE":
-            response = requests.delete(target_url, headers=headers, params=params, timeout=10)
+            response = requests.delete(
+                target_url, headers=headers, params=params, timeout=10
+            )
         else:
             return jsonify({"error": f"Method {request.method} not supported"}), 405
 
@@ -1614,8 +1646,6 @@ def proxy_admin_requests(subpath):
         "tenant-usage": ENTITY_MANAGER_URL,
         "assets": ENTITY_MANAGER_URL,
         "parcels": ENTITY_MANAGER_URL,
-        "assets": ENTITY_MANAGER_URL, # Ensure /api/admin/assets goes to EM
-        
         # TENANT-WEBHOOK: Marketplace, Tenants, Activations, Limits, and Codes
         "tenants": TENANT_WEBHOOK_URL,
         "activations": TENANT_WEBHOOK_URL,
@@ -1625,9 +1655,9 @@ def proxy_admin_requests(subpath):
         "platform-credentials": TENANT_WEBHOOK_URL,
     }
 
-    path_parts = subpath.split('/')
+    path_parts = subpath.split("/")
     route_key = path_parts[0]
-    
+
     # Special case: nuclear purge (tenants/ID/purge)
     if route_key == "tenants" and len(path_parts) > 2 and path_parts[2] == "purge":
         target_base_url = ENTITY_MANAGER_URL
@@ -1645,10 +1675,14 @@ def proxy_admin_requests(subpath):
             "Authorization": f"Bearer {token}",
             "Content-Type": request.content_type or "application/json",
         }
-        
+
         method = request.method
         params = dict(request.args)
-        json_data = request.get_json(silent=True) if method in ["POST", "PUT", "PATCH"] else None
+        json_data = (
+            request.get_json(silent=True)
+            if method in ["POST", "PUT", "PATCH"]
+            else None
+        )
 
         response = requests.request(
             method=method,
@@ -1656,7 +1690,7 @@ def proxy_admin_requests(subpath):
             headers=headers,
             params=params,
             json=json_data,
-            timeout=30
+            timeout=30,
         )
 
         return (response.content, response.status_code, response.headers.items())

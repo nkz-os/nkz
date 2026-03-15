@@ -4934,41 +4934,35 @@ def get_weather_alerts():
 
 @app.route('/api/admin/terms/<language>', methods=['GET'])
 def get_terms(language):
-    """Get terms and conditions for a specific language (public endpoint for registration)"""
+    """Get terms and conditions for a specific language (public endpoint for registration). Returns 200 with empty content on DB error or missing table."""
     try:
-        # Allow read access without authentication (needed for registration page)
         conn = get_db_connection_simple()
         if not conn:
-            return jsonify({'error': 'Database connection failed'}), 500
-        
+            return jsonify({'content': '', 'last_updated': None, 'language': language}), 200
+
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            
             cur.execute("""
-                SELECT content, last_updated, language 
-                FROM terms_and_conditions 
-                WHERE language = %s 
-                ORDER BY last_updated DESC 
+                SELECT content, last_updated, language
+                FROM terms_and_conditions
+                WHERE language = %s
+                ORDER BY last_updated DESC
                 LIMIT 1
             """, (language,))
-            
             result = cur.fetchone()
             cur.close()
-            
             if result:
                 return jsonify({
                     'content': result['content'],
                     'last_updated': result['last_updated'].isoformat() if result['last_updated'] else None,
                     'language': result['language']
                 }), 200
-            else:
-                return jsonify({'error': 'Terms not found'}), 404
+            return jsonify({'content': '', 'last_updated': None, 'language': language}), 200
         finally:
             return_db_connection(conn)
-            
     except Exception as e:
-        logger.error(f"Error getting terms: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.warning(f"Error getting terms (returning empty): {e}")
+        return jsonify({'content': '', 'last_updated': None, 'language': language}), 200
 
 
 @app.route('/api/admin/terms/<language>', methods=['POST'])
