@@ -21,14 +21,6 @@ export const ModuleVisibilitySettings: React.FC = () => {
   const { hasAnyRole } = useAuth();
   const { t } = useI18n();
 
-  const isTenantAdmin = hasAnyRole(['TenantAdmin']);
-  const isPlatformAdmin = hasAnyRole(['PlatformAdmin']);
-
-  // Only TenantAdmin or PlatformAdmin can see this card
-  if (!isTenantAdmin && !isPlatformAdmin) {
-    return null;
-  }
-
   const [modules, setModules] = useState<MarketplaceModule[]>([]);
   const [rules, setRules] = useState<VisibilityRules>({});
   const [loading, setLoading] = useState(false);
@@ -80,6 +72,14 @@ export const ModuleVisibilitySettings: React.FC = () => {
 
     void load();
   }, []);
+
+  const isTenantAdmin = hasAnyRole(['TenantAdmin']);
+  const isPlatformAdmin = hasAnyRole(['PlatformAdmin']);
+
+  // Only TenantAdmin or PlatformAdmin can see this card
+  if (!isTenantAdmin && !isPlatformAdmin) {
+    return null;
+  }
 
   const toggleRoleVisibility = (moduleId: string, role: string) => {
     setRules((prev) => {
