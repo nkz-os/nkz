@@ -1,0 +1,120 @@
+# =============================================================================
+# AgriEnergy Orchestrator - Production Deployment
+# =============================================================================
+# Deployed from: https://github.com/k8-benetis/nkz-module-agrienergy
+# Image: ghcr.io/k8-benetis/nkz-module-agrienergy/agrienergy-backend:main
+# =============================================================================
+
+---
+# Deployment: AgriEnergy Orchestrator Backend Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agrienergy-backend
+  namespace: nekazari
+  labels:
+    app: agrienergy-backend
+    component: backend
+    module: agrienergy
+    nekazari.io/profile: addon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agrienergy-backend
+  template:
+    metadata:
+      labels:
+        app: agrienergy-backend
+        component: backend
+        module: agrienergy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      # No imagePullSecrets: public GHCR images pull anonymously
+      containers:
+        - name: backend
+          image: ghcr.io/k8-benetis/nkz-module-agrienergy/agrienergy-backend:main
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: APP_NAME
+              value: "AgriEnergy Orchestrator"
+            - name: DEBUG
+              value: "false"
+            - name: API_PREFIX
+              value: "/api/agrienergy"
+            # CORS — explicit origin whitelist (never *)
+            - name: CORS_ORIGINS
+              value: '["https://nekazari.robotika.cloud"]'
+            # Keycloak Configuration
+            - name: KEYCLOAK_URL
+              value: "https://auth.robotika.cloud/auth"
+            - name: KEYCLOAK_REALM
+              value: "nekazari"
+            - name: JWT_AUDIENCE
+              value: "account"
+            # Orion-LD URL for creating entities (e.g. AgriSolarPark)
+            - name: CONTEXT_BROKER_URL
+              value: "http://orion-ld-service:1026/ngsi-ld/v1"
+            # Service-to-service auth (optional)
+            - name: MODULE_MANAGEMENT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: module-secrets
+                  key: management-key
+                  optional: true
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+
+---
+# Service: AgriEnergy Orchestrator Backend API
+apiVersion: v1
+kind: Service
+metadata:
+  name: agrienergy-api-service
+  namespace: nekazari
+  labels:
+    app: agrienergy-backend
+    module: agrienergy
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: agrienergy-backend
