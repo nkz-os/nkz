@@ -158,6 +158,7 @@ interface ModuleContextType {
   refresh: () => Promise<void>;
   getModuleById: (id: string) => ModuleDefinition | undefined;
   getModuleByRoute: (path: string) => ModuleDefinition | undefined;
+  visibilityRules: Record<string, { hiddenRoles: string[] }>;
 }
 
 const ModuleContext = createContext<ModuleContextType | undefined>(undefined);
@@ -177,6 +178,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   const [modules, setModules] = useState<ModuleDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+   const [visibilityRules, setVisibilityRules] = useState<Record<string, { hiddenRoles: string[] }>>({});
 
   const loadModules = useCallback(async () => {
     if (!isAuthenticated || !tenantId) {
@@ -215,6 +217,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
 
       // Load remote modules from backend
       let remoteModules: ModuleDefinition[] = [];
+      let visibility: Record<string, { hiddenRoles: string[] }> = {};
       try {
         const client = new NekazariClient({
           baseUrl: effectiveApiBaseUrl,
@@ -223,6 +226,24 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         });
         const data = await client.get<ModuleDefinition[]>('/api/modules/me');
         remoteModules = Array.isArray(data) ? data : [];
+        // Load tenant-specific visibility rules (UI only)
+        try {
+          const visibilityResponse = await client.get<Record<string, { hiddenRoles?: string[] }>>(
+            '/api/modules/visibility'
+          );
+          if (visibilityResponse && typeof visibilityResponse === 'object') {
+            const normalised: Record<string, { hiddenRoles: string[] }> = {};
+            Object.entries(visibilityResponse).forEach(([moduleId, cfg]) => {
+              if (!moduleId || !cfg) return;
+              const rawHidden = Array.isArray(cfg.hiddenRoles) ? cfg.hiddenRoles : [];
+              normalised[moduleId] = { hiddenRoles: rawHidden.filter((r): r is string => typeof r === 'string') };
+            });
+            visibility = normalised;
+          }
+        } catch (visibilityError) {
+          // Visibility is an optional enhancement; log and continue on failure
+          console.warn('[ModuleContext] Failed to load module visibility rules:', visibilityError);
+        }
       } catch (remoteError) {
         console.warn('[ModuleContext] Failed to load remote modules:', remoteError);
       }
@@ -340,6 +361,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         m => !m.remoteEntry || !scriptLoadFailedIds.has(m.id)
       );
       setModules(finalModules);
+      setVisibilityRules(visibility);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load modules');
       console.error('[ModuleContext] Error loading modules:', error);
@@ -370,6 +392,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     refresh: loadModules,
     getModuleById,
     getModuleByRoute,
+    visibilityRules,
   };
 
   return (

@@ -50,7 +50,7 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
 
 export const Navigation: React.FC = () => {
   const { user, logout } = useAuth();
-  const { modules } = useModules();
+  const { modules, visibilityRules } = useModules();
   const { t } = useTranslation(['common', 'navigation']);
   const navigate = useNavigate();
   const location = useLocation();
@@ -76,6 +76,17 @@ export const Navigation: React.FC = () => {
 
   // Safe modules array
   const safeModules = Array.isArray(modules) ? modules.filter(m => m?.id && m?.routePath) : [];
+
+  // Apply tenant-specific visibility rules (UI only)
+  const visibleModules = safeModules.filter((module) => {
+    const rules = visibilityRules?.[module.id];
+    const hiddenRoles = rules?.hiddenRoles || [];
+    if (!hiddenRoles.length || !Array.isArray(userRoles) || !userRoles.length) {
+      return true;
+    }
+    // If any of the user's roles is in hiddenRoles, hide the module
+    return !userRoles.some((role) => hiddenRoles.includes(role));
+  });
 
   // --- Interaction Handlers ---
 
@@ -186,7 +197,7 @@ export const Navigation: React.FC = () => {
                   </div>
 
                   {/* Column 2: Módulos - all modules, scrollable when many */}
-                  {safeModules.length > 0 && (
+                  {visibleModules.length > 0 && (
                     <div className="flex flex-col py-2 border-r border-gray-100 dark:border-gray-700/50 min-w-[180px] max-w-[240px]">
                       <div className="px-4 py-1 flex-shrink-0">
                         <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
@@ -194,7 +205,7 @@ export const Navigation: React.FC = () => {
                         </span>
                       </div>
                       <div className="overflow-y-auto overflow-x-hidden py-1 max-h-[min(60vh,320px)]" style={{ minHeight: '80px' }}>
-                        {safeModules.map((module) => {
+                        {visibleModules.map((module) => {
                           const Icon = moduleIconMap[module.icon || 'default'] || Puzzle;
                           const active = isActive(module.routePath);
                           const emoji = module.metadata?.icon;

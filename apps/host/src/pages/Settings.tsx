@@ -9,6 +9,7 @@ import { useI18n } from '@/context/I18nContext';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ExternalApiCredentials } from '@/components/ExternalApiCredentials';
 import { TenantUsersManagement } from '@/components/TenantUsersManagement';
+import { ModuleVisibilitySettings } from '@/components/ModuleVisibilitySettings';
 import { RiskAlertSubscriptions } from '@/components/RiskAlertSubscriptions';
 import { RiskWebhooksPanel } from '@/components/RiskWebhooksPanel';
 import api from '@/services/api';
@@ -22,6 +23,7 @@ export const Settings: React.FC = () => {
   const canManageUsers = hasAnyRole(['PlatformAdmin', 'TenantAdmin']);
   const isReadOnly = hasAnyRole(['TechnicalConsultant']) && !canModifySettings;
   const canViewRisks = hasAnyRole(['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant']);
+  const canManageModuleVisibility = hasAnyRole(['PlatformAdmin', 'TenantAdmin']);
 
   const [copiedTenantId, setCopiedTenantId] = useState(false);
 
@@ -232,6 +234,13 @@ export const Settings: React.FC = () => {
         {canManageUsers && (
           <div className="mb-6">
             <TenantUsersManagement canManageUsers={canManageUsers} />
+          </div>
+        )}
+
+        {/* Module visibility by role (tenant-specific) */}
+        {canManageModuleVisibility && (
+          <div className="mb-6">
+            <ModuleVisibilitySettings />
           </div>
         )}
 
