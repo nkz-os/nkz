@@ -13,7 +13,7 @@ import secrets
 import subprocess
 from math import cos, radians
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Mapping
 from urllib.parse import quote
 
 from psycopg2.extras import RealDictCursor
@@ -153,6 +153,13 @@ except ImportError:
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple, return_db_connection, set_platform_admin_context
 from task_queue import enqueue_task, TaskType
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+
+
+# =============================================================================
+# Helper types
+# =============================================================================
+
+VisibilityRules = Mapping[str, Dict[str, List[str]]]
 
 app = Flask(__name__)
 
@@ -6464,6 +6471,164 @@ def can_install_module(module_id):
         import traceback
         logger.error(traceback.format_exc())
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
+
+# =============================================================================
+# Tenant module visibility (UI-only, per-tenant)
+# =============================================================================
+
+
+def _get_tenant_module_visibility(tenant_id: str) -> Dict[str, Dict[str, List[str]]]:
+    """Return visibility rules for a tenant.
+
+    Structure:
+      { "<module_id>": { "hiddenRoles": ["Farmer", ...] } }
+
+    If the auxiliary table doesn't exist yet, returns an empty mapping so that
+    the feature is effectively disabled without breaking the service.
+    """
+    if not tenant_id:
+        return {}
+
+    try:
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT module_id, hidden_roles
+                FROM tenant_module_visibility
+                WHERE tenant_id = %s
+                """,
+                (tenant_id,),
+            )
+            rows = cur.fetchall()
+            cur.close()
+    except Exception as exc:
+        # Fail-safe when the table is not present yet (no migration applied)
+        msg = str(exc)
+        if 'tenant_module_visibility' in msg or 'relation "tenant_module_visibility"' in msg:
+            logger.warning(
+                "[tenant_visibility] tenant_module_visibility table not found, "
+                "returning empty visibility rules"
+            )
+            return {}
+        logger.error(f"[tenant_visibility] Unexpected error fetching visibility rules: {exc}")
+        return {}
+
+    rules: Dict[str, Dict[str, List[str]]] = {}
+    for row in rows:
+        module_id = row.get('module_id')
+        if not module_id:
+            continue
+        hidden_roles = row.get('hidden_roles') or []
+        # Normalise to list of strings
+        if not isinstance(hidden_roles, list):
+            hidden_roles = list(hidden_roles)
+        rules[str(module_id)] = {'hiddenRoles': [str(r) for r in hidden_roles]}
+    return rules
+
+
+@app.route('/api/modules/visibility', methods=['GET'])
+@require_auth(require_hmac=False)
+def get_modules_visibility():
+    """Get UI visibility rules for modules in the current tenant.
+
+    Only TenantAdmin and PlatformAdmin can manage visibility rules. For now this
+    is a purely UI-level feature: backend access remains governed by required_roles.
+    """
+    tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
+    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
+    if not user_roles:
+        payload = getattr(g, 'current_user', {}) or {}
+        realm_access = payload.get('realm_access', {})
+        user_roles = realm_access.get('roles', []) or []
+
+    if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions. TenantAdmin or PlatformAdmin required.'}), 403
+
+    rules = _get_tenant_module_visibility(tenant_id)
+    return jsonify(rules), 200
+
+
+@app.route('/api/modules/visibility', methods=['PUT'])
+@require_auth(require_hmac=False)
+def put_modules_visibility():
+    """Replace UI visibility rules for modules in the current tenant.
+
+    Body format (either top-level map or nested under "rules"):
+      {
+        "<module_id>": { "hiddenRoles": ["Farmer", "TechnicalConsultant"] },
+        ...
+      }
+    """
+    tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
+    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
+    if not user_roles:
+        payload = getattr(g, 'current_user', {}) or {}
+        realm_access = payload.get('realm_access', {})
+        user_roles = realm_access.get('roles', []) or []
+
+    if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions. TenantAdmin or PlatformAdmin required.'}), 403
+
+    try:
+        data = request.json or {}
+        raw_rules = data.get('rules') or data
+        if not isinstance(raw_rules, dict):
+            return jsonify({'error': 'Invalid payload. Expected object mapping moduleId -> { hiddenRoles: [...] }'}), 400
+
+        # Normalise payload
+        normalised: Dict[str, List[str]] = {}
+        for module_id, cfg in raw_rules.items():
+            if not module_id:
+                continue
+            if not isinstance(cfg, dict):
+                continue
+            hidden_roles = cfg.get('hiddenRoles') or cfg.get('hidden_roles') or []
+            if not isinstance(hidden_roles, list):
+                continue
+            normalised[str(module_id)] = [str(r) for r in hidden_roles if isinstance(r, str)]
+
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            cur = conn.cursor()
+            # Best-effort: if table doesn't exist, swallow and log
+            try:
+                # Replace existing rules for this tenant
+                cur.execute(
+                    "DELETE FROM tenant_module_visibility WHERE tenant_id = %s",
+                    (tenant_id,),
+                )
+                for module_id, hidden_roles in normalised.items():
+                    cur.execute(
+                        """
+                        INSERT INTO tenant_module_visibility (tenant_id, module_id, hidden_roles)
+                        VALUES (%s, %s, %s)
+                        """,
+                        (tenant_id, module_id, hidden_roles),
+                    )
+                conn.commit()
+            except Exception as exc:
+                conn.rollback()
+                msg = str(exc)
+                if 'tenant_module_visibility' in msg or 'relation \"tenant_module_visibility\"' in msg:
+                    logger.warning(
+                        "[tenant_visibility] tenant_module_visibility table not found, "
+                        "ignoring PUT /api/modules/visibility (no rules persisted)"
+                    )
+                    # Behave as no-op, but respond OK so UI doesn't break
+                    return jsonify({'message': 'Visibility table not available; rules not persisted yet.'}), 200
+                logger.error(f"[tenant_visibility] Error updating visibility rules: {exc}")
+                import traceback
+                logger.error(traceback.format_exc())
+                return jsonify({'error': 'Failed to update visibility rules', 'details': str(exc)}), 500
+
+        return jsonify({'message': 'Visibility rules updated', 'rules': normalised}), 200
+
+    except Exception as exc:
+        logger.error(f"[tenant_visibility] Unexpected error in PUT /api/modules/visibility: {exc}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'Internal server error', 'details': str(exc)}), 500
 
 
 # =============================================================================
