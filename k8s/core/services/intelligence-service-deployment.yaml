@@ -1,8 +1,9 @@
 # =============================================================================
-# Intelligence Module - External Module Deployment
+# Intelligence Module - External Module Deployment (V2)
 # =============================================================================
 # This module is now deployed from: https://github.com/k8-benetis/nekazari-module-intelligence
 # Image: ghcr.io/k8-benetis/nekazari-module-intelligence/intelligence-backend:latest
+# V2: API backend + Celery worker (async task processing via Redis)
 # =============================================================================
 
 ---
@@ -109,6 +110,76 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 3
+
+---
+# Deployment: Intelligence Module Celery Worker (V2)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intelligence-worker
+  namespace: nekazari
+  labels:
+    app: intelligence-backend
+    component: worker
+    module: intelligence
+    nekazari.io/profile: addon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: intelligence-backend
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: intelligence-backend
+        component: worker
+        module: intelligence
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: ghcr.io/k8-benetis/nekazari-module-intelligence/intelligence-backend:main
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - celery
+            - -A
+            - app.celery_app
+            - worker
+            - --loglevel=info
+            - --include
+            - app.tasks
+          env:
+            - name: REDIS_HOST
+              value: "redis-service"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          # No HTTP port; no probes (worker has no /health)
+      restartPolicy: Always
 
 ---
 # Service: Intelligence Module Backend API

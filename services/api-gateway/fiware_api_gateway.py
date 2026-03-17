@@ -77,6 +77,12 @@ VEGETATION_API_URL = os.getenv(
     "VEGETATION_API_URL", "http://vegetation-prime-api-service:8000"
 )
 WEATHER_API_URL = os.getenv("WEATHER_API_URL", "http://entity-manager-service:5000")
+INTELLIGENCE_API_URL = os.getenv(
+    "INTELLIGENCE_API_URL", "http://intelligence-api-service:8000"
+)
+AGRIENERGY_API_URL = os.getenv(
+    "AGRIENERGY_API_URL", "http://agrienergy-api-service:8000"
+)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 REQUESTS_PER_MINUTE = int(
@@ -2762,6 +2768,31 @@ def generic_proxy(target_url, path):
         return jsonify({"error": "Gateway proxy error", "details": str(e)}), 502
 
 
+@app.route("/api/vegetation/tiles/<path:path>", methods=["GET"])
+def vegetation_tiles_proxy(path):
+    """Public proxy for vegetation raster tiles.
+
+    Tile URLs contain a job UUID which acts as an unguessable access token.
+    Cesium's UrlTemplateImageryProvider does not send httpOnly cookies,
+    so these requests must bypass JWT auth.
+    """
+    url = f"{VEGETATION_API_URL}/api/vegetation/tiles/{path}"
+    try:
+        resp = requests.request(
+            method="GET",
+            url=url,
+            params=request.args,
+            allow_redirects=False,
+            timeout=30,
+        )
+        response_headers = dict(resp.headers)
+        response_headers["Cache-Control"] = "public, max-age=3600"
+        return make_response(resp.content, resp.status_code, response_headers)
+    except Exception as e:
+        logger.error(f"Tile proxy error to {url}: {e}")
+        return jsonify({"error": "Gateway proxy error"}), 502
+
+
 @app.route(
     "/api/vegetation/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
 )
@@ -2774,6 +2805,22 @@ def vegetation_proxy(path):
 )
 def weather_proxy(path):
     return generic_proxy(WEATHER_API_URL, f"api/weather/{path}")
+
+
+@app.route(
+    "/api/intelligence/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def intelligence_proxy(path):
+    return generic_proxy(INTELLIGENCE_API_URL, f"api/intelligence/{path}")
+
+
+@app.route(
+    "/api/agrienergy/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def agrienergy_proxy(path):
+    return generic_proxy(AGRIENERGY_API_URL, f"api/agrienergy/{path}")
 
 
 if __name__ == "__main__":
