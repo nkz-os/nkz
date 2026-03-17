@@ -41,7 +41,7 @@ export async function submitGeoAsset(
   }
 
   // Location: stamp mode builds MultiPoint from instances
-  if (placementState.mode === 'stamp' && placementState.stampedInstances.length > 0) {
+  if ((placementState.mode === 'stamp' || placementState.mode === 'array') && placementState.stampedInstances.length > 0) {
     entity.location = {
       type: 'GeoProperty',
       value: {
@@ -68,6 +68,21 @@ export async function submitGeoAsset(
     entity.ref3DModel   = { type: 'Property', value: formData.model3DUrl };
     entity.modelScale   = { type: 'Property', value: formData.modelScale ?? 1 };
     entity.modelRotation = { type: 'Property', value: formData.modelRotation ?? [0, 0, 0] };
+  }
+
+  // AgriEnergyTracker: inject tilt/azimuth/modelRotation from array settings
+  if (entityType === 'AgriEnergyTracker' && placementState.mode === 'array') {
+    const { bearing, tilt, nominalPower } = placementState.arraySettings;
+    entity.tilt      = { type: 'Property', value: tilt };
+    entity.azimuth   = { type: 'Property', value: bearing };
+    entity.modelRotation = { type: 'Property', value: [bearing, -tilt, 0] };
+    // SDM-aligned panel defaults (overridable via additionalAttributes)
+    if (!formData.additionalAttributes.panelDimension) {
+      entity.panelDimension = { type: 'Property', value: { width: 2.0, length: 4.0, thickness: 0.04 } };
+    }
+    if (!formData.additionalAttributes.NominalPower) {
+      entity.NominalPower = { type: 'Property', value: nominalPower };
+    }
   }
 
   // Dynamic SDM attributes

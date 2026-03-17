@@ -2,6 +2,7 @@ import type { PlacementState, PlacementAction } from '@/machines/placementMachin
 import { useWizard } from '../WizardContext';
 import { GeometryEditor } from '../GeometryEditor';
 import { StampTool } from '../StampTool';
+import { ArrayTool } from '../ArrayTool';
 import { PlacementModeSelector } from '../PlacementModeSelector';
 import { AssetBrowser } from '../AssetBrowser';
 import { validateGeometryWithinParent } from '@/utils/geometryValidation';
@@ -88,8 +89,42 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
         </>
       )}
 
+      {/* Array mode: asset library + grid tool */}
+      {placementState.mode === 'array' && (
+        <>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <h4 className="font-semibold text-blue-900 mb-2">Selecciona el activo a colocar</h4>
+            <AssetBrowser
+              selectedUrl={formData.model3DUrl}
+              onSelect={url => {
+                updateFormData({ model3DUrl: url });
+                dispatchPlacement({ type: 'SELECT_MODEL', payload: url });
+              }}
+              scale={formData.modelScale}
+              onScaleChange={s => updateFormData({ modelScale: s })}
+            />
+            {!formData.model3DUrl && (
+              <p className="text-red-500 text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
+            )}
+          </div>
+          <ArrayTool
+            modelUrl={formData.model3DUrl}
+            onInstancesChange={instances => {
+              dispatchPlacement({ type: 'CLEAR_STAMPED_INSTANCES' });
+              if (instances.length > 0) {
+                dispatchPlacement({ type: 'ADD_STAMPED_INSTANCES', payload: instances });
+              }
+              setValidationError(instances.length === 0 ? 'Coloca al menos un punto de ancla' : null);
+            }}
+            placementState={placementState}
+            dispatchPlacement={dispatchPlacement}
+            entityType={entityType ?? undefined}
+          />
+        </>
+      )}
+
       {/* Normal geometry editor */}
-      {placementState.mode !== 'stamp' && (
+      {placementState.mode !== 'stamp' && placementState.mode !== 'array' && (
         <>
           {/* Geometry type selector (assets only) */}
           {isAsset && (

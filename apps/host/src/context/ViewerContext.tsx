@@ -81,6 +81,9 @@ export interface ViewerState {
 
     // Map interaction mode (mutually exclusive states)
     mapMode: MapMode;
+
+    // Entity refresh trigger (increment to signal reload)
+    entityRefreshTrigger: number;
 }
 
 interface ViewerContextType extends ViewerState {
@@ -110,6 +113,9 @@ interface ViewerContextType extends ViewerState {
     // Map mode control (state machine for interaction modes)
     setMapMode: (mode: MapMode) => void;
     resetMapMode: () => void; // Reset to VIEW mode
+
+    // Entity refresh (modules call this to signal host to reload entities)
+    triggerEntityRefresh: () => void;
 
     // Location Picking State
     pickLocation: (callback: (lat: number, lon: number) => void) => void;
@@ -144,6 +150,7 @@ interface ViewerContextType extends ViewerState {
     startStampMode: (modelUrl: string, options?: Partial<StampOptions>) => void;
     updateStampOptions: (options: Partial<StampOptions>) => void;
     addStampInstance: (instance: StampInstance) => void;
+    setStampInstances: (instances: StampInstance[]) => void;
     confirmStampMode: () => StampInstance[];
     cancelStampMode: () => void;
 }
@@ -185,6 +192,9 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
 
     // Active context module
     const [activeContextModule, setActiveContextModuleState] = useState<string | null>(null);
+
+    // Entity refresh trigger
+    const [entityRefreshTrigger, setEntityRefreshTrigger] = useState(0);
 
     // Map interaction mode (state machine)
     const [mapMode, setMapModeState] = useState<MapMode>('VIEW');
@@ -348,6 +358,10 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setMapModeState('PICK_LOCATION'); // Enter picking mode
     }, []);
 
+    const triggerEntityRefresh = useCallback(() => {
+        setEntityRefreshTrigger(prev => prev + 1);
+    }, []);
+
     const cancelPicking = useCallback(() => {
         setPickingCallback(null); // Clear the callback
         setMapModeState('VIEW'); // Return to view mode
@@ -434,6 +448,10 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setStampInstances(prev => [...prev, instance]);
     }, []);
 
+    const setStampInstancesBatch = useCallback((instances: StampInstance[]) => {
+        setStampInstances(instances);
+    }, []);
+
     const confirmStampMode = useCallback((): StampInstance[] => {
         const result = [...stampInstances];
         setStampInstances([]);
@@ -460,6 +478,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         isBottomPanelOpen,
         activeContextModule,
         mapMode,
+        entityRefreshTrigger,
         pickingCallback, // Expose pickingCallback state
         drawingType,
         drawingCallback,
@@ -487,6 +506,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setActiveContextModule,
         setMapMode,
         resetMapMode,
+        triggerEntityRefresh,
         setCesiumViewer,
         pickLocation,
         cancelPicking,
@@ -501,6 +521,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         startStampMode,
         updateStampOptions,
         addStampInstance,
+        setStampInstances: setStampInstancesBatch,
         confirmStampMode,
         cancelStampMode,
     }), [
@@ -534,6 +555,8 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setActiveContextModule,
         setMapMode,
         resetMapMode,
+        triggerEntityRefresh,
+        entityRefreshTrigger,
         setCesiumViewer,
         pickLocation,
         cancelPicking,
@@ -546,6 +569,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         startStampMode,
         updateStampOptions,
         addStampInstance,
+        setStampInstancesBatch,
         confirmStampMode,
         cancelStampMode,
     ]);
