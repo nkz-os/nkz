@@ -1,7 +1,7 @@
 import React from 'react';
-import { MousePointer2, Brush, AlertTriangle } from 'lucide-react';
+import { MousePointer2, Brush, Grid3x3, AlertTriangle } from 'lucide-react';
 
-export type PlacementMode = 'single' | 'multi' | 'stamp' | 'line' | 'polygon';
+export type PlacementMode = 'single' | 'multi' | 'stamp' | 'array' | 'line' | 'polygon';
 
 interface PlacementModeSelectorProps {
     mode: PlacementMode;
@@ -70,6 +70,33 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                         Este modo está diseñado para vegetación (Árboles/Cultivos).
                     </div>
                 )}
+            </button>
+
+            {/* Array Mode */}
+            <button
+                type="button"
+                onClick={() => onChange('array')}
+                className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'array'
+                        ? 'border-purple-500 bg-purple-50 shadow-sm'
+                        : 'border-gray-200 hover:border-purple-200 hover:bg-gray-50'
+                    }`}
+            >
+                <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-lg ${mode === 'array' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}`}>
+                        <Grid3x3 className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <div className="font-semibold text-gray-900 flex items-center gap-2">
+                            Array Mode (Grilla)
+                            <span className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full font-bold">GPU INSTANCED</span>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">
+                            Coloca entidades en una cuadrícula regular. Ideal para paneles solares, viñedos u olivares.
+                            <br />
+                            <span className="text-xs font-medium">Filas × Columnas con espaciado y orientación ajustable.</span>
+                        </p>
+                    </div>
+                </div>
             </button>
         </div>
     );

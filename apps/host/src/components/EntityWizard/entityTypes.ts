@@ -32,6 +32,7 @@ export const ENTITY_TYPE_METADATA: Record<string, EntityTypeInfo> = {
   Pond:                     { keywords: ['estanque', 'balsa', 'pond'],                                macroCategory: 'assets',  icon: Droplets,   description: 'Estanque/Balsa',              color: 'blue'   },
   IrrigationSystem:         { keywords: ['sistema riego', 'irrigation system'],                       macroCategory: 'assets',  icon: Droplets,   description: 'Sistema de riego',            color: 'blue'   },
   PhotovoltaicInstallation: { keywords: ['solar', 'fotovoltaico', 'panel', 'photovoltaic'],           macroCategory: 'assets',  icon: Sun,        description: 'Instalación fotovoltaica',    color: 'yellow' },
+  AgriEnergyTracker:        { keywords: ['tracker', 'seguidor', 'panel solar', 'solar tracker', 'pv', 'fotovoltaico'], macroCategory: 'assets', icon: Sun, description: 'Seguidor solar (panel individual)', color: 'yellow' },
   EnergyStorageSystem:      { keywords: ['batería', 'almacenamiento', 'battery', 'storage'],          macroCategory: 'assets',  icon: Zap,        description: 'Sistema de almacenamiento',   color: 'yellow' },
 
   // ── Sensors ──────────────────────────────────────────────────────────────────
@@ -82,6 +83,6 @@ export const ENTITY_CATEGORIES: Record<string, string[]> = {
   'Sensores':        ['AgriSensor', 'Device', 'WeatherObserved'],
   'Infraestructura': ['AgriBuilding', 'IrrigationSystem'],
   'Ganadería':       ['LivestockAnimal', 'LivestockGroup', 'LivestockFarm'],
-  'Energía':         ['PhotovoltaicInstallation', 'EnergyStorageSystem'],
+  'Energía':         ['PhotovoltaicInstallation', 'AgriEnergyTracker', 'EnergyStorageSystem'],
   'Operaciones':     ['AgriOperation'],
 };

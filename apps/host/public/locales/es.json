@@ -753,6 +753,29 @@
     "preview": "Vista previa"
   },
   "wizard": {
+    "array": {
+      "clickAnchor": "Haz clic en el mapa para colocar el punto de ancla",
+      "changeAnchor": "Cambiar ancla",
+      "rows": "Filas",
+      "columns": "Columnas",
+      "rowSpacing": "Espaciado filas (m)",
+      "colSpacing": "Espaciado columnas (m)",
+      "bearing": "Orientación",
+      "total": "entidades en la grilla",
+      "clearAnchor": "Limpiar",
+      "title": "Modo Array",
+      "description": "Coloca el punto de ancla, ajusta filas, columnas, espaciado y orientación. La vista previa se actualiza en tiempo real.",
+      "variation": "Variación por instancia",
+      "minScale": "Escala mín.",
+      "maxScale": "Escala máx.",
+      "randomRotation": "Rotación aleatoria por instancia",
+      "solarParams": "Parámetros del panel solar",
+      "tilt": "Inclinación (tilt)",
+      "tiltFlat": "Plano",
+      "tiltVertical": "Vertical",
+      "nominalPower": "Potencia nominal por tracker",
+      "solarHint": "{{total}} trackers × {{power}} kWp total estimado"
+    },
     "sdm_guide": {
       "title": "Guía de Entidades y Datos SDM",
       "intro": "Nekazari utiliza el estándar internacional Smart Data Models (SDM) para asegurar que todos los datos sean compatibles entre diferentes sensores y aplicaciones.",

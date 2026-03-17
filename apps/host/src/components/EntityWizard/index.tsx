@@ -89,6 +89,9 @@ function validateStep(
       if (placementState.mode === 'stamp') {
         return placementState.stampedInstances.length > 0 ? null : 'Pinta al menos una instancia';
       }
+      if (placementState.mode === 'array') {
+        return placementState.stampedInstances.length > 0 ? null : 'Configura el punto de ancla y los parámetros de la grilla';
+      }
       // Point geometry is optional (coordinates may be unknown)
       return null;
 

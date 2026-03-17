@@ -144,6 +144,7 @@ interface ViewerContextType extends ViewerState {
     startStampMode: (modelUrl: string, options?: Partial<StampOptions>) => void;
     updateStampOptions: (options: Partial<StampOptions>) => void;
     addStampInstance: (instance: StampInstance) => void;
+    setStampInstances: (instances: StampInstance[]) => void;
     confirmStampMode: () => StampInstance[];
     cancelStampMode: () => void;
 }
@@ -434,6 +435,10 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setStampInstances(prev => [...prev, instance]);
     }, []);
 
+    const setStampInstancesBatch = useCallback((instances: StampInstance[]) => {
+        setStampInstances(instances);
+    }, []);
+
     const confirmStampMode = useCallback((): StampInstance[] => {
         const result = [...stampInstances];
         setStampInstances([]);
@@ -501,6 +506,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         startStampMode,
         updateStampOptions,
         addStampInstance,
+        setStampInstances: setStampInstancesBatch,
         confirmStampMode,
         cancelStampMode,
     }), [
@@ -546,6 +552,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         startStampMode,
         updateStampOptions,
         addStampInstance,
+        setStampInstancesBatch,
         confirmStampMode,
         cancelStampMode,
     ]);

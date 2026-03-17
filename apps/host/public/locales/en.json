@@ -728,6 +728,31 @@
     "unknown_location": "Desconocido",
     "unnamed_parcel": "Parcela sin nombre"
   },
+  "wizard": {
+    "array": {
+      "clickAnchor": "Click on the map to place the anchor point",
+      "changeAnchor": "Change anchor",
+      "rows": "Rows",
+      "columns": "Columns",
+      "rowSpacing": "Row spacing (m)",
+      "colSpacing": "Column spacing (m)",
+      "bearing": "Bearing",
+      "total": "entities in grid",
+      "clearAnchor": "Clear",
+      "title": "Array Mode",
+      "description": "Place the anchor point, adjust rows, columns, spacing and bearing. The preview updates in real time.",
+      "variation": "Per-instance variation",
+      "minScale": "Min scale",
+      "maxScale": "Max scale",
+      "randomRotation": "Random rotation per instance",
+      "solarParams": "Solar panel parameters",
+      "tilt": "Tilt angle",
+      "tiltFlat": "Flat",
+      "tiltVertical": "Vertical",
+      "nominalPower": "Nominal power per tracker",
+      "solarHint": "{{total}} trackers × {{power}} kWp total estimated"
+    }
+  },
   "terms": {
     "accept": "Acepto los términos y condiciones de uso",
     "error": "Error al cargar los términos y condiciones",

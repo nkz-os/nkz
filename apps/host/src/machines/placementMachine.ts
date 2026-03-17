@@ -5,7 +5,7 @@
 
 // --- State Definitions ---
 
-export type PlacementMode = 'single' | 'multi' | 'stamp' | 'line' | 'polygon';
+export type PlacementMode = 'single' | 'multi' | 'stamp' | 'array' | 'line' | 'polygon';
 
 export interface PlacementState {
     mode: PlacementMode;
@@ -36,6 +36,22 @@ export interface PlacementState {
         rotation: number;
     }>;
 
+    // Array Mode Data
+    arraySettings: {
+        anchor: { lat: number; lon: number } | null;
+        rows: number;
+        columns: number;
+        rowSpacing: number;  // meters
+        colSpacing: number;  // meters
+        bearing: number;     // degrees from north (0-360)
+        minScale: number;
+        maxScale: number;
+        randomRotation: boolean; // per-instance random heading
+        // AgriEnergyTracker-specific
+        tilt: number;            // panel tilt in degrees (0-90)
+        nominalPower: number;    // watts per panel/tracker
+    };
+
     // Line/Poly Mode (future)
     pathPoints: Array<{ lat: number; lng: number }>;
 }
@@ -58,6 +74,19 @@ export const INITIAL_STATE: PlacementState = {
         randomRotation: true
     },
     stampedInstances: [],
+    arraySettings: {
+        anchor: null,
+        rows: 3,
+        columns: 5,
+        rowSpacing: 8,
+        colSpacing: 5,
+        bearing: 0,
+        minScale: 0.9,
+        maxScale: 1.1,
+        randomRotation: false,
+        tilt: 30,
+        nominalPower: 500,
+    },
     pathPoints: []
 };
 
@@ -77,6 +106,9 @@ export type PlacementAction =
     | { type: 'ADD_STAMPED_INSTANCES'; payload: PlacementState['stampedInstances'] }
     | { type: 'CLEAR_STAMPED_INSTANCES' }
     | { type: 'UNDO_LAST_STAMP' } // Optional complexity
+
+    // Array Mode Actions
+    | { type: 'UPDATE_ARRAY_SETTINGS'; payload: Partial<PlacementState['arraySettings']> }
 
     // Global
     | { type: 'RESET' };
@@ -150,6 +182,15 @@ export function placementReducer(state: PlacementState, action: PlacementAction)
             return {
                 ...state,
                 stampedInstances: []
+            };
+
+        case 'UPDATE_ARRAY_SETTINGS':
+            return {
+                ...state,
+                arraySettings: {
+                    ...state.arraySettings,
+                    ...action.payload,
+                },
             };
 
         case 'RESET':
