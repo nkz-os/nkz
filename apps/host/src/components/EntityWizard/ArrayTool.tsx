@@ -31,27 +31,21 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
 }) => {
   const { t } = useI18n();
   const {
-    startStampMode,
-    cancelStampMode,
     stampInstances,
     pickLocation,
     setStampInstances,
+    setStampModelOnly,
   } = useViewer();
 
   const settings = placementState.arraySettings;
   const [anchorSet, setAnchorSet] = useState(!!settings.anchor);
 
-  // Initialize stamp mode so CesiumStampRenderer renders the models
+  // Set model URL for rendering only — no brush handler (array uses grid, not paint)
   useEffect(() => {
     if (disabled || !modelUrl) return;
-    startStampMode(modelUrl, {
-      brushSize: 1,
-      density: 0,
-      randomScale: [1, 1],
-      randomRotation: false,
-    });
-    return () => { cancelStampMode(); };
-  }, [disabled, modelUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+    setStampModelOnly(modelUrl);
+    return () => { setStampModelOnly(null); };
+  }, [disabled, modelUrl, setStampModelOnly]);
 
   // Generate grid whenever settings change
   const gridPoints = useMemo(() => {
@@ -76,7 +70,10 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
     setStampInstances(gridPoints);
   }, [gridPoints, setStampInstances]);
 
-  // Sync to parent form
+  // Sync to parent form (use ref to avoid infinite loop from inline callback)
+  const onInstancesChangeRef = React.useRef(onInstancesChange);
+  onInstancesChangeRef.current = onInstancesChange;
+
   useEffect(() => {
     const formatted = stampInstances.map(inst => ({
       lat: inst.lat,
@@ -85,8 +82,8 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
       scale: inst.scale,
       rotation: inst.rotation,
     }));
-    onInstancesChange(formatted);
-  }, [stampInstances, onInstancesChange]);
+    onInstancesChangeRef.current(formatted);
+  }, [stampInstances]);
 
   const handlePickAnchor = useCallback(() => {
     pickLocation((lat: number, lon: number) => {

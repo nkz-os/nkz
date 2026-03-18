@@ -8,104 +8,107 @@ export const CesiumStampRenderer: React.FC = () => {
         mapMode,
         stampOptions,
         stampInstances,
-        startStampMode: _startStampMode,
         addStampInstance,
         stampModelUrl
     } = useViewerOptional() || {};
 
-    const collectionRef = useRef<any>(null);
+    const modelsRef = useRef<any[]>([]);
     const handlerRef = useRef<any>(null);
     const [isDrawing, setIsDrawing] = useState(false);
-
-    // Ghost cursor (brush preview)
     const ghostEntityRef = useRef<any>(null);
 
-    // 1. Render Stamp Instances
+    // 1. Render Stamp Instances as individual Model primitives
     useEffect(() => {
-        if (!viewer || !stampModelUrl) {
-            // Cleanup if mode ends or model cleared
-            if (collectionRef.current && viewer && !viewer.isDestroyed()) {
-                viewer.scene.primitives.remove(collectionRef.current);
-                collectionRef.current = null;
-            }
-            return;
-        }
+        if (!viewer || viewer.isDestroyed()) return;
 
         // @ts-ignore
         const Cesium = window.Cesium;
         if (!Cesium) return;
 
-        // Cleanup old
-        if (collectionRef.current) {
-            viewer.scene.primitives.remove(collectionRef.current);
-            collectionRef.current = null;
+        // Cleanup previous models
+        const cleanup = () => {
+            for (const m of modelsRef.current) {
+                try { viewer.scene.primitives.remove(m); } catch { /* already removed */ }
+            }
+            modelsRef.current = [];
+        };
+
+        if (!stampModelUrl || !stampInstances || stampInstances.length === 0) {
+            cleanup();
+            return;
         }
 
-        if (stampInstances && stampInstances.length > 0) {
-            try {
-                // Filter and map valid instances only
-                const instances = stampInstances
-                    .filter(inst => {
-                        return !isNaN(Number(inst.lat)) &&
-                            !isNaN(Number(inst.lon)) &&
-                            !isNaN(Number(inst.scale)) &&
-                            Number(inst.scale) > 0;
-                    })
-                    .map(inst => {
-                        const lat = Number(inst.lat);
-                        const lon = Number(inst.lon);
-                        const height = Number(inst.height) || 0;
-                        const scale = Number(inst.scale) || 1;
-                        const rotation = Number(inst.rotation) || 0;
+        // Rebuild all models when instances change
+        cleanup();
 
-                        const position = Cesium.Cartesian3.fromDegrees(lon, lat, height);
-                        const hpr = new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(rotation), 0, 0);
-                        const modelMatrix = Cesium.Transforms.headingPitchRollToFixedFrame(position, hpr);
-                        const scaleMatrix = Cesium.Matrix4.fromScale(new Cesium.Cartesian3(scale, scale, scale));
-                        Cesium.Matrix4.multiply(modelMatrix, scaleMatrix, modelMatrix);
+        const validInstances = stampInstances.filter(inst =>
+            !isNaN(Number(inst.lat)) && !isNaN(Number(inst.lon)) &&
+            !isNaN(Number(inst.scale)) && Number(inst.scale) > 0
+        );
 
-                        return { modelMatrix };
+        if (validInstances.length === 0) return;
+
+        let cancelled = false;
+
+        (async () => {
+            for (const inst of validInstances) {
+                if (cancelled) break;
+                try {
+                    const lat = Number(inst.lat);
+                    const lon = Number(inst.lon);
+                    const height = Number(inst.height) || 0;
+                    const scale = Number(inst.scale) || 1;
+                    const rotation = Number(inst.rotation) || 0;
+
+                    const position = Cesium.Cartesian3.fromDegrees(lon, lat, height);
+                    const hpr = new Cesium.HeadingPitchRoll(
+                        Cesium.Math.toRadians(rotation), 0, 0
+                    );
+                    const modelMatrix = Cesium.Transforms.headingPitchRollToFixedFrame(position, hpr);
+                    const scaleMatrix = Cesium.Matrix4.fromScale(
+                        new Cesium.Cartesian3(scale, scale, scale)
+                    );
+                    Cesium.Matrix4.multiply(modelMatrix, scaleMatrix, modelMatrix);
+
+                    const model = await Cesium.Model.fromGltfAsync({
+                        url: stampModelUrl,
+                        modelMatrix,
+                        scale: 1, // scale already baked into modelMatrix
+                        shadows: Cesium.ShadowMode.ENABLED,
+                        silhouetteColor: Cesium.Color.LIME,
+                        silhouetteSize: 0,
                     });
 
-                if (instances.length === 0) return;
-
-                const collection = new Cesium.ModelInstanceCollection({
-                    url: stampModelUrl,
-                    instances: instances,
-                    lightColor: new Cesium.Cartesian3(1, 1, 1),
-                    shadows: Cesium.ShadowMode.ENABLED
-                });
-
-                collectionRef.current = viewer.scene.primitives.add(collection);
-            } catch (e) {
-                console.error("[CesiumStampRenderer] Failed to render collection:", e);
+                    if (!cancelled && !viewer.isDestroyed()) {
+                        viewer.scene.primitives.add(model);
+                        modelsRef.current.push(model);
+                    }
+                } catch (e) {
+                    console.warn('[CesiumStampRenderer] Failed to load model instance:', e);
+                }
             }
-        }
+        })();
 
-        // Cleanup on unmount or change
         return () => {
-            // We don't remove on unmount necessarily if we want persistence? 
-            // actually current design assumes this component lives in CesiumMap, 
-            // so if CesiumMap unmounts, we should cleanup.
-            // If stampInstances change, we re-render.
+            cancelled = true;
         };
     }, [viewer, stampModelUrl, stampInstances]);
 
-    // Cleanup logic for collection when component unmounts
+    // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (collectionRef.current && viewer && !viewer.isDestroyed()) {
-                viewer.scene.primitives.remove(collectionRef.current);
-                collectionRef.current = null;
+            if (viewer && !viewer.isDestroyed()) {
+                for (const m of modelsRef.current) {
+                    try { viewer.scene.primitives.remove(m); } catch { /* ok */ }
+                }
+                modelsRef.current = [];
             }
         };
     }, [viewer]);
 
-
-    // 2. Input Handling (Brush)
+    // 2. Input Handling (Brush) — only active in STAMP_INSTANCES mode
     useEffect(() => {
         if (!viewer || mapMode !== 'STAMP_INSTANCES' || !stampOptions) {
-            // Cleanup handler if mode changes
             if (handlerRef.current) {
                 handlerRef.current.destroy();
                 handlerRef.current = null;
@@ -124,11 +127,10 @@ export const CesiumStampRenderer: React.FC = () => {
         const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
         handlerRef.current = handler;
 
-        // Ghost cursor logic
         const updateGhost = (position: any) => {
             if (!ghostEntityRef.current) {
                 ghostEntityRef.current = viewer.entities.add({
-                    position: position,
+                    position,
                     ellipse: {
                         semiMinorAxis: stampOptions.brushSize,
                         semiMajorAxis: stampOptions.brushSize,
@@ -147,40 +149,22 @@ export const CesiumStampRenderer: React.FC = () => {
 
         const placeInstance = (cartesian: any) => {
             if (!addStampInstance) return;
-
             const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
             const lon = Cesium.Math.toDegrees(cartographic.longitude);
             const lat = Cesium.Math.toDegrees(cartographic.latitude);
-
-            // Randomize
             const scale = stampOptions.randomScale
                 ? stampOptions.randomScale[0] + Math.random() * (stampOptions.randomScale[1] - stampOptions.randomScale[0])
                 : 1;
-
-            const rotation = stampOptions.randomRotation
-                ? Math.random() * 360
-                : 0;
-
-            addStampInstance({
-                lat,
-                lon,
-                height: 0, // clamped to terrain usually
-                scale,
-                rotation
-            });
+            const rotation = stampOptions.randomRotation ? Math.random() * 360 : 0;
+            addStampInstance({ lat, lon, height: 0, scale, rotation });
         };
 
-        // Inputs
         handler.setInputAction((movement: any) => {
             const cartesian = viewer.camera.pickEllipsoid(movement.endPosition, viewer.scene.globe.ellipsoid);
             if (cartesian) {
                 updateGhost(cartesian);
-
-                if (isDrawing) {
-                    // Density check could go here
-                    if (Math.random() < (stampOptions.density || 0.5)) {
-                        placeInstance(cartesian);
-                    }
+                if (isDrawing && Math.random() < (stampOptions.density || 0.5)) {
+                    placeInstance(cartesian);
                 }
             }
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
