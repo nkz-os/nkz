@@ -711,12 +711,13 @@ class ApiService {
 
     try {
       const response = await retryRequest(
-        () => this.client.get(`/sdm/entities/${entityType}/instances`),
+        () => this.client.get('/ngsi-ld/v1/entities', { params: { type: entityType } }),
         3,
         1000
       );
 
-      const data = response.data.instances || [];
+      // Orion-LD returns an array directly
+      const data = Array.isArray(response.data) ? response.data : (response.data.instances || []);
 
       // Cache for 60 seconds
       if (useCache) {
@@ -732,21 +733,26 @@ class ApiService {
   }
 
   async getSDMEntityInstancesPaginated(entityType: string, params?: { limit?: number; offset?: number }): Promise<{ instances: any[]; total: number; count: number }> {
-    const response = await this.client.get(`/sdm/entities/${entityType}/instances`, { params });
+    const queryParams = { ...params, type: entityType };
+    const response = await this.client.get('/ngsi-ld/v1/entities', { params: queryParams });
+    // Orion-LD returns an array directly; wrap for compatibility
+    const entities = Array.isArray(response.data) ? response.data : [];
+    return { instances: entities, total: entities.length, count: entities.length };
+  }
+
+  async updateSDMEntity(_entityType: string, entityId: string, updates: any): Promise<void> {
+    await this.client.patch(`/ngsi-ld/v1/entities/${entityId}/attrs`, updates, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  async getSDMEntityInstance(_entityType: string, entityId: string): Promise<any> {
+    const response = await this.client.get(`/ngsi-ld/v1/entities/${entityId}`);
     return response.data;
   }
 
-  async updateSDMEntity(entityType: string, entityId: string, updates: any): Promise<void> {
-    await this.client.patch(`/sdm/entities/${entityType}/instances/${entityId}`, updates);
-  }
-
-  async getSDMEntityInstance(entityType: string, entityId: string): Promise<any> {
-    const response = await this.client.get(`/sdm/entities/${entityType}/instances/${entityId}`);
-    return response.data.entity || response.data;
-  }
-
-  async deleteSDMEntity(entityType: string, entityId: string): Promise<void> {
-    await this.client.delete(`/sdm/entities/${entityType}/instances/${entityId}`);
+  async deleteSDMEntity(_entityType: string, entityId: string): Promise<void> {
+    await this.client.delete(`/ngsi-ld/v1/entities/${entityId}`);
   }
 
   async migrateToSDM(entityIds: string[]): Promise<any> {
@@ -1721,6 +1727,16 @@ class ApiService {
     return response.data;
   }
 
+  /**
+   * Provision MQTT credentials for a newly created IoT device.
+   * Calls the mqtt-credentials-manager via the gateway.
+   * Returns credentials (username, password, topics) — only available at creation time.
+   */
+  async provisionMqttCredentials(deviceId: string): Promise<any> {
+    const response = await this.client.post('/api/iot/provision-mqtt', { device_id: deviceId });
+    return response.data;
+  }
+
   // =============================================================================
   // SDM Integration - Entity Types and Management
   // =============================================================================
@@ -1745,13 +1761,9 @@ class ApiService {
     }
   }
 
-  async createSDMEntity(entityType: string, entity: any): Promise<any> {
-    const response = await this.client.post(`/sdm/entities/${entityType}/instances`, entity, {
-      headers: {
-        'Content-Type': 'application/ld+json',
-        'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`
-      },
-    });
+  async createSDMEntity(_entityType: string, entity: any): Promise<any> {
+    // No @context in body — gateway injects Link header with platform context.
+    const response = await this.client.post('/ngsi-ld/v1/entities', entity);
     return response.data;
   }
 

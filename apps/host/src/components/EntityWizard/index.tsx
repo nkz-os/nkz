@@ -120,7 +120,12 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   const [robotCredentials, setRobotCredentials] = useState<RobotCredentials | null>(null);
   const [mqttCredentials, setMqttCredentials] = useState<MqttCredentials | null>(null);
 
-  const isMapInteractMode = (mapMode as string) === 'STAMP_INSTANCES'
+  // Side panel mode: when interacting with the map (picking, drawing, stamping)
+  // OR when on geometry step with array/stamp placement (always needs map access)
+  const isGeometryWithPlacement = currentStep.id === 'geometry'
+    && (placementState.mode === 'array' || placementState.mode === 'stamp');
+  const isMapInteractMode = isGeometryWithPlacement
+    || (mapMode as string) === 'STAMP_INSTANCES'
     || (mapMode as string) === 'PREVIEW_MODEL'
     || (mapMode as string) === 'DRAW_GEOMETRY'
     || (mapMode as string) === 'PICK_LOCATION';

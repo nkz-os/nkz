@@ -132,12 +132,15 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
         api.getSDMEntityInstances('AgriTree').catch(() => []),
         api.getSDMEntityInstances('FruitTree').catch(() => []),
         api.getSDMEntityInstances('Vine').catch(() => []),
+        api.getSDMEntityInstances('AgriEnergyTracker').catch(() => []),
+        api.getSDMEntityInstances('PhotovoltaicInstallation').catch(() => []),
       ]);
-      
+
       const [
         parcelsRes, robotsRes, sensorsRes, machinesRes, livestockRes,
         weatherRes, cropsRes, buildingsRes, devicesRes, waterSourcesRes,
         wellsRes, oliveTreesRes, agriTreesRes, fruitTreesRes, vinesRes,
+        energyTrackersRes, pvInstallationsRes,
       ] = results;
       
       // Normalize all entities
@@ -171,7 +174,9 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
       addEntities(agriTreesRes, 'AgriTree');
       addEntities(fruitTreesRes, 'FruitTree');
       addEntities(vinesRes, 'Vine');
-      
+      addEntities(energyTrackersRes, 'AgriEnergyTracker');
+      addEntities(pvInstallationsRes, 'PhotovoltaicInstallation');
+
       console.log(`[useAssets] Loaded ${allAssets.length} assets`);
       setAssets(allAssets);
       
