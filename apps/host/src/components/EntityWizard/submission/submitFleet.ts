@@ -1,9 +1,6 @@
 import api from '@/services/api';
-import { getConfig } from '@/config/environment';
 import type { FleetFormData } from '../types';
 import type { RobotCredentials } from '../RobotCredentialsModal';
-
-const config = getConfig();
 
 export interface FleetSubmitResult {
   robotCredentials: RobotCredentials | null;
@@ -35,7 +32,6 @@ export async function submitFleet(
   const entity: Record<string, unknown> = {
     id: entityId,
     type: entityType,
-    '@context': [config.external.contextUrl],
     name: { type: 'Property', value: formData.name },
   };
 

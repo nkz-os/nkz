@@ -1,10 +1,7 @@
 import { parcelApi } from '@/services/parcelApi';
 import api from '@/services/api';
-import { getConfig } from '@/config/environment';
 import type { GeoAssetFormData } from '../types';
 import type { PlacementState } from '@/machines/placementMachine';
-
-const config = getConfig();
 
 export async function submitGeoAsset(
   entityType: string,
@@ -29,10 +26,11 @@ export async function submitGeoAsset(
   // All other asset types use the generic SDM entity API
   const entityId = `urn:ngsi-ld:${entityType}:current:${Date.now()}`;
 
+  // No @context in body — the api-gateway injects the Link header with the
+  // platform's NGSI-LD context, so Orion-LD resolves types correctly.
   const entity: Record<string, unknown> = {
     id: entityId,
     type: entityType,
-    '@context': [config.external.contextUrl],
     name: { type: 'Property', value: formData.name },
   };
 

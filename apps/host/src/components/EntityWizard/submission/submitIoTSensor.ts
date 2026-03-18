@@ -1,9 +1,6 @@
 import api from '@/services/api';
-import { getConfig } from '@/config/environment';
 import type { IoTSensorFormData } from '../types';
 import type { MqttCredentials } from '../MqttCredentialsModal';
-
-const config = getConfig();
 
 export interface IoTSubmitResult {
   mqttCredentials: MqttCredentials | null;
@@ -18,7 +15,6 @@ export async function submitIoTSensor(
   const entity: Record<string, unknown> = {
     id: entityId,
     type: entityType,
-    '@context': [config.external.contextUrl],
     name: { type: 'Property', value: formData.name },
   };
 

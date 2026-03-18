@@ -1751,11 +1751,9 @@ class ApiService {
   }
 
   async createSDMEntity(_entityType: string, entity: any): Promise<any> {
-    const response = await this.client.post('/ngsi-ld/v1/entities', entity, {
-      headers: {
-        'Content-Type': 'application/ld+json',
-      },
-    });
+    // No @context in body — gateway injects Link header with platform context.
+    // Content-Type: application/json tells Orion to use the Link header for context.
+    const response = await this.client.post('/ngsi-ld/v1/entities', entity);
     return response.data;
   }
 
