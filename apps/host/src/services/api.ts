@@ -1767,6 +1767,16 @@ class ApiService {
     return response.data;
   }
 
+  /**
+   * Create an IoT entity via SDM Integration Service.
+   * This provisions the entity in Orion-LD AND in the IoT Agent in one call,
+   * returning MQTT credentials for the physical device.
+   */
+  async createSDMIoTEntity(entityType: string, body: Record<string, unknown>): Promise<any> {
+    const response = await this.client.post(`/sdm/entities/${entityType}/instances`, body);
+    return response.data;
+  }
+
   async batchCreateEntities(
     entityType: string,
     entities: Array<{ name: string; lat?: number | null; lng?: number | null; [key: string]: any }>
