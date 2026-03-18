@@ -711,12 +711,13 @@ class ApiService {
 
     try {
       const response = await retryRequest(
-        () => this.client.get(`/sdm/entities/${entityType}/instances`),
+        () => this.client.get('/ngsi-ld/v1/entities', { params: { type: entityType } }),
         3,
         1000
       );
 
-      const data = response.data.instances || [];
+      // Orion-LD returns an array directly
+      const data = Array.isArray(response.data) ? response.data : (response.data.instances || []);
 
       // Cache for 60 seconds
       if (useCache) {

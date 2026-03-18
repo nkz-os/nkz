@@ -220,6 +220,30 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
     supportsHierarchy: false,
     supportsTelemetry: true,
   },
+  AgriEnergyTracker: {
+    type: 'AgriEnergyTracker',
+    label: 'Seguidor Solar',
+    labelPlural: 'Seguidores Solares',
+    category: 'infrastructure',
+    icon: 'sun',
+    color: 'yellow',
+    description: 'Seguidor solar fotovoltaico',
+    supportsLocation: true,
+    supportsHierarchy: false,
+    supportsTelemetry: true,
+  },
+  PhotovoltaicInstallation: {
+    type: 'PhotovoltaicInstallation',
+    label: 'Instalación FV',
+    labelPlural: 'Instalaciones FV',
+    category: 'infrastructure',
+    icon: 'sun',
+    color: 'yellow',
+    description: 'Instalación fotovoltaica',
+    supportsLocation: true,
+    supportsHierarchy: false,
+    supportsTelemetry: true,
+  },
   
   // Vegetation
   AgriCrop: {
