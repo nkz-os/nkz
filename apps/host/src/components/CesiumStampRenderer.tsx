@@ -2,6 +2,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useViewerOptional } from '@/context/ViewerContext';
 
+/** Resolve relative asset URLs to absolute so CesiumJS can load them */
+function resolveModelUrl(url: string): string {
+    if (!url) return url;
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;
+    return `${window.location.origin}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 export const CesiumStampRenderer: React.FC = () => {
     const {
         cesiumViewer: viewer,
@@ -98,7 +105,7 @@ export const CesiumStampRenderer: React.FC = () => {
                         Cesium.Matrix4.multiply(modelMatrix, scaleMatrix, modelMatrix);
 
                         const model = await Cesium.Model.fromGltfAsync({
-                            url: stampModelUrl,
+                            url: resolveModelUrl(stampModelUrl!),
                             modelMatrix,
                             scale: 1,
                             shadows: Cesium.ShadowMode.ENABLED,
