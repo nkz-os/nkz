@@ -13,6 +13,7 @@ import { ModuleVisibilitySettings } from '@/components/ModuleVisibilitySettings'
 import { RiskAlertSubscriptions } from '@/components/RiskAlertSubscriptions';
 import { RiskWebhooksPanel } from '@/components/RiskWebhooksPanel';
 import api from '@/services/api';
+import { TenantProfileEditor } from '@/components/settings/TenantProfileEditor';
 import { Copy, Check, Edit2, Save, X } from 'lucide-react';
 
 export const Settings: React.FC = () => {
@@ -208,6 +209,13 @@ export const Settings: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Tenant Profile Editor */}
+        {canModifySettings && (
+          <div className="mb-6">
+            <TenantProfileEditor />
+          </div>
+        )}
 
         {/* External API Credentials */}
         {canModifySettings && (

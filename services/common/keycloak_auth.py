@@ -274,45 +274,15 @@ def extract_tenant_id(payload: Dict[str, Any]) -> Optional[str]:
     Returns:
         Normalized tenant ID string or None
     """
-    # Try different claim names
-    tenant_id = payload.get('tenant-id') or payload.get('tenant_id') or payload.get('tenant')
-    
-    # Fallback: Try to extract from groups
-    # PlatformAdmin users should be in 'platform' group, other users in tenant groups
-    if not tenant_id and 'groups' in payload:
-        groups = payload.get('groups', [])
-        if groups and isinstance(groups, list) and len(groups) > 0:
-            # Filter out special Keycloak system groups that are not tenants
-            # Allow 'platform' group (tenant especial para PlatformAdmin)
-            # Skip: default, offline_access, uma_authorization, and groups ending in 'administrators'/'admins'
-            tenant_groups = []
-            for g in groups:
-                if not g:
-                    continue
-                # Normalize group name (remove leading slash)
-                group_name = g[1:] if g.startswith('/') else g
-                group_lower = group_name.lower()
-                
-                # Allow 'platform' group (special tenant for PlatformAdmin)
-                if group_lower == 'platform':
-                    tenant_groups.append('platform')
-                # Skip system groups
-                elif group_lower in ('default', 'offline_access', 'uma_authorization'):
-                    continue
-                # Skip groups ending in 'administrators' or 'admins' (except 'platform')
-                elif group_lower.endswith(('administrators', 'admins')):
-                    continue
-                # All other groups are potential tenants
-                else:
-                    tenant_groups.append(group_name)
-            
-            if tenant_groups:
-                # Take the first valid tenant group
-                # PlatformAdmin should have 'platform' as first group
-                tenant_id = tenant_groups[0]
-                logger.debug("Extracted tenant from groups: %s", tenant_id)
-            else:
-                logger.debug("No valid tenant groups found in: %s", groups)
+    # Canonical claim: tenant_id (snake_case, matches DB column)
+    tenant_id = payload.get('tenant_id')
+
+    # Temporary fallback for migration period (remove after 2026-04-02)
+    if not tenant_id:
+        legacy = payload.get('tenant-id')
+        if legacy:
+            logger.warning("JWT uses deprecated 'tenant-id' claim. Migrate Keycloak mapper to 'tenant_id'.")
+            tenant_id = legacy
 
     logger.debug("Extracting tenant. Claims: %s", list(payload.keys()))
     logger.debug("Extracted Tenant ID (raw): %s", tenant_id)
@@ -555,8 +525,7 @@ def inject_fiware_headers(headers: Dict, tenant: Optional[str] = None, context_u
         Modified headers dictionary
     """
     if tenant:
-        headers['Fiware-Service'] = tenant
-        headers['Fiware-ServicePath'] = '/'
+        headers['NGSILD-Tenant'] = tenant
     
     # NGSI-LD specific headers
     headers['Content-Type'] = 'application/ld+json'

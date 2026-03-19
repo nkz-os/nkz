@@ -10,6 +10,7 @@ import logging
 import requests
 import secrets
 import jwt
+import psycopg2
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from typing import Dict, Any, Optional, List
@@ -32,6 +33,7 @@ KEYCLOAK_URL = os.getenv('KEYCLOAK_URL', 'http://keycloak-service:8080')
 KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
 KEYCLOAK_CLIENT_ID = os.getenv('KEYCLOAK_CLIENT_ID', 'nekazari-api-gateway')
 KEYCLOAK_CLIENT_SECRET = os.getenv('KEYCLOAK_CLIENT_SECRET', '')
+POSTGRES_URL = os.getenv('POSTGRES_URL', '')
 
 # Roles that TenantAdmin can assign
 TENANT_ADMIN_ASSIGNABLE_ROLES = ['Farmer', 'TechnicalConsultant', 'DeviceManager']  # DeviceManager kept for backward compatibility
@@ -99,23 +101,24 @@ def validate_tenant_admin(f):
             if not is_tenant_admin:
                 return jsonify({'error': 'Only TenantAdmin or PlatformAdmin can manage users'}), 403
             
-            # Get tenant from user attributes (try multiple possible field names)
-            raw_tenant = (
-                user_info.get('tenant_id') or 
-                user_info.get('tenant') or 
-                user_info.get('tenant-id') or
-                ''
-            )
-            
+            # Get tenant from user attributes
+            raw_tenant = user_info.get('tenant_id') or ''
+            # Temporary fallback (remove after 2026-04-02)
+            if not raw_tenant:
+                legacy = user_info.get('tenant-id')
+                if legacy:
+                    logger.warning("userinfo uses deprecated 'tenant-id'. Migrate Keycloak mapper to 'tenant_id'.")
+                    raw_tenant = legacy
+
             # If tenant is still empty, try to get from user attributes
             if not raw_tenant:
                 attributes = user_info.get('attributes', {})
                 if isinstance(attributes, dict):
-                    raw_tenant = (
-                        (attributes.get('tenant_id') or [''])[0] if isinstance(attributes.get('tenant_id'), list) else attributes.get('tenant_id') or
-                        (attributes.get('tenant') or [''])[0] if isinstance(attributes.get('tenant'), list) else attributes.get('tenant') or
-                        ''
-                    )
+                    attr_val = attributes.get('tenant_id') or attributes.get('tenant')
+                    if isinstance(attr_val, list):
+                        raw_tenant = attr_val[0] if attr_val else ''
+                    elif isinstance(attr_val, str):
+                        raw_tenant = attr_val
             
             # CRITICAL SOTA: Always normalize tenant ID before use
             try:
@@ -590,7 +593,17 @@ def update_my_profile(user_info: Dict[str, Any], user_id: str):
         # Update only firstName and lastName
         update_payload['firstName'] = firstName
         update_payload['lastName'] = lastName
-        
+
+        # Update locale in user attributes if provided
+        if 'locale' in data:
+            locale = data['locale']
+            valid_locales = {'es', 'en', 'ca', 'eu', 'fr', 'pt'}
+            if locale not in valid_locales:
+                return jsonify({'error': f'Invalid locale. Valid: {", ".join(sorted(valid_locales))}'}), 400
+            if 'attributes' not in update_payload:
+                update_payload['attributes'] = {}
+            update_payload['attributes']['locale'] = [locale]
+
         # Ensure we don't accidentally modify critical fields
         # Remove fields that shouldn't be sent in update (read-only or managed by Keycloak)
         fields_to_remove = ['id', 'createdTimestamp', 'totp', 'notBefore', 'access']
@@ -673,6 +686,162 @@ def get_user_stats(user_info: Dict[str, Any], tenant: str):
     except Exception as e:
         logger.error(f"Error getting user stats: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tenant/profile', methods=['GET'])
+@validate_authenticated_user
+def get_tenant_profile(user_info: Dict[str, Any], user_id: str):
+    """Get tenant profile for the authenticated user"""
+    try:
+        # Extract tenant_id from token
+        auth_header = request.headers.get('Authorization', '')
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+
+        decoded = jwt.decode(token, options={"verify_signature": False, "verify_exp": False})
+        tenant_id = decoded.get('tenant_id') or decoded.get('tenant-id') or ''
+
+        if not tenant_id:
+            return jsonify({'error': 'No tenant_id in token'}), 400
+
+        # Normalize
+        try:
+            tenant_id = normalize_tenant_id(tenant_id)
+        except ValueError:
+            pass
+
+        if not POSTGRES_URL:
+            return jsonify({
+                'tenant_id': tenant_id,
+                'tenant_name': tenant_id,
+                'plan_type': 'basic',
+                'status': 'active',
+                'timezone': 'Europe/Madrid',
+                'locale': 'es',
+                'currency': 'EUR',
+                'default_location': None,
+            })
+
+        conn = psycopg2.connect(POSTGRES_URL)
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT tenant_name, plan_type, status, metadata FROM tenants WHERE tenant_id = %s",
+                (tenant_id,)
+            )
+            row = cur.fetchone()
+            cur.close()
+
+            if row:
+                metadata = row[3] or {}
+                return jsonify({
+                    'tenant_id': tenant_id,
+                    'tenant_name': row[0] or tenant_id,
+                    'plan_type': row[1] or 'basic',
+                    'status': row[2] or 'active',
+                    'timezone': metadata.get('timezone', 'Europe/Madrid'),
+                    'locale': metadata.get('locale', 'es'),
+                    'currency': metadata.get('currency', 'EUR'),
+                    'default_location': metadata.get('default_location'),
+                })
+            else:
+                return jsonify({
+                    'tenant_id': tenant_id,
+                    'tenant_name': tenant_id,
+                    'plan_type': 'basic',
+                    'status': 'active',
+                    'timezone': 'Europe/Madrid',
+                    'locale': 'es',
+                    'currency': 'EUR',
+                    'default_location': None,
+                })
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error(f"Error fetching tenant profile: {e}")
+        return jsonify({'error': 'Failed to fetch tenant profile'}), 500
+
+
+@app.route('/api/tenant/profile', methods=['PATCH'])
+@validate_tenant_admin
+def update_tenant_profile(user_info: Dict[str, Any], tenant: str):
+    """Update tenant profile (TenantAdmin or PlatformAdmin only)"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        if not POSTGRES_URL:
+            return jsonify({'error': 'Database not configured'}), 503
+
+        # Validate fields
+        allowed_fields = {'tenant_name', 'timezone', 'locale', 'currency', 'default_location'}
+        unknown = set(data.keys()) - allowed_fields
+        if unknown:
+            return jsonify({'error': f'Unknown fields: {", ".join(unknown)}'}), 400
+
+        conn = psycopg2.connect(POSTGRES_URL)
+        try:
+            cur = conn.cursor()
+
+            # Validate tenant_name if provided
+            if 'tenant_name' in data:
+                name = data['tenant_name'].strip()
+                if not name or len(name) > 100:
+                    return jsonify({'error': 'tenant_name must be 1-100 characters'}), 400
+
+                cur.execute(
+                    "UPDATE tenants SET tenant_name = %s, updated_at = NOW() WHERE tenant_id = %s",
+                    (name, tenant)
+                )
+
+            # Store timezone, locale, currency, default_location in metadata JSONB
+            metadata_updates = {}
+            if 'timezone' in data:
+                tz = data['timezone']
+                if not isinstance(tz, str) or len(tz) > 50:
+                    return jsonify({'error': 'Invalid timezone'}), 400
+                metadata_updates['timezone'] = tz
+
+            if 'locale' in data:
+                locale = data['locale']
+                valid_locales = {'es', 'en', 'ca', 'eu', 'fr', 'pt'}
+                if locale not in valid_locales:
+                    return jsonify({'error': f'Invalid locale. Valid: {", ".join(sorted(valid_locales))}'}), 400
+                metadata_updates['locale'] = locale
+
+            if 'currency' in data:
+                currency = data['currency'].upper()
+                valid_currencies = {'EUR', 'GBP', 'USD'}
+                if currency not in valid_currencies:
+                    return jsonify({'error': f'Invalid currency. Valid: {", ".join(sorted(valid_currencies))}'}), 400
+                metadata_updates['currency'] = currency
+
+            if 'default_location' in data:
+                loc = data['default_location']
+                if loc is not None:
+                    if not isinstance(loc, dict) or 'lat' not in loc or 'lon' not in loc:
+                        return jsonify({'error': 'default_location must be {lat, lon} or null'}), 400
+                    if not (-90 <= loc['lat'] <= 90) or not (-180 <= loc['lon'] <= 180):
+                        return jsonify({'error': 'Invalid coordinates'}), 400
+                metadata_updates['default_location'] = loc
+
+            if metadata_updates:
+                # Merge into existing metadata using jsonb || operator
+                cur.execute(
+                    "UPDATE tenants SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb, updated_at = NOW() WHERE tenant_id = %s",
+                    (json.dumps(metadata_updates), tenant)
+                )
+
+            conn.commit()
+            cur.close()
+
+            return jsonify({'success': True, 'updated': list(data.keys())})
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logger.error(f"Error updating tenant profile: {e}")
+        return jsonify({'error': 'Failed to update tenant profile'}), 500
 
 
 if __name__ == '__main__':

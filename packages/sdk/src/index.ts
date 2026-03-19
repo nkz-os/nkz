@@ -15,6 +15,9 @@ export { useViewer, useViewerOptional, type ViewerContextValue } from './viewer/
 // API Client exports
 export { NKZClient, type NKZClientOptions } from './api/client';
 
+// NGSI-LD helpers
+export { getEntityDisplayName, getNGSIValue } from './ngsi/helpers';
+
 // Backward compatibility: Export legacy names as aliases
 // These will be deprecated in v3.0.0
 export { NKZClient as NekazariClient } from './api/client';

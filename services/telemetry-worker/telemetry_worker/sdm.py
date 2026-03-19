@@ -213,7 +213,7 @@ async def _update_orion_entity(tenant_id: str, entity_id: str, updates: Dict[str
         
         # Add required NGSI-LD @context to updates
         if '@context' not in updates:
-            updates['@context'] = settings.context_url or "https://nkz.robotika.cloud/ngsi-ld-context.json"
+            updates['@context'] = settings.context_url
             
         # Use PATCH to update entity
         response = requests.patch(

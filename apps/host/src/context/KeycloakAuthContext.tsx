@@ -16,8 +16,20 @@ export interface KeycloakUser {
   firstName?: string;
   lastName?: string;
   name?: string;
+  tenantName?: string;
   tenant?: string;
   roles: string[];
+}
+
+export interface TenantProfile {
+  tenant_id: string;
+  tenant_name: string;
+  plan_type: string;
+  status: string;
+  timezone: string;
+  locale: string;
+  currency: string;
+  default_location: { lat: number; lon: number } | null;
 }
 
 export interface KeycloakAuthContextType {
@@ -31,6 +43,9 @@ export interface KeycloakAuthContextType {
   hasAnyRole: (roles: string[]) => boolean;
   getToken: () => string | undefined;
   tenantId: string;
+  tenantName: string;
+  tenantProfile: TenantProfile | null;
+  refreshTenantProfile: () => void;
 }
 
 const KeycloakAuthContext = createContext<KeycloakAuthContextType | undefined>(undefined);
@@ -54,10 +69,8 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
     realm_access?: { roles?: string[] };
     resource_access?: Record<string, { roles?: string[] }>;
     roles?: string[];
-    'tenant-id'?: string;
-    tenantId?: string;
-    tenant?: string;
-    groups?: string[];
+    tenant_id?: string;
+    'tenant-id'?: string; // Legacy, remove after 2026-04-02
   };
 
   const updateUserRolesFromToken = (kc: Keycloak): void => {
@@ -70,18 +83,10 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
       const rootRoles = decoded.roles || decoded['roles'] || [];
       const roles = [...new Set([...realmRoles, ...resourceRoles, ...rootRoles])];
 
-      // Extract tenant - try multiple claim names and fallback to groups
-      let tokenTenant = decoded['tenant-id'] || decoded.tenantId || decoded.tenant || '';
+      // Extract tenant - canonical claim names only
+      let tokenTenant = decoded.tenant_id || decoded['tenant-id'] || '';
 
-      // Fallback: Extract from groups (same logic as backend)
-      if (!tokenTenant && decoded.groups && Array.isArray(decoded.groups) && decoded.groups.length > 0) {
-        const firstGroup = decoded.groups[0];
-        // Remove leading slash if present (Keycloak groups often start with /)
-        tokenTenant = firstGroup.startsWith('/') ? firstGroup.substring(1) : firstGroup;
-        logger.debug('[Auth] Extracted tenant from groups:', tokenTenant);
-      }
-
-      logger.debug('[Auth] Updating user roles from token - roles:', roles, 'tenant:', tokenTenant, 'groups:', decoded.groups);
+      logger.debug('[Auth] Updating user roles from token - roles:', roles, 'tenant:', tokenTenant);
 
       // Update user state using functional update to get current state
       setUser((currentUser: KeycloakUser | null) => {
@@ -320,15 +325,8 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
             const rootRoles = decoded.roles || decoded['roles'] || [];
             roles = [...new Set([...realmRoles, ...resourceRoles, ...rootRoles])];
 
-            // Buscar tenant_id en múltiples formatos (string o array)
-            let rawTenant = decoded['tenant_id'] || decoded['tenant-id'] || decoded.tenantId || decoded.tenant || '';
-
-            // Si no hay tenant_id, intentar extraer del primer grupo (misma lógica que backend)
-            if (!rawTenant && decoded.groups && Array.isArray(decoded.groups) && decoded.groups.length > 0) {
-              const firstGroup = decoded.groups[0];
-              // Remove leading slash if present (Keycloak groups often start with /)
-              rawTenant = firstGroup.startsWith('/') ? firstGroup.substring(1) : firstGroup;
-            }
+            // Buscar tenant_id en canonical claim names
+            let rawTenant = decoded.tenant_id || decoded['tenant-id'] || '';
 
             // Si es array (de Keycloak group mapper), tomar primer elemento
             tokenTenant = Array.isArray(rawTenant) ? (rawTenant[0] || '') : rawTenant;
@@ -342,7 +340,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
             roles = kc.tokenParsed?.realm_access?.roles || (kc.tokenParsed as any)?.roles || (kc.tokenParsed as any)?.['roles'] || [];
           }
           if (!tokenTenant) {
-            tokenTenant = (kc.tokenParsed as any)?.tenant || (kc.tokenParsed as any)?.tenantId || (kc.tokenParsed as any)?.['tenant-id'] || '';
+            tokenTenant = (kc.tokenParsed as any)?.tenant_id || (kc.tokenParsed as any)?.['tenant-id'] || '';
           }
 
           // Cargar perfil de usuario
@@ -484,7 +482,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
               const resourceRoles = Object.values(decoded.resource_access || {}).flatMap((r: any) => r.roles || []);
               const rootRoles = decoded.roles || decoded['roles'] || [];
               roles = [...new Set([...realmRoles, ...resourceRoles, ...rootRoles])];
-              tokenTenant = decoded['tenant-id'] || decoded.tenantId || decoded.tenant || '';
+              tokenTenant = decoded.tenant_id || decoded['tenant-id'] || '';
               logger.debug('[Auth] Token decoded - roles:', roles, 'tenant:', tokenTenant);
             } catch (e) {
               logger.warn('[Auth] Error decoding token:', e);
@@ -496,7 +494,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
             roles = kc.tokenParsed?.realm_access?.roles || (kc.tokenParsed as any)?.roles || [];
           }
           if (!tokenTenant) {
-            tokenTenant = (kc.tokenParsed as any)?.tenant || (kc.tokenParsed as any)?.tenantId || (kc.tokenParsed as any)?.['tenant-id'] || '';
+            tokenTenant = (kc.tokenParsed as any)?.tenant_id || (kc.tokenParsed as any)?.['tenant-id'] || '';
           }
 
           logger.debug('[Auth] Configured roles:', roles);
@@ -604,6 +602,29 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
   };
 
   const tenantId = user?.tenant || 'master';
+  const [tenantProfile, setTenantProfile] = useState<TenantProfile | null>(null);
+
+  const fetchTenantProfile = React.useCallback(() => {
+    if (!isAuthenticated || !user?.tenant) {
+      setTenantProfile(null);
+      return;
+    }
+    api.get('/api/tenant/profile')
+      .then(res => {
+        if (res.data) {
+          setTenantProfile(res.data as TenantProfile);
+        }
+      })
+      .catch(() => {
+        setTenantProfile(null);
+      });
+  }, [isAuthenticated, user?.tenant]);
+
+  React.useEffect(() => {
+    fetchTenantProfile();
+  }, [fetchTenantProfile]);
+
+  const tenantName = tenantProfile?.tenant_name || user?.tenant || '';
 
   // Share Keycloak ref with api.ts for token refresh / cookie update.
   // NOT exposed via window — modules cannot access it.
@@ -729,7 +750,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
           try {
             const decoded = JSON.parse(atob(kc.token.split('.')[1]));
             const roles = decoded.realm_access?.roles || decoded.roles || decoded['roles'] || [];
-            const tokenTenant = decoded['tenant-id'] || decoded.tenantId || decoded.tenant || '';
+            const tokenTenant = decoded.tenant_id || decoded['tenant-id'] || '';
             logger.debug('[Auth] Init - Token decoded - roles:', roles, 'tenant:', tokenTenant);
 
             kc.loadUserProfile().then((userInfo) => {
@@ -793,6 +814,9 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
     hasAnyRole,
     getToken,
     tenantId,
+    tenantName,
+    tenantProfile,
+    refreshTenantProfile: fetchTenantProfile,
   };
 
   // Expose auth context to external modules via window (for SDK access)
@@ -804,6 +828,8 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
         isAuthenticated,
         user,
         tenantId,
+        tenantName,
+        tenantProfile,
         roles: user?.roles ?? [],
         login,
         logout,
@@ -817,7 +843,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
         delete (window as any).__nekazariAuthContext;
       }
     };
-  }, [isAuthenticated, user, tenantId, login, logout, hasRole, hasAnyRole]);
+  }, [isAuthenticated, user, tenantId, tenantName, tenantProfile, login, logout, hasRole, hasAnyRole]);
 
   return (
     <KeycloakAuthContext.Provider value={value}>

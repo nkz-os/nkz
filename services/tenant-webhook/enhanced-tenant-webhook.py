@@ -855,6 +855,8 @@ class EnhancedTenantWebhookService:
         plan_info: dict[str, Any],
         password: str | None = None,
         is_owner: bool = False,
+        first_name: str = "",
+        last_name: str = "",
     ) -> dict[str, Any]:  # noqa: C901, E501
         """Create user in Keycloak with tenant group
 
@@ -864,6 +866,8 @@ class EnhancedTenantWebhookService:
             plan_info: Plan information with limits
             password: User password (optional)
             is_owner: If True, assign TenantAdmin role (first farmer/owner), else Farmer role
+            first_name: Explicit first name (if empty, derived from email)
+            last_name: Explicit last name (if empty, derived from email)
         """
         token = self.get_keycloak_token()
         if not token:
@@ -876,10 +880,11 @@ class EnhancedTenantWebhookService:
             user_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
             headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-            # Extract first and last name from email
-            name_parts = email.split("@")[0].split(".")
-            first_name = name_parts[0].title() if name_parts else "User"
-            last_name = name_parts[1].title() if len(name_parts) > 1 else ""
+            # Use explicit names from caller if available, fall back to email-derived
+            if not first_name:
+                name_parts = email.split("@")[0].split(".")
+                first_name = name_parts[0].title() if name_parts else "User"
+                last_name = name_parts[1].title() if len(name_parts) > 1 else last_name
 
             # Check if user already exists in Keycloak
             search_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
@@ -3213,7 +3218,9 @@ def activate_tenant():  # noqa: C901
         # Create Keycloak user (CRITICAL - this must succeed)
         # Assign TenantAdmin role to first farmer (owner)
         user_result = webhook_service.create_keycloak_user(
-            email, tenant_id, plan_info, password, is_owner=True
+            email, tenant_id, plan_info, password, is_owner=True,
+            first_name=data.get("first_name") or data.get("firstName") or "",
+            last_name=data.get("last_name") or data.get("lastName") or "",
         )  # noqa: E501
         user_success = (
             user_result.get("success", False) if isinstance(user_result, dict) else user_result
@@ -4208,6 +4215,8 @@ def register_tenant():
                 plan_info=plan_info,
                 password=password,
                 is_owner=True,
+                first_name=data.get("first_name") or data.get("firstName") or "",
+                last_name=data.get("last_name") or data.get("lastName") or "",
             )
 
             if not kc_result.get("success"):

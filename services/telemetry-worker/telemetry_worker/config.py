@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     queue_dsn: Optional[str] = Field(None, env="QUEUE_DSN")
     log_level: str = Field("INFO", env="LOG_LEVEL")
     orion_url: str = Field("http://orion-ld-service:1026", env="ORION_URL")
+    context_url: str = Field("http://api-gateway-service:5000/ngsi-ld-context.json", env="CONTEXT_URL")
 
     class Config:
         env_prefix = "SENSOR_"

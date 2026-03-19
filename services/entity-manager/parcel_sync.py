@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class ParcelSync:
     def __init__(self):
         self.orion_url = os.getenv('ORION_URL', 'http://orion-ld-service:1026')
-        self.context_url = os.getenv('CONTEXT_URL', 'https://nkz.robotika.cloud/ngsi-ld-context.json')
+        self.context_url = os.getenv('CONTEXT_URL', 'http://api-gateway-service:5000/ngsi-ld-context.json')
 
     def sync_all_tenant_parcels(self, tenant_id: str):
         """Fetch all active parcels for a tenant and push them to Orion-LD"""

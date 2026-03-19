@@ -20,6 +20,7 @@ from pymongo import MongoClient
 # Add common directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common'))
 from auth_middleware import require_auth, inject_fiware_headers, log_entity_operation, require_entity_ownership
+from entity_utils import generate_entity_id
 
 # Configure logging to stdout for kubernetes
 logging.basicConfig(
@@ -59,8 +60,9 @@ MQTT_INTERNAL_HOST = os.getenv('MQTT_HOST', 'mosquitto-service')
 IOT_ENTITY_TYPES = {'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'AgriculturalTractor', 'LivestockAnimal', 'AgriculturalMachine'}
 
 # SOTA: Use local unified context from API Gateway
+CONTEXT_URL = os.getenv('CONTEXT_URL', 'http://api-gateway-service:5000/ngsi-ld-context.json')
 PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "http://api-gateway-service:5000").rstrip("/")
-SOTA_CONTEXT = f"{PLATFORM_API_URL}/ngsi-ld-context.json"
+SOTA_CONTEXT = CONTEXT_URL
 
 # Tenant Limits
 MAX_SENSORS_PER_TENANT = int(os.getenv('MAX_SENSORS_PER_TENANT', '100'))
@@ -723,7 +725,7 @@ def create_entity_instance(entity_type):
             }), 403
         
         # Add type and ID to entity
-        entity_id = data.get('id', f"urn:ngsi-ld:{entity_type}:{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}")
+        entity_id = data.get('id') or generate_entity_id(entity_type)
         
         # Ensure proper URN format
         if not entity_id.startswith('urn:ngsi-ld:'):

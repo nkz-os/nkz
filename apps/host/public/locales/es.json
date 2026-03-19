@@ -39,7 +39,9 @@
     "sensor_location": "Ubicación de sensores",
     "parcel_delimitation": "Delimitación de parcelas",
     "full_view": "Vista Completa",
-    "coming_soon": "PRÓXIMAMENTE"
+    "coming_soon": "PRÓXIMAMENTE",
+    "saving": "Guardando...",
+    "error": "Error"
   },
   "navigation": {
     "robots": "Robots",
@@ -351,7 +353,18 @@
       "getting_started": "Primeros Pasos",
       "iot_devices": "Dispositivos IoT",
       "weather_stations": "Estaciones Meteorológicas"
-    }
+    },
+    "tenant_profile": "Perfil de la explotación",
+    "farm_name": "Nombre de la explotación",
+    "timezone": "Zona horaria",
+    "language": "Idioma",
+    "currency": "Moneda",
+    "default_location": "Ubicación por defecto",
+    "latitude": "Latitud",
+    "longitude": "Longitud",
+    "location_hint": "Coordenadas del centro de tu explotación (se usa como vista inicial del mapa)",
+    "profile_updated": "Perfil actualizado correctamente",
+    "admin_only": "Solo el administrador del tenant puede modificar estos ajustes"
   },
   "layout": {
     "copyright": "© 2024 Nekazari Agricultural Platform",

@@ -200,8 +200,8 @@ def inject_fiware_headers(headers, tenant=None):
             from tenant_utils import normalize_tenant_id
 
             normalized_tenant = normalize_tenant_id(tenant)
-            headers["Fiware-Service"] = normalized_tenant
-            headers["Fiware-ServicePath"] = "/"
+            headers["NGSILD-Tenant"] = normalized_tenant
+            headers["Fiware-Service"] = normalized_tenant  # Legacy, remove after 2026-04-02
         except (ImportError, ValueError) as e:
             # Fallback to old behavior if import fails, but log warning
             logger.warning(
@@ -212,8 +212,8 @@ def inject_fiware_headers(headers, tenant=None):
             import re
 
             sanitized_tenant = re.sub(r"[^a-z0-9_]", "", sanitized_tenant)
-            headers["Fiware-Service"] = sanitized_tenant
-            headers["Fiware-ServicePath"] = "/"
+            headers["NGSILD-Tenant"] = sanitized_tenant
+            headers["Fiware-Service"] = sanitized_tenant  # Legacy, remove after 2026-04-02
 
     # NGSI-LD specific headers
     # Check if payload has @context (only for POST/PUT/PATCH with JSON body)
@@ -663,7 +663,7 @@ def timeseries_proxy(path):
         return jsonify({"error": "Tenant not present in token"}), 401
 
     # Prepare headers
-    headers = {"Authorization": f"Bearer {token}", "Fiware-Service": tenant}
+    headers = {"Authorization": f"Bearer {token}", "NGSILD-Tenant": tenant, "Fiware-Service": tenant}
     if request.method == "POST" and request.is_json:
         headers["Content-Type"] = "application/json"
 
@@ -1563,7 +1563,7 @@ def proxy_tenant_requests(subpath):
     # Route logic:
     # 1. tenant/users -> tenant-user-api-service
     # 2. Everything else -> tenant-webhook-service
-    if subpath.startswith("users"):
+    if subpath.startswith("users") or subpath.startswith("profile"):
         target_url = f"{TENANT_USER_API_URL}/api/tenant/{subpath}"
     else:
         target_url = f"{TENANT_WEBHOOK_URL}/api/tenant/{subpath}"
