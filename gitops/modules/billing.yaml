@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: billing
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/k8-benetis/nkz-module-billing
+    targetRevision: HEAD
+    path: k8s
+    directory:
+      recurse: true
+      exclude: '{registration.sql,reaper/Dockerfile,reaper/reaper.py,reaper/requirements.txt,reaper/__pycache__/**}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nekazari
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
