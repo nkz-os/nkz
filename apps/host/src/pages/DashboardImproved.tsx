@@ -133,7 +133,7 @@ export const DashboardImproved: React.FC = () => {
             accentIcon={Activity}
             gradientFrom="from-blue-500"
             gradientTo="to-blue-600"
-            footer={usageStats && sensorLimit ? t('dashboard.capacity', { current: usageStats.sensors, limit: sensorLimit }) : undefined}
+            footer={usageStats && sensorLimit ? t('dashboard.capacity', { current: String(usageStats.sensors), limit: String(sensorLimit) }) : undefined}
           >
             {usageStats && sensorLimit ? (
               <ProgressBar
@@ -151,12 +151,12 @@ export const DashboardImproved: React.FC = () => {
           <MetricCard
             title={t('dashboard.total_robots')}
             value={robots.length}
-            description={t('dashboard.active_count', { count: activeRobots })}
+            description={t('dashboard.active_count', { count: String(activeRobots) })}
             icon={Bot}
             accentIcon={Activity}
             gradientFrom="from-indigo-500"
             gradientTo="to-indigo-600"
-            footer={usageStats && robotLimit ? t('dashboard.capacity', { current: usageStats.robots, limit: robotLimit }) : undefined}
+            footer={usageStats && robotLimit ? t('dashboard.capacity', { current: String(usageStats.robots), limit: String(robotLimit) }) : undefined}
           >
             {usageStats && robotLimit ? (
               <ProgressBar
@@ -174,7 +174,7 @@ export const DashboardImproved: React.FC = () => {
           <MetricCard
             title={t('dashboard.registered_entities')}
             value={isLoading ? '…' : totalEntities}
-            description={t('dashboard.entities_summary', { parcels: parcels.length, sensors: sensors.length, robots: robots.length })}
+            description={t('dashboard.entities_summary', { parcels: String(parcels.length), sensors: String(sensors.length), robots: String(robots.length) })}
             icon={Layers}
             gradientFrom="from-purple-500"
             gradientTo="to-purple-600"
