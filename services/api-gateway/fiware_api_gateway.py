@@ -326,6 +326,12 @@ def entity_by_id(entity_id):
     if not rate_limit(tenant):
         return jsonify({"error": "Rate limit exceeded"}), 429
 
+    # Role based access control (Read-Only fallback)
+    has_pro_expired = has_role("role_pro_expired", payload)
+    if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+        logger.warning(f"Blocked mutation request to {request.path} for user with role_pro_expired")
+        return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
+
     # Prepare headers for Orion-LD
     headers = {}
     headers = inject_fiware_headers(headers, tenant)
@@ -381,6 +387,12 @@ def entities():
     if not rate_limit(tenant):
         return jsonify({"error": "Rate limit exceeded"}), 429
 
+    # Role based access control (Read-Only fallback)
+    has_pro_expired = has_role("role_pro_expired", payload)
+    if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+        logger.warning(f"Blocked mutation request to {request.path} for user with role_pro_expired")
+        return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
+
     # Prepare headers for Orion-LD
     headers = {}
     headers = inject_fiware_headers(headers, tenant)
@@ -435,6 +447,12 @@ def subscriptions():
     # Rate limit por tenant
     if not rate_limit(tenant):
         return jsonify({"error": "Rate limit exceeded"}), 429
+
+    # Role based access control (Read-Only fallback)
+    has_pro_expired = has_role("role_pro_expired", payload)
+    if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+        logger.warning(f"Blocked mutation request to {request.path} for user with role_pro_expired")
+        return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
 
     # Prepare headers for Orion-LD
     headers = {}
@@ -666,6 +684,12 @@ def timeseries_proxy(path):
     headers = {"Authorization": f"Bearer {token}", "NGSILD-Tenant": tenant, "Fiware-Service": tenant}
     if request.method == "POST" and request.is_json:
         headers["Content-Type"] = "application/json"
+
+    # Role based access control (Read-Only fallback)
+    has_pro_expired = has_role("role_pro_expired", payload)
+    if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+        logger.warning(f"Blocked mutation request to {subpath} for user with role_pro_expired")
+        return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
 
     # Forward request
     try:
@@ -2759,6 +2783,12 @@ def generic_proxy(target_url, path):
         return jsonify({"error": "Tenant not present in token"}), 401
     if not rate_limit(tenant):
         return jsonify({"error": "Rate limit exceeded"}), 429
+
+    # Role based access control (Read-Only fallback)
+    has_pro_expired = has_role("role_pro_expired", payload)
+    if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+        logger.warning(f"Blocked mutation request to {target_url}/{path} for user with role_pro_expired")
+        return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
 
     url = f"{target_url}/{path}"
     headers = {"X-Tenant-ID": tenant, "Authorization": f"Bearer {token}"}
