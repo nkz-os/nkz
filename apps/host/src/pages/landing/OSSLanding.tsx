@@ -11,6 +11,7 @@ import {
 import { useI18n } from '@/context/I18nContext';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { CookieBanner } from '@/components/CookieBanner';
+import { NkzAttribution } from '@/components/attribution/NkzAttribution';
 import { logger } from '@/utils/logger';
 
 export const OSSLanding: React.FC = () => {
@@ -340,6 +341,9 @@ export const OSSLanding: React.FC = () => {
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm">
             <p>{t('landing.footer_copyright') || '© 2025 NKZ. Todos los derechos reservados.'}</p>
+            <div className="mt-2 text-xs text-gray-400">
+              <NkzAttribution variant="oss" />
+            </div>
           </div>
         </div>
       </footer>

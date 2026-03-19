@@ -15,6 +15,7 @@ import { CookieBanner } from '@/components/CookieBanner';
 import { PartnerLogos } from '@/components/partners/PartnerLogos';
 import { PricingCards } from '@/components/pricing/PricingCards';
 import { logger } from '@/utils/logger';
+import { NkzAttribution } from '@/components/attribution/NkzAttribution';
 
 export const CommercialLanding: React.FC = () => {
   const navigate = useNavigate();
@@ -350,6 +351,9 @@ export const CommercialLanding: React.FC = () => {
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm">
             <p>{t('landing.footer_copyright') || '© 2025 NKZ. Todos los derechos reservados.'}</p>
+            <div className="mt-2 text-xs text-gray-400">
+              <NkzAttribution variant="commercial" />
+            </div>
           </div>
         </div>
       </footer>
