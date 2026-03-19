@@ -60,9 +60,7 @@ POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "nekazari")
 
 ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
-CONTEXT_URL = os.getenv(
-    "CONTEXT_URL", "https://nekazari.robotika.cloud/ngsi-ld-context.json"
-)
+CONTEXT_URL = os.getenv("CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json")
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis-service:6379")
 
 # Build PostgreSQL URL
@@ -139,8 +137,8 @@ class RiskProcessor:
         all_entities: List[Dict[str, Any]] = []
         headers = {
             "Accept": "application/json",
-            "Fiware-Service": tenant_id,
-            "Fiware-ServicePath": "/",
+            "NGSILD-Tenant": tenant_id,
+            "Fiware-Service": tenant_id,  # Legacy, remove after 2026-04-02
             "Link": f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"',
         }
         page_size = 200

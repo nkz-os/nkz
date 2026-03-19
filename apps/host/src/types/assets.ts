@@ -465,13 +465,10 @@ export const CATEGORY_REGISTRY: Record<AssetCategory, CategoryInfo> = {
  * Extract name from NGSI-LD entity
  */
 function extractName(entity: any): string {
-  if (!entity) return 'Sin nombre';
+  if (!entity) return '';
   if (typeof entity.name === 'string') return entity.name;
-  if (entity.name?.value) return entity.name.value;
-  // Fallback to ID
-  const id = entity.id || '';
-  const parts = id.split(':');
-  return parts[parts.length - 1] || id;
+  if (entity.name?.value != null) return String(entity.name.value);
+  return entity.id ?? '';
 }
 
 /**

@@ -21,7 +21,7 @@ interface ForecastDay {
 }
 
 export const TenantInfoWidget: React.FC = () => {
-    const { user } = useAuth();
+    const { user, tenantName } = useAuth();
     const { t } = useI18n();
     const [time, setTime] = useState(new Date());
     const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -82,7 +82,7 @@ export const TenantInfoWidget: React.FC = () => {
                     </h1>
                     <div className="flex items-center gap-4 text-gray-600 dark:text-gray-300">
                         <span className="flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
-                            {user?.tenant || 'Nekazari Tenant'}
+                            {tenantName || user?.tenant || 'Nekazari Tenant'}
                         </span>
                         <span className="flex items-center gap-1 bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
                             {user?.roles?.[0] || 'User'}

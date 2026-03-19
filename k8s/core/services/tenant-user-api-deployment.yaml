@@ -50,6 +50,11 @@ spec:
           value: "nekazari-api-gateway"
         - name: KEYCLOAK_CLIENT_SECRET
           value: ""  # Not required for admin operations
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: postgres-url
         livenessProbe:
           httpGet:
             path: /health

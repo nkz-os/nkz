@@ -37,7 +37,9 @@
     "parcel_delimitation": "Parcel delimitation",
     "robot_position_realtime": "Real-time robot position",
     "sensor_location": "Sensor location",
-    "terrain_3d": "3D terrain of the farm"
+    "terrain_3d": "3D terrain of the farm",
+    "saving": "Saving...",
+    "error": "Error"
   },
   "navigation": {
     "robots": "Robots",
@@ -340,7 +342,18 @@
       "getting_started": "Getting Started",
       "iot_devices": "IoT Devices",
       "weather_stations": "Weather Stations"
-    }
+    },
+    "tenant_profile": "Farm profile",
+    "farm_name": "Farm name",
+    "timezone": "Timezone",
+    "language": "Language",
+    "currency": "Currency",
+    "default_location": "Default location",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "location_hint": "Center coordinates for your farm (used as default map view)",
+    "profile_updated": "Profile updated successfully",
+    "admin_only": "Only tenant administrators can modify these settings"
   },
   "landing": {
     "title": "NKZ",
