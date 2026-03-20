@@ -18,7 +18,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import psycopg2
 import requests
@@ -108,7 +108,15 @@ app = Flask(__name__)
 
 # Rate limiting setup (SOTA Layer 3: Backend Security)
 # Using Redis for persistence across pod restarts
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis-service:6379/0")
+redis_host = os.getenv("REDIS_HOST", "redis-service.nekazari.svc.cluster.local:6379")
+redis_password = os.getenv("REDIS_PASSWORD")
+
+if redis_password:
+    encoded_pass = quote(redis_password, safe="")
+    REDIS_URL = f"redis://:{encoded_pass}@{redis_host}/0"
+else:
+    REDIS_URL = os.getenv("REDIS_URL", f"redis://{redis_host}/0")
+
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
