@@ -131,8 +131,8 @@ spec:
             secretKeyRef:
               name: tenant-webhook-secrets
               key: REDIS_PASSWORD
-        - name: REDIS_URL
-          value: "redis://:$(REDIS_PASSWORD)@redis-service.nekazari.svc.cluster.local:6379/0"
+        - name: REDIS_HOST
+          value: "redis-service.nekazari.svc.cluster.local:6379"
         resources:
           requests:
             memory: "256Mi"
