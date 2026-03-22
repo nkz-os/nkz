@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: tenant-webhook-scripts
-  namespace: nekazari-webhook
+  namespace: nekazari
   labels:
     app: tenant-webhook
     component: scripts
