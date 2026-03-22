@@ -1,5 +1,9 @@
 # Professional Deployment Guide
 
+## GHCR registry migration (org move)
+
+If you still need to copy images from `ghcr.io/k8-benetis/nkz/*` to `ghcr.io/nkz-os/nkz/*`, see [GHCR_MIGRATION.md](operations/GHCR_MIGRATION.md) and `scripts/ghcr-migrate-nkz-core.sh`.
+
 ## Overview
 
 This guide explains the professional deployment system that ensures:
