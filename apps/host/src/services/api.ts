@@ -733,11 +733,13 @@ class ApiService {
   }
 
   async getSDMEntityInstancesPaginated(entityType: string, params?: { limit?: number; offset?: number }): Promise<{ instances: any[]; total: number; count: number }> {
-    const queryParams = { ...params, type: entityType };
+    const queryParams = { ...params, type: entityType, count: 'true' };
     const response = await this.client.get('/ngsi-ld/v1/entities', { params: queryParams });
-    // Orion-LD returns an array directly; wrap for compatibility
     const entities = Array.isArray(response.data) ? response.data : [];
-    return { instances: entities, total: entities.length, count: entities.length };
+    // Orion-LD returns total count in NGSILD-Results-Count header when count=true
+    const totalHeader = response.headers?.['ngsild-results-count'];
+    const total = totalHeader ? parseInt(totalHeader, 10) : entities.length;
+    return { instances: entities, total, count: entities.length };
   }
 
   async updateSDMEntity(_entityType: string, entityId: string, updates: any): Promise<void> {
@@ -753,11 +755,6 @@ class ApiService {
 
   async deleteSDMEntity(_entityType: string, entityId: string): Promise<void> {
     await this.client.delete(`/ngsi-ld/v1/entities/${entityId}`);
-  }
-
-  async migrateToSDM(entityIds: string[]): Promise<any> {
-    const response = await this.client.post('/sdm/migrate', { entityIds });
-    return response.data;
   }
 
   // =============================================================================

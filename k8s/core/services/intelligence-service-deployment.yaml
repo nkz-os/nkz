@@ -75,7 +75,7 @@ spec:
             - name: ORION_URL
               value: "http://orion-ld-service:1026"
             - name: CONTEXT_URL
-              value: "https://nekazari.robotika.cloud/ngsi-ld-context.json"
+              value: "http://api-gateway-service:5000/ngsi-ld-context.json"
             # Keycloak Configuration (optional)
             - name: KEYCLOAK_URL
               value: "https://auth.robotika.cloud/auth"

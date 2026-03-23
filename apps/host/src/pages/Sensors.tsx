@@ -23,9 +23,13 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
   Trash2,
   MapPin,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  HelpCircle,
+  Thermometer,
 } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { es, enUS, eu } from 'date-fns/locale';
@@ -143,6 +147,34 @@ export const Sensors: React.FC = () => {
     }
   };
 
+  // Health summary computed from loaded sensors
+  const healthSummary = React.useMemo(() => {
+    const counts = { online: 0, warning: 0, offline: 0, unknown: 0 };
+    sensors.forEach(s => {
+      const st = getStatus(s);
+      counts[st as keyof typeof counts] = (counts[st as keyof typeof counts] || 0) + 1;
+    });
+    return counts;
+  }, [sensors]);
+
+  // Extract dynamic measurement attributes (skip structural NGSI-LD fields)
+  const SKIP_KEYS = new Set([
+    'id', 'type', '@context', 'name', 'description', 'location', 'batteryLevel',
+    'observedAt', 'dateCreated', 'dateModified', 'refDeviceModel', 'refDeviceProfile',
+    'owner', 'source', 'dataProvider', 'seeAlso', 'controlledProperty',
+  ]);
+
+  const getDynamicAttrs = (sensor: SensorEntity): { key: string; value: any; observedAt?: string }[] => {
+    const attrs: { key: string; value: any; observedAt?: string }[] = [];
+    for (const [key, val] of Object.entries(sensor)) {
+      if (SKIP_KEYS.has(key)) continue;
+      if (val && typeof val === 'object' && 'value' in val) {
+        attrs.push({ key, value: val.value, observedAt: val.observedAt });
+      }
+    }
+    return attrs.slice(0, 3); // Show max 3 dynamic attributes
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'online': return 'bg-green-100 text-green-800 border-green-200';
@@ -213,10 +245,10 @@ export const Sensors: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
             <Activity className="w-8 h-8 text-teal-600" />
-            {t('sensors.title') || 'Inventario de Sensores'}
+            {t('sensors.title') || 'Sensores IoT'}
           </h1>
           <p className="text-gray-500 mt-1">
-            {t('sensors.subtitle') || 'Monitorización de estado y salud de dispositivos IoT'}
+            {t('sensors.subtitle') || 'Estado de conexión y monitorización de dispositivos'}
           </p>
         </div>
         <div className="flex gap-3">
@@ -233,11 +265,45 @@ export const Sensors: React.FC = () => {
               className="px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition flex items-center gap-2 shadow-lg shadow-teal-600/20 font-medium"
             >
               <Plus className="w-5 h-5" />
-              {t('sensors.new_sensor') || 'Añadir Sensor'}
+              {t('sensors.new_sensor') || 'Nuevo Sensor'}
             </button>
           )}
         </div>
       </div>
+
+      {/* Health Summary Bar */}
+      {!loading && sensors.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div className="p-2 bg-green-50 rounded-lg"><Wifi className="w-5 h-5 text-green-600" /></div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{healthSummary.online}</div>
+              <div className="text-xs text-gray-500">{t('sensors.online') || 'Online'}</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div className="p-2 bg-yellow-50 rounded-lg"><AlertTriangle className="w-5 h-5 text-yellow-600" /></div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{healthSummary.warning}</div>
+              <div className="text-xs text-gray-500">{t('sensors.intermittent') || 'Intermitente'}</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div className="p-2 bg-red-50 rounded-lg"><WifiOff className="w-5 h-5 text-red-600" /></div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{healthSummary.offline}</div>
+              <div className="text-xs text-gray-500">{t('sensors.offline') || 'Offline'}</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
+            <div className="p-2 bg-gray-50 rounded-lg"><HelpCircle className="w-5 h-5 text-gray-400" /></div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{healthSummary.unknown}</div>
+              <div className="text-xs text-gray-500">{t('sensors.no_signal') || 'Sin señal'}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Grid */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -254,7 +320,7 @@ export const Sensors: React.FC = () => {
             />
           </div>
           <div className="flex items-center gap-4 text-sm text-gray-500">
-            <span>Total: <strong>{totalCount}</strong> sensores</span>
+            <span>Total: <strong>{totalCount}</strong> {t('sensors.devices') || 'dispositivos'}</span>
           </div>
         </div>
 
@@ -264,51 +330,64 @@ export const Sensors: React.FC = () => {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Dispositivo
+                  {t('sensors.device') || 'Dispositivo'}
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Estado
+                  {t('sensors.status') || 'Estado'}
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Batería
+                  {t('sensors.readings') || 'Lecturas'}
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Última Señal
+                  {t('sensors.battery') || 'Batería'}
+                </th>
+                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  {t('sensors.last_signal') || 'Última señal'}
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
-                  Acciones
+                  {t('common.actions') || 'Acciones'}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading && sensors.length === 0 ? (
-                // Skeleton loading
                 [...Array(5)].map((_, i) => (
                   <tr key={i} className="animate-pulse">
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                     <td className="px-6 py-4"></td>
                   </tr>
                 ))
               ) : sensors.length === 0 ? (
-                // Empty state
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-16 text-center text-gray-500">
                     <Gauge className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="font-medium">No se encontraron sensores</p>
-                    <p className="text-sm mt-1">Usa el botón "Añadir Sensor" para comenzar.</p>
+                    <p className="font-medium">{t('sensors.empty_title') || 'No hay sensores registrados'}</p>
+                    <p className="text-sm mt-1 max-w-md mx-auto">
+                      {t('sensors.empty_subtitle') || 'Usa el asistente para registrar un sensor IoT. Se aprovisionará automáticamente en el IoT Agent con credenciales MQTT.'}
+                    </p>
+                    {canEdit && (
+                      <button
+                        onClick={() => setShowWizard(true)}
+                        className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition text-sm font-medium inline-flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {t('sensors.new_sensor') || 'Nuevo Sensor'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (
-                // Rows
                 sensors
                   .filter(s => !searchTerm || (s.name?.value || s.id).toLowerCase().includes(searchTerm.toLowerCase()))
                   .map((sensor) => {
                     const status = getStatus(sensor);
                     const battery = sensor.batteryLevel?.value;
                     const lastSignalDate = sensor.observedAt || sensor.batteryLevel?.observedAt;
+                    const dynamicAttrs = getDynamicAttrs(sensor);
 
                     return (
                       <tr key={sensor.id} className="hover:bg-gray-50 transition group">
@@ -319,10 +398,10 @@ export const Sensors: React.FC = () => {
                             </div>
                             <div>
                               <div className="font-medium text-gray-900">
-                                {sensor.name?.value || 'Sin nombre'}
+                                {sensor.name?.value || t('sensors.unnamed') || 'Sin nombre'}
                               </div>
                               <div className="text-xs text-gray-500 font-mono mt-0.5" title={sensor.id}>
-                                {sensor.id.split(':').pop()?.substring(0, 12)}...
+                                {sensor.id.split(':').pop()?.substring(0, 16)}
                               </div>
                             </div>
                           </div>
@@ -334,6 +413,23 @@ export const Sensors: React.FC = () => {
                               }`}></span>
                             {getStatusLabel(status)}
                           </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {dynamicAttrs.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                              {dynamicAttrs.map(attr => (
+                                <div key={attr.key} className="flex items-center gap-1.5 text-xs">
+                                  <Thermometer className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                                  <span className="text-gray-500 truncate max-w-[80px]" title={attr.key}>{attr.key}:</span>
+                                  <span className="font-medium text-gray-800">
+                                    {typeof attr.value === 'number' ? attr.value.toFixed(1) : String(attr.value)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs italic">{t('sensors.no_data') || 'Sin datos'}</span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           {battery !== undefined ? (
@@ -364,7 +460,7 @@ export const Sensors: React.FC = () => {
                               </span>
                             </div>
                           ) : (
-                            <span className="text-gray-400 text-xs italic">Nunca</span>
+                            <span className="text-gray-400 text-xs italic">{t('sensors.never') || 'Nunca'}</span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -372,16 +468,15 @@ export const Sensors: React.FC = () => {
                             <button
                               onClick={() => navigate(`/entities?focus=${encodeURIComponent(sensor.id)}`)}
                               className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-800 transition px-3 py-1.5 rounded-lg hover:bg-teal-50"
+                              title={t('sensors.view_on_map') || 'Ver en mapa'}
                             >
                               <MapPin className="w-4 h-4" />
-                              Ver en mapa
-                              <ExternalLink className="w-3 h-3 ml-0.5 opacity-50" />
                             </button>
                             {canEdit && (
                               <button
                                 onClick={() => handleDelete(sensor)}
                                 className="inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-800 transition px-3 py-1.5 rounded-lg hover:bg-red-50"
-                                title="Eliminar sensor"
+                                title={t('common.delete') || 'Eliminar'}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>

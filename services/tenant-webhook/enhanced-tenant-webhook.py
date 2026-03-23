@@ -65,9 +65,9 @@ try:
     from keycloak_auth import has_role as check_role  # noqa: F401
 
     KEYCLOAK_AUTH_AVAILABLE = True
-    logger.info("✅ Keycloak authentication module loaded successfully")
+    logger.info("Keycloak authentication module loaded successfully")
 except ImportError as e:
-    logger.error(f"❌ keycloak_auth module not available - authentication will be limited: {e}")
+    logger.error(f"keycloak_auth module not available - authentication will be limited: {e}")
     logger.error(f"Python path: {sys.path}")
     logger.error(f"Common path exists (/app/common): {os.path.exists('/app/common')}")
     if common_path_found:
@@ -81,6 +81,16 @@ except ImportError as e:
     KEYCLOAK_AUTH_AVAILABLE = False
     TokenValidationError = Exception
     KeycloakAuthError = Exception
+
+# Import audit logger
+try:
+    from audit_logger import audit_log
+    AUDIT_AVAILABLE = True
+except ImportError:
+    logger.warning("audit_logger not available, audit logging disabled")
+    AUDIT_AVAILABLE = False
+    def audit_log(*args, **kwargs):
+        pass
 
 # Import Grafana manager
 try:
@@ -1870,6 +1880,12 @@ def generate_activation_code():  # noqa: C901
             conn.commit()
 
             logger.info(f"Admin: Activation code {activation_code} generated for {email}")
+            audit_log(
+                action='admin.activation_code.create',
+                resource_type='activation_code',
+                resource_id=activation_code,
+                metadata={'email': email, 'plan': plan, 'duration_days': duration_days},
+            )
 
             # Send activation email
             try:
@@ -2246,11 +2262,18 @@ def revoke_activation_code(code_id):
         conn.close()
 
         logger.info(f"Activation code {code_id} revoked")
+        audit_log(
+            action='admin.activation_code.revoke',
+            resource_type='activation_code',
+            resource_id=str(code_id),
+        )
 
         return jsonify({"success": True, "message": "Code revoked successfully"}), 200
 
     except Exception as e:
         logger.error(f"Error revoking activation code: {e}")
+        audit_log(action='admin.activation_code.revoke', resource_type='activation_code',
+                  resource_id=str(code_id), success=False, error=str(e))
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -2636,6 +2659,13 @@ def create_tenant_directly():
             if not user_result.get("success"):
                 logger.warning(f"Failed to create Keycloak user: {user_result.get('error')}")
 
+        audit_log(
+            action='admin.tenant.create',
+            resource_type='tenant',
+            resource_id=tenant_id,
+            metadata={'plan': plan, 'email': email, 'user_created': bool(user_result and user_result.get("success"))},
+        )
+
         return jsonify(
             {
                 "success": True,
@@ -2650,6 +2680,8 @@ def create_tenant_directly():
 
     except Exception as e:
         logger.error(f"Error creating tenant directly: {e}")
+        audit_log(action='admin.tenant.create', resource_type='tenant',
+                  success=False, error=str(e))
         return jsonify({"error": f"Failed to create tenant: {str(e)}"}), 500
 
 
@@ -2751,6 +2783,13 @@ def delete_tenant_directly(tenant_id: str):  # noqa: C901
             finally:
                 conn.close()
 
+        audit_log(
+            action='admin.tenant.delete',
+            resource_type='tenant',
+            resource_id=tenant_id,
+            metadata={'warnings': errors} if errors else {},
+        )
+
         if errors:
             return jsonify(
                 {
@@ -2769,6 +2808,8 @@ def delete_tenant_directly(tenant_id: str):  # noqa: C901
         import traceback
 
         logger.error(traceback.format_exc())
+        audit_log(action='admin.tenant.delete', resource_type='tenant',
+                  resource_id=tenant_id, success=False, error=str(e))
         return jsonify({"error": f"Failed to delete tenant: {str(e)}"}), 500
 
 
@@ -2969,11 +3010,19 @@ def delete_user_directly(user_id: str):
                     conn.close()
 
         logger.info(f"User {user_email} deleted by admin")
+        audit_log(
+            action='admin.user.delete',
+            resource_type='user',
+            resource_id=user_id,
+            metadata={'email': user_email},
+        )
 
         return jsonify({"success": True, "message": f"User {user_email} deleted successfully"}), 200
 
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
+        audit_log(action='admin.user.delete', resource_type='user',
+                  resource_id=user_id, success=False, error=str(e))
         return jsonify({"error": f"Failed to delete user: {str(e)}"}), 500
 
 
@@ -3355,6 +3404,13 @@ def activate_tenant():  # noqa: C901
             # Don't fail the request if notification email fails
 
         logger.info(f"Successfully activated tenant: {tenant_id} with code: {code}")
+        audit_log(
+            action='tenant.activate',
+            resource_type='tenant',
+            resource_id=tenant_id,
+            metadata={'plan': plan_info['plan'], 'activation_code': code,
+                      'user_created': user_success, 'grafana': grafana_success},
+        )
 
         return jsonify(
             {
@@ -3378,6 +3434,8 @@ def activate_tenant():  # noqa: C901
 
     except Exception as e:
         logger.error(f"Error activating tenant: {e}")
+        audit_log(action='tenant.activate', resource_type='tenant',
+                  success=False, error=str(e))
         return jsonify({"error": "Failed to activate tenant"}), 500
 
 
@@ -4181,11 +4239,19 @@ def delete_tenant_user(user_id: str):
         conn.close()
 
         logger.info(f"User {email} deleted from tenant {tenant_id}")
+        audit_log(
+            action='tenant.user.delete',
+            resource_type='user',
+            resource_id=str(farmer_id),
+            metadata={'email': email, 'tenant_id': tenant_id},
+        )
 
         return jsonify({"success": True, "message": f"User {email} deleted from tenant"}), 200
 
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
+        audit_log(action='tenant.user.delete', resource_type='user',
+                  resource_id=user_id, success=False, error=str(e))
         return jsonify({"error": f"Failed to delete user: {str(e)}"}), 500
 
 

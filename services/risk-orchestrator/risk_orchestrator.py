@@ -71,6 +71,7 @@ class RiskOrchestrator:
     def __init__(self):
         self.redis_queue = None
         self.postgres = None
+        self.context_url = os.getenv('CONTEXT_URL', 'http://api-gateway-service:5000/ngsi-ld-context.json')
         self._init_connections()
 
     def _init_connections(self):
@@ -151,7 +152,7 @@ class RiskOrchestrator:
             
             # Prepare riskStatus attribute with required NGSI-LD @context
             update_payload = {
-                "@context": self.context_url or "https://nkz.robotika.cloud/ngsi-ld-context.json",
+                "@context": self.context_url,
                 "riskStatus": {
                     "type": "Property",
                     "value": risk_status.get('severity', 'NORMAL').upper(),
