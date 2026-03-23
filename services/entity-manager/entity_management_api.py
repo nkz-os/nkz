@@ -362,79 +362,107 @@ _limits_cache = {}
 _limits_cache_ts = {}
 _LIMITS_TTL_SECONDS = 60
 
-def _get_limits_from_orion(tenant: str):
-    entity_id = f"TenantConfig:{tenant}"
-    orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
-    headers = {'Accept': 'application/ld+json'}
-    headers = inject_fiware_headers(headers, tenant)
+def _ensure_tenant_limits_table():
+    """Create tenant_limits table if it does not exist (PostgreSQL, not Orion-LD)."""
+    conn = get_db_connection_simple()
+    if not conn:
+        return
     try:
-        resp = requests.get(orion_url, headers=headers)
-        if resp.status_code != 200:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admin_platform.tenant_limits (
+                tenant_id VARCHAR(128) PRIMARY KEY,
+                plan_type VARCHAR(64),
+                max_users INTEGER,
+                max_robots INTEGER,
+                max_sensors INTEGER,
+                max_area_hectares REAL,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+        cursor.close()
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"tenant_limits table init: {e}")
+    finally:
+        return_db_connection(conn)
+
+_ensure_tenant_limits_table()
+
+
+def _get_limits_from_db(tenant: str):
+    """Read tenant limits from PostgreSQL."""
+    conn = get_db_connection_simple()
+    if not conn:
+        return None
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT plan_type, max_users, max_robots, max_sensors, max_area_hectares "
+            "FROM admin_platform.tenant_limits WHERE tenant_id = %s",
+            (tenant,)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        if not row:
             return None
-        ent = resp.json()
-        def _num(attr):
-            v = ent.get(attr)
-            if isinstance(v, dict):
-                return _extract_number(v)
-            return _extract_number(v)
         return {
-            'planType': (ent.get('planType') or {}).get('value') if isinstance(ent.get('planType'), dict) else ent.get('planType'),
-            'maxUsers': _num('maxUsers'),
-            'maxRobots': _num('maxRobots'),
-            'maxSensors': _num('maxSensors'),
-            'maxAreaHectares': _num('maxAreaHectares'),
+            'planType': row[0],
+            'maxUsers': row[1],
+            'maxRobots': row[2],
+            'maxSensors': row[3],
+            'maxAreaHectares': row[4],
         }
     except Exception:
         return None
+    finally:
+        return_db_connection(conn)
+
 
 def get_limits_for_tenant(tenant: str):
     now = datetime.utcnow().timestamp()
     if tenant in _limits_cache and (now - _limits_cache_ts.get(tenant, 0)) < _LIMITS_TTL_SECONDS:
         return _limits_cache[tenant]
-    limits = _get_limits_from_orion(tenant)
+    limits = _get_limits_from_db(tenant)
     if limits:
         _limits_cache[tenant] = limits
         _limits_cache_ts[tenant] = now
     return limits
 
+
 def upsert_limits_in_orion(tenant: str, limits: dict):
-    entity_id = f"TenantConfig:{tenant}"
-    headers = {
-        'Content-Type': 'application/ld+json',
-    }
-    headers = inject_fiware_headers(headers, tenant)
-    # Construir entidad NGSI-LD
-    entity = {
-        'id': entity_id,
-        'type': 'TenantConfig',
-    }
-    if 'planType' in limits and limits['planType'] is not None:
-        entity['planType'] = { 'type': 'Property', 'value': str(limits['planType']) }
-    if 'maxUsers' in limits and limits['maxUsers'] is not None:
-        entity['maxUsers'] = { 'type': 'Property', 'value': float(limits['maxUsers']) }
-    if 'maxRobots' in limits and limits['maxRobots'] is not None:
-        entity['maxRobots'] = { 'type': 'Property', 'value': float(limits['maxRobots']) }
-    if 'maxSensors' in limits and limits['maxSensors'] is not None:
-        entity['maxSensors'] = { 'type': 'Property', 'value': float(limits['maxSensors']) }
-    if 'maxAreaHectares' in limits and limits['maxAreaHectares'] is not None:
-        entity['maxAreaHectares'] = { 'type': 'Property', 'value': float(limits['maxAreaHectares']) }
-    # Intentar crear; si existe, hacer upsert vía /attrs
+    """Upsert tenant limits in PostgreSQL (name kept for backward compatibility with callers)."""
+    conn = get_db_connection_simple()
+    if not conn:
+        return False
     try:
-        resp = requests.post(f"{ORION_URL}/ngsi-ld/v1/entities", json=entity, headers=headers)
-        if resp.status_code in (201, 200):
-            return True
-        # Si ya existe, 409
-        if resp.status_code == 409:
-            # PATCH attrs
-            attrs = entity.copy()
-            attrs.pop('id', None)
-            attrs.pop('type', None)
-            patch = attrs
-            resp2 = requests.patch(f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs", json=patch, headers=headers)
-            return resp2.status_code in (200, 204)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO admin_platform.tenant_limits (tenant_id, plan_type, max_users, max_robots, max_sensors, max_area_hectares, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+            ON CONFLICT (tenant_id) DO UPDATE SET
+                plan_type = COALESCE(EXCLUDED.plan_type, admin_platform.tenant_limits.plan_type),
+                max_users = COALESCE(EXCLUDED.max_users, admin_platform.tenant_limits.max_users),
+                max_robots = COALESCE(EXCLUDED.max_robots, admin_platform.tenant_limits.max_robots),
+                max_sensors = COALESCE(EXCLUDED.max_sensors, admin_platform.tenant_limits.max_sensors),
+                max_area_hectares = COALESCE(EXCLUDED.max_area_hectares, admin_platform.tenant_limits.max_area_hectares),
+                updated_at = NOW()
+        """, (
+            tenant,
+            limits.get('planType'),
+            limits.get('maxUsers'),
+            limits.get('maxRobots'),
+            limits.get('maxSensors'),
+            limits.get('maxAreaHectares'),
+        ))
+        conn.commit()
+        cursor.close()
+        return True
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Failed to upsert tenant limits: {e}")
         return False
-    except Exception:
-        return False
+    finally:
+        return_db_connection(conn)
 
 def get_entity_types():
     """Get available entity types from configuration"""
@@ -2442,7 +2470,7 @@ app.add_url_rule(
 @app.route('/admin/tenant-limits', methods=['PATCH'])
 @require_auth
 def api_update_tenant_limits():
-    """Actualiza/crea en Orion-LD los límites del tenant actual (TenantConfig:<tenant>)."""
+    """Update tenant limits in PostgreSQL (admin_platform.tenant_limits)."""
     try:
         tenant = getattr(g, 'tenant', 'master')
         data = request.get_json() or {}
@@ -2464,6 +2492,12 @@ def api_update_tenant_limits():
         # invalidar cache
         _limits_cache.pop(tenant, None)
         _limits_cache_ts.pop(tenant, None)
+        audit_log(
+            action='admin.tenant_limits.update',
+            resource_type='tenant_limits',
+            resource_id=tenant,
+            metadata=update,
+        )
         return jsonify({'success': True})
     except Exception as e:
         logger.error(f"Error updating tenant limits: {e}")
@@ -5035,14 +5069,20 @@ def save_terms(language):
             
             conn.commit()
             cur.close()
-            
+
+            audit_log(
+                action='admin.terms.update',
+                resource_type='terms_and_conditions',
+                resource_id=language,
+            )
+
             return jsonify({
                 'success': True,
                 'message': 'Terms saved successfully'
             }), 200
         finally:
             return_db_connection(conn)
-        
+
     except Exception as e:
         logger.error(f"Error saving terms: {e}")
         return jsonify({'error': str(e)}), 500
@@ -7423,6 +7463,13 @@ def update_platform_landing_mode():
         cur.close()
         return_db_connection(conn)
         conn = None
+
+        audit_log(
+            action='admin.platform_settings.update',
+            resource_type='platform_settings',
+            resource_id='landing_mode',
+            metadata={'value': mode, 'updated_by': updated_by},
+        )
 
         return jsonify({
             'key': updated['key'],

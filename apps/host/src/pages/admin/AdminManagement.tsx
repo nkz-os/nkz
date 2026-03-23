@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Users, Building2, Ticket, Search, Filter, Plus, 
   Trash2, ShieldCheck, AlertTriangle, RefreshCcw, 
-  Mail, Settings2, Shield, Database, Key, ScrollText, 
+  Mail, Settings2, Shield, Key, ScrollText, 
   FileText, Activity, Box, Puzzle, Monitor
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +14,6 @@ import { SlotRenderer } from '@/components/SlotRenderer';
 
 // Missing Admin Components
 import { LimitsManagement } from '@/components/LimitsManagement';
-import { SDMManagement } from '@/components/SDMManagement';
 import { TermsManagement } from '@/components/TermsManagement';
 import { PlatformApiCredentials } from '@/components/PlatformApiCredentials';
 import { AuditLogsPanel } from '@/components/AuditLogsPanel';
@@ -65,6 +64,8 @@ export const AdminManagement: React.FC = () => {
   const [landingModeLoading, setLandingModeLoading] = useState(false);
   const [landingModeSaving, setLandingModeSaving] = useState(false);
   const [landingMessage, setLandingMessage] = useState<string>('');
+  const [showCodeModal, setShowCodeModal] = useState(false);
+  const [codeForm, setCodeForm] = useState({ email: '', plan: 'premium' });
 
   // Find modules that provide admin-tab slots
   const adminTabModules = Array.isArray(modules) 
@@ -151,15 +152,15 @@ export const AdminManagement: React.FC = () => {
   };
 
   const handleGenerateCode = async () => {
-    const email = window.prompt(t('admin.email_prompt'));
-    if (!email) return;
-
-    const tenant_name = window.prompt(t('admin.farm_name_prompt'));
-    if (!tenant_name) return;
-
+    if (!codeForm.email) return;
     try {
       setLoading(true);
-      await client.createActivationCode({ email, tenant_name });
+      await client.createActivationCode({
+        email: codeForm.email,
+        plan: codeForm.plan,
+      });
+      setShowCodeModal(false);
+      setCodeForm({ email: '', plan: 'premium' });
       alert(t('admin.code_generated'));
       if (activeTab === 'activations') loadData();
     } catch (error: any) {
@@ -249,7 +250,6 @@ export const AdminManagement: React.FC = () => {
           { id: 'tenants', label: 'Tenants', icon: Building2 },
           { id: 'activations', label: 'Códigos NEK', icon: Ticket },
           { id: 'limits', label: 'Límites', icon: Activity },
-          { id: 'sdm', label: 'Modelos SDM', icon: Database },
           { id: 'terms', label: 'Términos', icon: FileText },
           { id: 'apis', label: 'APIs Plataforma', icon: Key },
           { id: 'platform', label: 'Plataforma', icon: Monitor },
@@ -302,12 +302,12 @@ export const AdminManagement: React.FC = () => {
           
           <div className="flex gap-2">
             {activeTab === 'activations' && (
-              <button 
-                onClick={handleGenerateCode}
+              <button
+                onClick={() => setShowCodeModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
               >
                 <Plus className="h-5 w-5" />
-                Generar Código
+                {t('admin.generate_code')}
               </button>
             )}
             <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors border border-gray-200">
@@ -452,12 +452,12 @@ export const AdminManagement: React.FC = () => {
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Código NEK</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Email Destino</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Plan Pre-asig</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Estado</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Expiración</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm text-right">Acciones</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.nek_code')}</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.dest_email')}</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.plan_type')}</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.status')}</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.expiration')}</th>
+                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm text-right">{t('admin.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -470,7 +470,7 @@ export const AdminManagement: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`text-xs font-medium px-2 py-1 rounded ${activation.status === 'active' ? 'bg-green-100 text-green-800' : activation.status === 'revoked' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700'}`}>
-                          {activation.status === 'active' ? 'Usado' : activation.status === 'revoked' ? 'Revocado' : 'Pendiente'}
+                          {activation.status === 'active' ? t('admin.status_used') : activation.status === 'revoked' ? t('admin.status_revoked') : t('admin.status_pending')}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
@@ -494,7 +494,6 @@ export const AdminManagement: React.FC = () => {
             {/* Special Administrative Components */}
             <div className="p-0">
               {activeTab === 'limits' && <div className="p-6"><LimitsManagement /></div>}
-              {activeTab === 'sdm' && <div className="p-6"><SDMManagement /></div>}
               {activeTab === 'terms' && <div className="p-6"><TermsManagement /></div>}
               {activeTab === 'apis' && <div className="p-6"><PlatformApiCredentials /></div>}
               {activeTab === 'platform' && (
@@ -555,6 +554,52 @@ export const AdminManagement: React.FC = () => {
           </div>
         )}
       </div>
+      {/* Generate Code Modal */}
+      {showCodeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCodeModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">{t('admin.generate_code')}</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.email_prompt')}</label>
+                <input
+                  type="email"
+                  value={codeForm.email}
+                  onChange={e => setCodeForm(f => ({ ...f, email: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                  placeholder="user@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.plan_type')}</label>
+                <select
+                  value={codeForm.plan}
+                  onChange={e => setCodeForm(f => ({ ...f, plan: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none bg-white"
+                >
+                  <option value="premium">Premium</option>
+                  <option value="enterprise">Enterprise</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowCodeModal(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={handleGenerateCode}
+                disabled={!codeForm.email || loading}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? t('common.loading') : t('admin.generate_code')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -669,42 +669,6 @@ def list_entity_instances(entity_type):
         return jsonify({'error': 'Internal server error'}), 500
 
 
-@app.route('/sdm/schemas/<entity_type>', methods=['GET'])
-@require_auth
-def get_entity_schema(entity_type):
-    """Get SDM schema for entity type (Mock for now to unblock frontend)"""
-    try:
-        # Basic schema structure expected by DynamicForm
-        schema = {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "title": "Name",
-                    "description": f"Name of the {entity_type}"
-                },
-                "description": {
-                    "type": "string",
-                    "title": "Description",
-                    "description": "Additional details"
-                }
-            },
-            "required": ["name"]
-        }
-        
-        # Add specific fields based on type
-        if entity_type in ['Vineyard', 'OliveGrove']:
-             schema['properties']['variety'] = {
-                 "type": "string",
-                 "title": "Variety", 
-                 "description": "Variety of the crop"
-             }
-        
-        return jsonify(schema)
-    except Exception as e:
-        logger.error(f"Error serving schema: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
 @app.route('/sdm/entities/<entity_type>/instances', methods=['POST'])
 @require_auth
 def create_entity_instance(entity_type):
@@ -1054,70 +1018,6 @@ def create_entity_batch(entity_type):
         logger.error(f"Error in batch create ({entity_type}): {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-
-@app.route('/sdm/migrate', methods=['POST'])
-@require_auth
-def migrate_to_sdm():
-    """Migrate existing entities to SDM format"""
-    try:
-        data = request.get_json()
-        entity_ids = data.get('entityIds', [])
-        
-        if not entity_ids:
-            return jsonify({'error': 'No entity IDs provided'}), 400
-        
-        migrated = []
-        errors = []
-        
-        for entity_id in entity_ids:
-            try:
-                # Get entity from Orion-LD
-                orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
-                headers = {
-                    'Accept': 'application/ld+json'
-                }
-                headers = inject_fiware_headers(headers, g.tenant)
-                
-                response = requests.get(orion_url, headers=headers)
-                
-                if response.status_code == 200:
-                    entity = response.json()
-                    
-                    # Update entity with SDM format
-                    entity['dateModified'] = datetime.utcnow().isoformat()
-                    
-                    # Send updated entity back to Orion-LD
-                    update_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
-                    headers = {
-                        'Content-Type': 'application/ld+json'
-                    }
-                    headers = inject_fiware_headers(headers, g.tenant)
-                    
-                    update_response = requests.patch(update_url, json=entity, headers=headers)
-                    if update_response.status_code in [200, 204]:
-                        migrated.append(entity_id)
-                        # Log the operation
-                        log_entity_operation('migrate', entity_id, entity.get('type', 'unknown'), 
-                                           g.tenant, g.farmer_id)
-                    else:
-                        errors.append(f"Failed to update {entity_id}")
-                else:
-                    errors.append(f"Entity {entity_id} not found")
-            
-            except Exception as e:
-                errors.append(f"Error migrating {entity_id}: {str(e)}")
-        
-        return jsonify({
-            'migrated': migrated,
-            'errors': errors,
-            'total': len(entity_ids),
-            'success': len(migrated),
-            'tenant': g.tenant
-        })
-    
-    except Exception as e:
-        logger.error(f"Error in migration: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/version', methods=['GET'])
 def version():

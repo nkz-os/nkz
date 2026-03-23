@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Keycloak Setup: tenant_id User Attribute Mapper (idempotent)
+# Keycloak Setup: User Profile attributes + tenant_id mapper (idempotent)
 # =============================================================================
-# Creates a protocol mapper on the nekazari-frontend client so that the
-# user attribute "tenant_id" appears in ID token, access token, and userinfo.
+# 1. Registers all custom user attributes in the KC26 User Profile
+#    (without this, Keycloak 26 silently discards attributes on PUT)
+# 2. Creates a protocol mapper on the nekazari-frontend client so that
+#    "tenant_id" appears in ID token, access token, and userinfo.
 #
 # Usage:
 #   ./keycloak-setup-mappers.sh
@@ -26,10 +28,10 @@ KC_PASS="${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}"
 
 echo "==> Obtaining admin token..."
 TOKEN=$(curl -sf -X POST "${KC_URL}/realms/master/protocol/openid-connect/token" \
-  -d "grant_type=password" \
-  -d "client_id=admin-cli" \
-  -d "username=${KC_ADMIN}" \
-  -d "password=${KC_PASS}" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+  --data-urlencode "grant_type=password" \
+  --data-urlencode "client_id=admin-cli" \
+  --data-urlencode "username=${KC_ADMIN}" \
+  --data-urlencode "password=${KC_PASS}" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
 if [ -z "$TOKEN" ]; then
   echo "ERROR: Failed to get admin token" >&2
@@ -37,7 +39,81 @@ if [ -z "$TOKEN" ]; then
 fi
 echo "==> Token obtained."
 
-# Get client internal UUID
+# ─── Step 1: Register custom attributes in User Profile (KC26 requirement) ───
+# Without this, Keycloak 26 silently discards custom attributes on user PUT.
+
+echo "==> Registering custom attributes in User Profile..."
+PROFILE_URL="${KC_URL}/admin/realms/${KC_REALM}/users/profile"
+
+CURRENT_PROFILE=$(curl -sf -H "Authorization: Bearer ${TOKEN}" "${PROFILE_URL}")
+
+# Attributes to register: name, displayName
+CUSTOM_ATTRS='[
+  {"name": "tenant_id",        "displayName": "Tenant ID"},
+  {"name": "tenant",           "displayName": "Tenant (legacy)"},
+  {"name": "plan",             "displayName": "Plan"},
+  {"name": "max_users",        "displayName": "Max Users"},
+  {"name": "max_robots",       "displayName": "Max Robots"},
+  {"name": "max_sensors",      "displayName": "Max Sensors"},
+  {"name": "activation_code",  "displayName": "Activation Code"},
+  {"name": "created_by",       "displayName": "Created By"},
+  {"name": "is_owner",         "displayName": "Is Owner"}
+]'
+
+UPDATED_PROFILE=$(python3 -c "
+import sys, json
+
+profile = json.loads(sys.argv[1])
+new_attrs = json.loads(sys.argv[2])
+existing_names = {a['name'] for a in profile.get('attributes', [])}
+added = 0
+
+for attr in new_attrs:
+    if attr['name'] not in existing_names:
+        profile['attributes'].append({
+            'name': attr['name'],
+            'displayName': attr['displayName'],
+            'permissions': {'view': ['admin'], 'edit': ['admin']},
+            'validations': {'multivalued': {'max': '1'}},
+        })
+        added += 1
+        print(f'  + {attr[\"name\"]}', file=sys.stderr)
+    else:
+        print(f'  = {attr[\"name\"]} (already registered)', file=sys.stderr)
+
+if added == 0:
+    print('__SKIP__')
+else:
+    print(json.dumps(profile))
+" "$CURRENT_PROFILE" "$CUSTOM_ATTRS" 2>&1)
+
+# Separate stderr (status lines) from stdout (JSON or __SKIP__)
+PROFILE_JSON=$(echo "$UPDATED_PROFILE" | grep -v '^\s*[+=]' | grep -v '^$')
+STATUS_LINES=$(echo "$UPDATED_PROFILE" | grep '^\s*[+=]' || true)
+
+if [ -n "$STATUS_LINES" ]; then
+  echo "$STATUS_LINES"
+fi
+
+if [ "$PROFILE_JSON" = "__SKIP__" ]; then
+  echo "==> All attributes already registered in User Profile."
+else
+  HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" -X PUT \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${PROFILE_URL}" \
+    -d "$PROFILE_JSON")
+
+  if [ "$HTTP_CODE" = "200" ]; then
+    echo "==> User Profile updated successfully."
+  else
+    echo "ERROR: Failed to update User Profile (HTTP ${HTTP_CODE})" >&2
+    exit 1
+  fi
+fi
+
+# ─── Step 2: Create tenant_id mapper on nekazari-frontend client ─────────────
+
 echo "==> Looking up client '${KC_CLIENT}'..."
 CLIENT_ID=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
   "${KC_URL}/admin/realms/${KC_REALM}/clients?clientId=${KC_CLIENT}" \
@@ -49,7 +125,6 @@ if [ -z "$CLIENT_ID" ]; then
 fi
 echo "==> Client UUID: ${CLIENT_ID}"
 
-# Check if mapper already exists
 MAPPER_NAME="tenant_id"
 echo "==> Checking if mapper '${MAPPER_NAME}' already exists..."
 EXISTING=$(curl -sf -H "Authorization: Bearer ${TOKEN}" \
@@ -65,34 +140,34 @@ for m in mappers:
 
 if [ -n "$EXISTING" ]; then
   echo "==> Mapper '${MAPPER_NAME}' already exists (id: ${EXISTING}). Skipping creation."
-  exit 0
-fi
-
-# Create the mapper
-echo "==> Creating mapper '${MAPPER_NAME}'..."
-HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" -X POST \
-  -H "Authorization: Bearer ${TOKEN}" \
-  -H "Content-Type: application/json" \
-  "${KC_URL}/admin/realms/${KC_REALM}/clients/${CLIENT_ID}/protocol-mappers/models" \
-  -d '{
-    "name": "tenant_id",
-    "protocol": "openid-connect",
-    "protocolMapper": "oidc-usermodel-attribute-mapper",
-    "config": {
-      "user.attribute": "tenant_id",
-      "claim.name": "tenant_id",
-      "jsonType.label": "String",
-      "id.token.claim": "true",
-      "access.token.claim": "true",
-      "userinfo.token.claim": "true",
-      "multivalued": "false",
-      "aggregate.attrs": "false"
-    }
-  }')
-
-if [ "$HTTP_CODE" = "201" ]; then
-  echo "==> Mapper '${MAPPER_NAME}' created successfully."
 else
-  echo "ERROR: Failed to create mapper (HTTP ${HTTP_CODE})" >&2
-  exit 1
+  echo "==> Creating mapper '${MAPPER_NAME}'..."
+  HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer ${TOKEN}" \
+    -H "Content-Type: application/json" \
+    "${KC_URL}/admin/realms/${KC_REALM}/clients/${CLIENT_ID}/protocol-mappers/models" \
+    -d '{
+      "name": "tenant_id",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-attribute-mapper",
+      "config": {
+        "user.attribute": "tenant_id",
+        "claim.name": "tenant_id",
+        "jsonType.label": "String",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "userinfo.token.claim": "true",
+        "multivalued": "false",
+        "aggregate.attrs": "false"
+      }
+    }')
+
+  if [ "$HTTP_CODE" = "201" ]; then
+    echo "==> Mapper '${MAPPER_NAME}' created successfully."
+  else
+    echo "ERROR: Failed to create mapper (HTTP ${HTTP_CODE})" >&2
+    exit 1
+  fi
 fi
+
+echo "==> Keycloak setup complete."
