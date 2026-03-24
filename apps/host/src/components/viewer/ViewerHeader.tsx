@@ -49,7 +49,7 @@ export interface ViewerHeaderProps {
 export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
     const { user, logout, hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
-    const { t } = useTranslation(['common', 'navigation']);
+    const { t } = useTranslation(['common', 'navigation', 'layout']);
     const navigate = useNavigate();
     const location = useLocation();
     const [isMenuOpen, setIsMenuOpen] = useState(false);

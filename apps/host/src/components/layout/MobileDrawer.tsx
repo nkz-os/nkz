@@ -55,7 +55,7 @@ interface MobileDrawerProps {
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const { modules } = useModules();
-  const { t } = useTranslation(['common', 'navigation']);
+  const { t } = useTranslation(['common', 'navigation', 'layout']);
   const location = useLocation();
 
   const userRoles = user?.roles || [];

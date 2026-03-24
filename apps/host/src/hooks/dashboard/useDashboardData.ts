@@ -42,7 +42,7 @@ export function useDashboardData(): DashboardData {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await api.get('/admin/tenants', {
+      const response = await api.get('/api/admin/tenants', {
         headers: {
           'Authorization': `Bearer ${token}`
         },

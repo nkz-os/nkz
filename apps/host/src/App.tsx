@@ -278,7 +278,7 @@ function App() {
                         fallbackLanguage: 'es',
                         supportedLanguages: ['es', 'en', 'ca', 'eu', 'fr', 'pt'],
                         loadPath: '/locales/{{lng}}/{{ns}}.json',
-                        namespaces: ['common', 'navigation'],
+                        namespaces: ['common', 'navigation', 'layout'],
                         debug: import.meta.env.DEV,
                       }}
                     >
