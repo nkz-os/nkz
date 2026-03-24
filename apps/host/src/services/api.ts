@@ -1096,12 +1096,12 @@ class ApiService {
   }
 
   async getTenantLimits(): Promise<TenantLimits> {
-    const response = await this.client.get('/admin/tenant-limits');
+    const response = await this.client.get('/api/admin/tenant-limits');
     return response.data;
   }
 
   async getTenantUsage(): Promise<TenantUsageSummary> {
-    const response = await this.client.get('/admin/tenant-usage');
+    const response = await this.client.get('/api/admin/tenant-usage');
     return response.data;
   }
 

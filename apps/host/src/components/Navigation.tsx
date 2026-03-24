@@ -51,7 +51,7 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
 export const Navigation: React.FC = () => {
   const { user, logout } = useAuth();
   const { modules, visibilityRules } = useModules();
-  const { t } = useTranslation(['common', 'navigation']);
+  const { t } = useTranslation(['common', 'navigation', 'layout']);
   const navigate = useNavigate();
   const location = useLocation();
 
