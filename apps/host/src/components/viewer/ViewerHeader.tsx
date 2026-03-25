@@ -13,7 +13,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useModules } from '@/context/ModuleContext';
-import { useTranslation } from '@nekazari/sdk';
+import { useI18n } from '@/context/I18nContext';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
@@ -49,7 +49,7 @@ export interface ViewerHeaderProps {
 export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
     const { user, logout, hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
-    const { t } = useTranslation(['common', 'navigation', 'layout']);
+    const { t } = useI18n();
     const navigate = useNavigate();
     const location = useLocation();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -178,7 +178,7 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                                 >
                                     <Icon className={`w-5 h-5 ${active ? 'text-green-600 dark:text-green-400' : 'text-slate-500'}`} />
                                     <span className="font-medium">
-                                        {t(item.label, { ns: item.label.startsWith('navigation.') ? 'navigation' : 'common' })}
+                                        {t(item.label)}
                                     </span>
                                 </Link>
                             );
@@ -251,7 +251,7 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                                     >
                                         <Icon className={`w-5 h-5 ${active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500'}`} />
                                         <span className="font-medium">
-                                            {t(item.label, { ns: 'navigation' })}
+                                            {t(item.label)}
                                         </span>
                                     </Link>
                                 );
