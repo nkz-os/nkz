@@ -82,7 +82,7 @@ export const DashboardImproved: React.FC = () => {
               <p className="font-medium">{expirationAlert.message}</p>
               {expirationInfo?.expires_at && (
                 <span className="ml-2 text-sm opacity-75">
-                  (Expira: {new Date(expirationInfo.expires_at).toLocaleDateString('es-ES')})
+                  {t('dashboard.expiration_date', { date: new Date(expirationInfo.expires_at).toLocaleDateString('es-ES') }) || `(Expira: ${new Date(expirationInfo.expires_at).toLocaleDateString('es-ES')})`}
                 </span>
               )}
             </div>
@@ -90,7 +90,7 @@ export const DashboardImproved: React.FC = () => {
               href="/settings"
               className="px-4 py-2 bg-white dark:bg-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition font-medium text-sm text-gray-900 dark:text-gray-100 flex-shrink-0 ml-4"
             >
-              Renovar
+              {t('dashboard.renew_subscription') || 'Renovar'}
             </a>
           </div>
         )}

@@ -303,10 +303,10 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
           <div className="text-center">
             <CheckCircle className="mx-auto h-16 w-16 text-green-600 mb-4" />
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              {isRegister ? '¡Registro Completado!' : t('activation.success_title')}
+              {isRegister ? (t('activation.register_success_title') || '¡Registro Completado!') : t('activation.success_title')}
             </h1>
             <p className="text-gray-600 mb-6">
-              {isRegister ? 'Tu cuenta de prueba ha sido creada con éxito. Recibirás un correo con los detalles.' : t('activation.success_message')}
+              {isRegister ? (t('activation.register_success_message') || 'Tu cuenta de prueba ha sido creada con éxito. Recibirás un correo con los detalles.') : t('activation.success_message')}
             </p>
           </div>
 
@@ -314,7 +314,7 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
             <h2 className="text-lg font-semibold text-green-800 mb-4">{t('activation.account_details')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-green-700"><strong>{isRegister ? 'ID de Organización' : t('activation.farm')}</strong></p>
+                <p className="text-sm text-green-700"><strong>{isRegister ? (t('activation.org_id') || 'ID de Organización') : t('activation.farm')}</strong></p>
                 <p className="text-green-900">{success.tenant_id}</p>
               </div>
               <div>
@@ -359,17 +359,17 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
             {isRegister ? <UserPlus className="w-8 h-8 text-white" /> : <Key className="w-8 h-8 text-white" />}
           </div>
           <h1 className="text-3xl font-bold text-gray-900">
-            {isRegister ? 'Prueba 30 días Gratis' : t('activation.title')}
+            {isRegister ? (t('activation.register_title') || 'Prueba 45 días Gratis') : t('activation.title')}
           </h1>
           <p className="text-gray-600 mt-2">
-            {isRegister ? 'Únete a Nekazari y digitaliza tu explotación hoy mismo.' : t('activation.subtitle')}
+            {isRegister ? (t('activation.register_subtitle') || 'Únete a Nekazari y digitaliza tu explotación hoy mismo.') : t('activation.subtitle')}
           </p>
         </div>
 
         {/* Activation Card */}
         <div className="bg-white rounded-lg shadow-xl p-8">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-            {isRegister ? 'Crear Cuenta' : t('activation.activate_account')}
+            {isRegister ? (t('activation.create_account') || 'Crear Cuenta') : t('activation.activate_account')}
           </h2>
 
           {error && (
@@ -426,7 +426,7 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                {isRegister ? 'Email de Registro' : t('activation.purchase_email')}
+                {isRegister ? (t('activation.register_email') || 'Email de Registro') : t('activation.purchase_email')}
               </label>
               <input
                 id="email"
@@ -443,7 +443,7 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
             {/* Tenant Name */}
             <div>
               <label htmlFor="tenant_name" className="block text-sm font-medium text-gray-700 mb-2">
-                {isRegister ? 'Nombre de la Organización / Empresa' : t('activation.farm_name')}
+                {isRegister ? (t('activation.org_name') || 'Nombre de la Organización / Empresa') : t('activation.farm_name')}
               </label>
               <input
                 id="tenant_name"
@@ -451,7 +451,7 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
                 type="text"
                 value={formData.tenant_name}
                 onChange={handleInputChange}
-                placeholder={isRegister ? 'Ej. Mi Cooperativa Agrícola' : t('activation.farm_name_placeholder')}
+                placeholder={isRegister ? (t('activation.org_name_placeholder') || 'Ej. Mi Cooperativa Agrícola') : t('activation.farm_name_placeholder')}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent outline-none transition ${
                   tenantValidation && !tenantValidation.isValid
                     ? 'border-red-300 focus:ring-red-500'
@@ -543,7 +543,7 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
               ) : (
                 <>
                   <Key className="w-5 h-5" />
-                  {isRegister ? 'Registrarse' : t('activation.activate_button')}
+                  {isRegister ? (t('activation.register_button') || 'Registrarse') : t('activation.activate_button')}
                 </>
               )}
             </button>
@@ -552,9 +552,9 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
           {/* Help Text */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              {isRegister ? '¿Ya tienes un código?' : t('activation.no_code')}{' '}
+              {isRegister ? (t('activation.already_have_code') || '¿Ya tienes un código?') : t('activation.no_code')}{' '}
               <a href={isRegister ? '/activate' : (config.external.billingUrl || '#')} className="text-green-600 hover:text-green-700 font-medium">
-                {isRegister ? 'Activar Código' : t('activation.buy_plan')}
+                {isRegister ? (t('activation.activate_code_link') || 'Activar Código') : t('activation.buy_plan')}
               </a>
             </p>
           </div>

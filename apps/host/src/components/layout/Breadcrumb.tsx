@@ -5,10 +5,10 @@
 // in the application hierarchy.
 
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { ChevronRight, Home, Leaf } from 'lucide-react';
 import { getNavigationItemByPath } from '@/config/navigation';
-import { useTranslation } from '@nekazari/sdk';
+import { useI18n } from '@/context/I18nContext';
 import { useModules } from '@/context/ModuleContext';
 
 export interface BreadcrumbItem {
@@ -94,7 +94,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({
   className = '',
 }) => {
   const location = useLocation();
-  const { t } = useTranslation(['common', 'navigation']);
+  const { t } = useI18n();
   const { modules } = useModules();
 
   // Generate breadcrumbs if not provided (includes support for dynamic modules)
@@ -118,10 +118,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({
       {displayItems.map((item, index) => {
         const isLast = index === displayItems.length - 1;
         const Icon = item.icon;
-        const label = t(item.label, { 
-          ns: item.label.startsWith('navigation.') ? 'navigation' : 'common',
-          defaultValue: item.label 
-        });
+        const label = t(item.label) || item.label;
 
         return (
           <React.Fragment key={item.path}>
