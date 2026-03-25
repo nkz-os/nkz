@@ -89,14 +89,85 @@ def generate_iot_api_key(tenant_id: str, device_id: str) -> str:
     return f"nkz_iot_{random_part}"
 
 
-def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str, 
+def ensure_service_group(tenant_id: str, api_key: str) -> bool:
+    """
+    Ensure a FIWARE IoT Agent service group exists for the given tenant.
+
+    In multi-tenant mode (IOTA_MULTI_TENANT=true), the IoT Agent requires
+    at least one service group per Fiware-Service before devices can be
+    registered. This follows the standard FIWARE IoT Agent provisioning flow:
+      1. Create service group (POST /iot/services)
+      2. Register device   (POST /iot/devices)
+
+    Returns True if the group exists or was created successfully.
+    """
+    headers = {
+        'Content-Type': 'application/json',
+        'Fiware-Service': tenant_id,
+        'Fiware-ServicePath': '/'
+    }
+
+    try:
+        # Check if any service group already exists for this tenant
+        resp = requests.get(
+            f'{IOT_AGENT_URL}/iot/services',
+            headers=headers,
+            timeout=5
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            services = data.get('services', [])
+            if len(services) > 0:
+                logger.debug(f"Service group already exists for tenant '{tenant_id}' ({len(services)} groups)")
+                return True
+
+        # Create a default service group for this tenant
+        # resource + apikey define the MQTT topic prefix the IoT Agent listens on
+        service_group = {
+            'services': [{
+                'resource': '/iot/json',
+                'apikey': api_key,
+                'cbroker': ORION_URL,
+                'entity_type': 'Device',
+                'attributes': [],
+                'lazy': [],
+                'commands': [],
+                'static_attributes': []
+            }]
+        }
+
+        resp = requests.post(
+            f'{IOT_AGENT_URL}/iot/services',
+            json=service_group,
+            headers=headers,
+            timeout=5
+        )
+
+        if resp.status_code in [200, 201]:
+            logger.info(f"Created service group for tenant '{tenant_id}'")
+            return True
+        elif resp.status_code == 409:
+            # Already exists (race condition) — fine
+            logger.debug(f"Service group for tenant '{tenant_id}' already exists (409)")
+            return True
+        else:
+            logger.error(f"Failed to create service group for tenant '{tenant_id}': "
+                         f"{resp.status_code} - {resp.text[:200]}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error ensuring service group for tenant '{tenant_id}': {e}")
+        return False
+
+
+def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
                          device_name: str, location: dict = None,
                          controlled_properties: list = None,
                          profile_id: str = None) -> dict:
     """
     Provision an IoT device in the IoT Agent.
     Returns provisioning result with MQTT credentials.
-    
+
     Args:
         profile_id: Optional DeviceProfile ID to use for attribute mapping.
     """
@@ -107,13 +178,19 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
         'error': None,
         'profile_used': None
     }
-    
+
     try:
         # Generate unique API key for this device
         # Extract device_id from entity_id (e.g., urn:ngsi-ld:AgriSensor:sensor001 -> sensor001)
         device_id = entity_id.split(':')[-1] if ':' in entity_id else entity_id
         api_key = generate_iot_api_key(tenant_id, device_id)
-        
+
+        # FIWARE standard: ensure a service group exists for the tenant
+        # before registering any device (required in multi-tenant mode)
+        if not ensure_service_group(tenant_id, api_key):
+            result['error'] = "Failed to create IoT Agent service group for tenant"
+            return result
+
         # Build IoT Agent device configuration
         # Topic pattern: /{api_key}/{device_id}/attrs for data
         attributes = []

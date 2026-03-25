@@ -48,11 +48,6 @@ spec:
                 name: entity-manager-service
                 port:
                   number: 5000
-          - path: /api/v1/simulation
-            pathType: Prefix
-            backend:
-              service:
-                name: simulation-service
           - path: /api/risks
             pathType: Prefix
             backend:
@@ -258,11 +253,6 @@ spec:
                 name: api-gateway-service
                 port:
                   number: 5000
-          - path: /api/v1/simulation
-            pathType: Prefix
-            backend:
-              service:
-                name: simulation-service
           - path: /api
             pathType: Prefix
             backend:
@@ -315,6 +305,14 @@ spec:
           # Do NOT add another Ingress with path /modules/vegetation-prime (or any
           # /modules/<id>) — it would intercept the URL and serve HTML, breaking registration.
           - path: /modules
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-static-service
+                port:
+                  number: 80
+          # Static assets from MinIO (3D models, partner logos, etc.)
+          - path: /assets
             pathType: Prefix
             backend:
               service:
