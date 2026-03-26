@@ -835,6 +835,59 @@ def get_context():
         return jsonify({"error": "Context file not found"}), 404
 
 
+@app.route("/api/core/basemap/package", methods=["POST"])
+def request_offline_basemap():
+    """Enqueue a job to generate a PMTiles offline map package"""
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 400
+
+    data = request.json
+    parcel_id = data.get("parcel_id")
+    bbox = data.get("bbox")
+    max_zoom = data.get("max_zoom", 18)
+
+    if not parcel_id or not bbox or len(bbox) != 4:
+        return jsonify({"error": "Missing or invalid parcel_id or bbox"}), 400
+
+    try:
+        # Import task queue dynamically to avoid coupling problems
+        import importlib.util
+        task_queue_file = "/app/task-queue/task_queue.py"
+        if os.path.exists(task_queue_file):
+            spec = importlib.util.spec_from_file_location("task_queue", task_queue_file)
+            task_queue_module = importlib.util.module_from_spec(spec)
+            sys.modules["task_queue"] = task_queue_module
+            spec.loader.exec_module(task_queue_module)
+            TaskQueue = task_queue_module.TaskQueue
+            pmtiles_queue = TaskQueue(stream_name="pmtiles:requests")
+            
+            task_id = pmtiles_queue.enqueue_task(
+                tenant_id=tenant,
+                task_type="pmtiles_generation",
+                payload={"tenant_id": tenant, "parcel_id": parcel_id, "bbox": bbox, "max_zoom": max_zoom},
+                max_retries=1
+            )
+            return jsonify({"message": "Packaging task enqueued", "task_id": task_id}), 202
+        else:
+            logger.error("Task Queue module not found")
+            return jsonify({"error": "Task Queue module not found in API Gateway"}), 500
+
+    except Exception as e:
+        logger.error(f"Failed to enqueue PMTiles task: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
 @app.route("/version", methods=["GET"])
 def version():
     """Get service version"""
@@ -1576,6 +1629,38 @@ def proxy_assets_requests(subpath):
         return (response.content, response.status_code, response.headers.items())
     except Exception as e:
         logger.error(f"Error proxying asset request: {e}")
+        return jsonify({"error": "Internal service connection error"}), 502
+
+
+@app.route("/api/core/sync/vectorial", methods=["GET", "OPTIONS"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def proxy_vector_sync_requests():
+    """Proxy offline vector sync requests to entity-manager"""
+    if request.method == "OPTIONS":
+        return "", 204
+
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing authorization"}), 401
+
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid token"}), 401
+        
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+
+    target_url = f"{ENTITY_MANAGER_URL}/api/core/sync/vectorial"
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
+
+    try:
+        response = requests.get(
+            target_url, headers=headers, params=request.args, timeout=30
+        )
+        return (response.content, response.status_code, response.headers.items())
+    except Exception as e:
+        logger.error(f"Error proxying vector sync request: {e}")
         return jsonify({"error": "Internal service connection error"}), 502
 
 

@@ -5,6 +5,7 @@
 
 import React from 'react';
 import clsx from 'clsx';
+import { useHMI } from '../context/HMIContext';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   padding?: 'sm' | 'md' | 'lg' | 'none';
@@ -18,10 +19,14 @@ const paddingMap: Record<NonNullable<CardProps['padding']>, string> = {
 };
 
 export const Card: React.FC<CardProps> = ({ className, padding = 'md', children, ...props }) => {
+  const { isHmiMode } = useHMI();
+
   return (
     <div
       className={clsx(
-        'rounded-lg border border-gray-200 bg-white shadow-sm',
+        isHmiMode 
+          ? 'rounded-none border-4 border-gray-600 bg-gray-900 text-white shadow-none' 
+          : 'rounded-lg border border-gray-200 bg-white text-gray-900 shadow-sm',
         paddingMap[padding],
         className
       )}

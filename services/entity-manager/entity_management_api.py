@@ -8097,6 +8097,87 @@ def _map_entity_to_mobile(ent):
         'centroid_lng': lng
     }
 
+@app.route('/api/core/sync/vectorial', methods=['GET'])
+@require_auth
+def core_vector_sync():
+    """
+    Standard Offline Vector Sync Endpoint for the platform core.
+    Returns WatermelonDB-compatible JSON for AgriParcels and RoutingLines.
+    """
+    try:
+        tenant = g.tenant
+        last_pulled_at = request.args.get('last_pulled_at', type=int, default=0)
+        current_ts = int(time.time() * 1000)
+        
+        # We query Orion-LD for AgriParcel, Parcel, RoutingLine
+        # If last_pulled_at > 0, we could use q=modifiedAt>=... but since NGSI-LD time queries
+        # can be tricky depending on the broker version, we fetch and filter locally for robustness,
+        # or use standard filters.
+        
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
+        
+        # 1. Fetch Parcels
+        params_parcels = {'type': 'AgriParcel,Parcel', 'limit': 1000}
+        headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant)
+        resp_parcels = requests.get(orion_url, params=params_parcels, headers=headers)
+        
+        updated_parcels = []
+        if resp_parcels.status_code == 200:
+            for ent in resp_parcels.json():
+                try:
+                    mobile_ent = _map_entity_to_mobile(ent)
+                    if mobile_ent['updated_at'] >= last_pulled_at:
+                        updated_parcels.append(mobile_ent)
+                except Exception as e:
+                    logger.warning(f"Error mapping parcel {ent.get('id')}: {e}")
+
+        # 2. Fetch Routing Lines
+        params_routes = {'type': 'RoutingLine,AgriNavigationLine', 'limit': 1000}
+        resp_routes = requests.get(orion_url, params=params_routes, headers=headers)
+        
+        updated_routes = []
+        if resp_routes.status_code == 200:
+            for ent in resp_routes.json():
+                try:
+                    # Generic mapping for routes
+                    remote_id = ent.get('id')
+                    geometry = None
+                    if 'location' in ent and isinstance(ent['location'], dict) and 'value' in ent['location']:
+                        geometry = ent['location']['value']
+                    elif 'location' in ent:
+                         geometry = ent['location']
+                    
+                    if geometry:
+                        updated_routes.append({
+                            'remote_id': remote_id,
+                            'name': ent.get('name', {}).get('value', 'Route') if isinstance(ent.get('name'), dict) else ent.get('name', 'Route'),
+                            'geojson': json.dumps(geometry),
+                            'status': 'synced',
+                            'created_at': current_ts, # Simplified
+                            'updated_at': current_ts
+                        })
+                except Exception as e:
+                    logger.warning(f"Error mapping route {ent.get('id')}: {e}")
+
+        return jsonify({
+            'changes': {
+                'parcels': {
+                    'created': [],
+                    'updated': updated_parcels,
+                    'deleted': []
+                },
+                'routing_lines': {
+                    'created': [],
+                    'updated': updated_routes,
+                    'deleted': []
+                }
+            },
+            'timestamp': current_ts
+        })
+    except Exception as e:
+        logger.error(f"Core Vector Sync Error: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/mobile/sync', methods=['GET'])
 @require_auth
 def mobile_sync_pull():

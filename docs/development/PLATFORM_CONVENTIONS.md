@@ -83,17 +83,16 @@ Los módulos que gestionen topología espacial o guiado deben exponer rutas así
 
 - **Estructuras Vectoriales (`GET /sync/vectorial?last_pulled_at={ts}`)**: 
   Debe retornar un FeatureCollection GeoJSON con operaciones o geometrías nuevas generadas desde el timestamp. La app cachea esto localmente en **WatermelonDB**.
+  > **Norma Crítica - Vectorización Asíncrona:** Todo procesamiento de Raster (imágenes satélite COG) a polígonos vectoriales (GeoJSON) **no** puede realizarse sincrónicamente en un endpoint. Debe ejecutarse como un Job asíncrono en segundo plano (ej. vía **Celery**) que serialice y cachee el mapa para su descarga In-Memory `O(1)`.
   
 - **Cacheo de BaseMap Raster (`GET /basemap/{parcel_id}`)**: 
-  El módulo debe ser capaz de suministrar un empaquetado **PMTiles** (o MBTiles nativo) aislado del mapa satélite, correspondiente exclusivamente al Bounding Box de la parcela operativa, ahorrando miles de peticiones HTTP en cabina.
+  El módulo debe ser capaz de suministrar un empaquetado **PMTiles** (o MBTiles nativo) del mapa satélite, empaquetado dinámicamente o por lotes vía servicios dedicados en el Core.
 
-### 2.2 Telemetría de Baja Latencia (UDP Edge Computing)
-El cálculo matemático de la operación en tiempo real (ej. Desviación Angular XTE) debe realizarse de forma in-situ en la tablet de cabina.
-- El hardware de posicionamiento (NTRIP/ESP32) debe hacer **Broadcasting UDP de alta frecuencia (10Hz-20Hz)** en la red WiFi local de la cabina.
-- Los módulos deben rechazar procesar guiados milimétricos en el servidor cloud a fin de erradicar el "efecto serpiente" producido por la latencia de ida y vuelta a la red celular.
+### 2.2 Telemetría Táctica de Tractor (UDP Edge Computing)
+El cálculo matemático transversal (XTE) debe realizarse in-situ dentro de la tablet de la cabina (`nkz-mobile`).
+- El nodo IoT (Gateway ESP32) debe emitir un local **Broadcast UDP (10Hz-20Hz)** en la LAN del tractor evitando así subidas latentes a la arquitectura nube.
+- > **Aislamiento Robótico:** Esta telemetría móvil UDP es privativa del flujo Tractor <-> Tablet y **es independiente del módulo `nekazari-module-robotics`**, el cual mantiene íntegro su stack ROS2/Zenoh y túnel VPN para control de rovers autónomos profesionales.
 
-### 2.3 Diseño Industrial HMI
-Las pantallas (HUD) inyectadas en la tablet móvil están regidas por las normativas mecánicas ISO 11783-6:
-- Alto contraste de interfaz, componentes opacos, fondos sólidos. Queda revocado el uso de *glassmorphism* o capas difuminadas.
-- Controles de gran área táctil (**48x48dp mínimo**).
-- Sin serifas, máxima legibilidad ante exposición solar directa de 1000+ nits.
+### 2.3 Diseño Industrial HMI (`@nekazari/ui-kit` Dual Theme)
+Todo panel UI para control de maquinaria asume exigencias ISO 11783-6:
+- **No reescribiremos ningún módulo web actual:** La librería fundacional `@nekazari/ui-kit` alojará un **HMI Context Theme**. Si se detecta el flag `hmi_mode=true` (ej. carga webview en `nkz-mobile`), todo el UI-Kit pasará de su estilo analítico de monitor al modo pesado industrial: opaco puro, controles masivos de **48x48dp** y esquemas Amber/Slate limitando la fatiga solar extrema. Un único código base servirá ambos contextos.
