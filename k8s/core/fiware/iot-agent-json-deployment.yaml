@@ -102,7 +102,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: iot-agent-json
-        image: fiware/iotagent-json:1.25.0
+        image: fiware/iotagent-json:3.13.0
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -163,21 +163,31 @@ spec:
           value: "27017"
         - name: IOTA_MONGO_DB
           value: "iotagent_json"
-        - name: IOTA_MONGO_USER
-          value: "admin"
-        - name: IOTA_MONGO_PASSWORD
+        # IOTA_MONGO_URI bypasses auth.user vs auth.username bug in
+        # iotagent-node-lib with MongoDB driver 6.x (mongoose 8.x).
+        # Password ref MUST be defined before URI for $(VAR) substitution.
+        - name: IOTA_MONGO_PASSWORD_RAW
           valueFrom:
             secretKeyRef:
               name: sdm-secrets
               key: mongodb-password
+        - name: IOTA_MONGO_URI
+          value: "mongodb://admin:$(IOTA_MONGO_PASSWORD_RAW)@mongodb-service:27017/iotagent_json?authSource=admin"
         - name: IOTA_CB_HOST
           value: "orion-ld-service"
         - name: IOTA_CB_PORT
           value: "1026"
-        # NGSIv2 mode (Orion-LD supports both v2 and LD APIs)
-        # v2 mode is more stable with IoT Agent 1.25.0 for attribute updates
+        # NGSI-LD native mode (IoT Agent 3.7.0 has proper LD support)
+        # Uses the platform @context to correctly expand attribute/type URIs
         - name: IOTA_CB_NGSI_VERSION
-          value: "v2"
+          value: "ld"
+        # Some IoT Agent versions use IOTA_NGSI_VERSION instead
+        - name: IOTA_NGSI_VERSION
+          value: "ld"
+        # JSON-LD @context — MUST match the context used by SDM/entity-manager
+        # when creating entities, so attribute URIs are consistent
+        - name: IOTA_JSON_LD_CONTEXT
+          value: "http://api-gateway-service:5000/ngsi-ld-context.json"
         # Append mode: auto-create attributes that don't yet exist on the entity
         # Without this, updates for new attributes fail with "entity does not have such attribute"
         - name: IOTA_APPEND_MODE

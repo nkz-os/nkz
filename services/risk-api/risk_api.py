@@ -10,6 +10,7 @@ import sys
 import json
 import logging
 import importlib.util
+import time
 from typing import Optional, List, Union, Literal
 from enum import Enum
 from pydantic import BaseModel
@@ -670,6 +671,73 @@ def get_risk_states():
 
     except Exception as e:
         logger.error(f"Error getting risk states: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/risks/sync/vectorial", methods=["GET"])
+@require_auth
+def sync_vectorial():
+    """Offline Vector Sync Endpoint for the Risks module (WatermelonDB format)"""
+    try:
+        tenant = g.tenant
+        last_pulled_at = request.args.get("last_pulled_at", type=int, default=0)
+        current_ts = int(time.time() * 1000)
+        
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({"error": "Database unavailable"}), 500
+
+        set_tenant_context(conn, tenant)
+        cursor = conn.cursor()
+        
+        query = "SELECT * FROM risk_daily_states WHERE tenant_id = %s"
+        params = [tenant]
+        if last_pulled_at > 0:
+            query += " AND evaluation_timestamp >= to_timestamp(%s)"
+            params.append(last_pulled_at / 1000.0)
+            
+        cursor.execute(query, params)
+        states = cursor.fetchall()
+        
+        updated_states = []
+        created_states = []
+        
+        for s in states:
+            item = dict(s)
+            item['id'] = str(item['id'])
+            item['remote_id'] = item['id']
+            # Ensure timestamps are ints for WatermelonDB
+            item['created_at'] = int(item['evaluation_timestamp'].timestamp() * 1000) if item['evaluation_timestamp'] else current_ts
+            item['updated_at'] = item['created_at']
+            
+            # Serialize datetimes safely
+            for k in ['timestamp', 'evaluation_timestamp']:
+                if k in item and hasattr(item[k], 'isoformat'):
+                    item[k] = item[k].isoformat()
+                    
+            if last_pulled_at == 0:
+                created_states.append(item)
+            else:
+                updated_states.append(item)
+                
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            "changes": {
+                "risk_daily_states": {
+                    "created": created_states,
+                    "updated": updated_states,
+                    "deleted": []
+                }
+            },
+            "timestamp": current_ts
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error in risk vector sync: {e}")
+        if 'conn' in locals() and conn:
+            conn.close()
         return jsonify({"error": "Internal server error"}), 500
 
 

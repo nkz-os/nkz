@@ -21,6 +21,9 @@ RUN find /app -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true && 
 # Copiar servicios comunes (para keycloak_auth)
 COPY services/common/ /common/
 
+# Copiar utilities de cola de tareas
+COPY services/task-queue/ /app/task-queue/
+
 # Copiar configuración (para ngsi-ld-context.json)
 COPY config/ /config/
 

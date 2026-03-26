@@ -421,49 +421,23 @@ class ApiService {
 
   async getSensors(): Promise<Sensor[]> {
     try {
-      // Try new API endpoint first
+      // Fetch sensors from PostgreSQL API only (NGSI-LD sensors are loaded
+      // separately via getSDMEntityInstances('AgriSensor') in the viewer)
       const response = await this.client.get('/api/sensors');
       if (response.data?.sensors) {
-        // Transform from DB format to NGSI-LD format for frontend
-        return response.data.sensors.map((s: any) => {
-          return {
-            id: s.id,
-            type: 'AgriSensor',
-            name: {
-              type: 'Property',
-              value: s.name || s.external_id
-            },
-            location: s.location?.value || s.location,
-            external_id: s.external_id,
-            profile: s.profile
-          };
-        });
-      }
-      // Fallback to NGSI-LD endpoint
-      const ngsiResponse = await this.client.get('/ngsi-ld/v1/entities', {
-        params: { type: 'AgriSensor' },
-        headers: { 'Accept': 'application/ld+json' },
-      });
-      const sensors = Array.isArray(ngsiResponse.data) ? ngsiResponse.data : (ngsiResponse.data.results || []);
-
-      return sensors.map((s: any) => {
-        // Normalize location from simple NGSI-LD or normalized format
-        const location = s.location?.value || s.location;
-
-        return {
+        return response.data.sensors.map((s: any) => ({
           id: s.id,
-          name: s.name?.value || s.name || s['https://smartdatamodels.org/name']?.value || 'Unnamed Sensor',
-          type: s.sensorType?.value || s.sensorType || 'generic',
-          location: location,
-          batteryLevel: s.batteryLevel?.value || s.batteryLevel || 100,
-          status: s.status?.value || s.status || 'active',
-          lastUpdate: s.modifiedAt || new Date().toISOString(),
-          measurements: {
-            temperature: s.temperature?.value || s.temperature || 0,
-            humidity: s.humidity?.value || s.humidity || 0
-          }
-        };
-      });
+          type: 'AgriSensor',
+          name: {
+            type: 'Property',
+            value: s.name || s.external_id
+          },
+          location: s.location?.value || s.location,
+          external_id: s.external_id,
+          profile: s.profile
+        }));
+      }
+      return [];
     } catch (error) {
       logger.warn('Error fetching sensors:', error);
       return [];

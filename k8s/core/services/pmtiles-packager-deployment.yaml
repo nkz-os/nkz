@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pmtiles-packager
+  namespace: nekazari
+  labels:
+    app: pmtiles-packager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pmtiles-packager
+  template:
+    metadata:
+      labels:
+        app: pmtiles-packager
+    spec:
+      containers:
+      - name: pmtiles-packager
+        image: ghcr.io/nkz-os/nkz/pmtiles-packager:latest
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: nekazari-config
+        - secretRef:
+            name: nekazari-secrets
+        - secretRef:
+            name: minio-secret
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
