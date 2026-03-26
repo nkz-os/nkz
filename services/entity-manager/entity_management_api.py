@@ -3034,11 +3034,23 @@ def list_tenant_sensors():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+def _normalize_device_id(device_id: str) -> str:
+    """Extract short device ID from NGSI-LD URN if needed.
+
+    'urn:ngsi-ld:AgriSensor:abc123' -> 'abc123'
+    'abc123' -> 'abc123'
+    """
+    if device_id and ':' in device_id:
+        return device_id.rsplit(':', 1)[-1]
+    return device_id
+
+
 @app.route('/api/devices/<device_id>/telemetry', methods=['GET'])
 @require_auth
 def get_device_telemetry(device_id):
     """Get telemetry history for a device"""
     try:
+        device_id = _normalize_device_id(device_id)
         tenant_id = g.tenant
         conn = get_db_connection_with_tenant(tenant_id)
         if not conn:
@@ -3106,6 +3118,7 @@ def get_device_telemetry(device_id):
 def get_device_latest_telemetry(device_id):
     """Get latest telemetry value for a device"""
     try:
+        device_id = _normalize_device_id(device_id)
         tenant_id = g.tenant
         conn = get_db_connection_with_tenant(tenant_id)
         if not conn:
@@ -3156,6 +3169,7 @@ def get_device_latest_telemetry(device_id):
 def get_device_telemetry_stats(device_id):
     """Get aggregated statistics for device telemetry"""
     try:
+        device_id = _normalize_device_id(device_id)
         tenant_id = g.tenant
         conn = get_db_connection_with_tenant(tenant_id)
         if not conn:

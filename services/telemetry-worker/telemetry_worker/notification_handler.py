@@ -229,27 +229,32 @@ async def _persist_to_timescale(
 
 @router.post("/notify")
 async def receive_notification(
-    request: Request, 
+    request: Request,
     background_tasks: BackgroundTasks,
+    ngsild_tenant: Optional[str] = Header(None, alias="NGSILD-Tenant"),
     fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
 ):
     """
     Endpoint for Orion-LD notifications.
-    
+
     Accepts NGSI-LD subscription notifications and processes them
     in the background for fast acknowledgment.
+
+    Supports both NGSI-LD (NGSILD-Tenant) and NGSIv2 (Fiware-Service) tenant headers.
     """
     try:
         body = await request.json()
-        
-        # Extract tenant from Fiware-Service header
-        tenant_id = fiware_service
-        
+
+        # NGSI-LD uses NGSILD-Tenant header; NGSIv2 uses Fiware-Service
+        tenant_id = ngsild_tenant or fiware_service
+
+        logger.info(f"Notification received for tenant={tenant_id}, entities={len(body.get('data', []))}")
+
         # Fast response - process in background
         background_tasks.add_task(process_notification_task, body, tenant_id)
-        
+
         return {"status": "received"}
-        
+
     except Exception as e:
         logger.error(f"Invalid notification received: {e}")
         return {"error": "invalid payload"}, 400

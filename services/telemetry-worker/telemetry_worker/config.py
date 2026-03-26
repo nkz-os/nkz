@@ -13,16 +13,15 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     api_prefix: str = "/api"
-    postgres_url: str = Field(..., env="POSTGRES_URL")
-    enable_queue: bool = Field(True, env="ENABLE_QUEUE")
-    queue_dsn: Optional[str] = Field(None, env="QUEUE_DSN")
-    log_level: str = Field("INFO", env="LOG_LEVEL")
-    orion_url: str = Field("http://orion-ld-service:1026", env="ORION_URL")
-    context_url: str = Field("http://api-gateway-service:5000/ngsi-ld-context.json", env="CONTEXT_URL")
+    postgres_url: str
+    redis_url: str = "redis://redis-service:6379/0"
+    enable_queue: bool = True
+    queue_dsn: Optional[str] = None
+    log_level: str = "INFO"
+    orion_url: str = "http://orion-ld-service:1026"
+    context_url: str = "http://api-gateway-service:5000/ngsi-ld-context.json"
 
-    class Config:
-        env_prefix = "SENSOR_"
-        case_sensitive = False
+    model_config = {"env_prefix": "", "case_sensitive": False}
 
 
 @lru_cache()

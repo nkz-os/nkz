@@ -130,6 +130,10 @@ data:
     topic write +/+/notifications/#
     topic write +/+/commands/#
     
+    # IoT Agent (reads device data, writes commands back)
+    user iot-agent
+    topic readwrite #
+
     # ROS2 Bridge (bidireccional)
     user ros2-bridge
     topic readwrite +/+/ros2/#
