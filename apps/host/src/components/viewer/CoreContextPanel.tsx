@@ -543,7 +543,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
         || getEntityAttrValue('atmosphericPressure') || getEntityAttrValue('pressure');
 
     // Extract most recent observedAt from NGSI-LD entity attributes
-    const entityObservedAt = useMemo(() => {
+    const entityObservedAt = (() => {
         if (!entityData) return null;
         let latest: string | null = null;
         for (const val of Object.values(entityData)) {
@@ -553,7 +553,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
             }
         }
         return latest;
-    }, [entityData]);
+    })();
 
     const hasEntityData = temperature !== null || humidity !== null || moisture !== null || battery !== null || pressure !== null;
     const displayTimestamp = latestTelemetry?.observed_at || entityObservedAt;
