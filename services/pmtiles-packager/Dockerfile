@@ -8,10 +8,13 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY services/pmtiles-packager/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el paquete task-queue del core (requiere contexto en la raíz)
-COPY . /app
+# Copiar código del servicio + task-queue (requiere contexto en la raíz del repo)
+COPY services/pmtiles-packager /app/services/pmtiles-packager
+COPY services/task-queue /app/services/task-queue
+
+WORKDIR /app/services/pmtiles-packager
 
 CMD ["python", "main.py"]
