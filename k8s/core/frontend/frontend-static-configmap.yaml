@@ -24,8 +24,9 @@ data:
             gzip_vary on;
             gzip_proxied any;
             gzip_comp_level 6;
-            gzip_types text/plain text/css text/xml application/json application/javascript 
-                       application/xml application/xml+rss text/javascript application/x-javascript;
+            gzip_types text/plain text/css text/xml application/json application/javascript
+                       application/xml application/xml+rss text/javascript application/x-javascript
+                       application/wasm;
 
             # Health check endpoint
             location /health {
@@ -70,6 +71,21 @@ data:
                 proxy_hide_header x-amz-request-id;
                 
                 add_header Cache-Control "public, max-age=86400";
+            }
+
+            # =================================================================
+            # JupyterLite Scientific Lab (static WASM distribution)
+            # =================================================================
+            # Serves Pyodide/JupyterLite from MinIO. NO SPA fallback — JupyterLite
+            # has its own routing via Service Worker.
+            # Cache-Control headers are set per-file-type at the MinIO level by the
+            # CI upload workflow (3600s HTML/JS, immutable WASM, 86400s wheels).
+            # We do NOT add_header here so MinIO's headers pass through cleanly.
+            location /jupyterlite/ {
+                proxy_pass http://minio-service:9000/nekazari-frontend/jupyterlite/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
             }
 
             # =================================================================
