@@ -9,6 +9,7 @@ import { X, Save, MapPin, Heart, AlertCircle } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { getConfig } from '@/config/environment';
 import api from '@/services/api';
+import type { LivestockAnimal } from '@/types';
 
 const config = getConfig();
 
@@ -62,7 +63,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
 
     try {
       // Create NGSI-LD entity according to SDM
-      const animalData: any = {
+      const animalData: Record<string, unknown> = {
         id: `urn:ngsi-ld:LivestockAnimal:${Date.now()}`,
         type: 'LivestockAnimal',
         name: {
@@ -133,7 +134,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
         };
       }
 
-      await api.createLivestockAnimal(animalData);
+      await api.createLivestockAnimal(animalData as Partial<LivestockAnimal>);
       
       // Reset form
       setFormData({
@@ -155,9 +156,10 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
         onSuccess();
       }
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving livestock:', error);
-      const errorMsg = error.response?.data?.error || (t('livestock.save_error') || 'Error al guardar el animal');
+      const ax = error as { response?: { data?: { error?: string } } };
+      const errorMsg = ax.response?.data?.error || (t('livestock.save_error') || 'Error al guardar el animal');
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -218,7 +220,9 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               </label>
               <select
                 value={formData.species}
-                onChange={(e) => setFormData({ ...formData, species: e.target.value as any })}
+                onChange={(e) =>
+                  setFormData({ ...formData, species: e.target.value as typeof formData.species })
+                }
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
                 required
@@ -266,7 +270,9 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               </label>
               <select
                 value={formData.activity}
-                onChange={(e) => setFormData({ ...formData, activity: e.target.value as any })}
+                onChange={(e) =>
+                  setFormData({ ...formData, activity: e.target.value as typeof formData.activity })
+                }
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
               >

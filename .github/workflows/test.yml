@@ -10,6 +10,9 @@ jobs:
   frontend-tests:
     name: Frontend Unit Tests
     runs-on: ubuntu-latest
+    env:
+      # GitHub Actions: opt into Node 24 for JS actions before the 2026-06 default (deprecation of Node 20 runtime).
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     defaults:
       run:
         working-directory: apps/host
@@ -20,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "pnpm"
 
       - run: pnpm install --frozen-lockfile

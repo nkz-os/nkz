@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { HelpCircle, X, Info, Database, Zap, ShieldCheck } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '@nekazari/sdk';
 
 export const SDMGuideInfo: React.FC = () => {
   const { t } = useTranslation();

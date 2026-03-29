@@ -6,7 +6,7 @@ import {
   Mail, Settings2, Shield, Key, ScrollText, 
   FileText, Activity, Box, Puzzle, Monitor
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '@nekazari/sdk';
 import client from '@/services/api';
 import { format } from 'date-fns';
 import { useModules } from '@/context/ModuleContext';

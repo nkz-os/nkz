@@ -9,6 +9,7 @@ import { X, Save, MapPin, Tractor, AlertCircle } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { getConfig } from '@/config/environment';
 import api from '@/services/api';
+import type { AgriculturalMachine } from '@/types';
 
 const config = getConfig();
 
@@ -63,7 +64,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
 
     try {
       // Create NGSI-LD entity according to SDM
-      const machineData: any = {
+      const machineData: Record<string, unknown> = {
         id: `urn:ngsi-ld:AgriculturalTractor:${Date.now()}`,
         type: 'AgriculturalTractor',
         name: {
@@ -132,7 +133,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
         };
       }
 
-      await api.createMachine(machineData);
+      await api.createMachine(machineData as Partial<AgriculturalMachine>);
       
       // Reset form
       setFormData({
@@ -155,9 +156,10 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
         onSuccess();
       }
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving machine:', error);
-      const errorMsg = error.response?.data?.error || (t('machines.save_error') || 'Error al guardar la maquinaria');
+      const ax = error as { response?: { data?: { error?: string } } };
+      const errorMsg = ax.response?.data?.error || (t('machines.save_error') || 'Error al guardar la maquinaria');
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -263,7 +265,9 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               </label>
               <select
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                onChange={(e) =>
+                  setFormData({ ...formData, status: e.target.value as typeof formData.status })
+                }
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               >
@@ -279,7 +283,12 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               </label>
               <select
                 value={formData.operation_type}
-                onChange={(e) => setFormData({ ...formData, operation_type: e.target.value as any })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    operation_type: e.target.value as typeof formData.operation_type
+                  })
+                }
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               >
