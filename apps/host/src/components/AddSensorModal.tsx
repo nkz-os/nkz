@@ -9,6 +9,7 @@ import { X, Save, MapPin, Gauge, AlertCircle } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { useViewer } from '@/context/ViewerContext';
 import api from '@/services/api';
+import type { Sensor } from '@/types';
 
 interface SensorProfile {
   code: string;
@@ -20,7 +21,7 @@ interface SensorProfile {
     protocol?: string;
     measurementKind?: string;
     component?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   sdm_attributes?: string[];
 }
@@ -90,10 +91,10 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
     try {
       // Build payload matching Partial<Sensor> structure where possible
       // or at least passing necessary data for api.createSensor to handle mapping
-      const sensorData: any = {
+      const sensorData: Partial<Sensor> = {
         external_id: formData.external_id,
-        name: { type: 'Property', value: formData.name }, // Satisfy Sensor type
-        profile: formData.profile,
+        name: { type: 'Property', value: formData.name },
+        profile: formData.profile as unknown as Sensor['profile'],
         location: {
           type: 'GeoProperty',
           value: {
@@ -101,7 +102,6 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             coordinates: [formData.longitude, formData.latitude]
           }
         },
-        // Extra fields not strictly in Sensor type but needed for creation
         station_id: formData.station_id || undefined,
         is_under_canopy: formData.is_under_canopy,
         metadata: formData.station_id ? { station_id: formData.station_id } : undefined
@@ -124,9 +124,10 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
         onSuccess();
       }
       onClose();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving sensor:', error);
-      const errorMsg = error.response?.data?.error || t('sensors.save_error');
+      const ax = error as { response?: { data?: { error?: string } } };
+      const errorMsg = ax.response?.data?.error ?? t('sensors.save_error');
       setError(errorMsg);
     } finally {
       setLoading(false);

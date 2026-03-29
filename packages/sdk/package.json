@@ -30,7 +30,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --external react || exit 1"
+    "build": "tsup src/index.ts --format cjs,esm --dts --external react --external i18next --external react-i18next --external i18next-http-backend --external i18next-browser-languagedetector || exit 1"
   },
   "dependencies": {
     "i18next": "^23.11.0",
