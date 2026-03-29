@@ -222,6 +222,96 @@
     "crop_not_specified": "Culture non précisée",
     "environmental_sensors": "Capteurs environnementaux"
   },
+  "landing": {
+    "title": "NKZ",
+    "subtitle": "Plateforme agricole intelligente",
+    "description": "Digitalisez votre exploitation avec des jumeaux numériques FIWARE, télémétrie IoT et analytique temps réel.",
+    "subdescription": "Multi-locataire, sécurisé et prêt pour la production.",
+    "try_free": "Essayer gratuitement",
+    "access": "Connexion",
+    "view_pricing": "Voir les tarifs",
+    "register_with_code": "S'inscrire avec un code",
+    "trust_enterprise_security": "Sécurité de niveau entreprise",
+    "trust_fiware": "Basé sur FIWARE NGSI-LD",
+    "trust_multitenant": "Isolation multi-tenant",
+    "features_title": "Tout ce dont vous avez besoin",
+    "features_subtitle": "Une plateforme modulaire pour l'agriculture de précision",
+    "cta_section_title": "Prêt à commencer ?",
+    "cta_section_subtitle": "Créez votre compte ou connectez-vous avec votre organisation.",
+    "cta_section_button": "Commencer",
+    "cta": "Commencer",
+    "footer_description": "Plateforme IoT agricole de niveau entreprise propulsée par FIWARE.",
+    "footer_platform": "Plateforme",
+    "footer_context": "Courtier de contexte NGSI-LD",
+    "footer_devices": "Appareils & IoT",
+    "footer_analytics": "Analytique & risques",
+    "footer_security_title": "Sécurité",
+    "footer_auth": "Authentification OIDC (Keycloak)",
+    "footer_rbac": "Contrôle d'accès par rôles",
+    "footer_isolation": "Isolation par locataire",
+    "footer_copyright": "© 2025 NKZ. Tous droits réservés.",
+    "footer_company": "Entreprise",
+    "footer_contact": "Contact",
+    "features_context": {
+      "title": "Contexte sémantique",
+      "description": "Smart Data Models et ontologie FIWARE partagée."
+    },
+    "features_multitenant": {
+      "title": "Multi-tenant",
+      "description": "Chaque organisation avec données et limites isolées."
+    },
+    "features_security": {
+      "title": "Sécurité",
+      "description": "JWT, RBAC et bonnes pratiques de déploiement."
+    },
+    "features_iot": {
+      "title": "IoT & MQTT",
+      "description": "Ingestion standard FIWARE IoT Agent vers Orion-LD."
+    },
+    "features_analytics": {
+      "title": "Analytique",
+      "description": "Séries temporelles, risques agricoles et tableaux de bord."
+    },
+    "features_cloud": {
+      "title": "Cloud & exploitation",
+      "description": "Kubernetes, observabilité et livraison continue."
+    },
+    "partners_title": "Partenaires",
+    "pricing": {
+      "title": "Offres adaptées à votre exploitation",
+      "subtitle": "Commencez gratuitement pendant 45 jours et évoluez au besoin.",
+      "popular": "Le plus populaire",
+      "pro": {
+        "title": "Pro",
+        "price": "49€",
+        "period": "/mois",
+        "desc": "Pour les agronomes et les exploitations moyennes.",
+        "feat1": "Essai gratuit 45 jours",
+        "feat2": "Jusqu'à 500 ha et 5 utilisateurs",
+        "feat3": "Tous les modules inclus",
+        "feat4": "Support prioritaire",
+        "cta": "Démarrer l'essai"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "Sur mesure",
+        "desc": "Pour coopératives, grandes exploitations et institutions.",
+        "feat1": "Hectares et utilisateurs illimités",
+        "feat2": "Tous les modules (IA, LiDAR, etc.)",
+        "feat3": "Isolation dédiée par locataire",
+        "feat4": "SLA et gestionnaire de compte",
+        "cta": "Contacter les ventes"
+      }
+    }
+  },
+  "cookies": {
+    "title": "Cookies",
+    "message": "Nous utilisons des cookies essentiels et, avec votre consentement, des analytics pour améliorer le service.",
+    "policy_link": "https://nkz-os.org/",
+    "learn_more": "En savoir plus",
+    "reject": "Refuser",
+    "accept": "Accepter"
+  },
   "sensors": {
     "empty_title": "Aucun capteur enregistré",
     "no_sensors_registered": "Aucun capteur enregistré",

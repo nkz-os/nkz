@@ -222,6 +222,96 @@
     "crop_not_specified": "Crop not specified",
     "environmental_sensors": "Environmental sensors"
   },
+  "landing": {
+    "title": "NKZ",
+    "subtitle": "Smart agricultural platform",
+    "description": "Digitize your farm with FIWARE digital twins, IoT telemetry and real-time analytics.",
+    "subdescription": "Multi-tenant, secure and production-ready.",
+    "try_free": "Try for free",
+    "access": "Sign in",
+    "view_pricing": "View pricing",
+    "register_with_code": "Register with code",
+    "trust_enterprise_security": "Enterprise-grade security",
+    "trust_fiware": "Built on FIWARE NGSI-LD",
+    "trust_multitenant": "Multi-tenant isolation",
+    "features_title": "Everything you need",
+    "features_subtitle": "A modular platform for precision agriculture",
+    "cta_section_title": "Ready to start?",
+    "cta_section_subtitle": "Create your account or sign in with your organization.",
+    "cta_section_button": "Get started",
+    "cta": "Get started",
+    "footer_description": "Enterprise-grade agricultural IoT platform powered by FIWARE.",
+    "footer_platform": "Platform",
+    "footer_context": "NGSI-LD Context Broker",
+    "footer_devices": "Devices & IoT",
+    "footer_analytics": "Analytics & risks",
+    "footer_security_title": "Security",
+    "footer_auth": "OIDC authentication (Keycloak)",
+    "footer_rbac": "Role-based access control",
+    "footer_isolation": "Per-tenant isolation",
+    "footer_copyright": "© 2025 NKZ. All rights reserved.",
+    "footer_company": "Company",
+    "footer_contact": "Contact",
+    "features_context": {
+      "title": "Semantic context",
+      "description": "Smart Data Models and shared FIWARE ontology across services."
+    },
+    "features_multitenant": {
+      "title": "Multi-tenant",
+      "description": "Each organization with isolated data, limits and users."
+    },
+    "features_security": {
+      "title": "Security",
+      "description": "JWT, RBAC and hardened deployment practices."
+    },
+    "features_iot": {
+      "title": "IoT & MQTT",
+      "description": "Standard FIWARE IoT Agent ingestion to Orion-LD."
+    },
+    "features_analytics": {
+      "title": "Analytics",
+      "description": "Time series, agri risks and operational dashboards."
+    },
+    "features_cloud": {
+      "title": "Cloud & operations",
+      "description": "Kubernetes, observability and continuous delivery."
+    },
+    "partners_title": "Partners",
+    "pricing": {
+      "title": "Plans that fit your farm",
+      "subtitle": "Start free for 45 days and upgrade when you need to.",
+      "popular": "Most popular",
+      "pro": {
+        "title": "Pro",
+        "price": "€49",
+        "period": "/mo",
+        "desc": "For professional agronomists and mid-size farms.",
+        "feat1": "45-day free trial",
+        "feat2": "Up to 500 ha and 5 users",
+        "feat3": "All modules included",
+        "feat4": "Priority support",
+        "cta": "Start free trial"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "Custom",
+        "desc": "For cooperatives, large estates and institutions.",
+        "feat1": "Unlimited hectares and users",
+        "feat2": "All modules (AI, LiDAR, etc.)",
+        "feat3": "Dedicated tenant isolation",
+        "feat4": "SLA and account manager",
+        "cta": "Contact sales"
+      }
+    }
+  },
+  "cookies": {
+    "title": "Cookies",
+    "message": "We use essential cookies and, with your consent, analytics to improve the service.",
+    "policy_link": "https://nkz-os.org/",
+    "learn_more": "Learn more",
+    "reject": "Reject",
+    "accept": "Accept"
+  },
   "search": "Search",
   "actions": "Actions",
   "online": "Online",

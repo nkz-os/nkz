@@ -222,6 +222,96 @@
     "crop_not_specified": "Laborantza zehaztu gabe",
     "environmental_sensors": "Ingurumen-sentsoreak"
   },
+  "landing": {
+    "title": "NKZ",
+    "subtitle": "Nekazaritza plataforma adimenduna",
+    "description": "FIWARE bikoitz digitalak, IoT telemetria eta denbora errealeko analitikarekin digitalizatu zure baserria.",
+    "subdescription": "Multi-tenant, segurua eta ekoizpen-prest.",
+    "try_free": "Doan probatu",
+    "access": "Sartu",
+    "view_pricing": "Prezioak ikusi",
+    "register_with_code": "Kodearekin erregistratu",
+    "trust_enterprise_security": "Enpresa-mailako segurtasuna",
+    "trust_fiware": "FIWARE NGSI-LDn oinarrituta",
+    "trust_multitenant": "Multi-tenant isolamendua",
+    "features_title": "Behar duzun guztia",
+    "features_subtitle": "Nekazaritza zehatzeko plataforma modularra",
+    "cta_section_title": "Hasi nahi?",
+    "cta_section_subtitle": "Sortu kontua edo sartu zure erakundean.",
+    "cta_section_button": "Hasi",
+    "cta": "Hasi",
+    "footer_description": "FIWARErekin bultzatutako nekazaritza IoT plataforma enpresa-mailakoa.",
+    "footer_platform": "Plataforma",
+    "footer_context": "NGSI-LD Context Broker",
+    "footer_devices": "Gailuak eta IoT",
+    "footer_analytics": "Analitika eta arriskuak",
+    "footer_security_title": "Segurtasuna",
+    "footer_auth": "OIDC autentifikazioa (Keycloak)",
+    "footer_rbac": "Rolen bidezko sarbide-kontrola",
+    "footer_isolation": "Tenanteko isolamendua",
+    "footer_copyright": "© 2025 NKZ. Eskubide guztiak erreserbatuak.",
+    "footer_company": "Enpresa",
+    "footer_contact": "Kontaktua",
+    "features_context": {
+      "title": "Testuinguru semantikoa",
+      "description": "Smart Data Models eta FIWARE ontologia partekatua."
+    },
+    "features_multitenant": {
+      "title": "Multi-tenant",
+      "description": "Erakunde bakoitzak datu eta mugak isolatuak."
+    },
+    "features_security": {
+      "title": "Segurtasuna",
+      "description": "JWT, RBAC eta hobeki praktikak."
+    },
+    "features_iot": {
+      "title": "IoT eta MQTT",
+      "description": "FIWARE IoT Agent estandarra Orion-LDrako."
+    },
+    "features_analytics": {
+      "title": "Analitika",
+      "description": "Denbora-serieak, arriskuak eta aginte-taulak."
+    },
+    "features_cloud": {
+      "title": "Hodeia eta eragiketa",
+      "description": "Kubernetes, behaketa eta CD."
+    },
+    "partners_title": "Bazkideak",
+    "pricing": {
+      "title": "Zure lurrera egokitutako planak",
+      "subtitle": "Hasi doan 45 egunez eta hobetu behar duzunean.",
+      "popular": "Popularrena",
+      "pro": {
+        "title": "Pro",
+        "price": "49€",
+        "period": "/hil",
+        "desc": "Agronomo profesionalentzat eta erdi mailako baserrientzat.",
+        "feat1": "45 eguneko proba doan",
+        "feat2": "500 ha eta 5 erabailera arte",
+        "feat3": "Modulu guztiak barne",
+        "feat4": "Lehentasunezko euskarria",
+        "cta": "Proba hasi"
+      },
+      "ent": {
+        "title": "Enterprise",
+        "price": "Neurian",
+        "desc": "Kooperatiba, finca handi eta erakundeentzat.",
+        "feat1": "Hektarerik eta erabailerik gabe",
+        "feat2": "Modulu guztiak (AA, Lidar, etab.)",
+        "feat3": "Tenanteko isolamendu dedikatua",
+        "feat4": "SLA eta kontu-kudeatzailea",
+        "cta": "Salmentarekin kontaktua"
+      }
+    }
+  },
+  "cookies": {
+    "title": "Cookieak",
+    "message": "Cookie funtsezkoak eta zure onespenarekin analitika erabiltzen ditugu zerbitzua hobetzeko.",
+    "policy_link": "https://nkz-os.org/",
+    "learn_more": "Informazio gehiago",
+    "reject": "Ezetsi",
+    "accept": "Onartu"
+  },
   "sensors": {
     "empty_title": "Ez dago sentsorerik erregistratuta",
     "no_sensors_registered": "Ez dago sentsorerik erregistratuta",
