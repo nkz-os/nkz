@@ -211,7 +211,7 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
                     result['profile_used'] = profile.get('name')
                     for mapping in profile.get('mappings', []):
                         attr = {
-                            'object_id': mapping.get('incoming_key', '').lower().replace(' ', '_'),
+                            'object_id': mapping.get('incoming_key', ''),
                             'name': mapping.get('target_attribute'),
                             'type': mapping.get('type', 'Number')
                         }
