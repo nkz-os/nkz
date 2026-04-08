@@ -29,6 +29,7 @@ interface Tenant {
 }
 
 interface User {
+  /** Keycloak user id (required for admin delete) */
   id: string;
   email: string;
   username: string;
@@ -37,7 +38,44 @@ interface User {
   enabled: boolean;
   roles: string[];
   tenant?: string;
-  createdAt: number;
+  createdAt?: number;
+}
+
+const PLATFORM_USERS_PAGE_SIZE = 100;
+
+/** Map Keycloak admin API user object to table row (stable id = Keycloak id). */
+function mapKeycloakUserToRow(u: Record<string, unknown>): User {
+  const firstName = String(u.firstName ?? '');
+  const lastName = String(u.lastName ?? '');
+  const tenantRaw = u.tenant_id;
+  const tenant =
+    typeof tenantRaw === 'string' && tenantRaw.trim() !== ''
+      ? tenantRaw.trim()
+      : undefined;
+  const ts = u.createdTimestamp;
+  let createdAt: number | undefined;
+  if (typeof ts === 'number' && !Number.isNaN(ts)) {
+    createdAt = ts < 1e12 ? ts * 1000 : ts;
+  } else if (typeof ts === 'string') {
+    const n = parseInt(ts, 10);
+    if (!Number.isNaN(n)) createdAt = n;
+  }
+  const rolesRaw = u.roles;
+  const roles = Array.isArray(rolesRaw)
+    ? rolesRaw.filter((r): r is string => typeof r === 'string')
+    : [];
+
+  return {
+    id: String(u.id ?? ''),
+    email: String(u.email ?? ''),
+    username: String(u.username ?? ''),
+    firstName,
+    lastName,
+    enabled: u.enabled !== false,
+    roles,
+    tenant,
+    createdAt,
+  };
 }
 
 interface ActivationCode {
@@ -56,7 +94,14 @@ export const AdminManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('users');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  
+  /** Debounced search sent to Keycloak (users tab only). */
+  const [usersSearchDebounced, setUsersSearchDebounced] = useState('');
+  const [userHasMore, setUserHasMore] = useState(false);
+  const [usersLoadError, setUsersLoadError] = useState<string | null>(null);
+  const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
+  const [usersRefreshNonce, setUsersRefreshNonce] = useState(0);
+  const usersNextFirstRef = React.useRef(0);
+
   const [users, setUsers] = useState<User[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [activations, setActivations] = useState<ActivationCode[]>([]);
@@ -72,16 +117,28 @@ export const AdminManagement: React.FC = () => {
     ? modules.filter(m => m.viewerSlots?.['admin-tab'] && m.viewerSlots['admin-tab'].length > 0)
     : [];
 
-  const loadData = async () => {
+  const loadTenantsOrActivations = React.useCallback(async () => {
     setLoading(true);
     try {
-      if (activeTab === 'users') {
-        const response = await client.get('/api/tenant/users');
-        setUsers(response.data.users || response.data || []);
-      } else if (activeTab === 'tenants') {
+      if (activeTab === 'tenants') {
         const response = await client.get('/api/admin/tenants');
         const data = response.data;
-        setTenants(Array.isArray(data) ? data : (data.tenants || []));
+        const raw = Array.isArray(data) ? data : (data.tenants || []);
+        setTenants(
+          raw.map((t: Record<string, unknown>) => ({
+            tenant_id: String(t.tenant_id ?? t.id ?? ''),
+            tenant_name: String(t.tenant_name ?? t.name ?? t.tenant_id ?? t.id ?? ''),
+            plan_type: String(t.plan_type ?? t.plan ?? 'basic'),
+            plan_level: typeof t.plan_level === 'number' ? t.plan_level : 0,
+            status: String(t.status ?? 'active'),
+            created_at:
+              typeof t.created_at === 'string'
+                ? t.created_at
+                : t.created_at
+                  ? String(t.created_at)
+                  : '',
+          }))
+        );
       } else if (activeTab === 'activations') {
         const response = await client.get('/api/admin/activations');
         const data = response.data;
@@ -91,6 +148,96 @@ export const AdminManagement: React.FC = () => {
       console.error('Error loading admin data:', error);
     } finally {
       setLoading(false);
+    }
+  }, [activeTab]);
+
+  /** Platform-wide user directory (Keycloak), not tenant-scoped /api/tenant/users. */
+  useEffect(() => {
+    if (activeTab !== 'users') return;
+    const t = window.setTimeout(() => setUsersSearchDebounced(searchTerm.trim()), 400);
+    return () => window.clearTimeout(t);
+  }, [searchTerm, activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'users') return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setUsersLoadError(null);
+      try {
+        const params = new URLSearchParams({
+          first: '0',
+          max: String(PLATFORM_USERS_PAGE_SIZE),
+        });
+        if (usersSearchDebounced) {
+          params.set('search', usersSearchDebounced);
+        }
+        const response = await client.get(`/api/admin/users?${params.toString()}`);
+        if (cancelled) return;
+        if (!response.data?.success) {
+          throw new Error(response.data?.error || 'Failed to load users');
+        }
+        const raw = (response.data.users || []) as Record<string, unknown>[];
+        const mapped = raw.map(mapKeycloakUserToRow);
+        setUsers(mapped);
+        const pag = response.data.pagination;
+        const start = typeof pag?.first === 'number' ? pag.first : 0;
+        usersNextFirstRef.current = start + mapped.length;
+        setUserHasMore(Boolean(pag?.has_more));
+      } catch (err: unknown) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : String(err);
+          setUsersLoadError(msg);
+          setUsers([]);
+          setUserHasMore(false);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, usersSearchDebounced, usersRefreshNonce]);
+
+  const handleLoadMoreUsers = async () => {
+    if (!userHasMore || loadingMoreUsers || activeTab !== 'users') return;
+    setLoadingMoreUsers(true);
+    setUsersLoadError(null);
+    try {
+      const first = usersNextFirstRef.current;
+      const params = new URLSearchParams({
+        first: String(first),
+        max: String(PLATFORM_USERS_PAGE_SIZE),
+      });
+  
+      if (usersSearchDebounced) {
+        params.set('search', usersSearchDebounced);
+      }
+      const response = await client.get(`/api/admin/users?${params.toString()}`);
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Failed to load users');
+      }
+      const raw = (response.data.users || []) as Record<string, unknown>[];
+      const mapped = raw.map(mapKeycloakUserToRow);
+      setUsers((prev) => [...prev, ...mapped]);
+      const pag = response.data.pagination;
+      const start = typeof pag?.first === 'number' ? pag.first : first;
+      usersNextFirstRef.current = start + mapped.length;
+      setUserHasMore(Boolean(pag?.has_more));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setUsersLoadError(msg);
+    } finally {
+      setLoadingMoreUsers(false);
+    }
+  };
+
+  const refreshCurrentTab = () => {
+    if (activeTab === 'users') {
+      setUsersRefreshNonce((n) => n + 1);
+    } else if (activeTab === 'tenants' || activeTab === 'activations') {
+      void loadTenantsOrActivations();
     }
   };
 
@@ -126,10 +273,10 @@ export const AdminManagement: React.FC = () => {
   };
 
   useEffect(() => {
-    if (['users', 'tenants', 'activations'].includes(activeTab)) {
-      loadData();
+    if (activeTab === 'tenants' || activeTab === 'activations') {
+      void loadTenantsOrActivations();
     }
-  }, [activeTab]);
+  }, [activeTab, loadTenantsOrActivations]);
 
   useEffect(() => {
     if (activeTab === 'platform') {
@@ -162,7 +309,7 @@ export const AdminManagement: React.FC = () => {
       setShowCodeModal(false);
       setCodeForm({ email: '', plan: 'premium' });
       alert(t('admin.code_generated'));
-      if (activeTab === 'activations') loadData();
+      if (activeTab === 'activations') void loadTenantsOrActivations();
     } catch (error: any) {
       const detail = error?.response?.data?.error || error?.message || '';
       alert(`${t('admin.code_generate_error')}${detail ? ': ' + detail : ''}`);
@@ -185,7 +332,7 @@ export const AdminManagement: React.FC = () => {
         metadata: { contact_email: contactEmail }
       });
       alert(t('admin.tenant_updated'));
-      loadData();
+      void loadTenantsOrActivations();
     } catch (error) {
       alert(t('admin.tenant_update_error'));
     } finally {
@@ -234,7 +381,7 @@ export const AdminManagement: React.FC = () => {
         
         <div className="flex gap-2">
           <button 
-            onClick={() => loadData()}
+            onClick={() => refreshCurrentTab()}
             className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
             title="Refrescar datos"
           >
@@ -327,6 +474,11 @@ export const AdminManagement: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
+            {activeTab === 'users' && usersLoadError && (
+              <div className="px-6 py-4 bg-red-50 border-b border-red-100 text-red-800 text-sm">
+                {usersLoadError}
+              </div>
+            )}
             {activeTab === 'users' && (
               <table className="w-full text-left">
                 <thead className="bg-gray-50 border-b border-gray-100">
@@ -352,7 +504,12 @@ export const AdminManagement: React.FC = () => {
                             <p className="text-xs text-gray-500 flex items-center gap-1">
                               <Mail className="h-3 w-3" /> {user.email}
                             </p>
-                            {user.username && <p className="text-[10px] text-gray-400">UID: {user.username}</p>}
+                            {user.username && <p className="text-[10px] text-gray-400">Login: {user.username}</p>}
+                            {user.id && (
+                              <p className="text-[10px] text-gray-400 font-mono" title="Keycloak user id">
+                                KC: {user.id}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -369,13 +526,23 @@ export const AdminManagement: React.FC = () => {
                         ))}
                       </td>
                       <td className="px-6 py-4 text-sm">
-                        <div className="flex items-center gap-1.5 text-green-600 font-medium">
-                          <div className="h-2 w-2 rounded-full bg-green-600"></div>
+                        <div
+                          className={`flex items-center gap-1.5 font-medium ${
+                            user.enabled ? 'text-green-600' : 'text-red-600'
+                          }`}
+                        >
+                          <div
+                            className={`h-2 w-2 rounded-full ${
+                              user.enabled ? 'bg-green-600' : 'bg-red-600'
+                            }`}
+                          />
                           {user.enabled ? 'Activo' : 'Deshabilitado'}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
-                        {user.createdAt ? format(user.createdAt, 'dd/MM/yyyy') : 'N/A'}
+                        {user.createdAt != null
+                          ? format(new Date(user.createdAt), 'dd/MM/yyyy')
+                          : 'N/A'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button
@@ -390,6 +557,18 @@ export const AdminManagement: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            )}
+            {activeTab === 'users' && userHasMore && (
+              <div className="p-4 border-t border-gray-100 flex justify-center bg-gray-50">
+                <button
+                  type="button"
+                  onClick={() => void handleLoadMoreUsers()}
+                  disabled={loadingMoreUsers}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
+                >
+                  {loadingMoreUsers ? 'Cargando…' : 'Cargar más usuarios'}
+                </button>
+              </div>
             )}
 
             {activeTab === 'tenants' && (

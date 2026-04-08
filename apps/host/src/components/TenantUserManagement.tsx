@@ -1,7 +1,10 @@
 // =============================================================================
 // Tenant User Management - Gestión de Usuarios y Asignación a Tenants
 // =============================================================================
-// Permite a PlatformAdmin ver todos los usuarios, asignarlos a tenants y borrarlos
+// NOTE: This screen is not mounted in App routes. Platform admin user directory
+// lives in pages/admin/AdminManagement.tsx (GET /api/admin/users). Keep this file
+// only if a dedicated route is reintroduced to avoid duplicate UX paths.
+// =============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
