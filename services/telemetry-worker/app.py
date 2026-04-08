@@ -12,7 +12,7 @@ from telemetry_worker.notification_handler import (
 )
 from telemetry_worker.profiles import ProfileService
 from telemetry_worker.routers import health
-from telemetry_worker.subscription_manager import check_or_create_subscription
+from telemetry_worker.subscription_manager import ensure_subscriptions_for_all_tenants
 
 # Configure Logging
 logging.basicConfig(
@@ -43,16 +43,31 @@ async def lifespan(app: FastAPI):
     # Wire dependencies into notification handler
     init_handler(settings, profile_service, sink)
 
-    # Check/create NGSI-LD subscriptions (sync, run in executor)
+    # Check/create NGSI-LD subscriptions for all tenants (sync, run in executor)
     try:
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, check_or_create_subscription)
+        await loop.run_in_executor(None, ensure_subscriptions_for_all_tenants)
     except Exception as e:
         logger.warning(f"Auto-subscription failed (non-fatal): {e}")
 
+    # Periodic subscription self-healing (every 60 minutes)
+    async def _periodic_subscription_check():
+        while True:
+            await asyncio.sleep(3600)
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    None, ensure_subscriptions_for_all_tenants
+                )
+                logger.info("Periodic subscription check completed")
+            except Exception as e:
+                logger.warning(f"Periodic subscription check failed: {e}")
+
+    periodic_task = asyncio.create_task(_periodic_subscription_check())
+
     yield
 
-    # Shutdown: close pool
+    # Shutdown: cancel periodic task and close pool
+    periodic_task.cancel()
     await sink.stop()
     logger.info("Telemetry Worker shut down.")
 

@@ -68,8 +68,30 @@ VALID_ATTRIBUTES = frozenset({
     'humidity_avg', 'precip_mm',
     'solar_rad_w_m2', 'eto_mm',
     'soil_moisture_0_10cm', 'wind_speed_ms',
-    'pressure_hpa',
+    'pressure_hpa', 'wind_direction_deg',
 })
+
+# NGSI-LD (Smart Data Models) attribute name -> weather_observations DB column
+_WEATHER_ATTRIBUTE_MAP: Dict[str, str] = {
+    "temperature":          "temp_avg",
+    "relativeHumidity":     "humidity_avg",
+    "windSpeed":            "wind_speed_ms",
+    "windDirection":        "wind_direction_deg",
+    "atmosphericPressure":  "pressure_hpa",
+    "precipitation":        "precip_mm",
+    "et0":                  "eto_mm",
+    "solarRadiation":       "solar_rad_w_m2",
+    "soilMoisture":         "soil_moisture_0_10cm",
+}
+# DB column names also accepted (passthrough for scripts, direct API)
+for _col in VALID_ATTRIBUTES:
+    _WEATHER_ATTRIBUTE_MAP.setdefault(_col, _col)
+
+
+def _resolve_weather_attribute(requested: str) -> Optional[str]:
+    """Map NGSI-LD attribute name or DB column name to weather_observations column."""
+    r = (requested or "").strip() if requested else ""
+    return _WEATHER_ATTRIBUTE_MAP.get(r)
 
 # Whitelist for telemetry payload.measurements object keys (bound as %s via ->>; restricted to known names).
 # Extend via env TIMESERIES_V2_TELEMETRY_ATTR_WHITELIST_EXTRA=comma,separated,keys
@@ -1171,9 +1193,13 @@ def get_v2_entity_timeseries(entity_urn: str):
             return jsonify({"error": "Invalid weather timeseries key"}), 400
 
         if attrs_list:
+            resolved_attrs = []
             for a in attrs_list:
-                if a not in VALID_ATTRIBUTES:
-                    return jsonify({"error": f'Invalid attribute: {a}'}), 400
+                resolved = _resolve_weather_attribute(a)
+                if resolved is None:
+                    return jsonify({"error": f"Unknown weather attribute: {a}"}), 400
+                resolved_attrs.append(resolved)
+            attrs_list = resolved_attrs
 
         col = _weather_query_columnar(conn, tenant_id, wkey, start_dt, end_dt, attrs_list, limit)
 

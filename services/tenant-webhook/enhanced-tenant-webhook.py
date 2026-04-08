@@ -3089,10 +3089,26 @@ def assign_user_to_tenant(tenant_id: str):
         return jsonify({"error": f"Failed to assign user: {str(e)}"}), 500
 
 
+def _tenant_attr(attributes, key):
+    """Read first string value from Keycloak user attribute (list or str)."""
+    if not attributes:
+        return None
+    raw = attributes.get(key)
+    if isinstance(raw, list) and len(raw) > 0:
+        return raw[0]
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
+
+
 @app.route("/api/admin/users", methods=["GET"])
 @require_platform_admin
 def list_all_users():  # noqa: C901
-    """List all users from Keycloak (PlatformAdmin only)"""
+    """List users from Keycloak with pagination (PlatformAdmin only).
+
+    Query: first (offset, default 0), max (page size, default 100, cap 200),
+    search (optional Keycloak user search string).
+    """
     try:
         token = webhook_service.get_keycloak_token()
         if not token:
@@ -3101,11 +3117,19 @@ def list_all_users():  # noqa: C901
         keycloak_url = webhook_service._get_keycloak_base_url()
         headers = {"Authorization": f"Bearer {token}"}
 
-        # Get all users with pagination
         users_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
 
-        # Get first page
-        params = {"max": 100}
+        first = request.args.get("first", default=0, type=int)
+        max_users = request.args.get("max", default=100, type=int)
+        search = (request.args.get("search") or "").strip()
+        if first < 0:
+            first = 0
+        max_users = min(max(max_users, 1), 200)
+
+        params = {"first": first, "max": max_users}
+        if search:
+            params["search"] = search
+
         response = requests.get(users_url, headers=headers, params=params, timeout=30)
 
         if response.status_code != 200:
@@ -3117,6 +3141,9 @@ def list_all_users():  # noqa: C901
             ), 500  # noqa: E501
 
         all_users = response.json()
+        if not isinstance(all_users, list):
+            all_users = []
+
         users = []
 
         # Process users in batches to avoid timeout
@@ -3124,13 +3151,9 @@ def list_all_users():  # noqa: C901
             try:
                 # Get user attributes
                 attributes = user.get("attributes", {}) or {}
-                tenant_id = None
-                if attributes.get("tenant_id"):
-                    tenant_id_list = attributes.get("tenant_id")
-                    if isinstance(tenant_id_list, list) and len(tenant_id_list) > 0:
-                        tenant_id = tenant_id_list[0]
-                    elif isinstance(tenant_id_list, str):
-                        tenant_id = tenant_id_list
+                tenant_id = _tenant_attr(attributes, "tenant_id")
+                if not tenant_id:
+                    tenant_id = _tenant_attr(attributes, "tenant")
 
                 # Get user groups (with timeout protection)
                 groups = []
@@ -3161,9 +3184,11 @@ def list_all_users():  # noqa: C901
                 except Exception as e:
                     logger.warning(f"Error getting roles for user {user.get('email')}: {e}")
 
+                kc_id = user.get("id")
                 users.append(
                     {
-                        "id": user.get("id"),
+                        "id": kc_id,
+                        "keycloak_user_id": kc_id,
                         "email": user.get("email"),
                         "username": user.get("username"),
                         "firstName": user.get("firstName"),
@@ -3182,7 +3207,21 @@ def list_all_users():  # noqa: C901
                 # Continue with next user instead of failing completely
                 continue
 
-        return jsonify({"success": True, "users": users, "total": len(users)}), 200
+        has_more = len(all_users) == max_users
+        return jsonify(
+            {
+                "success": True,
+                "users": users,
+                # Page size (not realm total). Deprecated for new clients; use pagination.
+                "total": len(users),
+                "pagination": {
+                    "first": first,
+                    "max": max_users,
+                    "returned": len(users),
+                    "has_more": has_more,
+                },
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Error listing users: {e}")
