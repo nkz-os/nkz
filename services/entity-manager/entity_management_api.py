@@ -8136,194 +8136,237 @@ def _map_entity_to_mobile(ent):
         'centroid_lng': lng
     }
 
-@app.route('/api/core/sync/vectorial', methods=['GET'])
+
+def _ngsi_modified_at_ms(ent):
+    """Best-effort modifiedAt -> epoch ms for sync filtering."""
+    props = ent if isinstance(ent, dict) else {}
+    mod = props.get('modifiedAt')
+    if mod is None:
+        return 0
+    try:
+        val = mod.get('value') if isinstance(mod, dict) else mod
+        if not val:
+            return 0
+        if isinstance(val, str):
+            if val.endswith('Z'):
+                dt = datetime.fromisoformat(val.replace('Z', '+00:00'))
+            else:
+                dt = datetime.fromisoformat(val)
+            return int(dt.timestamp() * 1000)
+    except Exception:
+        return 0
+    return 0
+
+
+def _parcel_record_for_watermelon(ent):
+    """NGSI-LD parcel-like entity -> WatermelonDB raw row (requires sync ``id``)."""
+    rec = _map_entity_to_mobile(ent)
+    rid = rec.get('remote_id')
+    if not rid:
+        raise ValueError('Parcel entity missing id')
+    rec['id'] = str(rid)
+    return rec
+
+
+def _routing_line_record_for_watermelon(ent, fallback_ts):
+    """NGSI-LD routing line -> WatermelonDB-compatible row with sync id."""
+    remote_id = ent.get('id')
+    if not remote_id:
+        raise ValueError('Routing line entity missing id')
+    geometry = None
+    if 'location' in ent and isinstance(ent['location'], dict) and 'value' in ent['location']:
+        geometry = ent['location']['value']
+    elif 'location' in ent:
+        geometry = ent['location']
+    if not geometry:
+        raise ValueError('Routing line missing location')
+    name_raw = ent.get('name')
+    if isinstance(name_raw, dict):
+        name = name_raw.get('value', 'Route')
+    else:
+        name = name_raw or 'Route'
+    mod_ms = _ngsi_modified_at_ms(ent)
+    created_ms = mod_ms or fallback_ts
+    updated_ms = mod_ms or fallback_ts
+    rid = str(remote_id)
+    return {
+        'id': rid,
+        'remote_id': rid,
+        'name': str(name),
+        'geojson': json.dumps(geometry),
+        'status': 'synced',
+        'created_at': created_ms,
+        'updated_at': updated_ms,
+    }
+
+
+def _parse_vectorial_collections():
+    """
+    Query ``collections=parcels`` or ``collections=parcels,routing_lines``.
+    Empty / missing => both (backward compatible).
+    """
+    raw = (request.args.get('collections') or '').strip()
+    allowed = frozenset({'parcels', 'routing_lines'})
+    if not raw:
+        return allowed
+    parts = {p.strip().lower() for p in raw.split(',') if p.strip()}
+    picked = parts & allowed
+    return picked if picked else allowed
+
+
+@app.route('/api/core/sync/vectorial', methods=['GET', 'POST'])
 @require_auth
 def core_vector_sync():
     """
-    Standard Offline Vector Sync Endpoint for the platform core.
-    Returns WatermelonDB-compatible JSON for AgriParcels and RoutingLines.
+    Offline vector sync for WatermelonDB (pull GET, push POST).
+
+    GET: WatermelonDB shape
+    ``{ "changes": { "<table>": { "created"|"updated"|"deleted" } }, "timestamp": <ms> }``.
+    Each created/updated row must include string ``id`` (here: NGSI-LD entity URN).
+
+    Query params:
+    - last_pulled_at: epoch ms; rows with updated_at < this are omitted from updated lists.
+    - collections: comma list ``parcels``, ``routing_lines`` (default: both).
+
+    POST: apply local parcel changes to Orion-LD via PATCH; optional
+    ``experimentalRejectedIds`` for WatermelonDB.
     """
+    if request.method == 'POST':
+        return _core_vector_sync_push()
+    return _core_vector_sync_pull()
+
+
+def _core_vector_sync_pull():
     try:
         tenant = g.tenant
-        last_pulled_at = request.args.get('last_pulled_at', type=int, default=0)
+        last_pulled_at = request.args.get('last_pulled_at', type=int, default=0) or 0
         current_ts = int(time.time() * 1000)
-        
-        # We query Orion-LD for AgriParcel, Parcel, RoutingLine
-        # If last_pulled_at > 0, we could use q=modifiedAt>=... but since NGSI-LD time queries
-        # can be tricky depending on the broker version, we fetch and filter locally for robustness,
-        # or use standard filters.
-        
+        collections = _parse_vectorial_collections()
+
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        
-        # 1. Fetch Parcels
-        params_parcels = {'type': 'AgriParcel,Parcel', 'limit': 1000}
         headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant)
-        resp_parcels = requests.get(orion_url, params=params_parcels, headers=headers)
-        
-        updated_parcels = []
-        if resp_parcels.status_code == 200:
-            for ent in resp_parcels.json():
-                try:
-                    mobile_ent = _map_entity_to_mobile(ent)
-                    if mobile_ent['updated_at'] >= last_pulled_at:
-                        updated_parcels.append(mobile_ent)
-                except Exception as e:
-                    logger.warning(f"Error mapping parcel {ent.get('id')}: {e}")
 
-        # 2. Fetch Routing Lines
-        params_routes = {'type': 'RoutingLine,AgriNavigationLine', 'limit': 1000}
-        resp_routes = requests.get(orion_url, params=params_routes, headers=headers)
-        
-        updated_routes = []
-        if resp_routes.status_code == 200:
-            for ent in resp_routes.json():
-                try:
-                    # Generic mapping for routes
-                    remote_id = ent.get('id')
-                    geometry = None
-                    if 'location' in ent and isinstance(ent['location'], dict) and 'value' in ent['location']:
-                        geometry = ent['location']['value']
-                    elif 'location' in ent:
-                         geometry = ent['location']
-                    
-                    if geometry:
-                        updated_routes.append({
-                            'remote_id': remote_id,
-                            'name': ent.get('name', {}).get('value', 'Route') if isinstance(ent.get('name'), dict) else ent.get('name', 'Route'),
-                            'geojson': json.dumps(geometry),
-                            'status': 'synced',
-                            'created_at': current_ts, # Simplified
-                            'updated_at': current_ts
-                        })
-                except Exception as e:
-                    logger.warning(f"Error mapping route {ent.get('id')}: {e}")
+        changes = {}
 
-        return jsonify({
-            'changes': {
-                'parcels': {
-                    'created': [],
-                    'updated': updated_parcels,
-                    'deleted': []
-                },
-                'routing_lines': {
-                    'created': [],
-                    'updated': updated_routes,
-                    'deleted': []
-                }
-            },
-            'timestamp': current_ts
-        })
-    except Exception as e:
-        logger.error(f"Core Vector Sync Error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/mobile/sync', methods=['GET'])
-@require_auth
-def mobile_sync_pull():
-    """
-    Get changes for mobile offline sync.
-    Query params: last_pulled_at (timestamp custom epoch ms)
-    """
-    try:
-        tenant = g.tenant
-        last_pulled_at = request.args.get('last_pulled_at')
-        
-        # Current timestamp
-        current_ts = int(time.time() * 1000)
-        
-        # Query: Get all parcels
-        # We rely on WatermelonDB to handle syncing logic (upsert/update)
-        # unless result set is massive. For <1000 parcels, full refresh is acceptable.
-        
-        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        params = {
-            'type': 'AgriParcel,Parcel,OliveGrove,Vineyard',
-            'limit': 1000,
-        }
-        
-        headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant)
-        resp = requests.get(orion_url, params=params, headers=headers)
-        
-        updated_list = []
-        
-        if resp.status_code == 200:
-            entities = resp.json()
-            if isinstance(entities, list):
-                for ent in entities:
+        if 'parcels' in collections:
+            params_parcels = {
+                'type': 'AgriParcel,Parcel,OliveGrove,Vineyard',
+                'limit': 1000,
+            }
+            resp_parcels = requests.get(orion_url, params=params_parcels, headers=headers)
+            updated_parcels = []
+            if resp_parcels.status_code == 200:
+                for ent in resp_parcels.json():
                     try:
-                        mobile_ent = _map_entity_to_mobile(ent)
-                        updated_list.append(mobile_ent)
-                    except Exception as map_err:
-                        logger.warning(f"Error mapping entity {ent.get('id')}: {map_err}")
-        
-        return jsonify({
-            'changes': {
-                'parcels': {
-                    'created': [],
-                    'updated': updated_list,
-                    'deleted': []
-                }
-            },
-            'timestamp': current_ts
-        })
+                        mobile_ent = _parcel_record_for_watermelon(ent)
+                        if mobile_ent['updated_at'] >= last_pulled_at:
+                            updated_parcels.append(mobile_ent)
+                    except Exception as e:
+                        logger.warning(f"Error mapping parcel {ent.get('id')}: {e}")
+            changes['parcels'] = {
+                'created': [],
+                'updated': updated_parcels,
+                'deleted': [],
+            }
+
+        if 'routing_lines' in collections:
+            params_routes = {'type': 'RoutingLine,AgriNavigationLine', 'limit': 1000}
+            resp_routes = requests.get(orion_url, params=params_routes, headers=headers)
+            updated_routes = []
+            if resp_routes.status_code == 200:
+                for ent in resp_routes.json():
+                    try:
+                        route_rec = _routing_line_record_for_watermelon(ent, current_ts)
+                        if route_rec['updated_at'] >= last_pulled_at:
+                            updated_routes.append(route_rec)
+                    except Exception as e:
+                        logger.warning(f"Error mapping route {ent.get('id')}: {e}")
+            changes['routing_lines'] = {
+                'created': [],
+                'updated': updated_routes,
+                'deleted': [],
+            }
+
+        return jsonify({'changes': changes, 'timestamp': current_ts})
     except Exception as e:
-        logger.error(f"Sync Pull Error: {e}")
+        logger.error(f"Core Vector Sync pull error: {e}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/mobile/sync', methods=['POST'])
-@require_auth
-def mobile_sync_push():
+
+def _core_vector_sync_push():
     """
-    Push changes from mobile.
-    Body: { changes: ... }
+    WatermelonDB push: PATCH parcel attributes on Orion-LD.
+    Does not support creating new NGSI-LD entities from the client (SDM POST TBD).
     """
     try:
-        data = request.get_json()
-        if not data or 'changes' not in data:
-            return jsonify({'error': 'Invalid body'}), 400
-            
+        data = request.get_json(silent=True) or {}
+        if 'changes' not in data:
+            return jsonify({'error': 'Invalid body: missing changes'}), 400
+
         changes = data['changes']
         tenant = g.tenant
         headers = inject_fiware_headers({'Content-Type': 'application/ld+json'}, tenant)
-        
-        # Process Parcels
+        # WatermelonDB expects { tableName: [recordId, ...] } (local Watermelon record ids).
+        rejected_by_table = {}
+
         if 'parcels' in changes:
             parcels = changes['parcels']
-            
-            # Handle Updated (PATCH)
-            # WatermelonDB sends { id, ...fields }
+            parcel_rejected = []
+
+            created = parcels.get('created') or []
+            if created:
+                for item in created:
+                    wid = item.get('id')
+                    if wid:
+                        parcel_rejected.append(str(wid))
+                logger.info(
+                    'Vectorial sync push: parcel create not supported; rejecting %d record(s)',
+                    len(created),
+                )
+
             if 'updated' in parcels:
                 for item in parcels['updated']:
-                    try:
-                        entity_id = item.get('remote_id') or item.get('id')
-                        if not entity_id or not str(entity_id).startswith('urn:'):
-                            continue
-                            
-                        # Build Patch
-                        attrs = {}
-                        if 'name' in item:
-                             attrs['name'] = {'type': 'Property', 'value': item['name']}
-                        if 'crop_type' in item:
-                             attrs['cropType'] = {'type': 'Property', 'value': item['crop_type']}
-                        if 'notes' in item:
-                             attrs['notes'] = {'type': 'Property', 'value': item['notes']}
-                        
-                        # Only PATCH if attributes present
-                        if attrs:
-                            patch_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
-                            requests.patch(patch_url, json=attrs, headers=headers)
-                            
-                    except Exception as up_err:
-                        logger.error(f"Error pushing update for {item.get('id')}: {up_err}")
-                        
-            # Handle Created (POST) - if allowed
-            if 'created' in parcels:
-                # Not implemented for V1 Read-Only
-                pass
+                    sync_id = str(item.get('id') or '')
+                    entity_id = item.get('remote_id') or item.get('id')
+                    if not entity_id or not str(entity_id).startswith('urn:'):
+                        if sync_id:
+                            parcel_rejected.append(sync_id)
+                        logger.warning('Push skip: non-URN parcel id %s', entity_id)
+                        continue
 
-        return jsonify({'status': 'success'})
+                    attrs = {}
+                    if 'name' in item and item['name'] is not None:
+                        attrs['name'] = {'type': 'Property', 'value': item['name']}
+                    if 'crop_type' in item and item['crop_type'] is not None:
+                        attrs['cropType'] = {'type': 'Property', 'value': item['crop_type']}
+
+                    if not attrs:
+                        continue
+
+                    try:
+                        patch_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
+                        pr = requests.patch(patch_url, json=attrs, headers=headers, timeout=30)
+                        if not pr.ok:
+                            logger.error(
+                                'Orion PATCH failed for %s: %s %s',
+                                entity_id,
+                                pr.status_code,
+                                pr.text[:500],
+                            )
+                            parcel_rejected.append(sync_id or str(entity_id))
+                    except Exception as up_err:
+                        logger.error('Error pushing update for %s: %s', entity_id, up_err)
+                        parcel_rejected.append(sync_id or str(entity_id))
+
+            if parcel_rejected:
+                rejected_by_table['parcels'] = parcel_rejected
+
+        body = {'status': 'success'}
+        if rejected_by_table:
+            body['experimentalRejectedIds'] = rejected_by_table
+        return jsonify(body)
     except Exception as e:
-        logger.error(f"Sync Push Error: {e}")
+        logger.error(f"Core Vector Sync push error: {e}")
         return jsonify({'error': str(e)}), 500
 
 

@@ -1,6 +1,6 @@
 ---
 title: "Platform Conventions & Mobile Integration"
-description: "Core architecture rules, API requirements, and mobile integration guidelines for Nekazari modules."
+description: "Core architecture rules, API requirements, hybrid web/native shell policy, and mobile integration guidelines for Nekazari modules."
 ---
 
 # Nekazari Platform Conventions
@@ -9,12 +9,24 @@ description: "Core architecture rules, API requirements, and mobile integration 
 
 ## 1. Reglas Core (Datos y Auth)
 
-1. **Autenticación:** Todos los módulos externos deben validar el contexto de seguridad mediante cookies `nkz_token` o cabeceras Bearer. El JWT se firma en Keycloak (RS256).
+1. **Autenticación:** Todos los módulos externos deben validar el contexto de seguridad mediante cookies `nkz_token` o cabeceras Bearer. El JWT se firma en Keycloak (RS256). **Tabla unificada** (navegador, Bearer, WebView `NKZ_AUTH_INJECTION`): **§1.1**.
 2. **Multi-tenant isolation:** Cualquier escritura o lectura a bases de datos PostgreSQL o MongoDB debe estar filtrada obligatoriamente por el `tenant_id` incluido en el token.
 3. **FIWARE Context Broker:** El Broker (Orion-LD) es la **única** fuente de verdad de la ontología.
    - **CERO ESCRITURAS DIRECTAS:** Prohibido hacer `INSERT` en bases de datos relacionales para modelos de negocio. La ingesta es vía Orion-LD; las DBs se alimentan vía suscripción (MQTT/QuantumLeap).
    - **SDM Strictly:** Usar Smart Data Models (ej. `AgriParcel`, `AgriEquipment`). No inventar esquemas.
 4. **i18n (Internacionalización):** Todo string expuesto a usuario (frontend) debe usar la función `t()` de `@nekazari/sdk` (react-i18next) garantizando soporte para `es`, `en`, `ca`, `eu`, `fr`, y `pt`. En el monorepo local, el host usa **un solo** i18next (`NekazariI18nProvider` + `public/locales/{lang}/{common,navigation,layout}.json`). Reglas detalladas de claves y `useI18n()`: ver **`PLATFORM_CONVENTIONS.md` §10** en la **raíz del workspace** (`nekazari/`, no solo el repo `nkz/`).
+
+### 1.1 Authentication surfaces — single contract (cookie, Bearer, WebView)
+
+El punto **1** de arriba resume la regla; esta tabla es el **contrato único** de transporte para agentes e implementadores. Los JWT son **RS256** (Keycloak). No registrar tokens en logs ni en `localStorage` como sustituto de sesión en navegador.
+
+| Surface | Mechanism | Typical use | Requirement |
+|--------|-----------|-------------|-------------|
+| **Web browser (host + modules)** | HTTP-only cookie `nkz_token` (sesión establecida vía flujo OIDC del host / gateway) | Usuario en `nekazari.robotika.cloud`; bundles bajo el mismo modelo de sesión | Las peticiones `fetch`/Axios al API deben usar `credentials` según el host; no pedir credenciales de nuevo dentro de un WebView alimentado por el shell (véase fila siguiente). |
+| **API / automatización / cliente HTTP** | Header `Authorization: Bearer <JWT>` | Scripts, integraciones, llamadas desde código nativo al API | El gateway valida JWT y `tenant`; el emisor debe ser Keycloak con `iss` permitido. |
+| **WebView (`nkz-mobile` Native Shell)** | `postMessage` hacia la SPA con payload JSON `{ "type": "NKZ_AUTH_INJECTION", "token": "<jwt>" }` (como string vía `JSON.stringify` donde corresponda) | Misma UI web responsiva embebida; el shell ya autenticó al usuario | La SPA debe registrar un **listener global** de `message`, reconocer `NKZ_AUTH_INJECTION`, validar origen/payload y **actualizar el estado de auth en silencio** (alinear con el contexto de sesión del host: cookie, renovación, o cliente API según implementación actual—sin pantalla de login duplicada). Detalle normativo y contexto de producto: **§2.0**. |
+
+**Nota:** La fila WebView no sustituye el modelo de seguridad del API: una vez sincronizada la sesión en la SPA, las llamadas al backend siguen las mismas reglas que el host (cookie y/o Bearer según el cliente configure el `api`).
 
 ## 1b. IoT Device Provisioning (FIWARE Standard)
 
@@ -77,13 +89,36 @@ For DaTaK gateways: configure `digital_twin` section in `configs/gateway.yaml` w
 
 Para que los datos de un módulo puedan visualizarse o ejecutarse en la aplicación nativa del tractor (`nkz-mobile`), se exigen las siguientes implementaciones SOTA:
 
+### 2.0 Hybrid shell architecture (web + native) — non-negotiable
+
+**Strict directive (English, normative for agents):** Nekazari uses a **hybrid architecture** to maximize development ROI. The mobile app (`nkz-mobile`) is **exclusively** a **Native Shell** responsible for: authentication, offline sync (WatermelonDB), hardware (GPS/Bluetooth), and high-persistence offline maps.
+
+**Do not** implement business-module UIs with React Native primitives (`<View>`, `<Text>`, etc.) for domains such as DataHub, Risks, Odoo, or Bioorchestrator.
+
+**Three rules for every new module:**
+
+1. **Mobile-first responsive (web host):** All React in `nkz/apps/host` and marketplace modules must be fully functional at viewport widths down to **350px**. Tables, charts, or modals that fail this bar must be rejected.
+2. **Mobile integration via WebView:** Business modules in the native app load inside a `<WebView>` pointing at the same responsive web URL (e.g. `https://nekazari.robotika.cloud/module/risk`).
+3. **Auth handshake:** The WebView must **never** prompt for credentials. The Native Shell injects the Keycloak JWT into the embedded web app using `postMessage` immediately after load.
+   - **Payload from RN (contract):** `window.postMessage(JSON.stringify({ type: 'NKZ_AUTH_INJECTION', token: '<jwt_token>' }))` — prefer a concrete `targetOrigin` in production once allowlists are fixed.
+   - **Web SPA receiver:** A **global** `message` listener must intercept `NKZ_AUTH_INJECTION`, validate/sanitize, and update authentication state (host auth context or equivalent) **silently**—without duplicating login UX.
+
+**Summary table (transport only):** **§1.1** — *Authentication surfaces — single contract*.
+
+This section complements **§2.3** (`hmi_mode` / industrial theme): shared web components adapt visually when embedded from the shell; they still **must** remain responsive WebView targets, not separate RN business screens.
+
 ### 2.1 Sincronización 100% Offline (Arquitectura de Malla)
 La maquinaria pesada opera en entornos de cobertura 4G/5G intermitente o nula. **Prohibido depender de APIs REST cloud-based en el bucle de renderizado local.**
 
-Los módulos que gestionen topología espacial o guiado deben exponer rutas asíncronas de sincronización que la App invocará solo cuando haya red:
+El core expone sincronización vectorial para la app cabina (`nkz-mobile`) vía **WatermelonDB** contra Orion-LD (lectura en pull; mutaciones en push solo como PATCH NGSI-LD autorizado en entity-manager).
 
-- **Estructuras Vectoriales (`GET /sync/vectorial?last_pulled_at={ts}`)**: 
-  Debe retornar un FeatureCollection GeoJSON con operaciones o geometrías nuevas generadas desde el timestamp. La app cachea esto localmente en **WatermelonDB**.
+- **Contrato core (API pública vía gateway):**
+  - **`GET /api/core/sync/vectorial`**: pull. Query recomendadas: `last_pulled_at` (epoch **ms**), `collections` (`parcels`, `routing_lines`, o ambos si se omite el parámetro). Respuesta: `{ "changes": { "<table>": { "created": [], "updated": [], "deleted": [] } }, "timestamp": <ms> }`. Cada fila en `created`/`updated` **debe** incluir la clave string **`id`** (estable; para entidades FIWARE usar el URN como `id` y `remote_id`).
+  - **`POST /api/core/sync/vectorial`**: push de cambios locales; respuesta puede incluir `experimentalRejectedIds` como mapa `{ "<table>": [<watermelon_record_id>, ...] }` para filas no aplicadas en Orion.
+  - Autenticación: Bearer JWT; el api-gateway reenvía `Authorization` y `X-Tenant-ID` a entity-manager.
+
+Los módulos que gestionen topología espacial o guiado y necesiten datos offline adicionales deben alinearse con este contrato o exponer rutas asíncronas propias que la app invoque solo cuando haya red.
+
   > **Norma Crítica - Vectorización Asíncrona:** Todo procesamiento de Raster (imágenes satélite COG) a polígonos vectoriales (GeoJSON) **no** puede realizarse sincrónicamente en un endpoint. Debe ejecutarse como un Job asíncrono en segundo plano (ej. vía **Celery**) que serialice y cachee el mapa para su descarga In-Memory `O(1)`.
   
 - **Cacheo de BaseMap Raster (`GET /basemap/{parcel_id}`)**: 
