@@ -1701,10 +1701,10 @@ def proxy_assets_requests(subpath):
         return jsonify({"error": "Internal service connection error"}), 502
 
 
-@app.route("/api/core/sync/vectorial", methods=["GET", "OPTIONS"])
+@app.route("/api/core/sync/vectorial", methods=["GET", "POST", "OPTIONS"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 def proxy_vector_sync_requests():
-    """Proxy offline vector sync requests to entity-manager"""
+    """Proxy WatermelonDB vector sync (GET pull, POST push) to entity-manager."""
     if request.method == "OPTIONS":
         return "", 204
 
@@ -1724,9 +1724,20 @@ def proxy_vector_sync_requests():
     headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
 
     try:
-        response = requests.get(
-            target_url, headers=headers, params=request.args, timeout=30
-        )
+        if request.method == "GET":
+            response = requests.get(
+                target_url, headers=headers, params=request.args, timeout=30
+            )
+        elif request.method == "POST":
+            response = requests.post(
+                target_url,
+                headers=headers,
+                params=request.args,
+                json=request.get_json(silent=True),
+                timeout=60,
+            )
+        else:
+            return jsonify({"error": "Method not supported"}), 405
         return (response.content, response.status_code, response.headers.items())
     except Exception as e:
         logger.error(f"Error proxying vector sync request: {e}")
