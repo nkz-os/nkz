@@ -11,7 +11,6 @@ import { SlotType, SlotWidgetDefinition, useModules, ModuleDefinition } from '@/
 import { Loader2 } from 'lucide-react';
 import { ModuleErrorBoundary } from './ModuleErrorBoundary';
 import { loadRemoteModule } from './RemoteModuleLoader';
-import { NkzAttribution } from '@/components/attribution/NkzAttribution';
 
 interface SlotRendererProps {
     /** Which slot to render */
