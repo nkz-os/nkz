@@ -265,10 +265,14 @@ def inject_fiware_headers(headers, tenant=None):
             )
 
     # NGSI-LD specific headers
-    # Check if payload has @context (only for POST/PUT/PATCH with JSON body)
+    # Check if payload has @context (only for POST/PUT/PATCH with JSON body).
+    # Never call request.json on GET/DELETE: clients may send Content-Type application/ld+json
+    # with an empty body (e.g. module SDK defaults), which can trigger Werkzeug BadRequest HTML.
     has_context_in_body = False
-    if request.is_json and request.json and "@context" in request.json:
-        has_context_in_body = True
+    if request.method in ("POST", "PUT", "PATCH") and request.is_json:
+        json_body = request.get_json(silent=True)
+        if isinstance(json_body, dict) and "@context" in json_body:
+            has_context_in_body = True
 
     if has_context_in_body:
         # If context is in body, Content-Type MUST be application/ld+json and Link header MUST NOT be present
