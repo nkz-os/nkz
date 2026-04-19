@@ -121,6 +121,20 @@ spec:
                   name: pat-internal-secret
                   key: secret
                   optional: true
+            - name: ZULIP_SERVICE_URL
+              value: "http://zulip-service:80"
+            - name: ZULIP_BOT_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: zulip-secret
+                  key: bot-email
+            - name: ZULIP_BOT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: zulip-secret
+                  key: bot-api-key
+            - name: ZULIP_PROVISIONER_URL
+              value: "http://zulip-provisioner-service:5000"
           command: ["gunicorn"]
           args:
             [
