@@ -109,6 +109,9 @@ INTELLIGENCE_API_URL = os.getenv(
 AGRIENERGY_API_URL = os.getenv(
     "AGRIENERGY_API_URL", "http://agrienergy-api-service:8000"
 )
+ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
+ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
+ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 REQUESTS_PER_MINUTE = int(
@@ -3177,6 +3180,268 @@ def proxy_sdm_integration(subpath):
     except requests.exceptions.RequestException as e:
         logger.error(f"Error forwarding SDM integration request: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+# =============================================================================
+# Zulip Communications Proxy
+# =============================================================================
+
+# --- Zulip API key cache (Redis) ---
+_redis_url_for_zulip = os.getenv("REDIS_URL", "redis://redis-service:6379/4")
+
+
+def _get_zulip_api_key(user_email: str):
+    """Get or fetch Zulip API key for a user. Cached in Redis for 24h."""
+    import redis as redis_lib
+
+    cache_key = f"zulip:apikey:{user_email}"
+    r = None
+    try:
+        r = redis_lib.from_url(_redis_url_for_zulip, decode_responses=True)
+        cached = r.get(cache_key)
+        if cached:
+            return cached
+    except Exception:
+        logger.warning("Redis unavailable for Zulip API key cache")
+        r = None
+
+    if not ZULIP_BOT_EMAIL or not ZULIP_BOT_API_KEY:
+        logger.error("ZULIP_BOT_EMAIL/ZULIP_BOT_API_KEY not configured")
+        return None
+
+    try:
+        resp = requests.get(
+            f"{ZULIP_SERVICE_URL}/api/v1/users/{user_email}",
+            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
+            timeout=10,
+        )
+        if resp.status_code == 404:
+            logger.warning("Zulip user not found: %s", user_email)
+            return None
+        resp.raise_for_status()
+        user_id = resp.json()["user"]["user_id"]
+
+        resp = requests.post(
+            f"{ZULIP_SERVICE_URL}/api/v1/users/{user_id}/api_key",
+            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
+            timeout=10,
+        )
+        resp.raise_for_status()
+        api_key = resp.json()["api_key"]
+
+        if r:
+            try:
+                r.setex(cache_key, 86400, api_key)
+            except Exception:
+                pass
+
+        return api_key
+    except Exception:
+        logger.exception("Failed to get Zulip API key for %s", user_email)
+        return None
+
+
+def _zulip_proxy_request(user_email, api_key, zulip_path, tenant_id):
+    """Proxy a request to Zulip API with user's credentials and tenant filtering."""
+    url = f"{ZULIP_SERVICE_URL}/api/v1/{zulip_path}"
+    try:
+        resp = requests.request(
+            method=request.method,
+            url=url,
+            auth=(user_email, api_key),
+            params=request.args,
+            data=request.get_data(),
+            headers={
+                "Content-Type": request.headers.get("Content-Type", "application/json")
+            },
+            allow_redirects=False,
+            timeout=120,
+        )
+        return make_response(
+            resp.content,
+            resp.status_code,
+            {
+                "Content-Type": resp.headers.get("Content-Type", "application/json"),
+            },
+        )
+    except Exception as e:
+        logger.error("Zulip proxy error to %s: %s", url, e)
+        return jsonify({"error": "Zulip proxy error"}), 502
+
+
+def _zulip_auth_and_tenant():
+    """Authenticate user and extract tenant for Zulip routes."""
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+    if not rate_limit(tenant):
+        return jsonify({"error": "Rate limit exceeded"}), 429
+    email = payload.get("email")
+    if not email:
+        return jsonify({"error": "Email not present in token"}), 401
+    api_key = _get_zulip_api_key(email)
+    if not api_key:
+        return jsonify(
+            {"error": "Zulip account not found. Please log in to Zulip first via SSO."}
+        ), 404
+    return email, api_key, tenant, payload
+
+
+@app.route("/api/zulip/streams", methods=["GET"])
+def zulip_streams():
+    result = _zulip_auth_and_tenant()
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    email, api_key, tenant, payload = result
+    try:
+        resp = requests.get(
+            f"{ZULIP_SERVICE_URL}/api/v1/streams", auth=(email, api_key), timeout=15
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        tenant_prefix = f"tenant-{tenant}-"
+        filtered = [
+            s
+            for s in data.get("streams", [])
+            if s["name"].startswith(tenant_prefix)
+            or s["name"] == "platform-announcements"
+        ]
+        data["streams"] = filtered
+        return jsonify(data), 200
+    except Exception as e:
+        logger.error("Zulip streams error: %s", e)
+        return jsonify({"error": "Failed to fetch streams"}), 502
+
+
+@app.route("/api/zulip/streams/<int:stream_id>/topics", methods=["GET"])
+def zulip_stream_topics(stream_id):
+    result = _zulip_auth_and_tenant()
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    email, api_key, tenant, payload = result
+    return _zulip_proxy_request(email, api_key, f"users/me/{stream_id}/topics", tenant)
+
+
+@app.route("/api/zulip/messages", methods=["GET"])
+def zulip_get_messages():
+    result = _zulip_auth_and_tenant()
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    email, api_key, tenant, payload = result
+    import json as json_mod
+
+    narrow = request.args.get("narrow")
+    if narrow:
+        try:
+            narrow_list = json_mod.loads(narrow)
+            for clause in narrow_list:
+                if clause.get("operator") == "stream":
+                    stream_name = clause.get("operand", "")
+                    tenant_prefix = f"tenant-{tenant}-"
+                    if (
+                        not stream_name.startswith(tenant_prefix)
+                        and stream_name != "platform-announcements"
+                    ):
+                        return jsonify({"error": "Access denied to stream"}), 403
+        except (json_mod.JSONDecodeError, TypeError):
+            pass
+    return _zulip_proxy_request(email, api_key, "messages", tenant)
+
+
+@app.route("/api/zulip/messages", methods=["POST"])
+def zulip_send_message():
+    result = _zulip_auth_and_tenant()
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    email, api_key, tenant, payload = result
+    data = request.get_json(silent=True) or {}
+    msg_type = data.get("type", "")
+    if msg_type == "stream":
+        stream_name = data.get("to", "")
+        tenant_prefix = f"tenant-{tenant}-"
+        if not stream_name.startswith(tenant_prefix):
+            return jsonify({"error": "Cannot send to streams outside your tenant"}), 403
+    return _zulip_proxy_request(email, api_key, "messages", tenant)
+
+
+@app.route("/api/zulip/messages/<int:message_id>/reactions", methods=["POST", "DELETE"])
+def zulip_reactions(message_id):
+    result = _zulip_auth_and_tenant()
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    email, api_key, tenant, payload = result
+    return _zulip_proxy_request(
+        email, api_key, f"messages/{message_id}/reactions", tenant
+    )
+
+
+@app.route("/api/zulip/users/me", methods=["GET"])
+def zulip_user_me():
+    result = _zulip_auth_and_tenant()
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    email, api_key, tenant, payload = result
+    return _zulip_proxy_request(email, api_key, "users/me", tenant)
+
+
+@app.route("/api/zulip/events/register", methods=["POST"])
+def zulip_register_events():
+    result = _zulip_auth_and_tenant()
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    email, api_key, tenant, payload = result
+    return _zulip_proxy_request(email, api_key, "register", tenant)
+
+
+@app.route("/api/zulip/events", methods=["GET", "DELETE"])
+def zulip_events():
+    result = _zulip_auth_and_tenant()
+    if isinstance(result, tuple) and len(result) == 2:
+        return result
+    email, api_key, tenant, payload = result
+    return _zulip_proxy_request(email, api_key, "events", tenant)
+
+
+@app.route("/api/zulip/provisioning/<path:subpath>", methods=["POST", "DELETE"])
+def zulip_provisioning(subpath):
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid token"}), 401
+    if not has_role("platform_admin", payload):
+        return jsonify({"error": "Platform admin role required"}), 403
+    provisioner_url = os.getenv(
+        "ZULIP_PROVISIONER_URL", "http://zulip-provisioner-service:5000"
+    )
+    url = f"{provisioner_url}/api/provisioning/{subpath}"
+    headers = {
+        "Content-Type": request.headers.get("Content-Type", "application/json"),
+        "X-Tenant-ID": extract_tenant_id(payload) or "",
+    }
+    try:
+        resp = requests.request(
+            method=request.method,
+            url=url,
+            headers=headers,
+            data=request.get_data(),
+            timeout=30,
+        )
+        return make_response(
+            resp.content,
+            resp.status_code,
+            {"Content-Type": resp.headers.get("Content-Type", "application/json")},
+        )
+    except Exception as e:
+        logger.error("Zulip provisioner proxy error: %s", e)
+        return jsonify({"error": "Provisioner unavailable"}), 502
 
 
 if __name__ == "__main__":
