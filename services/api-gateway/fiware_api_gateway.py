@@ -3423,7 +3423,22 @@ def zulip_user_me():
     if isinstance(result, tuple) and len(result) == 2:
         return result
     email, api_key, tenant, payload = result
-    return _zulip_proxy_request(email, api_key, "users/me", tenant)
+    try:
+        resp = requests.get(
+            f"{ZULIP_SERVICE_URL}/api/v1/users",
+            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
+            headers={"Host": ZULIP_HOST},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        members = resp.json().get("members", [])
+        user = next((m for m in members if m["email"] == email), None)
+        if user:
+            return jsonify(user), 200
+        return jsonify({"email": email, "full_name": payload.get("name", email)}), 200
+    except Exception as e:
+        logger.error("Zulip users/me error: %s", e)
+        return jsonify({"email": email, "full_name": payload.get("name", email)}), 200
 
 
 @app.route("/api/zulip/events/register", methods=["POST"])
