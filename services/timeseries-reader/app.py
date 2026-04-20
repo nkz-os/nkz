@@ -165,6 +165,10 @@ def _resolve_telemetry_measurement_key(requested: str) -> Optional[str]:
 
 # Hard cap for POST /v2/query series count (DoS / query size). Override via env if needed.
 MAX_V2_QUERY_SERIES = int(os.getenv("MAX_V2_QUERY_SERIES", "10"))
+TIMESERIES_STATS_ENGINE = os.getenv("TIMESERIES_STATS_ENGINE", "v1").strip().lower()
+USE_TENANT_LOCAL_DAILY = (
+    os.getenv("TIMESERIES_USE_TENANT_LOCAL_DAILY", "true").strip().lower() == "true"
+)
 
 app = Flask(__name__)
 _cors_origins = [
@@ -447,15 +451,18 @@ def _execute_v2_align_unified_sql(
     start_dt: datetime,
     end_dt: datetime,
     resolution: int,
-    ordered_specs: List[Tuple[str, str, str]],
+    ordered_specs: List[Dict[str, Any]],
     bucket_interval_override: Optional[str] = None,
+    daily_local: bool = USE_TENANT_LOCAL_DAILY,
 ) -> pa.Table:
     """
     Single SQL for POST /v2/query: dynamic CTEs per series, then chained
     FULL OUTER JOIN … USING (bucket); `EXTRACT(EPOCH FROM bucket)::float8` for Arrow/uPlot.
 
-    ordered_specs: ("weather", key, attr) or ("telemetry", device_id, meas_key).
-    Weather attr must be in VALID_ATTRIBUTES (identifier-safe). Telemetry meas_key is a whitelisted JSON key (bound as %s).
+    ordered_specs:
+      - weather: {"kind":"weather","key":<station_or_municipality>,"attr":<weather_column>}
+      - telemetry: {"kind":"telemetry","candidates":[...], "attr":<measurement_key>}
+    Weather attr must be in VALID_ATTRIBUTES (identifier-safe). Telemetry attr is a whitelisted measurement key.
 
     Output timestamp: Float64 epoch seconds for Arrow / uPlot.
     """
@@ -476,9 +483,26 @@ def _execute_v2_align_unified_sql(
     cte_sql_parts: List[str] = []
     params: List[Any] = []
 
-    for i, (kind, key, attr) in enumerate(ordered_specs):
+    def telemetry_cagg_source(
+        interval: str, prefer_local_daily: bool
+    ) -> Optional[Tuple[str, str]]:
+        # Mapping is intentionally explicit to avoid accidental heavy scans.
+        if interval in {"10 minutes", "15 minutes", "30 minutes"}:
+            return ("telemetry_10m", "bucket")
+        if interval in {"1 hour", "2 hours", "6 hours", "12 hours"}:
+            return ("telemetry_1h", "bucket")
+        if interval in {"1 day", "1 week", "1 month"}:
+            if prefer_local_daily:
+                return ("telemetry_1d_tenant_localized", "local_day_bucket")
+            return ("telemetry_1d", "bucket")
+        return None
+
+    for i, spec in enumerate(ordered_specs):
+        kind = spec.get("kind")
+        attr = str(spec.get("attr") or "").strip()
         # SAFE: i is an integer from enumerate(), immune to SQLi.
         if kind == "weather":
+            key = str(spec.get("key") or "").strip()
             if attr not in VALID_ATTRIBUTES:
                 raise ValueError(f"Invalid weather attribute: {attr}")
             cte_sql_parts.append(
@@ -503,27 +527,64 @@ def _execute_v2_align_unified_sql(
                 ]
             )
         elif kind == "telemetry":
-            cte_sql_parts.append(
-                f"""series_{i} AS (
+            candidates = [
+                str(c).strip() for c in (spec.get("candidates") or []) if str(c).strip()
+            ]
+            if not candidates:
+                raise ValueError("Invalid telemetry series: no candidates")
+            cagg_source = (
+                telemetry_cagg_source(bucket_interval, daily_local)
+                if TIMESERIES_STATS_ENGINE == "v2"
+                else None
+            )
+            if cagg_source:
+                table_name, bucket_col = cagg_source
+                cte_sql_parts.append(
+                    f"""series_{i} AS (
+  SELECT time_bucket_gapfill(%s::interval, {bucket_col}) AS bucket,
+         locf(AVG(average(stats_summary)))::float8 AS value_{i}
+  FROM {table_name}
+  WHERE tenant_id = %s
+    AND {bucket_col} >= %s AND {bucket_col} < %s
+    AND attribute_name = %s
+    AND entity_id = ANY(%s)
+  GROUP BY time_bucket_gapfill(%s::interval, {bucket_col})
+)"""
+                )
+                params.extend(
+                    [
+                        bucket_interval,
+                        tenant_id,
+                        start_dt,
+                        end_dt,
+                        attr,
+                        candidates,
+                        bucket_interval,
+                    ]
+                )
+            else:
+                cte_sql_parts.append(
+                    f"""series_{i} AS (
   SELECT time_bucket_gapfill(%s::interval, e.observed_at) AS bucket,
          locf(AVG((NULLIF(trim(e.payload->'measurements'->>%s), ''))::double precision))::float8 AS value_{i}
   FROM telemetry_events e
   WHERE e.tenant_id = %s AND e.observed_at >= %s AND e.observed_at < %s
-    AND e.device_id = %s
+    AND (e.entity_id = ANY(%s) OR e.device_id = ANY(%s))
   GROUP BY time_bucket_gapfill(%s::interval, e.observed_at)
 )"""
-            )
-            params.extend(
-                [
-                    bucket_interval,
-                    attr,
-                    tenant_id,
-                    start_dt,
-                    end_dt,
-                    key,
-                    bucket_interval,
-                ]
-            )
+                )
+                params.extend(
+                    [
+                        bucket_interval,
+                        attr,
+                        tenant_id,
+                        start_dt,
+                        end_dt,
+                        candidates,
+                        candidates,
+                        bucket_interval,
+                    ]
+                )
         else:
             raise ValueError(f"Unknown series kind: {kind}")
 
@@ -1506,7 +1567,7 @@ def post_v2_timeseries_query():
     if start_dt >= end_dt:
         return jsonify({"error": "time_from must be before time_to"}), 400
 
-    ordered_specs: List[Tuple[str, str, str]] = []
+    ordered_specs: List[Dict[str, Any]] = []
 
     for i, item in enumerate(series):
         if not isinstance(item, dict):
@@ -1534,7 +1595,7 @@ def post_v2_timeseries_query():
                 return jsonify(
                     {"error": f"series[{i}]: invalid weather timeseries key"}
                 ), 400
-            ordered_specs.append(("weather", wk, attr_s))
+            ordered_specs.append({"kind": "weather", "key": wk, "attr": attr_s})
         else:
             storage_attr = _resolve_telemetry_measurement_key(attr_s)
             if storage_attr is None:
@@ -1543,15 +1604,26 @@ def post_v2_timeseries_query():
                         "error": f"Unknown telemetry attribute (not in whitelist): {attr_s}"
                     }
                 ), 400
-            dev = normalize_device_id(str(urn).strip())
-            if not dev or not _SAFE_DEVICE_ID.match(dev):
+            candidates = plan.get("device_candidates") or []
+            candidates = [str(c).strip() for c in candidates if str(c).strip()]
+            if not candidates:
+                dev = normalize_device_id(str(urn).strip())
+                if dev and _SAFE_DEVICE_ID.match(dev):
+                    candidates = [dev]
+            if not candidates:
                 return jsonify(
-                    {"error": f"series[{i}]: invalid device id derived from URN"}
+                    {"error": f"series[{i}]: invalid telemetry candidates"}
                 ), 400
-            ordered_specs.append(("telemetry", dev, storage_attr))
+            ordered_specs.append(
+                {
+                    "kind": "telemetry",
+                    "candidates": candidates,
+                    "attr": storage_attr,
+                }
+            )
 
     accept = (request.headers.get("Accept") or "").split(",")[0].strip().lower()
-    kinds = {s[0] for s in ordered_specs}
+    kinds = {str(s.get("kind")) for s in ordered_specs}
     if kinds == {"weather"}:
         series_kind = "weather"
     elif kinds == {"telemetry"}:
@@ -1562,7 +1634,13 @@ def post_v2_timeseries_query():
     try:
         with get_db_connection() as conn:
             table = _execute_v2_align_unified_sql(
-                conn, tenant_id, start_dt, end_dt, resolution, ordered_specs
+                conn,
+                tenant_id,
+                start_dt,
+                end_dt,
+                resolution,
+                ordered_specs,
+                daily_local=USE_TENANT_LOCAL_DAILY,
             )
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
