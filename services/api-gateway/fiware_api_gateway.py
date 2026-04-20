@@ -3216,13 +3216,19 @@ def _get_zulip_api_key(user_email: str, full_name: str = ""):
 
     try:
         zulip_headers = {"Host": ZULIP_HOST}
+        # Use /api/v1/users (list all) instead of /api/v1/users/{email}
+        # because Zulip's URL routing returns 400 for emails with dots in domain
         resp = requests.get(
-            f"{ZULIP_SERVICE_URL}/api/v1/users/{user_email}",
+            f"{ZULIP_SERVICE_URL}/api/v1/users",
             auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
             headers=zulip_headers,
             timeout=10,
         )
-        if resp.status_code == 404:
+        resp.raise_for_status()
+        members = resp.json().get("members", [])
+        existing_user = next((m for m in members if m["email"] == user_email), None)
+
+        if existing_user is None:
             logger.info("Auto-creating Zulip user: %s", user_email)
             import secrets
 
@@ -3246,8 +3252,7 @@ def _get_zulip_api_key(user_email: str, full_name: str = ""):
                 return None
             user_id = create_resp.json()["user_id"]
         else:
-            resp.raise_for_status()
-            user_id = resp.json()["user"]["user_id"]
+            user_id = existing_user["user_id"]
 
         resp = requests.post(
             f"{ZULIP_SERVICE_URL}/api/v1/users/{user_id}/api_key",
