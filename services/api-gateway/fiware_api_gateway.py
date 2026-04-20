@@ -112,6 +112,7 @@ AGRIENERGY_API_URL = os.getenv(
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
 ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
+ZULIP_HOST = os.getenv("ZULIP_HOST", "messaging.robotika.cloud")
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 REQUESTS_PER_MINUTE = int(
@@ -3210,9 +3211,11 @@ def _get_zulip_api_key(user_email: str):
         return None
 
     try:
+        zulip_headers = {"Host": ZULIP_HOST}
         resp = requests.get(
             f"{ZULIP_SERVICE_URL}/api/v1/users/{user_email}",
             auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
+            headers=zulip_headers,
             timeout=10,
         )
         if resp.status_code == 404:
@@ -3224,6 +3227,7 @@ def _get_zulip_api_key(user_email: str):
         resp = requests.post(
             f"{ZULIP_SERVICE_URL}/api/v1/users/{user_id}/api_key",
             auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
+            headers=zulip_headers,
             timeout=10,
         )
         resp.raise_for_status()
@@ -3252,7 +3256,8 @@ def _zulip_proxy_request(user_email, api_key, zulip_path, tenant_id):
             params=request.args,
             data=request.get_data(),
             headers={
-                "Content-Type": request.headers.get("Content-Type", "application/json")
+                "Content-Type": request.headers.get("Content-Type", "application/json"),
+                "Host": ZULIP_HOST,
             },
             allow_redirects=False,
             timeout=120,
@@ -3301,7 +3306,10 @@ def zulip_streams():
     email, api_key, tenant, payload = result
     try:
         resp = requests.get(
-            f"{ZULIP_SERVICE_URL}/api/v1/streams", auth=(email, api_key), timeout=15
+            f"{ZULIP_SERVICE_URL}/api/v1/streams",
+            auth=(email, api_key),
+            headers={"Host": ZULIP_HOST},
+            timeout=15,
         )
         resp.raise_for_status()
         data = resp.json()
