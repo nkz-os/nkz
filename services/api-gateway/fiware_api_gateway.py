@@ -3191,8 +3191,12 @@ def proxy_sdm_integration(subpath):
 _redis_url_for_zulip = os.getenv("REDIS_URL", "redis://redis-service:6379/4")
 
 
-def _get_zulip_api_key(user_email: str):
-    """Get or fetch Zulip API key for a user. Cached in Redis for 24h."""
+def _get_zulip_api_key(user_email: str, full_name: str = ""):
+    """Get or fetch Zulip API key for a user. Cached in Redis for 24h.
+
+    If the user doesn't exist in Zulip, auto-creates them via the bot
+    admin API so users don't need to manually visit the Zulip UI first.
+    """
     import redis as redis_lib
 
     cache_key = f"zulip:apikey:{user_email}"
@@ -3219,10 +3223,31 @@ def _get_zulip_api_key(user_email: str):
             timeout=10,
         )
         if resp.status_code == 404:
-            logger.warning("Zulip user not found: %s", user_email)
-            return None
-        resp.raise_for_status()
-        user_id = resp.json()["user"]["user_id"]
+            logger.info("Auto-creating Zulip user: %s", user_email)
+            import secrets
+
+            create_resp = requests.post(
+                f"{ZULIP_SERVICE_URL}/api/v1/users",
+                auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
+                headers=zulip_headers,
+                data={
+                    "email": user_email,
+                    "password": secrets.token_urlsafe(32),
+                    "full_name": full_name or user_email.split("@")[0],
+                },
+                timeout=15,
+            )
+            if create_resp.status_code != 200:
+                logger.error(
+                    "Failed to auto-create Zulip user %s: %s",
+                    user_email,
+                    create_resp.text,
+                )
+                return None
+            user_id = create_resp.json()["user_id"]
+        else:
+            resp.raise_for_status()
+            user_id = resp.json()["user"]["user_id"]
 
         resp = requests.post(
             f"{ZULIP_SERVICE_URL}/api/v1/users/{user_id}/api_key",
@@ -3290,11 +3315,10 @@ def _zulip_auth_and_tenant():
     email = payload.get("email")
     if not email:
         return jsonify({"error": "Email not present in token"}), 401
-    api_key = _get_zulip_api_key(email)
+    full_name = payload.get("name", payload.get("preferred_username", ""))
+    api_key = _get_zulip_api_key(email, full_name)
     if not api_key:
-        return jsonify(
-            {"error": "Zulip account not found. Please log in to Zulip first via SSO."}
-        ), 404
+        return jsonify({"error": "Failed to provision Zulip account"}), 502
     return email, api_key, tenant, payload
 
 
