@@ -3191,68 +3191,97 @@ def proxy_sdm_integration(subpath):
 _redis_url_for_zulip = os.getenv("REDIS_URL", "redis://redis-service:6379/4")
 
 
-def _get_zulip_api_key(user_email: str):
-    """Get or fetch Zulip API key for a user. Cached in Redis for 24h."""
+def _ensure_zulip_user(user_email: str, full_name: str = ""):
+    """Ensure user exists in Zulip. Auto-creates if missing.
+
+    Returns True if user exists (or was created), False on failure.
+    """
+    if not ZULIP_BOT_EMAIL or not ZULIP_BOT_API_KEY:
+        logger.error("ZULIP_BOT_EMAIL/ZULIP_BOT_API_KEY not configured")
+        return False
+
+    try:
+        zulip_headers = {"Host": ZULIP_HOST}
+        # Use /api/v1/users (list all) instead of /api/v1/users/{email}
+        # because Zulip's URL routing returns 400 for emails with dots in domain
+        resp = requests.get(
+            f"{ZULIP_SERVICE_URL}/api/v1/users",
+            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
+            headers=zulip_headers,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        members = resp.json().get("members", [])
+        existing_user = next((m for m in members if m["email"] == user_email), None)
+
+        if existing_user is None:
+            logger.info("Auto-creating Zulip user: %s", user_email)
+            import secrets
+
+            create_resp = requests.post(
+                f"{ZULIP_SERVICE_URL}/api/v1/users",
+                auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
+                headers=zulip_headers,
+                data={
+                    "email": user_email,
+                    "password": secrets.token_urlsafe(32),
+                    "full_name": full_name or user_email.split("@")[0],
+                },
+                timeout=15,
+            )
+            if create_resp.status_code != 200:
+                logger.error(
+                    "Failed to auto-create Zulip user %s: %s",
+                    user_email,
+                    create_resp.text,
+                )
+                return False
+        return True
+    except Exception as e:
+        logger.error("Zulip user check/create failed for %s: %s", user_email, e)
+        return False
+
+
+def _get_zulip_api_key(user_email: str, full_name: str = ""):
+    """Ensure user exists and return bot credentials for proxying.
+
+    In Zulip 9.x, per-user API keys cannot be fetched via admin API.
+    We use the bot credentials for all proxy operations instead.
+    """
     import redis as redis_lib
 
-    cache_key = f"zulip:apikey:{user_email}"
+    # Check Redis cache to avoid repeated user-list calls
+    cache_key = f"zulip:user_exists:{user_email}"
     r = None
     try:
         r = redis_lib.from_url(_redis_url_for_zulip, decode_responses=True)
         cached = r.get(cache_key)
         if cached:
-            return cached
+            return ZULIP_BOT_API_KEY
     except Exception:
-        logger.warning("Redis unavailable for Zulip API key cache")
+        logger.warning("Redis unavailable for Zulip cache")
         r = None
 
-    if not ZULIP_BOT_EMAIL or not ZULIP_BOT_API_KEY:
-        logger.error("ZULIP_BOT_EMAIL/ZULIP_BOT_API_KEY not configured")
+    if not _ensure_zulip_user(user_email, full_name):
         return None
 
-    try:
-        zulip_headers = {"Host": ZULIP_HOST}
-        resp = requests.get(
-            f"{ZULIP_SERVICE_URL}/api/v1/users/{user_email}",
-            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
-            headers=zulip_headers,
-            timeout=10,
-        )
-        if resp.status_code == 404:
-            logger.warning("Zulip user not found: %s", user_email)
-            return None
-        resp.raise_for_status()
-        user_id = resp.json()["user"]["user_id"]
+    if r:
+        try:
+            r.setex(cache_key, 86400, "1")
+        except Exception:
+            pass
 
-        resp = requests.post(
-            f"{ZULIP_SERVICE_URL}/api/v1/users/{user_id}/api_key",
-            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
-            headers=zulip_headers,
-            timeout=10,
-        )
-        resp.raise_for_status()
-        api_key = resp.json()["api_key"]
-
-        if r:
-            try:
-                r.setex(cache_key, 86400, api_key)
-            except Exception:
-                pass
-
-        return api_key
-    except Exception:
-        logger.exception("Failed to get Zulip API key for %s", user_email)
-        return None
+    return ZULIP_BOT_API_KEY
 
 
 def _zulip_proxy_request(user_email, api_key, zulip_path, tenant_id):
-    """Proxy a request to Zulip API with user's credentials and tenant filtering."""
+    """Proxy a request to Zulip API using bot credentials on behalf of user."""
     url = f"{ZULIP_SERVICE_URL}/api/v1/{zulip_path}"
     try:
         resp = requests.request(
             method=request.method,
             url=url,
-            auth=(user_email, api_key),
+            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
             params=request.args,
             data=request.get_data(),
             headers={
@@ -3290,11 +3319,10 @@ def _zulip_auth_and_tenant():
     email = payload.get("email")
     if not email:
         return jsonify({"error": "Email not present in token"}), 401
-    api_key = _get_zulip_api_key(email)
+    full_name = payload.get("name", payload.get("preferred_username", ""))
+    api_key = _get_zulip_api_key(email, full_name)
     if not api_key:
-        return jsonify(
-            {"error": "Zulip account not found. Please log in to Zulip first via SSO."}
-        ), 404
+        return jsonify({"error": "Failed to provision Zulip account"}), 502
     return email, api_key, tenant, payload
 
 
@@ -3307,7 +3335,7 @@ def zulip_streams():
     try:
         resp = requests.get(
             f"{ZULIP_SERVICE_URL}/api/v1/streams",
-            auth=(email, api_key),
+            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
             headers={"Host": ZULIP_HOST},
             timeout=15,
         )
