@@ -56,10 +56,14 @@ spec:
               value: "nekazari"
             - name: ORION_URL
               value: "http://orion-ld-service:1026"
+            - name: TIMESERIES_STATS_ENGINE
+              value: "v2"
+            - name: TIMESERIES_USE_TENANT_LOCAL_DAILY
+              value: "true"
           resources:
             requests:
               memory: "128Mi"
-              cpu: "50m"
+              cpu: "10m"
             limits:
               memory: "512Mi"
               cpu: "500m"
