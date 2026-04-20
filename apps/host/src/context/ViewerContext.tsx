@@ -258,6 +258,12 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
     const selectEntity = useCallback((id: string | null, type?: string | null) => {
         setSelectedEntityId(id);
         setSelectedEntityType(type ?? null);
+        
+        // GLOBAL EVENT DISPATCH - Reliability bridge for remote modules
+        window.dispatchEvent(new CustomEvent('nekazari:entity:selected', { 
+            detail: { id, type: type ?? null } 
+        }));
+
         // Auto-open right panel when entity selected
         if (id) {
             setIsRightPanelOpen(true);
