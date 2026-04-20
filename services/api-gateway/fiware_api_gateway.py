@@ -3191,28 +3191,14 @@ def proxy_sdm_integration(subpath):
 _redis_url_for_zulip = os.getenv("REDIS_URL", "redis://redis-service:6379/4")
 
 
-def _get_zulip_api_key(user_email: str, full_name: str = ""):
-    """Get or fetch Zulip API key for a user. Cached in Redis for 24h.
+def _ensure_zulip_user(user_email: str, full_name: str = ""):
+    """Ensure user exists in Zulip. Auto-creates if missing.
 
-    If the user doesn't exist in Zulip, auto-creates them via the bot
-    admin API so users don't need to manually visit the Zulip UI first.
+    Returns True if user exists (or was created), False on failure.
     """
-    import redis as redis_lib
-
-    cache_key = f"zulip:apikey:{user_email}"
-    r = None
-    try:
-        r = redis_lib.from_url(_redis_url_for_zulip, decode_responses=True)
-        cached = r.get(cache_key)
-        if cached:
-            return cached
-    except Exception:
-        logger.warning("Redis unavailable for Zulip API key cache")
-        r = None
-
     if not ZULIP_BOT_EMAIL or not ZULIP_BOT_API_KEY:
         logger.error("ZULIP_BOT_EMAIL/ZULIP_BOT_API_KEY not configured")
-        return None
+        return False
 
     try:
         zulip_headers = {"Host": ZULIP_HOST}
@@ -3249,40 +3235,53 @@ def _get_zulip_api_key(user_email: str, full_name: str = ""):
                     user_email,
                     create_resp.text,
                 )
-                return None
-            user_id = create_resp.json()["user_id"]
-        else:
-            user_id = existing_user["user_id"]
+                return False
+        return True
+    except Exception as e:
+        logger.error("Zulip user check/create failed for %s: %s", user_email, e)
+        return False
 
-        resp = requests.post(
-            f"{ZULIP_SERVICE_URL}/api/v1/users/{user_id}/api_key",
-            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
-            headers=zulip_headers,
-            timeout=10,
-        )
-        resp.raise_for_status()
-        api_key = resp.json()["api_key"]
 
-        if r:
-            try:
-                r.setex(cache_key, 86400, api_key)
-            except Exception:
-                pass
+def _get_zulip_api_key(user_email: str, full_name: str = ""):
+    """Ensure user exists and return bot credentials for proxying.
 
-        return api_key
+    In Zulip 9.x, per-user API keys cannot be fetched via admin API.
+    We use the bot credentials for all proxy operations instead.
+    """
+    import redis as redis_lib
+
+    # Check Redis cache to avoid repeated user-list calls
+    cache_key = f"zulip:user_exists:{user_email}"
+    r = None
+    try:
+        r = redis_lib.from_url(_redis_url_for_zulip, decode_responses=True)
+        cached = r.get(cache_key)
+        if cached:
+            return ZULIP_BOT_API_KEY
     except Exception:
-        logger.exception("Failed to get Zulip API key for %s", user_email)
+        logger.warning("Redis unavailable for Zulip cache")
+        r = None
+
+    if not _ensure_zulip_user(user_email, full_name):
         return None
+
+    if r:
+        try:
+            r.setex(cache_key, 86400, "1")
+        except Exception:
+            pass
+
+    return ZULIP_BOT_API_KEY
 
 
 def _zulip_proxy_request(user_email, api_key, zulip_path, tenant_id):
-    """Proxy a request to Zulip API with user's credentials and tenant filtering."""
+    """Proxy a request to Zulip API using bot credentials on behalf of user."""
     url = f"{ZULIP_SERVICE_URL}/api/v1/{zulip_path}"
     try:
         resp = requests.request(
             method=request.method,
             url=url,
-            auth=(user_email, api_key),
+            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
             params=request.args,
             data=request.get_data(),
             headers={
@@ -3336,7 +3335,7 @@ def zulip_streams():
     try:
         resp = requests.get(
             f"{ZULIP_SERVICE_URL}/api/v1/streams",
-            auth=(email, api_key),
+            auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
             headers={"Host": ZULIP_HOST},
             timeout=15,
         )
