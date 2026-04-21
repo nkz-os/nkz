@@ -60,8 +60,17 @@ export function useDashboardData(): DashboardData {
         tenants = [response.data];
       }
 
+      // Match strictly by the tenant_id claim from the JWT.
+      // Matching by email is unsafe: a PlatformAdmin whose email is reused
+      // across multiple activation codes could receive another tenant's
+      // expiration banner. The tenant_id from the token is authoritative.
+      const tokenTenant = user?.tenant;
+      if (!tokenTenant) {
+        return null;
+      }
+
       const currentTenant = tenants.find((t: any) =>
-        t.tenant === user?.tenant || t.email === user?.email || t.tenant_id === user?.tenant
+        t?.tenant_id === tokenTenant || t?.tenant === tokenTenant
       );
 
       if (currentTenant && currentTenant.days_remaining !== null && currentTenant.days_remaining !== undefined) {

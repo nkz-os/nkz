@@ -58,10 +58,12 @@ def check_expiring_activations() -> list[dict[str, Any]]:
             FROM activation_codes ac
             JOIN farmer_activations fa ON ac.id = fa.activation_code_id
             JOIN farmers f ON fa.farmer_id = f.id
+            LEFT JOIN tenants t ON f.tenant = t.tenant_id
             WHERE ac.status = 'active'
               AND ac.expires_at IS NOT NULL
               AND ac.expires_at > NOW()
               AND ac.activated_at IS NOT NULL
+              AND (t.expires_at IS NULL OR t.expires_at <= ac.expires_at)
             ORDER BY ac.expires_at ASC
         """)
 

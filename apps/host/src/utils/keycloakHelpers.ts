@@ -11,10 +11,27 @@ export interface ExpirationInfo {
   plan: string | null;
 }
 
+export type ExpirationAlertLevel = 'critical' | 'warning' | 'info';
+
 export interface ExpirationAlert {
-  level: string;
-  message: string;
+  level: ExpirationAlertLevel;
+  i18nKey: string;
+  i18nValues?: Record<string, unknown>;
   color: string;
+}
+
+export interface ExpirationAlertContext {
+  roles?: string[];
+  tenantId?: string | null;
+}
+
+const PLATFORM_TENANT = 'platform';
+
+function isPlatformAdminContext(context?: ExpirationAlertContext): boolean {
+  if (!context) return false;
+  if (context.tenantId && context.tenantId.toLowerCase() === PLATFORM_TENANT) return true;
+  if (context.roles && context.roles.includes('PlatformAdmin')) return true;
+  return false;
 }
 
 /**
@@ -59,10 +76,21 @@ export function extractUserFromToken(token: string, keycloakProfile?: any): Keyc
 
 /**
  * Determine expiration notification urgency from expiration info.
- * Returns null if no alert should be shown (>30 days remaining or no info).
+ * Returns null if no alert should be shown (>30 days remaining, missing info,
+ * or the caller is a platform-internal user/tenant).
+ *
+ * The returned alert contains an i18n key + values so callers MUST translate
+ * via react-i18next. No user-facing copy lives in this helper.
  */
-export function getExpirationAlert(expirationInfo: ExpirationInfo | null): ExpirationAlert | null {
-  if (!expirationInfo || expirationInfo.days_remaining === null) {
+export function getExpirationAlert(
+  expirationInfo: ExpirationInfo | null,
+  context?: ExpirationAlertContext,
+): ExpirationAlert | null {
+  if (isPlatformAdminContext(context)) {
+    return null;
+  }
+
+  if (!expirationInfo || expirationInfo.days_remaining === null || expirationInfo.days_remaining === undefined) {
     return null;
   }
 
@@ -71,32 +99,35 @@ export function getExpirationAlert(expirationInfo: ExpirationInfo | null): Expir
   if (days <= 0) {
     return {
       level: 'critical',
-      message: '⚠️ Tu plan ha expirado. Renueva para continuar usando Nekazari.',
-      color: 'bg-red-50 border-red-200 text-red-800'
+      i18nKey: 'dashboard.alert_expired',
+      color: 'bg-red-50 border-red-200 text-red-800',
     };
   } else if (days <= 1) {
     return {
       level: 'critical',
-      message: '⚠️ ¡URGENTE! Tu plan expira MAÑANA. Renueva ahora.',
-      color: 'bg-red-50 border-red-200 text-red-800'
+      i18nKey: 'dashboard.alert_expires_tomorrow',
+      color: 'bg-red-50 border-red-200 text-red-800',
     };
   } else if (days <= 7) {
     return {
       level: 'warning',
-      message: `⚠️ ¡IMPORTANTE! Tu plan expira en ${days} días. Renueva para continuar.`,
-      color: 'bg-orange-50 border-orange-200 text-orange-800'
+      i18nKey: 'dashboard.alert_expires_urgent',
+      i18nValues: { days },
+      color: 'bg-orange-50 border-orange-200 text-orange-800',
     };
   } else if (days <= 15) {
     return {
       level: 'info',
-      message: `ℹ️ Tu plan expira en ${days} días. Considera renovar pronto.`,
-      color: 'bg-yellow-50 border-yellow-200 text-yellow-800'
+      i18nKey: 'dashboard.alert_expires_info',
+      i18nValues: { days },
+      color: 'bg-yellow-50 border-yellow-200 text-yellow-800',
     };
   } else if (days <= 30) {
     return {
       level: 'info',
-      message: `ℹ️ Tu plan expira en ${days} días.`,
-      color: 'bg-blue-50 border-blue-200 text-blue-800'
+      i18nKey: 'dashboard.alert_expires_soft',
+      i18nValues: { days },
+      color: 'bg-blue-50 border-blue-200 text-blue-800',
     };
   }
 
