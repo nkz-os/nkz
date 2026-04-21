@@ -38,7 +38,7 @@ import { SlotRenderer } from '@/components/SlotRenderer';
 
 export const DashboardImproved: React.FC = () => {
   const navigate = useNavigate();
-  const { hasAnyRole } = useAuth();
+  const { hasAnyRole, user } = useAuth();
   const { t } = useI18n();
 
   const canManageDevices = hasAnyRole(['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant']);
@@ -68,7 +68,10 @@ export const DashboardImproved: React.FC = () => {
     robots.length + sensors.length + parcels.length +
     machines.length + livestock.length + weatherStations.length;
 
-  const expirationAlert = getExpirationAlert(expirationInfo);
+  const expirationAlert = getExpirationAlert(expirationInfo, {
+    roles: user?.roles,
+    tenantId: user?.tenant ?? null,
+  });
 
   return (
     <Layout className="host-layout-protected">
@@ -79,10 +82,10 @@ export const DashboardImproved: React.FC = () => {
           <div className={`mb-6 p-4 rounded-lg border ${expirationAlert.color} flex items-center justify-between`}>
             <div className="flex items-center">
               <AlertCircle className="h-5 w-5 mr-3 flex-shrink-0" />
-              <p className="font-medium">{expirationAlert.message}</p>
+              <p className="font-medium">{t(expirationAlert.i18nKey, expirationAlert.i18nValues)}</p>
               {expirationInfo?.expires_at && (
                 <span className="ml-2 text-sm opacity-75">
-                  {t('dashboard.expiration_date', { date: new Date(expirationInfo.expires_at).toLocaleDateString('es-ES') }) || `(Expira: ${new Date(expirationInfo.expires_at).toLocaleDateString('es-ES')})`}
+                  {t('dashboard.expiration_date', { date: new Date(expirationInfo.expires_at).toLocaleDateString() })}
                 </span>
               )}
             </div>
@@ -90,7 +93,7 @@ export const DashboardImproved: React.FC = () => {
               href="/settings"
               className="px-4 py-2 bg-white dark:bg-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition font-medium text-sm text-gray-900 dark:text-gray-100 flex-shrink-0 ml-4"
             >
-              {t('dashboard.renew_subscription') || 'Renovar'}
+              {t('dashboard.renew_subscription')}
             </a>
           </div>
         )}

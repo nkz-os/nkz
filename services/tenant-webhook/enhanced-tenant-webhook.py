@@ -317,6 +317,25 @@ def _verify_internal_pat_secret() -> bool:
         return False
 
 
+def _verify_internal_billing_secret() -> bool:
+    """Layer-7 auth for POST /internal/billing/tenants/<id>/license.
+
+    The billing module and the tenant-webhook run in different pods; this
+    endpoint is the single integration seam between Stripe lifecycle and the
+    licensing fields on the `tenants` table. It is authenticated with a
+    shared secret carried in `X-Internal-Secret`; the same secret must be
+    configured in the billing backend as `TENANT_WEBHOOK_INTERNAL_SECRET`.
+    """
+    expected = (os.getenv("INTERNAL_BILLING_SECRET") or "").strip()
+    if not expected:
+        return False
+    got = (request.headers.get("X-Internal-Secret") or "").strip()
+    try:
+        return hmac.compare_digest(got.encode("utf-8"), expected.encode("utf-8"))
+    except Exception:
+        return False
+
+
 # Configuration from environment
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak-service:8080")
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "nekazari")
@@ -2291,6 +2310,228 @@ def revoke_activation_code(code_id):
         return jsonify({"error": "Internal server error"}), 500
 
 
+_BILLING_PLAN_LEVELS = {
+    "basic": 0,
+    "pro": 1,
+    "premium": 1,
+    "enterprise": 2,
+}
+
+
+_BILLING_ACTIVE_STATUSES = frozenset({"active", "trialing", "past_due"})
+_BILLING_INACTIVE_STATUSES = frozenset({"canceled", "cancelled", "unpaid"})
+
+
+@app.route(
+    "/internal/billing/tenants/expired",
+    methods=["GET"],
+)
+@limiter.exempt
+def internal_list_expired_tenants():
+    """List tenants that have expired. Only used by the reaper."""
+    if not _verify_internal_billing_secret():
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database error"}), 500
+        
+    try:
+        webhook_service._apply_admin_context(conn)
+        cursor = conn.cursor()
+        
+        # A tenant is expired if its explicitly set expires_at is in the past,
+        # OR if it's null, we check the latest activation_code.
+        cursor.execute("""
+            SELECT t.tenant_id, t.expires_at as t_expires_at, t.status,
+                   ac.expires_at as ac_expires_at
+            FROM tenants t
+            LEFT JOIN farmers f ON t.tenant_id = f.tenant
+            LEFT JOIN farmer_activations fa ON f.id = fa.farmer_id
+            LEFT JOIN activation_codes ac ON fa.activation_code_id = ac.id
+            WHERE t.tenant_id != 'platform'
+        """)
+        
+        expired_tenants = set()
+        
+        for row in cursor.fetchall():
+            tenant_id = row["tenant_id"]
+            t_expires = row["t_expires_at"]
+            status = row["status"]
+            ac_expires = row["ac_expires_at"]
+            
+            # If status is active but t_expires is null, we assume they are active unless
+            # they have an expired activation code.
+            # But the most robust way is: if t_expires is present and past -> expired.
+            # If t_expires is null, look at ac_expires. If ac_expires is past -> expired.
+            # If both are null, it depends on whether we allow forever trials. We assume they don't expire.
+            
+            is_expired = False
+            now = datetime.utcnow()
+            
+            if t_expires is not None:
+                if t_expires < now:
+                    is_expired = True
+            elif ac_expires is not None:
+                if ac_expires < now:
+                    is_expired = True
+                    
+            if is_expired:
+                expired_tenants.add(tenant_id)
+                
+        cursor.close()
+        return jsonify({"expired_tenants": list(expired_tenants)})
+    except Exception as e:
+        logger.error(f"Error listing expired tenants: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+@app.route(
+    "/internal/billing/tenants/<tenant_id>/license",
+    methods=["POST"],
+)
+@limiter.exempt
+def internal_update_tenant_license(tenant_id):
+    """Apply a billing-driven license update to the tenants table.
+
+    This is the single integration seam between the billing module and the
+    `admin_platform.tenants` licensing fields. The billing module calls this
+    on Stripe lifecycle events (invoice.paid, subscription.updated, …) with
+    the canonical `current_period_end` so that the dashboard banner and the
+    reaper read a consistent expiration.
+
+    Payload:
+        {
+          "expires_at":          ISO8601 or null,
+          "plan_tier":           "pro" | "enterprise" | null,
+          "subscription_status": "active" | "trialing" | "past_due" |
+                                 "canceled" | "unpaid"
+        }
+    """
+    if not _verify_internal_billing_secret():
+        return jsonify({"error": "Unauthorized"}), 401
+    if not POSTGRES_URL:
+        return jsonify({"error": "Database not configured"}), 500
+    if not tenant_id or not re.match(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", tenant_id):
+        return jsonify({"error": "Invalid tenant_id"}), 400
+    if tenant_id.lower() == "platform":
+        return jsonify({"error": "platform tenant is not billable"}), 400
+
+    data = request.get_json(silent=True) or {}
+    raw_status = (data.get("subscription_status") or "").strip().lower()
+    if raw_status not in _BILLING_ACTIVE_STATUSES and raw_status not in _BILLING_INACTIVE_STATUSES:
+        return jsonify({"error": "Invalid subscription_status"}), 400
+
+    expires_at_raw = data.get("expires_at")
+    expires_at: datetime | None = None
+    if expires_at_raw is not None:
+        if not isinstance(expires_at_raw, str):
+            return jsonify({"error": "expires_at must be ISO8601 string or null"}), 400
+        try:
+            expires_at = datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00"))
+        except Exception:
+            return jsonify({"error": "Invalid expires_at"}), 400
+
+    plan_tier_raw = data.get("plan_tier")
+    plan_type: str | None = None
+    plan_level: int | None = None
+    if plan_tier_raw is not None:
+        if not isinstance(plan_tier_raw, str):
+            return jsonify({"error": "plan_tier must be string or null"}), 400
+        plan_type = plan_tier_raw.strip().lower() or None
+        if plan_type and plan_type not in _BILLING_PLAN_LEVELS:
+            return jsonify({"error": f"Invalid plan_tier: {plan_type}"}), 400
+        if plan_type:
+            plan_level = _BILLING_PLAN_LEVELS[plan_type]
+
+    desired_status = "active" if raw_status in _BILLING_ACTIVE_STATUSES else "cancelled"
+
+    updates: list[str] = ["expires_at = %s", "status = %s", "updated_at = NOW()"]
+    params: list[Any] = [expires_at, desired_status]
+    if plan_type is not None:
+        updates.append("plan_type = %s")
+        params.append(plan_type)
+    if plan_level is not None:
+        updates.append("plan_level = %s")
+        params.append(plan_level)
+    params.append(tenant_id)
+
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection error"}), 500
+    try:
+        webhook_service._apply_admin_context(conn)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT tenant_id FROM tenants WHERE tenant_id = %s",
+            (tenant_id,),
+        )
+        if not cursor.fetchone():
+            cursor.close()
+            return jsonify({"error": "Tenant not found"}), 404
+
+        cursor.execute(
+            f"UPDATE tenants SET {', '.join(updates)} WHERE tenant_id = %s RETURNING tenant_id, expires_at, status, plan_type, plan_level",
+            params,
+        )
+        row = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+
+        audit_log(
+            action="billing.tenant.license.update",
+            resource_type="tenant",
+            resource_id=tenant_id,
+            metadata={
+                "subscription_status": raw_status,
+                "expires_at": expires_at.isoformat() if expires_at else None,
+                "plan_tier": plan_type,
+            },
+        )
+
+        if isinstance(row, dict):
+            result_row = row
+        elif row is None:
+            result_row = {}
+        else:
+            result_row = {
+                "tenant_id": row[0],
+                "expires_at": row[1],
+                "status": row[2],
+                "plan_type": row[3],
+                "plan_level": row[4],
+            }
+
+        return jsonify({
+            "tenant_id": result_row.get("tenant_id"),
+            "expires_at": (
+                result_row["expires_at"].isoformat()
+                if isinstance(result_row.get("expires_at"), datetime)
+                else result_row.get("expires_at")
+            ),
+            "status": result_row.get("status"),
+            "plan_type": result_row.get("plan_type"),
+            "plan_level": result_row.get("plan_level"),
+        }), 200
+
+    except Exception as exc:
+        logger.error(f"internal_update_tenant_license({tenant_id}): {exc}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        audit_log(
+            action="billing.tenant.license.update",
+            resource_type="tenant",
+            resource_id=tenant_id,
+            success=False,
+            error=str(exc),
+        )
+        return jsonify({"error": "Internal error"}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
 @app.route("/internal/validate-pat", methods=["POST"])
 @limiter.exempt
 def internal_validate_pat():
@@ -2756,9 +2997,25 @@ def list_tenants():
                     activation.get("email") if activation else row.get("tenant_email")
                 )  # noqa: E501
                 activation_expires = activation.get("expires_at") if activation else None
-                tenant_expires = row.get("expires_at") or activation_expires
+                
+                # If tenants table has an explicit expires_at, use it. 
+                # If it's null but the tenant is active, it might be an unlimited/stripe-managed active plan.
+                # However, to avoid falling back to an old activation code that triggers an expiration alert,
+                # we prioritize the tenants table explicitly.
+                if "expires_at" in row and row["expires_at"] is not None:
+                    tenant_expires = row["expires_at"]
+                else:
+                    tenant_expires = activation_expires
 
-                if isinstance(tenant_expires, datetime):
+                # Platform tenant is internal administration; it never has a
+                # consumer-facing plan lifecycle, so we never emit a
+                # days_remaining countdown for it even if the DB has stale data.
+                is_platform_tenant = (tenant_id or "").lower() == "platform"
+
+                if is_platform_tenant:
+                    expires_at_iso = None
+                    days_remaining = None
+                elif isinstance(tenant_expires, datetime):
                     delta = tenant_expires - datetime.utcnow()
                     days_remaining = max(delta.days, 0)
                     expires_at_iso = tenant_expires.isoformat()
