@@ -1277,12 +1277,12 @@ def _fetch_telemetry_rows(
             SELECT observed_at, payload
             FROM telemetry_events
             WHERE tenant_id = %s
-              AND device_id = ANY(%s)
+              AND (device_id = ANY(%s) OR entity_id = ANY(%s))
               AND observed_at >= %s AND observed_at < %s
             ORDER BY observed_at ASC
             LIMIT %s
             """,
-            (tenant_id, candidates, start_dt, end_dt, limit),
+            (tenant_id, candidates, candidates, start_dt, end_dt, limit),
         )
         return list(cur.fetchall())
     finally:
