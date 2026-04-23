@@ -568,7 +568,8 @@
     "tenant_name_too_long": "Izenak gehienez {{max}} karaktere izan behar ditu normalizazioaren ondoren (oraingoz: {{current}}).",
     "tenant_name_invalid_chars": "Izenak karaktere baliogabeak ditu. Letra xehez, zenbaki eta azpimarrak bakarrik.",
     "tenant_name_normalize_hint": "Izena «{{normalized}}» gisa normalizatuko da. Karaktere bereziak, zuriuneak eta maiuskulak automatikoki doitu.",
-    "tenant_name_invalid": "Nekazaritza edo erakundearen izen baliogabea."
+    "tenant_name_invalid": "Nekazaritza edo erakundearen izen baliogabea.",
+    "password_requirements_hint": "Pasahitzak eduki behar du:"
   },
   "terms": {
     "accept": "Acepto los términos y condiciones de uso",

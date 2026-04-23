@@ -560,7 +560,8 @@
     "tenant_name_too_long": "El nom ha de tenir com a màxim {{max}} caràcters després de la normalització (ara: {{current}}).",
     "tenant_name_invalid_chars": "El nom conté caràcters no permesos. Només minúscules, números i guions baixos.",
     "tenant_name_normalize_hint": "El nom es normalitzarà a «{{normalized}}». Els caràcters especials, espais i majúscules s'ajusten automàticament.",
-    "tenant_name_invalid": "Nom d'explotació o organització no vàlid."
+    "tenant_name_invalid": "Nom d'explotació o organització no vàlid.",
+    "password_requirements_hint": "La contrasenya ha de contenir:"
   },
   "terms": {
     "accept": "Acepto los términos y condiciones de uso",

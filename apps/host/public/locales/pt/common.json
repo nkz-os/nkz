@@ -560,7 +560,8 @@
     "tenant_name_too_long": "O nome deve ter no máximo {{max}} caracteres após normalização (atualmente {{current}}).",
     "tenant_name_invalid_chars": "O nome contém caracteres não permitidos. Apenas minúsculas, números e sublinhados.",
     "tenant_name_normalize_hint": "O nome será normalizado para «{{normalized}}». Caracteres especiais, espaços e maiúsculas são ajustados automaticamente.",
-    "tenant_name_invalid": "Nome de exploração ou organização inválido."
+    "tenant_name_invalid": "Nome de exploração ou organização inválido.",
+    "password_requirements_hint": "A senha deve conter:"
   },
   "terms": {
     "accept": "Acepto los términos y condiciones de uso",

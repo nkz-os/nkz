@@ -642,7 +642,8 @@
     "tenant_name_too_long": "El nombre debe tener como máximo {{max}} caracteres tras la normalización (ahora: {{current}}).",
     "tenant_name_invalid_chars": "El nombre contiene caracteres no permitidos. Solo letras minúsculas, números y guiones bajos.",
     "tenant_name_normalize_hint": "El nombre se normalizará a «{{normalized}}». Los caracteres especiales, espacios y mayúsculas se ajustan automáticamente.",
-    "tenant_name_invalid": "Nombre de explotación u organización no válido."
+    "tenant_name_invalid": "Nombre de explotación u organización no válido.",
+    "password_requirements_hint": "La contraseña debe contener:"
   },
   "terms": {
     "title": "Términos y Condiciones de Uso",

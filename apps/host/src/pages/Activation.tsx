@@ -553,7 +553,7 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || !termsAccepted || !isPasswordValid}
+              disabled={loading || (!!formData.password && !isPasswordValid)}
               className="w-full bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (

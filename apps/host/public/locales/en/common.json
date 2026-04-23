@@ -581,7 +581,8 @@
     "tenant_name_too_long": "The name must be at most {{max}} characters after normalization (currently {{current}}).",
     "tenant_name_invalid_chars": "The name contains invalid characters. Only lowercase letters, numbers, and underscores are allowed.",
     "tenant_name_normalize_hint": "The name will be normalized to \"{{normalized}}\". Special characters, spaces, and uppercase letters are adjusted automatically.",
-    "tenant_name_invalid": "Invalid farm or organization name."
+    "tenant_name_invalid": "Invalid farm or organization name.",
+    "password_requirements_hint": "Password must contain:"
   },
   "terms": {
     "accept": "Acepto los términos y condiciones de uso",
