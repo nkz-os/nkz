@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
 # =============================================================================
 # Expiration Notifier - Sends emails and notifications for expiring activation codes
+#
+# Legacy path: predates the billing module. Tenants whose lifecycle is now
+# owned by Stripe (via nkz-billing-module) MUST be excluded so they don't
+# receive duplicate notifications. Two safeguards:
+#
+#   1. ``ENABLE_LEGACY_EXPIRATION_NOTIFIER`` (default ``true``) — kill switch
+#      so the whole notifier can be disabled once billing fully takes over.
+#   2. Billing-managed tenant filter — at run time we query the billing
+#      module's ``/api/v1/billing/internal/tenants/managed`` endpoint and
+#      skip any tenant whose ``subscription_status`` is ``active``,
+#      ``trialing``, or ``past_due``. If the billing module is unreachable,
+#      we fail safe (abort the run) rather than risk duplicate emails.
 # =============================================================================
 
 import logging
@@ -18,6 +30,44 @@ logger = logging.getLogger(__name__)
 POSTGRES_URL = os.environ["POSTGRES_URL"]
 EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
 NOTIFICATION_THRESHOLDS = [30, 15, 7, 1]  # Days remaining to notify
+
+ENABLE_LEGACY_EXPIRATION_NOTIFIER = (
+    os.getenv("ENABLE_LEGACY_EXPIRATION_NOTIFIER", "true").lower() == "true"
+)
+BILLING_API_URL = os.getenv("BILLING_API_URL", "http://nkz-billing-module:8000")
+INTERNAL_BILLING_SECRET = os.getenv("INTERNAL_BILLING_SECRET", "")
+
+_BILLING_OWNED_STATUSES = {"active", "trialing", "past_due"}
+
+
+def fetch_billing_managed_tenants() -> dict[str, str] | None:
+    """Return ``{tenant_id: subscription_status}`` from the billing module.
+
+    Returns ``None`` if the billing module is unreachable or misconfigured —
+    callers MUST treat ``None`` as a fail-safe abort signal.
+    """
+    if not INTERNAL_BILLING_SECRET:
+        logger.warning(
+            "INTERNAL_BILLING_SECRET not configured; cannot consult billing module",
+        )
+        return None
+    url = f"{BILLING_API_URL.rstrip('/')}/api/v1/billing/internal/tenants/managed"
+    headers = {"X-Internal-Secret": INTERNAL_BILLING_SECRET}
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            logger.error(
+                "Failed to fetch billing-managed tenants: %s %s",
+                resp.status_code,
+                resp.text[:300],
+            )
+            return None
+        data = resp.json() or {}
+        managed = data.get("managed") or {}
+        return {str(k): str(v) for k, v in managed.items()}
+    except Exception as e:
+        logger.error("Error querying billing module for managed tenants: %s", e)
+        return None
 
 
 def get_db_connection():
@@ -187,12 +237,48 @@ def mark_notification_sent(activation_id: int, threshold: int) -> bool:
 
 def process_expiration_notifications():
     """Main function to check and send expiration notifications"""
+    if not ENABLE_LEGACY_EXPIRATION_NOTIFIER:
+        logger.info(
+            "Legacy expiration notifier disabled via ENABLE_LEGACY_EXPIRATION_NOTIFIER=false",
+        )
+        return
+
     logger.info("Checking for expiring activations...")
+
+    # Consult billing module BEFORE fetching candidates so we fail safe on
+    # transient outages rather than spam duplicates.
+    managed = fetch_billing_managed_tenants()
+    if managed is None:
+        logger.warning(
+            "Aborting legacy notifier run: cannot consult billing module. "
+            "This is intentional to avoid duplicate notifications.",
+        )
+        return
+
+    billing_owned = {
+        tenant_id
+        for tenant_id, sub_status in managed.items()
+        if sub_status in _BILLING_OWNED_STATUSES
+    }
 
     expiring = check_expiring_activations()
 
     if not expiring:
         logger.info("No expiring activations need notification")
+        return
+
+    skipped_billing = [a for a in expiring if a.get("tenant") in billing_owned]
+    expiring = [a for a in expiring if a.get("tenant") not in billing_owned]
+
+    if skipped_billing:
+        logger.info(
+            "Skipped %d activations for tenants managed by billing module: %s",
+            len(skipped_billing),
+            sorted({a.get("tenant") for a in skipped_billing if a.get("tenant")}),
+        )
+
+    if not expiring:
+        logger.info("All expiring activations are billing-managed; nothing to send")
         return
 
     logger.info(f"Found {len(expiring)} activations needing notification")
