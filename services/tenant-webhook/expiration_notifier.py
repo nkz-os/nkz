@@ -238,7 +238,9 @@ def mark_notification_sent(activation_id: int, threshold: int) -> bool:
 def process_expiration_notifications():
     """Main function to check and send expiration notifications"""
     if not ENABLE_LEGACY_EXPIRATION_NOTIFIER:
-        logger.info("Legacy expiration notifier disabled via ENABLE_LEGACY_EXPIRATION_NOTIFIER=false")
+        logger.info(
+            "Legacy expiration notifier disabled via ENABLE_LEGACY_EXPIRATION_NOTIFIER=false",
+        )
         return
 
     logger.info("Checking for expiring activations...")
