@@ -628,6 +628,7 @@ const UnifiedViewerInner: React.FC = () => {
                     title=""
                     height="h-full"
                     showControls={true}
+                    renderMapLayerSlot={false}
                     parcels={isLayerActive('parcels') ? parcels : []}
                     robots={isLayerActive('robots') ? robots : []}
                     sensors={isLayerActive('sensors') ? sensors : []}
