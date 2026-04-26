@@ -61,6 +61,7 @@ interface CesiumMapProps {
   onMapClick?: (lat: number, lon: number) => void; // Callback for map clicks in picker mode
   onEntitySelect?: (entity: { id: string; type: string }) => void; // Callback when an entity is clicked
   riskOverlay?: Map<string, RiskOverlayInfo>; // Optional: risk severity colors keyed by entity ID
+  renderMapLayerSlot?: boolean; // Whether to render map-layer slot inside this component
   // Module layer configurations (extensible for future modules)
   // Removed vegetationLayerConfig - modules should register layers via slot system
 }
@@ -220,6 +221,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   onMapClick,
   onEntitySelect,
   riskOverlay,
+  renderMapLayerSlot = true,
   // vegetationLayerConfig removed - modules use slot system
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1749,8 +1751,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       {/* Logic Components */}
       <CesiumStampRenderer />
 
-      {/* Map Layer Slot - Render map layer components (e.g., VegetationMapLayer) - Only if ViewerProvider is available */}
-      {viewerContext && isViewerReady && viewerRef.current && (
+      {/* Map Layer Slot - Legacy in-map rendering path.
+          UnifiedViewer renders this slot externally; disable here there to avoid duplicates. */}
+      {renderMapLayerSlot && viewerContext && isViewerReady && viewerRef.current && (
         <SlotRenderer
           slot="map-layer"
           inline
