@@ -1766,11 +1766,4 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   );
 });
 
-export default CesiumMap;}
-
-      {/* Legend/Info Overlay could go here */}
-    </div>
-  );
-});
-
 export default CesiumMap;
