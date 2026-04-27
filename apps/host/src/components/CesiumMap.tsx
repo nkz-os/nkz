@@ -233,7 +233,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const [webglFailed, setWebglFailed] = useState(false);
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [currentTerrainProvider, setCurrentTerrainProvider] = useState<string>(terrainProvider);
-  const [baseLayer, setBaseLayer] = useState<'pnoa' | 'osm' | 'esri' | 'cesium'>('osm');
+  const [baseLayer, setBaseLayer] = useState<'pnoa' | 'osm' | 'esri' | 'cesium'>('pnoa');
   const osmLayerRef = useRef<any>(null);
   const pnoaLayerRef = useRef<any>(null);
   const esriLayerRef = useRef<any>(null);
@@ -1760,6 +1760,13 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           additionalProps={{ viewer: viewerRef.current }}
         />
       )}
+
+      {/* Legend/Info Overlay could go here */}
+    </div>
+  );
+});
+
+export default CesiumMap;}
 
       {/* Legend/Info Overlay could go here */}
     </div>
