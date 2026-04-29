@@ -36,6 +36,7 @@ ALLOWED_AUDIENCES = {
     KEYCLOAK_CLIENT_ID,
     GATEWAY_KEYCLOAK_CLIENT_ID,
     'nekazari-frontend',
+    'nekazari-mobile',
     'account',
 }
 # Realm role embedded in realm_access.roles for service tokens from nkz-api-gateway (client credentials).
