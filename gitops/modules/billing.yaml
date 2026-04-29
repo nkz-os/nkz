@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: billing
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nkz-os/nkz-module-billing
+    targetRevision: HEAD
+    path: k8s
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nekazari
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
