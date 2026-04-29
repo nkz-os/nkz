@@ -109,6 +109,7 @@ INTELLIGENCE_API_URL = os.getenv(
 AGRIENERGY_API_URL = os.getenv(
     "AGRIENERGY_API_URL", "http://agrienergy-api-service:8000"
 )
+LIDAR_API_URL = os.getenv("LIDAR_API_URL", "http://lidar-api-service:80")
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
 ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
@@ -3078,6 +3079,14 @@ def intelligence_proxy(path):
 )
 def agrienergy_proxy(path):
     return generic_proxy(AGRIENERGY_API_URL, f"api/agrienergy/{path}")
+
+
+@app.route(
+    "/api/lidar/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def lidar_proxy(path):
+    return generic_proxy(LIDAR_API_URL, f"api/lidar/{path}")
 
 
 # =============================================================================
