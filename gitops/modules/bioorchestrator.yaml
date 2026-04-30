@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bioorchestrator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nkz-os/nekazari-module-bioorchestrator
+    targetRevision: HEAD
+    path: k8s
+    directory:
+      exclude: '{secret.yaml,ingress.yaml,registration.sql}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nekazari
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true

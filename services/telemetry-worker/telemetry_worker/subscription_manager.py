@@ -74,6 +74,20 @@ SUBSCRIPTIONS = [
         "throttling": 5,
         "isActive": True,
     },
+    {
+        "description": "Telemetry Worker - CropHealthAssessment updates",
+        "type": "Subscription",
+        "entities": [{"type": "CropHealthAssessment"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 5,
+        "isActive": True,
+    },
 ]
 
 
