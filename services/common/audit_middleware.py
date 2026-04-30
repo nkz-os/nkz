@@ -8,44 +8,47 @@
 
 import os
 import logging
-from flask import request, g
+from flask import request
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 # Configuration
-AUDIT_MIDDLEWARE_ENABLED = os.getenv('AUDIT_MIDDLEWARE_ENABLED', 'true').lower() == 'true'
+AUDIT_MIDDLEWARE_ENABLED = (
+    os.getenv("AUDIT_MIDDLEWARE_ENABLED", "true").lower() == "true"
+)
 
 # Lista de exclusión (como sugiere el agente)
 EXCLUDED_PATHS = [
-    '/health',
-    '/metrics',
-    '/api/health',
-    '/api/metrics',
-    '/api/modules/me',  # Too frequent, not critical
+    "/health",
+    "/metrics",
+    "/api/health",
+    "/api/metrics",
+    "/api/modules/me",  # Too frequent, not critical
 ]
 
-EXCLUDED_METHODS = ['OPTIONS', 'HEAD']
+EXCLUDED_METHODS = ["OPTIONS", "HEAD"]
 
 # Map API paths to module IDs
 # Note: This should ideally be dynamic from marketplace_modules table
 # External modules should use their module ID directly in API paths (e.g., /api/vegetation-prime/...)
 MODULE_PATH_MAP = {
-    'ndvi': 'ndvi',
-    'weather': 'weather-module',
-    'sensors': 'sensors-module',
-    # Add more mappings as modules are added
-    # External modules: Use module ID directly (e.g., 'vegetation-prime' -> 'vegetation-prime')
+    "ndvi": "ndvi",
+    "weather": "weather-module",
+    "sensors": "sensors-module",
+    "vegetation": "vegetation-prime",
+    "bioorchestrator": "bioorchestrator",
+    "crop-health": "crop-health",
 }
 
 
 def _map_path_to_module(path_part: str) -> Optional[str]:
     """
     Map API path segment to module ID
-    
+
     Args:
         path_part: First segment after /api/ (e.g., 'vegetation', 'ndvi')
-    
+
     Returns:
         Module ID or None if not a module endpoint
     """
@@ -55,23 +58,23 @@ def _map_path_to_module(path_part: str) -> Optional[str]:
 def _extract_module_from_path(path: str) -> Optional[str]:
     """
     Extract module ID from request path
-    
+
     Examples:
         /api/vegetation/jobs -> 'vegetation-health'
         /api/ndvi/results -> 'ndvi'
         /api/modules/toggle -> None (platform endpoint)
     """
-    if not path.startswith('/api/'):
+    if not path.startswith("/api/"):
         return None
-    
-    parts = path.split('/')
+
+    parts = path.split("/")
     if len(parts) < 3:
         return None
-    
+
     # Skip platform endpoints
-    if parts[2] in ['modules', 'admin']:
+    if parts[2] in ["modules", "admin"]:
         return None
-    
+
     # Map path to module
     return _map_path_to_module(parts[2])
 
@@ -79,7 +82,7 @@ def _extract_module_from_path(path: str) -> Optional[str]:
 def setup_audit_middleware(app, postgres_url: Optional[str] = None):
     """
     Setup automatic audit logging middleware
-    
+
     Args:
         app: Flask application instance
         postgres_url: PostgreSQL connection URL (optional)
@@ -87,13 +90,13 @@ def setup_audit_middleware(app, postgres_url: Optional[str] = None):
     if not AUDIT_MIDDLEWARE_ENABLED:
         logger.info("Audit middleware disabled")
         return
-    
+
     try:
         from audit_logger import audit_log
     except ImportError:
         logger.warning("audit_logger not available, audit middleware disabled")
         return
-    
+
     @app.before_request
     def audit_request():
         """Log all requests to module endpoints"""
@@ -102,27 +105,26 @@ def setup_audit_middleware(app, postgres_url: Optional[str] = None):
             return
         if request.method in EXCLUDED_METHODS:
             return
-        
+
         # Extract module from path
         module_id = _extract_module_from_path(request.path)
-        
+
         # Only log module endpoints (not platform endpoints)
         if module_id:
             try:
                 audit_log(
-                    action='api.request',
+                    action="api.request",
                     module_id=module_id,
-                    resource_type='api_endpoint',
+                    resource_type="api_endpoint",
                     resource_id=request.path,
                     metadata={
-                        'method': request.method,
-                        'endpoint': request.path,
-                        'query_params': dict(request.args) if request.args else None,
+                        "method": request.method,
+                        "endpoint": request.path,
+                        "query_params": dict(request.args) if request.args else None,
                     },
                 )
             except Exception as e:
                 # Don't break the request if logging fails
                 logger.warning(f"Failed to log audit request: {e}")
-    
-    logger.info("Audit middleware enabled")
 
+    logger.info("Audit middleware enabled")
