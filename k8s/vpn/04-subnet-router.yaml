@@ -1,0 +1,90 @@
+# =============================================================================
+# Tailscale Subnet Router — Conecta la red VPN con los servicios del cluster
+# =============================================================================
+# Este pod expone los servicios ClusterIP de Kubernetes (10.43.0.0/16) a los
+# dispositivos de campo conectados via Headscale/Tailscale.
+#
+# Sin esto, los robots NO pueden alcanzar zenoh-service:7447 ni mosquitto:1883
+# desde la VPN, aunque las ACLs lo permitan.
+# =============================================================================
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale-subnet-router
+  namespace: nekazari
+  labels:
+    app: tailscale-subnet-router
+    component: vpn
+    layer: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tailscale-subnet-router
+  template:
+    metadata:
+      labels:
+        app: tailscale-subnet-router
+        component: vpn
+        layer: infrastructure
+    spec:
+      containers:
+        - name: tailscale
+          image: tailscale/tailscale:v1.84
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-subnet-router-secret
+                  key: TS_AUTHKEY
+            - name: TS_HOSTNAME
+              value: nekazari-subnet-router
+            - name: TS_ROUTES
+              value: 10.43.0.0/16
+            - name: TS_LOGIN_SERVER
+              value: https://vpn.robotika.cloud
+            - name: TS_ACCEPT_ROUTES
+              value: "false"
+            - name: TS_EXTRA_ARGS
+              value: "--snat-subnet-routes=false --accept-routes=false"
+            - name: TS_STATE_DIR
+              value: /var/lib/tailscale
+            - name: TS_KUBE_SECRET
+              value: ""  # Don't create K8s secret for tailscale state
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+            readOnlyRootFilesystem: false
+          volumeMounts:
+            - name: tailscale-state
+              mountPath: /var/lib/tailscale
+            - name: dev-net-tun
+              mountPath: /dev/net/tun
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            exec:
+              command:
+                - tailscale
+                - status
+                - --json
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: tailscale-state
+          emptyDir: {}
+        - name: dev-net-tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice

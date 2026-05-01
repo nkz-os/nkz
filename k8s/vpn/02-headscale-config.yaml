@@ -106,21 +106,32 @@ data:
       // El subnet router del cluster tiene el tag 'tag:cluster-router'
       "tagOwners": {
         "tag:field-device":  ["autogroup:admin"],
-        "tag:cluster-router": ["autogroup:admin"]
+        "tag:cluster-router": ["autogroup:admin", "cluster-infra"]
+      },
+
+      // Aliases for readability
+      "groups": {
+        "group:subnet-routers": ["cluster-infra"]
       },
 
       "acls": [
+        // Subnet router → todos los servicios del cluster (reenvío de tráfico)
+        {
+          "action": "accept",
+          "src":    ["group:subnet-routers"],
+          "dst":    ["10.43.0.0/16:*"]
+        },
         // Dispositivos de campo → Zenoh router (teleoperation, telemetry)
         {
           "action": "accept",
           "src":    ["tag:field-device"],
-          "dst":    ["tag:cluster-router:7447"]
+          "dst":    ["tag:cluster-router:7447", "group:subnet-routers:7447"]
         },
         // Dispositivos de campo → MQTT broker (management plane, slow data)
         {
           "action": "accept",
           "src":    ["tag:field-device"],
-          "dst":    ["tag:cluster-router:1883"]
+          "dst":    ["tag:cluster-router:1883", "group:subnet-routers:1883"]
         }
         // Todo lo demás: denegado implícitamente (no hay catch-all accept).
       ]
