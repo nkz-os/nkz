@@ -348,41 +348,98 @@ class RiskOrchestrator:
 
         return orion_updated
 
+    def _process_crop_event(self, event: Dict[str, Any]) -> bool:
+        """Process a crop-health event from Redis Stream."""
+        event_type = event.get("event_type", "")
+        tenant_id = event.get("tenant_id", "")
+        parcel_id = event.get("parcel_id", "")
+        severity = event.get("overall_severity", "LOW")
+        action = event.get("recommended_action", "")
+        cwsi = event.get("cwsi")
+        timestamp = event.get("timestamp", "")
+
+        if not tenant_id or not parcel_id:
+            return False
+
+        # Update Orion-LD for HIGH/CRITICAL crop stress
+        if severity in ("HIGH", "CRITICAL"):
+            entity_id = f"urn:ngsi-ld:AgriParcel:{parcel_id}"
+            risk_status = {
+                "risk_code": "crop_water_stress",
+                "probability_score": 85.0 if severity == "CRITICAL" else 65.0,
+                "severity": severity.lower(),
+                "timestamp": timestamp,
+            }
+            self._update_orion_entity(tenant_id, entity_id, risk_status)
+
+            # Dispatch email notification
+            try:
+                sub = self._get_tenant_email_subscription(tenant_id, "crop_water_stress")
+                if sub and sub.get("email_enabled"):
+                    cwsi_str = f" CWSI={cwsi:.2f}" if cwsi is not None else ""
+                    self._send_email_notification(
+                        email=sub["email"],
+                        farmer_name=tenant_id,
+                        risk_code=f"Crop Water Stress ({severity}){cwsi_str}",
+                        probability_score=85.0 if severity == "CRITICAL" else 65.0,
+                        severity=severity.lower(),
+                        entity_id=entity_id,
+                    )
+            except Exception as e:
+                logger.warning(f"Crop event email error (non-fatal): {e}")
+
+        logger.info(
+            "Crop event processed: parcel=%s severity=%s action=%s",
+            parcel_id, severity, action,
+        )
+        return True
+
     def run(self):
-        """Main loop: consume events from Redis Streams"""
+        """Main loop: consume events from Redis Streams (risk + crop)"""
         logger.info(f"Risk Orchestrator started (consumer: {CONSUMER_NAME})")
+
+        streams = ["risk:events", "crop:events"]
 
         while True:
             try:
-                # Consume events from stream
-                events = self.redis_queue.consume_tasks(
-                    consumer_group=CONSUMER_GROUP, consumer_name=CONSUMER_NAME, count=10
-                )
+                events = []
+                for stream in streams:
+                    try:
+                        stream_events = self.redis_queue.consume_tasks(
+                            consumer_group=CONSUMER_GROUP,
+                            consumer_name=CONSUMER_NAME,
+                            count=10,
+                            stream_name=stream,
+                        )
+                        if stream_events:
+                            for e in stream_events:
+                                e["_stream"] = stream
+                            events.extend(stream_events)
+                    except Exception:
+                        pass  # Stream may not exist yet
 
                 if not events:
-                    # No events, sleep briefly
                     time.sleep(1)
                     continue
 
                 for event in events:
                     try:
-                        # Extract payload if nested
                         payload = event.get("payload", event)
                         if isinstance(payload, str):
                             payload = json.loads(payload)
 
-                        # Process event
                         task_id = event.get("id")
-                        if self._process_risk_event(payload):
-                            # Acknowledge successful processing
-                            if task_id:
-                                self.redis_queue.acknowledge_task(
-                                    CONSUMER_GROUP, task_id
-                                )
+                        stream = event.get("_stream", "risk:events")
+
+                        if stream == "crop:events":
+                            success = self._process_crop_event(payload)
                         else:
-                            logger.warning(
-                                f"Failed to process event: {event.get('risk_code')}"
-                            )
+                            success = self._process_risk_event(payload)
+
+                        if success and task_id:
+                            self.redis_queue.acknowledge_task(CONSUMER_GROUP, task_id)
+                        elif not success:
+                            logger.warning("Failed to process event from %s", stream)
 
                     except Exception as e:
                         logger.error(f"Error processing event: {e}")
