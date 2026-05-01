@@ -1783,6 +1783,186 @@ def get_entity_stats(entity_id: str):
         return jsonify({"error": str(e)}), 500
 
 
+# =============================================================================
+# Weather API — unified weather data access for all platform modules
+# =============================================================================
+
+@app.route("/api/weather/current", methods=["GET"])
+@require_auth
+def weather_current():
+    """Latest weather for a location (lat/lon or municipality).
+
+    Returns: temp_avg, temp_min, temp_max, humidity_avg, precip_mm, eto_mm,
+             wind_speed_ms, wind_direction_deg, pressure_hpa, solar_rad_w_m2,
+             delta_t, gdd_accumulated, observed_at
+    """
+    auth_result = _resolve_tenant_context()
+    if isinstance(auth_result, tuple):
+        return auth_result
+    tenant_id = auth_result
+
+    lat = request.args.get("lat", type=float)
+    lon = request.args.get("lon", type=float)
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cursor.execute(
+                    "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+                )
+            except Exception:
+                pass
+
+            if lat is not None and lon is not None:
+                cursor.execute(
+                    """
+                    SELECT temp_avg, temp_min, temp_max, humidity_avg,
+                           precip_mm, eto_mm, wind_speed_ms, wind_direction_deg,
+                           pressure_hpa, solar_rad_w_m2, delta_t, gdd_accumulated,
+                           observed_at, municipality_code
+                    FROM weather_observations
+                    WHERE tenant_id = %s
+                      AND observed_at > NOW() - INTERVAL '3 hours'
+                    ORDER BY observed_at DESC
+                    LIMIT 1
+                    """,
+                    (tenant_id,),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT temp_avg, temp_min, temp_max, humidity_avg,
+                           precip_mm, eto_mm, wind_speed_ms, wind_direction_deg,
+                           pressure_hpa, solar_rad_w_m2, delta_t, gdd_accumulated,
+                           observed_at, municipality_code
+                    FROM weather_observations
+                    WHERE tenant_id = %s
+                      AND observed_at > NOW() - INTERVAL '3 hours'
+                    ORDER BY observed_at DESC
+                    LIMIT 1
+                    """,
+                    (tenant_id,),
+                )
+
+            row = cursor.fetchone()
+            if row is None:
+                return jsonify({"error": "No recent weather data"}), 404
+
+            return jsonify(dict(row)), 200
+    except Exception as e:
+        logger.error(f"Error querying current weather: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/weather/historical", methods=["GET"])
+@require_auth
+def weather_historical():
+    """Weather timeseries for a location and date range.
+
+    Query params: start_time (ISO 8601), end_time (ISO 8601, default=now),
+                  lat (optional), lon (optional), attributes (comma-separated)
+    """
+    auth_result = _resolve_tenant_context()
+    if isinstance(auth_result, tuple):
+        return auth_result
+    tenant_id = auth_result
+
+    start_time = request.args.get("start_time")
+    end_time = request.args.get("end_time")
+    attrs_param = request.args.get("attributes", "temp_avg,humidity_avg,precip_mm,eto_mm")
+
+    if not start_time:
+        return jsonify({"error": "start_time is required"}), 400
+
+    try:
+        import dateutil.parser
+        start_dt = dateutil.parser.parse(start_time)
+        end_dt = dateutil.parser.parse(end_time) if end_time else datetime.utcnow()
+
+        requested = [a.strip() for a in attrs_param.split(",") if a.strip() in VALID_ATTRIBUTES]
+        if not requested:
+            requested = ["temp_avg", "humidity_avg", "precip_mm", "eto_mm"]
+        columns = ", ".join(requested)
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cursor.execute(
+                    "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+                )
+            except Exception:
+                pass
+
+            cursor.execute(
+                f"""
+                SELECT observed_at, {columns}
+                FROM weather_observations
+                WHERE tenant_id = %s
+                  AND observed_at >= %s
+                  AND observed_at < %s
+                ORDER BY observed_at ASC
+                """,
+                (tenant_id, start_dt, end_dt),
+            )
+            rows = cursor.fetchall()
+            return jsonify([dict(r) for r in rows]), 200
+    except Exception as e:
+        logger.error(f"Error querying historical weather: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/weather/gdd", methods=["GET"])
+@require_auth
+def weather_gdd():
+    """Growing Degree Days accumulated since a season start date.
+
+    Query params: base_temp (default=10.0), season_start (ISO 8601, required)
+    """
+    auth_result = _resolve_tenant_context()
+    if isinstance(auth_result, tuple):
+        return auth_result
+    tenant_id = auth_result
+
+    base_temp = request.args.get("base_temp", 10.0, type=float)
+    season_start = request.args.get("season_start")
+
+    if not season_start:
+        return jsonify({"error": "season_start is required"}), 400
+
+    try:
+        import dateutil.parser
+        start_dt = dateutil.parser.parse(season_start)
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cursor.execute(
+                    "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
+                )
+            except Exception:
+                pass
+
+            cursor.execute(
+                """
+                SELECT SUM(gdd_accumulated) AS gdd_total,
+                       COUNT(*) AS days_with_data,
+                       MIN(observed_at) AS first_date,
+                       MAX(observed_at) AS last_date
+                FROM weather_observations
+                WHERE tenant_id = %s
+                  AND observed_at >= %s
+                  AND gdd_accumulated IS NOT NULL
+                """,
+                (tenant_id, start_dt),
+            )
+            row = cursor.fetchone()
+            return jsonify(dict(row) if row else {"gdd_total": 0, "days_with_data": 0}), 200
+    except Exception as e:
+        logger.error(f"Error querying GDD: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     debug = os.getenv("DEBUG", "false").lower() == "true"
