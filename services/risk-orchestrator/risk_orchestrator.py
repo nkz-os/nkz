@@ -64,6 +64,7 @@ POSTGRES_URL = (
     else None
 )
 EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
+PUSH_SERVICE_URL = os.getenv("PUSH_SERVICE_URL", "http://push-notification-service:5000")
 
 SEVERITY_ORDER = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
@@ -286,6 +287,34 @@ class RiskOrchestrator:
         except Exception as e:
             logger.warning(f"Email notification dispatch error (non-fatal): {e}")
 
+    def _send_push_notification(
+        self,
+        tenant_id: str,
+        title: str,
+        body: str,
+        notification_data: dict | None = None,
+    ) -> None:
+        """POST push notification to the push-notification-service."""
+        try:
+            payload = {
+                "tenant_id": tenant_id,
+                "title": title,
+                "body": body,
+                "data": notification_data or {},
+            }
+            resp = requests.post(
+                f"{PUSH_SERVICE_URL}/send/push",
+                json=payload,
+                headers={"X-Internal-Secret": os.getenv("INTERNAL_SECRET", "")},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                logger.info("Push notification sent to tenant %s: %s", tenant_id, title)
+            else:
+                logger.debug("Push service returned %d", resp.status_code)
+        except Exception as e:
+            logger.warning(f"Push notification dispatch error (non-fatal): {e}")
+
     def _process_risk_event(self, event: Dict[str, Any]) -> bool:
         """Process a single risk event"""
         tenant_id = event.get("tenant_id")
@@ -346,6 +375,23 @@ class RiskOrchestrator:
         except Exception as e:
             logger.warning(f"Email notification error (non-fatal): {e}")
 
+        # Dispatch push notification
+        try:
+            sub = self._get_tenant_email_subscription(tenant_id, risk_code)
+            if sub:
+                self._send_push_notification(
+                    tenant_id=tenant_id,
+                    title=f"Risk Alert — {risk_code}",
+                    body=f"{severity.upper()}: probability {probability_score:.0f}% on {entity_id}",
+                    notification_data={
+                        "screen": "module/risks",
+                        "entityId": entity_id,
+                        "riskCode": risk_code,
+                    },
+                )
+        except Exception as e:
+            logger.warning(f"Push notification error (non-fatal): {e}")
+
         return orion_updated
 
     def _process_crop_event(self, event: Dict[str, Any]) -> bool:
@@ -387,6 +433,23 @@ class RiskOrchestrator:
                     )
             except Exception as e:
                 logger.warning(f"Crop event email error (non-fatal): {e}")
+
+        # Dispatch push notification for HIGH/CRITICAL
+        if severity in ("HIGH", "CRITICAL"):
+            try:
+                cwsi_str = f" (CWSI {cwsi:.2f})" if cwsi is not None else ""
+                self._send_push_notification(
+                    tenant_id=tenant_id,
+                    title=f"Crop Stress — {severity}",
+                    body=f"Parcel {parcel_id}:{cwsi_str} — {action}",
+                    notification_data={
+                        "screen": "module/crop-health",
+                        "parcelId": parcel_id,
+                        "severity": severity,
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"Crop push notification error (non-fatal): {e}")
 
         logger.info(
             "Crop event processed: parcel=%s severity=%s action=%s",
