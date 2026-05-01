@@ -26,6 +26,9 @@ const SDM_ATTRIBUTES: Record<string, { attr: string; desc: string; unit: string 
         { attr: 'energyProduction', desc: 'Energy production', unit: 'kWh' },
         { attr: 'batteryLevel', desc: 'Battery level', unit: '%' },
         { attr: 'rssi', desc: 'Signal strength', unit: 'dBm' },
+        // Crop Health specific (CWSI engine)
+        { attr: 'leafTemperature', desc: '[Crop Health] Canopy temperature for CWSI', unit: 'CEL' },
+        { attr: 'trunkDiameter', desc: '[Crop Health] Trunk micro-variation for MDS', unit: 'µm' },
     ],
 };
 
@@ -235,6 +238,33 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                             <li><b>Capture a message:</b> Connect your sensor to a test broker and observe the JSON.</li>
                             <li><b>Map the fields:</b> Note each field name (e.g. <code>temp_c</code>) and match it to an SDM attribute above.</li>
                         </ol>
+                    </div>
+
+                    {/* Crop Health Sensors */}
+                    <div className="bg-green-50 -mx-6 px-6 py-4 border-t border-b border-green-100 mt-4">
+                        <h4 className="text-sm font-semibold text-green-800 mb-2 flex items-center gap-2">
+                            🌱 Crop Health Sensors
+                        </h4>
+                        <p className="text-xs text-green-700 mb-3">
+                            For crop water stress monitoring, use these attributes. Templates available in the <code className="bg-green-100 px-1 rounded">nkz-module-crop-health/templates/</code> folder.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                            <div className="bg-white rounded-lg p-2 border border-green-200">
+                                <span className="font-semibold text-green-700">IR Canopy</span>
+                                <p className="text-gray-600">→ <code>leafTemperature</code> (CEL)</p>
+                                <p className="text-gray-400">for CWSI calculation</p>
+                            </div>
+                            <div className="bg-white rounded-lg p-2 border border-green-200">
+                                <span className="font-semibold text-green-700">Dendrometer</span>
+                                <p className="text-gray-600">→ <code>trunkDiameter</code> (µm)</p>
+                                <p className="text-gray-400">for MDS calculation</p>
+                            </div>
+                            <div className="bg-white rounded-lg p-2 border border-green-200">
+                                <span className="font-semibold text-green-700">TDR Probe</span>
+                                <p className="text-gray-600">→ <code>soilMoisture</code> (%)</p>
+                                <p className="text-gray-400">for Water Balance</p>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Action Footer */}
