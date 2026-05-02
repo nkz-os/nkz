@@ -20,20 +20,37 @@
    - Settings → Import from file
    - Select the JSON file
 
-2. Configure credentials:
-   - **Anthropic API**: add API key in N8N credentials
-   - **Zulip Bot**: create HTTP Basic Auth credential with bot email + API key
-     (from `kubectl get secret zulip-secret -n nekazari -o jsonpath='{.data.bot-email}' | base64 -d`)
+2. Configure credentials in N8N (Credentials → New):
+   - **DeepSeek API** (preferred): API key from platform.deepseek.com. Add as "DeepSeek API" credential.
+     If using Anthropic Claude instead: add API key from console.anthropic.com as "Anthropic API" credential.
+   - **Zulip Bot** (HTTP Basic Auth):
+     Username: `kubectl get secret zulip-secret -n nekazari -o jsonpath='{.data.bot-email}' | base64 -d`
+     Password: `kubectl get secret zulip-secret -n nekazari -o jsonpath='{.data.bot-api-key}' | base64 -d`
 
-3. Register webhook in `tenant_risk_webhooks`:
+3. Update the LLM node in the workflow:
+   - Open the "LLM — Anthropic Claude" node
+   - If using DeepSeek: change provider to DeepSeek, select DeepSeek credential
+   - Model: `deepseek-chat` or `claude-sonnet-4-20250514`
+   - Verify the prompt is in Spanish and agronomic context is preserved
+
+4. Verify Zulip stream exists:
+   ```bash
+   kubectl exec -n nekazari deploy/zulip-provisioner -- python -c "
+   from zulip_client import ZulipClient
+   c = ZulipClient()
+   c.ensure_stream('tenant-<TENANT_ID>-alerts')
+   "
+   ```
+
+5. Register webhook in `tenant_risk_webhooks`:
    ```sql
    INSERT INTO tenant_risk_webhooks (tenant_id, name, url, events, min_severity, is_active)
-   VALUES ('<tenant_id>', 'N8N Crop Alert Analyzer',
+   VALUES ('<TENANT_ID>', 'N8N Crop Alert Analyzer',
            'https://n8n.nekazari.robotika.cloud/webhook/crop-alert',
            ARRAY['crop_water_stress', 'risk_evaluation'], 'medium', true);
    ```
 
-4. Activate the workflow (toggle ON in N8N)
+6. Activate the workflow (toggle ON in N8N)
 
 ### Testing
 
