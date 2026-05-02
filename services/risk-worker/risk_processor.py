@@ -60,7 +60,9 @@ POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "nekazari")
 
 ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
-CONTEXT_URL = os.getenv("CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json")
+CONTEXT_URL = os.getenv(
+    "CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json"
+)
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis-service:6379")
 
 # Build PostgreSQL URL
@@ -703,6 +705,20 @@ class RiskProcessor:
                         f"Error evaluating risk {risk_code} for entity {entity_id}: {e}"
                     )
                     errors += 1
+
+        # ── Evaluate disease risks (epidemiological models) ─────────────────
+        try:
+            from disease_evaluator import evaluate_disease_risks
+
+            weather_sample = self._get_weather_data(tenant_id, "")
+            if weather_sample:
+                evaluate_disease_risks(
+                    tenant_id=tenant_id,
+                    weather_data=weather_sample,
+                    fidelity="regional_proxy",
+                )
+        except Exception as e:
+            logger.debug("Disease risk evaluation skipped: %s", e)
 
         return {"evaluated": evaluated, "errors": errors}
 
