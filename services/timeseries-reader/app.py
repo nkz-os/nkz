@@ -128,6 +128,10 @@ _VALID_TELEMETRY_BASE = frozenset(
         "humidity",
         "temperature",
         "panelInclination",
+        # Crop Health Assessment attributes
+        "cwsiValue", "mdsValue", "mdsRatio", "vpdKpa",
+        "waterBalanceDeficit", "vigorIndex", "compositeStressIndex",
+        "yieldUtilizationPct",
     }
 )
 
