@@ -1,0 +1,35 @@
+# =============================================================================
+# Headscale Ingress — expone el control plane via vpn.robotika.cloud
+# =============================================================================
+# TLS: cert-manager Certificate 'vpn-tls' (Secret 'vpn-tls')
+# Middleware: none (los headers custom no son críticos para Headscale)
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: headscale-ingress
+  namespace: nekazari
+  labels:
+    app: headscale
+    component: vpn-control-plane
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - vpn.robotika.cloud
+      secretName: vpn-tls
+  rules:
+    - host: vpn.robotika.cloud
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: headscale-service
+                port:
+                  name: http
