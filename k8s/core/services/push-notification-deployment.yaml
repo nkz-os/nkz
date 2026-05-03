@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: push-notification
-          image: ghcr.io/nkz-os/nkz/push-notification:latest
+          image: ghcr.io/nkz-os/nkz/push-notification-service:latest
           imagePullPolicy: Always
           ports:
             - name: http
@@ -28,24 +28,21 @@ spec:
             - name: INTERNAL_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: internal-secret
-                  key: internal-secret
-            - name: POSTGRES_HOST
-              value: "postgresql-service"
-            - name: POSTGRES_PORT
-              value: "5432"
-            - name: POSTGRES_DB
-              value: "nekazari"
+                  name: module-secrets
+                  key: management-key
+                  optional: true
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
                   name: postgresql-secret
-                  key: username
+                  key: POSTGRES_USER
+                  optional: true
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: postgresql-secret
                   key: password
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
