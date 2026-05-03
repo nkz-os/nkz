@@ -6,6 +6,7 @@ import * as NKZSdk from '@nekazari/sdk';
 import * as UIKit from '@nekazari/ui-kit';
 import * as DesignTokens from '@nekazari/design-tokens';
 import { ThemeProvider } from '@nekazari/design-tokens';
+import { useViewerTheme } from './hooks/useViewerTheme';
 import App from './App.tsx';
 import './index.css';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
@@ -58,6 +59,16 @@ window.onunhandledrejection = (event) => {
 // Application Bootstrap
 // =============================================================================
 
+// ViewerThemeWrapper — provides ThemeProvider with toggleable viewer profile
+function ViewerThemeWrapper({ children }: { children: React.ReactNode }) {
+  const { profile, toggle } = useViewerTheme();
+  return (
+    <ThemeProvider profile={profile} onChange={toggle}>
+      {children}
+    </ThemeProvider>
+  );
+}
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element #root not found');
@@ -68,9 +79,9 @@ const root = ReactDOMClient.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <ErrorBoundary componentName="Application">
-      <ThemeProvider profile="viewer">
+      <ViewerThemeWrapper>
         <App />
-      </ThemeProvider>
+      </ViewerThemeWrapper>
     </ErrorBoundary>
   </React.StrictMode>
 );
