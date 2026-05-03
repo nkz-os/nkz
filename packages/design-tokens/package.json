@@ -17,7 +17,12 @@
     "./native": "./dist/native-tokens.js"
   },
   "type": "module",
-  "files": ["dist", "README.md", "LICENSE", "package.json"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
   "scripts": {
     "build": "tsx src/build-css.ts && tsx src/build-tailwind.ts && tsx src/build-native.ts && tsup src/index.ts --format cjs,esm --dts --external react,react-dom",
     "dev": "tsx watch src/build-css.ts"
@@ -27,6 +32,9 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "tsup": "^8.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.2.2"
