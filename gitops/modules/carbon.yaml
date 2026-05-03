@@ -1,0 +1,20 @@
+# Carbon module — source of truth: nkz-module-carbon repo (GitOps strict).
+# Syncs Deployment, Service, Ingress from the module repo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: carbon
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nkz-os/nkz-module-carbon
+    targetRevision: HEAD
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nekazari
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
