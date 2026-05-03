@@ -184,6 +184,38 @@ class RiskProcessor:
 
         return all_entities
 
+    def _get_weather_for_entity(
+        self, entity_id: str, tenant_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get downscaled weather for a specific entity via the platform API.
+
+        Uses GET /api/weather/parcel/{entity_id} which applies spatial
+        downscaling (altitude, aspect, slope). Falls back silently to None
+        if the API is unreachable — caller should use _get_weather_data().
+        """
+        try:
+            entity_manager_url = os.getenv(
+                "ENTITY_MANAGER_URL", "http://entity-manager-service:5000"
+            )
+            resp = requests.get(
+                f"{entity_manager_url}/api/weather/parcel/{entity_id}",
+                params={"source": "OPEN-METEO", "data_type": "HISTORY", "limit": 1},
+                headers={"X-Tenant-ID": tenant_id},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                observations = data.get("observations", [])
+                if observations:
+                    obs = observations[0]
+                    obs["_source"] = "parcel_api"
+                    obs["_downscaling"] = data.get("downscaling", "unknown")
+                    return obs
+        except Exception as e:
+            logger.debug(f"Weather parcel API unavailable for {entity_id}: {e}")
+        return None
+
     def _get_weather_data(
         self, tenant_id: str, municipality_code: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:

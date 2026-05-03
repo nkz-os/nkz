@@ -450,7 +450,14 @@
     "required_coordinates": "Por favor ingresa las coordenadas GPS (latitud y longitud)",
     "save": "Guardar Estación",
     "saving": "Guardando...",
-    "save_error": "Error al guardar la estación meteorológica"
+    "save_error": "Error al guardar la estación meteorológica",
+    "gdd": "GDD",
+    "gdd_base_10": "base 10°C",
+    "et0": "ET₀",
+    "et0_desc": "Evapotranspiración",
+    "downscaling_active": "Datos corregidos para esta parcela (altitud/orientación/pendiente)",
+    "select_parcel": "Seleccionar parcela",
+    "clear_parcel": "Limpiar selección"
   },
   "wizard": {
     "array": {

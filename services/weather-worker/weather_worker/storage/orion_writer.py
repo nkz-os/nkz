@@ -458,13 +458,15 @@ def sync_weather_to_orion(
     observed_at: Optional[datetime] = None,
     radius_km: float = 10.0,
     municipality_code: Optional[str] = None,
+    station_altitude_m: float = 0.0,
 ) -> int:
     """
     Sync weather data to Orion-LD for all parcels near a location.
 
     This function:
     1. Queries Orion-LD for parcels near the location
-    2. Creates/updates WeatherObserved entities for each parcel
+    2. Applies spatial downscaling (altitude, aspect, slope) per parcel
+    3. Creates/updates WeatherObserved entities for each parcel
 
     Args:
         tenant_id: Tenant ID
@@ -474,6 +476,7 @@ def sync_weather_to_orion(
         observed_at: Observation timestamp
         radius_km: Search radius for parcels (default: 10km)
         municipality_code: Optional INE/AEMET municipality code forwarded to each entity
+        station_altitude_m: Altitude of the weather station/municipality in meters
 
     Returns:
         Number of WeatherObserved entities synced
@@ -541,12 +544,38 @@ def sync_weather_to_orion(
             if not parcel_location:
                 parcel_location = (longitude, latitude)
 
-            # Create/update WeatherObserved entity with spatial clustering enabled
+            # Apply spatial downscaling for this specific parcel
+            parcel_weather = weather_data
+            try:
+                from weather_worker.processors.spatial_downscaler import (
+                    downscale_for_parcel,
+                    extract_parcel_terrain,
+                )
+
+                parcel_alt, parcel_aspect, parcel_slope = extract_parcel_terrain(parcel)
+                if parcel_alt > 0 or station_altitude_m > 0:
+                    doy = observed_at.timetuple().tm_yday if observed_at else None
+                    parcel_weather = downscale_for_parcel(
+                        weather_data=weather_data,
+                        parcel_lat=parcel_location[1],
+                        parcel_lon=parcel_location[0],
+                        parcel_altitude_m=parcel_alt if parcel_alt > 0 else station_altitude_m,
+                        station_altitude_m=station_altitude_m,
+                        parcel_aspect_deg=parcel_aspect,
+                        parcel_slope_deg=parcel_slope,
+                        doy=doy,
+                    )
+            except ImportError:
+                pass  # downscaler not available, use uncorrected data
+            except Exception as exc:
+                logger.debug(f"Spatial downscaling skipped for parcel {parcel_id}: {exc}")
+
+            # Create/update WeatherObserved entity with corrected weather
             entity_id = create_weather_observed_entity(
                 parcel_id=parcel_id,
                 tenant_id=tenant_id,
                 location=parcel_location,
-                weather_data=weather_data,
+                weather_data=parcel_weather,
                 observed_at=observed_at,
                 municipality_code=municipality_code,
             )

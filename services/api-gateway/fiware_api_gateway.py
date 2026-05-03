@@ -15,6 +15,8 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import time
+import uuid
+import boto3
 from collections import defaultdict, deque
 
 # Configure logging FIRST
@@ -1774,12 +1776,16 @@ def proxy_routing_tiles(subpath):
     tenant = extract_tenant_id(payload)
     if not tenant:
         return jsonify({"error": "Tenant not present in token"}), 401
-    target_url = "http://nkz-module-gis-routing-service:8000/api/nkz-module-gis-routing/tiles"
+    target_url = (
+        "http://nkz-module-gis-routing-service:8000/api/nkz-module-gis-routing/tiles"
+    )
     req_params = dict(request.args)
     req_params["parcel_id"] = subpath
     headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
     try:
-        response = requests.get(target_url, headers=headers, params=req_params, timeout=120)
+        response = requests.get(
+            target_url, headers=headers, params=req_params, timeout=120
+        )
         return (response.content, response.status_code, response.headers.items())
     except Exception as e:
         logger.error(f"Error proxying PMTiles request: {e}")
@@ -1851,15 +1857,23 @@ def field_image_upload():
             "id": f"urn:ngsi-ld:AgriCropObservation:photo-{ts}-{uuid_str}",
             "type": "AgriCropObservation",
             "imageUrl": {"type": "Property", "value": image_url},
-            "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [lng, lat]}},
+            "location": {
+                "type": "GeoProperty",
+                "value": {"type": "Point", "coordinates": [lng, lat]},
+            },
             "dateObserved": {"type": "Property", "value": captured_at},
-            "refTenant": {"type": "Relationship", "object": f"urn:ngsi-ld:Tenant:{tenant}"},
+            "refTenant": {
+                "type": "Relationship",
+                "object": f"urn:ngsi-ld:Tenant:{tenant}",
+            },
         }
         if note:
             ngsi_entity["note"] = {"type": "Property", "value": note}
         if accuracy is not None:
             ngsi_entity["accuracy"] = {"type": "Property", "value": accuracy}
-        ctx_url = os.getenv("CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json")
+        ctx_url = os.getenv(
+            "CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json"
+        )
         ORION_LD_URL = os.getenv("ORION_URL", "http://orion-service:1026")
         ngsi_entity["@context"] = [ctx_url]
         ngsi_resp = requests.post(
@@ -1872,7 +1886,9 @@ def field_image_upload():
             entity_id = ngsi_entity["id"]
     except Exception as e:
         logger.warning("NGSI-LD observation creation failed (non-fatal): %s", e)
-    return jsonify({"success": True, "image_url": image_url, "entity_id": entity_id}), 200
+    return jsonify(
+        {"success": True, "image_url": image_url, "entity_id": entity_id}
+    ), 200
 
 
 @app.route("/api/push/register", methods=["POST", "OPTIONS"])
@@ -1890,7 +1906,9 @@ def proxy_push_register():
     target_url = "http://push-notification-service:5000/register"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     try:
-        response = requests.post(target_url, headers=headers, json=request.get_json(silent=True), timeout=10)
+        response = requests.post(
+            target_url, headers=headers, json=request.get_json(silent=True), timeout=10
+        )
         return (response.content, response.status_code, response.headers.items())
     except Exception as e:
         logger.error(f"Error proxying push register: {e}")

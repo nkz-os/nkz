@@ -43,6 +43,7 @@ interface WeatherWidgetProps {
   municipalityName?: string;
   latitude?: number;
   longitude?: number;
+  parcelId?: string;
   onMunicipalitySelect?: (code: string, name: string) => void;
 }
 
@@ -51,6 +52,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   municipalityName,
   latitude: _latitude,
   longitude: _longitude,
+  parcelId,
   onMunicipalitySelect,
 }) => {
   const { t } = useI18n();
@@ -62,6 +64,14 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   const [forecast, setForecast] = useState<ForecastData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [downscaling, setDownscaling] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<Array<{
+    alert_type: string;
+    alert_category: string;
+    effective_from: string;
+    effective_to: string;
+    description: string;
+  }>>([]);
   const [showMunicipalitySearch, setShowMunicipalitySearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [municipalities, setMunicipalities] = useState<Array<{ code: string; name: string; province?: string; fullName?: string }>>([]);
@@ -121,21 +131,6 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     }
   };
 
-  // Fallback function to fetch from Open-Meteo directly when no data in DB
-  const fetchOpenMeteoDirectly = async (lat: number, lon: number) => {
-    try {
-      // Request 7 days to ensure we have enough data for 5 complete days
-      const response = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,pressure_msl&hourly=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_direction_10m,pressure_msl&forecast_days=7&timezone=Europe%2FMadrid`
-      );
-      if (!response.ok) throw new Error('Open-Meteo API error');
-      return await response.json();
-    } catch (err) {
-      logger.error('[WeatherWidget] Error fetching from Open-Meteo:', err);
-      return null;
-    }
-  };
-
   const loadWeatherByMunicipality = async (code?: string, name?: string, province?: string) => {
     const targetCode = code || municipalityCode;
     if (!targetCode) return;
@@ -144,205 +139,77 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     setError(null);
 
     try {
-      // Get latest weather observations from backend
-      const observations = await api.getLatestWeatherObservations({
-        municipality_code: targetCode,
-        source: 'OPEN-METEO',
-        data_type: 'HISTORY',
-      });
+      // When a parcel is selected, use the corrected parcel weather API
+      const useParcelApi = !!(parcelId && parcelId.length > 0);
+      let observations: any[] = [];
+      let forecastObs: any[] = [];
+      let parcelDownscaling: string | null = null;
 
-      // Get forecast data (ask for more days to ensure 5 uniques)
-      let forecastData: { observations?: any[]; count?: number } | null = null;
-      try {
-        forecastData = await api.getWeatherObservations({
-          municipality_code: targetCode,
-          source: 'OPEN-METEO',
-          data_type: 'FORECAST',
-          limit: 200, // Request more observations to ensure we get 5 complete days (24 hours * 7 days = 168 hours)
-        });
-      } catch (forecastErr) {
-        logger.warn('Error fetching forecast data:', forecastErr);
-        // Continue without forecast - not critical
-      }
-
-      // If no data in DB, try fallback to Open-Meteo direct
-      if (observations.length === 0 || !forecastData || forecastData.observations?.length === 0) {
-        logger.debug('[WeatherWidget] No data in DB, using Open-Meteo fallback', {
-          observationsCount: observations.length,
-          forecastDataCount: forecastData?.observations?.length || 0
-        });
-        
-        // Get municipality coordinates from search result
-        const municipalitySearch = await api.searchMunicipalities(name || targetCode);
-        const municipality = municipalitySearch.municipalities?.[0];
-        
-        logger.debug('[WeatherWidget] Municipality found:', municipality);
-        
-        if (municipality && municipality.latitude && municipality.longitude) {
-          const openMeteoData = await fetchOpenMeteoDirectly(
-            municipality.latitude,
-            municipality.longitude
-          );
-          
-          logger.debug('[WeatherWidget] Open-Meteo data received:', {
-            hasCurrent: !!openMeteoData?.current,
-            hasHourly: !!openMeteoData?.hourly,
-            hourlyKeys: openMeteoData?.hourly ? Object.keys(openMeteoData.hourly) : []
+      if (useParcelApi) {
+        try {
+          const parcelWeather = await api.getParcelWeather(parcelId!, {
+            source: 'OPEN-METEO',
+            data_type: 'HISTORY',
+            limit: 1,
           });
-          
-          if (openMeteoData && openMeteoData.current) {
-            const current = openMeteoData.current;
-            const hourly = openMeteoData.hourly;
-            
-            // Transform Open-Meteo data to widget format
-            if (name) setSelectedMunicipalityName(name);
-            if (province) setSelectedMunicipalityProvince(province || null);
-            
-            setWeatherData({
-              observed_at: new Date().toISOString(),
-              temp_avg: current.temperature_2m,
-              temp_min: current.temperature_2m,
-              temp_max: current.temperature_2m,
-              humidity_avg: current.relative_humidity_2m,
-              precip_mm: 0, // Current doesn't have precipitation
-              pressure_hpa: current.pressure_msl,
-              viento: {
-                direccion: current.wind_direction_10m ? `${current.wind_direction_10m}°` : 'N',
-                velocidad: current.wind_speed_10m ? Math.round(current.wind_speed_10m * 3.6) : 0,
-              },
+          if (parcelWeather && parcelWeather.observations?.length > 0) {
+            observations = parcelWeather.observations;
+            parcelDownscaling = parcelWeather.downscaling || null;
+
+            // Also fetch forecast for this parcel
+            const parcelForecast = await api.getParcelWeather(parcelId!, {
+              source: 'OPEN-METEO',
+              data_type: 'FORECAST',
+              limit: 96,
             });
-            
-            // Transform forecast from hourly data
-            if (hourly && hourly.time && hourly.temperature_2m) {
-              logger.debug('[WeatherWidget] Processing hourly forecast data', {
-                timeCount: hourly.time?.length,
-                tempCount: hourly.temperature_2m?.length
-              });
-              
-              const forecastByDate = new Map<string, { temps: number[]; precip: number[] }>();
-              const nowForGrouping = new Date();
-              // Get today at midnight in local timezone
-              const todayForGrouping = new Date(nowForGrouping.getFullYear(), nowForGrouping.getMonth(), nowForGrouping.getDate());
-              const maxDate = new Date(todayForGrouping);
-              maxDate.setDate(maxDate.getDate() + 5); // Today + 5 days = 6 days total (to ensure we have 5 complete days after filtering)
-              
-              logger.debug('[WeatherWidget] Date range for forecast:', {
-                today: todayForGrouping.toISOString(),
-                maxDate: maxDate.toISOString()
-              });
-              
-              // Group hourly data by date
-              for (let i = 0; i < hourly.time.length && i < hourly.temperature_2m.length; i++) {
-                const timeStr = hourly.time[i];
-                if (!timeStr) continue;
-                
-                // Open-Meteo returns dates in format "2025-12-13T00:00" (ISO format)
-                const obsDate = new Date(timeStr);
-                if (isNaN(obsDate.getTime())) {
-                  logger.warn('[WeatherWidget] Invalid date:', timeStr);
-                  continue;
-                }
-                
-                // Get date only (without time) for grouping
-                const obsDateOnly = new Date(obsDate.getFullYear(), obsDate.getMonth(), obsDate.getDate());
-                const dateKey = obsDateOnly.toISOString().split('T')[0];
-                
-                // Include only today and future dates (exclude yesterday)
-                // Compare dates properly to avoid timezone issues
-                const todayTime = todayForGrouping.getTime();
-                const obsTime = obsDateOnly.getTime();
-                if (obsTime >= todayTime && obsTime <= maxDate.getTime()) {
-                  if (!forecastByDate.has(dateKey)) {
-                    forecastByDate.set(dateKey, { temps: [], precip: [] });
-                  }
-                  
-                  const dayData = forecastByDate.get(dateKey)!;
-                  const temp = hourly.temperature_2m[i];
-                  if (temp != null && !isNaN(temp) && isFinite(temp)) {
-                    dayData.temps.push(temp);
-                  }
-                  if (hourly.precipitation && hourly.precipitation[i] != null) {
-                    const precip = hourly.precipitation[i];
-                    if (!isNaN(precip) && isFinite(precip)) {
-                      dayData.precip.push(precip);
-                    }
-                  }
-                }
-              }
-              
-              logger.debug('[WeatherWidget] Forecast grouped by date:', {
-                datesCount: forecastByDate.size,
-                dates: Array.from(forecastByDate.keys()),
-                sampleDay: forecastByDate.size > 0 ? {
-                  date: Array.from(forecastByDate.keys())[0],
-                  tempsCount: forecastByDate.get(Array.from(forecastByDate.keys())[0])?.temps.length,
-                  precipCount: forecastByDate.get(Array.from(forecastByDate.keys())[0])?.precip.length
-                } : null
-              });
-              
-              // Transform grouped data to forecast format
-              const nowForTransform = new Date();
-              const todayForTransform = new Date(nowForTransform.getFullYear(), nowForTransform.getMonth(), nowForTransform.getDate());
-              const todayTime = todayForTransform.getTime();
-              
-              const forecastTransformed = Array.from(forecastByDate.entries())
-                .map(([dateKey, dayData]) => {
-                  const date = new Date(dateKey + 'T00:00:00');
-                  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-                  const maxTemp = dayData.temps.length > 0 ? Math.max(...dayData.temps) : 0;
-                  const minTemp = dayData.temps.length > 0 ? Math.min(...dayData.temps) : 0;
-                  const maxPrecip = dayData.precip.length > 0 ? Math.max(...dayData.precip) : 0;
-                  
-                  return {
-                    fecha: date.toISOString(),
-                    fechaDate: dateOnly,
-                    t_maxima: maxTemp,
-                    t_minima: minTemp,
-                    estado_cielo: maxPrecip > 0 ? 'Lluvia' : 'Despejado',
-                    precipitacion_proba: maxPrecip > 0 ? Math.min(100, maxPrecip * 10) : 0,
-                  };
-                })
-                .filter(item => item.fechaDate.getTime() >= todayTime) // Exclude yesterday explicitly
-                .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
-                .slice(0, 5); // Take exactly 5 days (today + 4 more)
-              
-              logger.debug('[WeatherWidget] Forecast transformed:', forecastTransformed);
-              
-              if (forecastTransformed.length > 0) {
-                setForecast(forecastTransformed);
-                logger.debug('[WeatherWidget] Forecast set successfully, length:', forecastTransformed.length);
-              } else {
-                logger.warn('[WeatherWidget] Forecast transformed but empty');
-                setForecast([]);
-              }
-            } else {
-              logger.warn('[WeatherWidget] No hourly data available for forecast', {
-                hasHourly: !!hourly,
-                hasTime: !!hourly?.time,
-                hasTemp: !!hourly?.temperature_2m
-              });
-              setForecast([]);
-            }
-            
-            // Update municipality name if provided
-            if (name && onMunicipalitySelect) {
-              onMunicipalitySelect(targetCode, name);
-            }
-            
-            setLoading(false);
-            return; // Exit early, we got data from Open-Meteo
-          } else {
-            logger.warn('[WeatherWidget] Open-Meteo data incomplete', {
-              hasData: !!openMeteoData,
-              hasCurrent: !!openMeteoData?.current
-            });
+            forecastObs = parcelForecast?.observations || [];
           }
-        } else {
-          logger.warn('[WeatherWidget] Municipality coordinates not found', municipality);
+          setDownscaling(parcelDownscaling);
+        } catch (err) {
+          logger.warn('Parcel weather API failed, falling back to municipality:', err);
+          // Fall through to municipality-based query
         }
       }
 
-      // If we have data from DB, use it (existing logic)
+      // Municipality-based query (fallback or primary)
+      if (observations.length === 0) {
+        setDownscaling(null);
+        observations = await api.getLatestWeatherObservations({
+          municipality_code: targetCode,
+          source: 'OPEN-METEO',
+          data_type: 'HISTORY',
+        });
+      }
+
+      // Get forecast data if not already loaded from parcel API
+      let forecastData: { observations?: any[]; count?: number } | null = null;
+      if (forecastObs.length === 0) {
+        try {
+          forecastData = await api.getWeatherObservations({
+            municipality_code: targetCode,
+            source: 'OPEN-METEO',
+            data_type: 'FORECAST',
+            limit: 200,
+          });
+        } catch (forecastErr) {
+          logger.warn('Error fetching forecast data:', forecastErr);
+          // Continue without forecast - not critical
+        }
+      }
+
+      // No data in DB for this municipality — show clean empty state
+      if (observations.length === 0 && (!forecastData || forecastData.observations?.length === 0)) {
+        logger.debug('[WeatherWidget] No weather data available for municipality', {
+          observationsCount: observations.length,
+          forecastDataCount: forecastData?.observations?.length || 0
+        });
+        setWeatherData(null);
+        setForecast([]);
+        setLoading(false);
+        return;
+      }
+
+      // Process data from DB
       if (observations.length > 0) {
         const latest = observations[0];
         if (name) setSelectedMunicipalityName(name);
@@ -363,24 +230,27 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         });
       }
 
-      // Process forecast from DB if available
+      // Process forecast from parcel API or DB
+      const forecastObservations = forecastObs.length > 0
+        ? forecastObs
+        : (forecastData?.observations || []);
+
       let forecastProcessed = false;
-      if (forecastData && forecastData.observations && forecastData.observations.length > 0) {
+      if (forecastObservations.length > 0) {
         // Transform forecast to widget format
         // Group hourly observations by date and calculate daily min/max
         const nowForDB = new Date();
         const todayForDB = new Date(nowForDB.getFullYear(), nowForDB.getMonth(), nowForDB.getDate());
         const maxDate = new Date(todayForDB);
-        maxDate.setDate(maxDate.getDate() + 5); // Today + 5 days = 6 days total (to ensure we have 5 complete days after filtering)
-        
-        // Group observations by date (hourly -> daily aggregation)
+        maxDate.setDate(maxDate.getDate() + 5);
+
         const dailyData = new Map<string, {
           temps: number[];
           precip: number[];
           weatherCodes: string[];
         }>();
-        
-        forecastData.observations.forEach((obs: any) => {
+
+        forecastObservations.forEach((obs: any) => {
           if (!obs.observed_at) return;
           
           const obsDate = new Date(obs.observed_at);
@@ -459,145 +329,31 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           forecastProcessed = true;
           logger.debug('[WeatherWidget] Forecast successfully processed from DB:', forecastTransformed.length, 'days');
         } else if (forecastTransformed.length > 0) {
-          logger.debug('[WeatherWidget] Forecast from DB has fewer than 5 days (', forecastTransformed.length, '), will try Open-Meteo fallback');
+          logger.debug('[WeatherWidget] Forecast from DB has fewer than 5 days (', forecastTransformed.length, ')');
           setForecast(forecastTransformed);
-          // Do not set forecastProcessed so Open-Meteo fallback runs and can fill to 5 days
         } else {
-          logger.warn(`[WeatherWidget] Forecast from DB is empty. Total observations: ${forecastData.observations.length}`);
+          logger.warn(`[WeatherWidget] Forecast empty. Total observations: ${forecastObservations.length}`);
           logger.debug('[WeatherWidget] Daily data keys:', Array.from(dailyData.keys()));
         }
       }
 
-      // If forecast not processed from DB (or has < 5 days), try Open-Meteo fallback
-      if (!forecastProcessed) {
-        logger.debug('[WeatherWidget] No forecast in DB or fewer than 5 days, trying Open-Meteo fallback for forecast');
-        
-        // Get municipality coordinates
-        let municipality = null;
-        try {
-          const municipalitySearch = await api.searchMunicipalities(name || targetCode);
-          municipality = municipalitySearch.municipalities?.[0];
-        } catch (err) {
-          logger.warn('[WeatherWidget] Error searching municipality for forecast:', err);
-        }
-        
-        if (municipality && municipality.latitude && municipality.longitude) {
-          try {
-            const openMeteoData = await fetchOpenMeteoDirectly(
-              municipality.latitude,
-              municipality.longitude
-            );
-            
-            if (openMeteoData && openMeteoData.hourly && openMeteoData.hourly.time && openMeteoData.hourly.temperature_2m) {
-              const hourly = openMeteoData.hourly;
-              
-              logger.debug('[WeatherWidget] Processing forecast from Open-Meteo fallback', {
-                timeCount: hourly.time?.length,
-                tempCount: hourly.temperature_2m?.length
-              });
-              
-              const forecastByDate = new Map<string, { temps: number[]; precip: number[] }>();
-              const nowForFallback = new Date();
-              const todayForFallback = new Date(nowForFallback.getFullYear(), nowForFallback.getMonth(), nowForFallback.getDate());
-              const maxDate = new Date(todayForFallback);
-              maxDate.setDate(maxDate.getDate() + 5); // Today + 5 days = 6 days total (to ensure we have 5 complete days after filtering)
-              
-              // Group hourly data by date
-              for (let i = 0; i < hourly.time.length && i < hourly.temperature_2m.length; i++) {
-                const timeStr = hourly.time[i];
-                if (!timeStr) continue;
-                
-                const obsDate = new Date(timeStr);
-                if (isNaN(obsDate.getTime())) {
-                  logger.warn('[WeatherWidget] Invalid date in forecast:', timeStr);
-                  continue;
-                }
-                
-                const obsDateOnly = new Date(obsDate.getFullYear(), obsDate.getMonth(), obsDate.getDate());
-                const dateKey = obsDateOnly.toISOString().split('T')[0];
-                
-                // Include only today and future dates (exclude yesterday)
-                // Compare dates properly to avoid timezone issues
-                const todayTime = todayForFallback.getTime();
-                const obsTime = obsDateOnly.getTime();
-                if (obsTime >= todayTime && obsTime <= maxDate.getTime()) {
-                  if (!forecastByDate.has(dateKey)) {
-                    forecastByDate.set(dateKey, { temps: [], precip: [] });
-                  }
-                  
-                  const dayData = forecastByDate.get(dateKey)!;
-                  const temp = hourly.temperature_2m[i];
-                  if (temp != null && !isNaN(temp) && isFinite(temp)) {
-                    dayData.temps.push(temp);
-                  }
-                  if (hourly.precipitation && hourly.precipitation[i] != null) {
-                    const precip = hourly.precipitation[i];
-                    if (!isNaN(precip) && isFinite(precip)) {
-                      dayData.precip.push(precip);
-                    }
-                  }
-                }
-              }
-              
-              // Transform grouped data to forecast format
-              const nowForFallbackTransform = new Date();
-              const todayForFallbackTransform = new Date(nowForFallbackTransform.getFullYear(), nowForFallbackTransform.getMonth(), nowForFallbackTransform.getDate());
-              const todayTime = todayForFallbackTransform.getTime();
-              
-              const forecastTransformed = Array.from(forecastByDate.entries())
-                .map(([dateKey, dayData]) => {
-                  const date = new Date(dateKey + 'T00:00:00');
-                  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-                  const maxTemp = dayData.temps.length > 0 ? Math.max(...dayData.temps) : 0;
-                  const minTemp = dayData.temps.length > 0 ? Math.min(...dayData.temps) : 0;
-                  const maxPrecip = dayData.precip.length > 0 ? Math.max(...dayData.precip) : 0;
-                  
-                  return {
-                    fecha: date.toISOString(),
-                    fechaDate: dateOnly,
-                    t_maxima: maxTemp,
-                    t_minima: minTemp,
-                    estado_cielo: maxPrecip > 0 ? 'Lluvia' : 'Despejado',
-                    precipitacion_proba: maxPrecip > 0 ? Math.min(100, maxPrecip * 10) : 0,
-                  };
-                })
-                .filter(item => item.fechaDate.getTime() >= todayTime) // Exclude yesterday explicitly
-                .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
-                .slice(0, 5); // Take exactly 5 days (today + 4 more)
-              
-              if (forecastTransformed.length > 0) {
-                setForecast(forecastTransformed);
-                logger.debug('[WeatherWidget] Forecast from Open-Meteo fallback set successfully:', forecastTransformed.length, 'days');
-              } else {
-                logger.warn('[WeatherWidget] Forecast from Open-Meteo fallback is empty');
-                setForecast([]);
-              }
-            } else {
-              logger.warn('[WeatherWidget] Open-Meteo data incomplete for forecast fallback', {
-                hasData: !!openMeteoData,
-                hasHourly: !!openMeteoData?.hourly,
-                hasTime: !!openMeteoData?.hourly?.time,
-                hasTemp: !!openMeteoData?.hourly?.temperature_2m
-              });
-              setForecast([]);
-            }
-          } catch (err) {
-            logger.warn('[WeatherWidget] Error fetching forecast from Open-Meteo fallback:', err);
-            setForecast([]);
-          }
-        } else {
-          logger.warn('[WeatherWidget] Cannot get forecast: municipality coordinates not available', {
-            municipality: municipality,
-            hasLat: !!municipality?.latitude,
-            hasLon: !!municipality?.longitude
-          });
-          setForecast([]);
-        }
+      // Forecast not in DB — keep whatever partial forecast we got, if any
+      if (!forecastProcessed && forecast.length === 0) {
+        logger.debug('[WeatherWidget] No forecast data available for municipality');
       }
 
       // Update municipality name if provided
       if (name && onMunicipalitySelect) {
         onMunicipalitySelect(targetCode, name);
+      }
+
+      // Load active weather alerts for this municipality
+      try {
+        const alertData = await api.getWeatherAlerts({ municipality_code: targetCode });
+        setAlerts(alertData.alerts || []);
+      } catch (alertErr) {
+        logger.warn('Error fetching weather alerts:', alertErr);
+        setAlerts([]);
       }
     } catch (err: any) {
       logger.error('Error loading weather by municipality:', err);
@@ -789,6 +545,52 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           </div>
         )}
 
+        {/* AEMET Weather Alerts */}
+        {alerts.length > 0 && (
+          <div className="mb-4 space-y-2">
+            {alerts.map((alert, idx) => {
+              const alertColors: Record<string, string> = {
+                RED: 'bg-red-600 border-red-700',
+                ORANGE: 'bg-orange-500 border-orange-600',
+                YELLOW: 'bg-yellow-500 border-yellow-600',
+              };
+              const alertLabels: Record<string, string> = {
+                RED: 'Alerta Roja',
+                ORANGE: 'Alerta Naranja',
+                YELLOW: 'Alerta Amarilla',
+              };
+              const bg = alertColors[alert.alert_type] || alertColors.YELLOW;
+              const label = alertLabels[alert.alert_type] || alert.alert_type;
+              return (
+                <div
+                  key={idx}
+                  className={`${bg} text-white px-4 py-3 rounded-lg border flex items-start gap-3`}
+                >
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm">
+                      {label} — {alert.alert_category || 'Meteorológica'}
+                    </p>
+                    {alert.description && (
+                      <p className="text-xs mt-1 opacity-90 line-clamp-2">
+                        {alert.description}
+                      </p>
+                    )}
+                    <p className="text-xs mt-1 opacity-75">
+                      {new Date(alert.effective_from).toLocaleString('es-ES', {
+                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                      })}
+                      {alert.effective_to && ` — ${new Date(alert.effective_to).toLocaleString('es-ES', {
+                        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                      })}`}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {loading && !weatherData ? (
           <div className="text-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
@@ -830,7 +632,39 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 </div>
                 <p className="text-2xl font-bold text-purple-900">{weatherData.pressure_hpa?.toFixed(0) || 'N/A'} hPa</p>
               </div>
+
+              {weatherData.gdd_accumulated != null && (
+                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Thermometer className="w-5 h-5 text-emerald-600" />
+                    <span className="text-xs font-medium text-emerald-700">{t('weather.gdd') || 'GDD'}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-emerald-900">{weatherData.gdd_accumulated.toFixed(0)}°D</p>
+                  <p className="text-xs text-emerald-600 mt-1">{t('weather.gdd_base_10') || 'base 10°C'}</p>
+                </div>
+              )}
+
+              {weatherData.eto_mm != null && (
+                <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Droplets className="w-5 h-5 text-teal-600" />
+                    <span className="text-xs font-medium text-teal-700">{t('weather.et0') || 'ET₀'}</span>
+                  </div>
+                  <p className="text-2xl font-bold text-teal-900">{weatherData.eto_mm.toFixed(1)} mm</p>
+                  <p className="text-xs text-teal-600 mt-1">{t('weather.et0_desc') || 'Evapotranspiración'}</p>
+                </div>
+              )}
             </div>
+
+            {/* Downscaling indicator */}
+            {downscaling === 'applied' && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-green-600" />
+                <p className="text-xs text-green-800">
+                  {t('weather.downscaling_active') || 'Datos corregidos para esta parcela (altitud/orientación/pendiente)'}
+                </p>
+              </div>
+            )}
 
             {/* Forecast */}
             {forecast.length > 0 ? (

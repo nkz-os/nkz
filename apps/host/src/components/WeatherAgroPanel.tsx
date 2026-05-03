@@ -154,20 +154,6 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     }
   }, [parcelId]);
 
-  // Fallback function to fetch from Open-Meteo directly when no data in DB
-  const fetchOpenMeteoDirectly = async (lat: number, lon: number) => {
-    try {
-      const response = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,pressure_msl,precipitation&hourly=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_direction_10m,pressure_msl,et0_fao_evapotranspiration&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,et0_fao_evapotranspiration&forecast_days=7&timezone=Europe%2FMadrid`
-      );
-      if (!response.ok) throw new Error('Open-Meteo API error');
-      return await response.json();
-    } catch (err) {
-      logger.error('[WeatherAgroPanel] Error fetching from Open-Meteo:', err);
-      return null;
-    }
-  };
-
   const loadWeatherData = async () => {
     const codeToUse = selectedMunicipalityCode || municipalityCode;
     if (!codeToUse) return;
@@ -176,137 +162,63 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     setError(null);
 
     try {
-      // Get current/latest weather observation
-      const latest = await api.getLatestWeatherObservations({
-        municipality_code: codeToUse,
-        source: 'OPEN-METEO',
-        data_type: 'HISTORY',
-      });
+      const useParcelApi = !!(parcelId && parcelId.length > 0);
+      let latest: any[] = [];
+      let historicalObs: any[] = [];
 
-      // Get historical data for water balance calculation (last 3 days)
-      const threeDaysAgo = new Date();
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-      
-      const historical = await api.getWeatherObservations({
-        municipality_code: codeToUse,
-        source: 'OPEN-METEO',
-        data_type: 'HISTORY',
-        start_date: threeDaysAgo.toISOString().split('T')[0],
-        limit: 100, // Get enough data for 3 days
-      });
-
-      // If no data in DB, try fallback to Open-Meteo direct
-      if (latest.length === 0 || !historical || historical.observations?.length === 0) {
-        logger.debug('[WeatherAgroPanel] No data in DB, using Open-Meteo fallback', {
-          latestCount: latest.length,
-          historicalCount: historical?.observations?.length || 0
-        });
-        
-        // Get municipality coordinates from search result
-        const municipalitySearch = await api.searchMunicipalities(selectedMunicipalityName || codeToUse);
-        const municipality = municipalitySearch.municipalities?.[0];
-        
-        logger.debug('[WeatherAgroPanel] Municipality found:', municipality);
-        
-        if (municipality && municipality.latitude && municipality.longitude) {
-          const openMeteoData = await fetchOpenMeteoDirectly(
-            municipality.latitude,
-            municipality.longitude
-          );
-          
-          if (openMeteoData && openMeteoData.current) {
-            const current = openMeteoData.current;
-            const hourly = openMeteoData.hourly;
-            const daily = openMeteoData.daily;
-            
-            // Transform Open-Meteo current data
-            const currentWeatherData: WeatherObservation = {
-              observed_at: new Date().toISOString(),
-              temp_avg: current.temperature_2m,
-              humidity_avg: current.relative_humidity_2m,
-              wind_speed_ms: current.wind_speed_10m,
-              wind_direction_deg: current.wind_direction_10m,
-              precip_mm: current.precipitation || 0,
-              pressure_hpa: current.pressure_msl,
-              // Calculate delta_t (simplified: temp - dew point approximation)
-              delta_t: current.temperature_2m ? (current.temperature_2m - (current.relative_humidity_2m / 100 * current.temperature_2m)) : undefined,
-            };
-            
-            setCurrentWeather(currentWeatherData);
-            
-            // Transform hourly data to historical format for water balance
-            const historicalData: WeatherObservation[] = [];
-            if (hourly && hourly.time && hourly.precipitation && hourly.eto_fao_evapotranspiration) {
-              const now = new Date();
-              const threeDaysAgo = new Date(now);
-              threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-              
-              for (let i = 0; i < hourly.time.length; i++) {
-                const timeStr = hourly.time[i];
-                if (!timeStr) continue;
-                
-                const obsDate = new Date(timeStr);
-                if (obsDate >= threeDaysAgo && obsDate <= now) {
-                  historicalData.push({
-                    observed_at: timeStr,
-                    temp_avg: hourly.temperature_2m?.[i],
-                    humidity_avg: hourly.relative_humidity_2m?.[i],
-                    precip_mm: hourly.precipitation[i] || 0,
-                    eto_mm: hourly.eto_fao_evapotranspiration?.[i] || 0,
-                  });
-                }
-              }
-            }
-            
-            // If no hourly historical, use daily data
-            if (historicalData.length === 0 && daily && daily.time) {
-              const now = new Date();
-              const threeDaysAgo = new Date(now);
-              threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-              
-              for (let i = 0; i < daily.time.length; i++) {
-                const dateStr = daily.time[i];
-                if (!dateStr) continue;
-                
-                const obsDate = new Date(dateStr);
-                if (obsDate >= threeDaysAgo && obsDate <= now) {
-                  // Distribute daily values across hours (simplified)
-                  const dailyPrecip = daily.precipitation_sum?.[i] || 0;
-                  const dailyET0 = daily.eto_fao_evapotranspiration?.[i] || 0;
-                  
-                  // Create 24 hourly observations from daily data
-                  for (let h = 0; h < 24; h++) {
-                    historicalData.push({
-                      observed_at: new Date(obsDate.getTime() + h * 3600000).toISOString(),
-                      precip_mm: dailyPrecip / 24,
-                      eto_mm: dailyET0 / 24,
-                    });
-                  }
-                }
-              }
-            }
-            
-            setHistoricalWeather(historicalData);
-            logger.debug('[WeatherAgroPanel] Open-Meteo fallback data loaded:', {
-              current: !!currentWeatherData,
-              historicalCount: historicalData.length
-            });
-          } else {
-            logger.warn('[WeatherAgroPanel] Open-Meteo fallback returned no data');
-            setCurrentWeather(null);
-            setHistoricalWeather([]);
+      // When a parcel is selected, use the corrected parcel weather API
+      if (useParcelApi) {
+        try {
+          const parcelWeather = await api.getParcelWeather(parcelId!, {
+            source: 'OPEN-METEO',
+            data_type: 'HISTORY',
+            limit: 72,
+          });
+          if (parcelWeather?.observations?.length > 0) {
+            latest = [parcelWeather.observations[0]];
+            historicalObs = parcelWeather.observations;
           }
-        } else {
-          logger.warn('[WeatherAgroPanel] Municipality has no coordinates for Open-Meteo fallback');
-          setCurrentWeather(null);
-          setHistoricalWeather([]);
+        } catch (err) {
+          logger.warn('Parcel weather API failed for agro panel, falling back:', err);
         }
+      }
+
+      // Fallback: municipality-based query
+      if (latest.length === 0) {
+        latest = await api.getLatestWeatherObservations({
+          municipality_code: codeToUse,
+          source: 'OPEN-METEO',
+          data_type: 'HISTORY',
+        });
+      }
+
+      if (historicalObs.length === 0) {
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        const historical = await api.getWeatherObservations({
+          municipality_code: codeToUse,
+          source: 'OPEN-METEO',
+          data_type: 'HISTORY',
+          start_date: threeDaysAgo.toISOString().split('T')[0],
+          limit: 100,
+        });
+        historicalObs = historical?.observations || [];
+      }
+
+      // No data available — show clean empty state
+      if (latest.length === 0 && historicalObs.length === 0) {
+        logger.debug('[WeatherAgroPanel] No weather data available', {
+          latestCount: latest.length,
+          historicalCount: historicalObs.length,
+        });
+        setCurrentWeather(null);
+        setHistoricalWeather([]);
       } else {
         // Use DB data
         if (latest.length > 0) {
           setCurrentWeather(latest[0]);
         }
-        setHistoricalWeather((historical && historical.observations) ? historical.observations : []);
+        setHistoricalWeather(historicalObs);
       }
     } catch (err: any) {
       logger.error('Error loading weather data:', err);
@@ -333,7 +245,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
       setParcelSensors(soilSensors as ParcelSensor[]);
     } catch (err) {
       logger.warn('Error loading parcel sensors:', err);
-      // Continue without sensor data - will use Open-Meteo fallback
+      // Continue without sensor data - will use platform weather
     }
   };
 
@@ -422,14 +334,14 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
 
   // Calculate workability condition (tempero)
   const getWorkabilityCondition = (): { condition: WorkabilityCondition; message: string; color: string; soilMoisture: number | null } => {
-    // Priority: Use real sensor data if available, otherwise Open-Meteo
+    // Priority: Use real sensor data if available, otherwise platform weather data
     let soilMoisture: number | null = null;
 
     if (parcelSensors.length > 0 && parcelSensors[0].moisture?.value !== undefined) {
       // Use real sensor data
       soilMoisture = parcelSensors[0].moisture.value;
     } else if (currentWeather?.soil_moisture_0_10cm !== undefined) {
-      // Fallback to Open-Meteo
+      // Fallback to platform weather data
       soilMoisture = currentWeather.soil_moisture_0_10cm;
     }
 
@@ -741,7 +653,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                   ) : (
                     <>
                       <Cloud className="w-3 h-3 text-blue-600" />
-                      <span className="text-xs text-gray-600">Datos de Open-Meteo</span>
+                      <span className="text-xs text-gray-600">Datos de la plataforma</span>
                     </>
                   )}
                 </div>

@@ -404,7 +404,14 @@
     "required_coordinates": "Please enter GPS coordinates (latitude and longitude)",
     "save": "Save Station",
     "saving": "Saving...",
-    "save_error": "Error saving weather station"
+    "save_error": "Error saving weather station",
+    "gdd": "GDD",
+    "gdd_base_10": "base 10°C",
+    "et0": "ET₀",
+    "et0_desc": "Evapotranspiration",
+    "downscaling_active": "Corrected data for this parcel (altitude/aspect/slope)",
+    "select_parcel": "Select parcel",
+    "clear_parcel": "Clear selection"
   },
   "wizard": {
     "array": {

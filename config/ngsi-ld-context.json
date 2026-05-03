@@ -1,87 +1,122 @@
 {
   "@context": {
+    "_comment": "Nekazari Platform NGSI-LD @context — canonical namespace mappings. Types prefixed 'nkz:' are platform extensions (no SDM/SAREF4AGRI equivalent per FIWARE Smart Data Models catalog audit 2026-05-03). Types prefixed 'saref4agri:' are legacy — retained for backward compatibility with existing Orion-LD entities; new entities SHOULD use 'nkz:' variants.",
+
     "schema": "https://schema.org/",
     "ngsi-ld": "https://uri.etsi.org/ngsi-ld/",
     "iot": "https://iot.schema.org/",
     "saref": "https://saref.etsi.org/core/",
     "saref4agri": "https://saref.etsi.org/saref4agri/",
+    "nkz": "https://nekazari.robotika.cloud/ngsi-ld/",
+
     "AgriculturalRobot": {
-      "@id": "saref4agri:AgriculturalRobot",
-      "@type": "@id"
+      "@id": "nkz:AgriculturalRobot",
+      "@type": "@id",
+      "_comment": "Platform extension — no equivalent in SAREF4AGRI or any SDM catalog. Legacy mapping: saref4agri:AgriculturalRobot (retained for backward compat; new entities use nkz prefix)."
     },
     "AgriSensor": {
-      "@id": "saref4agri:AgriSensor",
-      "@type": "@id"
+      "@id": "nkz:AgriSensor",
+      "@type": "@id",
+      "_comment": "Platform extension — SAREF4AGRI has no AgriSensor class (only specific sensor types like Pluviometer, Thermometer). Legacy mapping: saref4agri:AgriSensor."
     },
     "AgriParcel": {
-      "@id": "saref4agri:AgriParcel",
-      "@type": "@id"
+      "@id": "nkz:AgriParcel",
+      "@type": "@id",
+      "_comment": "Platform extension — SAREF4AGRI uses s4agri:Parcel, not AgriParcel. Legacy mapping: saref4agri:AgriParcel."
     },
     "AgriOperation": {
-      "@id": "saref4agri:AgriOperation",
-      "@type": "@id"
+      "@id": "nkz:AgriOperation",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:AgriOperation."
     },
     "AgriculturalTractor": {
-      "@id": "saref4agri:AgriculturalTractor",
-      "@type": "@id"
+      "@id": "nkz:AgriculturalTractor",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM type exists for agricultural tractors. Closest: ManufacturingMachine. Legacy mapping: saref4agri:AgriculturalTractor."
     },
     "AgriculturalImplement": {
-      "@id": "saref4agri:AgriculturalImplement",
-      "@type": "@id"
+      "@id": "nkz:AgriculturalImplement",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM type exists for agricultural implements. Legacy mapping: saref4agri:AgriculturalImplement."
+    },
+    "AgriEquipment": {
+      "@id": "nkz:AgriEquipment",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM type exists for generic agricultural equipment. Used as parent type for tractors and implements."
+    },
+    "AgriParcelOperation": {
+      "@id": "nkz:AgriParcelOperation",
+      "@type": "@id",
+      "_comment": "Platform extension — SDM AgriParcelOperation lacks agricultural machinery kinematics properties. Platform extends with A-B lines and VRA fields."
+    },
+    "AgriCropObservation": {
+      "@id": "nkz:AgriCropObservation",
+      "@type": "@id",
+      "_comment": "Platform extension of SDM AgriCrop (which lacks observation/image capture semantics)."
     },
     "WeatherObserved": {
-      "@id": "saref4agri:WeatherObserved",
-      "@type": "@id"
+      "@id": "nkz:WeatherObserved",
+      "@type": "@id",
+      "_comment": "Platform extension — SAREF4AGRI has no WeatherObserved. SDM WeatherObserved exists in dataModel.Weather. Legacy mapping: saref4agri:WeatherObserved."
     },
     "SatelliteImageObservation": {
-      "@id": "saref4agri:SatelliteImageObservation",
-      "@type": "@id"
+      "@id": "nkz:SatelliteImageObservation",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:SatelliteImageObservation."
     },
     "VegetationIndex": {
-      "@id": "saref4agri:VegetationIndex",
-      "@type": "@id"
+      "@id": "nkz:VegetationIndex",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:VegetationIndex."
     },
     "LivestockAnimal": {
-      "@id": "saref4agri:LivestockAnimal",
-      "@type": "@id"
+      "@id": "nkz:LivestockAnimal",
+      "@type": "@id",
+      "_comment": "Platform extension — SAREF4AGRI has no LivestockAnimal class. Legacy mapping: saref4agri:LivestockAnimal."
     },
     "LivestockGroup": {
-      "@id": "saref4agri:LivestockGroup",
-      "@type": "@id"
+      "@id": "nkz:LivestockGroup",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:LivestockGroup."
     },
     "LivestockFarm": {
-      "@id": "saref4agri:LivestockFarm",
-      "@type": "@id"
+      "@id": "nkz:LivestockFarm",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:LivestockFarm."
     },
     "LivestockProduction": {
-      "@id": "saref4agri:LivestockProduction",
-      "@type": "@id"
+      "@id": "nkz:LivestockProduction",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:LivestockProduction."
     },
     "PhotovoltaicInstallation": {
-      "@id": "saref4agri:PhotovoltaicInstallation",
-      "@type": "@id"
+      "@id": "nkz:PhotovoltaicInstallation",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:PhotovoltaicInstallation."
     },
     "EnergyStorageSystem": {
-      "@id": "saref4agri:EnergyStorageSystem",
-      "@type": "@id"
+      "@id": "nkz:EnergyStorageSystem",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:EnergyStorageSystem."
     },
+
     "name": "schema:name",
     "description": "schema:description",
     "location": "schema:location",
     "status": "schema:status",
     "batteryLevel": "saref:BatteryLevel",
-    "currentTask": "saref4agri:CurrentTask",
+    "currentTask": "nkz:currentTask",
     "speed": "saref:Speed",
-    "payload": "saref4agri:Payload",
-    "engineSpeed": "saref4agri:EngineSpeed",
-    "fuelLevel": "saref4agri:FuelLevel",
-    "engineHours": "saref4agri:EngineHours",
-    "seedingRate": "saref4agri:SeedingRate",
-    "harvestedWeight": "saref4agri:HarvestedWeight",
-    "tankLevel": "saref4agri:TankLevel",
-    "sprayRate": "saref4agri:SprayRate",
-    "moisture": "saref4agri:Moisture",
-    "ph": "saref4agri:PH",
+    "payload": "nkz:payload",
+    "engineSpeed": "nkz:engineSpeed",
+    "fuelLevel": "nkz:fuelLevel",
+    "engineHours": "nkz:engineHours",
+    "seedingRate": "nkz:seedingRate",
+    "harvestedWeight": "nkz:harvestedWeight",
+    "tankLevel": "nkz:tankLevel",
+    "sprayRate": "nkz:sprayRate",
+    "moisture": "nkz:moisture",
+    "ph": "nkz:ph",
     "temperature": "saref:Temperature",
     "airTemperature": "saref:Temperature",
     "relativeHumidity": "saref:Humidity",
@@ -90,9 +125,9 @@
     "solarRadiation": "https://smartdatamodels.org/dataModel.Weather/solarRadiation",
     "sensorsinsolation": "https://nekazari.io/vocab/sensorsinsolation",
     "illuminance": "saref:Illuminance",
-    "soilMoisture": "saref4agri:Moisture",
+    "soilMoisture": "nkz:soilMoisture",
     "soilTemperature": "https://smartdatamodels.org/dataModel.Weather/soilTemperature",
-    "windSpeed": "saref4agri:WindSpeed",
+    "windSpeed": "nkz:windSpeed",
     "windDirection": "https://smartdatamodels.org/dataModel.Weather/windDirection",
     "precipitation": "https://smartdatamodels.org/dataModel.Weather/precipitation",
     "atmosphericPressure": "https://smartdatamodels.org/dataModel.Weather/atmosphericPressure",
@@ -100,26 +135,26 @@
     "co2": "https://smartdatamodels.org/dataModel.Environment/co2",
     "uvIndex": "https://smartdatamodels.org/dataModel.Weather/uvIndex",
     "leafWetness": "https://nekazari.io/vocab/leafWetness",
-    "area": "saref4agri:Area",
-    "treeCount": "saref4agri:TreeCount",
-    "variety": "saref4agri:Variety",
-    "plantingDate": "saref4agri:PlantingDate",
-    "rowCount": "saref4agri:RowCount",
-    "operationType": "saref4agri:OperationType",
+    "area": "nkz:area",
+    "treeCount": "nkz:treeCount",
+    "variety": "nkz:variety",
+    "plantingDate": "nkz:plantingDate",
+    "rowCount": "nkz:rowCount",
+    "operationType": "nkz:operationType",
     "startDate": "schema:startDate",
     "endDate": "schema:endDate",
     "sensorType": "saref:SensorType",
     "measurement": "saref:Measurement",
     "unit": "saref:Unit",
-    "cropType": "saref4agri:CropType",
-    "soilType": "saref4agri:SoilType",
+    "cropType": "nkz:cropType",
+    "soilType": "nkz:soilType",
     "observedAt": "ngsi-ld:observedAt",
     "createdAt": "ngsi-ld:createdAt",
     "modifiedAt": "ngsi-ld:modifiedAt",
-    "ref3DModel": "saref4agri:Ref3DModel",
-    "modelScale": "saref4agri:ModelScale",
-    "modelRotation": "saref4agri:ModelRotation",
-    
+    "ref3DModel": "nkz:ref3DModel",
+    "modelScale": "nkz:modelScale",
+    "modelRotation": "nkz:modelRotation",
+
     "visualRepresentation": {
       "@id": "https://nekazari.io/vocab/visualRepresentation",
       "@type": "@id"
