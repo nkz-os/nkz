@@ -421,15 +421,17 @@ def get_sdm_entities():
             }
         },
         "ManufacturingMachine": {
-            "description": "Agricultural tractor or machinery",
+            "description": "Agricultural machinery (tractor or implement per category property)",
             "attributes": {
-                "name": {"type": "Text", "description": "Tractor/machine name"},
+                "name": {"type": "Text", "description": "Machine name"},
+                "category": {"type": "Text", "description": "Machine category: tractor, implement, harvester, sprayer, spreader, drill"},
                 "status": {"type": "Text", "description": "Current status"},
                 "location": {"type": "geo:json", "description": "Machine location"},
                 "operationType": {"type": "Text", "description": "Type of operation"},
                 "manufacturer": {"type": "Text", "description": "Manufacturer name"},
                 "model": {"type": "Text", "description": "Model name"},
                 "serialNumber": {"type": "Text", "description": "Serial number"},
+                "implementType": {"type": "Text", "description": "Type of implement (if category=implement)"},
                 "isobusCompatible": {"type": "Boolean", "description": "ISOBUS compatibility"}
             }
         },
@@ -622,14 +624,6 @@ def get_sdm_entities():
                 "farmType": {"type": "Text", "description": "Type of farm"}
             }
         },
-        "ManufacturingMachine": {
-            "description": "Agricultural implement or attachment",
-            "attributes": {
-                "name": {"type": "Text", "description": "Implement name"},
-                "location": {"type": "geo:json", "description": "Implement location"},
-                "implementType": {"type": "Text", "description": "Type of implement"}
-            }
-        }
     }
 
 @app.route('/health', methods=['GET'])
