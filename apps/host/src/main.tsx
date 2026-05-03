@@ -34,7 +34,8 @@ import { initNKZRuntime } from './utils/nkzRuntime';
 (window as any).__NKZ_THEME__ = DesignTokens;
 
 // Viewer kit (modules use: external "@nekazari/viewer-kit" → window.__NKZ_VIEWER__)
-// Note: viewer-kit package doesn't exist yet; placeholder for forward compat.
+import * as ViewerKit from '@nekazari/viewer-kit';
+(window as any).__NKZ_VIEWER__ = ViewerKit;
 
 // Initialize the module registration runtime (window.__NKZ__)
 initNKZRuntime();

@@ -23,6 +23,7 @@ import { cadastralApi } from '@/services/cadastralApi';
 // Removed hardcoded vegetation layer data import - modules should use slot system
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { logger } from '@/utils/logger';
+import { ViewerKeyboardShortcuts } from '@/components/viewer/ViewerKeyboardShortcuts';
 import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';
 import {
@@ -373,6 +374,9 @@ const UnifiedViewerInner: React.FC = () => {
 
     return (
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-900">
+            {/* Global keyboard shortcut listener */}
+            <ViewerKeyboardShortcuts />
+
             {/* Floating Header - Logo with dropdown menu + controls; right strip includes Layers + Theme + Language */}
             <ViewerHeader
                 rightContent={
