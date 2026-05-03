@@ -327,6 +327,9 @@ documentation/
 .ai/
 .cursor/
 
+# Git worktrees (isolated feature workspaces)
+.worktrees/
+
 # Build caches
 .turbo/
 .deploy/
