@@ -17,18 +17,11 @@ export const HeroSection: React.FC = () => {
         playsInline
         poster="/media/hero-poster.jpg"
         preload="metadata"
-        className="hero-video absolute inset-0 w-full h-full object-cover hidden md:block"
+        className="hero-video absolute inset-0 w-full h-full object-cover"
         aria-hidden="true"
       >
-        <source src="/media/hero.webm" type="video/webm" />
         <source src="/media/hero.mp4" type="video/mp4" />
       </video>
-      <img
-        src="/media/hero-poster.jpg"
-        alt=""
-        className="absolute inset-0 w-full h-full object-cover md:hidden"
-        aria-hidden="true"
-      />
       <div
         className="absolute inset-0 z-[1]"
         style={{
