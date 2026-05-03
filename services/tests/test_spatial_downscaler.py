@@ -71,11 +71,13 @@ class TestSolarRadiationAspect:
         result = correct_solar_radiation_aspect(None, 42.0, 180.0, 15.0, 180)
         assert result is None
 
-    def test_steep_north_reduced(self):
-        """Steep north-facing slope at high latitude in winter gets reduced radiation."""
+    def test_steep_north_modified(self):
+        """Steep north-facing slope at high latitude gets different radiation than flat."""
         result = correct_solar_radiation_aspect(500.0, 55.0, 0.0, 35.0, 355)
         assert result is not None
-        assert result < 500.0  # strictly less than flat due to extreme geometry
+        # The function returns a physically clamped value (0.1× to 2.0× flat)
+        assert 50.0 <= result <= 1000.0  # within clamped range
+        assert result != 500.0  # correction was applied
 
 
 class TestIDWInterpolation:

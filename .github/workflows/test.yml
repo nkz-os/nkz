@@ -63,7 +63,7 @@ jobs:
       - name: Install test dependencies
         run: |
           pip install -r requirements-test.txt
-          pip install -r services/api-gateway/requirements.txt
+          pip install -r api-gateway/requirements.txt
           pip install -r common/requirements.txt 2>/dev/null || true
 
       - name: Run pytest
