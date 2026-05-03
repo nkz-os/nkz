@@ -57,6 +57,8 @@ class DataTransformer:
             metadata = observation.get('metadata', {})
             metadata['source'] = source
             metadata['data_type'] = data_type
+            if observation.get('station_elevation_m') is not None:
+                metadata['station_elevation_m'] = observation['station_elevation_m']
             
             return {
                 'tenant_id': tenant_id,

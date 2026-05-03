@@ -1544,6 +1544,52 @@ class ApiService {
     }
   }
 
+  /**
+   * Get downscaled weather for a specific parcel from the canonical API.
+   * Applies altitude/aspect/slope corrections automatically.
+   */
+  async getParcelWeather(parcelId: string, params?: {
+    source?: string;
+    data_type?: string;
+    limit?: number;
+  }): Promise<{
+    parcel_id: string;
+    municipality_code: string;
+    municipality_name: string;
+    downscaling: string;
+    parcel_altitude_m: number;
+    parcel_aspect_deg: number;
+    parcel_slope_deg: number;
+    observations: Array<{
+      observed_at: string;
+      temp_avg?: number;
+      temp_min?: number;
+      temp_max?: number;
+      humidity_avg?: number;
+      precip_mm?: number;
+      solar_rad_w_m2?: number;
+      eto_mm?: number;
+      wind_speed_ms?: number;
+      wind_direction_deg?: number;
+      pressure_hpa?: number;
+      gdd_accumulated?: number;
+      delta_t?: number;
+      soil_moisture_0_10cm?: number;
+      soil_moisture_10_40cm?: number;
+    }>;
+  }> {
+    try {
+      const response = await this.client.get(
+        `/api/weather/parcel/${encodeURIComponent(parcelId)}`,
+        { params }
+      );
+      return response.data;
+    } catch (error) {
+      logger.warn('Error fetching parcel weather:', error);
+      throw error;
+    }
+  }
+
   async getParcelAgroStatus(parcelId: string): Promise<{
     semaphores: {
       spraying: 'optimal' | 'caution' | 'not_suitable' | 'unknown';

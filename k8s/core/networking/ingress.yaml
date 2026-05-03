@@ -262,6 +262,22 @@ spec:
           #       name: isobus-bridge-service
           #       port:
           #         number: 5000
+          # CUE Module API (Cuaderno de Campo SIEX)
+          - path: /api/modules/cue
+            pathType: Prefix
+            backend:
+              service:
+                name: cue-backend-service
+                port:
+                  number: 5000
+          # CUE NGSI-LD @context
+          - path: /ngsi-ld/cue-context.jsonld
+            pathType: Exact
+            backend:
+              service:
+                name: cue-backend-service
+                port:
+                  number: 5000
           # GIS Routing Module API — direct to module backend (not api-gateway)
           - path: /api/routing
             pathType: Prefix
@@ -324,6 +340,14 @@ spec:
                 name: datahub-api-service
                 port:
                   number: 8000
+          # CUE Module API (Cuaderno de Campo SIEX — same-origin frontend requests)
+          - path: /api/modules/cue
+            pathType: Prefix
+            backend:
+              service:
+                name: cue-backend-service
+                port:
+                  number: 5000
           # =================================================================
           # IIFE module bundles — ONLY frontend-static (MinIO). No per-module ingress.
           # =================================================================

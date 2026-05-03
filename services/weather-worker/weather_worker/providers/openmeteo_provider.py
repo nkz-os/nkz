@@ -79,13 +79,15 @@ class OpenMeteoProvider(BaseWeatherProvider):
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
-            
-            return self._parse_response(data, data_type='HISTORY')
-            
+            station_elevation = data.get('elevation')
+
+            return self._parse_response(data, data_type='HISTORY',
+                                        station_elevation_m=station_elevation)
+
         except Exception as e:
             logger.error(f"Error fetching Open-Meteo historical data: {e}")
             return []
-    
+
     def get_forecast(
         self,
         latitude: float,
@@ -94,12 +96,12 @@ class OpenMeteoProvider(BaseWeatherProvider):
     ) -> List[Dict[str, Any]]:
         """
         Get weather forecast from Open-Meteo
-        
+
         Args:
             latitude: Latitude
             longitude: Longitude
             days: Number of forecast days (max 16)
-        
+
         Returns:
             List of forecast data points
         """
@@ -134,21 +136,25 @@ class OpenMeteoProvider(BaseWeatherProvider):
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
-            
-            return self._parse_response(data, data_type='FORECAST')
-            
+            station_elevation = data.get('elevation')
+
+            return self._parse_response(data, data_type='FORECAST',
+                                        station_elevation_m=station_elevation)
+
         except Exception as e:
             logger.error(f"Error fetching Open-Meteo forecast: {e}")
             return []
     
-    def _parse_response(self, data: Dict[str, Any], data_type: str) -> List[Dict[str, Any]]:
+    def _parse_response(self, data: Dict[str, Any], data_type: str,
+                        station_elevation_m: Optional[float] = None) -> List[Dict[str, Any]]:
         """
         Parse Open-Meteo API response to unified format
-        
+
         Args:
             data: Raw API response
             data_type: 'HISTORY' or 'FORECAST'
-        
+            station_elevation_m: Station elevation from Open-Meteo (meters)
+
         Returns:
             List of normalized weather observations
         """
@@ -207,7 +213,9 @@ class OpenMeteoProvider(BaseWeatherProvider):
                     normalized = self.normalize_data(obs)
                     normalized['source'] = 'OPEN-METEO'
                     normalized['data_type'] = data_type
-                    
+                    if station_elevation_m is not None:
+                        normalized['station_elevation_m'] = station_elevation_m
+
                     observations.append(normalized)
                     
                 except Exception as e:
