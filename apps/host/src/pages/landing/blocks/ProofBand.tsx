@@ -3,7 +3,7 @@ import { useI18n } from '@/context/I18nContext';
 
 const METRICS = [
   { value: '127', key: 'landing_v2.proof_parcelas' },
-  { value: '14', key: 'landing_v2.proof_plantas' },
+  { value: '∞', key: 'landing_v2.proof_hardware' },
   { value: '3.2M', key: 'landing_v2.proof_observaciones' },
   { value: '6', key: 'landing_v2.proof_paises' },
 ];
