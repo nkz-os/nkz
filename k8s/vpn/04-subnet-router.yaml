@@ -49,7 +49,7 @@ spec:
             - name: TS_ACCEPT_ROUTES
               value: "false"
             - name: TS_EXTRA_ARGS
-              value: "--snat-subnet-routes=false --accept-routes=false"
+              value: "--login-server=https://vpn.robotika.cloud --snat-subnet-routes=false --accept-routes=false"
             - name: TS_STATE_DIR
               value: /var/lib/tailscale
             - name: TS_KUBE_SECRET
