@@ -24,12 +24,14 @@ import paho.mqtt.client as mqtt
 import threading
 import boto3
 import psycopg2
+import redis
 from botocore.exceptions import ClientError
 from io import BytesIO
 
 # Configuration - All environment variables are REQUIRED for security
 POSTGRES_URL = os.getenv('POSTGRES_URL')
 ORION_URL = os.getenv('ORION_URL')
+_REDIS_URL = os.getenv('REDIS_URL', 'redis://:default@redis-service:6379/0')
 
 # Add common directory to path for imports
 # Try multiple paths for compatibility (local dev vs container)
@@ -4456,6 +4458,7 @@ def get_latest_weather_observations():
                         wind_direction_deg,
                         pressure_hpa,
                         gdd_accumulated,
+                        delta_t,
                         metrics,
                         metadata
                     FROM weather_observations
@@ -4541,6 +4544,7 @@ def get_weather_observations():
                         wind_direction_deg,
                         pressure_hpa,
                         gdd_accumulated,
+                        delta_t,
                         metrics,
                         metadata
                     FROM weather_observations
@@ -4596,12 +4600,232 @@ def get_weather_observations():
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@app.route('/api/weather/parcel/<parcel_id>', methods=['GET'])
+@require_auth(require_hmac=False)
+def get_parcel_weather(parcel_id):
+    """
+    Canonical weather endpoint for a specific parcel.
+
+    Resolves the parcel's location from Orion-LD, finds the nearest
+    weather observations, applies spatial downscaling (altitude, aspect,
+    slope), and returns corrected data.
+
+    This is the SINGLE SOURCE OF TRUTH for parcel-level weather.
+    All consumers (risk-worker, crop-health, vegetation-prime, frontend)
+    should use this endpoint instead of querying weather_observations directly.
+
+    Query params:
+        source: 'OPEN-METEO' (default), 'AEMET', 'SENSOR_REAL'
+        data_type: 'HISTORY' (default), 'FORECAST'
+        limit: number of observations (default 1, max 72)
+
+    Response:
+        parcel_id, municipality_code, downscaling, observations[]
+    """
+    tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', 'default')
+    source = request.args.get('source', 'OPEN-METEO')
+    data_type = request.args.get('data_type', 'HISTORY')
+    limit = min(int(request.args.get('limit', '1')), 72)
+
+    try:
+        # Step 1: Resolve parcel location from Orion-LD
+        orion_url = os.getenv('ORION_URL', 'http://orion-ld-service:1026')
+        context_url = os.getenv('CONTEXT_URL', '')
+
+        headers = {
+            'Fiware-Service': tenant_id,
+            'Fiware-ServicePath': '/',
+            'Accept': 'application/ld+json',
+        }
+        if context_url:
+            headers['Link'] = (
+                f'<{context_url}>; rel="http://www.w3.org/ns/json-ld#context";'
+                f' type="application/ld+json"'
+            )
+
+        parcel_resp = requests.get(
+            f'{orion_url}/ngsi-ld/v1/entities/{parcel_id}',
+            headers=headers,
+            timeout=10,
+        )
+        if parcel_resp.status_code != 200:
+            return jsonify({'error': f'Parcel not found: {parcel_resp.status_code}'}), 404
+
+        parcel = parcel_resp.json()
+
+        # Step 2: Extract parcel location coordinates
+        location_attr = parcel.get('location', {})
+        if isinstance(location_attr, dict):
+            loc_value = location_attr.get('value', {})
+        else:
+            loc_value = location_attr
+
+        parcel_lat, parcel_lon = None, None
+        if isinstance(loc_value, dict):
+            geom_type = loc_value.get('type', '')
+            coords = loc_value.get('coordinates', [])
+            if geom_type == 'Point' and len(coords) >= 2:
+                parcel_lon, parcel_lat = float(coords[0]), float(coords[1])
+            elif geom_type in ('Polygon', 'MultiPolygon') and coords:
+                # Use first ring centroid approximation
+                ring = coords[0] if geom_type == 'Polygon' else coords[0][0]
+                xs = [p[0] for p in ring]
+                ys = [p[1] for p in ring]
+                parcel_lon = sum(xs) / len(xs)
+                parcel_lat = sum(ys) / len(ys)
+
+        if parcel_lat is None or parcel_lon is None:
+            return jsonify({'error': 'Parcel has no resolvable location'}), 400
+
+        # Step 3: Extract terrain attributes for downscaling
+        parcel_altitude = 0.0
+        elev = parcel.get('elevation', {})
+        if isinstance(elev, dict):
+            parcel_altitude = float(elev.get('value', 0) or 0)
+
+        parcel_aspect = 0.0
+        ta = parcel.get('terrainAspect', {})
+        if isinstance(ta, dict):
+            parcel_aspect = float(ta.get('value', 0) or 0)
+
+        parcel_slope = 0.0
+        ts = parcel.get('terrainSlope', {})
+        if isinstance(ts, dict):
+            parcel_slope = float(ts.get('value', 0) or 0)
+
+        # Step 4: Find nearest municipality with weather data
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            cur.execute("""
+                SELECT
+                    cm.ine_code as municipality_code,
+                    cm.name as municipality_name,
+                    cm.latitude as station_lat,
+                    cm.longitude as station_lon,
+                    cm.latitude,  -- station altitude not in catalog yet
+                    ST_Distance(
+                        cm.geom,
+                        ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                    ) as distance_m
+                FROM catalog_municipalities cm
+                WHERE cm.latitude IS NOT NULL
+                  AND cm.longitude IS NOT NULL
+                  AND cm.geom IS NOT NULL
+                ORDER BY cm.geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                LIMIT 1
+            """, (parcel_lon, parcel_lat, parcel_lon, parcel_lat))
+            municipality = cur.fetchone()
+
+            if not municipality:
+                return jsonify({'error': 'No municipality with weather data found near parcel'}), 404
+
+            muni_code = municipality['municipality_code']
+            station_lat = float(municipality['station_lat'])
+            station_lon = float(municipality['station_lon'])
+
+            # Step 5: Get weather observations for this municipality
+            cur.execute("""
+                SELECT
+                    observed_at, temp_avg, temp_min, temp_max,
+                    humidity_avg, precip_mm,
+                    solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
+                    eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
+                    wind_speed_ms, wind_direction_deg, pressure_hpa,
+                    gdd_accumulated, delta_t,
+                    source, data_type, metadata
+                FROM weather_observations
+                WHERE tenant_id = %s
+                  AND municipality_code = %s
+                  AND source = %s
+                  AND data_type = %s
+                ORDER BY observed_at DESC
+                LIMIT %s
+            """, (tenant_id, muni_code, source, data_type, limit))
+            observations = [dict(row) for row in cur.fetchall()]
+            cur.close()
+
+            # Extract station elevation from observation metadata (populated
+            # by Open-Meteo provider). Falls back to 0.0 if unavailable.
+            station_altitude = 0.0
+            if observations:
+                meta = observations[0].get('metadata') or {}
+                if isinstance(meta, dict):
+                    station_altitude = float(meta.get('station_elevation_m', 0) or 0)
+
+        if not observations:
+            return jsonify({
+                'parcel_id': parcel_id,
+                'municipality_code': muni_code,
+                'municipality_name': municipality.get('municipality_name'),
+                'downscaling': 'unavailable',
+                'observations': [],
+            }), 200
+
+        # Step 6: Apply spatial downscaling to each observation
+        downscaling_applied = False
+        try:
+            sys.path.insert(0, '/app/weather-worker')
+            from weather_worker.processors.spatial_downscaler import (
+                downscale_for_parcel,
+                recalculate_delta_t,
+                correct_temperature_altitude,
+            )
+
+            corrected_observations = []
+            for obs in observations:
+                obs_dt = obs.get('observed_at')
+                doy = obs_dt.timetuple().tm_yday if hasattr(obs_dt, 'timetuple') else None
+
+                corrected = downscale_for_parcel(
+                    weather_data=obs,
+                    parcel_lat=parcel_lat,
+                    parcel_lon=parcel_lon,
+                    parcel_altitude_m=parcel_altitude,
+                    station_altitude_m=station_altitude,
+                    parcel_aspect_deg=parcel_aspect,
+                    parcel_slope_deg=parcel_slope,
+                    doy=doy,
+                )
+                # Merge in metadata fields preserved from original
+                for key in ('observed_at', 'source', 'data_type', 'municipality_code'):
+                    if key in obs:
+                        corrected[key] = obs[key]
+                corrected_observations.append(corrected)
+
+            observations = corrected_observations
+            downscaling_applied = (parcel_altitude > 0 or parcel_slope >= 1.0)
+
+        except ImportError:
+            logger.debug('Spatial downscaler not available — returning raw observations')
+        except Exception as exc:
+            logger.warning(f'Downscaling error (returning raw data): {exc}')
+
+        return jsonify({
+            'parcel_id': parcel_id,
+            'municipality_code': muni_code,
+            'municipality_name': municipality.get('municipality_name'),
+            'parcel_altitude_m': parcel_altitude,
+            'station_altitude_m': station_altitude,
+            'parcel_aspect_deg': parcel_aspect,
+            'parcel_slope_deg': parcel_slope,
+            'downscaling': 'applied' if downscaling_applied else 'unavailable',
+            'observations': observations,
+        }), 200
+
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Orion-LD request timed out'}), 504
+    except Exception as e:
+        logger.error(f'Error in get_parcel_weather: {e}', exc_info=True)
+        return jsonify({'error': 'Failed to fetch parcel weather'}), 500
+
+
 @app.route('/api/weather/parcel/<parcel_id>/agro-status', methods=['GET'])
 @require_auth
 def get_parcel_agro_status(parcel_id):
     """
     Get agronomic weather status for a parcel.
-    
+
     Fuses sensor data (if available) with Open-Meteo data:
     - Priority: Sensor > Open-Meteo
     - Calculates parcel centroid from geometry
@@ -8055,6 +8279,24 @@ def _calculate_centroid(geometry):
     except Exception:
         return None, None
 
+def _sync_str_prop(props, key, default=''):
+    """Extract string from NGSI-LD entity properties dict."""
+    v = props.get(key)
+    val = v.get('value') if isinstance(v, dict) else v
+    return str(val) if val is not None else default
+
+
+def _sync_num_prop(props, key, default=0.0):
+    """Extract float from NGSI-LD entity properties dict."""
+    v = props.get(key)
+    if isinstance(v, dict):
+        v = v.get('value', default)
+    try:
+        return float(v) if v is not None else default
+    except (ValueError, TypeError):
+        return default
+
+
 def _map_entity_to_mobile(ent):
     """Map NGSI-LD entity to WatermelonDB Parcel schema"""
     props = ent.copy()
@@ -8200,13 +8442,117 @@ def _routing_line_record_for_watermelon(ent, fallback_ts):
     }
 
 
+def _equipment_record_for_watermelon(ent, fallback_ts):
+    """NGSI-LD AgriEquipment -> WatermelonDB equipment row."""
+    remote_id = ent.get('id')
+    if not remote_id:
+        raise ValueError('Equipment entity missing id')
+    name_raw = ent.get('name')
+    name = name_raw.get('value') if isinstance(name_raw, dict) else (name_raw or 'Unknown')
+    props = ent if isinstance(ent, dict) else {}
+
+    def _str_prop(key, default=''):
+        return _sync_str_prop(props, key, default)
+
+    def _num_prop(key, default=0.0):
+        return _sync_num_prop(props, key, default)
+
+    mod_ms = _ngsi_modified_at_ms(ent)
+    created_ms = mod_ms or fallback_ts
+    updated_ms = mod_ms or fallback_ts
+    rid = str(remote_id)
+
+    return {
+        'id': rid,
+        'remote_id': rid,
+        'name': str(name),
+        'equipment_type': _str_prop('equipmentType', 'tractor'),
+        'implement_width': _num_prop('implementWidth', 3.0),
+        'status': _str_prop('status', 'available'),
+        'steering_type': _str_prop('steeringType', 'ackermann'),
+        'steering_axles': _str_prop('steeringAxles', 'rear'),
+        'track_width': _num_prop('trackWidth'),
+        'wheelbase': _num_prop('wheelbase'),
+        'gps_offset_x': _num_prop('gpsOffsetX'),
+        'gps_offset_y': _num_prop('gpsOffsetY'),
+        'gps_offset_z': _num_prop('gpsOffsetZ'),
+        'hitch_type': _str_prop('hitchType', 'none'),
+        'hitch_offset_x': _num_prop('hitchOffsetX'),
+        'implement_length': _num_prop('implementLength'),
+        'implement_offset_x': _num_prop('implementOffsetX'),
+        'created_at': created_ms,
+        'updated_at': updated_ms,
+    }
+
+
+def _operation_record_for_watermelon(ent, fallback_ts):
+    """NGSI-LD AgriParcelOperation -> WatermelonDB operations row."""
+    remote_id = ent.get('id')
+    if not remote_id:
+        raise ValueError('Operation entity missing id')
+    props = ent if isinstance(ent, dict) else {}
+
+    def _str_prop(key, default=''):
+        return _sync_str_prop(props, key, default)
+
+    def _num_prop(key, default=0.0):
+        return _sync_num_prop(props, key, default)
+
+    def _bool_prop(key, default=False):
+        v = props.get(key)
+        if isinstance(v, dict):
+            v = v.get('value', default)
+        if v is None:
+            return default
+        return bool(v)
+
+    def _json_prop(key):
+        v = props.get(key)
+        if isinstance(v, dict):
+            v = v.get('value')
+        if v is None:
+            return '{}'
+        return json.dumps(v) if not isinstance(v, str) else v
+
+    mod_ms = _ngsi_modified_at_ms(ent)
+    created_ms = mod_ms or fallback_ts
+    updated_ms = mod_ms or fallback_ts
+    rid = str(remote_id)
+
+    started_val = _num_prop('startedAt', None) or _num_prop('plannedStartDate', None)
+    started_at = int(started_val) if started_val else None
+
+    return {
+        'id': rid,
+        'remote_id': rid,
+        'parcel_id': _str_prop('refParcel', ''),
+        'equipment_id': _str_prop('refEquipment', ''),
+        'tractor_id': _str_prop('refTractor', ''),
+        'implement_id': _str_prop('refImplement', ''),
+        'operation_type': _str_prop('operationType', 'spraying'),
+        'ab_line_geojson': _json_prop('abLine'),
+        'implement_width': _num_prop('implementWidth', 24.0),
+        'status': _str_prop('status', 'planned'),
+        'vra_enabled': _bool_prop('vraEnabled'),
+        'prescription_map': _json_prop('prescriptionMap'),
+        'base_rate': _num_prop('baseRate'),
+        'rate_unit': _str_prop('rateUnit', ''),
+        'coverage_geojson': _json_prop('coverage'),
+        'area_covered_ha': _num_prop('areaCoveredHa'),
+        'started_at': started_at,
+        'completed_at': None,
+        'created_at': created_ms,
+        'updated_at': updated_ms,
+    }
+
+
 def _parse_vectorial_collections():
     """
-    Query ``collections=parcels`` or ``collections=parcels,routing_lines``.
-    Empty / missing => both (backward compatible).
+    Query ``collections=parcels`` or ``collections=parcels,equipment,operations,routing_lines``.
+    Empty / missing => all (backward compatible).
     """
     raw = (request.args.get('collections') or '').strip()
-    allowed = frozenset({'parcels', 'routing_lines'})
+    allowed = frozenset({'parcels', 'routing_lines', 'equipment', 'operations'})
     if not raw:
         return allowed
     parts = {p.strip().lower() for p in raw.split(',') if p.strip()}
@@ -8236,12 +8582,42 @@ def core_vector_sync():
     return _core_vector_sync_pull()
 
 
+def _get_redis():
+    """Lazy Redis connection. Returns None if Redis is unavailable."""
+    try:
+        return redis.Redis.from_url(
+            _REDIS_URL, socket_timeout=2, socket_connect_timeout=2, decode_responses=False
+        )
+    except Exception:
+        return None
+
+
+def _sync_cache_key(tenant, collections_str, last_pulled_at):
+    return f"sync:pull:tenant:{tenant}:collections:{collections_str}:since:{last_pulled_at}"
+
+
+_SYNC_CACHE_TTL = 30
+
+
 def _core_vector_sync_pull():
     try:
         tenant = g.tenant
         last_pulled_at = request.args.get('last_pulled_at', type=int, default=0) or 0
         current_ts = int(time.time() * 1000)
         collections = _parse_vectorial_collections()
+        collections_key = ','.join(sorted(collections))
+
+        # Try Redis cache first
+        r = _get_redis()
+        cache_key = _sync_cache_key(tenant, collections_key, last_pulled_at)
+        if r:
+            try:
+                cached = r.get(cache_key)
+                if cached:
+                    logger.debug("sync_pull cache hit for tenant=%s collections=%s", tenant, collections_key)
+                    return jsonify(json.loads(cached))
+            except Exception as e:
+                logger.debug("Redis cache read skipped: %s", e)
 
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
         headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant)
@@ -8287,7 +8663,57 @@ def _core_vector_sync_pull():
                 'deleted': [],
             }
 
-        return jsonify({'changes': changes, 'timestamp': current_ts})
+        if 'equipment' in collections:
+            params_eq = {
+                'type': 'AgriEquipment',
+                'limit': 1000,
+            }
+            resp_eq = requests.get(orion_url, params=params_eq, headers=headers)
+            updated_eq = []
+            if resp_eq.status_code == 200:
+                for ent in resp_eq.json():
+                    try:
+                        eq_rec = _equipment_record_for_watermelon(ent, current_ts)
+                        if eq_rec['updated_at'] >= last_pulled_at:
+                            updated_eq.append(eq_rec)
+                    except Exception as e:
+                        logger.warning(f"Error mapping equipment {ent.get('id')}: {e}")
+            changes['equipment'] = {
+                'created': [],
+                'updated': updated_eq,
+                'deleted': [],
+            }
+
+        if 'operations' in collections:
+            params_ops = {
+                'type': 'AgriParcelOperation',
+                'limit': 1000,
+            }
+            resp_ops = requests.get(orion_url, params=params_ops, headers=headers)
+            updated_ops = []
+            if resp_ops.status_code == 200:
+                for ent in resp_ops.json():
+                    try:
+                        op_rec = _operation_record_for_watermelon(ent, current_ts)
+                        if op_rec['updated_at'] >= last_pulled_at:
+                            updated_ops.append(op_rec)
+                    except Exception as e:
+                        logger.warning(f"Error mapping operation {ent.get('id')}: {e}")
+            changes['operations'] = {
+                'created': [],
+                'updated': updated_ops,
+                'deleted': [],
+            }
+
+        response_data = {'changes': changes, 'timestamp': current_ts}
+
+        if r:
+            try:
+                r.setex(cache_key, _SYNC_CACHE_TTL, json.dumps(response_data))
+            except Exception as e:
+                logger.debug("Redis cache write skipped: %s", e)
+
+        return jsonify(response_data)
     except Exception as e:
         logger.error(f"Core Vector Sync pull error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -8304,7 +8730,27 @@ def _core_vector_sync_push():
             return jsonify({'error': 'Invalid body: missing changes'}), 400
 
         changes = data['changes']
+        last_pulled_at = data.get('last_pulled_at', 0)
         tenant = g.tenant
+        current_ts = int(time.time() * 1000)
+
+        # Conflict detection: reject if client cursor is behind server
+        r = _get_redis()
+        if r and last_pulled_at:
+            try:
+                cursor_key = f"sync:cursor:tenant:{tenant}"
+                server_cursor = int(r.get(cursor_key) or 0)
+                if last_pulled_at < server_cursor:
+                    return jsonify({
+                        'error': {
+                            'code': 'CONFLICT',
+                            'message': f'Client timestamp {last_pulled_at} is behind server cursor {server_cursor}. Pull first.',
+                            'server_timestamp': server_cursor,
+                        }
+                    }), 409
+            except Exception as e:
+                logger.debug("Redis cursor check skipped: %s", e)
+
         headers = inject_fiware_headers({'Content-Type': 'application/ld+json'}, tenant)
         # WatermelonDB expects { tableName: [recordId, ...] } (local Watermelon record ids).
         rejected_by_table = {}
@@ -8364,6 +8810,14 @@ def _core_vector_sync_push():
         body = {'status': 'success'}
         if rejected_by_table:
             body['experimentalRejectedIds'] = rejected_by_table
+
+        # Update Redis cursor after successful push
+        if r:
+            try:
+                r.set(f"sync:cursor:tenant:{tenant}", current_ts)
+            except Exception as e:
+                logger.debug("Redis cursor update skipped: %s", e)
+
         return jsonify(body)
     except Exception as e:
         logger.error(f"Core Vector Sync push error: {e}")
