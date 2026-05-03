@@ -6,7 +6,6 @@ Combines real sensor data with Open-Meteo fallback
 import logging
 import json
 import math
-import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple, List
 from psycopg2.extras import RealDictCursor
@@ -222,56 +221,41 @@ class AgroStatusService:
     
     def fetch_openmeteo_data(self, latitude: float, longitude: float) -> Optional[Dict[str, Any]]:
         """
-        Fetch current weather data from the Platform Weather API.
-
-        Uses the timeseries-reader /api/weather/current endpoint.
-        Falls back to Open-Meteo direct only if the platform API is unreachable.
-
+        Fetch current weather data from Open-Meteo API
+        
         Args:
             latitude: Latitude
             longitude: Longitude
-
+            
         Returns:
             Weather data dict or None
         """
-        # Priority 1: Platform Weather API
-        weather_api_url = os.getenv(
-            "WEATHER_API_URL", "http://timeseries-reader-service:5000"
-        )
-        try:
-            resp = requests.get(
-                f"{weather_api_url}/api/weather/current",
-                params={"lat": latitude, "lon": longitude},
-                headers={"X-Tenant-ID": self.tenant_id},
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                return {
-                    "temperature": data.get("temp_avg"),
-                    "humidity": data.get("humidity_avg"),
-                    "wind_speed": data.get("wind_speed_ms"),
-                    "wind_direction": data.get("wind_direction_deg"),
-                    "precipitation": data.get("precip_mm"),
-                    "precipitation_3d": data.get("precip_mm"),  # simplified
-                    "et0_3d": data.get("eto_mm"),
-                    "soil_moisture": None,  # not in weather_observations
-                    "water_balance": None,
-                    "source": "platform_weather_api",
-                }
-        except Exception:
-            pass
-
-        # Priority 2: Open-Meteo fallback (legacy — remove after API proven)
         try:
             url = "https://api.open-meteo.com/v1/forecast"
             params = {
-                'latitude': latitude, 'longitude': longitude,
-                'current': ['temperature_2m', 'relative_humidity_2m', 'wind_speed_10m', 'wind_direction_10m', 'precipitation', 'weather_code'],
-                'hourly': ['precipitation', 'et0_fao_evapotranspiration', 'soil_moisture_0_to_10cm'],
-                'daily': ['precipitation_sum', 'et0_fao_evapotranspiration'],
-                'forecast_days': 3, 'timezone': 'auto'
+                'latitude': latitude,
+                'longitude': longitude,
+                'current': [
+                    'temperature_2m',
+                    'relative_humidity_2m',
+                    'wind_speed_10m',
+                    'wind_direction_10m',
+                    'precipitation',
+                    'weather_code'
+                ],
+                'hourly': [
+                    'precipitation',
+                    'et0_fao_evapotranspiration',
+                    'soil_moisture_0_to_10cm'
+                ],
+                'daily': [
+                    'precipitation_sum',
+                    'et0_fao_evapotranspiration'
+                ],
+                'forecast_days': 3,  # For water balance calculation
+                'timezone': 'auto'
             }
+            
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
