@@ -20,6 +20,7 @@
     "@nekazari/design-tokens": "workspace:*",
     "@nekazari/sdk": "workspace:*",
     "@nekazari/ui-kit": "workspace:*",
+    "@nekazari/viewer-kit": "workspace:*",
     "@turf/along": "^7.3.1",
     "@turf/area": "^7.3.1",
     "@turf/bbox": "^7.3.1",
