@@ -28,7 +28,7 @@ export function useFlyToEntity(
         entityId = `parcel-${selectedEntity.id}`;
         range = 1000;
         break;
-      case 'AgriculturalRobot':
+      case 'AutonomousMobileRobot':
       case 'robot':
         entityId = `robot-${selectedEntity.id}`;
         range = 50;
@@ -38,7 +38,7 @@ export function useFlyToEntity(
         entityId = `sensor-${selectedEntity.id}`;
         range = 50;
         break;
-      case 'Tractor':
+      case 'ManufacturingMachine':
       case 'machine':
         entityId = `machine-${selectedEntity.id}`;
         range = 100;

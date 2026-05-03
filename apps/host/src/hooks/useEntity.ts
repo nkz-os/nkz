@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import api from '@/services/api';
 
 export interface UseEntityOptions {
-  /** Entity type (e.g., 'AgriSensor', 'AgriculturalRobot') */
+  /** Entity type (e.g., 'AgriSensor', 'AutonomousMobileRobot') */
   entityType: string;
   /** Entity ID */
   entityId: string;

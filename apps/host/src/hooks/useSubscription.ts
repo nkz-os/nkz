@@ -43,7 +43,7 @@ export interface NGSISubscription {
 }
 
 export interface UseSubscriptionOptions {
-  /** Entity type to subscribe to (e.g., 'AgriSensor', 'AgriculturalRobot') */
+  /** Entity type to subscribe to (e.g., 'AgriSensor', 'AutonomousMobileRobot') */
   entityType?: string;
   /** Specific entity ID (optional, if provided, only this entity is watched) */
   entityId?: string;

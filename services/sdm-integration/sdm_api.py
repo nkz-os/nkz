@@ -57,7 +57,7 @@ MQTT_PORT = int(os.getenv('MQTT_EXTERNAL_PORT', '8883'))  # External TLS port
 MQTT_INTERNAL_HOST = os.getenv('MQTT_HOST', 'mosquitto-service')
 
 # Types that require IoT provisioning
-IOT_ENTITY_TYPES = {'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'AgriculturalTractor', 'LivestockAnimal', 'AgriculturalMachine'}
+IOT_ENTITY_TYPES = {'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'ManufacturingMachine', 'LivestockAnimal', 'AgriculturalMachine'}
 
 # SOTA: Use local unified context from API Gateway
 CONTEXT_URL = os.getenv('CONTEXT_URL', 'http://api-gateway-service:5000/ngsi-ld-context.json')
@@ -313,7 +313,7 @@ def _check_tenant_limits(tenant_id: str, entity_type: str) -> bool:
     limit = 0
     if entity_type in ['AgriSensor', 'Sensor', 'Device', 'WeatherStation', 'LivestockAnimal']:
         limit = MAX_SENSORS_PER_TENANT
-    elif entity_type in ['AgriculturalRobot', 'AgriculturalTractor', 'AgriculturalMachine']:
+    elif entity_type in ['AutonomousMobileRobot', 'ManufacturingMachine', 'AgriculturalMachine']:
         limit = MAX_ROBOTS_PER_TENANT
     else:
         # No specific limit for other types
@@ -351,7 +351,7 @@ def _check_tenant_limits(tenant_id: str, entity_type: str) -> bool:
 def get_sdm_entities():
     """Get available SDM entities"""
     return {
-        "AgriculturalRobot": {
+        "AutonomousMobileRobot": {
             "description": "A robot used in agricultural operations",
             "attributes": {
                 "name": {"type": "Text", "description": "Robot name"},
@@ -420,7 +420,7 @@ def get_sdm_entities():
                 "location": {"type": "geo:json", "description": "Operation location"}
             }
         },
-        "AgriculturalTractor": {
+        "ManufacturingMachine": {
             "description": "Agricultural tractor or machinery",
             "attributes": {
                 "name": {"type": "Text", "description": "Tractor/machine name"},
@@ -622,7 +622,7 @@ def get_sdm_entities():
                 "farmType": {"type": "Text", "description": "Type of farm"}
             }
         },
-        "AgriculturalImplement": {
+        "ManufacturingMachine": {
             "description": "Agricultural implement or attachment",
             "attributes": {
                 "name": {"type": "Text", "description": "Implement name"},

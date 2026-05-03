@@ -65,8 +65,9 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
     try {
       // Create NGSI-LD entity according to SDM
       const machineData: Record<string, unknown> = {
-        id: `urn:ngsi-ld:AgriculturalTractor:${Date.now()}`,
-        type: 'AgriculturalTractor',
+        id: `urn:ngsi-ld:ManufacturingMachine:${Date.now()}`,
+        type: 'ManufacturingMachine',
+        category: { type: 'Property', value: 'tractor' },
         name: {
           type: 'Property',
           value: formData.name

@@ -44,9 +44,8 @@ export const ENTITY_TYPE_METADATA: Record<string, EntityTypeInfo> = {
   LivestockFarm:            { keywords: ['granja', 'explotación', 'farm'],                            macroCategory: 'sensors', icon: Building2,  description: 'Explotación ganadera',        color: 'brown'  },
 
   // ── Fleet ─────────────────────────────────────────────────────────────────────
-  AgriculturalRobot:        { keywords: ['robot', 'rover', 'ros2', 'autónomo', 'autonomous'],         macroCategory: 'fleet',   icon: Bot,        description: 'Robot agrícola',              color: 'indigo' },
-  AgriculturalTractor:      { keywords: ['tractor', 'john deere', 'fendt', 'isobus'],                 macroCategory: 'fleet',   icon: Tractor,    description: 'Tractor',                     color: 'green'  },
-  AgriculturalImplement:    { keywords: ['apero', 'implemento', 'implement', 'pulverizador', 'sembradora'], macroCategory: 'fleet', icon: Tractor, description: 'Apero/Implemento',            color: 'gray'   },
+  AutonomousMobileRobot:    { keywords: ['robot', 'rover', 'ros2', 'autónomo', 'autonomous'],         macroCategory: 'fleet',   icon: Bot,        description: 'Robot agrícola autónomo',              color: 'indigo' },
+  ManufacturingMachine:    { keywords: ['tractor', 'apero', 'implemento', 'maquinaria', 'john deere', 'fendt', 'isobus'], macroCategory: 'fleet', icon: Tractor, description: 'Maquinaria agrícola (tractor/apero)', color: 'green' },
   AgriOperation:            { keywords: ['operación', 'tarea', 'operation', 'task'],                  macroCategory: 'fleet',   icon: Activity,   description: 'Operación agrícola',          color: 'orange' },
 };
 
@@ -79,7 +78,7 @@ export const ENTITY_CATEGORIES: Record<string, string[]> = {
   'Cultivos':        ['AgriCrop', 'Vineyard', 'OliveGrove', 'AgriParcel'],
   'Árboles':         ['AgriTree', 'OliveTree', 'Vine', 'FruitTree'],
   'Agua':            ['WaterSource', 'Well', 'IrrigationOutlet', 'Spring', 'Pond'],
-  'Robótica':        ['AgriculturalRobot', 'AgriculturalTractor', 'AgriculturalImplement'],
+  'Robótica':        ['AutonomousMobileRobot', 'ManufacturingMachine'],
   'Sensores':        ['AgriSensor', 'Device', 'WeatherObserved'],
   'Infraestructura': ['AgriBuilding', 'IrrigationSystem'],
   'Ganadería':       ['LivestockAnimal', 'LivestockGroup', 'LivestockFarm'],

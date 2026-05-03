@@ -160,9 +160,9 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
       
       // Add entities with their types
       addEntities(parcelsRes, 'AgriParcel');
-      addEntities(robotsRes, 'AgriculturalRobot');
+      addEntities(robotsRes, 'AutonomousMobileRobot');
       addEntities(sensorsRes, 'AgriSensor');
-      addEntities(machinesRes, 'AgriculturalTractor');
+      addEntities(machinesRes, 'ManufacturingMachine');
       addEntities(livestockRes, 'LivestockAnimal');
       addEntities(weatherRes, 'WeatherObserved');
       addEntities(cropsRes, 'AgriCrop');

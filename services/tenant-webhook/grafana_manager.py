@@ -237,7 +237,7 @@ class GrafanaOrganizationManager:
                             "title": "Robots Activos",
                             "targets": [
                                 {
-                                    "expr": f'count(ngsi_entity_status{{tenant_id="{tenant_id}",type="AgriculturalRobot"}})',  # noqa: E501
+                                    "expr": f'count(ngsi_entity_status{{tenant_id="{tenant_id}",type="AutonomousMobileRobot"}})',  # noqa: E501
                                     "refId": "A",
                                 }
                             ],

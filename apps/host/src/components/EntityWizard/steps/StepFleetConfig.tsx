@@ -9,9 +9,8 @@ export function StepFleetConfig() {
   if (!formData || formData.macroCategory !== 'fleet') return null;
   const data = formData as FleetFormData;
 
-  const isRobot = entityType === 'AgriculturalRobot';
-  const isTractor = entityType === 'AgriculturalTractor';
-  const isImplement = entityType === 'AgriculturalImplement';
+  const isRobot = entityType === 'AutonomousMobileRobot';
+  const isMachine = entityType === 'ManufacturingMachine';
 
   return (
     <div className="space-y-4">
@@ -25,7 +24,7 @@ export function StepFleetConfig() {
           value={data.name}
           onChange={e => updateFormData({ name: e.target.value })}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-          placeholder={isRobot ? 'Ej: Rover Norte-01' : isTractor ? 'Ej: Fendt 516 #3' : 'Nombre de la unidad'}
+          placeholder={isRobot ? 'Ej: Rover Norte-01' : isMachine ? 'Ej: Fendt 516 #3' : 'Nombre de la unidad'}
         />
       </div>
 
@@ -98,8 +97,8 @@ export function StepFleetConfig() {
         </div>
       )}
 
-      {/* Tractor-specific */}
-      {(isTractor || isImplement) && (
+      {/* Machine-specific (tractor/implement) */}
+      {isMachine && (
         <div className="pt-3 border-t">
           <div className="flex items-center gap-2">
             <input

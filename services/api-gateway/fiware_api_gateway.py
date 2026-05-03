@@ -549,7 +549,7 @@ def subscriptions():
 
 @app.route("/api/devices/stats", methods=["GET"])
 def get_device_stats():
-    """Get device statistics (AgriculturalRobot count)"""
+    """Get device statistics (AutonomousMobileRobot count)"""
     # Validate JWT token
     token = get_request_token()
     if not token:
@@ -567,10 +567,10 @@ def get_device_stats():
     headers = {}
     headers = inject_fiware_headers(headers, tenant)
 
-    # Query Orion for AgriculturalRobot count
+    # Query Orion for AutonomousMobileRobot count
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        params = {"type": "AgriculturalRobot", "limit": 1, "count": "true"}
+        params = {"type": "AutonomousMobileRobot", "limit": 1, "count": "true"}
 
         response = requests.get(orion_url, headers=headers, params=params, timeout=10)
 

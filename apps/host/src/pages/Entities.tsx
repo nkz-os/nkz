@@ -167,7 +167,7 @@ export const Entities: React.FC = () => {
 
           entities.push({
             id: r.id || `unknown-${Math.random()}`,
-            type: 'AgriculturalRobot',
+            type: 'AutonomousMobileRobot',
             name: name,
             status: status,
             details: `${battery ? 'Bat: ' + battery + '%' : ''}`,

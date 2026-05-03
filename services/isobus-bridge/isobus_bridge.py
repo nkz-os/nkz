@@ -187,7 +187,7 @@ def map_isobus_to_ngsi_ld(
     device_id: str,
     telemetry_data: Dict[str, Any],
     tenant_id: str,
-    entity_type: str = 'AgriculturalTractor'
+    entity_type: str = 'ManufacturingMachine'
 ) -> Dict[str, Any]:
     """
     Mapea datos ISOBUS/J1939 a formato NGSI-LD
@@ -196,7 +196,7 @@ def map_isobus_to_ngsi_ld(
         device_id: ID del dispositivo (ej: TELTONIKA-SN-A4B8)
         telemetry_data: Datos del gateway telemático
         tenant_id: ID del tenant
-        entity_type: Tipo de entidad (AgriculturalTractor, AgriculturalImplement)
+        entity_type: Tipo de entidad (ManufacturingMachine con category: tractor o implement)
     
     Returns:
         Payload NGSI-LD para PATCH
@@ -276,7 +276,7 @@ def map_isobus_to_ngsi_ld(
         }
     
     # Datos específicos de implementos
-    if entity_type == 'AgriculturalImplement':
+    if entity_type == 'ManufacturingMachine':
         # Tasa de siembra (kg/ha)
         if 'implement_rate' in j1939_data:
             ngsi_payload['seedingRate'] = {
@@ -455,7 +455,7 @@ def receive_isobus_telemetry():
                 "vehicle_speed_kmh": 8.2,
                 "implement_rate": 120.0
             },
-            "entity_type": "AgriculturalTractor"  // Opcional, default: AgriculturalTractor
+            "entity_type": "ManufacturingMachine"  // Opcional, default: AgriculturalTractor
         }
     """
     try:
@@ -506,9 +506,9 @@ def receive_isobus_telemetry():
             }), 400
         
         # 4. Determinar tipo de entidad
-        entity_type = data.get('entity_type', 'AgriculturalTractor')
-        if entity_type not in ['AgriculturalTractor', 'AgriculturalImplement']:
-            entity_type = 'AgriculturalTractor'  # Default
+        entity_type = data.get('entity_type', 'ManufacturingMachine')
+        if entity_type not in ['ManufacturingMachine', 'ManufacturingMachine']:
+            entity_type = 'ManufacturingMachine'  # Default
         
         # 5. Construir entity_id
         entity_id = f"urn:ngsi-ld:{entity_type}:{tenant_id}:{device_id}"

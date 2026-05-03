@@ -25,7 +25,7 @@ export const AgriculturalMachinesCard: React.FC<AgriculturalMachinesCardProps> =
             <p className="text-gray-500 mb-4">No hay maquinaria registrada</p>
             {canManageDevices && (
               <button
-                onClick={() => onOpenWizard('AgriculturalTractor')}
+                onClick={() => onOpenWizard('ManufacturingMachine')}
                 className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />

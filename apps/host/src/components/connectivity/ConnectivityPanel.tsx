@@ -92,7 +92,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
 
             // Load IoT Details if applicable
             try {
-                if (['AgriSensor', 'Sensor', 'Device', 'WeatherStation', 'AgriculturalTractor', 'LivestockAnimal'].includes(entityType)) {
+                if (['AgriSensor', 'Sensor', 'Device', 'WeatherStation', 'ManufacturingMachine', 'LivestockAnimal'].includes(entityType)) {
                     const details = await api.getIoTDetails(entityId);
                     setIotDetails(details);
                 }
@@ -188,8 +188,8 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
     const globalProfiles = profiles.filter(p => p.is_public);
     const privateProfiles = profiles.filter(p => !p.is_public);
 
-    // AgriculturalRobot uses VPN. AgriculturalTractor uses IoT (ISOBUS bridge usually speaks MQTT).
-    const showVpnSection = entityType === 'AgriculturalRobot';
+    // AutonomousMobileRobot uses VPN. ManufacturingMachine uses IoT (ISOBUS bridge usually speaks MQTT).
+    const showVpnSection = entityType === 'AutonomousMobileRobot';
 
     return (
         <div className="space-y-6 h-full flex flex-col">

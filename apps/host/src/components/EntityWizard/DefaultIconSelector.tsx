@@ -68,8 +68,8 @@ const ENTITY_ICON_SUGGESTIONS: Record<string, string[]> = {
   AgriSensor: ['gauge', 'thermometer', 'activity'],
   Device: ['wifi', 'radio', 'gauge'],
   WeatherObserved: ['sun', 'wind', 'thermometer'],
-  AgriculturalRobot: ['bot', 'activity'],
-  AgriculturalTractor: ['tractor', 'activity'],
+  AutonomousMobileRobot: ['bot', 'activity'],
+  ManufacturingMachine: ['tractor', 'activity'],
   PhotovoltaicInstallation: ['sun', 'zap'],
   EnergyStorageSystem: ['zap', 'activity'],
 };
