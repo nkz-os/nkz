@@ -50,7 +50,12 @@ export const ProductAnchor: React.FC = () => {
               aspectRatio: '16/9',
             }}
           >
-            <p className="text-[#5B6660] text-sm">Screenshot Cesium viewer — pendiente de captura</p>
+            <img
+              src="/media/cesium-viewer.png"
+              alt="Nekazari Cesium viewer"
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
           </div>
         </div>
       </div>

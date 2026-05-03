@@ -46,6 +46,11 @@ export const OpenCoreSection: React.FC = () => {
 
         <div className="max-w-[1200px] mx-auto relative flex flex-col md:flex-row">
           <div className="flex-1 md:pr-16">
+            <img
+              src="/media/nkz-os-logo.svg"
+              alt="nkz-os"
+              className="h-7 w-auto mb-5"
+            />
             <h3
               className="text-[#0E1A14] font-semibold mb-6"
               style={{ fontFamily: "'Inter', sans-serif", fontSize: '22px' }}

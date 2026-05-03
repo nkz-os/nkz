@@ -380,7 +380,8 @@
     "footer_col3_2": "Contact",
     "footer_col3_3": "Privacy",
     "footer_col3_4": "Terms",
-    "footer_copyright": "© 2026 Nekazari · Powered by nkz-os · AGPL-3.0"
+    "footer_copyright": "© 2026 Nekazari · Powered by nkz-os · AGPL-3.0",
+    "proof_hardware": "hardware compatible. No vendor lock-in."
   },
   "cookies": {
     "title": "Cookies",
