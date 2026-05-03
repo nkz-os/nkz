@@ -18,7 +18,6 @@ function getPartners(): Partner[] {
   try {
     const raw = (window as any).__ENV__?.PARTNERS_JSON;
     if (!raw) return [];
-    // raw may be a JS array (from external script) or a JSON string (from inline config)
     const parsed = Array.isArray(raw) ? raw : JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) return parsed;
   } catch { /* ignore malformed JSON */ }
@@ -32,10 +31,10 @@ export const PartnerLogos: React.FC = () => {
   if (partners.length === 0) return null;
 
   return (
-    <div className="w-full bg-white py-16 border-y border-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <p className="text-center text-sm font-semibold text-gray-500 uppercase tracking-wide mb-10">
-          {t('landing.partners_title') || 'Partners'}
+    <div className="w-full bg-white py-16">
+      <div className="max-w-[1200px] mx-auto px-8">
+        <p className="font-mono-landing text-center text-[13px] tracking-[0.15em] uppercase text-[#5B6660] mb-10">
+          {t('landing_v2.partners_eyebrow')}
         </p>
         <div className="flex flex-wrap justify-center items-center gap-12 md:gap-24">
           {partners.map((partner, index) => (
@@ -45,13 +44,13 @@ export const PartnerLogos: React.FC = () => {
               target="_blank"
               rel="noopener noreferrer"
               title={partner.name}
-              className="group block relative transition-transform duration-300 transform hover:scale-110"
+              className="group block"
             >
               <img
                 src={partner.logo}
                 alt={partner.name}
                 loading="lazy"
-                className="max-h-16 w-auto object-contain opacity-70 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-500"
+                className="max-h-16 w-auto object-contain opacity-60 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-300"
               />
             </a>
           ))}
