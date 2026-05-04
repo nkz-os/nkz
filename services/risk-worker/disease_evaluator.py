@@ -143,6 +143,12 @@ def _publish_disease_risk(
         if hasattr(result, "lwd_method") and result.lwd_method != "none":
             entity["lwdMethod"] = {"type": "Property", "value": result.lwd_method}
 
+        if parcel_id:
+            entity["refAgriParcel"] = {
+                "type": "Relationship",
+                "object": f"urn:ngsi-ld:AgriParcel:{parcel_id}",
+            }
+
         headers = {
             "Content-Type": "application/ld+json",
             "NGSILD-Tenant": tenant_id,

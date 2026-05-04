@@ -95,3 +95,23 @@
 div[class*="grid"]:not(.remote-module-container *) {
   contain: layout style;
 }
+
+/* Landing: reduced-motion support */
+@media (prefers-reduced-motion: reduce) {
+  .hero-video {
+    display: none !important;
+  }
+  .scroll-indicator-line {
+    animation: none !important;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Landing: JetBrains Mono utility */
+.font-mono-landing {
+  font-family: 'JetBrains Mono', 'IBM Plex Mono', 'ui-monospace', 'SF Mono', monospace;
+}

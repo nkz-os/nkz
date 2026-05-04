@@ -241,6 +241,22 @@ spec:
                 name: odoo-backend-service
                 port:
                   number: 80
+          # CUE Module API (Cuaderno de Campo SIEX)
+          - path: /api/modules/cue
+            pathType: Prefix
+            backend:
+              service:
+                name: cue-backend-service
+                port:
+                  number: 5000
+          # CUE NGSI-LD @context
+          - path: /ngsi-ld/cue-context.jsonld
+            pathType: Exact
+            backend:
+              service:
+                name: cue-backend-service
+                port:
+                  number: 5000
           # - path: /ros2-fiware-bridge-service
           #   pathType: Prefix
           #   backend:
