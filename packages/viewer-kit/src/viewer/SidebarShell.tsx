@@ -11,7 +11,6 @@
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import clsx from 'clsx';
-import { IconButton } from '@nekazari/ui-kit';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -127,40 +126,73 @@ function SidebarShellRoot({
         overflow: isOpen ? 'hidden' : 'visible',
       }}
     >
-      {/* ---------- Closed state: toggle button ---------- */}
-      {!isOpen && (
-        <button
-          onClick={handleCycle}
-          className={clsx(
-            'absolute top-1/2 -translate-y-1/2 z-10',
-            'w-6 h-12 flex items-center justify-center',
-            'bg-nkz-surface border border-nkz-border rounded-nkz-md',
-            'text-nkz-text-muted hover:text-nkz-text-primary',
-            'shadow-nkz-sm transition-colors duration-nkz-fast',
-            side === 'left' ? 'right-0 translate-x-1/2' : 'left-0 -translate-x-1/2',
-          )}
-          aria-label={
-            side === 'left' ? 'Open left sidebar' : 'Open right sidebar'
+      {/* ---------- Toggle button — always visible on the edge ---------- */}
+      {/* Mimics the original LeftPanel/RightPanel: round button, white glass, tooltip */}
+      <button
+        onClick={handleCycle}
+        className={clsx(
+          'absolute top-1/2 -translate-y-1/2 z-40',
+          'p-2 rounded-full',
+          'bg-white/90 backdrop-blur-md border border-white/20 shadow-xl',
+          'text-slate-600 hover:text-blue-600 hover:bg-white hover:scale-110',
+          'active:scale-95 transition-all duration-300',
+          'flex items-center justify-center pointer-events-auto',
+          isOpen
+            ? (side === 'left' ? 'right-0 translate-x-1/2' : 'left-0 -translate-x-1/2')
+            : (side === 'left' ? 'left-2' : 'right-2'),
+        )}
+        title={
+          isOpen
+            ? (state === 'compact' ? 'Expandir panel' : 'Cerrar panel')
+            : 'Abrir panel'
+        }
+        aria-label={
+          isOpen
+            ? (state === 'compact' ? 'Expand sidebar' : 'Close sidebar')
+            : 'Open sidebar'
+        }
+      >
+        {/* Chevron pointing in the appropriate direction */}
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 20 20"
+          fill="none"
+          aria-hidden="true"
+          className={
+            !isOpen
+              ? (side === 'left' ? '' : 'rotate-180')
+              : state === 'compact'
+                ? (side === 'left' ? 'rotate-0' : 'rotate-180')
+                : (side === 'left' ? 'rotate-180' : 'rotate-0')
           }
         >
-          <svg
-            width="8"
-            height="12"
-            viewBox="0 0 8 12"
-            fill="none"
-            aria-hidden="true"
-            className={side === 'right' ? 'rotate-180' : ''}
-          >
-            <path
-              d="M6 2L2 6l4 4"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      )}
+          <path
+            d={isOpen && state === 'expanded'
+              ? (side === 'left' ? 'M12 6l-4 4 4 4' : 'M8 6l4 4-4 4')
+              : (side === 'left' ? 'M8 6l4 4-4 4' : 'M12 6l-4 4 4 4')
+            }
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+
+        {/* Tooltip on hover */}
+        <span className={clsx(
+          'absolute top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-xs rounded',
+          'opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none',
+          side === 'left' ? 'left-full ml-2' : 'right-full mr-2',
+        )}>
+          {!isOpen
+            ? 'Abrir panel'
+            : state === 'compact'
+              ? 'Expandir'
+              : 'Cerrar panel'
+          }
+        </span>
+      </button>
 
       {/* ---------- Open state: content ---------- */}
       {isOpen && (
@@ -176,38 +208,6 @@ function SidebarShellRoot({
             )}
           >
             <div className="w-full h-full opacity-0 group-hover:opacity-100 transition-opacity bg-nkz-accent-base rounded-full" />
-          </div>
-
-          {/* Cycle button at bottom-right corner */}
-          <div className="flex justify-end px-nkz-inline py-nkz-tight border-t border-nkz-border">
-            <IconButton
-              aria-label={
-                state === 'compact' ? 'Expand sidebar' : 'Compact sidebar'
-              }
-              size="sm"
-              onClick={handleCycle}
-            >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                className={clsx(
-                  'transition-transform duration-nkz-fast',
-                  state === 'expanded' && side === 'left' && 'rotate-180',
-                  state === 'compact' && side === 'right' && 'rotate-180',
-                )}
-                aria-hidden="true"
-              >
-                <path
-                  d="M5 3l3 3-3 3"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </IconButton>
           </div>
         </>
       )}
