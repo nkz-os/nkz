@@ -130,7 +130,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
     lastName: u.lastName,
     roles: u.roles || [],
     enabled: u.enabled !== false,
-    createdAt: typeof u.createdAt === 'number' ? u.createdAt : undefined,
+    createdAt: typeof (u as any).createdAt === 'number' ? (u as any).createdAt : undefined,
   }));
 
   if (!canManageUsers) return null;

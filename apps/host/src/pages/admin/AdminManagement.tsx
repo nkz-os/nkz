@@ -82,7 +82,7 @@ function mapKeycloakUserToRow(u: Record<string, unknown>): User {
     roles,
     tenant,
     createdAt,
-    groups,
+    groups: (u as any).groups,
   };
 }
 
