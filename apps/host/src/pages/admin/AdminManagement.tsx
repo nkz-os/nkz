@@ -68,9 +68,6 @@ function mapKeycloakUserToRow(u: Record<string, unknown>): User {
     ? rolesRaw.filter((r): r is string => typeof r === 'string')
     : [];
 
-  const groups: string[] = Array.isArray(u.groups)
-    ? u.groups.filter((g): g is string => typeof g === 'string')
-    : [];
 
   return {
     id: String(u.id ?? ''),
@@ -82,7 +79,6 @@ function mapKeycloakUserToRow(u: Record<string, unknown>): User {
     roles,
     tenant,
     createdAt,
-    groups: (u as any).groups,
   };
 }
 
