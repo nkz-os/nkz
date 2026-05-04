@@ -602,24 +602,24 @@ data:
             "attributes": {}
           },
           {
-            "name": "DeviceManager",
-            "description": "Device manager with device management permissions",
-            "composite": false,
-            "clientRole": false,
-            "containerId": "nekazari",
-            "attributes": {}
-          },
-          {
-            "name": "DashboardViewer",
-            "description": "Dashboard viewer with read-only access",
-            "composite": false,
-            "clientRole": false,
-            "containerId": "nekazari",
-            "attributes": {}
-          },
-          {
             "name": "Farmer",
             "description": "Farmer with basic access to their data",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari",
+            "attributes": {}
+          },
+          {
+            "name": "TechnicalConsultant",
+            "description": "Technical consultant with data analysis and module access",
+            "composite": false,
+            "clientRole": false,
+            "containerId": "nekazari",
+            "attributes": {}
+          },
+          {
+            "name": "GestorCUE",
+            "description": "CUE field notebook manager with cross-tenant farmer authorization",
             "composite": false,
             "clientRole": false,
             "containerId": "nekazari",
@@ -645,11 +645,11 @@ data:
           "clientRoles": {}
         },
         {
-          "name": "Device Managers",
-          "path": "/Device Managers",
+          "name": "Technical Consultants",
+          "path": "/Technical Consultants",
           "subGroups": [],
           "attributes": {},
-          "realmRoles": ["DeviceManager"],
+          "realmRoles": ["TechnicalConsultant"],
           "clientRoles": {}
         },
         {
@@ -658,6 +658,14 @@ data:
           "subGroups": [],
           "attributes": {},
           "realmRoles": ["Farmer"],
+          "clientRoles": {}
+        },
+        {
+          "name": "Gestores CUE",
+          "path": "/Gestores CUE",
+          "subGroups": [],
+          "attributes": {},
+          "realmRoles": ["GestorCUE"],
           "clientRoles": {}
         }
       ],

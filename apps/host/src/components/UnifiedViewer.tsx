@@ -20,24 +20,25 @@ import { useModules } from '@/context/ModuleContext';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
 import { cadastralApi } from '@/services/cadastralApi';
-// Removed hardcoded vegetation layer data import - modules should use slot system
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { logger } from '@/utils/logger';
 import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay';
+import { useViewerTheme } from '@/hooks/useViewerTheme';
+import { ThemeProvider } from '@nekazari/design-tokens';
+import { SidebarShell } from '@nekazari/viewer-kit';
+type SidebarState = 'closed' | 'compact' | 'expanded';
+import '@nekazari/design-tokens/css';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';
 import {
-    ChevronLeft,
-    ChevronRight,
     ChevronDown,
     ChevronUp,
     Layers,
     X,
     Loader2,
-    Maximize2,
     AlertTriangle,
 } from 'lucide-react';
 
-// Styles for glassmorphism panels
+// Legacy glass panel styles — used by bottom panel, layer manager, map toolbar
 const glassPanel = {
     base: 'bg-white/90 backdrop-blur-md border border-white/20 shadow-xl',
     header: 'bg-gradient-to-r from-slate-50/80 to-white/80 backdrop-blur-sm',
@@ -49,173 +50,6 @@ const PanelLoadingFallback: React.FC = () => (
         <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
     </div>
 );
-
-// 3-state Sidebar Logic
-type SidebarState = 'closed' | 'compact' | 'expanded';
-
-interface LeftPanelProps {
-    state: SidebarState;
-    onCycleState: () => void;
-    onAddEntity: () => void;
-    compactWidth: number;
-    expandedWidth: number;
-}
-
-const LeftPanel: React.FC<LeftPanelProps> = ({
-    state,
-    onCycleState,
-    onAddEntity,
-    compactWidth,
-    expandedWidth
-}) => {
-    const currentWidth = state === 'expanded' ? expandedWidth : state === 'compact' ? compactWidth : 0;
-    const isOpen = state !== 'closed';
-
-    // Button config based on CURRENT state (what happens when clicked)
-    const getButtonConfig = () => {
-        switch (state) {
-            case 'closed':
-                return { icon: <ChevronRight className="w-5 h-5" />, title: 'Abrir panel', next: 'Compacto' };
-            case 'compact':
-                return { icon: <Maximize2 className="w-4 h-4" />, title: 'Expandir panel', next: 'Expandido' };
-            case 'expanded':
-                return { icon: <ChevronLeft className="w-5 h-5" />, title: 'Cerrar panel', next: 'Cerrado' };
-        }
-    };
-
-    const btnConfig = getButtonConfig();
-
-    return (
-        <div
-            className={`absolute top-16 left-0 bottom-4 z-30 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isOpen ? 'pointer-events-auto' : 'w-0 pointer-events-none'
-                }`}
-            style={{ width: isOpen ? `${currentWidth}px` : '0px' }}
-        >
-            <div className="h-full ml-4 relative">
-                {/* Content Container - Fixed width to prevent squashing */}
-                <div
-                    className={`h-full rounded-xl ${glassPanel.base} overflow-hidden relative transition-all duration-500`}
-                    style={{
-                        width: isOpen ? `${currentWidth - 16}px` : '0px',
-                        opacity: isOpen ? 1 : 0,
-                        transform: isOpen ? 'translateX(0)' : 'translateX(-20px)'
-                    }}
-                >
-                    {/* Inner wrapper with min-width ensures content never wraps awkwardly */}
-                    <div style={{ minWidth: `${compactWidth - 16}px`, height: '100%' }}>
-                        {isOpen && (
-                            <Suspense fallback={<PanelLoadingFallback />}>
-                                <SlotRenderer
-                                    slot="entity-tree"
-                                    className="flex-1 flex flex-col h-full"
-                                    additionalProps={{ onAddEntity }}
-                                />
-                            </Suspense>
-                        )}
-                    </div>
-                </div>
-
-                {/* Single Toggle Button */}
-                <button
-                    onClick={onCycleState}
-                    className={`absolute top-1/2 -translate-y-1/2 z-40 p-2 rounded-full ${glassPanel.base}
-                        hover:bg-white hover:scale-110 active:scale-95 transition-all duration-300 shadow-lg group
-                        flex items-center justify-center border-slate-200/50 text-slate-600 hover:text-blue-600 pointer-events-auto`}
-                    style={{
-                        left: isOpen ? `${currentWidth - 8}px` : '4px',
-                        // Rotate icon for expanded state closing action if desired, but changing icon is enough
-                    }}
-                    title={btnConfig.title}
-                >
-                    {btnConfig.icon}
-
-                    {/* Tooltip on hover */}
-                    <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                        {btnConfig.next}
-                    </span>
-                </button>
-            </div>
-        </div>
-    );
-};
-
-// Right Panel Component with 3-state sidebar (mirrors LeftPanel but positioned on right)
-interface RightPanelProps {
-    state: SidebarState;
-    onCycleState: () => void;
-    compactWidth: number;
-    expandedWidth: number;
-    children: React.ReactNode;
-}
-
-const RightPanel: React.FC<RightPanelProps> = ({
-    state,
-    onCycleState,
-    compactWidth,
-    expandedWidth,
-    children
-}) => {
-    const currentWidth = state === 'expanded' ? expandedWidth : state === 'compact' ? compactWidth : 0;
-    const isOpen = state !== 'closed';
-
-    // Button config based on CURRENT state (what happens when clicked)
-    const getButtonConfig = () => {
-        switch (state) {
-            case 'closed':
-                return { icon: <ChevronLeft className="w-5 h-5" />, title: 'Abrir panel', next: 'Compacto' };
-            case 'compact':
-                return { icon: <Maximize2 className="w-4 h-4" />, title: 'Expandir panel', next: 'Expandido' };
-            case 'expanded':
-                return { icon: <ChevronRight className="w-5 h-5" />, title: 'Cerrar panel', next: 'Cerrado' };
-        }
-    };
-
-    const btnConfig = getButtonConfig();
-
-    return (
-        <div
-            className={`absolute top-16 right-0 bottom-4 z-30 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isOpen ? '' : 'w-0'
-                }`}
-            style={{ width: isOpen ? `${currentWidth}px` : '0px' }}
-        >
-            <div className="h-full mr-4 relative">
-                {/* Content Container - Fixed width to prevent squashing */}
-                <div
-                    className={`h-full rounded-xl ${glassPanel.base} overflow-hidden relative transition-all duration-500 ml-auto`}
-                    style={{
-                        width: isOpen ? `${currentWidth - 16}px` : '0px',
-                        opacity: isOpen ? 1 : 0,
-                        transform: isOpen ? 'translateX(0)' : 'translateX(20px)'
-                    }}
-                >
-                    {/* Inner wrapper with min-width ensures content never wraps awkwardly */}
-                    <div style={{ minWidth: `${compactWidth - 16}px`, height: '100%' }} className="flex flex-col">
-                        {isOpen && children}
-                    </div>
-                </div>
-
-                {/* Single Toggle Button */}
-                <button
-                    onClick={onCycleState}
-                    className={`absolute top-1/2 -translate-y-1/2 z-40 p-2 rounded-full ${glassPanel.base}
-                        hover:bg-white hover:scale-110 active:scale-95 transition-all duration-300 shadow-lg group
-                        flex items-center justify-center border-slate-200/50 text-slate-600 hover:text-blue-600`}
-                    style={{
-                        right: isOpen ? `${currentWidth - 8}px` : '4px',
-                    }}
-                    title={btnConfig.title}
-                >
-                    {btnConfig.icon}
-
-                    {/* Tooltip on hover */}
-                    <span className="absolute right-full mr-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                        {btnConfig.next}
-                    </span>
-                </button>
-            </div>
-        </div>
-    );
-};
 
 /** Inner viewer component that uses SlotRegistry */
 const UnifiedViewerInner: React.FC = () => {
@@ -254,37 +88,18 @@ const UnifiedViewerInner: React.FC = () => {
     // Derived current state for right panel
     const rightSidebarState: SidebarState = !isRightPanelOpen ? 'closed' : isRightPanelExpanded ? 'expanded' : 'compact';
 
-    // Cycle handler for left panel: Closed -> Compact -> Expanded -> Closed
-    const cycleSidebar = useCallback(() => {
-        if (!isLeftPanelOpen) {
-            // Closed -> Compact
-            toggleLeftPanel(); // Opens it
-            setIsLeftPanelExpanded(false);
-        } else if (!isLeftPanelExpanded) {
-            // Compact -> Expanded
-            setIsLeftPanelExpanded(true);
-        } else {
-            // Expanded -> Closed
-            toggleLeftPanel(); // Closes it
-            setIsLeftPanelExpanded(false); // Reset to compact for next open
-        }
-    }, [isLeftPanelOpen, isLeftPanelExpanded, toggleLeftPanel]);
+    // Map SidebarShell state changes back to ViewerContext
+    const handleLeftStateChange = useCallback((s: SidebarState) => {
+        if (s === 'closed') { toggleLeftPanel(); setIsLeftPanelExpanded(false); }
+        else if (s === 'compact') { if (!isLeftPanelOpen) toggleLeftPanel(); setIsLeftPanelExpanded(false); }
+        else { if (!isLeftPanelOpen) toggleLeftPanel(); setIsLeftPanelExpanded(true); }
+    }, [isLeftPanelOpen, toggleLeftPanel]);
 
-    // Cycle handler for right panel: Closed -> Compact -> Expanded -> Closed
-    const cycleRightSidebar = useCallback(() => {
-        if (!isRightPanelOpen) {
-            // Closed -> Compact
-            toggleRightPanel(); // Opens it
-            setIsRightPanelExpanded(false);
-        } else if (!isRightPanelExpanded) {
-            // Compact -> Expanded
-            setIsRightPanelExpanded(true);
-        } else {
-            // Expanded -> Closed
-            toggleRightPanel(); // Closes it
-            setIsRightPanelExpanded(false); // Reset to compact for next open
-        }
-    }, [isRightPanelOpen, isRightPanelExpanded, toggleRightPanel]);
+    const handleRightStateChange = useCallback((s: SidebarState) => {
+        if (s === 'closed') { toggleRightPanel(); setIsRightPanelExpanded(false); }
+        else if (s === 'compact') { if (!isRightPanelOpen) toggleRightPanel(); setIsRightPanelExpanded(false); }
+        else { if (!isRightPanelOpen) toggleRightPanel(); setIsRightPanelExpanded(true); }
+    }, [isRightPanelOpen, toggleRightPanel]);
 
     // Vegetation layer removed - external modules handle this via slot system
 
@@ -580,7 +395,11 @@ const UnifiedViewerInner: React.FC = () => {
         selectEntity(entity.id, entity.type);
     }, [selectEntity]);
 
+    // ThemeProvider for the viewer only — does NOT affect other routes
+    const { profile, setProfile } = useViewerTheme();
+
     return (
+        <ThemeProvider profile={profile} onChange={setProfile}>
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-900">
             {/* Floating Header - Logo with dropdown menu + controls; right strip includes Layers + Theme + Language */}
             <ViewerHeader
@@ -714,26 +533,34 @@ const UnifiedViewerInner: React.FC = () => {
                 </div>
             )}
 
-            {/* Left Panel - Entity Tree (uses SlotRenderer) */}
-            <LeftPanel
-                state={sidebarState}
-                onCycleState={cycleSidebar}
-                onAddEntity={() => setIsWizardOpen(true)}
-                compactWidth={380}
-                expandedWidth={650}
-            />
+            {/* Left Panel — Entity Tree, floating over Cesium */}
+            <div className="absolute top-14 left-0 bottom-4 z-nkz-rail pointer-events-none">
+                <SidebarShell
+                    side="left"
+                    state={sidebarState}
+                    onStateChange={handleLeftStateChange}
+                >
+                    <SidebarShell.Pinned>
+                        <Suspense fallback={<PanelLoadingFallback />}>
+                            <SlotRenderer
+                                slot="entity-tree"
+                                className="flex-1 flex flex-col"
+                                additionalProps={{ onAddEntity: () => setIsWizardOpen(true) }}
+                            />
+                        </Suspense>
+                    </SidebarShell.Pinned>
+                </SidebarShell>
+            </div>
 
-            {/* Right Panel - Context/Details (uses SlotRenderer) - 3 state sidebar */}
-            <RightPanel
-                state={rightSidebarState}
-                onCycleState={cycleRightSidebar}
-                compactWidth={400}
-                expandedWidth={600}
-            >
-                {/* Show ParcelForm when in DRAW_PARCEL mode with drawn geometry */}
-                {mapMode === 'DRAW_PARCEL' && drawnGeometry ? (
-                    <div className="flex-1 overflow-y-auto p-4">
-                        <div className="mb-4">
+            {/* Right Panel — Context/Details, floating over Cesium */}
+            <div className="absolute top-14 right-0 bottom-4 z-nkz-rail pointer-events-none">
+                <SidebarShell
+                    side="right"
+                    state={rightSidebarState}
+                    onStateChange={handleRightStateChange}
+                >
+                    {mapMode === 'DRAW_PARCEL' && drawnGeometry ? (
+                        <div className="flex-1 overflow-y-auto p-4">
                             <h3 className="text-lg font-semibold text-slate-800 mb-2">Nueva Parcela</h3>
                             {cadastralData && (
                                 <p className="text-sm text-slate-600 mb-2">
@@ -745,38 +572,38 @@ const UnifiedViewerInner: React.FC = () => {
                                     Área: {drawnArea.toFixed(2)} ha
                                 </p>
                             )}
-                        </div>
-                        <ParcelForm
-                            initialData={cadastralData ? {
-                                id: '',
-                                name: cadastralData.reference,
-                                cadastralReference: cadastralData.reference,
-                                municipality: cadastralData.municipality || '',
-                                province: cadastralData.province || '',
-                                cropType: '',
-                                notes: '',
-                                area: drawnArea || 0,
-                                geometry: drawnGeometry,
-                            } as Parcel : null}
-                            geometry={drawnGeometry}
-                            onSave={handleParcelFormSave}
-                            onCancel={handleCancelDrawing}
-                            mode="create"
-                        />
-                    </div>
-                ) : (
-                    <Suspense fallback={<PanelLoadingFallback />}>
-                        <div className="flex-1 min-h-0 overflow-y-auto p-3">
-                            <SlotRenderer
-                                slot="context-panel"
-                                className="flex flex-col gap-3"
-                                additionalProps={{ entityData: getSelectedEntityData() }}
-                                resetKeys={selectedEntityId ? [selectedEntityId] : []}
+                            <ParcelForm
+                                initialData={cadastralData ? {
+                                    id: '',
+                                    name: cadastralData.reference,
+                                    cadastralReference: cadastralData.reference,
+                                    municipality: cadastralData.municipality || '',
+                                    province: cadastralData.province || '',
+                                    cropType: '',
+                                    notes: '',
+                                    area: drawnArea || 0,
+                                    geometry: drawnGeometry,
+                                } as Parcel : null}
+                                geometry={drawnGeometry}
+                                onSave={handleParcelFormSave}
+                                onCancel={handleCancelDrawing}
+                                mode="create"
                             />
                         </div>
-                    </Suspense>
-                )}
-            </RightPanel>
+                    ) : (
+                        <Suspense fallback={<PanelLoadingFallback />}>
+                            <div className="flex-1 min-h-0 overflow-y-auto p-2">
+                                <SlotRenderer
+                                    slot="context-panel"
+                                    className="flex flex-col gap-3"
+                                    additionalProps={{ entityData: getSelectedEntityData() }}
+                                    resetKeys={selectedEntityId ? [selectedEntityId] : []}
+                                />
+                            </div>
+                        </Suspense>
+                    )}
+                </SidebarShell>
+            </div>
 
             {/* Bottom Panel - Timeline (uses SlotRenderer) */}
             <div
@@ -830,7 +657,8 @@ const UnifiedViewerInner: React.FC = () => {
                     // Nothing extra needed, context handles state reset
                 }}
             />
-        </div >
+        </div>
+        </ThemeProvider>
     );
 };
 

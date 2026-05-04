@@ -59,14 +59,9 @@ function buildProfileCSS(name: TokenProfile, def: TokenProfileDefinition): strin
     lines.push(`  ${toVarName(`space-${key}`)}: ${value};`);
   }
 
-  // Glass effect (multi-line CSS, not a single value)
-  if (def.glass && def.glass !== 'none') {
-    lines.push(`  /* glass effect */`);
-    // Split glass into individual declarations (it may contain ; separated rules)
-    for (const rule of def.glass.split(';').map(s => s.trim()).filter(Boolean)) {
-      lines.push(`  ${rule};`);
-    }
-  }
+  // Glass effect is emitted as a utility class (see .nkz-glass below),
+  // NOT as part of the profile selector. Applying backdrop-filter to <html>
+  // is wasteful and causes a border around the entire viewport.
 
   // Header layout variables (always emitted, shared)
   lines.push(`  --nkz-host-header-h: 56px;`);
@@ -107,6 +102,25 @@ function buildCSS(): string {
   for (const profile of cssProfiles) {
     parts.push(buildProfileCSS(profile, profiles[profile]));
   }
+
+  // Glass utility class — components opt in via className="nkz-glass"
+  // Applied per-component rather than globally on <html> so only panels
+  // that float over Cesium get the expensive backdrop-filter GPU layer.
+  parts.push('/* Glass effect — use on panels that float over the map */');
+  parts.push('.nkz-glass {');
+  parts.push('  backdrop-filter: blur(12px) saturate(180%);');
+  parts.push('  -webkit-backdrop-filter: blur(12px) saturate(180%);');
+  parts.push('  border: 1px solid var(--nkz-color-border);');
+  parts.push('}');
+  parts.push('');
+
+  // Reduced motion: disable glass blur for users who prefer reduced motion
+  parts.push('@media (prefers-reduced-motion: reduce) {');
+  parts.push('  .nkz-glass {');
+  parts.push('    backdrop-filter: none;');
+  parts.push('    -webkit-backdrop-filter: none;');
+  parts.push('  }');
+  parts.push('}');
 
   return parts.join('\n');
 }

@@ -4,6 +4,7 @@ import * as ReactDOM from 'react-dom';
 import * as RRD from 'react-router-dom';
 import * as NKZSdk from '@nekazari/sdk';
 import * as UIKit from '@nekazari/ui-kit';
+import * as DesignTokens from '@nekazari/design-tokens';
 import App from './App.tsx';
 import './index.css';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
@@ -25,6 +26,9 @@ import { initNKZRuntime } from './utils/nkzRuntime';
 // SDK & UI Kit (modules use: external "@nekazari/sdk" → window.__NKZ_SDK__)
 (window as any).__NKZ_SDK__ = NKZSdk;
 (window as any).__NKZ_UI__ = UIKit;
+
+// Design tokens & viewer kit (modules use as externals)
+(window as any).__NKZ_THEME__ = DesignTokens;
 
 // Initialize the module registration runtime (window.__NKZ__)
 initNKZRuntime();
