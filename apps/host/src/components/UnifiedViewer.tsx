@@ -507,82 +507,92 @@ const UnifiedViewerInner: React.FC = () => {
                 </div>
             )}
 
-            {/* Left Panel - Entity Tree (uses SidebarShell) */}
-            <SidebarShell
-                side="left"
-                state={sidebarState}
-                onStateChange={(s: SidebarState) => {
-                    if (s === 'closed') { toggleLeftPanel(); setIsLeftPanelExpanded(false); }
-                    else if (s === 'compact') { if (!isLeftPanelOpen) toggleLeftPanel(); setIsLeftPanelExpanded(false); }
-                    else { if (!isLeftPanelOpen) toggleLeftPanel(); setIsLeftPanelExpanded(true); }
-                }}
+            {/* Left Panel - Entity Tree (floating over Cesium) */}
+            <div
+                className="absolute top-14 left-0 bottom-4 z-nkz-rail pointer-events-none"
+                style={{ width: sidebarState !== 'closed' ? (isLeftPanelExpanded ? '650px' : '380px') : '0px' }}
             >
-                <SidebarShell.Pinned>
-                    <Suspense fallback={<PanelLoadingFallback />}>
-                        <SlotRenderer
-                            slot="entity-tree"
-                            className="flex-1 flex flex-col"
-                            additionalProps={{ onAddEntity: () => setIsWizardOpen(true) }}
-                        />
-                    </Suspense>
-                </SidebarShell.Pinned>
-            </SidebarShell>
-
-            {/* Right Panel - Context/Details (uses SidebarShell) */}
-            <SidebarShell
-                side="right"
-                state={rightSidebarState}
-                onStateChange={(s: SidebarState) => {
-                    if (s === 'closed') { toggleRightPanel(); setIsRightPanelExpanded(false); }
-                    else if (s === 'compact') { if (!isRightPanelOpen) toggleRightPanel(); setIsRightPanelExpanded(false); }
-                    else { if (!isRightPanelOpen) toggleRightPanel(); setIsRightPanelExpanded(true); }
-                }}
-            >
-                {/* Show ParcelForm when in DRAW_PARCEL mode with drawn geometry */}
-                {mapMode === 'DRAW_PARCEL' && drawnGeometry ? (
-                    <div className="flex-1 overflow-y-auto p-nkz-stack">
-                        <h3 className="text-nkz-lg font-semibold text-nkz-text-primary mb-nkz-stack">Nueva Parcela</h3>
-                        {cadastralData && (
-                            <p className="text-nkz-sm text-nkz-text-secondary mb-nkz-tight">
-                                Datos catastrales: {cadastralData.reference}
-                            </p>
-                        )}
-                        {drawnArea && (
-                            <p className="text-nkz-sm text-nkz-text-secondary">
-                                Área: {drawnArea.toFixed(2)} ha
-                            </p>
-                        )}
-                        <ParcelForm
-                            initialData={cadastralData ? {
-                                id: '',
-                                name: cadastralData.reference,
-                                cadastralReference: cadastralData.reference,
-                                municipality: cadastralData.municipality || '',
-                                province: cadastralData.province || '',
-                                cropType: '',
-                                notes: '',
-                                area: drawnArea || 0,
-                                geometry: drawnGeometry,
-                            } as Parcel : null}
-                            geometry={drawnGeometry}
-                            onSave={handleParcelFormSave}
-                            onCancel={handleCancelDrawing}
-                            mode="create"
-                        />
-                    </div>
-                ) : (
-                    <Suspense fallback={<PanelLoadingFallback />}>
-                        <div className="flex-1 min-h-0 overflow-y-auto p-nkz-stack">
+                <SidebarShell
+                    side="left"
+                    state={sidebarState}
+                    onStateChange={(s: SidebarState) => {
+                        if (s === 'closed') { toggleLeftPanel(); setIsLeftPanelExpanded(false); }
+                        else if (s === 'compact') { if (!isLeftPanelOpen) toggleLeftPanel(); setIsLeftPanelExpanded(false); }
+                        else { if (!isLeftPanelOpen) toggleLeftPanel(); setIsLeftPanelExpanded(true); }
+                    }}
+                >
+                    <SidebarShell.Pinned>
+                        <Suspense fallback={<PanelLoadingFallback />}>
                             <SlotRenderer
-                                slot="context-panel"
-                                className="flex flex-col gap-nkz-stack"
-                                additionalProps={{ entityData: getSelectedEntityData() }}
-                                resetKeys={selectedEntityId ? [selectedEntityId] : []}
+                                slot="entity-tree"
+                                className="flex-1 flex flex-col"
+                                additionalProps={{ onAddEntity: () => setIsWizardOpen(true) }}
+                            />
+                        </Suspense>
+                    </SidebarShell.Pinned>
+                </SidebarShell>
+            </div>
+
+            {/* Right Panel - Context/Details (floating over Cesium) */}
+            <div
+                className="absolute top-14 right-0 bottom-4 z-nkz-rail pointer-events-none"
+                style={{ width: rightSidebarState !== 'closed' ? (isRightPanelExpanded ? '600px' : '400px') : '0px' }}
+            >
+                <SidebarShell
+                    side="right"
+                    state={rightSidebarState}
+                    onStateChange={(s: SidebarState) => {
+                        if (s === 'closed') { toggleRightPanel(); setIsRightPanelExpanded(false); }
+                        else if (s === 'compact') { if (!isRightPanelOpen) toggleRightPanel(); setIsRightPanelExpanded(false); }
+                        else { if (!isRightPanelOpen) toggleRightPanel(); setIsRightPanelExpanded(true); }
+                    }}
+                >
+                    {/* Show ParcelForm when in DRAW_PARCEL mode with drawn geometry */}
+                    {mapMode === 'DRAW_PARCEL' && drawnGeometry ? (
+                        <div className="flex-1 overflow-y-auto p-4">
+                            <h3 className="text-lg font-semibold text-white mb-4">Nueva Parcela</h3>
+                            {cadastralData && (
+                                <p className="text-sm text-slate-300 mb-1">
+                                    Datos catastrales: {cadastralData.reference}
+                                </p>
+                            )}
+                            {drawnArea && (
+                                <p className="text-sm text-slate-300">
+                                    Área: {drawnArea.toFixed(2)} ha
+                                </p>
+                            )}
+                            <ParcelForm
+                                initialData={cadastralData ? {
+                                    id: '',
+                                    name: cadastralData.reference,
+                                    cadastralReference: cadastralData.reference,
+                                    municipality: cadastralData.municipality || '',
+                                    province: cadastralData.province || '',
+                                    cropType: '',
+                                    notes: '',
+                                    area: drawnArea || 0,
+                                    geometry: drawnGeometry,
+                                } as Parcel : null}
+                                geometry={drawnGeometry}
+                                onSave={handleParcelFormSave}
+                                onCancel={handleCancelDrawing}
+                                mode="create"
                             />
                         </div>
-                    </Suspense>
-                )}
-            </SidebarShell>
+                    ) : (
+                        <Suspense fallback={<PanelLoadingFallback />}>
+                            <div className="flex-1 min-h-0 overflow-y-auto p-2">
+                                <SlotRenderer
+                                    slot="context-panel"
+                                    className="flex flex-col gap-3"
+                                    additionalProps={{ entityData: getSelectedEntityData() }}
+                                    resetKeys={selectedEntityId ? [selectedEntityId] : []}
+                                />
+                            </div>
+                        </Suspense>
+                    )}
+                </SidebarShell>
+            </div>
 
             {/* Bottom Panel - Timeline (uses TimelineShell) */}
             <div

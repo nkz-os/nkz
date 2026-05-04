@@ -161,7 +161,7 @@ spec:
           ROLES_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" \
             "${KEYCLOAK_URL}/auth/admin/realms/${REALM}/roles")
           
-          REQUIRED_ROLES="TenantAdmin Farmer PlatformAdmin TechnicalConsultant DashboardViewer"
+          REQUIRED_ROLES="TenantAdmin Farmer PlatformAdmin TechnicalConsultant GestorCUE"
           MISSING_COUNT=0
           
           for role in $REQUIRED_ROLES; do

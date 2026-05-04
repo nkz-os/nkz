@@ -1,6 +1,6 @@
 {
   "name": "@nekazari/viewer-kit",
-  "version": "0.1.0-alpha",
+  "version": "0.1.1-alpha.2",
   "private": false,
   "license": "Apache-2.0",
   "main": "./dist/index.js",
@@ -14,13 +14,17 @@
     }
   },
   "type": "module",
-  "files": ["dist", "README.md", "package.json"],
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --external react,react-dom,@nekazari/design-tokens,@nekazari/ui-kit"
   },
   "dependencies": {
-    "@nekazari/design-tokens": "workspace:*",
-    "@nekazari/ui-kit": "workspace:*",
+    "@nekazari/design-tokens": "^0.1.0-alpha",
+    "@nekazari/ui-kit": "^1.0.2-alpha.3",
     "clsx": "^2.1.1"
   },
   "peerDependencies": {

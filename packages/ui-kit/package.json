@@ -1,6 +1,6 @@
 {
   "name": "@nekazari/ui-kit",
-  "version": "1.0.1",
+  "version": "1.0.2-alpha.4",
   "private": false,
   "license": "Apache-2.0",
   "repository": {
@@ -30,21 +30,21 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --external react,react-dom --tsconfig tsconfig.json || (tsup src/index.ts --format cjs,esm --external react,react-dom && echo 'Warning: Type generation failed, but JS build succeeded')"
+    "build": "tsup src/index.ts --format cjs,esm --dts --external react,react-dom,@nekazari/design-tokens"
   },
   "dependencies": {
-    "@nekazari/design-tokens": "workspace:*",
+    "@nekazari/design-tokens": "^0.1.0-alpha",
+    "@radix-ui/react-checkbox": "^1.0.0",
+    "@radix-ui/react-dialog": "^1.0.0",
+    "@radix-ui/react-popover": "^1.0.0",
+    "@radix-ui/react-select": "^1.0.0",
     "@radix-ui/react-slider": "^1.0.0",
     "@radix-ui/react-switch": "^1.0.0",
     "@radix-ui/react-tabs": "^1.0.0",
     "@radix-ui/react-toggle": "^1.0.0",
     "@radix-ui/react-tooltip": "^1.0.0",
-    "clsx": "^2.1.1",
-    "@radix-ui/react-select": "^1.0.0",
-    "@radix-ui/react-checkbox": "^1.0.0",
-    "@radix-ui/react-dialog": "^1.0.0",
-    "@radix-ui/react-popover": "^1.0.0",
-    "@tanstack/react-table": "^8.0.0"
+    "@tanstack/react-table": "^8.0.0",
+    "clsx": "^2.1.1"
   },
   "peerDependencies": {
     "react": "^18.3.1",
@@ -53,10 +53,9 @@
   "devDependencies": {
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "tsup": "^8.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "tsup": "^8.0.0",
     "typescript": "^5.2.2"
   }
 }
-

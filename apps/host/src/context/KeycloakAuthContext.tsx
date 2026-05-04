@@ -26,10 +26,19 @@ export interface TenantProfile {
   tenant_name: string;
   plan_type: string;
   status: string;
+  expires_at: string | null;
+  max_users: number;
+  max_robots: number;
+  max_sensors: number;
   timezone: string;
   locale: string;
   currency: string;
   default_location: { lat: number; lon: number } | null;
+  nif?: string;
+  regepa?: string;
+  address_municipio?: string;
+  address_provincia?: string;
+  address_cp?: string;
 }
 
 export interface KeycloakAuthContextType {

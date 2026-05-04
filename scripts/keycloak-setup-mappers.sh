@@ -57,7 +57,10 @@ CUSTOM_ATTRS='[
   {"name": "max_sensors",      "displayName": "Max Sensors"},
   {"name": "activation_code",  "displayName": "Activation Code"},
   {"name": "created_by",       "displayName": "Created By"},
-  {"name": "is_owner",         "displayName": "Is Owner"}
+  {"name": "is_owner",         "displayName": "Is Owner"},
+  {"name": "nif",              "displayName": "NIF/CIF (Tax ID)"},
+  {"name": "cif",              "displayName": "CIF Entidad Habilitada"},
+  {"name": "regepa",           "displayName": "REGEPA"}
 ]'
 
 UPDATED_PROFILE=$(python3 -c "

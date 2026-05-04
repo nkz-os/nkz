@@ -214,13 +214,6 @@ export const TechnicalConsultantRoute: React.FC<{ children: React.ReactNode }> =
   </ProtectedRoute>
 );
 
-// Legacy alias for backward compatibility (deprecated, use TechnicalConsultantRoute)
-export const DeviceManagerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <TechnicalConsultantRoute>
-    {children}
-  </TechnicalConsultantRoute>
-);
-
 export const FarmerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <ProtectedRoute requiredRoles={['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant', 'Farmer']} requireTenant>
     {children}

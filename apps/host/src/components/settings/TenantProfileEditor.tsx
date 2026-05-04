@@ -14,6 +14,11 @@ export const TenantProfileEditor: React.FC = () => {
     currency: 'EUR',
     default_lat: '',
     default_lon: '',
+    nif: '',
+    regepa: '',
+    address_municipio: '',
+    address_provincia: '',
+    address_cp: '',
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -29,6 +34,11 @@ export const TenantProfileEditor: React.FC = () => {
         currency: tenantProfile.currency || 'EUR',
         default_lat: tenantProfile.default_location?.lat?.toString() || '',
         default_lon: tenantProfile.default_location?.lon?.toString() || '',
+        nif: tenantProfile.nif || '',
+        regepa: tenantProfile.regepa || '',
+        address_municipio: tenantProfile.address_municipio || '',
+        address_provincia: tenantProfile.address_provincia || '',
+        address_cp: tenantProfile.address_cp || '',
       });
     }
   }, [tenantProfile]);
@@ -54,6 +64,13 @@ export const TenantProfileEditor: React.FC = () => {
       } else {
         payload.default_location = null;
       }
+
+      // SIEX / CUE fields
+      if (form.nif.trim()) payload.nif = form.nif.trim();
+      if (form.regepa.trim()) payload.regepa = form.regepa.trim();
+      if (form.address_municipio.trim()) payload.address_municipio = form.address_municipio.trim();
+      if (form.address_provincia.trim()) payload.address_provincia = form.address_provincia.trim();
+      if (form.address_cp.trim()) payload.address_cp = form.address_cp.trim();
 
       await api.patch('/api/tenant/profile', payload);
       refreshTenantProfile();
@@ -193,6 +210,75 @@ export const TenantProfileEditor: React.FC = () => {
             />
           </div>
           <p className="text-xs text-gray-500 mt-1">{t('settings.location_hint')}</p>
+        </div>
+
+        {/* SIEX / CUE Compliance Fields */}
+        <div className="border-t border-gray-200 pt-4 mt-2">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            {t('settings.siex_title', { defaultValue: 'SIEX / CUE Compliance' })}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('settings.nif', { defaultValue: 'NIF/CIF (Tax ID)' })}
+              </label>
+              <input
+                type="text"
+                value={form.nif}
+                onChange={e => setForm(f => ({ ...f, nif: e.target.value }))}
+                maxLength={20}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('settings.regepa', { defaultValue: 'REGEPA' })}
+              </label>
+              <input
+                type="text"
+                value={form.regepa}
+                onChange={e => setForm(f => ({ ...f, regepa: e.target.value }))}
+                maxLength={30}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('settings.address_municipio', { defaultValue: 'Municipio' })}
+              </label>
+              <input
+                type="text"
+                value={form.address_municipio}
+                onChange={e => setForm(f => ({ ...f, address_municipio: e.target.value }))}
+                maxLength={100}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('settings.address_provincia', { defaultValue: 'Provincia' })}
+              </label>
+              <input
+                type="text"
+                value={form.address_provincia}
+                onChange={e => setForm(f => ({ ...f, address_provincia: e.target.value }))}
+                maxLength={50}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('settings.address_cp', { defaultValue: 'Código Postal' })}
+              </label>
+              <input
+                type="text"
+                value={form.address_cp}
+                onChange={e => setForm(f => ({ ...f, address_cp: e.target.value }))}
+                maxLength={10}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Save Button + Message */}

@@ -311,11 +311,6 @@ NDVI_QUEUE_NAME = os.getenv('NDVI_QUEUE_NAME', 'ndvi')
 DEFAULT_SATELLITE = os.getenv('NDVI_DEFAULT_SATELLITE', 'sentinel-2-l2a')
 DEFAULT_RESOLUTION = int(os.getenv('NDVI_DEFAULT_RESOLUTION', '10'))
 MAX_NDVI_RESULT_HISTORY = int(os.getenv('NDVI_RESULTS_HISTORY', '100'))
-GRAFANA_URL = os.getenv('GRAFANA_URL')
-GRAFANA_PUBLIC_URL = os.getenv('GRAFANA_PUBLIC_URL', GRAFANA_URL)
-GRAFANA_ADMIN_USER = os.getenv('GRAFANA_ADMIN_USER')
-GRAFANA_ADMIN_PASSWORD = os.getenv('GRAFANA_ADMIN_PASSWORD')
-GRAFANA_DEFAULT_DASHBOARD = os.getenv('GRAFANA_DEFAULT_DASHBOARD', '')
 # Get URLs from config manager or construct from PRODUCTION_DOMAIN
 try:
     from common.config_manager import ConfigManager
@@ -330,7 +325,6 @@ except ImportError:
     KEYCLOAK_PUBLIC_URL = os.getenv('KEYCLOAK_PUBLIC_URL', f'https://{PRODUCTION_DOMAIN}/auth' if PRODUCTION_DOMAIN else '').rstrip('/')
     CONTEXT_URL = os.getenv('CONTEXT_URL', f'https://{PRODUCTION_DOMAIN}/ngsi-ld-context.json' if PRODUCTION_DOMAIN else '')
 KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
-GRAFANA_OAUTH_CLIENT_ID = os.getenv('GRAFANA_OAUTH_CLIENT_ID', 'nekazari-frontend')
 # MQTT Configuration for device commands
 MQTT_HOST = os.getenv('MQTT_HOST', 'mosquitto-service')
 MQTT_PORT = int(os.getenv('MQTT_PORT', '1883'))
@@ -2403,71 +2397,6 @@ def api_get_tenant_usage():
     except Exception as exc:
         logger.exception("Error computing tenant usage: %s", exc)
         return jsonify({'error': 'Failed to compute tenant usage'}), 500
-
-@app.route('/integrations/grafana/link', methods=['GET'])
-@require_auth
-def api_get_grafana_link():
-    if not _grafana_integration_enabled():
-        return jsonify({'error': 'Grafana integration is not configured'}), 503
-
-    tenant = getattr(g, 'tenant', None)
-    if not tenant:
-        return jsonify({'error': 'Tenant context required'}), 400
-
-    email = getattr(g, 'email', None) or getattr(g, 'user', None)
-    user_roles = getattr(g, 'roles', []) or []
-    role = _determine_grafana_role(user_roles)
-    
-    # Log for debugging
-    if not email or email == 'unknown':
-        logger.warning("Email not found in request context. g.email=%s, g.user=%s, g.tenant=%s", 
-                      getattr(g, 'email', None), getattr(g, 'user', None), getattr(g, 'tenant', None))
-
-    try:
-        # Find or create organization for tenant
-        org = _grafana_find_org(tenant)
-        if not org:
-            logger.info("Grafana organization not found for tenant %s, creating it", tenant)
-            org = _grafana_create_org(tenant)
-            if not org:
-                logger.error("Failed to create Grafana organization for tenant %s", tenant)
-                return jsonify({'error': 'Failed to create Grafana organization for tenant'}), 500
-
-        org_id = org.get('id') or org.get('orgId') or org.get('org_id')
-        if not org_id:
-            logger.error("Grafana organization %s has no ID", tenant)
-            return jsonify({'error': 'Invalid Grafana organization'}), 500
-
-        # Try to assign user to organization (may fail if user doesn't exist yet)
-        membership_granted = False
-        if email:
-            membership_granted = _grafana_assign_user_to_org(org_id, email, role)
-            if not membership_granted:
-                logger.info("User %s not yet assigned to Grafana organization %s (may not exist yet)", email, org_id)
-        else:
-            logger.warning("Grafana link requested without email for tenant %s", tenant)
-
-        dashboard_override = request.args.get('dashboard') or (GRAFANA_DEFAULT_DASHBOARD or '').strip()
-        login_url = _build_grafana_login_url(org_id, dashboard_override if dashboard_override else None)
-
-        return jsonify({
-            'tenant': tenant,
-            'email': email,
-            'orgId': org_id,
-            'role': role,
-            'membershipGranted': membership_granted,
-            'url': login_url,
-            'dashboard': dashboard_override or None
-        })
-    except Exception as exc:
-        logger.exception("Error generating Grafana link for tenant %s: %s", tenant, exc)
-        return jsonify({'error': 'Failed to prepare Grafana link'}), 500
-
-app.add_url_rule(
-    '/entity-manager/integrations/grafana/link',
-    view_func=api_get_grafana_link,
-    methods=['GET']
-)
 
 @app.route('/api/admin/tenant-limits', methods=['PATCH'])
 @require_auth

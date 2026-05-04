@@ -62,9 +62,9 @@ window.onunhandledrejection = (event) => {
 
 // ViewerThemeWrapper — provides ThemeProvider with toggleable viewer profile
 function ViewerThemeWrapper({ children }: { children: React.ReactNode }) {
-  const { profile, toggle } = useViewerTheme();
+  const { profile, setProfile } = useViewerTheme();
   return (
-    <ThemeProvider profile={profile} onChange={toggle}>
+    <ThemeProvider profile={profile} onChange={setProfile}>
       {children}
     </ThemeProvider>
   );

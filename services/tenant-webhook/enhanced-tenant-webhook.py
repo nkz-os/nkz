@@ -3541,6 +3541,124 @@ def delete_user_directly(user_id: str):
         return jsonify({"error": f"Failed to delete user: {str(e)}"}), 500
 
 
+@app.route("/api/admin/users/<user_id>/roles", methods=["PUT"])
+@require_platform_admin
+def update_user_roles(user_id: str):
+    """Update roles for a user (PlatformAdmin only).
+
+    Body: {"roles": ["Farmer", "TenantAdmin", ...]}
+
+    PlatformAdmin can assign any realm role including PlatformAdmin,
+    TenantAdmin, GestorCUE, TechnicalConsultant, and Farmer.
+    """
+    try:
+        data = request.get_json()
+        if not data or "roles" not in data:
+            return jsonify({"error": "roles array is required"}), 400
+
+        new_roles = data.get("roles", [])
+        if not isinstance(new_roles, list):
+            return jsonify({"error": "roles must be an array"}), 400
+
+        token = webhook_service.get_keycloak_token()
+        if not token:
+            return jsonify({"error": "Failed to get admin token"}), 500
+
+        keycloak_url = webhook_service._get_keycloak_base_url()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+
+        # Verify user exists
+        user_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
+        user_response = requests.get(user_url, headers=headers, timeout=10)
+        if user_response.status_code != 200:
+            return jsonify({"error": "User not found"}), 404
+
+        user_email = user_response.json().get("email")
+
+        # Fetch available realm roles to validate requested roles
+        roles_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/roles"
+        roles_response = requests.get(roles_url, headers=headers, timeout=10)
+        if roles_response.status_code != 200:
+            return jsonify({"error": "Failed to fetch available roles"}), 500
+
+        available_roles = {r["name"] for r in roles_response.json()}
+        invalid = [r for r in new_roles if r not in available_roles]
+        if invalid:
+            return jsonify({
+                "error": f"Unknown roles: {', '.join(invalid)}",
+                "available_roles": sorted(available_roles),
+            }), 400
+
+        # Get current user roles
+        current_roles_url = (
+            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+            f"/users/{user_id}/role-mappings/realm"
+        )
+        current_response = requests.get(
+            current_roles_url, headers=headers, timeout=10
+        )
+        current_roles = []
+        if current_response.status_code == 200:
+            current_roles = current_response.json()
+
+        # Remove all current realm roles
+        if current_roles:
+            requests.delete(
+                current_roles_url,
+                headers=headers,
+                json=current_roles,
+                timeout=10,
+            )
+
+        # Assign new roles
+        assigned = []
+        for role_name in new_roles:
+            role_url = (
+                f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+                f"/roles/{role_name}"
+            )
+            role_response = requests.get(role_url, headers=headers, timeout=10)
+            if role_response.status_code == 200:
+                role_data = role_response.json()
+                mapping_url = (
+                    f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+                    f"/users/{user_id}/role-mappings/realm"
+                )
+                assign_resp = requests.post(
+                    mapping_url,
+                    headers=headers,
+                    json=[role_data],
+                    timeout=10,
+                )
+                if assign_resp.status_code in [200, 204]:
+                    assigned.append(role_name)
+
+        logger.info(
+            f"Roles updated for user {user_email}: {assigned}"
+        )
+        audit_log(
+            action='admin.user.roles_update',
+            resource_type='user',
+            resource_id=user_id,
+            metadata={'email': user_email, 'roles': assigned},
+        )
+
+        return jsonify({
+            "success": True,
+            "user_id": user_id,
+            "roles": assigned,
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error updating user roles: {e}")
+        audit_log(action='admin.user.roles_update', resource_type='user',
+                  resource_id=user_id, success=False, error=str(e))
+        return jsonify({"error": f"Failed to update roles: {str(e)}"}), 500
+
+
 @app.route("/forgot-password", methods=["POST"])
 def forgot_password():
     """Handle password reset request for tenants"""
@@ -4297,7 +4415,7 @@ def invite_user_to_tenant():  # noqa: C901
             return jsonify({"error": "Email is required"}), 400
 
         # Validate role
-        valid_roles = ["Farmer", "DeviceManager", "TechnicalConsultant"]
+        valid_roles = ["Farmer", "TechnicalConsultant", "GestorCUE", "TenantAdmin", "PlatformAdmin"]
         if role not in valid_roles:
             return jsonify(
                 {"error": f"Invalid role. Must be one of: {', '.join(valid_roles)}"}

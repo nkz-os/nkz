@@ -34,5 +34,5 @@ export function useViewerTheme() {
     setProfile((p: TokenProfile) => (p === 'viewer' ? 'viewer-light' : 'viewer'));
   }, []);
 
-  return { profile, toggle };
+  return { profile, setProfile, toggle };
 }
