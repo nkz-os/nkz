@@ -31,7 +31,7 @@ export function useViewerTheme() {
   }, [profile]);
 
   const toggle = useCallback(() => {
-    setProfile(p => (p === 'viewer' ? 'viewer-light' : 'viewer'));
+    setProfile((p: TokenProfile) => (p === 'viewer' ? 'viewer-light' : 'viewer'));
   }, []);
 
   return { profile, toggle };

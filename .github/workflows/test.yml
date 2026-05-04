@@ -29,10 +29,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
         working-directory: .
 
-      - name: Build internal packages (SDK, UI-Kit)
+      - name: Build internal packages (design order)
         run: |
-          pnpm --filter @nekazari/sdk build
+          pnpm --filter @nekazari/design-tokens build
           pnpm --filter @nekazari/ui-kit build
+          pnpm --filter @nekazari/viewer-kit build
+          pnpm --filter @nekazari/sdk build
         working-directory: .
 
       - name: Lint
