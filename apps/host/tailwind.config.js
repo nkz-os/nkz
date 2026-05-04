@@ -1,8 +1,5 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  presets: [
-    require('@nekazari/design-tokens/tailwind'),
-  ],
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
