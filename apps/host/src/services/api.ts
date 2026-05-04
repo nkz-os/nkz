@@ -390,7 +390,7 @@ class ApiService {
   async getRobots(): Promise<Robot[]> {
     try {
       const response = await this.client.get('/ngsi-ld/v1/entities', {
-        params: { type: 'AgriculturalRobot' },
+        params: { type: 'AutonomousMobileRobot' },
         headers: { 'Accept': 'application/ld+json' },
       });
       return Array.isArray(response.data) ? response.data : [];
@@ -835,7 +835,7 @@ class ApiService {
   // =============================================================================
 
   async getRobotsSDM(): Promise<Robot[]> {
-    const instances = await this.getSDMEntityInstances('AgriculturalRobot');
+    const instances = await this.getSDMEntityInstances('AutonomousMobileRobot');
     return instances.map(this.mapSDMToRobot);
   }
 
@@ -851,17 +851,17 @@ class ApiService {
 
   async createRobotSDM(robotData: Partial<Robot>): Promise<Robot> {
     const sdmData = this.mapRobotToSDM(robotData);
-    const result = await this.createSDMEntity('AgriculturalRobot', sdmData);
+    const result = await this.createSDMEntity('AutonomousMobileRobot', sdmData);
     return this.mapSDMToRobot(result.entity);
   }
 
   async updateRobotSDM(id: string, updates: Partial<Robot>): Promise<void> {
     const sdmUpdates = this.mapRobotToSDM(updates);
-    await this.updateSDMEntity('AgriculturalRobot', id, sdmUpdates);
+    await this.updateSDMEntity('AutonomousMobileRobot', id, sdmUpdates);
   }
 
   async deleteRobotSDM(id: string): Promise<void> {
-    await this.deleteSDMEntity('AgriculturalRobot', id);
+    await this.deleteSDMEntity('AutonomousMobileRobot', id);
   }
 
   // =============================================================================
@@ -969,31 +969,29 @@ class ApiService {
   // Entities - Parcels
   async getMachines(): Promise<AgriculturalMachine[]> {
     try {
-      // Query for AgriculturalRobot, AgriculturalTractor, and AgriculturalMachine
-      const [robotsRes, tractorsRes, machinesRes] = await Promise.all([
+      // Query for AutonomousMobileRobot and ManufacturingMachine
+      const [robotsRes, machinesRes] = await Promise.all([
         this.client.get('/ngsi-ld/v1/entities', {
-          params: { type: 'AgriculturalRobot', options: 'keyValues' },
+          params: { type: 'AutonomousMobileRobot', options: 'keyValues' },
           headers: { 'Accept': 'application/ld+json' }
         }).catch(() => ({ data: [] })),
         this.client.get('/ngsi-ld/v1/entities', {
-          params: { type: 'AgriculturalTractor', options: 'keyValues' },
-          headers: { 'Accept': 'application/ld+json' }
-        }).catch(() => ({ data: [] })),
-        this.client.get('/ngsi-ld/v1/entities', {
-          params: { type: 'AgriculturalMachine', options: 'keyValues' },
+          params: { type: 'ManufacturingMachine', options: 'keyValues' },
           headers: { 'Accept': 'application/ld+json' }
         }).catch(() => ({ data: [] }))
       ]);
 
       const robots = Array.isArray(robotsRes.data) ? robotsRes.data : [];
-      const tractors = Array.isArray(tractorsRes.data) ? tractorsRes.data : [];
       const machines = Array.isArray(machinesRes.data) ? machinesRes.data : [];
 
-      return [...robots, ...tractors, ...machines].map((m: any) => {
+      return [...robots, ...machines].map((m: any) => {
         // Determine type description based on entity type
         let typeDesc = 'Machinery';
-        if (m.type === 'AgriculturalRobot') typeDesc = 'Autonomous Robot';
-        else if (m.type === 'AgriculturalTractor') typeDesc = 'Tractor';
+        if (m.type === 'AutonomousMobileRobot') typeDesc = 'Autonomous Robot';
+        else if (m.type === 'ManufacturingMachine') {
+          const category = m.category?.value || m.category;
+          typeDesc = category === 'implement' ? 'Implement' : 'Tractor';
+        }
 
         return {
           id: m.id,
@@ -1116,7 +1114,7 @@ class ApiService {
   }
 
   // =============================================================================
-  // Agricultural Machines (AgriculturalTractor/AgriOperation)
+  // Agricultural Machines (ManufacturingMachine/AgriOperation)
   // =============================================================================
 
   async createMachine(machine: Partial<AgriculturalMachine>): Promise<AgriculturalMachine> {

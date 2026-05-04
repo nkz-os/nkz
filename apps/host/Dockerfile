@@ -13,9 +13,11 @@ COPY apps/host/ ./apps/host/
 # Install everything
 RUN pnpm install --frozen-lockfile --shamefully-hoist
 
-# Build SDK and UI-Kit
-RUN pnpm --filter @nekazari/sdk build
+# Build packages in dependency order
+RUN pnpm --filter @nekazari/design-tokens build
 RUN pnpm --filter @nekazari/ui-kit build
+RUN pnpm --filter @nekazari/viewer-kit build
+RUN pnpm --filter @nekazari/sdk build
 
 # Build Host
 WORKDIR /app/apps/host

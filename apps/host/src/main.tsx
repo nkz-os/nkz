@@ -4,9 +4,13 @@ import * as ReactDOM from 'react-dom';
 import * as RRD from 'react-router-dom';
 import * as NKZSdk from '@nekazari/sdk';
 import * as UIKit from '@nekazari/ui-kit';
+import * as DesignTokens from '@nekazari/design-tokens';
+import { ThemeProvider } from '@nekazari/design-tokens';
+import { useViewerTheme } from './hooks/useViewerTheme';
 import App from './App.tsx';
 import './index.css';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
+import '@nekazari/design-tokens/css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initNKZRuntime } from './utils/nkzRuntime';
 
@@ -25,6 +29,13 @@ import { initNKZRuntime } from './utils/nkzRuntime';
 // SDK & UI Kit (modules use: external "@nekazari/sdk" → window.__NKZ_SDK__)
 (window as any).__NKZ_SDK__ = NKZSdk;
 (window as any).__NKZ_UI__ = UIKit;
+
+// Design tokens (modules use: external "@nekazari/design-tokens" → window.__NKZ_THEME__)
+(window as any).__NKZ_THEME__ = DesignTokens;
+
+// Viewer kit (modules use: external "@nekazari/viewer-kit" → window.__NKZ_VIEWER__)
+import * as ViewerKit from '@nekazari/viewer-kit';
+(window as any).__NKZ_VIEWER__ = ViewerKit;
 
 // Initialize the module registration runtime (window.__NKZ__)
 initNKZRuntime();
@@ -49,6 +60,16 @@ window.onunhandledrejection = (event) => {
 // Application Bootstrap
 // =============================================================================
 
+// ViewerThemeWrapper — provides ThemeProvider with toggleable viewer profile
+function ViewerThemeWrapper({ children }: { children: React.ReactNode }) {
+  const { profile, toggle } = useViewerTheme();
+  return (
+    <ThemeProvider profile={profile} onChange={toggle}>
+      {children}
+    </ThemeProvider>
+  );
+}
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element #root not found');
@@ -59,7 +80,9 @@ const root = ReactDOMClient.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <ErrorBoundary componentName="Application">
-      <App />
+      <ViewerThemeWrapper>
+        <App />
+      </ViewerThemeWrapper>
     </ErrorBoundary>
   </React.StrictMode>
 );

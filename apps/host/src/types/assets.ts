@@ -158,8 +158,8 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   },
   
   // Fleet
-  AgriculturalRobot: {
-    type: 'AgriculturalRobot',
+  AutonomousMobileRobot: {
+    type: 'AutonomousMobileRobot',
     label: 'Robot',
     labelPlural: 'Robots',
     category: 'fleet',
@@ -170,8 +170,8 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
     supportsHierarchy: false,
     supportsTelemetry: true,
   },
-  AgriculturalTractor: {
-    type: 'AgriculturalTractor',
+  ManufacturingMachine: {
+    type: 'ManufacturingMachine',
     label: 'Tractor',
     labelPlural: 'Tractores',
     category: 'fleet',
@@ -181,18 +181,6 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
-  },
-  AgriculturalImplement: {
-    type: 'AgriculturalImplement',
-    label: 'Apero',
-    labelPlural: 'Aperos',
-    category: 'fleet',
-    icon: 'wrench',
-    color: 'gray',
-    description: 'Implemento/Apero',
-    supportsLocation: true,
-    supportsHierarchy: false,
-    supportsTelemetry: false,
   },
   
   // Infrastructure

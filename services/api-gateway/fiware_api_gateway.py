@@ -118,9 +118,7 @@ BIOORCHESTRATOR_API_URL = os.getenv(
 CROP_HEALTH_API_URL = os.getenv(
     "CROP_HEALTH_API_URL", "http://crop-health-api-service:8000"
 )
-ROBOTICS_API_URL = os.getenv(
-    "ROBOTICS_API_URL", "http://robotics-api-service:80"
-)
+ROBOTICS_API_URL = os.getenv("ROBOTICS_API_URL", "http://robotics-api-service:80")
 RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
@@ -553,7 +551,7 @@ def subscriptions():
 
 @app.route("/api/devices/stats", methods=["GET"])
 def get_device_stats():
-    """Get device statistics (AgriculturalRobot count)"""
+    """Get device statistics (AutonomousMobileRobot count)"""
     # Validate JWT token
     token = get_request_token()
     if not token:
@@ -571,10 +569,10 @@ def get_device_stats():
     headers = {}
     headers = inject_fiware_headers(headers, tenant)
 
-    # Query Orion for AgriculturalRobot count
+    # Query Orion for AutonomousMobileRobot count
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        params = {"type": "AgriculturalRobot", "limit": 1, "count": "true"}
+        params = {"type": "AutonomousMobileRobot", "limit": 1, "count": "true"}
 
         response = requests.get(orion_url, headers=headers, params=params, timeout=10)
 
@@ -2490,7 +2488,7 @@ def proxy_modules_requests(subpath):
             "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         )
         response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, Cookie"
+            "Authorization, Content-Type, X-Tenant-ID, Cookie, X-Gestor-Target-Tenant"
         )
         response.headers["Access-Control-Max-Age"] = "3600"
         response.headers["Vary"] = "Origin"
@@ -2534,6 +2532,11 @@ def proxy_modules_requests(subpath):
             "Content-Type": request.content_type or "application/json",
             "X-Tenant-ID": tenant,
         }
+
+        # Forward gestor target tenant header for cross-tenant CUE access
+        gestor_target = request.headers.get("X-Gestor-Target-Tenant")
+        if gestor_target:
+            headers["X-Gestor-Target-Tenant"] = gestor_target
 
         # Add HMAC signature if available
         if KEYCLOAK_AUTH_AVAILABLE:

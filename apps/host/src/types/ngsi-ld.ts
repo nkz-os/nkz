@@ -146,10 +146,10 @@ export interface AgriSensor extends NGSIEntity {
 }
 
 /**
- * AgriculturalRobot entity structure
+ * AutonomousMobileRobot entity structure
  */
-export interface AgriculturalRobot extends NGSIEntity {
-  type: 'AgriculturalRobot';
+export interface AutonomousMobileRobot extends NGSIEntity {
+  type: 'AutonomousMobileRobot';
   name?: NGSIProperty;
   description?: NGSIProperty;
   location?: NGSIGeoProperty;
@@ -206,9 +206,9 @@ export interface AgriGreenhouse extends NGSIEntity {
 /**
  * Union type for all known entity types
  */
-export type NGSIEntityType = 
+export type NGSIEntityType =
   | AgriSensor
-  | AgriculturalRobot
+  | AutonomousMobileRobot
   | AgriParcel
   | AgriFarm
   | AgriGreenhouse

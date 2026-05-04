@@ -10,8 +10,8 @@ export async function submitFleet(
   entityType: string,
   formData: FleetFormData,
 ): Promise<FleetSubmitResult> {
-  // AgriculturalRobot: dedicated provisioning endpoint that returns VPN credentials
-  if (entityType === 'AgriculturalRobot') {
+  // AutonomousMobileRobot: dedicated provisioning endpoint that returns VPN credentials
+  if (entityType === 'AutonomousMobileRobot') {
     const response = await api.provisionRobot({
       name: formData.name,
       location: formData.geometry ? { type: 'GeoProperty', value: formData.geometry } : undefined,
@@ -26,7 +26,7 @@ export async function submitFleet(
     return { robotCredentials: response.credentials ?? null };
   }
 
-  // Tractors, implements, operations — generic SDM entity
+  // ManufacturingMachines, operations — generic SDM entity
   const entityId = `urn:ngsi-ld:${entityType}:current:${Date.now()}`;
 
   const entity: Record<string, unknown> = {

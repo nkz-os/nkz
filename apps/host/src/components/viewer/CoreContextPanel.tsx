@@ -288,9 +288,9 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
     const getEntityIcon = () => {
         switch (selectedEntityType) {
             case 'AgriParcel': return <MapPin className="w-5 h-5 text-green-600" />;
-            case 'AgriculturalRobot': return <Bot className="w-5 h-5 text-blue-600" />;
+            case 'AutonomousMobileRobot': return <Bot className="w-5 h-5 text-blue-600" />;
             case 'AgriSensor': return <Gauge className="w-5 h-5 text-orange-600" />;
-            case 'Tractor': return <Tractor className="w-5 h-5 text-amber-600" />;
+            case 'ManufacturingMachine': return <Tractor className="w-5 h-5 text-amber-600" />;
             case 'WeatherObserved': return <Cloud className="w-5 h-5 text-sky-600" />;
             case 'LivestockAnimal': return <Leaf className="w-5 h-5 text-emerald-600" />;
             case 'AgriBuilding': return <Building className="w-5 h-5 text-slate-600" />;
@@ -440,7 +440,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                         )}
 
                         {/* Telemetry Section with Tabs */}
-                        {selectedEntityType && ['AgriculturalRobot', 'Device', 'WeatherStation'].includes(selectedEntityType) && (
+                        {selectedEntityType && ['AutonomousMobileRobot', 'ManufacturingMachine', 'Device', 'WeatherStation'].includes(selectedEntityType) && (
                             <TelemetryTabsSection
                                 entityId={selectedEntityId}
                                 entityType={selectedEntityType}

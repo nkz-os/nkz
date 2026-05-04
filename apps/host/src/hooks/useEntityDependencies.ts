@@ -25,11 +25,11 @@ export interface EntityDependency {
 const RELATIONSHIP_MAP: Record<string, { attribute: string; dependentTypes: string[] }> = {
   AgriParcel: {
     attribute: 'refAgriParcel',
-    dependentTypes: ['AgriSensor', 'AgriculturalRobot', 'AgriCrop', 'Device'],
+    dependentTypes: ['AgriSensor', 'AutonomousMobileRobot', 'ManufacturingMachine', 'AgriCrop', 'Device'],
   },
   AgriFarm: {
     attribute: 'refAgriFarm',
-    dependentTypes: ['AgriParcel', 'AgriGreenhouse', 'AgriculturalRobot'],
+    dependentTypes: ['AgriParcel', 'AgriGreenhouse', 'AutonomousMobileRobot', 'ManufacturingMachine'],
   },
   AgriGreenhouse: {
     attribute: 'refAgriGreenhouse',

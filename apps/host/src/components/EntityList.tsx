@@ -45,7 +45,7 @@ export const EntityList: React.FC<EntityListProps> = ({
             case 'AgriParcel': return MapPin;
             case 'AgriZone': return Layers;
             case 'AgriCrop': return Droplets;
-            case 'AgriculturalRobot': return Bot;
+            case 'AutonomousMobileRobot': return Bot;
             case 'Tractor': return Tractor;
             case 'AgriSensor': return Gauge;
             case 'Device': return Zap;

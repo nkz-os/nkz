@@ -31,9 +31,9 @@ export function useEntitySelection(
         } else if (entityId.startsWith('parcel-')) {
           onEntitySelect({ id: entityId.replace('parcel-', ''), type: 'AgriParcel' });
         } else if (entityId.startsWith('robot-')) {
-          onEntitySelect({ id: entityId.replace('robot-', ''), type: 'AgriculturalRobot' });
+          onEntitySelect({ id: entityId.replace('robot-', ''), type: 'AutonomousMobileRobot' });
         } else if (entityId.startsWith('machine-')) {
-          onEntitySelect({ id: entityId.replace('machine-', ''), type: 'Tractor' });
+          onEntitySelect({ id: entityId.replace('machine-', ''), type: 'ManufacturingMachine' });
         } else {
           onEntitySelect({ id: entityId, type: 'Unknown' });
         }

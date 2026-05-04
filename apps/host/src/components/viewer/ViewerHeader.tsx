@@ -15,7 +15,7 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { useModules } from '@/context/ModuleContext';
 import { useI18n } from '@/context/I18nContext';
 import { LanguageSelector } from '@/components/LanguageSelector';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { useViewerTheme } from '@/hooks/useViewerTheme';
 import {
     CORE_NAVIGATION_ITEMS,
     ADMIN_NAVIGATION_ITEMS,
@@ -50,6 +50,8 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
     const { user, logout, hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
     const { t } = useI18n();
+    const { profile, toggle } = useViewerTheme();
+    const isLight = profile === 'viewer-light';
     const navigate = useNavigate();
     const location = useLocation();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -277,7 +279,14 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
             <div className="absolute top-4 right-24 z-50 flex items-center gap-3">
                 {rightContent}
                 <div className={`rounded-xl ${glassStyles.base} p-1.5 flex items-center gap-2`}>
-                    <ThemeToggle variant="default" />
+                    <button
+                        onClick={toggle}
+                        className="p-2 rounded-lg text-nkz-text-secondary hover:text-nkz-text-primary hover:bg-nkz-surface-sunken transition-colors"
+                        aria-label={isLight ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'}
+                        title={isLight ? 'Tema oscuro' : 'Tema claro'}
+                    >
+                        {isLight ? '☼' : '🌙'}
+                    </button>
                     <LanguageSelector variant="iconOnly" />
                 </div>
             </div>
