@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
+import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 import {
   Key,
@@ -49,6 +50,7 @@ interface ApiCredentialForm {
 
 export const ExternalApiCredentials: React.FC = () => {
   const { user, getToken } = useAuth();
+  const { t } = useI18n();
   const [credentials, setCredentials] = useState<ApiCredential[]>([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -202,9 +204,9 @@ export const ExternalApiCredentials: React.FC = () => {
 
   const getAuthTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      api_key: 'API Key',
+      api_key: t('settings.external_apis.api_key'),
       basic_auth: 'Usuario/Contraseña',
-      bearer: 'Bearer Token',
+      bearer: t('settings.external_apis.bearer_token'),
       none: 'Sin autenticación',
     };
     return labels[type] || type;
@@ -234,7 +236,7 @@ export const ExternalApiCredentials: React.FC = () => {
             <Key className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Credenciales de APIs Externas</h2>
+            <h2 className="text-xl font-bold text-gray-900">{t('settings.external_apis.title')}</h2>
             <p className="text-sm text-gray-600">
               Gestiona las credenciales para servicios externos (Sentinel Hub, AEMET, etc.)
             </p>
@@ -253,7 +255,7 @@ export const ExternalApiCredentials: React.FC = () => {
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Nueva Credencial
+            {t('settings.external_apis.new_credential')}
           </button>
         </div>
       </div>
@@ -282,7 +284,7 @@ export const ExternalApiCredentials: React.FC = () => {
         <div className="mb-6 p-6 border border-gray-200 rounded-lg bg-gray-50">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
-              {editingId ? 'Editar Credencial' : 'Nueva Credencial'}
+              {editingId ? t('settings.external_apis.edit_credential') : t('settings.external_apis.new_credential')}
             </h3>
             <button
               onClick={() => setShowForm(false)}
@@ -295,7 +297,7 @@ export const ExternalApiCredentials: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nombre del Servicio *
+                {t('settings.external_apis.service_name')} *
               </label>
               <input
                 type="text"
@@ -312,7 +314,7 @@ export const ExternalApiCredentials: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                URL del Servicio *
+                {t('settings.external_apis.service_url')} *
               </label>
               <input
                 type="url"
@@ -323,13 +325,13 @@ export const ExternalApiCredentials: React.FC = () => {
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
-                URL base del servicio (sin autenticación)
+                {t('settings.external_apis.service_url_hint')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tipo de Autenticación *
+                {t('settings.external_apis.auth_type')} *
               </label>
               <select
                 value={formData.auth_type}
@@ -378,7 +380,7 @@ export const ExternalApiCredentials: React.FC = () => {
             {(formData.auth_type === 'api_key' || formData.auth_type === 'bearer') && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {formData.auth_type === 'api_key' ? 'API Key' : 'Bearer Token'} *
+                  {formData.auth_type === 'api_key' ? t('settings.external_apis.api_key') : t('settings.external_apis.bearer_token')} *
                 </label>
                 <input
                   type="password"
@@ -400,7 +402,7 @@ export const ExternalApiCredentials: React.FC = () => {
               <textarea
                 value={formData.description || ''}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Descripción del servicio y cómo obtener las credenciales"
+                placeholder={t('settings.external_apis.description_placeholder')}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -415,7 +417,7 @@ export const ExternalApiCredentials: React.FC = () => {
                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
               <label htmlFor="is_active" className="text-sm text-gray-700">
-                Activo (esta credencial se usará para autenticación)
+                {t('settings.external_apis.active')}
               </label>
             </div>
           </div>

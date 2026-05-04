@@ -13,6 +13,7 @@ import { ModuleVisibilitySettings } from '@/components/ModuleVisibilitySettings'
 import { RiskAlertSubscriptions } from '@/components/RiskAlertSubscriptions';
 import { RiskWebhooksPanel } from '@/components/RiskWebhooksPanel';
 import api from '@/services/api';
+import { getConfig } from '@/config/environment';
 import { TenantProfileEditor } from '@/components/settings/TenantProfileEditor';
 import { Copy, Check, Edit2, Save, X } from 'lucide-react';
 
@@ -272,6 +273,16 @@ export const Settings: React.FC = () => {
                 <p className="text-sm text-amber-800 font-semibold">
                   {t('settings.subscription.expired_banner', { defaultValue: 'Your subscription has expired. Read-only mode is active.' })}
                 </p>
+                {getConfig().external.billingUrl && (
+                  <a
+                    href={getConfig().external.billingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block mt-2 px-3 py-1.5 bg-amber-600 text-white text-xs font-medium rounded-lg hover:bg-amber-700 transition"
+                  >
+                    {t('dashboard.renew_subscription', { defaultValue: 'Renew' })}
+                  </a>
+                )}
               </div>
             )}
           </div>

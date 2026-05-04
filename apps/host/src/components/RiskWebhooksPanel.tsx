@@ -4,6 +4,7 @@
 // Manage webhook registrations for risk push notifications
 
 import React, { useState, useEffect } from 'react';
+import { useI18n } from '@/context/I18nContext';
 import { api } from '@/services/api';
 import type { RiskWebhook } from '@/types';
 import { Webhook, Plus, Trash2, X, ChevronUp } from 'lucide-react';
@@ -20,6 +21,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly = false }) => {
+  const { t } = useI18n();
   const [webhooks, setWebhooks] = useState<RiskWebhook[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formUrl.trim()) {
-      setFormError('Nombre y URL son obligatorios');
+      setFormError(t('settings.users.required_fields'));
       return;
     }
     setSubmitting(true);
@@ -89,7 +91,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
       <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
           <Webhook className="w-5 h-5 text-gray-500" />
-          Webhooks de riesgo
+          {t('settings.risk_webhooks.title')}
         </h3>
         {!readOnly && (
           <button
@@ -110,7 +112,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre *</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.risk_webhooks.name')} *</label>
               <input
                 type="text"
                 value={formName}
@@ -121,7 +123,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">URL *</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.risk_webhooks.url')} *</label>
               <input
                 type="url"
                 value={formUrl}
@@ -186,7 +188,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
             <Webhook className="w-8 h-8 mx-auto mb-2 opacity-30" />
             <p>No hay webhooks registrados.</p>
             {!readOnly && (
-              <p className="mt-1 text-xs">Haz clic en "+ Nuevo" para crear uno.</p>
+              <p className="mt-1 text-xs">Haz clic en "+ Nuevo' para crear uno."</p>
             )}
           </div>
         ) : (
@@ -203,7 +205,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
                 <button
                   onClick={() => handleDelete(wh.id)}
                   className="shrink-0 p-1.5 text-gray-400 hover:text-red-600 transition rounded"
-                  title="Eliminar webhook"
+                  title={t('settings.users.delete')}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
