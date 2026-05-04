@@ -241,6 +241,28 @@ spec:
                 name: odoo-backend-service
                 port:
                   number: 80
+          # Entity-manager module management for CUE — Traefik longest-path priority
+          - path: /api/modules/cue/activate
+            pathType: Exact
+            backend:
+              service:
+                name: entity-manager-service
+                port:
+                  number: 5000
+          - path: /api/modules/cue/toggle
+            pathType: Exact
+            backend:
+              service:
+                name: entity-manager-service
+                port:
+                  number: 5000
+          - path: /api/modules/cue/can-install
+            pathType: Exact
+            backend:
+              service:
+                name: entity-manager-service
+                port:
+                  number: 5000
           # CUE Module API (Cuaderno de Campo SIEX)
           - path: /api/modules/cue
             pathType: Prefix
@@ -278,22 +300,6 @@ spec:
           #       name: isobus-bridge-service
           #       port:
           #         number: 5000
-          # CUE Module API (Cuaderno de Campo SIEX)
-          - path: /api/modules/cue
-            pathType: Prefix
-            backend:
-              service:
-                name: cue-backend-service
-                port:
-                  number: 5000
-          # CUE NGSI-LD @context
-          - path: /ngsi-ld/cue-context.jsonld
-            pathType: Exact
-            backend:
-              service:
-                name: cue-backend-service
-                port:
-                  number: 5000
           # GIS Routing Module API — direct to module backend (not api-gateway)
           - path: /api/routing
             pathType: Prefix
@@ -356,6 +362,28 @@ spec:
                 name: datahub-api-service
                 port:
                   number: 8000
+          # Entity-manager module management for CUE — Traefik longest-path priority
+          - path: /api/modules/cue/activate
+            pathType: Exact
+            backend:
+              service:
+                name: entity-manager-service
+                port:
+                  number: 5000
+          - path: /api/modules/cue/toggle
+            pathType: Exact
+            backend:
+              service:
+                name: entity-manager-service
+                port:
+                  number: 5000
+          - path: /api/modules/cue/can-install
+            pathType: Exact
+            backend:
+              service:
+                name: entity-manager-service
+                port:
+                  number: 5000
           # CUE Module API (Cuaderno de Campo SIEX — same-origin frontend requests)
           - path: /api/modules/cue
             pathType: Prefix
