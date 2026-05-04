@@ -208,6 +208,26 @@ export const Settings: React.FC = () => {
                 )}
               </div>
             </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">{t('settings.roles', { defaultValue: 'Roles' })}</label>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {(user?.roles || []).length > 0 ? (user?.roles || []).map((role: string) => (
+                  <span key={role} className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    role === 'PlatformAdmin' ? 'bg-purple-100 text-purple-800' :
+                    role === 'TenantAdmin' ? 'bg-blue-100 text-blue-800' :
+                    role === 'GestorCUE' ? 'bg-rose-100 text-rose-800' :
+                    role === 'TechnicalConsultant' ? 'bg-green-100 text-green-800' :
+                    role === 'Farmer' ? 'bg-yellow-100 text-yellow-800' :
+                    role === 'role_pro_expired' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {role === 'role_pro_expired' ? 'Expired' : role}
+                  </span>
+                )) : (
+                  <span className="text-sm text-gray-400">{t('settings.no_roles', { defaultValue: 'No roles assigned' })}</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

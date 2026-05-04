@@ -3,6 +3,7 @@
 // =============================================================================
 import React, { useState, useEffect } from 'react';
 import { X, Mail, AlertTriangle } from 'lucide-react';
+import { useI18n } from '@/context/I18nContext';
 import type { UserRow } from './UserTable';
 
 interface UserEditModalProps {
@@ -27,6 +28,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
   onSave,
   onClose,
 }) => {
+  const { t } = useI18n();
   const [firstName, setFirstName] = useState(user.firstName || '');
   const [lastName, setLastName] = useState(user.lastName || '');
   const [selectedRoles, setSelectedRoles] = useState<string[]>([...user.roles]);
@@ -60,7 +62,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
         <div className="mt-3">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-gray-900">
-              Edit User: {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}
+              {t('settings.users.edit_title')}: {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}
             </h3>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <X className="w-5 h-5" />
@@ -76,7 +78,9 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
             {allowNameEdit && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('settings.users.first_name')}
+                  </label>
                   <input
                     type="text"
                     value={firstName}
@@ -85,7 +89,9 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('settings.users.last_name')}
+                  </label>
                   <input
                     type="text"
                     value={lastName}
@@ -97,7 +103,9 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Roles</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('settings.users.roles')}
+              </label>
               {availableRoles.map((role) => (
                 <label key={role.value} className="flex items-center mb-2 cursor-pointer">
                   <input
@@ -119,7 +127,9 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-3">
                   <p className="text-xs text-yellow-800">
                     <AlertTriangle className="w-3 h-3 inline mr-1" />
-                    Only PlatformAdmin can assign PlatformAdmin, TenantAdmin, and GestorCUE roles.
+                    {t('settings.users.platform_only_roles_warning', {
+                      defaultValue: 'Only PlatformAdmin can assign PlatformAdmin, TenantAdmin, and GestorCUE roles.',
+                    })}
                   </p>
                 </div>
               )}
@@ -131,14 +141,14 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
             >
-              Cancel
+              {t('settings.cancel')}
             </button>
             <button
               onClick={handleSave}
               disabled={loading}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Saving...' : 'Save Changes'}
+              {loading ? t('settings.saving') : t('settings.save_changes')}
             </button>
           </div>
         </div>
