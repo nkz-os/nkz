@@ -1,15 +1,23 @@
 // =============================================================================
-// Tenant Users Management Component
+// Tenant Users Management — consolidated with shared primitives (Settings page)
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import api, { type TenantUser } from '@/services/api';
-import { Users, Plus, Trash2, Mail, User, Edit2, X } from 'lucide-react';
+import { Users, Plus, X } from 'lucide-react';
+import { UserTable, type UserRow } from '@/components/admin/UserTable';
+import { UserEditModal } from '@/components/admin/UserEditModal';
+import { useUserActions } from '@/components/admin/useUserActions';
 
 interface TenantUsersManagementProps {
   canManageUsers: boolean;
 }
+
+const TENANT_ASSIGNABLE_ROLES = [
+  { value: 'Farmer', label: 'Farmer', description: 'Basic dashboard access' },
+  { value: 'TechnicalConsultant', label: 'Technical Consultant', description: 'Technical data and modules access' },
+];
 
 export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ canManageUsers }) => {
   const { t } = useI18n();
@@ -19,9 +27,8 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
   const [usersError, setUsersError] = useState<string | null>(null);
   const [usersSuccess, setUsersSuccess] = useState<string | null>(null);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
-  const [showEditUserModal, setShowEditUserModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<TenantUser | null>(null);
-  const [editingUserData, setEditingUserData] = useState<{ firstName?: string; lastName?: string }>({});
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [newUser, setNewUser] = useState({
     email: '',
     firstName: '',
@@ -30,6 +37,8 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
     roles: ['Farmer'] as string[],
     temporary: true
   });
+
+  const userActions = useUserActions({ apiBase: 'tenant' });
 
   useEffect(() => {
     if (canManageUsers) {
@@ -86,90 +95,53 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
     }
   };
 
-  const handleEditUser = (userToEdit: any) => {
-    setSelectedUser(userToEdit);
-    setEditingUserData({
-      firstName: userToEdit.firstName || '',
-      lastName: userToEdit.lastName || ''
-    });
-    setShowEditUserModal(true);
+  const handleEditRoles = (user: UserRow) => {
+    setEditingUser(user);
+    setShowEditModal(true);
   };
 
-  const handleUpdateUser = async () => {
-    if (!selectedUser) return;
-
-    setLoadingUsers(true);
-    setUsersError(null);
-    setUsersSuccess(null);
-    try {
-      await api.updateTenantUser(selectedUser.id, editingUserData);
-      setUsersSuccess(t('settings.users.updated_success'));
-      setShowEditUserModal(false);
-      setSelectedUser(null);
-      setEditingUserData({});
-      await loadTenantUsers();
-      setTimeout(() => setUsersSuccess(null), 5000);
-    } catch (err: any) {
-      setUsersError(t('settings.users.update_error') + ': ' + (err.response?.data?.error || err.message));
-      setUsersSuccess(null);
-    } finally {
-      setLoadingUsers(false);
+  const handleSaveRoles = async (userId: string, data: { roles: string[]; firstName?: string; lastName?: string }) => {
+    const ok = await userActions.updateRoles(userId, data.roles);
+    if (ok) {
+      setTenantUsers(tenantUsers.map(u => u.id === userId ? { ...u, roles: data.roles } : u));
+      setShowEditModal(false);
+      setEditingUser(null);
     }
   };
 
   const handleDeleteUser = async (userId: string, userEmail: string) => {
-    if (!confirm(t('settings.users.delete_confirm').replace('{email}', userEmail))) {
-      return;
-    }
-
-    setLoadingUsers(true);
-    setUsersError(null);
-    setUsersSuccess(null);
-    try {
-      await api.deleteTenantUser(userId);
-      setUsersSuccess(t('settings.users.deleted_success'));
-      await loadTenantUsers();
-      setTimeout(() => setUsersSuccess(null), 5000);
-    } catch (err: any) {
-      setUsersError(t('settings.users.delete_error') + ': ' + (err.response?.data?.error || err.message));
-      setUsersSuccess(null);
-    } finally {
-      setLoadingUsers(false);
-    }
+    const ok = await userActions.deleteUser(userId, userEmail);
+    if (ok) await loadTenantUsers();
   };
 
   const handleResetPassword = async (userId: string) => {
-    if (!confirm(t('settings.users.reset_confirm'))) {
-      return;
-    }
-
-    setLoadingUsers(true);
-    setUsersError(null);
-    setUsersSuccess(null);
-    try {
-      const data = await api.resetTenantUserPassword(userId) as { temporaryPassword?: string; data?: { temporaryPassword?: string } };
-      const password = data?.temporaryPassword ?? data?.data?.temporaryPassword ?? t('settings.users.generated');
+    const password = await userActions.resetPassword(userId);
+    if (password) {
       setUsersSuccess(t('settings.users.reset_success').replace('{password}', password));
-      await loadTenantUsers();
       setTimeout(() => setUsersSuccess(null), 10000);
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } }; message?: string })?.response?.data?.error ?? (err as Error).message ?? '';
-      setUsersError(t('settings.users.reset_error') + ': ' + msg);
-      setUsersSuccess(null);
-    } finally {
-      setLoadingUsers(false);
     }
   };
+
+  // Build UserRow list from TenantUser data
+  const userRows: UserRow[] = tenantUsers.map(u => ({
+    id: u.id,
+    email: u.email,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    roles: u.roles || [],
+    enabled: u.enabled !== false,
+    createdAt: typeof (u as any).createdAt === 'number' ? (u as any).createdAt : undefined,
+  }));
 
   if (!canManageUsers) return null;
 
   return (
     <>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        {(usersError || usersSuccess) && (
-          <div className={`mb-4 p-3 rounded-lg ${usersSuccess ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-            <p className={`text-sm ${usersSuccess ? 'text-green-800' : 'text-red-800'}`}>
-              {usersSuccess || usersError}
+        {(usersError || usersSuccess || userActions.error || userActions.success) && (
+          <div className={`mb-4 p-3 rounded-lg ${(usersSuccess || userActions.success) ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+            <p className={`text-sm ${(usersSuccess || userActions.success) ? 'text-green-800' : 'text-red-800'}`}>
+              {usersSuccess || userActions.success || usersError || userActions.error}
             </p>
           </div>
         )}
@@ -192,104 +164,19 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
           </button>
         </div>
 
-        {loadingUsers ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="text-gray-600 mt-2">{t('settings.loading')}</p>
-          </div>
-        ) : tenantUsers.length === 0 ? (
-          <div className="text-center py-8">
-            <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 mb-4">{t('settings.users.no_users')}</p>
-            <button
-              onClick={() => setShowCreateUserModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-            >
-              {t('settings.users.create_first')}
-            </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('settings.users.table_user')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('settings.users.table_email')}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('settings.users.table_roles')}
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {t('settings.users.table_actions')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {tenantUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <User className="w-5 h-5 text-gray-400 mr-2" />
-                        <div className="text-sm font-medium text-gray-900">
-                          {u.firstName || ''} {u.lastName || ''}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{u.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-wrap gap-1">
-                        {u.roles?.map((role: string) => (
-                          <span
-                            key={role}
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              role === 'PlatformAdmin'
-                                ? 'bg-red-100 text-red-800'
-                                : role === 'TenantAdmin'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : 'bg-gray-100 text-gray-800'
-                            }`}
-                          >
-                            {role}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleEditUser(u)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title={t('settings.users.edit')}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleResetPassword(u.id)}
-                          className="text-yellow-600 hover:text-yellow-900"
-                          title={t('settings.users.reset_password')}
-                        >
-                          <Mail className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUser(u.id, u.email)}
-                          className="text-red-600 hover:text-red-900"
-                          title={t('settings.users.delete')}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <UserTable
+          users={userRows}
+          loading={loadingUsers}
+          actions={{
+            editRoles: true,
+            resetPassword: true,
+            deleteUser: true,
+          }}
+          onEditRoles={handleEditRoles}
+          onResetPassword={handleResetPassword}
+          onDeleteUser={handleDeleteUser}
+          emptyMessage={t('settings.users.no_users')}
+        />
       </div>
 
       {/* Create User Modal */}
@@ -365,10 +252,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {t('settings.users.roles')}
                   </label>
-                  {[
-                    { value: 'Farmer', label: t('settings.users.role_farmer'), description: t('settings.users.role_farmer_desc') },
-                    { value: 'DeviceManager', label: t('settings.users.role_device_manager'), description: t('settings.users.role_device_manager_desc') },
-                  ].map((role) => (
+                  {TENANT_ASSIGNABLE_ROLES.map((role) => (
                     <label key={role.value} className="flex items-center mb-2">
                       <input
                         type="checkbox"
@@ -408,79 +292,20 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
         </div>
       )}
 
-      {/* Edit User Modal */}
-      {showEditUserModal && selectedUser && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">
-                  {t('settings.users.edit_title')}: {selectedUser.firstName} {selectedUser.lastName}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowEditUserModal(false);
-                    setSelectedUser(null);
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Mail className="w-4 h-4" />
-                  {selectedUser.email}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('settings.users.first_name')}
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUserData.firstName || ''}
-                    onChange={(e) => setEditingUserData({ ...editingUserData, firstName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    {t('settings.users.last_name')}
-                  </label>
-                  <input
-                    type="text"
-                    value={editingUserData.lastName || ''}
-                    onChange={(e) => setEditingUserData({ ...editingUserData, lastName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => {
-                    setShowEditUserModal(false);
-                    setSelectedUser(null);
-                    setEditingUserData({});
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-                >
-                  {t('settings.cancel')}
-                </button>
-                <button
-                  onClick={handleUpdateUser}
-                  disabled={loadingUsers}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loadingUsers ? t('settings.saving') : t('settings.save_changes')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Edit Roles Modal (Tenant context — limited roles) */}
+      {showEditModal && editingUser && (
+        <UserEditModal
+          user={editingUser}
+          availableRoles={TENANT_ASSIGNABLE_ROLES}
+          isPlatformContext={false}
+          loading={userActions.loading}
+          onSave={handleSaveRoles}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingUser(null);
+            userActions.clearMessages();
+          }}
+        />
       )}
     </>
   );

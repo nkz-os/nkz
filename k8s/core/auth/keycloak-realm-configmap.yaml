@@ -352,16 +352,16 @@ data:
         "attributes": {}
       },
       {
-        "name": "DashboardViewer",
-        "description": "Dashboard viewer with read-only access",
+        "name": "Farmer",
+        "description": "Farmer with basic access to their data",
         "composite": false,
         "clientRole": false,
         "containerId": "nekazari",
         "attributes": {}
       },
       {
-        "name": "Farmer",
-        "description": "Farmer with basic access to their data",
+        "name": "GestorCUE",
+        "description": "CUE field notebook manager with cross-tenant farmer authorization",
         "composite": false,
         "clientRole": false,
         "containerId": "nekazari",
@@ -411,6 +411,16 @@ data:
       "attributes": {},
       "realmRoles": [
         "Farmer"
+      ],
+      "clientRoles": {}
+    },
+    {
+      "name": "Gestores CUE",
+      "path": "/Gestores CUE",
+      "subGroups": [],
+      "attributes": {},
+      "realmRoles": [
+        "GestorCUE"
       ],
       "clientRoles": {}
     }

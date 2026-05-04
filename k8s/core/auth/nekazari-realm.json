@@ -170,7 +170,7 @@
           "protocolMapper": "oidc-script-based-protocol-mapper",
           "consentRequired": false,
           "config": {
-            "script": "var groups = user.getGroups();\nvar tenantId = null;\nvar tenantType = null;\n\n// Iterate through user's groups to find tenant attributes\nfor (var i = 0; i < groups.size(); i++) {\n    var group = groups.get(i);\n    var attributes = group.getAttributes();\n    \n    // Check for tenant_id attribute\n    if (attributes.containsKey(\"tenant_id\")) {\n        var tenantIdValues = attributes.get(\"tenant_id\");\n        if (tenantIdValues != null && tenantIdValues.size() > 0) {\n            tenantId = tenantIdValues.get(0);\n        }\n    }\n    \n    // Check for tenant_type attribute\n    if (attributes.containsKey(\"tenant_type\")) {\n        var tenantTypeValues = attributes.get(\"tenant_type\");\n        if (tenantTypeValues != null && tenantTypeValues.size() > 0) {\n            tenantType = tenantTypeValues.get(0);\n        }\n    }\n    \n    // If we found tenant_id, we can break (or continue to find highest priority)\n    // For now, take from first group that has tenant_id\n    if (tenantId != null) {\n        break;\n    }\n}\n\n// Add claims to token if found\nif (tenantId != null) {\n    token.setOtherClaims(\"tenant_id\", tenantId);\n}\nif (tenantType != null) {\n    token.setOtherClaims(\"tenant_type\", tenantType);\n}",
+            "script": "var groups = user.getGroups();\nvar tenantId = null;\nvar tenantType = null;\nvar planType = null;\nvar maxUsers = null;\nvar maxRobots = null;\nvar maxSensors = null;\n\n// Iterate through user's groups to find tenant attributes\nfor (var i = 0; i < groups.size(); i++) {\n    var group = groups.get(i);\n    var attributes = group.getAttributes();\n    \n    // Check for tenant_id attribute\n    if (attributes.containsKey(\"tenant_id\")) {\n        var tenantIdValues = attributes.get(\"tenant_id\");\n        if (tenantIdValues != null && tenantIdValues.size() > 0) {\n            tenantId = tenantIdValues.get(0);\n        }\n    }\n    \n    // Check for tenant_type attribute\n    if (attributes.containsKey(\"tenant_type\")) {\n        var tenantTypeValues = attributes.get(\"tenant_type\");\n        if (tenantTypeValues != null && tenantTypeValues.size() > 0) {\n            tenantType = tenantTypeValues.get(0);\n        }\n    }\n    \n    // Check for plan_type attribute\n    if (attributes.containsKey(\"plan_type\")) {\n        var planTypeValues = attributes.get(\"plan_type\");\n        if (planTypeValues != null && planTypeValues.size() > 0) {\n            planType = planTypeValues.get(0);\n        }\n    }\n    \n    // Check for max_users attribute\n    if (attributes.containsKey(\"max_users\")) {\n        var maxUsersValues = attributes.get(\"max_users\");\n        if (maxUsersValues != null && maxUsersValues.size() > 0) {\n            try {\n                maxUsers = parseInt(maxUsersValues.get(0));\n            } catch (e) {\n                maxUsers = maxUsersValues.get(0);\n            }\n        }\n    }\n    \n    // Check for max_robots attribute\n    if (attributes.containsKey(\"max_robots\")) {\n        var maxRobotsValues = attributes.get(\"max_robots\");\n        if (maxRobotsValues != null && maxRobotsValues.size() > 0) {\n            try {\n                maxRobots = parseInt(maxRobotsValues.get(0));\n            } catch (e) {\n                maxRobots = maxRobotsValues.get(0);\n            }\n        }\n    }\n    \n    // Check for max_sensors attribute\n    if (attributes.containsKey(\"max_sensors\")) {\n        var maxSensorsValues = attributes.get(\"max_sensors\");\n        if (maxSensorsValues != null && maxSensorsValues.size() > 0) {\n            try {\n                maxSensors = parseInt(maxSensorsValues.get(0));\n            } catch (e) {\n                maxSensors = maxSensorsValues.get(0);\n            }\n        }\n    }\n    \n    // If we found tenant_id, we can break (or continue to find highest priority)\n    // For now, take from first group that has tenant_id\n    if (tenantId != null) {\n        break;\n    }\n}\n\n// Add claims to token if found\nif (tenantId != null) {\n    token.setOtherClaims(\"tenant_id\", tenantId);\n}\nif (tenantType != null) {\n    token.setOtherClaims(\"tenant_type\", tenantType);\n}\nif (planType != null) {\n    token.setOtherClaims(\"plan_type\", planType);\n}\nif (maxUsers != null) {\n    token.setOtherClaims(\"max_users\", maxUsers);\n}\nif (maxRobots != null) {\n    token.setOtherClaims(\"max_robots\", maxRobots);\n}\nif (maxSensors != null) {\n    token.setOtherClaims(\"max_sensors\", maxSensors);\n}",
             "token.claim.name": "tenant_id",
             "access.token.claim": "true",
             "id.token.claim": "true",
@@ -342,16 +342,16 @@
         "attributes": {}
       },
       {
-        "name": "DashboardViewer",
-        "description": "Dashboard viewer with read-only access",
+        "name": "Farmer",
+        "description": "Farmer with basic access to their data",
         "composite": false,
         "clientRole": false,
         "containerId": "nekazari",
         "attributes": {}
       },
       {
-        "name": "Farmer",
-        "description": "Farmer with basic access to their data",
+        "name": "GestorCUE",
+        "description": "CUE field notebook manager with cross-tenant farmer authorization",
         "composite": false,
         "clientRole": false,
         "containerId": "nekazari",
@@ -401,6 +401,16 @@
       "attributes": {},
       "realmRoles": [
         "Farmer"
+      ],
+      "clientRoles": {}
+    },
+    {
+      "name": "Gestores CUE",
+      "path": "/Gestores CUE",
+      "subGroups": [],
+      "attributes": {},
+      "realmRoles": [
+        "GestorCUE"
       ],
       "clientRoles": {}
     }

@@ -15,7 +15,7 @@ interface MarketplaceModule {
   required_plan_type?: string | null;
 }
 
-const MANAGEABLE_ROLES = ['Farmer', 'TechnicalConsultant', 'DeviceManager'];
+const MANAGEABLE_ROLES = ['Farmer', 'TechnicalConsultant'];
 
 export const ModuleVisibilitySettings: React.FC = () => {
   const { hasAnyRole } = useAuth();
@@ -115,7 +115,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
     }
   };
 
-  const isReadOnly = !isTenantAdmin && isPlatformAdmin;
+  const isReadOnly = false;
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

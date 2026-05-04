@@ -17,7 +17,7 @@ import { TenantProfileEditor } from '@/components/settings/TenantProfileEditor';
 import { Copy, Check, Edit2, Save, X } from 'lucide-react';
 
 export const Settings: React.FC = () => {
-  const { user, tenantId, hasAnyRole } = useAuth();
+  const { user, tenantId, tenantName, tenantProfile, hasRole, hasAnyRole } = useAuth();
   const { t } = useI18n();
 
   const canModifySettings = hasAnyRole(['PlatformAdmin', 'TenantAdmin']);
@@ -25,6 +25,7 @@ export const Settings: React.FC = () => {
   const isReadOnly = hasAnyRole(['TechnicalConsultant']) && !canModifySettings;
   const canViewRisks = hasAnyRole(['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant']);
   const canManageModuleVisibility = hasAnyRole(['PlatformAdmin', 'TenantAdmin']);
+  const isPlatformAdmin = hasRole('PlatformAdmin');
 
   const [copiedTenantId, setCopiedTenantId] = useState(false);
 
@@ -186,7 +187,7 @@ export const Settings: React.FC = () => {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">{t('settings.farm')}</label>
-              <p className="text-gray-900">{user?.tenant}</p>
+              <p className="text-gray-900">{tenantName || tenantId || 'N/A'}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">{t('settings.tenant_id')}</label>
@@ -210,6 +211,52 @@ export const Settings: React.FC = () => {
           </div>
         </div>
 
+        {/* Subscription & Plan Info */}
+        {tenantProfile && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('settings.subscription.title', { defaultValue: 'Plan & Subscription' })}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.plan', { defaultValue: 'Plan' })}</label>
+                <p className="text-gray-900 font-semibold capitalize">{tenantProfile.plan_type}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.status', { defaultValue: 'Status' })}</label>
+                <p className={`font-semibold ${tenantProfile.status === 'active' ? 'text-green-600' : 'text-red-600'}`}>
+                  {tenantProfile.status}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.expires', { defaultValue: 'Expires' })}</label>
+                <p className="text-gray-900">
+                  {tenantProfile.expires_at
+                    ? new Date(tenantProfile.expires_at).toLocaleDateString()
+                    : 'N/A'}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.max_users', { defaultValue: 'Max Users' })}</label>
+                <p className="text-gray-900">{tenantProfile.max_users}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.max_robots', { defaultValue: 'Max Robots' })}</label>
+                <p className="text-gray-900">{tenantProfile.max_robots}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.max_sensors', { defaultValue: 'Max Sensors' })}</label>
+                <p className="text-gray-900">{tenantProfile.max_sensors}</p>
+              </div>
+            </div>
+            {user?.roles?.includes('role_pro_expired') && (
+              <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-sm text-amber-800 font-semibold">
+                  {t('settings.subscription.expired_banner', { defaultValue: 'Your subscription has expired. Read-only mode is active.' })}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Tenant Profile Editor */}
         {canModifySettings && (
           <div className="mb-6">
@@ -217,8 +264,8 @@ export const Settings: React.FC = () => {
           </div>
         )}
 
-        {/* External API Credentials */}
-        {canModifySettings && (
+        {/* External API Credentials — PlatformAdmin only */}
+        {isPlatformAdmin && (
           <div className="mb-6">
             <ExternalApiCredentials />
           </div>

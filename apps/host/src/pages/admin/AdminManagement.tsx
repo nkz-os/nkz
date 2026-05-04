@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, Building2, Ticket, Search, Filter, Plus, 
-  Trash2, ShieldCheck, AlertTriangle, RefreshCcw, 
-  Mail, Settings2, Shield, Key, ScrollText, 
+import {
+  Users, Building2, Ticket, Search, Plus,
+  Trash2, ShieldCheck, AlertTriangle, RefreshCcw,
+  Settings2, Shield, Key, ScrollText,
   FileText, Activity, Box, Puzzle, Monitor
 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
@@ -11,6 +11,9 @@ import client from '@/services/api';
 import { format } from 'date-fns';
 import { useModules } from '@/context/ModuleContext';
 import { SlotRenderer } from '@/components/SlotRenderer';
+import { UserTable, type UserRow } from '@/components/admin/UserTable';
+import { UserEditModal } from '@/components/admin/UserEditModal';
+import { useUserActions } from '@/components/admin/useUserActions';
 
 // Missing Admin Components
 import { LimitsManagement } from '@/components/LimitsManagement';
@@ -65,6 +68,7 @@ function mapKeycloakUserToRow(u: Record<string, unknown>): User {
     ? rolesRaw.filter((r): r is string => typeof r === 'string')
     : [];
 
+
   return {
     id: String(u.id ?? ''),
     email: String(u.email ?? ''),
@@ -112,8 +116,23 @@ export const AdminManagement: React.FC = () => {
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [codeForm, setCodeForm] = useState({ email: '', plan: 'premium' });
 
+  // Role editing state (PlatformAdmin)
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  const userActions = useUserActions({ apiBase: 'admin' });
+
+  // All roles assignable by PlatformAdmin
+  const platformAdminRoles = [
+    { value: 'PlatformAdmin', label: 'Platform Admin', description: 'Full platform access' },
+    { value: 'TenantAdmin', label: 'Tenant Admin', description: 'Tenant-level management' },
+    { value: 'GestorCUE', label: 'Gestor CUE', description: 'CUE cross-tenant field notebook manager' },
+    { value: 'TechnicalConsultant', label: 'Technical Consultant', description: 'Technical data and modules access' },
+    { value: 'Farmer', label: 'Farmer', description: 'Basic dashboard access' },
+  ];
+
   // Find modules that provide admin-tab slots
-  const adminTabModules = Array.isArray(modules) 
+  const adminTabModules = Array.isArray(modules)
     ? modules.filter(m => m.viewerSlots?.['admin-tab'] && m.viewerSlots['admin-tab'].length > 0)
     : [];
 
@@ -341,16 +360,27 @@ export const AdminManagement: React.FC = () => {
   };
 
   const handleDeleteUser = async (userId: string, email: string) => {
-    if (!window.confirm(t('admin.confirm_delete_user', { email }))) {
-      return;
-    }
-    try {
-      await client.delete(`/api/admin/users/${userId}`);
+    const ok = await userActions.deleteUser(userId, email);
+    if (ok) {
       setUsers(users.filter(u => u.id !== userId));
-      alert(t('admin.user_deleted'));
-    } catch (error: any) {
-      const detail = error?.response?.data?.error || error?.message || '';
-      alert(`${t('admin.user_delete_error')}${detail ? ': ' + detail : ''}`);
+    }
+  };
+
+  const handleResetPassword = async (userId: string) => {
+    await userActions.resetPassword(userId);
+  };
+
+  const handleEditRoles = (user: UserRow) => {
+    setEditingUser(user);
+    setShowEditModal(true);
+  };
+
+  const handleSaveRoles = async (userId: string, data: { roles: string[]; firstName?: string; lastName?: string }) => {
+    const ok = await userActions.updateRoles(userId, data.roles);
+    if (ok) {
+      setUsers(users.map(u => u.id === userId ? { ...u, roles: data.roles } : u));
+      setShowEditModal(false);
+      setEditingUser(null);
     }
   };
 
@@ -434,7 +464,7 @@ export const AdminManagement: React.FC = () => {
       </div>
 
       {/* Search & Actions Bar (only for users/tenants/activations) */}
-      {['users', 'tenants', 'activations'].includes(activeTab) && (
+      {activeTab === 'users' && (
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center justify-between">
           <div className="relative flex-1 min-w-[300px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -446,20 +476,17 @@ export const AdminManagement: React.FC = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
+        </div>
+      )}
+      {activeTab === 'activations' && (
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center justify-between">
           <div className="flex gap-2">
-            {activeTab === 'activations' && (
-              <button
-                onClick={() => setShowCodeModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
-              >
-                <Plus className="h-5 w-5" />
-                {t('admin.generate_code')}
-              </button>
-            )}
-            <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors border border-gray-200">
-              <Filter className="h-5 w-5" />
-              Filtros
+            <button
+              onClick={() => setShowCodeModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Plus className="h-5 w-5" />
+              {t('admin.generate_code')}
             </button>
           </div>
         </div>
@@ -480,83 +507,18 @@ export const AdminManagement: React.FC = () => {
               </div>
             )}
             {activeTab === 'users' && (
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Usuario (Keycloak)</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Explotación / Tenant</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Roles</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Estado</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Fecha Registro</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {users.map(user => (
-                    <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold">
-                            {(user.firstName?.[0] || user.email[0]).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
-                            <p className="text-xs text-gray-500 flex items-center gap-1">
-                              <Mail className="h-3 w-3" /> {user.email}
-                            </p>
-                            {user.username && <p className="text-[10px] text-gray-400">Login: {user.username}</p>}
-                            {user.id && (
-                              <p className="text-[10px] text-gray-400 font-mono" title="Keycloak user id">
-                                KC: {user.id}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          {user.tenant || 'no-tenant'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 flex flex-wrap gap-1">
-                        {(user.roles || []).map(role => (
-                          <span key={role} className="text-[10px] px-1.5 py-0.5 border border-gray-200 rounded bg-gray-50 text-gray-600">
-                            {role}
-                          </span>
-                        ))}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <div
-                          className={`flex items-center gap-1.5 font-medium ${
-                            user.enabled ? 'text-green-600' : 'text-red-600'
-                          }`}
-                        >
-                          <div
-                            className={`h-2 w-2 rounded-full ${
-                              user.enabled ? 'bg-green-600' : 'bg-red-600'
-                            }`}
-                          />
-                          {user.enabled ? 'Activo' : 'Deshabilitado'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {user.createdAt != null
-                          ? format(new Date(user.createdAt), 'dd/MM/yyyy')
-                          : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleDeleteUser(user.id, user.email)}
-                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                          title={t('admin.delete_user')}
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <UserTable
+                users={users}
+                loading={loading}
+                actions={{
+                  editRoles: true,
+                  resetPassword: true,
+                  deleteUser: true,
+                }}
+                onEditRoles={handleEditRoles}
+                onResetPassword={handleResetPassword}
+                onDeleteUser={handleDeleteUser}
+              />
             )}
             {activeTab === 'users' && userHasMore && (
               <div className="p-4 border-t border-gray-100 flex justify-center bg-gray-50">
@@ -733,6 +695,22 @@ export const AdminManagement: React.FC = () => {
           </div>
         )}
       </div>
+      {/* Edit User Roles Modal (PlatformAdmin) */}
+      {showEditModal && editingUser && (
+        <UserEditModal
+          user={editingUser}
+          availableRoles={platformAdminRoles}
+          isPlatformContext={true}
+          loading={userActions.loading}
+          onSave={handleSaveRoles}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingUser(null);
+            userActions.clearMessages();
+          }}
+        />
+      )}
+
       {/* Generate Code Modal */}
       {showCodeModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCodeModal(false)}>

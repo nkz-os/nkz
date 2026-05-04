@@ -36,9 +36,9 @@ KEYCLOAK_CLIENT_SECRET = os.getenv('KEYCLOAK_CLIENT_SECRET', '')
 POSTGRES_URL = os.getenv('POSTGRES_URL', '')
 
 # Roles that TenantAdmin can assign
-TENANT_ADMIN_ASSIGNABLE_ROLES = ['Farmer', 'TechnicalConsultant', 'DeviceManager']  # DeviceManager kept for backward compatibility
+TENANT_ADMIN_ASSIGNABLE_ROLES = ['Farmer', 'TechnicalConsultant']
 # Roles that only PlatformAdmin can assign
-PLATFORM_ONLY_ROLES = ['PlatformAdmin', 'TenantAdmin']
+PLATFORM_ONLY_ROLES = ['PlatformAdmin', 'TenantAdmin', 'GestorCUE']
 
 
 class KeycloakService:
@@ -205,7 +205,7 @@ def filter_roles(roles: List[str], user_is_platform_admin: bool) -> List[str]:
     if user_is_platform_admin:
         return roles
     
-    # TenantAdmin can only assign Farmer and DeviceManager
+    # TenantAdmin can only assign Farmer and TechnicalConsultant
     return [role for role in roles if role in TENANT_ADMIN_ASSIGNABLE_ROLES]
 
 
@@ -729,7 +729,7 @@ def get_tenant_profile(user_info: Dict[str, Any], user_id: str):
         try:
             cur = conn.cursor()
             cur.execute(
-                "SELECT tenant_name, plan_type, status, metadata FROM tenants WHERE tenant_id = %s",
+                "SELECT tenant_name, plan_type, status, metadata, expires_at, max_users, max_robots, max_sensors FROM tenants WHERE tenant_id = %s",
                 (tenant_id,)
             )
             row = cur.fetchone()
@@ -737,15 +737,25 @@ def get_tenant_profile(user_info: Dict[str, Any], user_id: str):
 
             if row:
                 metadata = row[3] or {}
+                expires_at = row[4]
                 return jsonify({
                     'tenant_id': tenant_id,
                     'tenant_name': row[0] or tenant_id,
                     'plan_type': row[1] or 'basic',
                     'status': row[2] or 'active',
+                    'expires_at': expires_at.isoformat() if expires_at else None,
+                    'max_users': row[5] or 1,
+                    'max_robots': row[6] or 3,
+                    'max_sensors': row[7] or 10,
                     'timezone': metadata.get('timezone', 'Europe/Madrid'),
                     'locale': metadata.get('locale', 'es'),
                     'currency': metadata.get('currency', 'EUR'),
                     'default_location': metadata.get('default_location'),
+                    'nif': metadata.get('nif'),
+                    'regepa': metadata.get('regepa'),
+                    'address_municipio': metadata.get('address_municipio'),
+                    'address_provincia': metadata.get('address_provincia'),
+                    'address_cp': metadata.get('address_cp'),
                 })
             else:
                 return jsonify({
@@ -753,10 +763,19 @@ def get_tenant_profile(user_info: Dict[str, Any], user_id: str):
                     'tenant_name': tenant_id,
                     'plan_type': 'basic',
                     'status': 'active',
+                    'expires_at': None,
+                    'max_users': 1,
+                    'max_robots': 3,
+                    'max_sensors': 10,
                     'timezone': 'Europe/Madrid',
                     'locale': 'es',
                     'currency': 'EUR',
                     'default_location': None,
+                    'nif': None,
+                    'regepa': None,
+                    'address_municipio': None,
+                    'address_provincia': None,
+                    'address_cp': None,
                 })
         finally:
             conn.close()
@@ -778,7 +797,10 @@ def update_tenant_profile(user_info: Dict[str, Any], tenant: str):
             return jsonify({'error': 'Database not configured'}), 503
 
         # Validate fields
-        allowed_fields = {'tenant_name', 'timezone', 'locale', 'currency', 'default_location'}
+        allowed_fields = {
+            'tenant_name', 'timezone', 'locale', 'currency', 'default_location',
+            'nif', 'regepa', 'address_municipio', 'address_provincia', 'address_cp',
+        }
         unknown = set(data.keys()) - allowed_fields
         if unknown:
             return jsonify({'error': f'Unknown fields: {", ".join(unknown)}'}), 400
@@ -828,6 +850,37 @@ def update_tenant_profile(user_info: Dict[str, Any], tenant: str):
                     if not (-90 <= loc['lat'] <= 90) or not (-180 <= loc['lon'] <= 180):
                         return jsonify({'error': 'Invalid coordinates'}), 400
                 metadata_updates['default_location'] = loc
+
+            # SIEX / CUE fields — stored in metadata JSONB
+            if 'nif' in data:
+                nif = str(data['nif']).strip()
+                if len(nif) > 20:
+                    return jsonify({'error': 'nif must be 20 characters max'}), 400
+                metadata_updates['nif'] = nif
+
+            if 'regepa' in data:
+                regepa = str(data['regepa']).strip()
+                if len(regepa) > 30:
+                    return jsonify({'error': 'regepa must be 30 characters max'}), 400
+                metadata_updates['regepa'] = regepa
+
+            if 'address_municipio' in data:
+                val = str(data['address_municipio']).strip()
+                if len(val) > 100:
+                    return jsonify({'error': 'address_municipio must be 100 characters max'}), 400
+                metadata_updates['address_municipio'] = val
+
+            if 'address_provincia' in data:
+                val = str(data['address_provincia']).strip()
+                if len(val) > 50:
+                    return jsonify({'error': 'address_provincia must be 50 characters max'}), 400
+                metadata_updates['address_provincia'] = val
+
+            if 'address_cp' in data:
+                val = str(data['address_cp']).strip()
+                if len(val) > 10:
+                    return jsonify({'error': 'address_cp must be 10 characters max'}), 400
+                metadata_updates['address_cp'] = val
 
             if metadata_updates:
                 # Merge into existing metadata using jsonb || operator

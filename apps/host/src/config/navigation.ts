@@ -45,7 +45,7 @@ export const CORE_NAVIGATION_ITEMS: NavigationItemConfig[] = [
     path: '/dashboard',
     label: 'dashboard.title',
     icon: Home,
-    roles: ['Farmer', 'DeviceManager', 'TenantAdmin', 'PlatformAdmin'],
+    roles: ['Farmer', 'TechnicalConsultant', 'TenantAdmin', 'PlatformAdmin'],
     category: 'core',
     priority: 1,
   },
@@ -53,12 +53,10 @@ export const CORE_NAVIGATION_ITEMS: NavigationItemConfig[] = [
     path: '/entities',
     label: 'navigation.entities',
     icon: Layers,
-    roles: ['Farmer', 'DeviceManager', 'TenantAdmin', 'PlatformAdmin'],
+    roles: ['Farmer', 'TechnicalConsultant', 'TenantAdmin', 'PlatformAdmin'],
     category: 'core',
     priority: 2,
   },
-  // Note: NDVI/Vegetation, Robots, Sensors, Weather, Simulation, Predictions, Risks, Alerts
-  // are now handled as dynamic modules (addons) and should NOT be in core navigation
 ];
 
 // =============================================================================
@@ -71,7 +69,7 @@ export const ADMIN_NAVIGATION_ITEMS: NavigationItemConfig[] = [
     path: '/settings',
     label: 'navigation.settings',
     icon: Settings,
-    roles: ['Farmer', 'DeviceManager', 'TenantAdmin', 'PlatformAdmin'],
+    roles: ['Farmer', 'TechnicalConsultant', 'TenantAdmin', 'PlatformAdmin'],
     category: 'admin',
     priority: 100,
   },
@@ -87,7 +85,7 @@ export const ADMIN_NAVIGATION_ITEMS: NavigationItemConfig[] = [
     path: '/admin/management',
     label: 'navigation.control_center',
     icon: Shield,
-    roles: ['PlatformAdmin', 'TenantAdmin'],
+    roles: ['PlatformAdmin'],
     category: 'admin',
     priority: 102,
   },
