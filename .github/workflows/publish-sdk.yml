@@ -1,13 +1,21 @@
-name: Publish SDK & UI-Kit to npm
+name: Publish Packages to npm
 
 on:
   workflow_dispatch:
+    inputs:
+      packages:
+        description: "Packages to publish (space-separated, default: all)"
+        required: false
+        default: "sdk ui-kit viewer-kit design-tokens module-builder"
   push:
     branches:
       - main
     paths:
       - "packages/sdk/**"
       - "packages/ui-kit/**"
+      - "packages/viewer-kit/**"
+      - "packages/design-tokens/**"
+      - "packages/module-builder/**"
       - ".github/workflows/publish-sdk.yml"
 
 jobs:
@@ -16,7 +24,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [sdk, ui-kit]
+        package:
+          - sdk
+          - ui-kit
+          - viewer-kit
+          - design-tokens
+          - module-builder
     permissions:
       contents: write
       id-token: write
@@ -27,11 +40,13 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -56,8 +71,6 @@ jobs:
 
       - name: Publish to npm
         if: steps.check.outputs.exists == 'false'
-        run: |
-          cd packages/${{ matrix.package }}
-          npm publish --access=public --provenance
+        run: pnpm --filter @nekazari/${{ matrix.package }} publish --access=public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
