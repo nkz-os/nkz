@@ -118,6 +118,8 @@ BIOORCHESTRATOR_API_URL = os.getenv(
 CROP_HEALTH_API_URL = os.getenv(
     "CROP_HEALTH_API_URL", "http://crop-health-api-service:8000"
 )
+ROBOTICS_API_URL = os.getenv("ROBOTICS_API_URL", "http://robotics-api-service:80")
+RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
 ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
@@ -2486,7 +2488,7 @@ def proxy_modules_requests(subpath):
             "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         )
         response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, Cookie"
+            "Authorization, Content-Type, X-Tenant-ID, Cookie, X-Gestor-Target-Tenant"
         )
         response.headers["Access-Control-Max-Age"] = "3600"
         response.headers["Vary"] = "Origin"
@@ -2530,6 +2532,11 @@ def proxy_modules_requests(subpath):
             "Content-Type": request.content_type or "application/json",
             "X-Tenant-ID": tenant,
         }
+
+        # Forward gestor target tenant header for cross-tenant CUE access
+        gestor_target = request.headers.get("X-Gestor-Target-Tenant")
+        if gestor_target:
+            headers["X-Gestor-Target-Tenant"] = gestor_target
 
         # Add HMAC signature if available
         if KEYCLOAK_AUTH_AVAILABLE:
@@ -3265,6 +3272,22 @@ def bioorchestrator_proxy(path):
 )
 def crop_health_proxy(path):
     return generic_proxy(CROP_HEALTH_API_URL, f"api/crop-health/{path}")
+
+
+@app.route(
+    "/api/robotics/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def robotics_proxy(path):
+    return generic_proxy(ROBOTICS_API_URL, f"api/robotics/{path}")
+
+
+@app.route(
+    "/api/risks/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def risk_proxy(path):
+    return generic_proxy(RISK_API_URL, f"api/risks/{path}")
 
 
 # =============================================================================

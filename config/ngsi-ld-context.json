@@ -1,6 +1,6 @@
 {
   "@context": {
-    "_comment": "Nekazari Platform NGSI-LD @context — canonical namespace mappings. AutonomousMobileRobot and ManufacturingMachine are FIWARE Smart Data Models (SDM). Types prefixed 'nkz:' are platform extensions per SDM catalog audit 2026-05-03. Legacy AgriculturalRobot/AgriculturalTractor/AgriculturalImplement/AgriEquipment migrated to SDM 2026-05-03 — zero backward compat retained.",
+    "_comment": "Nekazari Platform NGSI-LD @context — canonical namespace mappings. Types prefixed 'nkz:' are platform extensions (no SDM/SAREF4AGRI equivalent per FIWARE Smart Data Models catalog audit 2026-05-03). Types prefixed 'saref4agri:' are legacy — retained for backward compatibility with existing Orion-LD entities; new entities SHOULD use 'nkz:' variants.",
 
     "schema": "https://schema.org/",
     "ngsi-ld": "https://uri.etsi.org/ngsi-ld/",
@@ -9,30 +9,40 @@
     "saref4agri": "https://saref.etsi.org/saref4agri/",
     "nkz": "https://nekazari.robotika.cloud/ngsi-ld/",
 
-    "AutonomousMobileRobot": {
-      "@id": "https://smartdatamodels.org/dataModel.AutonomousMobileRobot/AutonomousMobileRobot",
+    "AgriculturalRobot": {
+      "@id": "nkz:AgriculturalRobot",
       "@type": "@id",
-      "_comment": "SDM AutonomousMobileRobot — FIWARE Smart Data Model for autonomous mobile robots. Replaces legacy nkz:AgriculturalRobot (2026-05-03 migration). Agricultural robots use category: agricultural."
-    },
-    "ManufacturingMachine": {
-      "@id": "https://smartdatamodels.org/dataModel.ManufacturingMachine/ManufacturingMachine",
-      "@type": "@id",
-      "_comment": "SDM ManufacturingMachine — FIWARE Smart Data Model for industrial machinery. Replaces legacy nkz:AgriculturalTractor (category: tractor) and nkz:AgriculturalImplement (category: implement). Migrated 2026-05-03."
+      "_comment": "Platform extension — no equivalent in SAREF4AGRI or any SDM catalog. Legacy mapping: saref4agri:AgriculturalRobot (retained for backward compat; new entities use nkz prefix)."
     },
     "AgriSensor": {
       "@id": "nkz:AgriSensor",
       "@type": "@id",
-      "_comment": "Platform extension — SAREF4AGRI has no generic AgriSensor class (only specific types: Pluviometer, Thermometer, etc.)."
+      "_comment": "Platform extension — SAREF4AGRI has no AgriSensor class (only specific sensor types like Pluviometer, Thermometer). Legacy mapping: saref4agri:AgriSensor."
     },
     "AgriParcel": {
       "@id": "nkz:AgriParcel",
       "@type": "@id",
-      "_comment": "Platform extension — SAREF4AGRI uses s4agri:Parcel, not AgriParcel."
+      "_comment": "Platform extension — SAREF4AGRI uses s4agri:Parcel, not AgriParcel. Legacy mapping: saref4agri:AgriParcel."
     },
     "AgriOperation": {
       "@id": "nkz:AgriOperation",
       "@type": "@id",
-      "_comment": "Platform extension — no SAREF4AGRI equivalent."
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:AgriOperation."
+    },
+    "AgriculturalTractor": {
+      "@id": "nkz:AgriculturalTractor",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM type exists for agricultural tractors. Closest: ManufacturingMachine. Legacy mapping: saref4agri:AgriculturalTractor."
+    },
+    "AgriculturalImplement": {
+      "@id": "nkz:AgriculturalImplement",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM type exists for agricultural implements. Legacy mapping: saref4agri:AgriculturalImplement."
+    },
+    "AgriEquipment": {
+      "@id": "nkz:AgriEquipment",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM type exists for generic agricultural equipment. Used as parent type for tractors and implements."
     },
     "AgriParcelOperation": {
       "@id": "nkz:AgriParcelOperation",

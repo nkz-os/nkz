@@ -23,199 +23,25 @@ import { cadastralApi } from '@/services/cadastralApi';
 // Removed hardcoded vegetation layer data import - modules should use slot system
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { logger } from '@/utils/logger';
+import { ViewerKeyboardShortcuts } from '@/components/viewer/ViewerKeyboardShortcuts';
 import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';
 import {
-    ChevronLeft,
-    ChevronRight,
-    ChevronDown,
-    ChevronUp,
     Layers,
     X,
     Loader2,
-    Maximize2,
     AlertTriangle,
 } from 'lucide-react';
-
-// Styles for glassmorphism panels
-const glassPanel = {
-    base: 'bg-white/90 backdrop-blur-md border border-white/20 shadow-xl',
-    header: 'bg-gradient-to-r from-slate-50/80 to-white/80 backdrop-blur-sm',
-};
+import { SidebarShell, TimelineShell } from '@nekazari/viewer-kit';
 
 // Loading fallback for lazy-loaded content
 const PanelLoadingFallback: React.FC = () => (
     <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-nkz-text-muted" />
     </div>
 );
 
-// 3-state Sidebar Logic
 type SidebarState = 'closed' | 'compact' | 'expanded';
-
-interface LeftPanelProps {
-    state: SidebarState;
-    onCycleState: () => void;
-    onAddEntity: () => void;
-    compactWidth: number;
-    expandedWidth: number;
-}
-
-const LeftPanel: React.FC<LeftPanelProps> = ({
-    state,
-    onCycleState,
-    onAddEntity,
-    compactWidth,
-    expandedWidth
-}) => {
-    const currentWidth = state === 'expanded' ? expandedWidth : state === 'compact' ? compactWidth : 0;
-    const isOpen = state !== 'closed';
-
-    // Button config based on CURRENT state (what happens when clicked)
-    const getButtonConfig = () => {
-        switch (state) {
-            case 'closed':
-                return { icon: <ChevronRight className="w-5 h-5" />, title: 'Abrir panel', next: 'Compacto' };
-            case 'compact':
-                return { icon: <Maximize2 className="w-4 h-4" />, title: 'Expandir panel', next: 'Expandido' };
-            case 'expanded':
-                return { icon: <ChevronLeft className="w-5 h-5" />, title: 'Cerrar panel', next: 'Cerrado' };
-        }
-    };
-
-    const btnConfig = getButtonConfig();
-
-    return (
-        <div
-            className={`absolute top-16 left-0 bottom-4 z-30 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isOpen ? 'pointer-events-auto' : 'w-0 pointer-events-none'
-                }`}
-            style={{ width: isOpen ? `${currentWidth}px` : '0px' }}
-        >
-            <div className="h-full ml-4 relative">
-                {/* Content Container - Fixed width to prevent squashing */}
-                <div
-                    className={`h-full rounded-xl ${glassPanel.base} overflow-hidden relative transition-all duration-500`}
-                    style={{
-                        width: isOpen ? `${currentWidth - 16}px` : '0px',
-                        opacity: isOpen ? 1 : 0,
-                        transform: isOpen ? 'translateX(0)' : 'translateX(-20px)'
-                    }}
-                >
-                    {/* Inner wrapper with min-width ensures content never wraps awkwardly */}
-                    <div style={{ minWidth: `${compactWidth - 16}px`, height: '100%' }}>
-                        {isOpen && (
-                            <Suspense fallback={<PanelLoadingFallback />}>
-                                <SlotRenderer
-                                    slot="entity-tree"
-                                    className="flex-1 flex flex-col h-full"
-                                    additionalProps={{ onAddEntity }}
-                                />
-                            </Suspense>
-                        )}
-                    </div>
-                </div>
-
-                {/* Single Toggle Button */}
-                <button
-                    onClick={onCycleState}
-                    className={`absolute top-1/2 -translate-y-1/2 z-40 p-2 rounded-full ${glassPanel.base}
-                        hover:bg-white hover:scale-110 active:scale-95 transition-all duration-300 shadow-lg group
-                        flex items-center justify-center border-slate-200/50 text-slate-600 hover:text-blue-600 pointer-events-auto`}
-                    style={{
-                        left: isOpen ? `${currentWidth - 8}px` : '4px',
-                        // Rotate icon for expanded state closing action if desired, but changing icon is enough
-                    }}
-                    title={btnConfig.title}
-                >
-                    {btnConfig.icon}
-
-                    {/* Tooltip on hover */}
-                    <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                        {btnConfig.next}
-                    </span>
-                </button>
-            </div>
-        </div>
-    );
-};
-
-// Right Panel Component with 3-state sidebar (mirrors LeftPanel but positioned on right)
-interface RightPanelProps {
-    state: SidebarState;
-    onCycleState: () => void;
-    compactWidth: number;
-    expandedWidth: number;
-    children: React.ReactNode;
-}
-
-const RightPanel: React.FC<RightPanelProps> = ({
-    state,
-    onCycleState,
-    compactWidth,
-    expandedWidth,
-    children
-}) => {
-    const currentWidth = state === 'expanded' ? expandedWidth : state === 'compact' ? compactWidth : 0;
-    const isOpen = state !== 'closed';
-
-    // Button config based on CURRENT state (what happens when clicked)
-    const getButtonConfig = () => {
-        switch (state) {
-            case 'closed':
-                return { icon: <ChevronLeft className="w-5 h-5" />, title: 'Abrir panel', next: 'Compacto' };
-            case 'compact':
-                return { icon: <Maximize2 className="w-4 h-4" />, title: 'Expandir panel', next: 'Expandido' };
-            case 'expanded':
-                return { icon: <ChevronRight className="w-5 h-5" />, title: 'Cerrar panel', next: 'Cerrado' };
-        }
-    };
-
-    const btnConfig = getButtonConfig();
-
-    return (
-        <div
-            className={`absolute top-16 right-0 bottom-4 z-30 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) ${isOpen ? '' : 'w-0'
-                }`}
-            style={{ width: isOpen ? `${currentWidth}px` : '0px' }}
-        >
-            <div className="h-full mr-4 relative">
-                {/* Content Container - Fixed width to prevent squashing */}
-                <div
-                    className={`h-full rounded-xl ${glassPanel.base} overflow-hidden relative transition-all duration-500 ml-auto`}
-                    style={{
-                        width: isOpen ? `${currentWidth - 16}px` : '0px',
-                        opacity: isOpen ? 1 : 0,
-                        transform: isOpen ? 'translateX(0)' : 'translateX(20px)'
-                    }}
-                >
-                    {/* Inner wrapper with min-width ensures content never wraps awkwardly */}
-                    <div style={{ minWidth: `${compactWidth - 16}px`, height: '100%' }} className="flex flex-col">
-                        {isOpen && children}
-                    </div>
-                </div>
-
-                {/* Single Toggle Button */}
-                <button
-                    onClick={onCycleState}
-                    className={`absolute top-1/2 -translate-y-1/2 z-40 p-2 rounded-full ${glassPanel.base}
-                        hover:bg-white hover:scale-110 active:scale-95 transition-all duration-300 shadow-lg group
-                        flex items-center justify-center border-slate-200/50 text-slate-600 hover:text-blue-600`}
-                    style={{
-                        right: isOpen ? `${currentWidth - 8}px` : '4px',
-                    }}
-                    title={btnConfig.title}
-                >
-                    {btnConfig.icon}
-
-                    {/* Tooltip on hover */}
-                    <span className="absolute right-full mr-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                        {btnConfig.next}
-                    </span>
-                </button>
-            </div>
-        </div>
-    );
-};
 
 /** Inner viewer component that uses SlotRegistry */
 const UnifiedViewerInner: React.FC = () => {
@@ -227,10 +53,8 @@ const UnifiedViewerInner: React.FC = () => {
         isLayerActive,
         isLeftPanelOpen,
         isRightPanelOpen,
-        isBottomPanelOpen,
         toggleLeftPanel,
         toggleRightPanel,
-        toggleBottomPanel,
         currentDate,
         selectedEntityId,
         selectedEntityType: _selectedEntityType,
@@ -253,38 +77,6 @@ const UnifiedViewerInner: React.FC = () => {
     const sidebarState: SidebarState = !isLeftPanelOpen ? 'closed' : isLeftPanelExpanded ? 'expanded' : 'compact';
     // Derived current state for right panel
     const rightSidebarState: SidebarState = !isRightPanelOpen ? 'closed' : isRightPanelExpanded ? 'expanded' : 'compact';
-
-    // Cycle handler for left panel: Closed -> Compact -> Expanded -> Closed
-    const cycleSidebar = useCallback(() => {
-        if (!isLeftPanelOpen) {
-            // Closed -> Compact
-            toggleLeftPanel(); // Opens it
-            setIsLeftPanelExpanded(false);
-        } else if (!isLeftPanelExpanded) {
-            // Compact -> Expanded
-            setIsLeftPanelExpanded(true);
-        } else {
-            // Expanded -> Closed
-            toggleLeftPanel(); // Closes it
-            setIsLeftPanelExpanded(false); // Reset to compact for next open
-        }
-    }, [isLeftPanelOpen, isLeftPanelExpanded, toggleLeftPanel]);
-
-    // Cycle handler for right panel: Closed -> Compact -> Expanded -> Closed
-    const cycleRightSidebar = useCallback(() => {
-        if (!isRightPanelOpen) {
-            // Closed -> Compact
-            toggleRightPanel(); // Opens it
-            setIsRightPanelExpanded(false);
-        } else if (!isRightPanelExpanded) {
-            // Compact -> Expanded
-            setIsRightPanelExpanded(true);
-        } else {
-            // Expanded -> Closed
-            toggleRightPanel(); // Closes it
-            setIsRightPanelExpanded(false); // Reset to compact for next open
-        }
-    }, [isRightPanelOpen, isRightPanelExpanded, toggleRightPanel]);
 
     // Vegetation layer removed - external modules handle this via slot system
 
@@ -582,13 +374,16 @@ const UnifiedViewerInner: React.FC = () => {
 
     return (
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-900">
+            {/* Global keyboard shortcut listener */}
+            <ViewerKeyboardShortcuts />
+
             {/* Floating Header - Logo with dropdown menu + controls; right strip includes Layers + Theme + Language */}
             <ViewerHeader
                 rightContent={
                     <button
                         type="button"
                         onClick={() => setIsLayerManagerOpen(!isLayerManagerOpen)}
-                        className={`p-2.5 rounded-xl ${glassPanel.base} hover:bg-white transition-all shadow-lg`}
+                        className="p-2.5 rounded-nkz-lg bg-nkz-surface border border-nkz-border hover:bg-nkz-surface-raised transition-all shadow-nkz-lg"
                         title="Gestionar capas"
                         aria-label="Gestionar capas"
                     >
@@ -600,8 +395,8 @@ const UnifiedViewerInner: React.FC = () => {
             {/* Map Toolbar - Contextual toolbar for drawing/editing modes */}
             {mapMode === 'PICK_LOCATION' && (
                 <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50">
-                    <div className={`${glassPanel.base} px-6 py-3 rounded-full flex items-center gap-4`}>
-                        <p className="text-slate-700 font-medium">Haga clic en el mapa para seleccionar ubicación</p>
+                    <div className="bg-nkz-surface-raised border border-nkz-border shadow-nkz-lg px-nkz-section py-nkz-stack rounded-nkz-full flex items-center gap-nkz-stack">
+                        <p className="text-nkz-text-primary font-medium">Haga clic en el mapa para seleccionar ubicación</p>
                         <button
                             onClick={cancelPicking}
                             className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded-full text-sm font-medium transition-colors"
@@ -680,30 +475,28 @@ const UnifiedViewerInner: React.FC = () => {
 
             {/* Layer Manager Dropdown - below the header right strip */}
             {isLayerManagerOpen && (
-                <div className={`absolute top-16 right-4 z-40 w-64 rounded-xl ${glassPanel.base} overflow-hidden`}>
-                    <div className={`px-4 py-3 ${glassPanel.header} border-b border-slate-200/50 flex items-center justify-between`}>
-                        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <div className="absolute top-16 right-4 z-nkz-popover w-72 rounded-nkz-lg bg-nkz-surface border border-nkz-border shadow-nkz-lg overflow-hidden">
+                    <div className="flex items-center justify-between px-nkz-stack py-nkz-inline border-b border-nkz-border">
+                        <h3 className="text-nkz-sm font-semibold text-nkz-text-primary flex items-center gap-nkz-inline">
                             <Layers className="w-4 h-4" />
                             Capas
                         </h3>
-                        <button onClick={() => setIsLayerManagerOpen(false)} className="text-slate-400 hover:text-slate-600">
+                        <button onClick={() => setIsLayerManagerOpen(false)} className="text-nkz-text-muted hover:text-nkz-text-primary">
                             <X className="w-4 h-4" />
                         </button>
                     </div>
-                    <div className="p-2">
+                    <div className="p-nkz-tight">
                         {/* Risk overlay toggle */}
                         <button
                             type="button"
                             onClick={() => setRiskEnabled(!riskEnabled)}
-                            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors mb-1 ${
-                                riskEnabled
-                                    ? 'bg-red-50 text-red-700 border border-red-200'
-                                    : 'text-slate-600 hover:bg-slate-100'
+                            className={`w-full flex items-center gap-nkz-inline px-nkz-inline py-nkz-tight rounded-nkz-sm text-nkz-sm transition-colors ${
+                                riskEnabled ? 'bg-nkz-danger-soft text-nkz-danger border border-nkz-danger' : 'text-nkz-text-secondary hover:bg-nkz-surface-sunken'
                             }`}
                         >
                             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                             <span>Overlay de Riesgos</span>
-                            <span className={`ml-auto text-xs px-1.5 py-0.5 rounded ${riskEnabled ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'}`}>
+                            <span className={`ml-auto text-nkz-xs px-nkz-tight py-0.5 rounded-nkz-sm ${riskEnabled ? 'bg-nkz-danger-soft text-nkz-danger-strong' : 'bg-nkz-surface-sunken text-nkz-text-muted'}`}>
                                 {riskEnabled ? 'ON' : 'OFF'}
                             </span>
                         </button>
@@ -714,38 +507,51 @@ const UnifiedViewerInner: React.FC = () => {
                 </div>
             )}
 
-            {/* Left Panel - Entity Tree (uses SlotRenderer) */}
-            <LeftPanel
+            {/* Left Panel - Entity Tree (uses SidebarShell) */}
+            <SidebarShell
+                side="left"
                 state={sidebarState}
-                onCycleState={cycleSidebar}
-                onAddEntity={() => setIsWizardOpen(true)}
-                compactWidth={380}
-                expandedWidth={650}
-            />
+                onStateChange={(s: SidebarState) => {
+                    if (s === 'closed') { toggleLeftPanel(); setIsLeftPanelExpanded(false); }
+                    else if (s === 'compact') { if (!isLeftPanelOpen) toggleLeftPanel(); setIsLeftPanelExpanded(false); }
+                    else { if (!isLeftPanelOpen) toggleLeftPanel(); setIsLeftPanelExpanded(true); }
+                }}
+            >
+                <SidebarShell.Pinned>
+                    <Suspense fallback={<PanelLoadingFallback />}>
+                        <SlotRenderer
+                            slot="entity-tree"
+                            className="flex-1 flex flex-col"
+                            additionalProps={{ onAddEntity: () => setIsWizardOpen(true) }}
+                        />
+                    </Suspense>
+                </SidebarShell.Pinned>
+            </SidebarShell>
 
-            {/* Right Panel - Context/Details (uses SlotRenderer) - 3 state sidebar */}
-            <RightPanel
+            {/* Right Panel - Context/Details (uses SidebarShell) */}
+            <SidebarShell
+                side="right"
                 state={rightSidebarState}
-                onCycleState={cycleRightSidebar}
-                compactWidth={400}
-                expandedWidth={600}
+                onStateChange={(s: SidebarState) => {
+                    if (s === 'closed') { toggleRightPanel(); setIsRightPanelExpanded(false); }
+                    else if (s === 'compact') { if (!isRightPanelOpen) toggleRightPanel(); setIsRightPanelExpanded(false); }
+                    else { if (!isRightPanelOpen) toggleRightPanel(); setIsRightPanelExpanded(true); }
+                }}
             >
                 {/* Show ParcelForm when in DRAW_PARCEL mode with drawn geometry */}
                 {mapMode === 'DRAW_PARCEL' && drawnGeometry ? (
-                    <div className="flex-1 overflow-y-auto p-4">
-                        <div className="mb-4">
-                            <h3 className="text-lg font-semibold text-slate-800 mb-2">Nueva Parcela</h3>
-                            {cadastralData && (
-                                <p className="text-sm text-slate-600 mb-2">
-                                    Datos catastrales: {cadastralData.reference}
-                                </p>
-                            )}
-                            {drawnArea && (
-                                <p className="text-sm text-slate-600">
-                                    Área: {drawnArea.toFixed(2)} ha
-                                </p>
-                            )}
-                        </div>
+                    <div className="flex-1 overflow-y-auto p-nkz-stack">
+                        <h3 className="text-nkz-lg font-semibold text-nkz-text-primary mb-nkz-stack">Nueva Parcela</h3>
+                        {cadastralData && (
+                            <p className="text-nkz-sm text-nkz-text-secondary mb-nkz-tight">
+                                Datos catastrales: {cadastralData.reference}
+                            </p>
+                        )}
+                        {drawnArea && (
+                            <p className="text-nkz-sm text-nkz-text-secondary">
+                                Área: {drawnArea.toFixed(2)} ha
+                            </p>
+                        )}
                         <ParcelForm
                             initialData={cadastralData ? {
                                 id: '',
@@ -766,19 +572,19 @@ const UnifiedViewerInner: React.FC = () => {
                     </div>
                 ) : (
                     <Suspense fallback={<PanelLoadingFallback />}>
-                        <div className="flex-1 min-h-0 overflow-y-auto p-3">
+                        <div className="flex-1 min-h-0 overflow-y-auto p-nkz-stack">
                             <SlotRenderer
                                 slot="context-panel"
-                                className="flex flex-col gap-3"
+                                className="flex flex-col gap-nkz-stack"
                                 additionalProps={{ entityData: getSelectedEntityData() }}
                                 resetKeys={selectedEntityId ? [selectedEntityId] : []}
                             />
                         </div>
                     </Suspense>
                 )}
-            </RightPanel>
+            </SidebarShell>
 
-            {/* Bottom Panel - Timeline (uses SlotRenderer) */}
+            {/* Bottom Panel - Timeline (uses TimelineShell) */}
             <div
                 className="absolute right-4 bottom-0 z-30 transition-all duration-500 ease-in-out"
                 style={{
@@ -786,28 +592,15 @@ const UnifiedViewerInner: React.FC = () => {
                     marginRight: rightSidebarState === 'expanded' ? '600px' : rightSidebarState === 'compact' ? '400px' : '0px',
                 }}
             >
-                <button
-                    onClick={toggleBottomPanel}
-                    className={`absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full z-40 px-4 py-1 rounded-t-lg ${glassPanel.base} hover:bg-white transition-all text-xs text-slate-600 flex items-center gap-1`}
-                >
-                    {isBottomPanelOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-                    Timeline
-                </button>
-
-                {isBottomPanelOpen && (
-                    <div className={`h-24 mb-4 rounded-xl ${glassPanel.base} flex items-center justify-center`}>
-                        <Suspense fallback={<PanelLoadingFallback />}>
-                            <SlotRenderer slot="bottom-panel" />
-                        </Suspense>
-                        {/* Fallback if no bottom panel widgets */}
-                        <div className="text-center">
-                            <p className="text-sm text-slate-500">Timeline - Control temporal unificado</p>
-                            <p className="text-xs text-slate-400 mt-1">
-                                Fecha actual: {currentDate.toLocaleDateString('es-ES')}
-                            </p>
-                        </div>
-                    </div>
-                )}
+                <TimelineShell
+                    startTime={Date.now() - 7 * 24 * 3600 * 1000}
+                    endTime={Date.now() + 24 * 3600 * 1000}
+                    cursor={currentDate.getTime()}
+                    onCursorChange={(_t: number) => { /* ViewerContext doesn't expose setCurrentDate - no-op */ }}
+                    forecastFrom={Date.now()}
+                    snapping="day"
+                    variant="docked"
+                />
             </div>
 
             {/* Entity Wizard Modal */}

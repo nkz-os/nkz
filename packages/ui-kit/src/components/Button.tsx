@@ -7,43 +7,90 @@ import React from 'react';
 import clsx from 'clsx';
 import { useHMI } from '../context/HMIContext';
 
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type ButtonSize = 'sm' | 'md' | 'lg';
+
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost';
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  accent?: boolean;
+  loading?: boolean;
+  leadingIcon?: React.ReactNode;
+  trailingIcon?: React.ReactNode;
+  href?: string;
 }
 
-const base = 'inline-flex items-center justify-center font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
-
-// Standard Web Theme
-const standardBase = 'rounded-md px-3 py-2 text-sm';
-const standardVariants: Record<NonNullable<ButtonProps['variant']>, string> = {
-  primary: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
-  secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-400',
-  ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-300'
+const variantClasses: Record<ButtonVariant, string> = {
+  primary: 'bg-nkz-accent-base text-nkz-text-on-accent hover:bg-nkz-accent-strong',
+  secondary:
+    'bg-nkz-surface-sunken text-nkz-text-primary hover:bg-nkz-border border border-nkz-border',
+  ghost: 'text-nkz-text-secondary hover:bg-nkz-surface-sunken hover:text-nkz-text-primary',
+  danger: 'bg-nkz-danger text-white hover:bg-nkz-danger-strong',
 };
 
-// ISO 11783-6 HMI Theme (Opaque, High Contrast, 48x48 min touch area)
-const hmiBase = 'rounded-sm px-6 py-4 text-lg min-h-[64px] min-w-[64px] border-2 uppercase tracking-wide';
-const hmiVariants: Record<NonNullable<ButtonProps['variant']>, string> = {
-  primary: 'bg-green-700 text-white border-white hover:bg-green-600 active:bg-green-800 focus:ring-white',
-  secondary: 'bg-gray-800 text-white border-gray-400 hover:bg-gray-700 active:bg-gray-900 focus:ring-gray-400',
-  ghost: 'bg-black text-white border-transparent hover:border-gray-500 focus:ring-gray-500'
+const sizeClasses: Record<ButtonSize, string> = {
+  sm: 'h-7 px-nkz-inline text-nkz-xs gap-nkz-tight',
+  md: 'h-9 px-nkz-stack text-nkz-sm gap-nkz-inline',
+  lg: 'h-11 px-nkz-section text-nkz-base gap-nkz-inline',
 };
 
-export const Button: React.FC<ButtonProps> = ({ variant = 'primary', className, children, ...props }) => {
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  accent = false,
+  loading = false,
+  leadingIcon,
+  trailingIcon,
+  className,
+  disabled,
+  children,
+  href,
+  ...props
+}: ButtonProps) {
   const { isHmiMode } = useHMI();
 
-  return (
-    <button
-      className={clsx(
-        base, 
-        isHmiMode ? hmiBase : standardBase,
-        isHmiMode ? hmiVariants[variant] : standardVariants[variant],
-        className
-      )}
-      {...props}
-    >
+  const classes = clsx(
+    'inline-flex items-center justify-center font-medium',
+    'transition-colors duration-nkz-fast',
+    'focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base focus-visible:ring-offset-2',
+    'disabled:opacity-50 disabled:cursor-not-allowed',
+    isHmiMode
+      ? 'rounded-sm min-h-[64px] min-w-[64px] px-6 py-4 text-lg uppercase tracking-wide border-2'
+      : clsx('rounded-nkz-md', sizeClasses[size]),
+    isHmiMode
+      ? variant === 'primary'
+        ? 'bg-nkz-accent-base text-white border-white hover:bg-nkz-accent-strong'
+        : variant === 'secondary'
+          ? 'bg-nkz-surface-sunken text-nkz-text-primary border-nkz-border hover:bg-nkz-surface'
+          : variant === 'ghost'
+            ? 'bg-transparent text-nkz-text-secondary border-transparent hover:border-nkz-border-strong'
+            : 'bg-nkz-danger text-white border-white hover:bg-nkz-danger-strong border-2'
+      : !accent
+        ? variantClasses[variant]
+        : variant === 'primary' &&
+          'bg-nkz-accent-base text-nkz-text-on-accent hover:bg-nkz-accent-strong',
+    className
+  );
+
+  const content = (
+    <>
+      {loading ? <span className="animate-spin">{'⟳'}</span> : leadingIcon}
       {children}
+      {trailingIcon}
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className={classes}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button className={classes} disabled={disabled || loading} {...props}>
+      {content}
     </button>
   );
-};
-
+}

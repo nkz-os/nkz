@@ -144,6 +144,23 @@ export const MobileViewer: React.FC = () => {
             // Force initial render
             viewer.scene.requestRender();
 
+            // Keep rendering while tiles stream in (first 15s), then switch to on-demand
+            let renderTicks = 0;
+            const maxTicks = 30; // 30 × 500ms = 15s of continuous rendering
+            const renderInterval = setInterval(() => {
+                if (renderTicks >= maxTicks || !viewerRef.current) {
+                    clearInterval(renderInterval);
+                    return;
+                }
+                viewer.scene.requestRender();
+                renderTicks++;
+            }, 500);
+
+            // Also render when imagery layers finish loading
+            viewer.imageryLayers.layerAdded.addEventListener(() => {
+                viewer.scene.requestRender();
+            });
+
             logger.info('Cesium initialized successfully');
 
             // Notify parent that we are ready

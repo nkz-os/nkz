@@ -302,7 +302,7 @@ def metrics():
 MAX_ROBOTS = int(os.getenv('MAX_ROBOTS', '999999'))
 MAX_SENSORS = int(os.getenv('MAX_SENSORS', '999999'))
 MAX_AREA_HECTARES = float(os.getenv('MAX_AREA_HECTARES', '1000000000'))
-ROBOT_ENTITY_TYPES = set([t.strip() for t in os.getenv('ROBOT_ENTITY_TYPES', 'AutonomousMobileRobot').split(',') if t.strip()])
+ROBOT_ENTITY_TYPES = set([t.strip() for t in os.getenv('ROBOT_ENTITY_TYPES', 'AgriculturalRobot').split(',') if t.strip()])
 SENSOR_ENTITY_TYPES = set([t.strip() for t in os.getenv('SENSOR_ENTITY_TYPES', 'AgriSensor').split(',') if t.strip()])
 PARCEL_ENTITY_TYPES = set([t.strip() for t in os.getenv('PARCEL_ENTITY_TYPES', 'AgriParcel,Parcel,Vineyard,OliveGrove,vineyard,olive_grove').split(',') if t.strip()])
 ENTITY_BASE_PATH = os.getenv('ENTITY_BASE_PATH', '/app/config/entities')
@@ -2326,7 +2326,7 @@ def delete_instance(entity_type, entity_id):
         logger.error(f"Error deleting instance: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/admin/tenant-limits', methods=['GET'])
+@app.route('/api/admin/tenant-limits', methods=['GET'])
 @require_auth
 def api_get_tenant_limits():
     """Devuelve límites efectivos del tenant actual (dinámicos si existen en Orion)."""
@@ -2351,7 +2351,7 @@ def api_get_tenant_limits():
         logger.error(f"Error getting tenant limits: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/admin/tenant-usage', methods=['GET'])
+@app.route('/api/admin/tenant-usage', methods=['GET'])
 @require_auth
 def api_get_tenant_usage():
     tenant = request.headers.get('X-Tenant-Id') or request.args.get('tenant') or getattr(g, 'current_tenant', None) or getattr(g, 'tenant', None)
@@ -2469,7 +2469,7 @@ app.add_url_rule(
     methods=['GET']
 )
 
-@app.route('/admin/tenant-limits', methods=['PATCH'])
+@app.route('/api/admin/tenant-limits', methods=['PATCH'])
 @require_auth
 def api_update_tenant_limits():
     """Update tenant limits in PostgreSQL (admin_platform.tenant_limits)."""
@@ -5232,6 +5232,10 @@ def get_weather_alerts():
         
         except Exception as e:
             conn.close()
+            # Table may not exist if weather-worker hasn't run yet
+            if 'relation "weather_alerts" does not exist' in str(e):
+                logger.info("weather_alerts table does not exist yet, returning empty alerts")
+                return jsonify({'alerts': [], 'count': 0}), 200
             logger.error(f"Error getting weather alerts: {e}")
             return jsonify({'error': 'Database error'}), 500
     
@@ -5444,7 +5448,7 @@ def _get_next_robot_index(tenant_id: str) -> int:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             # Query Orion-LD to count existing robots for this tenant
             orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-            params = {'type': 'AutonomousMobileRobot', 'options': 'count'}
+            params = {'type': 'AgriculturalRobot', 'options': 'count'}
             headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant_id)
             
             response = requests.get(orion_url, params=params, headers=headers, timeout=5)
@@ -5488,8 +5492,8 @@ def provision_robot():
         robot_location = data.get('location', {})
 
         robot_entity = {
-            'id': f"urn:ngsi-ld:AutonomousMobileRobot:{tenant_id}:{robot_uuid}",
-            'type': 'AutonomousMobileRobot',
+            'id': f"urn:ngsi-ld:AgriculturalRobot:{tenant_id}:{robot_uuid}",
+            'type': 'AgriculturalRobot',
             'name': {'type': 'Property', 'value': robot_name},
             'status': {'type': 'Property', 'value': 'offline'},
             'robotUUID': {'type': 'Property', 'value': robot_uuid},
@@ -5520,7 +5524,7 @@ def provision_robot():
             return jsonify({'error': 'Failed to create robot in Orion-LD', 'details': response.text}), 500
 
         # 5. Log operation
-        log_entity_operation('create', robot_entity['id'], 'AutonomousMobileRobot', tenant_id, g.farmer_id, {
+        log_entity_operation('create', robot_entity['id'], 'AgriculturalRobot', tenant_id, g.farmer_id, {
             'robot_uuid': robot_uuid,
             'ros_namespace': ros_namespace
         })
@@ -8443,7 +8447,7 @@ def _routing_line_record_for_watermelon(ent, fallback_ts):
 
 
 def _equipment_record_for_watermelon(ent, fallback_ts):
-    """NGSI-LD ManufacturingMachine -> WatermelonDB equipment row."""
+    """NGSI-LD AgriEquipment -> WatermelonDB equipment row."""
     remote_id = ent.get('id')
     if not remote_id:
         raise ValueError('Equipment entity missing id')
@@ -8665,7 +8669,7 @@ def _core_vector_sync_pull():
 
         if 'equipment' in collections:
             params_eq = {
-                'type': 'ManufacturingMachine',
+                'type': 'AgriEquipment',
                 'limit': 1000,
             }
             resp_eq = requests.get(orion_url, params=params_eq, headers=headers)

@@ -46,13 +46,8 @@ export function useAuth(session?: AuthSession): AuthApi {
   if (typeof window !== 'undefined') {
     try {
       hostAuthContext = (window as any).__nekazariAuthContext;
-      if (hostAuthContext) {
-        console.log('[SDK useAuth] ✅ Host auth context available');
-      } else {
-        console.warn('[SDK useAuth] ⚠️ Host auth context not available in window.__nekazariAuthContext');
-      }
     } catch (error) {
-      console.warn('[SDK useAuth] Could not access host auth context:', error);
+      // Silently fall back to session/defaults
     }
   }
 
@@ -71,8 +66,10 @@ export function useAuth(session?: AuthSession): AuthApi {
     username: undefined
   });
 
-  // Determine if authenticated based on token presence
-  const isAuthenticated = !!resolved.token;
+  // Prefer the host's own isAuthenticated flag (set by KeycloakAuthContext).
+  // The host intentionally omits token/getToken from the window bridge for security
+  // (httpOnly cookie), so we must NOT derive isAuthenticated from token presence.
+  const isAuthenticated = hostAuthContext?.isAuthenticated ?? !!resolved.token;
   
   // Build user object
   const user = isAuthenticated ? {
