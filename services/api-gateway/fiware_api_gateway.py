@@ -118,6 +118,10 @@ BIOORCHESTRATOR_API_URL = os.getenv(
 CROP_HEALTH_API_URL = os.getenv(
     "CROP_HEALTH_API_URL", "http://crop-health-api-service:8000"
 )
+ROBOTICS_API_URL = os.getenv(
+    "ROBOTICS_API_URL", "http://robotics-api-service:80"
+)
+RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
 ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
@@ -3265,6 +3269,22 @@ def bioorchestrator_proxy(path):
 )
 def crop_health_proxy(path):
     return generic_proxy(CROP_HEALTH_API_URL, f"api/crop-health/{path}")
+
+
+@app.route(
+    "/api/robotics/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def robotics_proxy(path):
+    return generic_proxy(ROBOTICS_API_URL, f"api/robotics/{path}")
+
+
+@app.route(
+    "/api/risks/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def risk_proxy(path):
+    return generic_proxy(RISK_API_URL, f"api/risks/{path}")
 
 
 # =============================================================================
