@@ -102,7 +102,10 @@ export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ chil
         modules.forEach(module => {
             const isLocal = isLocalModule(module.id);
             const isInLocalModules = !!LOCAL_MODULES[module.id];
-            const hasViewerSlots = !!module.viewerSlots;
+            const hasViewerSlots = !!module.viewerSlots ||
+                // Fallback: check NKZ runtime directly for modules whose viewerSlots
+                // haven't propagated to React state yet (race condition safety)
+                (typeof window !== 'undefined' && !!window.__NKZ__?.getRegistered(module.id)?.viewerSlots);
 
             if (isLocal || isInLocalModules || hasViewerSlots) {
                 active.add(module.id);
@@ -167,8 +170,20 @@ export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ chil
                 return;
             }
 
-            if (activeModuleIds.has(module.id) && module.viewerSlots?.[slot]) {
-                widgets.push(...module.viewerSlots[slot]!);
+            // Primary: use viewerSlots from ModuleContext state
+            let moduleSlots = module.viewerSlots?.[slot];
+
+            // Fallback: check NKZ runtime directly (handles race conditions where
+            // onRegister callback hasn't propagated viewerSlots to React state yet)
+            if (!moduleSlots && typeof window !== 'undefined' && window.__NKZ__) {
+                const nkzReg = window.__NKZ__.getRegistered(module.id);
+                if (nkzReg?.viewerSlots?.[slot]) {
+                    moduleSlots = nkzReg.viewerSlots[slot];
+                }
+            }
+
+            if (activeModuleIds.has(module.id) && moduleSlots) {
+                widgets.push(...moduleSlots);
             }
         });
 
