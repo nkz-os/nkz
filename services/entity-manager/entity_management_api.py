@@ -2326,7 +2326,7 @@ def delete_instance(entity_type, entity_id):
         logger.error(f"Error deleting instance: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/admin/tenant-limits', methods=['GET'])
+@app.route('/api/admin/tenant-limits', methods=['GET'])
 @require_auth
 def api_get_tenant_limits():
     """Devuelve límites efectivos del tenant actual (dinámicos si existen en Orion)."""
@@ -2351,7 +2351,7 @@ def api_get_tenant_limits():
         logger.error(f"Error getting tenant limits: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/admin/tenant-usage', methods=['GET'])
+@app.route('/api/admin/tenant-usage', methods=['GET'])
 @require_auth
 def api_get_tenant_usage():
     tenant = request.headers.get('X-Tenant-Id') or request.args.get('tenant') or getattr(g, 'current_tenant', None) or getattr(g, 'tenant', None)
@@ -2469,7 +2469,7 @@ app.add_url_rule(
     methods=['GET']
 )
 
-@app.route('/admin/tenant-limits', methods=['PATCH'])
+@app.route('/api/admin/tenant-limits', methods=['PATCH'])
 @require_auth
 def api_update_tenant_limits():
     """Update tenant limits in PostgreSQL (admin_platform.tenant_limits)."""
@@ -5232,6 +5232,10 @@ def get_weather_alerts():
         
         except Exception as e:
             conn.close()
+            # Table may not exist if weather-worker hasn't run yet
+            if 'relation "weather_alerts" does not exist' in str(e):
+                logger.info("weather_alerts table does not exist yet, returning empty alerts")
+                return jsonify({'alerts': [], 'count': 0}), 200
             logger.error(f"Error getting weather alerts: {e}")
             return jsonify({'error': 'Database error'}), 500
     
