@@ -1811,19 +1811,33 @@ def woocommerce_webhook():  # noqa: C901
         # Generate activation code
         activation_code = f"NEK-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"  # noqa: E501
 
-        # Plan limits
-        plan_limits = {
-            "basic": {"max_users": 1, "max_robots": 3, "max_sensors": 10, "duration": 30},
-            "premium": {"max_users": 5, "max_robots": 10, "max_sensors": 50, "duration": 30},
-            "enterprise": {
-                "max_users": 999,
-                "max_robots": 999,
-                "max_sensors": 999,
-                "duration": 365,
-            },
-        }
+        # Plan limits — quotas come from the canonical SSOT
+        # (services/common/tier_quotas.py). Activation-code expiration
+        # windows are not part of the SSOT and stay tier-mapped here.
+        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
 
-        limits = plan_limits.get(plan, plan_limits["basic"])
+        plan_lower = plan.lower() if plan else "basic"
+        if plan_lower not in PLAN_LEVELS:
+            logger.warning(
+                f"WooCommerce webhook produced unknown plan {plan!r}; falling back to basic"
+            )
+            plan_lower = "basic"
+        plan = plan_lower
+        q = quotas_for_tier(plan_lower)
+        # Trial duration per tier; not in SSOT because it's an
+        # activation-code concept, not a quota.
+        duration_days_by_tier = {
+            "basic": 30,
+            "pro": 45,
+            "premium": 30,
+            "enterprise": 365,
+        }
+        limits = {
+            "max_users": q["max_users"],
+            "max_robots": q["max_robots"],
+            "max_sensors": q["max_sensors"],
+            "duration": duration_days_by_tier.get(plan_lower, 30),
+        }
         expires_at = datetime.utcnow() + timedelta(days=limits["duration"])
 
         # Store activation code in database
@@ -3186,17 +3200,25 @@ def create_tenant_directly():
             normalized_name = webhook_service._normalize_tenant_slug(fallback) or "tenant"
         tenant_id = f"tenant-{normalized_name}"
 
-        # Plan limits
-        plan_limits = {
-            "basic": {"max_users": 1, "max_robots": 3, "max_sensors": 10},
-            "premium": {"max_users": 5, "max_robots": 10, "max_sensors": 50},
-            "enterprise": {"max_users": 999, "max_robots": 999, "max_sensors": 999},
-        }
+        # Validate plan against the canonical SSOT
+        # (services/common/tier_quotas.py). Reject unknown plans rather
+        # than silently downgrading to basic so PlatformAdmin actions are
+        # explicit; this also unblocks creating "pro" tenants which the
+        # previous hardcoded mapping did not support.
+        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+
+        plan_lower = plan.lower() if plan else "basic"
+        if plan_lower not in PLAN_LEVELS:
+            return jsonify(
+                {"error": f"Invalid plan: {plan}. Allowed: {list(PLAN_LEVELS)}"}
+            ), 400
+        plan = plan_lower
+        q = quotas_for_tier(plan_lower)
         plan_info = {
-            "plan": plan,
-            "max_users": plan_limits.get(plan, plan_limits["basic"])["max_users"],
-            "max_robots": plan_limits.get(plan, plan_limits["basic"])["max_robots"],
-            "max_sensors": plan_limits.get(plan, plan_limits["basic"])["max_sensors"],
+            "plan": plan_lower,
+            "max_users": q["max_users"],
+            "max_robots": q["max_robots"],
+            "max_sensors": q["max_sensors"],
             "code": "ADMIN_CREATED",
         }
 
