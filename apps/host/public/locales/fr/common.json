@@ -668,5 +668,22 @@
     "creating": "Création du compte et des ressources...",
     "finalizing": "Finalisation de la configuration...",
     "registering": "Inscription en cours..."
+  },
+  "quota": {
+    "parcel_count_exceeded": "Parcel limit reached",
+    "entities_total_exceeded": "Total entity limit reached",
+    "user_limit_exceeded": "User limit reached",
+    "upgrade_to_pro": "Upgrade to Pro to increase the limit",
+    "upgrade_to_premium": "Upgrade to Premium to increase the limit",
+    "max_parcels": "Max parcels",
+    "max_entities_total": "Max total entities (Basic only)"
+  },
+  "settings": {
+    "tier": {
+      "basic": "Basic",
+      "pro": "Pro",
+      "premium": "Premium",
+      "enterprise": "Enterprise"
+    }
   }
 }

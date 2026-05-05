@@ -759,6 +759,15 @@
     "finalizing": "Finalizando configuración...",
     "registering": "Registrando..."
   },
+  "quota": {
+    "parcel_count_exceeded": "Límite de parcelas alcanzado",
+    "entities_total_exceeded": "Límite total de entidades alcanzado",
+    "user_limit_exceeded": "Límite de usuarios alcanzado",
+    "upgrade_to_pro": "Actualiza a Pro para aumentar el límite",
+    "upgrade_to_premium": "Actualiza a Premium para aumentar el límite",
+    "max_parcels": "Máx. parcelas",
+    "max_entities_total": "Máx. entidades totales (solo Basic)"
+  },
   "settings": {
     "title": "Configuración",
     "subtitle": "Gestiona tu perfil, equipo y preferencias del tenant",
@@ -936,7 +945,13 @@
       "delete_error": "Error al eliminar el webhook."
     },
     "roles": "Roles",
-    "no_roles": "Sin roles asignados"
+    "no_roles": "Sin roles asignados",
+    "tier": {
+      "basic": "Basic",
+      "pro": "Pro",
+      "premium": "Premium",
+      "enterprise": "Enterprise"
+    }
   },
   "common": {
     "error": "Error",
