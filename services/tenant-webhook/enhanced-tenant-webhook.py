@@ -4350,7 +4350,7 @@ def activate_ros2_service():
 
     except Exception as e:
         logger.error(f"Error activating ROS2 service: {e}")
-        return _internal_error(e, "activate_ros2_service", user_message="Failed to activate ROS2 service")
+        return _internal_error(e, "activate_ros2_service", user_message="Failed to activate ROS2 service")  # noqa: E501
 
 
 @app.route("/api/tenant/services/ros2/status", methods=["GET"])
@@ -4502,7 +4502,7 @@ def activate_vpn_service():
         import traceback
 
         logger.error(traceback.format_exc())
-        return _internal_error(e, "activate_vpn_service", user_message="Failed to activate VPN service")
+        return _internal_error(e, "activate_vpn_service", user_message="Failed to activate VPN service")  # noqa: E501
 
 
 @app.route("/api/tenant/services/vpn/status", methods=["GET"])
@@ -5263,7 +5263,7 @@ def register_tenant():
         except Exception as e:
             conn.rollback()
             logger.error(f"Onboarding failed for {email}: {str(e)}")
-            return _internal_error(e, "register_tenant.provision", user_message="Provisioning failed")
+            return _internal_error(e, "register_tenant.provision", user_message="Provisioning failed")  # noqa: E501
         finally:
             conn.close()
 
