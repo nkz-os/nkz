@@ -387,17 +387,19 @@ _ensure_tenant_limits_table()
 
 
 def _get_limits_from_db(tenant: str):
-    """Read tenant limits from PostgreSQL."""
+    """Read tenant limits from PostgreSQL (admin_platform.tenant_limits + tenants)."""
     conn = get_db_connection_simple()
     if not conn:
         return None
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT plan_type, max_users, max_robots, max_sensors, max_area_hectares "
-            "FROM admin_platform.tenant_limits WHERE tenant_id = %s",
-            (tenant,)
-        )
+        cursor.execute("""
+            SELECT tl.plan_type, tl.max_users, tl.max_robots, tl.max_sensors,
+                   tl.max_area_hectares, t.max_parcels, t.max_entities_total
+            FROM admin_platform.tenant_limits tl
+            LEFT JOIN tenants t ON t.tenant_id = tl.tenant_id
+            WHERE tl.tenant_id = %s
+        """, (tenant,))
         row = cursor.fetchone()
         cursor.close()
         if not row:
@@ -408,6 +410,8 @@ def _get_limits_from_db(tenant: str):
             'maxRobots': row[2],
             'maxSensors': row[3],
             'maxAreaHectares': row[4],
+            'maxParcels': row[5],
+            'maxEntitiesTotal': row[6],
         }
     except Exception:
         return None
@@ -635,6 +639,39 @@ def _count_entities_by_type(entity_type, tenant):
     except Exception:
         pass
     return None
+
+def _count_all_entities(tenant: str) -> Optional[int]:
+    """Return total entity count for a tenant via Orion-LD count header. Returns None on failure."""
+    try:
+        url = f"{ORION_URL}/ngsi-ld/v1/entities?limit=0&count=true"
+        headers = {'Accept': 'application/json'}
+        headers = inject_fiware_headers(headers, tenant)
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code not in (200, 204):
+            logger.warning(f"_count_all_entities: Orion returned {resp.status_code}")
+            return None
+        total_str = resp.headers.get('Fiware-Total-Count', '0')
+        return int(total_str)
+    except Exception as e:
+        logger.error(f"_count_all_entities failed: {e}")
+        return None
+
+
+def _check_entity_total_limit(current_count, max_total):
+    """Return True if creating an entity is allowed (within aggregate cap), False if denied."""
+    if max_total is None or int(max_total) < 0:
+        return True
+    if current_count is None:
+        return True  # Can't verify count, allow
+    return current_count < int(max_total)
+
+
+def _check_parcel_count_limit(current_count, max_parcels):
+    """Return True if creating a parcel is allowed (within parcel count limit), False if denied."""
+    if max_parcels is None or int(max_parcels) < 0:
+        return True
+    return current_count < int(max_parcels)
+
 
 def _sum_parcel_area(entity_type, tenant):
     """Suma el área (hectáreas) de todas las parcelas de un tipo para un tenant."""
@@ -1986,6 +2023,21 @@ def create_instance(entity_type):
         max_robots = int(limits.get('maxRobots') or MAX_ROBOTS)
         max_sensors = int(limits.get('maxSensors') or MAX_SENSORS)
         max_area = float(limits.get('maxAreaHectares') or MAX_AREA_HECTARES)
+        max_parcels = limits.get('maxParcels')  # None = unlimited
+        max_entities_total = limits.get('maxEntitiesTotal')  # None = unlimited
+
+        # Aggregate entity cap (Task 6: max_entities_total counts ALL entity types)
+        if max_entities_total is not None:
+            total_count = _count_all_entities(tenant)
+            if not _check_entity_total_limit(total_count, max_entities_total):
+                return jsonify({
+                    'error': 'Entities total limit exceeded',
+                    'error_en': 'Entities total limit exceeded',
+                    'limit': int(max_entities_total),
+                    'current': total_count,
+                    'message': f'Tu plan permite un máximo de {max_entities_total} entidades. Actualiza a Pro para aumentar el límite.',
+                    'message_en': f'Your plan allows up to {max_entities_total} entities. Upgrade to Pro to increase the limit.',
+                }), 403
 
         # Límite de robots - contar todos los tipos de robots
         if entity_type in ROBOT_ENTITY_TYPES and max_robots < 999999:
@@ -2005,6 +2057,21 @@ def create_instance(entity_type):
                     sensors_total += count
             if sensors_total >= max_sensors:
                 return jsonify({'error': 'Sensor limit exceeded', 'limit': max_sensors, 'current': sensors_total}), 403
+        # Parcel count limit (Task 5: max_parcels limits number of parcels regardless of area)
+        if entity_type in PARCEL_ENTITY_TYPES and max_parcels is not None and int(max_parcels) >= 0:
+            parcels_total = 0
+            for ptype in PARCEL_ENTITY_TYPES:
+                count = _count_entities_by_type(ptype, tenant)
+                if count is not None:
+                    parcels_total += count
+            if not _check_parcel_count_limit(parcels_total, max_parcels):
+                return jsonify({
+                    'error': 'Parcel count limit exceeded',
+                    'error_en': 'Parcel count limit exceeded',
+                    'limit': int(max_parcels),
+                    'current': parcels_total,
+                }), 403
+
         # Límite de superficie (ha) para parcelas
         if entity_type in PARCEL_ENTITY_TYPES and max_area < 1000000000:
             new_area = _extract_number(entity_data.get('area'))
@@ -2151,6 +2218,8 @@ def api_get_tenant_limits():
             'maxRobots': int(limits.get('maxRobots') or 0) if limits.get('maxRobots') is not None else None,
             'maxSensors': int(limits.get('maxSensors') or 0) if limits.get('maxSensors') is not None else None,
             'maxAreaHectares': float(limits.get('maxAreaHectares') or 0.0) if limits.get('maxAreaHectares') is not None else None,
+            'maxParcels': int(limits.get('maxParcels') or 0) if limits.get('maxParcels') is not None else None,
+            'maxEntitiesTotal': int(limits.get('maxEntitiesTotal') or 0) if limits.get('maxEntitiesTotal') is not None else None,
             'defaults': {
                 'maxUsers': None,
                 'maxRobots': int(os.getenv('MAX_ROBOTS', '999999')),
@@ -2191,12 +2260,16 @@ def api_get_tenant_usage():
             'maxRobots': _safe_int(limits_raw.get('maxRobots')),
             'maxSensors': _safe_int(limits_raw.get('maxSensors')),
             'maxAreaHectares': _safe_float(limits_raw.get('maxAreaHectares')),
+            'maxParcels': _safe_int(limits_raw.get('maxParcels')),
+            'maxEntitiesTotal': _safe_int(limits_raw.get('maxEntitiesTotal')),
         }
 
         percentages = {}
         robots_limit = limits_payload.get('maxRobots') or 0
         sensors_limit = limits_payload.get('maxSensors') or 0
         area_limit = limits_payload.get('maxAreaHectares') or 0.0
+        parcels_limit = limits_payload.get('maxParcels') or 0
+        entities_limit = limits_payload.get('maxEntitiesTotal') or 0
 
         if robots_limit > 0:
             percentages['robots'] = min(100.0, (usage['robots'] / robots_limit) * 100)
@@ -2204,6 +2277,15 @@ def api_get_tenant_usage():
             percentages['sensors'] = min(100.0, (usage['sensors'] / sensors_limit) * 100)
         if area_limit > 0:
             percentages['areaHectares'] = min(100.0, (usage['areaHectares'] / area_limit) * 100)
+        if parcels_limit > 0:
+            percentages['parcels'] = min(100.0, (usage['parcels'] / parcels_limit) * 100)
+        if entities_limit > 0:
+            total_entities = _count_all_entities(tenant)
+            if total_entities is not None:
+                percentages['entities'] = min(100.0, (total_entities / entities_limit) * 100)
+
+        # Compute total entities for usage
+        usage['totalEntities'] = _count_all_entities(tenant)
 
         return jsonify({
             'tenant': tenant,
