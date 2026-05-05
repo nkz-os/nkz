@@ -4738,10 +4738,62 @@ def list_tenant_users():
         return jsonify({"error": f"Failed to list users: {str(e)}"}), 500
 
 
+def _delete_keycloak_user_best_effort(user_id: str, context: str) -> None:
+    """Best-effort compensation: delete an orphan Keycloak user.
+
+    Used when Keycloak user creation succeeded but a subsequent step
+    (DB INSERT, UPDATE, commit) failed. Failures here are logged but never
+    raised; the orphan must be cleaned up by an operator if compensation
+    itself fails.
+    """
+    try:
+        token = webhook_service.get_keycloak_token()
+        if not token:
+            logger.error(
+                f"[{context}] Cannot compensate orphan Keycloak user {user_id}: "
+                "no admin token available"
+            )
+            return
+        keycloak_url = webhook_service._get_keycloak_base_url()
+        resp = requests.delete(
+            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+        if resp.status_code in (200, 204, 404):
+            logger.info(
+                f"[{context}] Compensated orphan Keycloak user {user_id} "
+                f"(status {resp.status_code})"
+            )
+        else:
+            logger.error(
+                f"[{context}] Failed to compensate orphan Keycloak user "
+                f"{user_id}: {resp.status_code} {resp.text}"
+            )
+    except Exception as exc:
+        logger.error(
+            f"[{context}] Exception compensating orphan Keycloak user "
+            f"{user_id}: {exc}"
+        )
+
+
 @app.route("/api/tenant/users/accept-invitation", methods=["POST"])
 @limiter.limit("10 per hour")
 def accept_invitation():  # noqa: C901
-    """Accept an invitation and create user account"""
+    """Accept an invitation and create user account.
+
+    Ordering is Keycloak-first: all DB validations are read-only until we
+    have a confirmed Keycloak user. Only then do we INSERT into farmers and
+    UPDATE the invitation row in a single committed transaction. If any
+    write step fails after the Keycloak user was created, we rollback the
+    DB transaction AND issue a best-effort DELETE on the orphan Keycloak
+    user so the same invitation code can be retried cleanly.
+    """
+    conn = None
+    cursor = None
+    # When non-None at the time an exception is raised, identifies a Keycloak
+    # user we created in this request that needs compensation.
+    orphan_kc_user_id: str | None = None
     try:
         data = request.get_json()
         if not data:
@@ -4759,143 +4811,133 @@ def accept_invitation():  # noqa: C901
             return jsonify({"error": "Password is required and must be at least 8 characters"}), 400
 
         conn = webhook_service.get_db_connection()
+        if not conn:
+            return jsonify({"error": "Database unavailable"}), 500
         cursor = conn.cursor()
 
-        # Get invitation
+        # ---- Read-only validations (no side effects yet) ------------------
         cursor.execute(
             """
             SELECT id, tenant_id, email, role, invited_by, status, expires_at
             FROM tenant_invitations
             WHERE invitation_code = %s
-        """,
+            """,
             (invitation_code,),
         )
-
         invitation = cursor.fetchone()
-
         if not invitation:
-            cursor.close()
-            conn.close()
             return jsonify({"error": "Invalid invitation code"}), 404
 
         inv_id, tenant_id, email, role, invited_by, status, expires_at = invitation
 
-        # Check status
         if status != "pending":
-            cursor.close()
-            conn.close()
             return jsonify({"error": f"Invitation is {status}"}), 400
 
-        # Check expiration
+        # The expired-invitation flag is the one safe write before we have a
+        # KC user: it commits a status change on a row we already determined
+        # cannot be accepted, with no other side effects.
         if expires_at and expires_at < datetime.utcnow():
             cursor.execute(
-                """
-                UPDATE tenant_invitations SET status = 'expired' WHERE id = %s
-            """,
+                "UPDATE tenant_invitations SET status = 'expired' WHERE id = %s",
                 (inv_id,),
             )
             conn.commit()
-            cursor.close()
-            conn.close()
             return jsonify({"error": "Invitation has expired"}), 400
 
-        # Check if user already exists
-        cursor.execute(
-            """
-            SELECT id FROM farmers WHERE email = %s
-        """,
-            (email,),
-        )
-        existing_user = cursor.fetchone()
-
-        if existing_user:
-            cursor.close()
-            conn.close()
+        cursor.execute("SELECT id FROM farmers WHERE email = %s", (email,))
+        if cursor.fetchone():
             return jsonify({"error": "User already exists"}), 400
 
-        # Get tenant info
         cursor.execute(
-            """
-            SELECT tenant_name, plan_type, max_users FROM tenants WHERE tenant_id = %s
-        """,
+            "SELECT tenant_name, plan_type, max_users FROM tenants WHERE tenant_id = %s",
             (tenant_id,),
         )
         tenant_info = cursor.fetchone()
-
         if not tenant_info:
-            cursor.close()
-            conn.close()
             return jsonify({"error": "Tenant not found"}), 404
-
         tenant_name, plan_type, max_users = tenant_info
 
-        # Check tenant limits
         cursor.execute(
-            """
-            SELECT COUNT(*) FROM farmers WHERE tenant_id = %s
-        """,
+            "SELECT COUNT(*) FROM farmers WHERE tenant_id = %s",
             (tenant_id,),
         )
         current_users = cursor.fetchone()[0]
-
         if current_users >= max_users:
-            cursor.close()
-            conn.close()
-            return jsonify({"error": f"Tenant has reached maximum users limit ({max_users})"}), 400
+            return jsonify(
+                {"error": f"Tenant has reached maximum users limit ({max_users})"}
+            ), 400
 
-        # Create user in farmers table
-        import bcrypt
-
-        password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-        cursor.execute(
-            """
-            INSERT INTO farmers (tenant_id, email, password_hash, first_name, last_name, is_active, is_verified)
-            VALUES (%s, %s, %s, %s, %s, true, true)
-            RETURNING id
-        """,
-            (tenant_id, email, password_hash, first_name, last_name),
-        )  # noqa: E501
-
-        farmer_id = cursor.fetchone()[0]  # noqa: F841
-
-        # Create user in Keycloak
-        plan_info = {"plan": plan_type, "max_users": max_users, "max_robots": 3, "max_sensors": 10}
-
+        # ---- Keycloak-first: create identity before any DB write ----------
+        plan_info = {
+            "plan": plan_type,
+            "max_users": max_users,
+            "max_robots": 3,
+            "max_sensors": 10,
+        }
         keycloak_result = webhook_service.create_keycloak_user(
-            email=email, tenant_id=tenant_id, plan_info=plan_info, password=password, is_owner=False
+            email=email,
+            tenant_id=tenant_id,
+            plan_info=plan_info,
+            password=password,
+            is_owner=False,
         )
-
         if not keycloak_result.get("success"):
-            cursor.rollback()
-            cursor.close()
-            conn.close()
+            # No DB writes in this transaction yet; finally-block will close
+            # the connection cleanly without needing a rollback.
             return jsonify(
                 {"error": f"Failed to create Keycloak user: {keycloak_result.get('error')}"}
-            ), 500  # noqa: E501
+            ), 500
+        orphan_kc_user_id = keycloak_result.get("user_id")
 
-        # Assign role to user
-        user_id_kc = keycloak_result.get("user_id")
-        if user_id_kc:
-            webhook_service._assign_role_to_user(
+        # Assign role best-effort. Failure here does not invalidate the
+        # account: the user is still in the tenant group with the
+        # group-level roles assigned by `create_keycloak_user`.
+        if orphan_kc_user_id:
+            role_assigned = webhook_service._assign_role_to_user(
                 {"Authorization": f"Bearer {webhook_service.get_keycloak_token()}"},
-                user_id_kc,
+                orphan_kc_user_id,
                 role,
             )
+            if not role_assigned:
+                logger.warning(
+                    f"Failed to assign role {role} to Keycloak user "
+                    f"{orphan_kc_user_id}; user is created but may need manual fix"
+                )
 
-        # Mark invitation as accepted
+        # ---- DB writes in a single transaction ----------------------------
+        import bcrypt
+
+        password_hash = bcrypt.hashpw(
+            password.encode("utf-8"), bcrypt.gensalt()
+        ).decode("utf-8")
+
         cursor.execute(
             """
-            UPDATE tenant_invitations 
+            INSERT INTO farmers (
+                tenant_id, email, password_hash, first_name, last_name,
+                is_active, is_verified
+            )
+            VALUES (%s, %s, %s, %s, %s, true, true)
+            RETURNING id
+            """,
+            (tenant_id, email, password_hash, first_name, last_name),
+        )
+        cursor.fetchone()  # consume RETURNING id
+
+        cursor.execute(
+            """
+            UPDATE tenant_invitations
             SET status = 'accepted', accepted_at = %s
             WHERE id = %s
-        """,
+            """,
             (datetime.utcnow(), inv_id),
         )
 
         conn.commit()
-        cursor.close()
-        conn.close()
+        # Past this point the Keycloak user is no longer orphan; clear the
+        # compensation flag so the except/finally blocks don't undo a
+        # successful registration.
+        orphan_kc_user_id = None
 
         logger.info(f"User {email} accepted invitation and joined tenant {tenant_id}")
 
@@ -4909,8 +4951,31 @@ def accept_invitation():  # noqa: C901
         ), 201
 
     except Exception as e:
-        logger.error(f"Error accepting invitation: {e}")
+        logger.exception(f"Error accepting invitation: {e}")
+        # Rollback any DB writes that may have run in the open transaction.
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception as rb_err:
+                logger.error(f"accept_invitation: rollback failed: {rb_err}")
+        # Compensate the Keycloak side if we created a user that did not
+        # complete its DB counterpart.
+        if orphan_kc_user_id:
+            _delete_keycloak_user_best_effort(orphan_kc_user_id, "accept_invitation")
         return jsonify({"error": f"Failed to accept invitation: {str(e)}"}), 500
+    finally:
+        # Cursor and connection cleanup is unconditional. Each close is
+        # guarded so a failure on one does not skip the other.
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @app.route("/api/tenant/users/<user_id>", methods=["DELETE"])
