@@ -3432,7 +3432,7 @@ def create_asset():
     """Create a new asset from digitization workflow"""
     try:
         # Verify permissions
-        user_roles = g.get('user_roles', [])
+        user_roles = getattr(g, 'roles', None) or []
         if not any(role in ['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant'] for role in user_roles):
             return jsonify({'error': 'Insufficient permissions. Only TechnicalConsultant or higher can create assets.'}), 403
         
