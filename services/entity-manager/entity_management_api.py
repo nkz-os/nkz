@@ -7741,7 +7741,7 @@ def update_tenant_governance(tenant_id):
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (
                 tenant_id,
-                g.username,
+                getattr(g, 'user', None) or 'unknown',
                 'governance_update',
                 json.dumps(old_values),
                 json.dumps(dict(updated_tenant), default=str),
