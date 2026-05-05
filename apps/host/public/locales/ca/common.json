@@ -306,7 +306,8 @@
         "feat3": "Aïllament dedicat per tenant",
         "feat4": "SLA i gestor de compte",
         "cta": "Contactar vendes"
-      }
+      },
+      "banner": "Properament. Si tens interès o curiositat, contacta amb nkz@nkz-os.org"
     }
   },
   "landing_v2": {
@@ -316,6 +317,7 @@
     "hero_cta_primary": "Crear tenant gratuït",
     "hero_cta_secondary": "Sol·licitar demo",
     "hero_scroll": "Scroll",
+    "sign_in": "Iniciar sessió",
     "proof_parcelas": "parcel·les monitoritzades",
     "proof_hardware": "hardware compatible. Sense lligams de fabricant.",
     "proof_observaciones": "observacions /dia",
@@ -384,9 +386,23 @@
   },
   "cookies": {
     "title": "Galetes",
-    "message": "Utilitzem galetes essencials i, amb el teu consentiment, analítica per millorar el servei.",
-    "policy_link": "https://nkz-os.org/",
-    "learn_more": "Més informació",
+    "message": "Fem servir galetes estrictament necessàries per a la seguretat i la sessió. L'analítica opcional roman desactivada llevat que l'activis.",
+    "policy_href": "https://nkz-os.org/legal/cookies",
+    "policy_label": "Política completa i inventari:",
+    "session_note": "En iniciar sessió es pot instal·lar una galeta de sessió (nkz_token) per mantenir l'accés. És tècnicament necessària i no s'utilitza amb finalitats publicitàries.",
+    "learn_more": "Política de galetes a nkz-os.org",
+    "policy_version": "Avís v{{version}}",
+    "reject_optional": "Rebutjar galetes no essencials",
+    "configure": "Configurar",
+    "accept_all": "Acceptar totes",
+    "save_preferences": "Desar preferències",
+    "cancel": "Enrere",
+    "close_overlay": "Tancar",
+    "category_necessary_title": "Estrictament necessàries",
+    "category_necessary_desc": "Sessió, seguretat i funcionament de la plataforma. No es poden desactivar mentre utilitzes el servei.",
+    "category_analytics_title": "Analítica opcional",
+    "category_analytics_desc": "Mesura per millorar el producte. Només es carreguen scripts si actives aquesta categoria.",
+    "always_active": "Sempre actives",
     "reject": "Rebutjar",
     "accept": "Acceptar"
   },
@@ -560,7 +576,8 @@
     "administrator": "Administrador",
     "copyright": "© 2024 Nekazari Agricultural Platform",
     "logout": "Cerrar Sesión",
-    "user": "Usuario"
+    "user": "Usuario",
+    "cookie_settings": "Configuració de galetes"
   },
   "activation": {
     "create_account": "Crear Cuenta",

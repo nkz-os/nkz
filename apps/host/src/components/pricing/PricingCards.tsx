@@ -16,6 +16,14 @@ export const PricingCards: React.FC = () => {
         </p>
       </div>
 
+      <div className="max-w-3xl mx-auto mb-12">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-6 py-4 text-center">
+          <p className="text-amber-800 text-sm font-medium">
+            {t('landing.pricing.banner') || 'Próximamente. Si tienes interés o curiosidad, contacta con nkz@nkz-os.org'}
+          </p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
         {/* Free Tier */}
         <div className="bg-white rounded-lg border border-[rgba(14,26,20,0.08)] p-8">

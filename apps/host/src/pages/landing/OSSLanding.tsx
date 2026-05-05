@@ -11,12 +11,14 @@ import {
 import { useI18n } from '@/context/I18nContext';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { CookieBanner } from '@/components/CookieBanner';
+import { useCookieConsent } from '@/context/CookieConsentContext';
 import { NkzAttribution } from '@/components/attribution/NkzAttribution';
 import { logger } from '@/utils/logger';
 
 export const OSSLanding: React.FC = () => {
   const navigate = useNavigate();
   const { t, setLanguage, language, supportedLanguages } = useI18n();
+  const { openPreferences } = useCookieConsent();
   const { login, isAuthenticated } = useAuth();
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -339,7 +341,25 @@ export const OSSLanding: React.FC = () => {
               </ul>
             </div>
           </div>
-          <div className="border-t border-gray-800 pt-8 text-center text-sm">
+          <div className="border-t border-gray-800 pt-8 text-center text-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-gray-400">
+              <button
+                type="button"
+                onClick={openPreferences}
+                className="underline hover:text-green-400 bg-transparent border-0 cursor-pointer text-sm"
+              >
+                {t('layout.cookie_settings')}
+              </button>
+              <span aria-hidden>·</span>
+              <a
+                href={t('cookies.policy_href')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-green-400"
+              >
+                {t('cookies.learn_more')}
+              </a>
+            </div>
             <p>{t('landing.footer_copyright') || '© 2025 NKZ. Todos los derechos reservados.'}</p>
             <div className="mt-2 text-xs text-gray-400">
               <NkzAttribution variant="oss" />

@@ -16,10 +16,12 @@ import api from '@/services/api';
 import { getConfig } from '@/config/environment';
 import { TenantProfileEditor } from '@/components/settings/TenantProfileEditor';
 import { Copy, Check, Edit2, Save, X } from 'lucide-react';
+import { useCookieConsent } from '@/context/CookieConsentContext';
 
 export const Settings: React.FC = () => {
   const { user, tenantId, tenantName, tenantProfile, hasRole, hasAnyRole } = useAuth();
   const { t } = useI18n();
+  const { openPreferences } = useCookieConsent();
 
   const canModifySettings = hasAnyRole(['PlatformAdmin', 'TenantAdmin']);
   const canManageUsers = hasAnyRole(['PlatformAdmin', 'TenantAdmin']);
@@ -107,6 +109,18 @@ export const Settings: React.FC = () => {
             <p className="text-gray-600">{t('settings.subtitle')}</p>
           </div>
           <LanguageSelector />
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">{t('settings.cookies_title')}</h2>
+          <p className="text-sm text-gray-600 mb-4">{t('settings.cookies_description')}</p>
+          <button
+            type="button"
+            onClick={openPreferences}
+            className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+          >
+            {t('settings.cookies_manage')}
+          </button>
         </div>
 
         {/* User Profile Card */}

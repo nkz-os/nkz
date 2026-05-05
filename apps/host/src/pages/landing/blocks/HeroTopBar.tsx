@@ -1,6 +1,7 @@
 import React from 'react';
 import { Globe } from 'lucide-react';
 import { useAuth } from '@/context/KeycloakAuthContext';
+import { useI18n } from '@/context/I18nContext';
 import { useNavigate } from 'react-router-dom';
 
 interface Props {
@@ -22,6 +23,7 @@ export const HeroTopBar: React.FC<Props> = ({
 }) => {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const handleLogin = async () => {
     if (isAuthenticated) {
@@ -56,9 +58,11 @@ export const HeroTopBar: React.FC<Props> = ({
       style={{ padding: '1.25rem 2rem' }}
     >
       <div className="max-w-[1200px] mx-auto flex items-center justify-between">
-        <span className={`text-xl font-semibold tracking-tight ${textColor} transition-colors duration-300`}>
-          NKZ
-        </span>
+        <img
+          src="/logo.svg"
+          alt="NKZ"
+          className={`h-6 w-auto transition-all duration-300 ${isScrolled ? '' : 'brightness-0 invert'}`}
+        />
         <div className="flex items-center gap-4">
           <div className="relative">
             <button
@@ -94,7 +98,7 @@ export const HeroTopBar: React.FC<Props> = ({
             onClick={handleLogin}
             className={`text-sm font-medium transition-colors duration-300 ${textColor} hover:opacity-70`}
           >
-            Iniciar sesión
+            {t('landing_v2.sign_in') || 'Iniciar sesión'}
           </button>
         </div>
       </div>

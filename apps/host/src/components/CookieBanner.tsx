@@ -1,77 +1,204 @@
 // =============================================================================
-// Cookie Banner Component - Multi-language Cookie Consent
+// Cookie consent — first layer + configure (LSSI transparency / RGPD UX)
 // =============================================================================
 
-import React, { useState, useEffect } from 'react';
-import { useI18n } from '@/context/I18nContext';
+import React, { useEffect, useState } from 'react';
 import { Cookie } from 'lucide-react';
+import { useI18n } from '@/context/I18nContext';
+import {
+  useCookieConsent,
+  COOKIE_POLICY_NOTICE_VERSION,
+} from '@/context/CookieConsentContext';
 
 export const CookieBanner: React.FC = () => {
   const { t } = useI18n();
-  const [isVisible, setIsVisible] = useState(false);
+  const {
+    hasAnswered,
+    preferences,
+    preferencesOpen,
+    closePreferences,
+    acceptAll,
+    rejectOptional,
+    saveCustom,
+  } = useCookieConsent();
+
+  const [showConfigure, setShowConfigure] = useState(false);
+  const [draftAnalytics, setDraftAnalytics] = useState(preferences.analytics);
 
   useEffect(() => {
-    // Check if user has already made a choice
-    const cookieConsent = localStorage.getItem('cookieConsent');
-    if (!cookieConsent) {
-      setIsVisible(true);
-    }
-  }, []);
+    setDraftAnalytics(preferences.analytics);
+  }, [preferences.analytics, preferencesOpen]);
 
-  const handleAccept = () => {
-    localStorage.setItem('cookieConsent', 'accepted');
-    localStorage.setItem('cookieConsentDate', new Date().toISOString());
-    setIsVisible(false);
+  useEffect(() => {
+    if (preferencesOpen) {
+      setShowConfigure(true);
+    }
+  }, [preferencesOpen]);
+
+  const visible = !hasAnswered || preferencesOpen;
+  if (!visible) return null;
+
+  const policyHref = t('cookies.policy_href');
+
+  const handleSaveCustom = () => {
+    saveCustom(draftAnalytics);
+    setShowConfigure(false);
   };
 
   const handleReject = () => {
-    localStorage.setItem('cookieConsent', 'rejected');
-    localStorage.setItem('cookieConsentDate', new Date().toISOString());
-    setIsVisible(false);
+    rejectOptional();
+    setShowConfigure(false);
   };
 
-  if (!isVisible) return null;
+  const handleAcceptAll = () => {
+    acceptAll();
+    setShowConfigure(false);
+  };
+
+  const dismissOverlay =
+    hasAnswered && preferencesOpen ? (
+      <button
+        type="button"
+        className="fixed inset-0 z-40 bg-black/40"
+        aria-label={t('cookies.close_overlay')}
+        onClick={() => {
+          closePreferences();
+          setShowConfigure(false);
+        }}
+      />
+    ) : null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t-2 border-gray-200 shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3 flex-1">
-            <Cookie className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
-            <div className="flex-1">
-              <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                {t('cookies.title')}
-              </h3>
-              <p className="text-sm text-gray-600">
-                {t('cookies.message')}{' '}
-                <a
-                  href={t('cookies.policy_link')}
-                  className="text-green-700 hover:text-green-800 font-semibold underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
+    <>
+      {dismissOverlay}
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 border-t-2 border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900 ${
+          hasAnswered && preferencesOpen ? 'max-h-[90vh] overflow-y-auto' : ''
+        }`}
+        role="dialog"
+        aria-modal={hasAnswered && preferencesOpen ? 'true' : undefined}
+        aria-labelledby="nkz-cookie-title"
+      >
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start gap-3 flex-1">
+              <Cookie className="w-6 h-6 text-green-600 flex-shrink-0 mt-1 dark:text-green-400" />
+              <div className="flex-1 min-w-0">
+                <h3
+                  id="nkz-cookie-title"
+                  className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1"
                 >
-                  {t('cookies.learn_more')}
-                </a>
-              </p>
+                  {t('cookies.title')}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {t('cookies.message')}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                  {t('cookies.session_note')}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  <span className="font-medium">{t('cookies.policy_label')} </span>
+                  <a
+                    href={policyHref}
+                    className="text-green-700 hover:text-green-800 dark:text-green-400 font-semibold underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {t('cookies.learn_more')}
+                  </a>
+                  {' · '}
+                  <span className="text-gray-400">
+                    {t('cookies.policy_version', { version: COOKIE_POLICY_NOTICE_VERSION })}
+                  </span>
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <button
-              onClick={handleReject}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              {t('cookies.reject')}
-            </button>
-            <button
-              onClick={handleAccept}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
-            >
-              {t('cookies.accept')}
-            </button>
+
+            {showConfigure && (
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {t('cookies.category_necessary_title')}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                      {t('cookies.category_necessary_desc')}
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold text-gray-500 uppercase shrink-0">
+                    {t('cookies.always_active')}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-4 border-t border-gray-200 dark:border-gray-600 pt-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {t('cookies.category_analytics_title')}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                      {t('cookies.category_analytics_desc')}
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-5 w-5 shrink-0 rounded border-gray-300 text-green-600 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700"
+                    checked={draftAnalytics}
+                    onChange={(e) => setDraftAnalytics(e.target.checked)}
+                    aria-label={t('cookies.category_analytics_title')}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+              {!showConfigure ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleReject}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+                  >
+                    {t('cookies.reject_optional')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfigure(true)}
+                    className="px-4 py-2 text-sm font-medium text-gray-800 bg-gray-100 border border-gray-200 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"
+                  >
+                    {t('cookies.configure')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAcceptAll}
+                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                  >
+                    {t('cookies.accept_all')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowConfigure(false);
+                      if (preferencesOpen) closePreferences();
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200"
+                  >
+                    {t('cookies.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveCustom}
+                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                  >
+                    {t('cookies.save_preferences')}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
-

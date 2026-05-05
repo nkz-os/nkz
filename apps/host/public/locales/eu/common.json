@@ -306,7 +306,8 @@
         "feat3": "Tenanteko isolamendu dedikatua",
         "feat4": "SLA eta kontu-kudeatzailea",
         "cta": "Salmentarekin kontaktua"
-      }
+      },
+      "banner": "Laster. Interesa edo jakin-mina baduzu, jarri harremanetan nkz@nkz-os.org helbidera"
     }
   },
   "landing_v2": {
@@ -316,6 +317,7 @@
     "hero_cta_primary": "Sortu doako tenant-a",
     "hero_cta_secondary": "Eskatu demoa",
     "hero_scroll": "Joan behera",
+    "sign_in": "Hasi saioa",
     "proof_parcelas": "monitorizatutako lursailak",
     "proof_observaciones": "behaketak / eguneko",
     "proof_paises": "herrialdeak",
@@ -385,9 +387,23 @@
   },
   "cookies": {
     "title": "Cookieak",
-    "message": "Cookie funtsezkoak eta zure onespenarekin analitika erabiltzen ditugu zerbitzua hobetzeko.",
-    "policy_link": "https://nkz-os.org/",
-    "learn_more": "Informazio gehiago",
+    "message": "Segurtasunerako eta saiorako beharrezko cookieak erabiltzen ditugu. Aukerako analitika desaktibatuta egoten da, gaitzen ez baduzu.",
+    "policy_href": "https://nkz-os.org/legal/cookies",
+    "policy_label": "Politika osoa eta zerrenda:",
+    "session_note": "Saioa hastean saio-cookie bat (nkz_token) ezar daiteke sarbidea mantentzeko. Beharrezko teknikoa da eta ez da publizitaterako erabiltzen.",
+    "learn_more": "Cookie-politika nkz-os.org gunean",
+    "policy_version": "Oharra v{{version}}",
+    "reject_optional": "Aukerako cookieak ezetsi",
+    "configure": "Konfiguratu",
+    "accept_all": "Dena onartu",
+    "save_preferences": "Gorde hobespenak",
+    "cancel": "Atzera",
+    "close_overlay": "Itxi",
+    "category_necessary_title": "Beharrezkoak",
+    "category_necessary_desc": "Saioa, segurtasuna eta plataformaren funtzionamendua. Ezin dira desgaitu zerbitzua erabiltzen duzun bitartean.",
+    "category_analytics_title": "Aukerako analitika",
+    "category_analytics_desc": "Produktua hobetzeko neurria. Scriptak kategoria hau gaitzen baduzu soilik kargatzen dira.",
+    "always_active": "Beti aktibo",
     "reject": "Ezetsi",
     "accept": "Onartu"
   },
@@ -569,7 +585,8 @@
     "administrator": "Administrador",
     "copyright": "© 2024 Nekazari Agricultural Platform",
     "logout": "Cerrar Sesión",
-    "user": "Usuario"
+    "user": "Usuario",
+    "cookie_settings": "Cookieen ezarpenak"
   },
   "activation": {
     "create_account": "Crear Cuenta",

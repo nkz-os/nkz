@@ -18,6 +18,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/KeycloakAuthContext';
 import { NekazariI18nProvider } from '@nekazari/sdk';
 import { I18nProvider } from '@/context/I18nContext';
+import { CookieConsentProvider } from '@/context/CookieConsentContext';
+import { AnalyticsConsentRoot } from '@/components/AnalyticsConsentRoot';
 import { ModuleProvider, useModules } from '@/context/ModuleContext';
 import { ViewerProvider } from '@/context/ViewerContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -274,17 +276,20 @@ function App() {
                 <NekazariI18nProvider config={hostI18nConfig}>
                   <ErrorBoundary componentName="I18nProvider" fallback={renderFallback}>
                     <I18nProvider>
-                      <ErrorBoundary componentName="ThemeProvider" fallback={renderFallback}>
-                        <ThemeProvider>
-                          <ErrorBoundary componentName="ToastProvider" fallback={renderFallback}>
-                            <ToastProvider>
-                              <ErrorBoundary componentName="AppInitializer" fallback={renderFallback}>
-                                <AppInitializer />
-                              </ErrorBoundary>
-                            </ToastProvider>
-                          </ErrorBoundary>
-                        </ThemeProvider>
-                      </ErrorBoundary>
+                      <CookieConsentProvider>
+                        <AnalyticsConsentRoot />
+                        <ErrorBoundary componentName="ThemeProvider" fallback={renderFallback}>
+                          <ThemeProvider>
+                            <ErrorBoundary componentName="ToastProvider" fallback={renderFallback}>
+                              <ToastProvider>
+                                <ErrorBoundary componentName="AppInitializer" fallback={renderFallback}>
+                                  <AppInitializer />
+                                </ErrorBoundary>
+                              </ToastProvider>
+                            </ErrorBoundary>
+                          </ThemeProvider>
+                        </ErrorBoundary>
+                      </CookieConsentProvider>
                     </I18nProvider>
                   </ErrorBoundary>
                 </NekazariI18nProvider>

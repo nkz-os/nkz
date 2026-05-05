@@ -306,7 +306,8 @@
         "feat3": "Isolamento dedicado por tenant",
         "feat4": "SLA e gestor de conta",
         "cta": "Contactar vendas"
-      }
+      },
+      "banner": "Em breve. Se tiver interesse ou curiosidade, contacte nkz@nkz-os.org"
     }
   },
   "landing_v2": {
@@ -316,6 +317,7 @@
     "hero_cta_primary": "Criar tenant gratuito",
     "hero_cta_secondary": "Solicitar demo",
     "hero_scroll": "Scroll",
+    "sign_in": "Iniciar sessão",
     "proof_parcelas": "parcelas monitorizadas",
     "proof_hardware": "hardware compatível. Sem dependência de fabricante.",
     "proof_observaciones": "observações /dia",
@@ -384,9 +386,23 @@
   },
   "cookies": {
     "title": "Cookies",
-    "message": "Utilizamos cookies essenciais e, com o seu consentimento, analytics para melhorar o serviço.",
-    "policy_link": "https://nkz-os.org/",
-    "learn_more": "Saiba mais",
+    "message": "Utilizamos cookies estritamente necessários para segurança e sessão. A análise opcional permanece desativada exceto se a ativar.",
+    "policy_href": "https://nkz-os.org/legal/cookies",
+    "policy_label": "Política completa e inventário:",
+    "session_note": "Ao iniciar sessão pode ser definido um cookie de sessão (nkz_token) para manter o acesso. É tecnicamente necessário e não é usado para publicidade.",
+    "learn_more": "Política de cookies em nkz-os.org",
+    "policy_version": "Aviso v{{version}}",
+    "reject_optional": "Recusar cookies não essenciais",
+    "configure": "Configurar",
+    "accept_all": "Aceitar todas",
+    "save_preferences": "Guardar preferências",
+    "cancel": "Voltar",
+    "close_overlay": "Fechar",
+    "category_necessary_title": "Estritamente necessários",
+    "category_necessary_desc": "Sessão, segurança e funcionamento da plataforma. Não podem ser desativados enquanto utiliza o serviço.",
+    "category_analytics_title": "Análise opcional",
+    "category_analytics_desc": "Medição para melhorar o produto. Os scripts só são carregados se ativar esta categoria.",
+    "always_active": "Sempre ativas",
     "reject": "Recusar",
     "accept": "Aceitar"
   },
@@ -560,7 +576,8 @@
     "administrator": "Administrador",
     "copyright": "© 2024 Nekazari Agricultural Platform",
     "logout": "Cerrar Sesión",
-    "user": "Usuario"
+    "user": "Usuario",
+    "cookie_settings": "Definições de cookies"
   },
   "activation": {
     "create_account": "Crear Cuenta",
