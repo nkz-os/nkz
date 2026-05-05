@@ -261,7 +261,7 @@ def require_platform_admin(f):  # noqa: C901
             ), 401
         except KeycloakAuthError as e:
             logger.error(f"Keycloak auth error for {request.method} {request.path}: {e}")
-            return jsonify({"error": "Authentication error", "details": str(e)}), 500
+            return _internal_error(e, "require_keycloak_auth", user_message="Authentication error")
         except Exception as e:
             logger.error(f"Unexpected error in auth decorator: {e}")
             return jsonify({"error": "Internal server error"}), 500
@@ -380,6 +380,38 @@ def _verify_internal_billing_secret() -> bool:
         return hmac.compare_digest(got.encode("utf-8"), expected.encode("utf-8"))
     except Exception:
         return False
+
+
+def _internal_error(
+    exc: BaseException,
+    context: str,
+    *,
+    status: int = 500,
+    user_message: str = "Internal server error",
+    extra: dict | None = None,
+) -> tuple:
+    """Sanitized error response that logs the real exception internally.
+
+    Replaces the legacy `return jsonify({"error": str(e)}), 500` pattern,
+    which was leaking exception messages, stack-trace fragments, DB driver
+    errors, and Keycloak/K8s internals to API clients.
+
+    The exception is logged with full traceback under a short `request_id`
+    so support can correlate a client report to a specific log line without
+    the response carrying any internal detail.
+
+    Returns a `(response, status)` tuple matching the existing
+    `jsonify(...), 500` convention so call sites can stay one-liners.
+    """
+    request_id = secrets.token_hex(8)
+    logger.error(
+        f"[{context}] request_id={request_id}: {type(exc).__name__}: {exc}",
+        exc_info=True,
+    )
+    body: dict[str, Any] = {"error": user_message, "request_id": request_id}
+    if extra:
+        body.update(extra)
+    return jsonify(body), status
 
 
 # Configuration from environment
@@ -2104,7 +2136,11 @@ def generate_activation_code():  # noqa: C901
             logger.error(traceback.format_exc())
             if conn:
                 conn.rollback()
-            return jsonify({"error": f"Failed to store activation code: {str(e)}"}), 500
+            return _internal_error(
+                e,
+                "internal_create_activation_code",
+                user_message="Failed to store activation code",
+            )
         finally:
             if cursor:
                 cursor.close()
@@ -2743,7 +2779,11 @@ def list_tenant_personal_access_tokens():
         logger.error("list_tenant_personal_access_tokens: %s", e)
         if conn:
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return _internal_error(
+            e,
+            "list_tenant_personal_access_tokens",
+            user_message="Failed to list personal access tokens",
+        )
 
 
 @app.route("/api/tenant/api-keys", methods=["POST"])
@@ -2809,7 +2849,11 @@ def create_tenant_personal_access_token():
         if conn:
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return _internal_error(
+            e,
+            "create_tenant_personal_access_token",
+            user_message="Failed to create personal access token",
+        )
 
 
 @app.route("/api/tenant/api-keys/<key_id>", methods=["DELETE"])
@@ -2851,7 +2895,11 @@ def revoke_tenant_personal_access_token(key_id: str):
         if conn:
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return _internal_error(
+            e,
+            "revoke_tenant_personal_access_token",
+            user_message="Failed to revoke personal access token",
+        )
 
 
 @app.route("/admin/api-keys", methods=["GET"])
@@ -2944,7 +2992,7 @@ def list_api_keys():
                 conn.close()
     except Exception as e:
         logger.error(f"Error listing API keys: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _internal_error(e, "list_api_keys", user_message="Failed to list API keys")
 
 
 @app.route("/admin/api-keys", methods=["POST"])
@@ -3017,7 +3065,7 @@ def create_api_key():
 
     except Exception as e:
         logger.error(f"Error creating API key: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _internal_error(e, "create_api_key", user_message="Failed to create API key")
 
 
 @app.route("/api/admin/tenants/<tenant_id>", methods=["PATCH"])
@@ -3064,7 +3112,7 @@ def update_tenant_info(tenant_id):
 
     except Exception as e:
         logger.error(f"Error updating tenant info: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _internal_error(e, "update_tenant_info", user_message="Failed to update tenant info")
 
 
 @app.route("/api/admin/tenants", methods=["GET"])
@@ -3173,7 +3221,7 @@ def list_tenants():
                 conn.close()
     except Exception as e:
         logger.error(f"Error listing tenants: {e}")
-        return jsonify({"error": str(e)}), 500
+        return _internal_error(e, "list_tenants", user_message="Failed to list tenants")
 
 
 @app.route("/api/admin/tenants", methods=["POST"])
@@ -3283,7 +3331,7 @@ def create_tenant_directly():
         logger.error(f"Error creating tenant directly: {e}")
         audit_log(action='admin.tenant.create', resource_type='tenant',
                   success=False, error=str(e))
-        return jsonify({"error": f"Failed to create tenant: {str(e)}"}), 500
+        return _internal_error(e, "create_tenant_directly", user_message="Failed to create tenant")
 
 
 @app.route("/api/admin/tenants/<tenant_id>", methods=["DELETE"])
@@ -3411,7 +3459,7 @@ def delete_tenant_directly(tenant_id: str):  # noqa: C901
         logger.error(traceback.format_exc())
         audit_log(action='admin.tenant.delete', resource_type='tenant',
                   resource_id=tenant_id, success=False, error=str(e))
-        return jsonify({"error": f"Failed to delete tenant: {str(e)}"}), 500
+        return _internal_error(e, "delete_tenant_admin", user_message="Failed to delete tenant")
 
 
 @app.route("/api/admin/tenants/<tenant_id>/users", methods=["POST"])
@@ -3468,7 +3516,7 @@ def assign_user_to_tenant(tenant_id: str):
 
     except Exception as e:
         logger.error(f"Error assigning user to tenant: {e}")
-        return jsonify({"error": f"Failed to assign user: {str(e)}"}), 500
+        return _internal_error(e, "assign_user_to_tenant", user_message="Failed to assign user")
 
 
 def _tenant_attr(attributes, key):
@@ -3607,7 +3655,7 @@ def list_all_users():  # noqa: C901
 
     except Exception as e:
         logger.error(f"Error listing users: {e}")
-        return jsonify({"error": f"Failed to list users: {str(e)}"}), 500
+        return _internal_error(e, "list_users_admin", user_message="Failed to list users")
 
 
 @app.route("/api/admin/users/<user_id>", methods=["DELETE"])
@@ -4757,7 +4805,7 @@ def list_tenant_users():
 
     except Exception as e:
         logger.error(f"Error listing users: {e}")
-        return jsonify({"error": f"Failed to list users: {str(e)}"}), 500
+        return _internal_error(e, "list_users_tenant", user_message="Failed to list users")
 
 
 def _delete_keycloak_user_best_effort(user_id: str, context: str) -> None:
@@ -5099,17 +5147,20 @@ def register_tenant():
         if not all([email, organization_name, password]):
             return jsonify({"error": "Email, organization name and password are required"}), 400
 
+        # Validate plan BEFORE acquiring any DB connection. The previous
+        # ordering opened the connection first and then early-returned 400
+        # for invalid plans, leaking the connection (no outer finally on
+        # this try-block) until the pool's idle timeout reclaimed it.
+        plan_lower = plan.lower() if plan else "pro"
+        if plan_lower not in ("pro", "premium", "enterprise"):
+            return jsonify({"error": "Public registration restricted to pro/premium/enterprise. Basic requires NEK invitation code."}), 400
+
         # 1. Normalize and check existence
         tenant_slug = webhook_service._normalize_tenant_slug(organization_name)  # noqa: F841
 
         conn = webhook_service.get_db_connection()
         if not conn:
             return jsonify({"error": "Database unavailable"}), 500
-
-        # Validate plan
-        plan_lower = plan.lower() if plan else "pro"
-        if plan_lower not in ("pro", "premium", "enterprise"):
-            return jsonify({"error": "Public registration restricted to pro/premium/enterprise. Basic requires NEK invitation code."}), 400
 
         # 2. Setup initial limits from canonical tier quotas
         from common.tier_quotas import quotas_for_tier
