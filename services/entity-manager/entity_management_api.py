@@ -6055,7 +6055,6 @@ def get_tenant_modules():
                         mm.icon_url,
                         mm.route_path,
                         mm.label,
-                        mm.module_type,
                         COALESCE(mm.is_local, false) as is_local,
                         mm.metadata,
                         tim.is_enabled,
@@ -6082,7 +6081,6 @@ def get_tenant_modules():
                         mm.icon_url,
                         mm.route_path,
                         mm.label,
-                        mm.module_type,
                         COALESCE(mm.is_local, false) as is_local,
                         mm.metadata,
                         tim.is_enabled,
@@ -6093,7 +6091,7 @@ def get_tenant_modules():
                         AND tim.is_enabled = true
                         AND mm.is_active = true
                         AND (
-                            mm.required_roles IS NULL 
+                            mm.required_roles IS NULL
                             OR mm.required_roles = '{}'::text[]
                             OR mm.required_roles && %s::text[]
                         )
