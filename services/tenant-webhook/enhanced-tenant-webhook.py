@@ -3711,7 +3711,7 @@ def delete_user_directly(user_id: str):
         logger.error(f"Error deleting user: {e}")
         audit_log(action='admin.user.delete', resource_type='user',
                   resource_id=user_id, success=False, error=str(e))
-        return jsonify({"error": f"Failed to delete user: {str(e)}"}), 500
+        return _internal_error(e, "delete_user_admin", user_message="Failed to delete user")
 
 
 @app.route("/api/admin/users/<user_id>/roles", methods=["PUT"])
@@ -3829,7 +3829,7 @@ def update_user_roles(user_id: str):
         logger.error(f"Error updating user roles: {e}")
         audit_log(action='admin.user.roles_update', resource_type='user',
                   resource_id=user_id, success=False, error=str(e))
-        return jsonify({"error": f"Failed to update roles: {str(e)}"}), 500
+        return _internal_error(e, "update_user_roles", user_message="Failed to update roles")
 
 
 @app.route("/forgot-password", methods=["POST"])
@@ -3994,13 +3994,15 @@ def activate_tenant():  # noqa: C901
                     conn.close()
             except Exception as rollback_error:
                 logger.error(f"Failed to rollback activation code: {rollback_error}")
-            return jsonify(
-                {
-                    "error": f"Failed to create tenant infrastructure: {str(e)}",
+            return _internal_error(
+                e,
+                "activate_tenant_infrastructure",
+                user_message="Failed to create tenant infrastructure",
+                extra={
                     "reason": error_reason,
                     "details": "El proceso de creación de recursos del tenant falló. Se ha notificado al administrador.",  # noqa: E501
-                }
-            ), 500
+                },
+            )
 
         # ROS2 and VPN are now OPTIONAL - not created during registration
         # They can be activated later by tenant-admin from Settings panel
@@ -4348,7 +4350,7 @@ def activate_ros2_service():
 
     except Exception as e:
         logger.error(f"Error activating ROS2 service: {e}")
-        return jsonify({"error": f"Failed to activate ROS2 service: {str(e)}"}), 500
+        return _internal_error(e, "activate_ros2_service", user_message="Failed to activate ROS2 service")
 
 
 @app.route("/api/tenant/services/ros2/status", methods=["GET"])
@@ -4395,7 +4397,7 @@ def get_ros2_status():
 
     except Exception as e:
         logger.error(f"Error getting ROS2 status: {e}")
-        return jsonify({"error": f"Failed to get ROS2 status: {str(e)}"}), 500
+        return _internal_error(e, "get_ros2_status", user_message="Failed to get ROS2 status")
 
 
 @app.route("/api/tenant/services/vpn/activate", methods=["POST"])
@@ -4500,7 +4502,7 @@ def activate_vpn_service():
         import traceback
 
         logger.error(traceback.format_exc())
-        return jsonify({"error": f"Failed to activate VPN service: {str(e)}"}), 500
+        return _internal_error(e, "activate_vpn_service", user_message="Failed to activate VPN service")
 
 
 @app.route("/api/tenant/services/vpn/status", methods=["GET"])
@@ -4556,7 +4558,7 @@ def get_vpn_status():
 
     except Exception as e:
         logger.error(f"Error getting VPN status: {e}")
-        return jsonify({"error": f"Failed to get VPN status: {str(e)}"}), 500
+        return _internal_error(e, "get_vpn_status", user_message="Failed to get VPN status")
 
 
 # =============================================================================
@@ -4736,7 +4738,7 @@ def invite_user_to_tenant():  # noqa: C901
 
     except Exception as e:
         logger.error(f"Error inviting user: {e}")
-        return jsonify({"error": f"Failed to invite user: {str(e)}"}), 500
+        return _internal_error(e, "invite_user", user_message="Failed to invite user")
 
 
 @app.route("/api/tenant/users", methods=["GET"])
@@ -5032,7 +5034,7 @@ def accept_invitation():  # noqa: C901
         # complete its DB counterpart.
         if orphan_kc_user_id:
             _delete_keycloak_user_best_effort(orphan_kc_user_id, "accept_invitation")
-        return jsonify({"error": f"Failed to accept invitation: {str(e)}"}), 500
+        return _internal_error(e, "accept_invitation", user_message="Failed to accept invitation")
     finally:
         # Cursor and connection cleanup is unconditional. Each close is
         # guarded so a failure on one does not skip the other.
@@ -5126,7 +5128,7 @@ def delete_tenant_user(user_id: str):
         logger.error(f"Error deleting user: {e}")
         audit_log(action='tenant.user.delete', resource_type='user',
                   resource_id=user_id, success=False, error=str(e))
-        return jsonify({"error": f"Failed to delete user: {str(e)}"}), 500
+        return _internal_error(e, "delete_user_tenant", user_message="Failed to delete user")
 
 
 @app.route("/webhook/register", methods=["POST"])
@@ -5261,7 +5263,7 @@ def register_tenant():
         except Exception as e:
             conn.rollback()
             logger.error(f"Onboarding failed for {email}: {str(e)}")
-            return jsonify({"error": f"Provisioning failed: {str(e)}"}), 500
+            return _internal_error(e, "register_tenant.provision", user_message="Provisioning failed")
         finally:
             conn.close()
 
