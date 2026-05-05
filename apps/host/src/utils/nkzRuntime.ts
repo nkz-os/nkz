@@ -59,7 +59,9 @@ declare global {
         __NKZ_SDK__: typeof import('@nekazari/sdk');
         __NKZ_UI__: typeof import('@nekazari/ui-kit');
         __NKZ_VIEWER__: typeof import('@nekazari/viewer-kit');
+        __NKZ_VIEWER_KIT__: typeof import('@nekazari/viewer-kit');
         __NKZ_THEME__: typeof import('@nekazari/design-tokens');
+        __NKZ_DESIGN_TOKENS__: typeof import('@nekazari/design-tokens');
     }
 }
 
