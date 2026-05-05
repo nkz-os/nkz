@@ -21,8 +21,8 @@ spec:
         app: tenant-webhook
         layer: apis
       annotations:
-        nekazari.robotika.cloud/last-deployed: "2026-03-13T19:55:00Z"
-        nekazari.robotika.cloud/change-reason: "Fix admin routing and auth cookie extraction"
+        nekazari.robotika.cloud/last-deployed: "2026-05-05T20:15:00Z"
+        nekazari.robotika.cloud/change-reason: "Hardening PR1a: add INTERNAL_BILLING_SECRET, fail-closed webhooks, tenant_id regex, subprocess env=, rate limits"
     spec:
       serviceAccountName: tenant-webhook-sa
       securityContext:
@@ -152,6 +152,17 @@ spec:
             secretKeyRef:
               name: pat-internal-secret
               key: secret
+              optional: true
+        # Shared secret with billing module for /internal/billing/* endpoints.
+        # TODO: confirm exact Secret name/key in cluster matches this reference
+        # (billing module uses envFrom on `nkz-billing-module-secrets` with key
+        #  `TENANT_WEBHOOK_INTERNAL_SECRET`). Marked optional so deploys without
+        # billing wiring still start; missing value yields fail-closed 401.
+        - name: INTERNAL_BILLING_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: nkz-billing-module-secrets
+              key: TENANT_WEBHOOK_INTERNAL_SECRET
               optional: true
         # MongoDB credentials for Orion-LD tenant provisioning
         - name: MONGODB_HOST
