@@ -329,6 +329,40 @@ def _verify_internal_pat_secret() -> bool:
         return False
 
 
+# Canonical tenant_id format used everywhere a tenant_id flows from an
+# external payload into a path, shell argument, or DB key. Mirrors the inline
+# regex in `internal_update_tenant_license`. 1-64 chars, alphanumerics with
+# `-` or `_`, must start with alphanumeric. Anything else is rejected as a
+# safety boundary against path/script injection.
+TENANT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+def _is_valid_tenant_id(tenant_id: Any) -> bool:
+    """Validate that a tenant_id received from an untrusted source is safe to
+    use as a filesystem path component, subprocess argument, or DB key."""
+    return isinstance(tenant_id, str) and bool(TENANT_ID_RE.match(tenant_id))
+
+
+def _verify_shared_secret(env_var: str, header_name: str) -> tuple[bool, int, str | None]:
+    """Constant-time verification of a shared secret carried in a header.
+
+    Returns (ok, status_code, error_message).
+    - If the env_var is unset/empty -> fail-closed 503 (endpoint not configured).
+    - If the header is missing or does not match -> 401.
+    - On match -> 200.
+    """
+    expected = (os.getenv(env_var) or "").strip()
+    if not expected:
+        return False, 503, f"{env_var} not configured"
+    got = (request.headers.get(header_name) or "").strip()
+    try:
+        if hmac.compare_digest(got.encode("utf-8"), expected.encode("utf-8")):
+            return True, 200, None
+    except Exception:
+        return False, 401, "Unauthorized"
+    return False, 401, "Unauthorized"
+
+
 def _verify_internal_billing_secret() -> bool:
     """Layer-7 auth for POST /internal/billing/tenants/<id>/license.
 
@@ -1378,8 +1412,11 @@ class EnhancedTenantWebhookService:
             # Ensure Orion-LD MongoDB database exists BEFORE K8s provisioning
             self._ensure_orion_tenant_db(tenant_id)
 
-            # Set environment variables for plan limits
-            env_vars = {
+            # Build a per-call environment for the subprocess. Previously this
+            # mutated the parent process os.environ, which leaked tenant-scoped
+            # values across concurrent requests under multi-worker Flask.
+            proc_env = {
+                **os.environ,
                 "TENANT_ID": tenant_id,
                 "PLAN_TYPE": plan_info["plan"],
                 "MAX_USERS": str(plan_info["max_users"]),
@@ -1388,16 +1425,13 @@ class EnhancedTenantWebhookService:
                 "ACTIVATION_CODE": plan_info["code"],
             }
 
-            # Update environment for subprocess
-            for key, value in env_vars.items():
-                os.environ[key] = value
-
-            # Run the tenant creation script
+            # Run the tenant creation script with an isolated env per call
             result = subprocess.run(
                 [CREATE_TENANT_SCRIPT, tenant_id],
                 capture_output=True,
                 text=True,
                 timeout=600,  # 10 minutes timeout (increased for slow servers)
+                env=proc_env,
             )
 
             if result.returncode == 0:
@@ -1665,10 +1699,21 @@ def health_check():
 def keycloak_webhook():
     """Handle Keycloak webhook events"""
     try:
-        # Verify webhook secret
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or auth_header != f"Bearer {WEBHOOK_SECRET}":
-            logger.warning("Unauthorized webhook request")
+        # Fail-closed if the shared webhook secret is not configured. Without
+        # this, an empty WEBHOOK_SECRET would let `Bearer ` (or any non-empty
+        # token) authenticate, opening a tenant-creation surface to the world.
+        expected_secret = (WEBHOOK_SECRET or "").strip()
+        if not expected_secret:
+            logger.error("WEBHOOK_SECRET not configured; refusing keycloak webhook request")
+            return jsonify({"error": "Webhook not configured"}), 503
+
+        auth_header = request.headers.get("Authorization") or ""
+        if not auth_header.startswith("Bearer "):
+            logger.warning("Unauthorized webhook request: missing Bearer token")
+            return jsonify({"error": "Unauthorized"}), 401
+        provided = auth_header[len("Bearer "):].strip().encode("utf-8")
+        if not hmac.compare_digest(provided, expected_secret.encode("utf-8")):
+            logger.warning("Unauthorized webhook request: token mismatch")
             return jsonify({"error": "Unauthorized"}), 401
 
         # Parse webhook payload
@@ -1686,6 +1731,12 @@ def keycloak_webhook():
         if not tenant_id:
             logger.warning("No tenant_id found in webhook payload")
             return jsonify({"error": "Missing tenant_id"}), 400
+
+        # Reject malformed tenant_id before it reaches handlers that use it
+        # as a path component or subprocess argument.
+        if not _is_valid_tenant_id(tenant_id):
+            logger.warning(f"Rejected webhook with invalid tenant_id format: {tenant_id!r}")
+            return jsonify({"error": "Invalid tenant_id format"}), 400
 
         if event_type == "TENANT_CREATED":
             return handle_tenant_created(tenant_id, payload)
@@ -1706,9 +1757,20 @@ def keycloak_webhook():
 def woocommerce_webhook():  # noqa: C901
     """Handle WooCommerce order completion and create tenant with activation code"""
     try:
-        # Verify webhook secret
-        webhook_secret = request.headers.get("X-WooCommerce-Webhook-Secret")
-        if WOOCOMMERCE_WEBHOOK_SECRET and webhook_secret != WOOCOMMERCE_WEBHOOK_SECRET:
+        # Fail-closed when the WooCommerce shared secret is not configured.
+        # Previously, an empty WOOCOMMERCE_WEBHOOK_SECRET silently disabled
+        # the auth check and accepted any POST, which is a public
+        # tenant-creation surface.
+        expected_secret = (WOOCOMMERCE_WEBHOOK_SECRET or "").strip()
+        if not expected_secret:
+            logger.error(
+                "WOOCOMMERCE_WEBHOOK_SECRET not configured; "
+                "refusing woocommerce webhook request"
+            )
+            return jsonify({"error": "Webhook not configured"}), 503
+
+        provided = (request.headers.get("X-WooCommerce-Webhook-Secret") or "").strip()
+        if not hmac.compare_digest(provided.encode("utf-8"), expected_secret.encode("utf-8")):
             logger.warning("Invalid WooCommerce webhook secret")
             return jsonify({"error": "Invalid webhook secret"}), 401
 
@@ -3701,6 +3763,7 @@ def update_user_roles(user_id: str):
 
 
 @app.route("/forgot-password", methods=["POST"])
+@limiter.limit("5 per hour;20 per day")
 def forgot_password():
     """Handle password reset request for tenants"""
     try:
@@ -3787,6 +3850,7 @@ def forgot_password():
 
 @app.route("/activate", methods=["POST"])
 @app.route("/webhook/activate", methods=["POST"])
+@limiter.limit("10 per hour")
 def activate_tenant():  # noqa: C901
     """Activate tenant using activation code"""
     try:
@@ -4675,6 +4739,7 @@ def list_tenant_users():
 
 
 @app.route("/api/tenant/users/accept-invitation", methods=["POST"])
+@limiter.limit("10 per hour")
 def accept_invitation():  # noqa: C901
     """Accept an invitation and create user account"""
     try:
@@ -5070,9 +5135,17 @@ def register_tenant():
 def handle_tenant_deleted(tenant_id: str, payload: dict[str, Any]) -> tuple:
     """Handle tenant deletion event"""
     try:
+        # Defence in depth: even though `keycloak_webhook` now validates the
+        # tenant_id, this helper is still a public entry point in module scope.
+        if not _is_valid_tenant_id(tenant_id):
+            logger.warning(f"Refusing tenant deletion with invalid tenant_id: {tenant_id!r}")
+            return jsonify({"error": "Invalid tenant_id format"}), 400
+
         logger.info(f"Processing tenant deletion for: {tenant_id}")
 
-        # Clean up tenant resources
+        # Clean up tenant resources. Path is built only after the tenant_id
+        # passed regex validation above, so the f-string cannot escape the
+        # /app/scripts/ directory.
         cleanup_script = f"/app/scripts/cleanup-tenant-{tenant_id}.sh"
         if os.path.exists(cleanup_script):
             result = subprocess.run([cleanup_script], capture_output=True, text=True, timeout=120)
