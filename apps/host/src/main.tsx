@@ -30,7 +30,9 @@ import { initNKZRuntime } from './utils/nkzRuntime';
 
 // Design tokens & viewer kit (modules use as externals)
 (window as any).__NKZ_THEME__ = DesignTokens;
+(window as any).__NKZ_DESIGN_TOKENS__ = DesignTokens; // backward compat
 (window as any).__NKZ_VIEWER__ = ViewerKit;
+(window as any).__NKZ_VIEWER_KIT__ = ViewerKit; // backward compat
 
 // Initialize the module registration runtime (window.__NKZ__)
 initNKZRuntime();
