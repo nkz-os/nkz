@@ -23,6 +23,7 @@ from uuid import UUID
 from urllib.parse import quote, urlencode
 
 import psycopg2
+import pymongo
 import requests
 from flask import Flask, g, jsonify, make_response, request
 from flask_cors import CORS, cross_origin
@@ -128,6 +129,17 @@ if redis_password:
     REDIS_URL = f"redis://:{encoded_pass}@{redis_host}/0"
 else:
     REDIS_URL = os.getenv("REDIS_URL", f"redis://{redis_host}/0")
+
+# MongoDB configuration for Orion-LD tenant provisioning
+MONGODB_HOST = os.getenv("MONGODB_HOST", "mongodb-service")
+MONGODB_PORT = int(os.getenv("MONGODB_PORT", "27017"))
+MONGODB_USER = os.getenv("MONGODB_USER", "admin")
+MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD", "")
+MONGODB_AUTH_SOURCE = os.getenv("MONGODB_AUTH_SOURCE", "admin")
+MONGODB_URI = os.getenv(
+    "MONGODB_URI",
+    f"mongodb://{MONGODB_USER}:{MONGODB_PASSWORD}@{MONGODB_HOST}:{MONGODB_PORT}/?authSource={MONGODB_AUTH_SOURCE}",
+)
 
 try:
     limiter = Limiter(
@@ -1324,6 +1336,28 @@ class EnhancedTenantWebhookService:
             logger.error(f"Error finding Keycloak user by email {email}: {e}")
             return None
 
+    def _ensure_orion_tenant_db(self, tenant_id: str) -> bool:
+        """Create the Orion-LD MongoDB database for the tenant.
+
+        Orion-LD multi-tenancy requires a dedicated MongoDB database
+        (orion-<tenant_id>) with an 'entities' collection to exist before
+        any NGSI-LD operation.  Without it every request returns 404
+        NonExistingTenant.
+
+        Returns True on success, False on failure (non-fatal — the tenant
+        can still log in; Orion-LD access will fail until this is fixed).
+        """
+        try:
+            client = pymongo.MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+            db = client.get_database(f"orion-{tenant_id}")
+            if "entities" not in db.list_collection_names():
+                db.create_collection("entities")
+            logger.info(f"Orion-LD database ensured for tenant: {tenant_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to ensure Orion-LD DB for tenant {tenant_id}: {e}")
+            return False
+
     def create_tenant_resources(self, tenant_id: str, plan_info: dict[str, Any]) -> bool:
         """Create Kubernetes resources for the tenant with plan limits
 
@@ -1340,6 +1374,9 @@ class EnhancedTenantWebhookService:
                 error_msg = f"CRITICAL: Tenant creation script not found: {CREATE_TENANT_SCRIPT}"
                 logger.error(error_msg)
                 raise FileNotFoundError(error_msg)
+
+            # Ensure Orion-LD MongoDB database exists BEFORE K8s provisioning
+            self._ensure_orion_tenant_db(tenant_id)
 
             # Set environment variables for plan limits
             env_vars = {
@@ -4985,6 +5022,28 @@ def register_tenant():
 
             conn.commit()
             cursor.close()
+
+            # 6. Provision K8s resources (namespace, network policies, etc.)
+            #    and ensure Orion-LD MongoDB database exists
+            logger.info(f"Provisioning infrastructure for self-service tenant: {tenant_id}")
+            try:
+                webhook_service.create_tenant_resources(tenant_id, plan_info)
+                logger.info(f"Infrastructure provisioned for tenant: {tenant_id}")
+            except Exception as resource_err:
+                # K8s provisioning failed — log but don't block login.
+                # Tenant admin can retry from Settings or platform admin can fix.
+                logger.error(
+                    f"K8s provisioning failed for tenant {tenant_id}: {resource_err}. "
+                    "Tenant can log in but Orion-LD/K8s resources may be missing."
+                )
+
+            # 7. Generate API key (best-effort, don't block registration)
+            try:
+                api_key = webhook_service.generate_api_key(tenant_id)
+                if api_key:
+                    logger.info(f"API key generated for tenant: {tenant_id}")
+            except Exception as api_key_err:
+                logger.warning(f"API key generation failed for {tenant_id}: {api_key_err}")
 
             logger.info(f"Onboarding successful: Tenant {tenant_id} created for {email}")
 

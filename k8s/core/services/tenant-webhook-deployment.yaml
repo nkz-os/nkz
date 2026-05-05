@@ -153,6 +153,20 @@ spec:
               name: pat-internal-secret
               key: secret
               optional: true
+        # MongoDB credentials for Orion-LD tenant provisioning
+        - name: MONGODB_HOST
+          value: "mongodb-service"
+        - name: MONGODB_PORT
+          value: "27017"
+        - name: MONGODB_USER
+          value: "admin"
+        - name: MONGODB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secret
+              key: root-password
+        - name: MONGODB_AUTH_SOURCE
+          value: "admin"
         livenessProbe:
           httpGet:
             path: /health
