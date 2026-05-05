@@ -492,8 +492,11 @@ class EnhancedTenantWebhookService:
 
         # Map plan names to numeric levels if not explicitly provided
         if plan_level is None:
-            plan_hierarchy = {"basic": 0, "pro": 1, "premium": 2, "enterprise": 3}
-            plan_level = plan_hierarchy.get(plan.lower(), 0)
+            from tier_quotas import plan_level_for
+            try:
+                plan_level = plan_level_for(plan)
+            except KeyError:
+                plan_level = 0
 
         metadata_update = json.dumps({
             "primary_email": email_lower, 
@@ -1840,21 +1843,27 @@ def generate_activation_code():  # noqa: C901
         data = request.get_json()
         email = data.get("email")
         plan = data.get("plan", "basic")
-        duration_days = data.get("duration_days", 30)
+        duration_days = data.get("duration_days", 45)
         notes = data.get("notes", "")
         tenant_name = data.get("tenant_name")
 
         if not email:
             return jsonify({"error": "Email is required"}), 400
 
-        # Plan limits
-        plan_limits = {
-            "basic": {"max_users": 1, "max_robots": 3, "max_sensors": 10},
-            "premium": {"max_users": 5, "max_robots": 10, "max_sensors": 50},
-            "enterprise": {"max_users": 999, "max_robots": 999, "max_sensors": 999},
+        # Validate plan and get canonical quotas
+        from tier_quotas import quotas_for_tier, PLAN_LEVELS
+        plan_lower = plan.lower() if plan else "basic"
+        if plan_lower not in PLAN_LEVELS:
+            return jsonify({"error": f"Invalid plan: {plan}. Allowed: {list(PLAN_LEVELS)}"}), 400
+        q = quotas_for_tier(plan_lower)
+        limits = {
+            "max_users": q["max_users"],
+            "max_robots": q["max_robots"],
+            "max_sensors": q["max_sensors"],
+            "max_parcels": q["max_parcels"],
+            "max_area_hectares": float(q["max_area_hectares"]) if q["max_area_hectares"] is not None else None,
+            "max_entities_total": q["max_entities_total"],
         }
-
-        limits = plan_limits.get(plan, plan_limits["basic"])
         expires_at = datetime.utcnow() + timedelta(days=duration_days)
 
         # Generate activation code in format NEK-XXXX-XXXX-XXXX
@@ -2310,12 +2319,7 @@ def revoke_activation_code(code_id):
         return jsonify({"error": "Internal server error"}), 500
 
 
-_BILLING_PLAN_LEVELS = {
-    "basic": 0,
-    "pro": 1,
-    "premium": 1,
-    "enterprise": 2,
-}
+from tier_quotas import PLAN_LEVELS as _BILLING_PLAN_LEVELS
 
 
 _BILLING_ACTIVE_STATUSES = frozenset({"active", "trialing", "past_due"})
@@ -4901,7 +4905,7 @@ def register_tenant():
         email = data.get("email")
         organization_name = data.get("organization_name")
         password = data.get("password")
-        plan = data.get("plan", "pro")  # Defaults to pro for the 30-day trial
+        plan = data.get("plan", "pro")  # Defaults to pro for 45-day trial
 
         if not all([email, organization_name, password]):
             return jsonify({"error": "Email, organization name and password are required"}), 400
@@ -4913,8 +4917,23 @@ def register_tenant():
         if not conn:
             return jsonify({"error": "Database unavailable"}), 500
 
-        # 2. Setup initial limits (SOTA Matrix: Pro Trial)
-        limits = {"max_users": 10, "max_robots": 5, "max_sensors": 50, "duration": 30}
+        # Validate plan
+        plan_lower = plan.lower() if plan else "pro"
+        if plan_lower not in ("pro", "premium", "enterprise"):
+            return jsonify({"error": "Public registration restricted to pro/premium/enterprise. Basic requires NEK invitation code."}), 400
+
+        # 2. Setup initial limits from canonical tier quotas
+        from tier_quotas import quotas_for_tier
+        q = quotas_for_tier(plan_lower)
+        limits = {
+            "max_users": q["max_users"],
+            "max_robots": q["max_robots"],
+            "max_sensors": q["max_sensors"],
+            "max_parcels": q["max_parcels"],
+            "max_area_hectares": float(q["max_area_hectares"]) if q["max_area_hectares"] is not None else None,
+            "max_entities_total": q["max_entities_total"],
+            "duration": 45,
+        }
 
         try:
             # 3. Provision Tenant in DB
@@ -4953,13 +4972,15 @@ def register_tenant():
                 ), 500  # noqa: E501
 
             # 5. Set initial plan level in tenants table (SOTA Migration 058)
+            from tier_quotas import plan_level_for
+            plan_level = plan_level_for(plan_lower)
             cursor = conn.cursor()
             webhook_service._apply_admin_context(conn)
             cursor.execute(
                 """
                 UPDATE tenants SET plan_level = %s WHERE tenant_id = %s
             """,
-                (1 if plan == "pro" else 2 if plan == "enterprise" else 0, tenant_id),
+                (plan_level, tenant_id),
             )
 
             conn.commit()
