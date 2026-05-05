@@ -6143,9 +6143,8 @@ def toggle_module(module_id):
             
             # Get module details with governance fields
             cur.execute("""
-                SELECT id, name, display_name, module_type, required_plan_type, 
-                       pricing_tier, is_active
-                FROM marketplace_modules 
+                SELECT id, name, display_name, required_plan_level, is_active
+                FROM marketplace_modules
                 WHERE id = %s
             """, (module_id,))
             module = cur.fetchone()
@@ -6161,49 +6160,32 @@ def toggle_module(module_id):
             
             # Validate tenant can install this module (if installing, not uninstalling)
             if is_enabled:
-                # Get tenant plan_type
-                limits = get_limits_for_tenant(tenant_id) or {}
-                tenant_plan_type = limits.get('planType') or 'basic'
-                
-                # Fallback to PostgreSQL - check tenant plan
-                cur.execute("SELECT plan_type FROM tenants WHERE tenant_id = %s", (tenant_id,))
-                tenant_row = cur.fetchone()
-                if tenant_row and tenant_row.get('plan_type'):
-                    tenant_plan_type = tenant_row['plan_type']
-                
-                # CORE modules are always available
-                # PlatformAdmin can install any module regardless of plan requirements
                 is_platform_admin = 'PlatformAdmin' in user_roles
-                logger.info(f"[toggle_module] module_id={module_id}, user_roles={user_roles}, is_platform_admin={is_platform_admin}, module_type={module['module_type']}, required_plan={module.get('required_plan_type')}, tenant_plan={tenant_plan_type}")
-                
-                if module['module_type'] != 'CORE' and not is_platform_admin:
-                    # Check required_plan_type
-                    required_plan = module.get('required_plan_type')
-                    if required_plan:
-                        plan_hierarchy = {'basic': 1, 'premium': 2, 'enterprise': 3}
-                        tenant_level = plan_hierarchy.get(tenant_plan_type, 0)
-                        required_level = plan_hierarchy.get(required_plan, 999)
-                        
-                        if tenant_level < required_level:
-                            cur.close()
-                            # Improved error message with actionable information
-                            plan_names = {'basic': 'Básico', 'premium': 'Premium', 'enterprise': 'Enterprise'}
-                            required_plan_display = plan_names.get(required_plan, required_plan)
-                            current_plan_display = plan_names.get(tenant_plan_type, tenant_plan_type)
-                            
-                            return jsonify({
-                                'error': f'Plan insuficiente para instalar este módulo',
-                                'error_en': f'Insufficient plan to install this module',
-                                'message': f'Este módulo requiere un plan {required_plan_display}, pero tu tenant tiene plan {current_plan_display}. Contacta con el administrador de la plataforma para actualizar tu plan.',
-                                'message_en': f'This module requires a {required_plan_display} plan, but your tenant has a {current_plan_display} plan. Contact the platform administrator to upgrade your plan.',
-                                'reason': f'Tu plan actual ({current_plan_display}) no cumple el requisito del módulo ({required_plan_display})',
-                                'reason_en': f'Your current plan ({current_plan_display}) does not meet the module requirement ({required_plan_display})',
-                                'required_plan': required_plan,
-                                'current_plan': tenant_plan_type,
-                                'action_required': 'upgrade_plan',
-                                'help_text': 'Para instalar este módulo, necesitas actualizar tu plan. Si eres administrador de plataforma, deberías poder instalar módulos sin restricciones.',
-                                'help_text_en': 'To install this module, you need to upgrade your plan. If you are a platform administrator, you should be able to install modules without restrictions.'
-                            }), 403
+                logger.info(f"[toggle_module] module_id={module_id}, user_roles={user_roles}, "
+                            f"is_platform_admin={is_platform_admin}, "
+                            f"required_plan_level={module.get('required_plan_level')}")
+
+                if not is_platform_admin:
+                    cur.execute("SELECT plan_level FROM tenants WHERE tenant_id = %s", (tenant_id,))
+                    tenant_row = cur.fetchone()
+                    tenant_level = (tenant_row or {}).get('plan_level', 0) or 0
+                    required_level = module.get('required_plan_level') or 0
+
+                    from entity_manager_gating import can_tenant_install_module
+                    if not can_tenant_install_module(tenant_level, required_level):
+                        cur.close()
+                        from tier_quotas import LEVEL_TO_TIER
+                        tenant_tier = LEVEL_TO_TIER.get(tenant_level, 'basic')
+                        required_tier = LEVEL_TO_TIER.get(required_level, 'basic')
+                        return jsonify({
+                            'error': 'Plan insuficiente para instalar este módulo',
+                            'error_en': 'Insufficient plan to install this module',
+                            'reason': f'Este módulo requiere plan {required_tier}. Tu plan actual: {tenant_tier}.',
+                            'reason_en': f'This module requires {required_tier} plan. Your current plan: {tenant_tier}.',
+                            'required_plan': required_tier,
+                            'current_plan': tenant_tier,
+                            'action_required': 'upgrade_plan',
+                        }), 403
             
             # Check if installation exists
             cur.execute("""
@@ -6311,26 +6293,16 @@ def get_marketplace_modules():
                 plan_level = tenant_row['plan_level']
 
         # PlatformAdmin sees all, others see only active modules
-        if is_platform_admin:
-            query = """
-                SELECT id, name, display_name, description, version, author, 
-                       category, icon_url, is_active, required_roles, metadata,
-                       module_type, required_plan_type, pricing_tier, installation_restrictions,
-                       required_plan_level, created_at, updated_at
-                FROM marketplace_modules
-                ORDER BY display_name
-            """
-            cur.execute(query)
-        else:
-            query = """
-                SELECT id, name, display_name, description, version, author,
-                       category, icon_url, is_active, required_roles, metadata,
-                       module_type, required_plan_type, pricing_tier, required_plan_level
-                FROM marketplace_modules
-                WHERE is_active = true
-                ORDER BY display_name
-            """
-            cur.execute(query)
+        query = """
+            SELECT id, name, display_name, description, version, author,
+                   category, icon_url, is_active, required_roles, metadata,
+                   required_plan_level, created_at, updated_at
+            FROM marketplace_modules
+        """
+        if not is_platform_admin:
+            query += " WHERE is_active = true "
+        query += " ORDER BY display_name"
+        cur.execute(query)
         
         modules = cur.fetchall()
         cur.close()
@@ -6435,18 +6407,21 @@ def can_install_module(module_id):
         limits = get_limits_for_tenant(tenant_id) or {}
         tenant_plan_type = limits.get('planType') or 'basic'  # Default to basic if not set
         
-        # Get tenant plan_type from PostgreSQL as fallback
+        # Get tenant plan_type and plan_level from PostgreSQL
         conn = get_db_connection_simple()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT plan_type FROM tenants WHERE tenant_id = %s", (tenant_id,))
+        cur.execute("SELECT plan_type, plan_level FROM tenants WHERE tenant_id = %s", (tenant_id,))
         tenant_row = cur.fetchone()
-        if tenant_row and tenant_row.get('plan_type'):
-            tenant_plan_type = tenant_row['plan_type']
-        
+        if tenant_row:
+            if tenant_row.get('plan_type'):
+                tenant_plan_type = tenant_row['plan_type']
+            tenant_level_db = tenant_row.get('plan_level') or 0
+        else:
+            tenant_level_db = 0
+
         # Get module details
         cur.execute("""
-            SELECT id, name, display_name, module_type, required_plan_type, 
-                   pricing_tier, is_active, category
+            SELECT id, name, display_name, required_plan_level, is_active, category
             FROM marketplace_modules
             WHERE id = %s
         """, (module_id,))
@@ -6476,42 +6451,36 @@ def can_install_module(module_id):
             realm_access = payload.get('realm_access', {})
             user_roles = realm_access.get('roles', [])
         is_platform_admin = 'PlatformAdmin' in user_roles
-        
-        # CORE modules are always available
+
         # PlatformAdmin can install any module regardless of plan requirements
-        if module['module_type'] == 'CORE' or is_platform_admin:
+        if is_platform_admin:
             return jsonify({
                 'can_install': True,
-                'reason': 'CORE module - always available' if module['module_type'] == 'CORE' else 'PlatformAdmin - can install any module',
+                'reason': 'PlatformAdmin - can install any module',
                 'module': dict(module),
                 'tenant_plan': tenant_plan_type
             }), 200
-        
-        # Check required_plan_type
-        required_plan = module.get('required_plan_type')
-        if required_plan:
-            # Plan hierarchy: basic < premium < enterprise
-            plan_hierarchy = {'basic': 1, 'premium': 2, 'enterprise': 3}
-            tenant_level = plan_hierarchy.get(tenant_plan_type, 0)
-            required_level = plan_hierarchy.get(required_plan, 999)
-            
-            if tenant_level < required_level:
-                plan_names = {'basic': 'Básico', 'premium': 'Premium', 'enterprise': 'Enterprise'}
-                required_plan_display = plan_names.get(required_plan, required_plan)
-                current_plan_display = plan_names.get(tenant_plan_type, tenant_plan_type)
-                
-                return jsonify({
-                    'can_install': False,
-                    'reason': f'El módulo requiere plan {required_plan_display}, el tenant tiene plan {current_plan_display}',
-                    'reason_en': f'Module requires {required_plan_display} plan, tenant has {current_plan_display} plan',
-                    'message': f'Para instalar este módulo necesitas actualizar tu plan de {current_plan_display} a {required_plan_display}. Contacta con el administrador de la plataforma.',
-                    'message_en': f'To install this module you need to upgrade your plan from {current_plan_display} to {required_plan_display}. Contact the platform administrator.',
-                    'module': dict(module),
-                    'tenant_plan': tenant_plan_type,
-                    'required_plan': required_plan,
-                    'action_required': 'upgrade_plan'
-                }), 200
-        
+
+        # Check required_plan_level using canonical gating
+        required_level = module.get('required_plan_level') or 0
+        from entity_manager_gating import can_tenant_install_module
+        from tier_quotas import LEVEL_TO_TIER
+
+        if not can_tenant_install_module(tenant_level_db, required_level):
+            required_tier = LEVEL_TO_TIER.get(required_level, 'basic')
+            current_tier = LEVEL_TO_TIER.get(tenant_level_db, 'basic')
+            return jsonify({
+                'can_install': False,
+                'reason': f'El módulo requiere plan {required_tier}, el tenant tiene plan {current_tier}',
+                'reason_en': f'Module requires {required_tier} plan, tenant has {current_tier} plan',
+                'message': f'Para instalar este módulo necesitas actualizar tu plan de {current_tier} a {required_tier}. Contacta con el administrador de la plataforma.',
+                'message_en': f'To install this module you need to upgrade your plan from {current_tier} to {required_tier}. Contact the platform administrator.',
+                'module': dict(module),
+                'tenant_plan': current_tier,
+                'required_plan': required_tier,
+                'action_required': 'upgrade_plan'
+            }), 200
+
         # All checks passed
         return jsonify({
             'can_install': True,
