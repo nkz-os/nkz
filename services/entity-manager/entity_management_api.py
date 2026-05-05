@@ -1161,7 +1161,7 @@ def create_ndvi_job():
     max_cloud = data.get('maxCloudCoverage', 40)
 
     job_id = str(uuid.uuid4())
-    requested_by = (getattr(g, 'current_user', {}) or {}).get('email')
+    requested_by = getattr(g, 'email', None)
 
     # Attempt to fetch parcel area if not provided and parcelId available
     if parcel_id and area_hectares is None:
