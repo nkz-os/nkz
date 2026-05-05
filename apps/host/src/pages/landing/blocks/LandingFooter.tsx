@@ -2,6 +2,7 @@ import React from 'react';
 import { Globe } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { NkzAttribution } from '@/components/attribution/NkzAttribution';
+import { useCookieConsent } from '@/context/CookieConsentContext';
 
 interface Props {
   language: string;
@@ -19,12 +20,17 @@ export const LandingFooter: React.FC<Props> = ({
   onLanguageChange,
 }) => {
   const { t } = useI18n();
+  const { openPreferences } = useCookieConsent();
 
   return (
     <footer className="bg-[#0E1A14] text-[#A8B1AC]" style={{ padding: '5rem 2rem 3rem' }}>
       <div className="max-w-[1200px] mx-auto">
         <div className="mb-12">
-          <span className="text-[#FAFAF7] text-xl font-semibold">NKZ</span>
+          <img
+            src="/logo.svg"
+            alt="NKZ"
+            className="h-6 w-auto brightness-0 invert mb-2"
+          />
           <p className="text-sm mt-2">{t('landing_v2.footer_tagline')}</p>
         </div>
 
@@ -56,6 +62,25 @@ export const LandingFooter: React.FC<Props> = ({
               <li><a href={`mailto:${(window as any).__ENV__?.SUPPORT_EMAIL || 'info@nekazari.com'}`} className="hover:text-[#FAFAF7] transition-colors">{t('landing_v2.footer_col3_2')}</a></li>
               <li><a href="https://nkz-os.org/privacy" className="hover:text-[#FAFAF7] transition-colors" target="_blank" rel="noopener noreferrer">{t('landing_v2.footer_col3_3')}</a></li>
               <li><a href="https://nkz-os.org/terms" className="hover:text-[#FAFAF7] transition-colors" target="_blank" rel="noopener noreferrer">{t('landing_v2.footer_col3_4')}</a></li>
+              <li>
+                <button
+                  type="button"
+                  onClick={openPreferences}
+                  className="hover:text-[#FAFAF7] transition-colors bg-transparent border-0 cursor-pointer p-0 text-left text-[inherit] font-inherit"
+                >
+                  {t('layout.cookie_settings')}
+                </button>
+              </li>
+              <li>
+                <a
+                  href={t('cookies.policy_href')}
+                  className="hover:text-[#FAFAF7] transition-colors"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t('cookies.learn_more')}
+                </a>
+              </li>
             </ul>
           </div>
 

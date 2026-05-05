@@ -2,6 +2,7 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { Navigation } from '@/components/Navigation';
 import { CookieBanner } from '@/components/CookieBanner';
+import { useCookieConsent } from '@/context/CookieConsentContext';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { LoadingBar } from '@/components/loading/LoadingBar';
 import { LogOut, User } from 'lucide-react';
@@ -27,6 +28,7 @@ export const Layout: React.FC<LayoutProps> = ({
 }) => {
   const { user, logout } = useAuth();
   const { t } = useI18n();
+  const { openPreferences } = useCookieConsent();
 
   const handleLogout = () => {
     logout();
@@ -77,7 +79,14 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
             </div>
 
-            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+              <button
+                type="button"
+                onClick={openPreferences}
+                className="underline hover:text-gray-700 dark:hover:text-gray-200"
+              >
+                {t('layout.cookie_settings')}
+              </button>
               <NkzAttribution variant="core" />
             </div>
           </div>
