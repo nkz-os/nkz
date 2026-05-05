@@ -23,6 +23,7 @@ from uuid import UUID
 from urllib.parse import quote, urlencode
 
 import psycopg2
+import pymongo
 import requests
 from flask import Flask, g, jsonify, make_response, request
 from flask_cors import CORS, cross_origin
@@ -128,6 +129,17 @@ if redis_password:
     REDIS_URL = f"redis://:{encoded_pass}@{redis_host}/0"
 else:
     REDIS_URL = os.getenv("REDIS_URL", f"redis://{redis_host}/0")
+
+# MongoDB configuration for Orion-LD tenant provisioning
+MONGODB_HOST = os.getenv("MONGODB_HOST", "mongodb-service")
+MONGODB_PORT = int(os.getenv("MONGODB_PORT", "27017"))
+MONGODB_USER = os.getenv("MONGODB_USER", "admin")
+MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD", "")
+MONGODB_AUTH_SOURCE = os.getenv("MONGODB_AUTH_SOURCE", "admin")
+MONGODB_URI = os.getenv(
+    "MONGODB_URI",
+    f"mongodb://{MONGODB_USER}:{MONGODB_PASSWORD}@{MONGODB_HOST}:{MONGODB_PORT}/?authSource={MONGODB_AUTH_SOURCE}",
+)
 
 try:
     limiter = Limiter(
@@ -315,6 +327,40 @@ def _verify_internal_pat_secret() -> bool:
         return hmac.compare_digest(got.encode("utf-8"), expected.encode("utf-8"))
     except Exception:
         return False
+
+
+# Canonical tenant_id format used everywhere a tenant_id flows from an
+# external payload into a path, shell argument, or DB key. Mirrors the inline
+# regex in `internal_update_tenant_license`. 1-64 chars, alphanumerics with
+# `-` or `_`, must start with alphanumeric. Anything else is rejected as a
+# safety boundary against path/script injection.
+TENANT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+
+
+def _is_valid_tenant_id(tenant_id: Any) -> bool:
+    """Validate that a tenant_id received from an untrusted source is safe to
+    use as a filesystem path component, subprocess argument, or DB key."""
+    return isinstance(tenant_id, str) and bool(TENANT_ID_RE.match(tenant_id))
+
+
+def _verify_shared_secret(env_var: str, header_name: str) -> tuple[bool, int, str | None]:
+    """Constant-time verification of a shared secret carried in a header.
+
+    Returns (ok, status_code, error_message).
+    - If the env_var is unset/empty -> fail-closed 503 (endpoint not configured).
+    - If the header is missing or does not match -> 401.
+    - On match -> 200.
+    """
+    expected = (os.getenv(env_var) or "").strip()
+    if not expected:
+        return False, 503, f"{env_var} not configured"
+    got = (request.headers.get(header_name) or "").strip()
+    try:
+        if hmac.compare_digest(got.encode("utf-8"), expected.encode("utf-8")):
+            return True, 200, None
+    except Exception:
+        return False, 401, "Unauthorized"
+    return False, 401, "Unauthorized"
 
 
 def _verify_internal_billing_secret() -> bool:
@@ -1324,6 +1370,28 @@ class EnhancedTenantWebhookService:
             logger.error(f"Error finding Keycloak user by email {email}: {e}")
             return None
 
+    def _ensure_orion_tenant_db(self, tenant_id: str) -> bool:
+        """Create the Orion-LD MongoDB database for the tenant.
+
+        Orion-LD multi-tenancy requires a dedicated MongoDB database
+        (orion-<tenant_id>) with an 'entities' collection to exist before
+        any NGSI-LD operation.  Without it every request returns 404
+        NonExistingTenant.
+
+        Returns True on success, False on failure (non-fatal — the tenant
+        can still log in; Orion-LD access will fail until this is fixed).
+        """
+        try:
+            client = pymongo.MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+            db = client.get_database(f"orion-{tenant_id}")
+            if "entities" not in db.list_collection_names():
+                db.create_collection("entities")
+            logger.info(f"Orion-LD database ensured for tenant: {tenant_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to ensure Orion-LD DB for tenant {tenant_id}: {e}")
+            return False
+
     def create_tenant_resources(self, tenant_id: str, plan_info: dict[str, Any]) -> bool:
         """Create Kubernetes resources for the tenant with plan limits
 
@@ -1341,8 +1409,14 @@ class EnhancedTenantWebhookService:
                 logger.error(error_msg)
                 raise FileNotFoundError(error_msg)
 
-            # Set environment variables for plan limits
-            env_vars = {
+            # Ensure Orion-LD MongoDB database exists BEFORE K8s provisioning
+            self._ensure_orion_tenant_db(tenant_id)
+
+            # Build a per-call environment for the subprocess. Previously this
+            # mutated the parent process os.environ, which leaked tenant-scoped
+            # values across concurrent requests under multi-worker Flask.
+            proc_env = {
+                **os.environ,
                 "TENANT_ID": tenant_id,
                 "PLAN_TYPE": plan_info["plan"],
                 "MAX_USERS": str(plan_info["max_users"]),
@@ -1351,16 +1425,13 @@ class EnhancedTenantWebhookService:
                 "ACTIVATION_CODE": plan_info["code"],
             }
 
-            # Update environment for subprocess
-            for key, value in env_vars.items():
-                os.environ[key] = value
-
-            # Run the tenant creation script
+            # Run the tenant creation script with an isolated env per call
             result = subprocess.run(
                 [CREATE_TENANT_SCRIPT, tenant_id],
                 capture_output=True,
                 text=True,
                 timeout=600,  # 10 minutes timeout (increased for slow servers)
+                env=proc_env,
             )
 
             if result.returncode == 0:
@@ -1628,10 +1699,21 @@ def health_check():
 def keycloak_webhook():
     """Handle Keycloak webhook events"""
     try:
-        # Verify webhook secret
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or auth_header != f"Bearer {WEBHOOK_SECRET}":
-            logger.warning("Unauthorized webhook request")
+        # Fail-closed if the shared webhook secret is not configured. Without
+        # this, an empty WEBHOOK_SECRET would let `Bearer ` (or any non-empty
+        # token) authenticate, opening a tenant-creation surface to the world.
+        expected_secret = (WEBHOOK_SECRET or "").strip()
+        if not expected_secret:
+            logger.error("WEBHOOK_SECRET not configured; refusing keycloak webhook request")
+            return jsonify({"error": "Webhook not configured"}), 503
+
+        auth_header = request.headers.get("Authorization") or ""
+        if not auth_header.startswith("Bearer "):
+            logger.warning("Unauthorized webhook request: missing Bearer token")
+            return jsonify({"error": "Unauthorized"}), 401
+        provided = auth_header[len("Bearer "):].strip().encode("utf-8")
+        if not hmac.compare_digest(provided, expected_secret.encode("utf-8")):
+            logger.warning("Unauthorized webhook request: token mismatch")
             return jsonify({"error": "Unauthorized"}), 401
 
         # Parse webhook payload
@@ -1649,6 +1731,12 @@ def keycloak_webhook():
         if not tenant_id:
             logger.warning("No tenant_id found in webhook payload")
             return jsonify({"error": "Missing tenant_id"}), 400
+
+        # Reject malformed tenant_id before it reaches handlers that use it
+        # as a path component or subprocess argument.
+        if not _is_valid_tenant_id(tenant_id):
+            logger.warning(f"Rejected webhook with invalid tenant_id format: {tenant_id!r}")
+            return jsonify({"error": "Invalid tenant_id format"}), 400
 
         if event_type == "TENANT_CREATED":
             return handle_tenant_created(tenant_id, payload)
@@ -1669,9 +1757,20 @@ def keycloak_webhook():
 def woocommerce_webhook():  # noqa: C901
     """Handle WooCommerce order completion and create tenant with activation code"""
     try:
-        # Verify webhook secret
-        webhook_secret = request.headers.get("X-WooCommerce-Webhook-Secret")
-        if WOOCOMMERCE_WEBHOOK_SECRET and webhook_secret != WOOCOMMERCE_WEBHOOK_SECRET:
+        # Fail-closed when the WooCommerce shared secret is not configured.
+        # Previously, an empty WOOCOMMERCE_WEBHOOK_SECRET silently disabled
+        # the auth check and accepted any POST, which is a public
+        # tenant-creation surface.
+        expected_secret = (WOOCOMMERCE_WEBHOOK_SECRET or "").strip()
+        if not expected_secret:
+            logger.error(
+                "WOOCOMMERCE_WEBHOOK_SECRET not configured; "
+                "refusing woocommerce webhook request"
+            )
+            return jsonify({"error": "Webhook not configured"}), 503
+
+        provided = (request.headers.get("X-WooCommerce-Webhook-Secret") or "").strip()
+        if not hmac.compare_digest(provided.encode("utf-8"), expected_secret.encode("utf-8")):
             logger.warning("Invalid WooCommerce webhook secret")
             return jsonify({"error": "Invalid webhook secret"}), 401
 
@@ -1712,19 +1811,33 @@ def woocommerce_webhook():  # noqa: C901
         # Generate activation code
         activation_code = f"NEK-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}-{secrets.token_hex(2).upper()}"  # noqa: E501
 
-        # Plan limits
-        plan_limits = {
-            "basic": {"max_users": 1, "max_robots": 3, "max_sensors": 10, "duration": 30},
-            "premium": {"max_users": 5, "max_robots": 10, "max_sensors": 50, "duration": 30},
-            "enterprise": {
-                "max_users": 999,
-                "max_robots": 999,
-                "max_sensors": 999,
-                "duration": 365,
-            },
-        }
+        # Plan limits — quotas come from the canonical SSOT
+        # (services/common/tier_quotas.py). Activation-code expiration
+        # windows are not part of the SSOT and stay tier-mapped here.
+        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
 
-        limits = plan_limits.get(plan, plan_limits["basic"])
+        plan_lower = plan.lower() if plan else "basic"
+        if plan_lower not in PLAN_LEVELS:
+            logger.warning(
+                f"WooCommerce webhook produced unknown plan {plan!r}; falling back to basic"
+            )
+            plan_lower = "basic"
+        plan = plan_lower
+        q = quotas_for_tier(plan_lower)
+        # Trial duration per tier; not in SSOT because it's an
+        # activation-code concept, not a quota.
+        duration_days_by_tier = {
+            "basic": 30,
+            "pro": 45,
+            "premium": 30,
+            "enterprise": 365,
+        }
+        limits = {
+            "max_users": q["max_users"],
+            "max_robots": q["max_robots"],
+            "max_sensors": q["max_sensors"],
+            "duration": duration_days_by_tier.get(plan_lower, 30),
+        }
         expires_at = datetime.utcnow() + timedelta(days=limits["duration"])
 
         # Store activation code in database
@@ -3087,17 +3200,25 @@ def create_tenant_directly():
             normalized_name = webhook_service._normalize_tenant_slug(fallback) or "tenant"
         tenant_id = f"tenant-{normalized_name}"
 
-        # Plan limits
-        plan_limits = {
-            "basic": {"max_users": 1, "max_robots": 3, "max_sensors": 10},
-            "premium": {"max_users": 5, "max_robots": 10, "max_sensors": 50},
-            "enterprise": {"max_users": 999, "max_robots": 999, "max_sensors": 999},
-        }
+        # Validate plan against the canonical SSOT
+        # (services/common/tier_quotas.py). Reject unknown plans rather
+        # than silently downgrading to basic so PlatformAdmin actions are
+        # explicit; this also unblocks creating "pro" tenants which the
+        # previous hardcoded mapping did not support.
+        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+
+        plan_lower = plan.lower() if plan else "basic"
+        if plan_lower not in PLAN_LEVELS:
+            return jsonify(
+                {"error": f"Invalid plan: {plan}. Allowed: {list(PLAN_LEVELS)}"}
+            ), 400
+        plan = plan_lower
+        q = quotas_for_tier(plan_lower)
         plan_info = {
-            "plan": plan,
-            "max_users": plan_limits.get(plan, plan_limits["basic"])["max_users"],
-            "max_robots": plan_limits.get(plan, plan_limits["basic"])["max_robots"],
-            "max_sensors": plan_limits.get(plan, plan_limits["basic"])["max_sensors"],
+            "plan": plan_lower,
+            "max_users": q["max_users"],
+            "max_robots": q["max_robots"],
+            "max_sensors": q["max_sensors"],
             "code": "ADMIN_CREATED",
         }
 
@@ -3664,6 +3785,7 @@ def update_user_roles(user_id: str):
 
 
 @app.route("/forgot-password", methods=["POST"])
+@limiter.limit("5 per hour;20 per day")
 def forgot_password():
     """Handle password reset request for tenants"""
     try:
@@ -3750,6 +3872,7 @@ def forgot_password():
 
 @app.route("/activate", methods=["POST"])
 @app.route("/webhook/activate", methods=["POST"])
+@limiter.limit("10 per hour")
 def activate_tenant():  # noqa: C901
     """Activate tenant using activation code"""
     try:
@@ -4637,9 +4760,62 @@ def list_tenant_users():
         return jsonify({"error": f"Failed to list users: {str(e)}"}), 500
 
 
+def _delete_keycloak_user_best_effort(user_id: str, context: str) -> None:
+    """Best-effort compensation: delete an orphan Keycloak user.
+
+    Used when Keycloak user creation succeeded but a subsequent step
+    (DB INSERT, UPDATE, commit) failed. Failures here are logged but never
+    raised; the orphan must be cleaned up by an operator if compensation
+    itself fails.
+    """
+    try:
+        token = webhook_service.get_keycloak_token()
+        if not token:
+            logger.error(
+                f"[{context}] Cannot compensate orphan Keycloak user {user_id}: "
+                "no admin token available"
+            )
+            return
+        keycloak_url = webhook_service._get_keycloak_base_url()
+        resp = requests.delete(
+            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+        if resp.status_code in (200, 204, 404):
+            logger.info(
+                f"[{context}] Compensated orphan Keycloak user {user_id} "
+                f"(status {resp.status_code})"
+            )
+        else:
+            logger.error(
+                f"[{context}] Failed to compensate orphan Keycloak user "
+                f"{user_id}: {resp.status_code} {resp.text}"
+            )
+    except Exception as exc:
+        logger.error(
+            f"[{context}] Exception compensating orphan Keycloak user "
+            f"{user_id}: {exc}"
+        )
+
+
 @app.route("/api/tenant/users/accept-invitation", methods=["POST"])
+@limiter.limit("10 per hour")
 def accept_invitation():  # noqa: C901
-    """Accept an invitation and create user account"""
+    """Accept an invitation and create user account.
+
+    Ordering is Keycloak-first: all DB validations are read-only until we
+    have a confirmed Keycloak user. Only then do we INSERT into farmers and
+    UPDATE the invitation row in a single committed transaction. If any
+    write step fails after the Keycloak user was created, we rollback the
+    DB transaction AND issue a best-effort DELETE on the orphan Keycloak
+    user so the same invitation code can be retried cleanly.
+    """
+    conn = None
+    cursor = None
+    # When non-None at the time an exception is raised, identifies a Keycloak
+    # user we created in this request that needs compensation.
+    orphan_kc_user_id: str | None = None
     try:
         data = request.get_json()
         if not data:
@@ -4657,143 +4833,133 @@ def accept_invitation():  # noqa: C901
             return jsonify({"error": "Password is required and must be at least 8 characters"}), 400
 
         conn = webhook_service.get_db_connection()
+        if not conn:
+            return jsonify({"error": "Database unavailable"}), 500
         cursor = conn.cursor()
 
-        # Get invitation
+        # ---- Read-only validations (no side effects yet) ------------------
         cursor.execute(
             """
             SELECT id, tenant_id, email, role, invited_by, status, expires_at
             FROM tenant_invitations
             WHERE invitation_code = %s
-        """,
+            """,
             (invitation_code,),
         )
-
         invitation = cursor.fetchone()
-
         if not invitation:
-            cursor.close()
-            conn.close()
             return jsonify({"error": "Invalid invitation code"}), 404
 
         inv_id, tenant_id, email, role, invited_by, status, expires_at = invitation
 
-        # Check status
         if status != "pending":
-            cursor.close()
-            conn.close()
             return jsonify({"error": f"Invitation is {status}"}), 400
 
-        # Check expiration
+        # The expired-invitation flag is the one safe write before we have a
+        # KC user: it commits a status change on a row we already determined
+        # cannot be accepted, with no other side effects.
         if expires_at and expires_at < datetime.utcnow():
             cursor.execute(
-                """
-                UPDATE tenant_invitations SET status = 'expired' WHERE id = %s
-            """,
+                "UPDATE tenant_invitations SET status = 'expired' WHERE id = %s",
                 (inv_id,),
             )
             conn.commit()
-            cursor.close()
-            conn.close()
             return jsonify({"error": "Invitation has expired"}), 400
 
-        # Check if user already exists
-        cursor.execute(
-            """
-            SELECT id FROM farmers WHERE email = %s
-        """,
-            (email,),
-        )
-        existing_user = cursor.fetchone()
-
-        if existing_user:
-            cursor.close()
-            conn.close()
+        cursor.execute("SELECT id FROM farmers WHERE email = %s", (email,))
+        if cursor.fetchone():
             return jsonify({"error": "User already exists"}), 400
 
-        # Get tenant info
         cursor.execute(
-            """
-            SELECT tenant_name, plan_type, max_users FROM tenants WHERE tenant_id = %s
-        """,
+            "SELECT tenant_name, plan_type, max_users FROM tenants WHERE tenant_id = %s",
             (tenant_id,),
         )
         tenant_info = cursor.fetchone()
-
         if not tenant_info:
-            cursor.close()
-            conn.close()
             return jsonify({"error": "Tenant not found"}), 404
-
         tenant_name, plan_type, max_users = tenant_info
 
-        # Check tenant limits
         cursor.execute(
-            """
-            SELECT COUNT(*) FROM farmers WHERE tenant_id = %s
-        """,
+            "SELECT COUNT(*) FROM farmers WHERE tenant_id = %s",
             (tenant_id,),
         )
         current_users = cursor.fetchone()[0]
-
         if current_users >= max_users:
-            cursor.close()
-            conn.close()
-            return jsonify({"error": f"Tenant has reached maximum users limit ({max_users})"}), 400
+            return jsonify(
+                {"error": f"Tenant has reached maximum users limit ({max_users})"}
+            ), 400
 
-        # Create user in farmers table
-        import bcrypt
-
-        password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-        cursor.execute(
-            """
-            INSERT INTO farmers (tenant_id, email, password_hash, first_name, last_name, is_active, is_verified)
-            VALUES (%s, %s, %s, %s, %s, true, true)
-            RETURNING id
-        """,
-            (tenant_id, email, password_hash, first_name, last_name),
-        )  # noqa: E501
-
-        farmer_id = cursor.fetchone()[0]  # noqa: F841
-
-        # Create user in Keycloak
-        plan_info = {"plan": plan_type, "max_users": max_users, "max_robots": 3, "max_sensors": 10}
-
+        # ---- Keycloak-first: create identity before any DB write ----------
+        plan_info = {
+            "plan": plan_type,
+            "max_users": max_users,
+            "max_robots": 3,
+            "max_sensors": 10,
+        }
         keycloak_result = webhook_service.create_keycloak_user(
-            email=email, tenant_id=tenant_id, plan_info=plan_info, password=password, is_owner=False
+            email=email,
+            tenant_id=tenant_id,
+            plan_info=plan_info,
+            password=password,
+            is_owner=False,
         )
-
         if not keycloak_result.get("success"):
-            cursor.rollback()
-            cursor.close()
-            conn.close()
+            # No DB writes in this transaction yet; finally-block will close
+            # the connection cleanly without needing a rollback.
             return jsonify(
                 {"error": f"Failed to create Keycloak user: {keycloak_result.get('error')}"}
-            ), 500  # noqa: E501
+            ), 500
+        orphan_kc_user_id = keycloak_result.get("user_id")
 
-        # Assign role to user
-        user_id_kc = keycloak_result.get("user_id")
-        if user_id_kc:
-            webhook_service._assign_role_to_user(
+        # Assign role best-effort. Failure here does not invalidate the
+        # account: the user is still in the tenant group with the
+        # group-level roles assigned by `create_keycloak_user`.
+        if orphan_kc_user_id:
+            role_assigned = webhook_service._assign_role_to_user(
                 {"Authorization": f"Bearer {webhook_service.get_keycloak_token()}"},
-                user_id_kc,
+                orphan_kc_user_id,
                 role,
             )
+            if not role_assigned:
+                logger.warning(
+                    f"Failed to assign role {role} to Keycloak user "
+                    f"{orphan_kc_user_id}; user is created but may need manual fix"
+                )
 
-        # Mark invitation as accepted
+        # ---- DB writes in a single transaction ----------------------------
+        import bcrypt
+
+        password_hash = bcrypt.hashpw(
+            password.encode("utf-8"), bcrypt.gensalt()
+        ).decode("utf-8")
+
         cursor.execute(
             """
-            UPDATE tenant_invitations 
+            INSERT INTO farmers (
+                tenant_id, email, password_hash, first_name, last_name,
+                is_active, is_verified
+            )
+            VALUES (%s, %s, %s, %s, %s, true, true)
+            RETURNING id
+            """,
+            (tenant_id, email, password_hash, first_name, last_name),
+        )
+        cursor.fetchone()  # consume RETURNING id
+
+        cursor.execute(
+            """
+            UPDATE tenant_invitations
             SET status = 'accepted', accepted_at = %s
             WHERE id = %s
-        """,
+            """,
             (datetime.utcnow(), inv_id),
         )
 
         conn.commit()
-        cursor.close()
-        conn.close()
+        # Past this point the Keycloak user is no longer orphan; clear the
+        # compensation flag so the except/finally blocks don't undo a
+        # successful registration.
+        orphan_kc_user_id = None
 
         logger.info(f"User {email} accepted invitation and joined tenant {tenant_id}")
 
@@ -4807,8 +4973,31 @@ def accept_invitation():  # noqa: C901
         ), 201
 
     except Exception as e:
-        logger.error(f"Error accepting invitation: {e}")
+        logger.exception(f"Error accepting invitation: {e}")
+        # Rollback any DB writes that may have run in the open transaction.
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception as rb_err:
+                logger.error(f"accept_invitation: rollback failed: {rb_err}")
+        # Compensate the Keycloak side if we created a user that did not
+        # complete its DB counterpart.
+        if orphan_kc_user_id:
+            _delete_keycloak_user_best_effort(orphan_kc_user_id, "accept_invitation")
         return jsonify({"error": f"Failed to accept invitation: {str(e)}"}), 500
+    finally:
+        # Cursor and connection cleanup is unconditional. Each close is
+        # guarded so a failure on one does not skip the other.
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @app.route("/api/tenant/users/<user_id>", methods=["DELETE"])
@@ -4986,6 +5175,28 @@ def register_tenant():
             conn.commit()
             cursor.close()
 
+            # 6. Provision K8s resources (namespace, network policies, etc.)
+            #    and ensure Orion-LD MongoDB database exists
+            logger.info(f"Provisioning infrastructure for self-service tenant: {tenant_id}")
+            try:
+                webhook_service.create_tenant_resources(tenant_id, plan_info)
+                logger.info(f"Infrastructure provisioned for tenant: {tenant_id}")
+            except Exception as resource_err:
+                # K8s provisioning failed — log but don't block login.
+                # Tenant admin can retry from Settings or platform admin can fix.
+                logger.error(
+                    f"K8s provisioning failed for tenant {tenant_id}: {resource_err}. "
+                    "Tenant can log in but Orion-LD/K8s resources may be missing."
+                )
+
+            # 7. Generate API key (best-effort, don't block registration)
+            try:
+                api_key = webhook_service.generate_api_key(tenant_id)
+                if api_key:
+                    logger.info(f"API key generated for tenant: {tenant_id}")
+            except Exception as api_key_err:
+                logger.warning(f"API key generation failed for {tenant_id}: {api_key_err}")
+
             logger.info(f"Onboarding successful: Tenant {tenant_id} created for {email}")
 
             return jsonify(
@@ -5011,9 +5222,17 @@ def register_tenant():
 def handle_tenant_deleted(tenant_id: str, payload: dict[str, Any]) -> tuple:
     """Handle tenant deletion event"""
     try:
+        # Defence in depth: even though `keycloak_webhook` now validates the
+        # tenant_id, this helper is still a public entry point in module scope.
+        if not _is_valid_tenant_id(tenant_id):
+            logger.warning(f"Refusing tenant deletion with invalid tenant_id: {tenant_id!r}")
+            return jsonify({"error": "Invalid tenant_id format"}), 400
+
         logger.info(f"Processing tenant deletion for: {tenant_id}")
 
-        # Clean up tenant resources
+        # Clean up tenant resources. Path is built only after the tenant_id
+        # passed regex validation above, so the f-string cannot escape the
+        # /app/scripts/ directory.
         cleanup_script = f"/app/scripts/cleanup-tenant-{tenant_id}.sh"
         if os.path.exists(cleanup_script):
             result = subprocess.run([cleanup_script], capture_output=True, text=True, timeout=120)
