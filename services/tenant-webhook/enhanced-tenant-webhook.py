@@ -492,7 +492,7 @@ class EnhancedTenantWebhookService:
 
         # Map plan names to numeric levels if not explicitly provided
         if plan_level is None:
-            from tier_quotas import plan_level_for
+            from common.tier_quotas import plan_level_for
             try:
                 plan_level = plan_level_for(plan)
             except KeyError:
@@ -1851,7 +1851,7 @@ def generate_activation_code():  # noqa: C901
             return jsonify({"error": "Email is required"}), 400
 
         # Validate plan and get canonical quotas
-        from tier_quotas import quotas_for_tier, PLAN_LEVELS
+        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
         plan_lower = plan.lower() if plan else "basic"
         if plan_lower not in PLAN_LEVELS:
             return jsonify({"error": f"Invalid plan: {plan}. Allowed: {list(PLAN_LEVELS)}"}), 400
@@ -2319,7 +2319,7 @@ def revoke_activation_code(code_id):
         return jsonify({"error": "Internal server error"}), 500
 
 
-from tier_quotas import PLAN_LEVELS as _BILLING_PLAN_LEVELS
+from common.tier_quotas import PLAN_LEVELS as _BILLING_PLAN_LEVELS
 
 
 _BILLING_ACTIVE_STATUSES = frozenset({"active", "trialing", "past_due"})
@@ -4923,7 +4923,7 @@ def register_tenant():
             return jsonify({"error": "Public registration restricted to pro/premium/enterprise. Basic requires NEK invitation code."}), 400
 
         # 2. Setup initial limits from canonical tier quotas
-        from tier_quotas import quotas_for_tier
+        from common.tier_quotas import quotas_for_tier
         q = quotas_for_tier(plan_lower)
         limits = {
             "max_users": q["max_users"],
@@ -4972,7 +4972,7 @@ def register_tenant():
                 ), 500  # noqa: E501
 
             # 5. Set initial plan level in tenants table (SOTA Migration 058)
-            from tier_quotas import plan_level_for
+            from common.tier_quotas import plan_level_for
             plan_level = plan_level_for(plan_lower)
             cursor = conn.cursor()
             webhook_service._apply_admin_context(conn)

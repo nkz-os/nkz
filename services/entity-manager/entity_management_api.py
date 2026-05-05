@@ -6256,7 +6256,7 @@ def toggle_module(module_id):
                     from entity_manager_gating import can_tenant_install_module
                     if not can_tenant_install_module(tenant_level, required_level):
                         cur.close()
-                        from tier_quotas import LEVEL_TO_TIER
+                        from common.tier_quotas import LEVEL_TO_TIER
                         tenant_tier = LEVEL_TO_TIER.get(tenant_level, 'basic')
                         required_tier = LEVEL_TO_TIER.get(required_level, 'basic')
                         return jsonify({
@@ -6546,7 +6546,7 @@ def can_install_module(module_id):
         # Check required_plan_level using canonical gating
         required_level = module.get('required_plan_level') or 0
         from entity_manager_gating import can_tenant_install_module
-        from tier_quotas import LEVEL_TO_TIER
+        from common.tier_quotas import LEVEL_TO_TIER
 
         if not can_tenant_install_module(tenant_level_db, required_level):
             required_tier = LEVEL_TO_TIER.get(required_level, 'basic')
