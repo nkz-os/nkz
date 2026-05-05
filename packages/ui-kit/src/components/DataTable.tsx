@@ -87,7 +87,7 @@ export function DataTable<TData extends Record<string, unknown>>({
                   onClick={header.column.getToggleSortingHandler()}
                 >
                   <span className="inline-flex items-center gap-nkz-tight">
-                    {flexRender(header.column.columnDef.header, header.getContext())}
+                    <>{flexRender(header.column.columnDef.header, header.getContext())}</>
                     {{
                       asc: <span className="text-nkz-accent-base">{'▲'}</span>,
                       desc: <span className="text-nkz-accent-base">{'▼'}</span>,
@@ -116,7 +116,7 @@ export function DataTable<TData extends Record<string, unknown>>({
                     rowHeightClasses[density]
                   )}
                 >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  <>{flexRender(cell.column.columnDef.cell, cell.getContext())}</>
                 </td>
               ))}
             </tr>

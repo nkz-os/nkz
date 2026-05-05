@@ -387,17 +387,19 @@ _ensure_tenant_limits_table()
 
 
 def _get_limits_from_db(tenant: str):
-    """Read tenant limits from PostgreSQL."""
+    """Read tenant limits from PostgreSQL (admin_platform.tenant_limits + tenants)."""
     conn = get_db_connection_simple()
     if not conn:
         return None
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT plan_type, max_users, max_robots, max_sensors, max_area_hectares "
-            "FROM admin_platform.tenant_limits WHERE tenant_id = %s",
-            (tenant,)
-        )
+        cursor.execute("""
+            SELECT tl.plan_type, tl.max_users, tl.max_robots, tl.max_sensors,
+                   tl.max_area_hectares, t.max_parcels, t.max_entities_total
+            FROM admin_platform.tenant_limits tl
+            LEFT JOIN tenants t ON t.tenant_id = tl.tenant_id
+            WHERE tl.tenant_id = %s
+        """, (tenant,))
         row = cursor.fetchone()
         cursor.close()
         if not row:
@@ -408,6 +410,8 @@ def _get_limits_from_db(tenant: str):
             'maxRobots': row[2],
             'maxSensors': row[3],
             'maxAreaHectares': row[4],
+            'maxParcels': row[5],
+            'maxEntitiesTotal': row[6],
         }
     except Exception:
         return None
@@ -635,6 +639,39 @@ def _count_entities_by_type(entity_type, tenant):
     except Exception:
         pass
     return None
+
+def _count_all_entities(tenant: str) -> Optional[int]:
+    """Return total entity count for a tenant via Orion-LD count header. Returns None on failure."""
+    try:
+        url = f"{ORION_URL}/ngsi-ld/v1/entities?limit=0&count=true"
+        headers = {'Accept': 'application/json'}
+        headers = inject_fiware_headers(headers, tenant)
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code not in (200, 204):
+            logger.warning(f"_count_all_entities: Orion returned {resp.status_code}")
+            return None
+        total_str = resp.headers.get('Fiware-Total-Count', '0')
+        return int(total_str)
+    except Exception as e:
+        logger.error(f"_count_all_entities failed: {e}")
+        return None
+
+
+def _check_entity_total_limit(current_count, max_total):
+    """Return True if creating an entity is allowed (within aggregate cap), False if denied."""
+    if max_total is None or int(max_total) < 0:
+        return True
+    if current_count is None:
+        return True  # Can't verify count, allow
+    return current_count < int(max_total)
+
+
+def _check_parcel_count_limit(current_count, max_parcels):
+    """Return True if creating a parcel is allowed (within parcel count limit), False if denied."""
+    if max_parcels is None or int(max_parcels) < 0:
+        return True
+    return current_count < int(max_parcels)
+
 
 def _sum_parcel_area(entity_type, tenant):
     """Suma el área (hectáreas) de todas las parcelas de un tipo para un tenant."""
@@ -1986,6 +2023,21 @@ def create_instance(entity_type):
         max_robots = int(limits.get('maxRobots') or MAX_ROBOTS)
         max_sensors = int(limits.get('maxSensors') or MAX_SENSORS)
         max_area = float(limits.get('maxAreaHectares') or MAX_AREA_HECTARES)
+        max_parcels = limits.get('maxParcels')  # None = unlimited
+        max_entities_total = limits.get('maxEntitiesTotal')  # None = unlimited
+
+        # Aggregate entity cap (Task 6: max_entities_total counts ALL entity types)
+        if max_entities_total is not None:
+            total_count = _count_all_entities(tenant)
+            if not _check_entity_total_limit(total_count, max_entities_total):
+                return jsonify({
+                    'error': 'Entities total limit exceeded',
+                    'error_en': 'Entities total limit exceeded',
+                    'limit': int(max_entities_total),
+                    'current': total_count,
+                    'message': f'Tu plan permite un máximo de {max_entities_total} entidades. Actualiza a Pro para aumentar el límite.',
+                    'message_en': f'Your plan allows up to {max_entities_total} entities. Upgrade to Pro to increase the limit.',
+                }), 403
 
         # Límite de robots - contar todos los tipos de robots
         if entity_type in ROBOT_ENTITY_TYPES and max_robots < 999999:
@@ -2005,6 +2057,21 @@ def create_instance(entity_type):
                     sensors_total += count
             if sensors_total >= max_sensors:
                 return jsonify({'error': 'Sensor limit exceeded', 'limit': max_sensors, 'current': sensors_total}), 403
+        # Parcel count limit (Task 5: max_parcels limits number of parcels regardless of area)
+        if entity_type in PARCEL_ENTITY_TYPES and max_parcels is not None and int(max_parcels) >= 0:
+            parcels_total = 0
+            for ptype in PARCEL_ENTITY_TYPES:
+                count = _count_entities_by_type(ptype, tenant)
+                if count is not None:
+                    parcels_total += count
+            if not _check_parcel_count_limit(parcels_total, max_parcels):
+                return jsonify({
+                    'error': 'Parcel count limit exceeded',
+                    'error_en': 'Parcel count limit exceeded',
+                    'limit': int(max_parcels),
+                    'current': parcels_total,
+                }), 403
+
         # Límite de superficie (ha) para parcelas
         if entity_type in PARCEL_ENTITY_TYPES and max_area < 1000000000:
             new_area = _extract_number(entity_data.get('area'))
@@ -2151,6 +2218,8 @@ def api_get_tenant_limits():
             'maxRobots': int(limits.get('maxRobots') or 0) if limits.get('maxRobots') is not None else None,
             'maxSensors': int(limits.get('maxSensors') or 0) if limits.get('maxSensors') is not None else None,
             'maxAreaHectares': float(limits.get('maxAreaHectares') or 0.0) if limits.get('maxAreaHectares') is not None else None,
+            'maxParcels': int(limits.get('maxParcels') or 0) if limits.get('maxParcels') is not None else None,
+            'maxEntitiesTotal': int(limits.get('maxEntitiesTotal') or 0) if limits.get('maxEntitiesTotal') is not None else None,
             'defaults': {
                 'maxUsers': None,
                 'maxRobots': int(os.getenv('MAX_ROBOTS', '999999')),
@@ -2191,12 +2260,16 @@ def api_get_tenant_usage():
             'maxRobots': _safe_int(limits_raw.get('maxRobots')),
             'maxSensors': _safe_int(limits_raw.get('maxSensors')),
             'maxAreaHectares': _safe_float(limits_raw.get('maxAreaHectares')),
+            'maxParcels': _safe_int(limits_raw.get('maxParcels')),
+            'maxEntitiesTotal': _safe_int(limits_raw.get('maxEntitiesTotal')),
         }
 
         percentages = {}
         robots_limit = limits_payload.get('maxRobots') or 0
         sensors_limit = limits_payload.get('maxSensors') or 0
         area_limit = limits_payload.get('maxAreaHectares') or 0.0
+        parcels_limit = limits_payload.get('maxParcels') or 0
+        entities_limit = limits_payload.get('maxEntitiesTotal') or 0
 
         if robots_limit > 0:
             percentages['robots'] = min(100.0, (usage['robots'] / robots_limit) * 100)
@@ -2204,6 +2277,15 @@ def api_get_tenant_usage():
             percentages['sensors'] = min(100.0, (usage['sensors'] / sensors_limit) * 100)
         if area_limit > 0:
             percentages['areaHectares'] = min(100.0, (usage['areaHectares'] / area_limit) * 100)
+        if parcels_limit > 0:
+            percentages['parcels'] = min(100.0, (usage['parcels'] / parcels_limit) * 100)
+        if entities_limit > 0:
+            total_entities = _count_all_entities(tenant)
+            if total_entities is not None:
+                percentages['entities'] = min(100.0, (total_entities / entities_limit) * 100)
+
+        # Compute total entities for usage
+        usage['totalEntities'] = _count_all_entities(tenant)
 
         return jsonify({
             'tenant': tenant,
@@ -6143,9 +6225,8 @@ def toggle_module(module_id):
             
             # Get module details with governance fields
             cur.execute("""
-                SELECT id, name, display_name, module_type, required_plan_type, 
-                       pricing_tier, is_active
-                FROM marketplace_modules 
+                SELECT id, name, display_name, required_plan_level, is_active
+                FROM marketplace_modules
                 WHERE id = %s
             """, (module_id,))
             module = cur.fetchone()
@@ -6161,49 +6242,32 @@ def toggle_module(module_id):
             
             # Validate tenant can install this module (if installing, not uninstalling)
             if is_enabled:
-                # Get tenant plan_type
-                limits = get_limits_for_tenant(tenant_id) or {}
-                tenant_plan_type = limits.get('planType') or 'basic'
-                
-                # Fallback to PostgreSQL - check tenant plan
-                cur.execute("SELECT plan_type FROM tenants WHERE tenant_id = %s", (tenant_id,))
-                tenant_row = cur.fetchone()
-                if tenant_row and tenant_row.get('plan_type'):
-                    tenant_plan_type = tenant_row['plan_type']
-                
-                # CORE modules are always available
-                # PlatformAdmin can install any module regardless of plan requirements
                 is_platform_admin = 'PlatformAdmin' in user_roles
-                logger.info(f"[toggle_module] module_id={module_id}, user_roles={user_roles}, is_platform_admin={is_platform_admin}, module_type={module['module_type']}, required_plan={module.get('required_plan_type')}, tenant_plan={tenant_plan_type}")
-                
-                if module['module_type'] != 'CORE' and not is_platform_admin:
-                    # Check required_plan_type
-                    required_plan = module.get('required_plan_type')
-                    if required_plan:
-                        plan_hierarchy = {'basic': 1, 'premium': 2, 'enterprise': 3}
-                        tenant_level = plan_hierarchy.get(tenant_plan_type, 0)
-                        required_level = plan_hierarchy.get(required_plan, 999)
-                        
-                        if tenant_level < required_level:
-                            cur.close()
-                            # Improved error message with actionable information
-                            plan_names = {'basic': 'Básico', 'premium': 'Premium', 'enterprise': 'Enterprise'}
-                            required_plan_display = plan_names.get(required_plan, required_plan)
-                            current_plan_display = plan_names.get(tenant_plan_type, tenant_plan_type)
-                            
-                            return jsonify({
-                                'error': f'Plan insuficiente para instalar este módulo',
-                                'error_en': f'Insufficient plan to install this module',
-                                'message': f'Este módulo requiere un plan {required_plan_display}, pero tu tenant tiene plan {current_plan_display}. Contacta con el administrador de la plataforma para actualizar tu plan.',
-                                'message_en': f'This module requires a {required_plan_display} plan, but your tenant has a {current_plan_display} plan. Contact the platform administrator to upgrade your plan.',
-                                'reason': f'Tu plan actual ({current_plan_display}) no cumple el requisito del módulo ({required_plan_display})',
-                                'reason_en': f'Your current plan ({current_plan_display}) does not meet the module requirement ({required_plan_display})',
-                                'required_plan': required_plan,
-                                'current_plan': tenant_plan_type,
-                                'action_required': 'upgrade_plan',
-                                'help_text': 'Para instalar este módulo, necesitas actualizar tu plan. Si eres administrador de plataforma, deberías poder instalar módulos sin restricciones.',
-                                'help_text_en': 'To install this module, you need to upgrade your plan. If you are a platform administrator, you should be able to install modules without restrictions.'
-                            }), 403
+                logger.info(f"[toggle_module] module_id={module_id}, user_roles={user_roles}, "
+                            f"is_platform_admin={is_platform_admin}, "
+                            f"required_plan_level={module.get('required_plan_level')}")
+
+                if not is_platform_admin:
+                    cur.execute("SELECT plan_level FROM tenants WHERE tenant_id = %s", (tenant_id,))
+                    tenant_row = cur.fetchone()
+                    tenant_level = (tenant_row or {}).get('plan_level', 0) or 0
+                    required_level = module.get('required_plan_level') or 0
+
+                    from entity_manager_gating import can_tenant_install_module
+                    if not can_tenant_install_module(tenant_level, required_level):
+                        cur.close()
+                        from common.tier_quotas import LEVEL_TO_TIER
+                        tenant_tier = LEVEL_TO_TIER.get(tenant_level, 'basic')
+                        required_tier = LEVEL_TO_TIER.get(required_level, 'basic')
+                        return jsonify({
+                            'error': 'Plan insuficiente para instalar este módulo',
+                            'error_en': 'Insufficient plan to install this module',
+                            'reason': f'Este módulo requiere plan {required_tier}. Tu plan actual: {tenant_tier}.',
+                            'reason_en': f'This module requires {required_tier} plan. Your current plan: {tenant_tier}.',
+                            'required_plan': required_tier,
+                            'current_plan': tenant_tier,
+                            'action_required': 'upgrade_plan',
+                        }), 403
             
             # Check if installation exists
             cur.execute("""
@@ -6311,26 +6375,16 @@ def get_marketplace_modules():
                 plan_level = tenant_row['plan_level']
 
         # PlatformAdmin sees all, others see only active modules
-        if is_platform_admin:
-            query = """
-                SELECT id, name, display_name, description, version, author, 
-                       category, icon_url, is_active, required_roles, metadata,
-                       module_type, required_plan_type, pricing_tier, installation_restrictions,
-                       required_plan_level, created_at, updated_at
-                FROM marketplace_modules
-                ORDER BY display_name
-            """
-            cur.execute(query)
-        else:
-            query = """
-                SELECT id, name, display_name, description, version, author,
-                       category, icon_url, is_active, required_roles, metadata,
-                       module_type, required_plan_type, pricing_tier, required_plan_level
-                FROM marketplace_modules
-                WHERE is_active = true
-                ORDER BY display_name
-            """
-            cur.execute(query)
+        query = """
+            SELECT id, name, display_name, description, version, author,
+                   category, icon_url, is_active, required_roles, metadata,
+                   required_plan_level, created_at, updated_at
+            FROM marketplace_modules
+        """
+        if not is_platform_admin:
+            query += " WHERE is_active = true "
+        query += " ORDER BY display_name"
+        cur.execute(query)
         
         modules = cur.fetchall()
         cur.close()
@@ -6435,18 +6489,21 @@ def can_install_module(module_id):
         limits = get_limits_for_tenant(tenant_id) or {}
         tenant_plan_type = limits.get('planType') or 'basic'  # Default to basic if not set
         
-        # Get tenant plan_type from PostgreSQL as fallback
+        # Get tenant plan_type and plan_level from PostgreSQL
         conn = get_db_connection_simple()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT plan_type FROM tenants WHERE tenant_id = %s", (tenant_id,))
+        cur.execute("SELECT plan_type, plan_level FROM tenants WHERE tenant_id = %s", (tenant_id,))
         tenant_row = cur.fetchone()
-        if tenant_row and tenant_row.get('plan_type'):
-            tenant_plan_type = tenant_row['plan_type']
-        
+        if tenant_row:
+            if tenant_row.get('plan_type'):
+                tenant_plan_type = tenant_row['plan_type']
+            tenant_level_db = tenant_row.get('plan_level') or 0
+        else:
+            tenant_level_db = 0
+
         # Get module details
         cur.execute("""
-            SELECT id, name, display_name, module_type, required_plan_type, 
-                   pricing_tier, is_active, category
+            SELECT id, name, display_name, required_plan_level, is_active, category
             FROM marketplace_modules
             WHERE id = %s
         """, (module_id,))
@@ -6476,42 +6533,36 @@ def can_install_module(module_id):
             realm_access = payload.get('realm_access', {})
             user_roles = realm_access.get('roles', [])
         is_platform_admin = 'PlatformAdmin' in user_roles
-        
-        # CORE modules are always available
+
         # PlatformAdmin can install any module regardless of plan requirements
-        if module['module_type'] == 'CORE' or is_platform_admin:
+        if is_platform_admin:
             return jsonify({
                 'can_install': True,
-                'reason': 'CORE module - always available' if module['module_type'] == 'CORE' else 'PlatformAdmin - can install any module',
+                'reason': 'PlatformAdmin - can install any module',
                 'module': dict(module),
                 'tenant_plan': tenant_plan_type
             }), 200
-        
-        # Check required_plan_type
-        required_plan = module.get('required_plan_type')
-        if required_plan:
-            # Plan hierarchy: basic < premium < enterprise
-            plan_hierarchy = {'basic': 1, 'premium': 2, 'enterprise': 3}
-            tenant_level = plan_hierarchy.get(tenant_plan_type, 0)
-            required_level = plan_hierarchy.get(required_plan, 999)
-            
-            if tenant_level < required_level:
-                plan_names = {'basic': 'Básico', 'premium': 'Premium', 'enterprise': 'Enterprise'}
-                required_plan_display = plan_names.get(required_plan, required_plan)
-                current_plan_display = plan_names.get(tenant_plan_type, tenant_plan_type)
-                
-                return jsonify({
-                    'can_install': False,
-                    'reason': f'El módulo requiere plan {required_plan_display}, el tenant tiene plan {current_plan_display}',
-                    'reason_en': f'Module requires {required_plan_display} plan, tenant has {current_plan_display} plan',
-                    'message': f'Para instalar este módulo necesitas actualizar tu plan de {current_plan_display} a {required_plan_display}. Contacta con el administrador de la plataforma.',
-                    'message_en': f'To install this module you need to upgrade your plan from {current_plan_display} to {required_plan_display}. Contact the platform administrator.',
-                    'module': dict(module),
-                    'tenant_plan': tenant_plan_type,
-                    'required_plan': required_plan,
-                    'action_required': 'upgrade_plan'
-                }), 200
-        
+
+        # Check required_plan_level using canonical gating
+        required_level = module.get('required_plan_level') or 0
+        from entity_manager_gating import can_tenant_install_module
+        from common.tier_quotas import LEVEL_TO_TIER
+
+        if not can_tenant_install_module(tenant_level_db, required_level):
+            required_tier = LEVEL_TO_TIER.get(required_level, 'basic')
+            current_tier = LEVEL_TO_TIER.get(tenant_level_db, 'basic')
+            return jsonify({
+                'can_install': False,
+                'reason': f'El módulo requiere plan {required_tier}, el tenant tiene plan {current_tier}',
+                'reason_en': f'Module requires {required_tier} plan, tenant has {current_tier} plan',
+                'message': f'Para instalar este módulo necesitas actualizar tu plan de {current_tier} a {required_tier}. Contacta con el administrador de la plataforma.',
+                'message_en': f'To install this module you need to upgrade your plan from {current_tier} to {required_tier}. Contact the platform administrator.',
+                'module': dict(module),
+                'tenant_plan': current_tier,
+                'required_plan': required_tier,
+                'action_required': 'upgrade_plan'
+            }), 200
+
         # All checks passed
         return jsonify({
             'can_install': True,

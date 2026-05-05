@@ -209,6 +209,32 @@ def filter_roles(roles: List[str], user_is_platform_admin: bool) -> List[str]:
     return [role for role in roles if role in TENANT_ADMIN_ASSIGNABLE_ROLES]
 
 
+def count_users_for_tenant(tenant_id: str) -> int:
+    """Count Keycloak users with tenant_id attribute matching the given tenant.
+
+    Uses the q parameter for attribute-based search (Keycloak 15+).
+    Returns 0 on failure (fail-open) — better to allow creation than falsely block.
+    """
+    admin_token = keycloak.get_admin_token()
+    if not admin_token:
+        raise Exception("Failed to get Keycloak admin token")
+
+    search_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
+    params = {'q': f'tenant_id:{tenant_id}', 'max': 2000, 'briefRepresentation': 'true'}
+    response = requests.get(
+        search_url,
+        headers={'Authorization': f'Bearer {admin_token}'},
+        params=params,
+        timeout=10
+    )
+    if response.status_code != 200:
+        logger.warning(f"Keycloak user search for tenant {tenant_id} returned {response.status_code}")
+        return 0  # fail-open
+
+    users = response.json()
+    return len(users)
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""
@@ -296,6 +322,39 @@ def create_user(user_info: Dict[str, Any], tenant: str):
         if not filtered_roles:
             return jsonify({'error': 'No valid roles specified. You can only assign Farmer and TechnicalConsultant roles.'}), 400
         
+        # Check max_users quota before creating
+        try:
+            conn = psycopg2.connect(POSTGRES_URL)
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT max_users FROM tenants WHERE tenant_id = %s", (tenant,))
+                row = cur.fetchone()
+                cur.close()
+                max_users = row[0] if row else None
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Failed to query max_users for tenant {tenant}: {e}")
+            max_users = None
+
+        # If max_users is NULL (Enterprise/unlimited), skip check
+        if max_users is not None:
+            try:
+                current_count = count_users_for_tenant(tenant)
+            except Exception as e:
+                logger.warning(f"Failed to count users for tenant {tenant}: {e}")
+                current_count = 0  # fail-open -- don't block if we can't count
+
+            if current_count >= int(max_users):
+                return jsonify({
+                    'error': 'User limit exceeded',
+                    'error_en': 'User limit exceeded',
+                    'limit': int(max_users),
+                    'current': current_count,
+                    'message': f'Has alcanzado el máximo de usuarios de tu plan ({max_users}). Actualiza tu plan para añadir más.',
+                    'message_en': f'You have reached the user limit for your plan ({max_users}). Upgrade your plan to add more users.',
+                }), 403
+
         admin_token = keycloak.get_admin_token()
         if not admin_token:
             return jsonify({'error': 'Failed to get admin token'}), 500
