@@ -420,6 +420,10 @@ class TestAdminRoutes:
             ("GET", "/api/admin/audit-logs", 200),
         ],
     )
+    # Patch blueprint namespaces so extracted routes see the same mocks
+    @patch("blueprints.admin.return_db_connection")
+    @patch("blueprints.admin.get_db_connection_with_tenant")
+    @patch("blueprints.admin.get_db_connection_simple")
     @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
@@ -428,6 +432,9 @@ class TestAdminRoutes:
         mock_db_simple,
         mock_db_tenant,
         mock_req,
+        mock_bp_db_simple,
+        mock_bp_db_tenant,
+        mock_bp_return_db,
         client,
         method,
         path,
@@ -436,6 +443,8 @@ class TestAdminRoutes:
         conn = _make_db_conn()
         mock_db_simple.return_value = conn
         mock_db_tenant.return_value = conn
+        mock_bp_db_simple.return_value = conn
+        mock_bp_db_tenant.return_value = conn
         r = client.open(path, method=method)
         assert r.status_code == expected_status, f"{method} {path} got {r.status_code}"
         r.get_json()
@@ -676,6 +685,8 @@ class TestSensorRoutes:
             ("GET", "/api/devices/test-device/commands", 200),
         ],
     )
+    @patch("blueprints.sensors.get_db_connection_with_tenant")
+    @patch("blueprints.sensors.get_db_connection_simple")
     @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
@@ -684,6 +695,8 @@ class TestSensorRoutes:
         mock_db_simple,
         mock_db_tenant,
         mock_req,
+        mock_bp_db_simple,
+        mock_bp_db_tenant,
         client,
         method,
         path,
@@ -692,18 +705,24 @@ class TestSensorRoutes:
         conn = _make_db_conn()
         mock_db_tenant.return_value = conn
         mock_db_simple.return_value = conn
+        mock_bp_db_tenant.return_value = conn
+        mock_bp_db_simple.return_value = conn
         r = client.open(path, method=method)
         assert r.status_code in (expected_status, 500), (
             f"{method} {path} got {r.status_code}"
         )
         r.get_json()
 
+    @patch("blueprints.sensors.get_db_connection_with_tenant")
+    @patch("blueprints.sensors.get_db_connection_simple")
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
-    def test_register_sensor_ok(self, mock_db_simple, mock_db_tenant, client):
+    def test_register_sensor_ok(self, mock_db_simple, mock_db_tenant, mock_bp_db_simple, mock_bp_db_tenant, client):
         conn = _make_db_conn()
         mock_db_tenant.return_value = conn
         mock_db_simple.return_value = conn
+        mock_bp_db_tenant.return_value = conn
+        mock_bp_db_simple.return_value = conn
         r = client.post(
             "/api/sensors/register",
             content_type="application/json",
@@ -721,9 +740,12 @@ class TestSensorRoutes:
         )
         r.get_json()
 
+    @patch("blueprints.sensors.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_with_tenant")
-    def test_post_command_ok(self, mock_db, client):
-        mock_db.return_value = _make_db_conn()
+    def test_post_command_ok(self, mock_db, mock_bp_db, client):
+        conn = _make_db_conn()
+        mock_db.return_value = conn
+        mock_bp_db.return_value = conn
         r = client.post(
             "/api/devices/test-device/commands",
             content_type="application/json",
@@ -734,8 +756,9 @@ class TestSensorRoutes:
         )
         r.get_json()
 
-    @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
-    def test_heartbeat_ok(self, mock_get, client):
+    @patch("blueprints.sensors.psycopg2.connect")
+    def test_heartbeat_ok(self, mock_conn, client):
+        mock_conn.return_value = _make_db_conn()
         r = client.get("/api/heartbeat/check")
         assert r.status_code in (200, 400, 500, 503), (
             f"GET heartbeat got {r.status_code}"
@@ -772,14 +795,14 @@ class TestAssetRoutes:
             ("GET", "/api/assets/public", 200),
         ],
     )
+    @patch("blueprints.assets.get_assets_s3_client")
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
-    @patch("entity_management_api.get_assets_s3_client")
     def test_get_ok(
         self,
-        mock_s3,
         mock_db_simple,
         mock_db_tenant,
+        mock_s3,
         client,
         method,
         path,
@@ -908,6 +931,9 @@ class TestModuleRoutes:
             ("GET", "/api/modules/test/health", 200),
         ],
     )
+    @patch("blueprints.modules.return_db_connection")
+    @patch("blueprints.modules.get_db_connection_with_tenant")
+    @patch("blueprints.modules.get_db_connection_simple")
     @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
@@ -916,6 +942,9 @@ class TestModuleRoutes:
         mock_db_simple,
         mock_db_tenant,
         mock_req,
+        mock_bp_db_simple,
+        mock_bp_db_tenant,
+        mock_bp_return_db,
         client,
         method,
         path,
@@ -924,6 +953,8 @@ class TestModuleRoutes:
         conn = _make_db_conn()
         mock_db_tenant.return_value = conn
         mock_db_simple.return_value = conn
+        mock_bp_db_tenant.return_value = conn
+        mock_bp_db_simple.return_value = conn
         r = client.open(path, method=method)
         assert r.status_code in (expected_status, 500, 503), (
             f"{method} {path} got {r.status_code}"
@@ -931,13 +962,17 @@ class TestModuleRoutes:
         if r.status_code == expected_status:
             r.get_json()
 
+    @patch("blueprints.modules.get_db_connection_with_tenant")
+    @patch("blueprints.modules.get_db_connection_simple")
     @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
-    def test_toggle_module_ok(self, mock_db_simple, mock_db_tenant, mock_req, client):
+    def test_toggle_module_ok(self, mock_db_simple, mock_db_tenant, mock_req, mock_bp_db_simple, mock_bp_db_tenant, client):
         conn = _make_db_conn()
         mock_db_tenant.return_value = conn
         mock_db_simple.return_value = conn
+        mock_bp_db_tenant.return_value = conn
+        mock_bp_db_simple.return_value = conn
         r = client.post(
             "/api/modules/test/toggle",
             content_type="application/json",
@@ -946,12 +981,11 @@ class TestModuleRoutes:
         assert r.status_code in (200, 403, 500), f"POST toggle got {r.status_code}"
         r.get_json()
 
-    @patch("entity_management_api.get_db_connection_with_tenant")
-    @patch("entity_management_api.get_db_connection_simple")
-    def test_activate_module_ok(self, mock_db_simple, mock_db_tenant, client):
+    @patch("blueprints.modules.return_db_connection")
+    @patch("blueprints.modules.get_db_connection_simple")
+    def test_activate_module_ok(self, mock_bp_db_simple, mock_bp_return_db, client):
         conn = _make_db_conn()
-        mock_db_tenant.return_value = conn
-        mock_db_simple.return_value = conn
+        mock_bp_db_simple.return_value = conn
         r = client.post(
             "/api/modules/test/activate",
             content_type="application/json",
@@ -960,12 +994,12 @@ class TestModuleRoutes:
         assert r.status_code in (200, 201, 500), f"POST activate got {r.status_code}"
         r.get_json()
 
-    @patch("entity_management_api.get_db_connection_with_tenant")
-    @patch("entity_management_api.get_db_connection_simple")
-    def test_put_visibility_ok(self, mock_db_simple, mock_db_tenant, client):
+    @patch("blueprints.modules.get_db_connection_with_tenant")
+    @patch("blueprints.modules.get_db_connection_simple")
+    def test_put_visibility_ok(self, mock_bp_db_simple, mock_bp_db_tenant, client):
         conn = _make_db_conn()
-        mock_db_tenant.return_value = conn
-        mock_db_simple.return_value = conn
+        mock_bp_db_tenant.return_value = conn
+        mock_bp_db_simple.return_value = conn
         r = client.put(
             "/api/modules/visibility",
             content_type="application/json",
@@ -974,8 +1008,12 @@ class TestModuleRoutes:
         assert r.status_code in (200, 500), f"PUT visibility got {r.status_code}"
         r.get_json()
 
-    @patch("entity_management_api.ModuleUploadService")
-    def test_upload_module_ok(self, mock_svc, client):
+    @patch("blueprints.modules.ModuleUploadService")
+    @patch("blueprints.modules.get_db_connection_simple")
+    @patch("blueprints.modules.return_db_connection")
+    def test_upload_module_ok(self, mock_bp_return_db, mock_bp_db, mock_svc, client):
+        conn = _make_db_conn()
+        mock_bp_db.return_value = conn
         instance = MagicMock()
         instance.validate_and_store_upload.return_value = (
             {"uploadId": "test-upload"},
@@ -989,9 +1027,14 @@ class TestModuleRoutes:
         )
         assert r.status_code in (201, 200, 400, 500), f"POST upload got {r.status_code}"
 
-    @patch("entity_management_api.get_db_connection_simple")
-    def test_register_validated_ok(self, mock_db, client):
-        mock_db.return_value = _make_db_conn()
+    @patch("blueprints.modules.ModuleUploadService")
+    @patch("blueprints.modules.get_db_connection_simple")
+    @patch("blueprints.modules.return_db_connection")
+    def test_register_validated_ok(self, mock_bp_return_db, mock_bp_db, mock_svc, client):
+        mock_bp_db.return_value = _make_db_conn()
+        instance = MagicMock()
+        instance.register_module_in_database.return_value = True
+        mock_svc.return_value = instance
         r = client.post(
             "/api/internal/modules/register-validated",
             content_type="application/json",
@@ -1005,13 +1048,11 @@ class TestModuleRoutes:
         )
         r.get_json()
 
-    @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
-    @patch("entity_management_api.get_db_connection_with_tenant")
-    @patch("entity_management_api.get_db_connection_simple")
-    def test_deploy_module_ok(self, mock_db_simple, mock_db_tenant, mock_req, client):
-        conn = _make_db_conn()
-        mock_db_tenant.return_value = conn
-        mock_db_simple.return_value = conn
+    @patch("blueprints.modules.ModuleUploadService")
+    def test_deploy_module_ok(self, mock_svc, client):
+        instance = MagicMock()
+        instance.deploy_module_assets_to_server.return_value = (True, "Deployed")
+        mock_svc.return_value = instance
         r = client.post(
             "/api/modules/test/deploy",
             content_type="application/json",

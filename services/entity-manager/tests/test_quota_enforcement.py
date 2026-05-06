@@ -74,7 +74,7 @@ sys.modules["parcel_sync"] = MagicMock()
 sys.modules["module_metrics"] = MagicMock()
 sys.modules["module_upload_service"] = MagicMock()
 
-from entity_management_api import _check_entity_total_limit, _check_parcel_count_limit  # noqa: E402
+from helpers import _check_entity_total_limit, _check_parcel_count_limit  # noqa: E402
 
 
 def test_basic_tenant_blocked_at_total_entities():
