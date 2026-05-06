@@ -1016,6 +1016,7 @@ class EnhancedTenantWebhookService:
         is_owner: bool = False,
         first_name: str = "",
         last_name: str = "",
+        fail_if_exists: bool = False,
     ) -> dict[str, Any]:  # noqa: C901, E501
         """Create user in Keycloak with tenant group
 
@@ -1055,6 +1056,14 @@ class EnhancedTenantWebhookService:
             if search_response.status_code == 200:
                 existing_users = search_response.json()
                 if existing_users and len(existing_users) > 0:
+                    if fail_if_exists:
+                        logger.warning(f"Registration aborted: User {email} already exists.")
+                        return {
+                            "success": False,
+                            "error": "Email already registered",
+                            "conflict": True
+                        }
+
                     # User already exists, use existing user_id
                     user_id = existing_users[0]["id"]
                     logger.info(
@@ -5354,9 +5363,12 @@ def register_tenant():
                 is_owner=True,
                 first_name=data.get("first_name") or data.get("firstName") or "",
                 last_name=data.get("last_name") or data.get("lastName") or "",
+                fail_if_exists=True,
             )
 
             if not kc_result.get("success"):
+                if kc_result.get("conflict"):
+                    return jsonify({"error": "El email ya está registrado"}), 409
                 return jsonify(
                     {"error": f"Identity creation failed: {kc_result.get('error')}"}
                 ), 500  # noqa: E501
