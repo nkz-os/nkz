@@ -16,8 +16,7 @@ import psycopg2
 import requests
 import paho.mqtt.client as mqtt
 
-from common.auth_middleware import require_auth
-from common import inject_fiware_headers
+from common.auth_middleware import require_auth, inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple
 
 # Import shared config

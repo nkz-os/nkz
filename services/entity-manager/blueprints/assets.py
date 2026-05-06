@@ -15,8 +15,7 @@ import requests
 import boto3
 from botocore.exceptions import ClientError
 
-from common.auth_middleware import require_auth
-from common import inject_fiware_headers
+from common.auth_middleware import require_auth, inject_fiware_headers
 
 logger = logging.getLogger(__name__)
 
