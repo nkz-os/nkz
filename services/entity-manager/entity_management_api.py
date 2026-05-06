@@ -2266,7 +2266,7 @@ def create_asset():
     try:
         # Verify permissions
         user_roles = _get_user_roles()
-if not any(role in ['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant'] for role in user_roles):
+        if not any(role in ['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant'] for role in user_roles):
             return jsonify({'error': 'Insufficient permissions. Only TechnicalConsultant or higher can create assets.'}), 403
         
         data = request.get_json()
