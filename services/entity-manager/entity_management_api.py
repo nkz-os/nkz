@@ -1341,9 +1341,8 @@ def register_sensor():
             }
             orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
 
-            orion_response = requests.post(orion_url, json=orion_entity, headers=orion_headers, timeout=10)
-
             orion_entity_created = False
+            orion_response = requests.post(orion_url, json=orion_entity, headers=orion_headers, timeout=10)
             if orion_response.status_code in [200, 201]:
                 orion_entity_created = True
                 logger.info(f"Created Orion-LD entity {orion_entity_id} for sensor {external_id}")
