@@ -276,6 +276,13 @@ def inject_fiware_headers(headers, tenant=None):
     headers["Content-Type"] = "application/ld+json"
     headers["Accept"] = "application/ld+json"
 
+    # Link header as fallback @context for NGSI-LD compliance
+    # When Content-Type is application/ld+json, @context in body takes precedence.
+    # Link header provides a fallback for parsers that check it.
+    context_url = os.getenv("CONTEXT_URL", "")
+    if context_url:
+        headers["Link"] = f'<{context_url}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+
     return headers
 
 

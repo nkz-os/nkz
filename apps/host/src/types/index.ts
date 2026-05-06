@@ -337,65 +337,6 @@ export interface GeoPolygon {
   coordinates: number[][][];
 }
 
-export interface NDVIJob {
-  id: string;
-  parcelId?: string | null;
-  status: 'pending' | 'queued' | 'processing' | 'completed' | 'failed';
-  requestedBy?: string | null;
-  requestedAt?: string | null;
-  startedAt?: string | null;
-  finishedAt?: string | null;
-  timeRange?: {
-    from?: string | null;
-    to?: string | null;
-  };
-  resolution?: number | null;
-  satellite?: string | null;
-  ndviMean?: number | null;
-  previewUrl?: string | null;
-  error?: string | null;
-  parameters?: Record<string, any> | null;
-  geometry?: GeoPolygon | null;
-  areaHectares?: number | null;
-  jobType?: 'parcel' | 'manual' | string;
-  progressMessage?: string | null;
-  estimatedSecondsRemaining?: number | null;
-}
-
-export interface NDVIResult {
-  id: string;
-  jobId?: string | null;
-  parcelId?: string | null;
-  date?: string | null;
-  ndviMean?: number | null;
-  ndviMin?: number | null;
-  ndviMax?: number | null;
-  ndviStddev?: number | null;
-  cloudCover?: number | null;
-  rasterUrl?: string | null;
-  previewUrl?: string | null;
-  createdAt?: string | null;
-  geometry?: GeoPolygon | null;
-  areaHectares?: number | null;
-  indicesData?: {
-    [key: string]: {
-      mean?: number | null;
-      min?: number | null;
-      max?: number | null;
-      stddev?: number | null;
-      p10?: number | null;
-      p90?: number | null;
-      median?: number | null;
-      histogram?: {
-        bins: number[];
-        counts: number[];
-        percentages: number[];
-        total_pixels: number;
-      } | null;
-    };
-  } | null;
-}
-
 // =============================================================================
 // Risk Management Types
 // =============================================================================
