@@ -19,8 +19,8 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any
-from uuid import UUID
 from urllib.parse import quote, urlencode
+from uuid import UUID
 
 import psycopg2
 import pymongo
@@ -88,12 +88,15 @@ except ImportError as e:
 # Import audit logger
 try:
     from audit_logger import audit_log
+
     AUDIT_AVAILABLE = True
 except ImportError:
     logger.warning("audit_logger not available, audit logging disabled")
     AUDIT_AVAILABLE = False
+
     def audit_log(*args, **kwargs):
         pass
+
 
 # Import Grafana manager
 try:
@@ -116,6 +119,16 @@ except ImportError:
     k8s_config = None  # type: ignore
     ApiException = Exception  # type: ignore
     K8S_ENABLED = False
+
+# Canonical SSOT for billing plan levels. Imported at module level (and
+# not inline within `internal_update_tenant_license`) so the alias is
+# exported as a stable attribute that tests can grab via the module
+# object — see `tests/test_tier_quotas_ssot.py::test_billing_plan_levels_alias_resolves_to_ssot`.
+try:
+    from common.tier_quotas import PLAN_LEVELS as _BILLING_PLAN_LEVELS
+except ImportError:
+    logger.warning("common.tier_quotas not available; billing plan validation disabled")
+    _BILLING_PLAN_LEVELS = {}  # type: ignore[assignment]
 
 app = Flask(__name__)
 
@@ -261,8 +274,7 @@ def require_platform_admin(f):  # noqa: C901
                     "error": "Token validation failed",
                     "details": str(e),
                     "suggestion": (
-                        "Your token may have expired. "
-                        "Please refresh the page and try again."
+                        "Your token may have expired. Please refresh the page and try again."
                     ),
                 }
             ), 401
@@ -579,16 +591,19 @@ class EnhancedTenantWebhookService:
         # Map plan names to numeric levels if not explicitly provided
         if plan_level is None:
             from common.tier_quotas import plan_level_for
+
             try:
                 plan_level = plan_level_for(plan)
             except KeyError:
                 plan_level = 0
 
-        metadata_update = json.dumps({
-            "primary_email": email_lower, 
-            "activation_source": source,
-            "assigned_plan_level": plan_level
-        })
+        metadata_update = json.dumps(
+            {
+                "primary_email": email_lower,
+                "activation_source": source,
+                "assigned_plan_level": plan_level,
+            }
+        )
 
         cursor = conn.cursor()
         try:
@@ -1007,6 +1022,151 @@ class EnhancedTenantWebhookService:
             cursor.close()
             conn.close()
 
+    def _build_keycloak_user_payload(
+        self,
+        email: str,
+        tenant_id: str,
+        plan_info: dict[str, Any],
+        first_name: str,
+        last_name: str,
+        is_owner: bool,
+    ) -> dict[str, Any]:
+        """Build the JSON body POSTed/PUT to Keycloak /admin/.../users.
+
+        Identical to the dict that was previously inlined three times in
+        `create_keycloak_user`. Extracted so a future attribute change
+        (new tier limit, attribute rename) lives in exactly one place.
+        """
+        return {
+            "username": email,
+            "email": email,
+            "enabled": True,
+            "emailVerified": True,
+            "firstName": first_name,
+            "lastName": last_name,
+            "attributes": {
+                "tenant_id": [tenant_id],
+                "plan": [plan_info["plan"]],
+                "max_users": [str(plan_info["max_users"])],
+                "max_robots": [str(plan_info["max_robots"])],
+                "max_sensors": [str(plan_info["max_sensors"])],
+                "activation_code": [plan_info.get("code", "")],
+                "created_by": ["activation_code" if is_owner else "tenant_admin"],
+                "is_owner": [str(is_owner).lower()],
+            },
+        }
+
+    def _recover_user_after_409(
+        self,
+        search_url: str,
+        search_params: dict,
+        headers: dict,
+        response_text: str,
+        email: str,
+    ) -> str:
+        """After Keycloak returns 409 on POST, look up the user that
+        already exists. Raises if recovery fails — the caller treats
+        that as a hard error.
+
+        Used in two places: when our pre-check found nothing but the
+        POST raced with another writer, and when the pre-check itself
+        failed but we tried POST anyway.
+        """
+        search_response = requests.get(
+            search_url, headers=headers, params=search_params, timeout=10
+        )
+        if search_response.status_code != 200:
+            raise Exception(f"Failed to create user (409) and search failed: {response_text}")
+        existing_users = search_response.json()
+        if not existing_users:
+            raise Exception(f"Failed to create user and user not found: {response_text}")
+        user_id = existing_users[0]["id"]
+        logger.info(f"Found existing user {email} after 409: {user_id}")
+        return user_id
+
+    def _create_user_or_recover(
+        self,
+        user_url: str,
+        search_url: str,
+        search_params: dict,
+        user_data: dict,
+        headers: dict,
+        email: str,
+    ) -> str:
+        """POST a new Keycloak user, falling back to lookup on 409.
+
+        Returns the user_id of the created or recovered user. Raises on
+        any other HTTP failure.
+        """
+        response = requests.post(user_url, json=user_data, headers=headers, timeout=10)
+        if response.status_code == 409:
+            return self._recover_user_after_409(
+                search_url, search_params, headers, response.text, email
+            )
+        response.raise_for_status()
+        return response.headers["Location"].split("/")[-1]
+
+    def _update_existing_keycloak_user(
+        self,
+        keycloak_url: str,
+        user_id: str,
+        user_data: dict,
+        headers: dict,
+        email: str,
+    ) -> None:
+        """Best-effort PUT to update an existing user's attributes.
+
+        A non-2xx is logged as a warning; the caller continues on
+        because the user_id is already known and downstream group/role
+        assignment is the user-visible work that matters.
+        """
+        update_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
+        update_response = requests.put(update_url, json=user_data, headers=headers, timeout=10)
+        if update_response.status_code in (204, 200):
+            logger.info(f"Updated existing Keycloak user: {email}")
+        else:
+            logger.warning(
+                f"Failed to update existing user: "
+                f"{update_response.status_code} {update_response.text}"
+            )
+
+    def _resolve_user_id(
+        self,
+        keycloak_url: str,
+        user_data: dict,
+        email: str,
+        headers: dict,
+    ) -> str:
+        """Find or create the Keycloak user_id for `email`.
+
+        Strategy (preserves the original four-branch logic exactly):
+
+          1. Search by email. If found -> use that user_id and PUT the
+             new attributes (best-effort).
+          2. If search returns 200 + empty list -> POST new user.
+             A 409 (race) triggers `_recover_user_after_409`.
+          3. If search itself fails -> POST anyway. Same 409 fallback.
+        """
+        users_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
+        search_params = {"email": email.lower(), "exact": "true"}
+        search_response = requests.get(users_url, headers=headers, params=search_params, timeout=10)
+
+        if search_response.status_code == 200:
+            existing_users = search_response.json()
+            if existing_users:
+                user_id = existing_users[0]["id"]
+                logger.info(
+                    f"User {email} already exists in Keycloak, using existing user: {user_id}"
+                )
+                self._update_existing_keycloak_user(
+                    keycloak_url, user_id, user_data, headers, email
+                )
+                return user_id
+
+        return self._create_user_or_recover(
+            users_url, users_url, search_params, user_data, headers, email
+        )
+
     def create_keycloak_user(
         self,
         email: str,
@@ -1016,7 +1176,7 @@ class EnhancedTenantWebhookService:
         is_owner: bool = False,
         first_name: str = "",
         last_name: str = "",
-    ) -> dict[str, Any]:  # noqa: C901, E501
+    ) -> dict[str, Any]:
         """Create user in Keycloak with tenant group
 
         Args:
@@ -1024,7 +1184,8 @@ class EnhancedTenantWebhookService:
             tenant_id: Tenant ID
             plan_info: Plan information with limits
             password: User password (optional)
-            is_owner: If True, assign TenantAdmin role (first farmer/owner), else Farmer role
+            is_owner: If True, assign TenantAdmin role (first farmer/owner),
+                else Farmer role
             first_name: Explicit first name (if empty, derived from email)
             last_name: Explicit last name (if empty, derived from email)
         """
@@ -1034,10 +1195,10 @@ class EnhancedTenantWebhookService:
 
         try:
             keycloak_url = self._get_keycloak_base_url()
-
-            # Create user in Keycloak
-            user_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
-            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
 
             # Use explicit names from caller if available, fall back to email-derived
             if not first_name:
@@ -1045,142 +1206,10 @@ class EnhancedTenantWebhookService:
                 first_name = name_parts[0].title() if name_parts else "User"
                 last_name = name_parts[1].title() if len(name_parts) > 1 else last_name
 
-            # Check if user already exists in Keycloak
-            search_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
-            search_params = {"email": email.lower(), "exact": "true"}
-            search_response = requests.get(
-                search_url, headers=headers, params=search_params, timeout=10
-            )  # noqa: E501
-
-            if search_response.status_code == 200:
-                existing_users = search_response.json()
-                if existing_users and len(existing_users) > 0:
-                    # User already exists, use existing user_id
-                    user_id = existing_users[0]["id"]
-                    logger.info(
-                        f"User {email} already exists in Keycloak, using existing user: {user_id}"
-                    )  # noqa: E501
-
-                    # Update user attributes if needed
-                    update_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
-                    user_data = {
-                        "username": email,
-                        "email": email,
-                        "enabled": True,
-                        "emailVerified": True,
-                        "firstName": first_name,
-                        "lastName": last_name,
-                        "attributes": {
-                            "tenant_id": [tenant_id],
-                            "plan": [plan_info["plan"]],
-                            "max_users": [str(plan_info["max_users"])],
-                            "max_robots": [str(plan_info["max_robots"])],
-                            "max_sensors": [str(plan_info["max_sensors"])],
-                            "activation_code": [plan_info.get("code", "")],
-                            "created_by": ["activation_code" if is_owner else "tenant_admin"],
-                            "is_owner": [str(is_owner).lower()],
-                        },
-                    }
-                    update_response = requests.put(
-                        update_url, json=user_data, headers=headers, timeout=10
-                    )  # noqa: E501
-                    if update_response.status_code in (204, 200):
-                        logger.info(f"Updated existing Keycloak user: {email}")
-                    else:
-                        logger.warning(
-                            f"Failed to update existing user: "
-                            f"{update_response.status_code} {update_response.text}"
-                        )
-                else:
-                    # User doesn't exist, create new one
-                    user_data = {
-                        "username": email,
-                        "email": email,
-                        "enabled": True,
-                        "emailVerified": True,
-                        "firstName": first_name,
-                        "lastName": last_name,
-                        "attributes": {
-                            "tenant_id": [tenant_id],
-                            "plan": [plan_info["plan"]],
-                            "max_users": [str(plan_info["max_users"])],
-                            "max_robots": [str(plan_info["max_robots"])],
-                            "max_sensors": [str(plan_info["max_sensors"])],
-                            "activation_code": [plan_info.get("code", "")],
-                            "created_by": ["activation_code" if is_owner else "tenant_admin"],
-                            "is_owner": [str(is_owner).lower()],
-                        },
-                    }
-                    response = requests.post(user_url, json=user_data, headers=headers, timeout=10)
-                    if response.status_code == 409:
-                        # Conflict - user might have been created between check and create
-                        logger.warning(
-                            f"User {email} was created by another process, searching again..."
-                        )  # noqa: E501
-                        search_response = requests.get(
-                            search_url, headers=headers, params=search_params, timeout=10
-                        )  # noqa: E501
-                        if search_response.status_code == 200:
-                            existing_users = search_response.json()
-                            if existing_users and len(existing_users) > 0:
-                                user_id = existing_users[0]["id"]
-                                logger.info(f"Found existing user after conflict: {user_id}")
-                            else:
-                                raise Exception(
-                                    f"Failed to create user and user not found: {response.text}"
-                                )  # noqa: E501
-                        else:
-                            raise Exception(
-                                f"Failed to create user (409) and search failed: {response.text}"
-                            )  # noqa: E501
-                    else:
-                        response.raise_for_status()
-                        # Get user ID from location header
-                        user_id = response.headers["Location"].split("/")[-1]
-            else:
-                # Search failed, try to create anyway
-                user_data = {
-                    "username": email,
-                    "email": email,
-                    "enabled": True,
-                    "emailVerified": True,
-                    "firstName": first_name,
-                    "lastName": last_name,
-                    "attributes": {
-                        "tenant_id": [tenant_id],
-                        "plan": [plan_info["plan"]],
-                        "max_users": [str(plan_info["max_users"])],
-                        "max_robots": [str(plan_info["max_robots"])],
-                        "max_sensors": [str(plan_info["max_sensors"])],
-                        "activation_code": [plan_info.get("code", "")],
-                        "created_by": ["activation_code" if is_owner else "tenant_admin"],
-                        "is_owner": [str(is_owner).lower()],
-                    },
-                }
-                response = requests.post(user_url, json=user_data, headers=headers, timeout=10)
-                if response.status_code == 409:
-                    # User exists but search failed, try to find it
-                    logger.warning("User creation returned 409, attempting to find user...")
-                    search_response = requests.get(
-                        search_url, headers=headers, params=search_params, timeout=10
-                    )  # noqa: E501
-                    if search_response.status_code == 200:
-                        existing_users = search_response.json()
-                        if existing_users and len(existing_users) > 0:
-                            user_id = existing_users[0]["id"]
-                            logger.info(f"Found existing user after 409: {user_id}")
-                        else:
-                            raise Exception(
-                                "User creation failed with 409 but user not found in search"
-                            )  # noqa: E501
-                    else:
-                        raise Exception(
-                            f"Failed to create user (409) and search failed: {response.text}"
-                        )  # noqa: E501
-                else:
-                    response.raise_for_status()
-                    # Get user ID from location header
-                    user_id = response.headers["Location"].split("/")[-1]
+            user_data = self._build_keycloak_user_payload(
+                email, tenant_id, plan_info, first_name, last_name, is_owner
+            )
+            user_id = self._resolve_user_id(keycloak_url, user_data, email, headers)
 
             # Ensure tenant group exists and assign roles
             tenant_group_name = tenant_id
@@ -1515,8 +1544,7 @@ class EnhancedTenantWebhookService:
             # Verify script exists
             if not os.path.exists(CREATE_ROS2_SCRIPT):
                 logger.warning(
-                    f"⚠️  ROS2 creation script not found: {CREATE_ROS2_SCRIPT} "
-                    "- skipping ROS2 setup"
+                    f"⚠️  ROS2 creation script not found: {CREATE_ROS2_SCRIPT} - skipping ROS2 setup"
                 )
                 logger.warning(
                     f"Tenant {tenant_id} will be created without ROS2 resources. "
@@ -1747,28 +1775,61 @@ def health_check():
     )
 
 
+def _authenticate_keycloak_webhook():
+    """Bearer-token auth for the Keycloak webhook.
+
+    Fails closed (503) when WEBHOOK_SECRET is not configured. Returns
+    None when the request is authentic, or a `(response, status)` tuple
+    otherwise — caller forwards it directly. Constant-time comparison
+    prevents trivial timing oracles.
+    """
+    expected_secret = (WEBHOOK_SECRET or "").strip()
+    if not expected_secret:
+        logger.error("WEBHOOK_SECRET not configured; refusing keycloak webhook request")
+        return jsonify({"error": "Webhook not configured"}), 503
+
+    auth_header = request.headers.get("Authorization") or ""
+    if not auth_header.startswith("Bearer "):
+        logger.warning("Unauthorized webhook request: missing Bearer token")
+        return jsonify({"error": "Unauthorized"}), 401
+
+    provided = auth_header[len("Bearer ") :].strip().encode("utf-8")
+    if not hmac.compare_digest(provided, expected_secret.encode("utf-8")):
+        logger.warning("Unauthorized webhook request: token mismatch")
+        return jsonify({"error": "Unauthorized"}), 401
+
+    return None
+
+
+def _dispatch_keycloak_event(event_type, tenant_id, payload):
+    """Route a validated Keycloak event to its handler.
+
+    The dispatch table is built lazily on each call because the handler
+    functions are defined later in the module — this preserves the
+    file's existing top-down reading order without a forward-declaration
+    section. The cost is one dict construction per event, which is
+    negligible compared to the downstream Keycloak/DB work.
+    """
+    handlers = {
+        "TENANT_CREATED": handle_tenant_created,
+        "TENANT_UPDATED": handle_tenant_updated,
+        "TENANT_DELETED": handle_tenant_deleted,
+    }
+    handler = handlers.get(event_type)
+    if handler is None:
+        logger.info(f"Unhandled event type: {event_type}")
+        return jsonify({"message": "Event type not handled"}), 200
+    return handler(tenant_id, payload)
+
+
 @app.route("/webhook/keycloak", methods=["POST"])
 def keycloak_webhook():
     """Handle Keycloak webhook events"""
     try:
-        # Fail-closed if the shared webhook secret is not configured. Without
-        # this, an empty WEBHOOK_SECRET would let `Bearer ` (or any non-empty
-        # token) authenticate, opening a tenant-creation surface to the world.
-        expected_secret = (WEBHOOK_SECRET or "").strip()
-        if not expected_secret:
-            logger.error("WEBHOOK_SECRET not configured; refusing keycloak webhook request")
-            return jsonify({"error": "Webhook not configured"}), 503
+        auth_resp = _authenticate_keycloak_webhook()
+        if auth_resp is not None:
+            return auth_resp
 
-        auth_header = request.headers.get("Authorization") or ""
-        if not auth_header.startswith("Bearer "):
-            logger.warning("Unauthorized webhook request: missing Bearer token")
-            return jsonify({"error": "Unauthorized"}), 401
-        provided = auth_header[len("Bearer "):].strip().encode("utf-8")
-        if not hmac.compare_digest(provided, expected_secret.encode("utf-8")):
-            logger.warning("Unauthorized webhook request: token mismatch")
-            return jsonify({"error": "Unauthorized"}), 401
-
-        # Parse webhook payload
         payload = request.get_json()
         if not payload:
             logger.warning("Empty webhook payload")
@@ -1776,7 +1837,6 @@ def keycloak_webhook():
 
         logger.info(f"Received Keycloak webhook: {json.dumps(payload, indent=2)}")
 
-        # Process different event types
         event_type = payload.get("type")
         tenant_id = payload.get("tenant_id") or payload.get("group_name")
 
@@ -1784,21 +1844,13 @@ def keycloak_webhook():
             logger.warning("No tenant_id found in webhook payload")
             return jsonify({"error": "Missing tenant_id"}), 400
 
-        # Reject malformed tenant_id before it reaches handlers that use it
-        # as a path component or subprocess argument.
+        # Reject malformed tenant_id before it reaches handlers that use
+        # it as a path component or subprocess argument.
         if not _is_valid_tenant_id(tenant_id):
             logger.warning(f"Rejected webhook with invalid tenant_id format: {tenant_id!r}")
             return jsonify({"error": "Invalid tenant_id format"}), 400
 
-        if event_type == "TENANT_CREATED":
-            return handle_tenant_created(tenant_id, payload)
-        elif event_type == "TENANT_UPDATED":
-            return handle_tenant_updated(tenant_id, payload)
-        elif event_type == "TENANT_DELETED":
-            return handle_tenant_deleted(tenant_id, payload)
-        else:
-            logger.info(f"Unhandled event type: {event_type}")
-            return jsonify({"message": "Event type not handled"}), 200
+        return _dispatch_keycloak_event(event_type, tenant_id, payload)
 
     except Exception as e:
         logger.error(f"Error processing Keycloak webhook: {e}")
@@ -1816,8 +1868,7 @@ def woocommerce_webhook():  # noqa: C901
         expected_secret = (WOOCOMMERCE_WEBHOOK_SECRET or "").strip()
         if not expected_secret:
             logger.error(
-                "WOOCOMMERCE_WEBHOOK_SECRET not configured; "
-                "refusing woocommerce webhook request"
+                "WOOCOMMERCE_WEBHOOK_SECRET not configured; refusing woocommerce webhook request"
             )
             return jsonify({"error": "Webhook not configured"}), 503
 
@@ -1866,7 +1917,7 @@ def woocommerce_webhook():  # noqa: C901
         # Plan limits — quotas come from the canonical SSOT
         # (services/common/tier_quotas.py). Activation-code expiration
         # windows are not part of the SSOT and stay tier-mapped here.
-        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+        from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
 
         plan_lower = plan.lower() if plan else "basic"
         if plan_lower not in PLAN_LEVELS:
@@ -2017,7 +2068,8 @@ def generate_activation_code():  # noqa: C901
             return jsonify({"error": "Email is required"}), 400
 
         # Validate plan and get canonical quotas
-        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+        from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
+
         plan_lower = plan.lower() if plan else "basic"
         if plan_lower not in PLAN_LEVELS:
             return jsonify({"error": f"Invalid plan: {plan}. Allowed: {list(PLAN_LEVELS)}"}), 400
@@ -2028,9 +2080,7 @@ def generate_activation_code():  # noqa: C901
             "max_sensors": q["max_sensors"],
             "max_parcels": q["max_parcels"],
             "max_area_hectares": (
-                float(q["max_area_hectares"])
-                if q["max_area_hectares"] is not None
-                else None
+                float(q["max_area_hectares"]) if q["max_area_hectares"] is not None else None
             ),
             "max_entities_total": q["max_entities_total"],
         }
@@ -2093,10 +2143,10 @@ def generate_activation_code():  # noqa: C901
 
             logger.info(f"Admin: Activation code {activation_code} generated for {email}")
             audit_log(
-                action='admin.activation_code.create',
-                resource_type='activation_code',
+                action="admin.activation_code.create",
+                resource_type="activation_code",
                 resource_id=activation_code,
-                metadata={'email': email, 'plan': plan, 'duration_days': duration_days},
+                metadata={"email": email, "plan": plan, "duration_days": duration_days},
             )
 
             # Send activation email
@@ -2480,8 +2530,8 @@ def revoke_activation_code(code_id):
 
         logger.info(f"Activation code {code_id} revoked")
         audit_log(
-            action='admin.activation_code.revoke',
-            resource_type='activation_code',
+            action="admin.activation_code.revoke",
+            resource_type="activation_code",
             resource_id=str(code_id),
         )
 
@@ -2489,12 +2539,14 @@ def revoke_activation_code(code_id):
 
     except Exception as e:
         logger.error(f"Error revoking activation code: {e}")
-        audit_log(action='admin.activation_code.revoke', resource_type='activation_code',
-                  resource_id=str(code_id), success=False, error=str(e))
+        audit_log(
+            action="admin.activation_code.revoke",
+            resource_type="activation_code",
+            resource_id=str(code_id),
+            success=False,
+            error=str(e),
+        )
         return jsonify({"error": "Internal server error"}), 500
-
-
-from common.tier_quotas import PLAN_LEVELS as _BILLING_PLAN_LEVELS
 
 
 _BILLING_ACTIVE_STATUSES = frozenset({"active", "trialing", "past_due"})
@@ -2510,15 +2562,15 @@ def internal_list_expired_tenants():
     """List tenants that have expired. Only used by the reaper."""
     if not _verify_internal_billing_secret():
         return jsonify({"error": "Unauthorized"}), 401
-        
+
     conn = webhook_service.get_db_connection()
     if not conn:
         return jsonify({"error": "Database error"}), 500
-        
+
     try:
         webhook_service._apply_admin_context(conn)
         cursor = conn.cursor()
-        
+
         # A tenant is expired if its explicitly set expires_at is in the past,
         # OR if it's null, we check the latest activation_code.
         cursor.execute("""
@@ -2530,40 +2582,207 @@ def internal_list_expired_tenants():
             LEFT JOIN activation_codes ac ON fa.activation_code_id = ac.id
             WHERE t.tenant_id != 'platform'
         """)
-        
+
         expired_tenants = set()
-        
+
         for row in cursor.fetchall():
             tenant_id = row["tenant_id"]
             t_expires = row["t_expires_at"]
-            status = row["status"]
             ac_expires = row["ac_expires_at"]
-            
+
             # If status is active but t_expires is null, we assume they are active unless
             # they have an expired activation code.
             # But the most robust way is: if t_expires is present and past -> expired.
             # If t_expires is null, look at ac_expires. If ac_expires is past -> expired.
             # If both are null, it depends on whether we allow forever trials.
             # We assume they don't expire.
-            
+
             is_expired = False
             now = datetime.utcnow()
-            
+
             if t_expires is not None:
                 if t_expires < now:
                     is_expired = True
             elif ac_expires is not None:
                 if ac_expires < now:
                     is_expired = True
-                    
+
             if is_expired:
                 expired_tenants.add(tenant_id)
-                
+
         cursor.close()
         return jsonify({"expired_tenants": list(expired_tenants)})
     except Exception as e:
         logger.error(f"Error listing expired tenants: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+def _parse_license_expires_at(raw: Any) -> tuple[datetime | None, tuple | None]:
+    """Parse the `expires_at` field from a billing payload.
+
+    Returns (parsed_or_None, error_response_or_None). The caller short-
+    circuits on a non-None error response.
+
+    Mirrors exactly the original inline behavior: `null` becomes None
+    (no expiration update), strings are parsed via fromisoformat with
+    Z-suffix normalization, anything else is rejected as 400.
+    """
+    if raw is None:
+        return None, None
+    if not isinstance(raw, str):
+        return None, (
+            jsonify({"error": "expires_at must be ISO8601 string or null"}),
+            400,
+        )
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")), None
+    except Exception:
+        return None, (jsonify({"error": "Invalid expires_at"}), 400)
+
+
+def _parse_license_plan_tier(raw: Any) -> tuple[str | None, int | None, tuple | None]:
+    """Parse the `plan_tier` field. Returns (plan_type, plan_level, error).
+
+    `null` and empty string both clear the plan (None, None) — same as
+    the original behavior. Invalid tiers are 400-rejected via
+    `_BILLING_PLAN_LEVELS` (which is the canonical SSOT mapping).
+    """
+    if raw is None:
+        return None, None, None
+    if not isinstance(raw, str):
+        return None, None, (jsonify({"error": "plan_tier must be string or null"}), 400)
+    plan_type = raw.strip().lower() or None
+    if plan_type and plan_type not in _BILLING_PLAN_LEVELS:
+        return None, None, (jsonify({"error": f"Invalid plan_tier: {plan_type}"}), 400)
+    plan_level = _BILLING_PLAN_LEVELS[plan_type] if plan_type else None
+    return plan_type, plan_level, None
+
+
+def _validate_license_payload(tenant_id: str, data: dict) -> tuple[dict | None, tuple | None]:
+    """Validate the full POST body for `internal_update_tenant_license`.
+
+    On success returns ({...validated fields...}, None). On any
+    validation failure returns (None, (jsonify(...), status)). The
+    endpoint just unpacks and dispatches.
+
+    Validated dict contains:
+        raw_status, desired_status, expires_at, plan_type, plan_level
+    """
+    raw_status = (data.get("subscription_status") or "").strip().lower()
+    if raw_status not in _BILLING_ACTIVE_STATUSES and raw_status not in _BILLING_INACTIVE_STATUSES:
+        return None, (jsonify({"error": "Invalid subscription_status"}), 400)
+
+    expires_at, err = _parse_license_expires_at(data.get("expires_at"))
+    if err is not None:
+        return None, err
+
+    plan_type, plan_level, err = _parse_license_plan_tier(data.get("plan_tier"))
+    if err is not None:
+        return None, err
+
+    desired_status = "active" if raw_status in _BILLING_ACTIVE_STATUSES else "cancelled"
+
+    return {
+        "raw_status": raw_status,
+        "desired_status": desired_status,
+        "expires_at": expires_at,
+        "plan_type": plan_type,
+        "plan_level": plan_level,
+    }, None
+
+
+def _build_license_update_sql(validated: dict, tenant_id: str) -> tuple[str, list]:
+    """Build the parameterized UPDATE statement for the tenants table.
+
+    Always sets expires_at, status, updated_at. Optionally appends
+    plan_type and/or plan_level when provided in the validated dict.
+    Returns (sql_string, params_list).
+    """
+    updates: list[str] = ["expires_at = %s", "status = %s", "updated_at = NOW()"]
+    params: list[Any] = [validated["expires_at"], validated["desired_status"]]
+    if validated["plan_type"] is not None:
+        updates.append("plan_type = %s")
+        params.append(validated["plan_type"])
+    if validated["plan_level"] is not None:
+        updates.append("plan_level = %s")
+        params.append(validated["plan_level"])
+    params.append(tenant_id)
+    sql = (
+        f"UPDATE tenants SET {', '.join(updates)} WHERE tenant_id = %s "
+        "RETURNING tenant_id, expires_at, status, plan_type, plan_level"
+    )
+    return sql, params
+
+
+def _normalize_license_row(row: Any) -> dict:
+    """Normalize a fetchone() result to a dict.
+
+    The cursor may be a dict cursor or a tuple cursor depending on
+    psycopg2 wiring; the original endpoint handled both. None means
+    no row was returned.
+    """
+    if isinstance(row, dict):
+        return row
+    if row is None:
+        return {}
+    return {
+        "tenant_id": row[0],
+        "expires_at": row[1],
+        "status": row[2],
+        "plan_type": row[3],
+        "plan_level": row[4],
+    }
+
+
+def _serialize_license_row(result_row: dict) -> dict:
+    """Build the JSON response body, ISO-formatting expires_at."""
+    expires_at = result_row.get("expires_at")
+    return {
+        "tenant_id": result_row.get("tenant_id"),
+        "expires_at": (expires_at.isoformat() if isinstance(expires_at, datetime) else expires_at),
+        "status": result_row.get("status"),
+        "plan_type": result_row.get("plan_type"),
+        "plan_level": result_row.get("plan_level"),
+    }
+
+
+def _persist_license_update(conn, tenant_id: str, sql: str, params: list, validated: dict):
+    """Run the licensing UPDATE and emit the audit log + JSON response.
+
+    Returns a Flask response tuple. Caller owns conn lifetime (commit
+    happens here, rollback/close stay with the endpoint's outer
+    try/except/finally for the un-handled-exception path).
+    """
+    webhook_service._apply_admin_context(conn)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT tenant_id FROM tenants WHERE tenant_id = %s",
+        (tenant_id,),
+    )
+    if not cursor.fetchone():
+        cursor.close()
+        return jsonify({"error": "Tenant not found"}), 404
+
+    cursor.execute(sql, params)
+    row = cursor.fetchone()
+    conn.commit()
+    cursor.close()
+
+    audit_log(
+        action="billing.tenant.license.update",
+        resource_type="tenant",
+        resource_id=tenant_id,
+        metadata={
+            "subscription_status": validated["raw_status"],
+            "expires_at": (
+                validated["expires_at"].isoformat() if validated["expires_at"] else None
+            ),
+            "plan_tier": validated["plan_type"],
+        },
+    )
+
+    return jsonify(_serialize_license_row(_normalize_license_row(row))), 200
+
 
 @app.route(
     "/internal/billing/tenants/<tenant_id>/license",
@@ -2597,103 +2816,17 @@ def internal_update_tenant_license(tenant_id):
         return jsonify({"error": "platform tenant is not billable"}), 400
 
     data = request.get_json(silent=True) or {}
-    raw_status = (data.get("subscription_status") or "").strip().lower()
-    if raw_status not in _BILLING_ACTIVE_STATUSES and raw_status not in _BILLING_INACTIVE_STATUSES:
-        return jsonify({"error": "Invalid subscription_status"}), 400
+    validated, err = _validate_license_payload(tenant_id, data)
+    if err is not None:
+        return err
 
-    expires_at_raw = data.get("expires_at")
-    expires_at: datetime | None = None
-    if expires_at_raw is not None:
-        if not isinstance(expires_at_raw, str):
-            return jsonify({"error": "expires_at must be ISO8601 string or null"}), 400
-        try:
-            expires_at = datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00"))
-        except Exception:
-            return jsonify({"error": "Invalid expires_at"}), 400
-
-    plan_tier_raw = data.get("plan_tier")
-    plan_type: str | None = None
-    plan_level: int | None = None
-    if plan_tier_raw is not None:
-        if not isinstance(plan_tier_raw, str):
-            return jsonify({"error": "plan_tier must be string or null"}), 400
-        plan_type = plan_tier_raw.strip().lower() or None
-        if plan_type and plan_type not in _BILLING_PLAN_LEVELS:
-            return jsonify({"error": f"Invalid plan_tier: {plan_type}"}), 400
-        if plan_type:
-            plan_level = _BILLING_PLAN_LEVELS[plan_type]
-
-    desired_status = "active" if raw_status in _BILLING_ACTIVE_STATUSES else "cancelled"
-
-    updates: list[str] = ["expires_at = %s", "status = %s", "updated_at = NOW()"]
-    params: list[Any] = [expires_at, desired_status]
-    if plan_type is not None:
-        updates.append("plan_type = %s")
-        params.append(plan_type)
-    if plan_level is not None:
-        updates.append("plan_level = %s")
-        params.append(plan_level)
-    params.append(tenant_id)
+    sql, params = _build_license_update_sql(validated, tenant_id)
 
     conn = webhook_service.get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection error"}), 500
     try:
-        webhook_service._apply_admin_context(conn)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT tenant_id FROM tenants WHERE tenant_id = %s",
-            (tenant_id,),
-        )
-        if not cursor.fetchone():
-            cursor.close()
-            return jsonify({"error": "Tenant not found"}), 404
-
-        cursor.execute(
-            f"UPDATE tenants SET {', '.join(updates)} WHERE tenant_id = %s "
-            "RETURNING tenant_id, expires_at, status, plan_type, plan_level",
-            params,
-        )
-        row = cursor.fetchone()
-        conn.commit()
-        cursor.close()
-
-        audit_log(
-            action="billing.tenant.license.update",
-            resource_type="tenant",
-            resource_id=tenant_id,
-            metadata={
-                "subscription_status": raw_status,
-                "expires_at": expires_at.isoformat() if expires_at else None,
-                "plan_tier": plan_type,
-            },
-        )
-
-        if isinstance(row, dict):
-            result_row = row
-        elif row is None:
-            result_row = {}
-        else:
-            result_row = {
-                "tenant_id": row[0],
-                "expires_at": row[1],
-                "status": row[2],
-                "plan_type": row[3],
-                "plan_level": row[4],
-            }
-
-        return jsonify({
-            "tenant_id": result_row.get("tenant_id"),
-            "expires_at": (
-                result_row["expires_at"].isoformat()
-                if isinstance(result_row.get("expires_at"), datetime)
-                else result_row.get("expires_at")
-            ),
-            "status": result_row.get("status"),
-            "plan_type": result_row.get("plan_type"),
-            "plan_level": result_row.get("plan_level"),
-        }), 200
-
+        return _persist_license_update(conn, tenant_id, sql, params, validated)
     except Exception as exc:
         logger.error(f"internal_update_tenant_license({tenant_id}): {exc}")
         try:
@@ -2793,12 +2926,8 @@ def list_tenant_personal_access_tokens():
                     "name": row.get("name") or "",
                     "description": row.get("description") or "",
                     "is_active": bool(row.get("is_active")),
-                    "created_at": row["created_at"].isoformat()
-                    if row.get("created_at")
-                    else None,
-                    "expires_at": row["expires_at"].isoformat()
-                    if row.get("expires_at")
-                    else None,
+                    "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+                    "expires_at": row["expires_at"].isoformat() if row.get("expires_at") else None,
                     "created_by_sub": row.get("created_by_sub"),
                 }
             )
@@ -2829,9 +2958,7 @@ def create_tenant_personal_access_token():
     expires_at = None
     if data.get("expires_at"):
         try:
-            expires_at = datetime.fromisoformat(
-                str(data["expires_at"]).replace("Z", "+00:00")
-            )
+            expires_at = datetime.fromisoformat(str(data["expires_at"]).replace("Z", "+00:00"))
         except ValueError:
             return jsonify({"error": "Invalid expires_at"}), 400
 
@@ -2866,9 +2993,7 @@ def create_tenant_personal_access_token():
                 "token": raw_token,
                 "name": name,
                 "expires_at": expires_at.isoformat() if expires_at else None,
-                "created_at": ins["created_at"].isoformat()
-                if ins.get("created_at")
-                else None,
+                "created_at": ins["created_at"].isoformat() if ins.get("created_at") else None,
                 "warning": "Save this token now. It cannot be shown again.",
             }
         ), 201
@@ -3113,32 +3238,32 @@ def update_tenant_info(tenant_id):
             return jsonify({"error": "Database connection error"}), 500
 
         cursor = conn.cursor()
-        
+
         updates = []
         params = []
-        
+
         if tenant_name:
             updates.append("tenant_name = %s")
             params.append(tenant_name)
-            
+
         if metadata is not None:
             # Merge with existing metadata if possible, or just overwrite
             updates.append("metadata = metadata || %s::jsonb")
             params.append(json.dumps(metadata))
-            
+
         params.append(tenant_id)
-        
+
         query = (
             f"UPDATE tenants SET {', '.join(updates)}, "
             "updated_at = CURRENT_TIMESTAMP WHERE tenant_id = %s"
         )
-        
+
         cursor.execute(query, params)
         conn.commit()
-        
+
         cursor.close()
         conn.close()
-        
+
         return jsonify({"success": True, "message": "Tenant updated successfully"}), 200
 
     except Exception as e:
@@ -3147,6 +3272,68 @@ def update_tenant_info(tenant_id):
 
 
 @app.route("/api/admin/tenants", methods=["GET"])
+def _resolve_tenant_expires(tenant_id: str | None, row: dict, activation_expires):
+    """Compute (expires_at_iso, days_remaining) for a tenant row.
+
+    Resolution order:
+      1. Platform tenant -> always (None, None) regardless of DB data.
+      2. tenants.expires_at (the canonical license window end) when set.
+      3. Activation-code expires_at as fallback.
+
+    Behavior preserved exactly from the original list_tenants body —
+    only the branching is moved out so the route stays under the C901
+    threshold.
+    """
+    is_platform_tenant = (tenant_id or "").lower() == "platform"
+    if is_platform_tenant:
+        return None, None
+
+    if "expires_at" in row and row["expires_at"] is not None:
+        tenant_expires = row["expires_at"]
+    else:
+        tenant_expires = activation_expires
+
+    if isinstance(tenant_expires, datetime):
+        delta = tenant_expires - datetime.utcnow()
+        return tenant_expires.isoformat(), max(delta.days, 0)
+    if tenant_expires:
+        return str(tenant_expires), None
+    return None, None
+
+
+def _serialize_tenant_row(row: dict, conn) -> dict | None:
+    """Return the JSON-friendly tenant dict that list_tenants emits."""
+    tenant_id = row.get("tenant_id")
+    if not tenant_id:
+        return None
+
+    activation = webhook_service.get_latest_activation_for_tenant(conn, tenant_id)
+    activation_email = activation.get("email") if activation else row.get("tenant_email")
+    activation_expires = activation.get("expires_at") if activation else None
+    expires_at_iso, days_remaining = _resolve_tenant_expires(tenant_id, row, activation_expires)
+
+    created_at = row.get("created_at")
+    updated_at = row.get("updated_at")
+
+    return {
+        "id": tenant_id,
+        "tenant": tenant_id,
+        "tenant_id": tenant_id,
+        "email": activation_email,
+        "name": row.get("tenant_name"),
+        "plan": row.get("plan_type") or "basic",
+        "status": row.get("status") or "active",
+        "created_at": created_at.isoformat() if created_at else None,
+        "updated_at": updated_at.isoformat() if updated_at else None,
+        "expires_at": expires_at_iso,
+        "days_remaining": days_remaining,
+        "max_users": activation.get("max_users") if activation else None,
+        "max_robots": activation.get("max_robots") if activation else None,
+        "max_sensors": activation.get("max_sensors") if activation else None,
+        "activation": activation,
+    }
+
+
 @app.route("/tenants", methods=["GET"])  # For ingress prefix removal
 @require_platform_admin
 def list_tenants():
@@ -3183,69 +3370,9 @@ def list_tenants():
                 if not isinstance(row, dict):
                     logger.warning(f"Unexpected row format when listing tenants: {row}")
                     continue
-
-                tenant_id = row.get("tenant_id")
-                if not tenant_id:
-                    continue
-
-                activation = webhook_service.get_latest_activation_for_tenant(conn, tenant_id)
-                activation_email = (
-                    activation.get("email") if activation else row.get("tenant_email")
-                )  # noqa: E501
-                activation_expires = activation.get("expires_at") if activation else None
-                
-                # If tenants table has an explicit expires_at, use it.
-                # If it's null but the tenant is active, it might be an
-                # unlimited/stripe-managed active plan. However, to avoid
-                # falling back to an old activation code that triggers an
-                # expiration alert, we prioritize the tenants table explicitly.
-                if "expires_at" in row and row["expires_at"] is not None:
-                    tenant_expires = row["expires_at"]
-                else:
-                    tenant_expires = activation_expires
-
-                # Platform tenant is internal administration; it never has a
-                # consumer-facing plan lifecycle, so we never emit a
-                # days_remaining countdown for it even if the DB has stale data.
-                is_platform_tenant = (tenant_id or "").lower() == "platform"
-
-                if is_platform_tenant:
-                    expires_at_iso = None
-                    days_remaining = None
-                elif isinstance(tenant_expires, datetime):
-                    delta = tenant_expires - datetime.utcnow()
-                    days_remaining = max(delta.days, 0)
-                    expires_at_iso = tenant_expires.isoformat()
-                elif tenant_expires:
-                    expires_at_iso = str(tenant_expires)
-                    days_remaining = None
-                else:
-                    expires_at_iso = None
-                    days_remaining = None
-
-                tenants.append(
-                    {
-                        "id": tenant_id,
-                        "tenant": tenant_id,
-                        "tenant_id": tenant_id,
-                        "email": activation_email,
-                        "name": row.get("tenant_name"),
-                        "plan": row.get("plan_type") or "basic",
-                        "status": row.get("status") or "active",
-                        "created_at": row.get("created_at").isoformat()
-                        if row.get("created_at")
-                        else None,  # noqa: E501
-                        "updated_at": row.get("updated_at").isoformat()
-                        if row.get("updated_at")
-                        else None,  # noqa: E501
-                        "expires_at": expires_at_iso,
-                        "days_remaining": days_remaining,
-                        "max_users": activation.get("max_users") if activation else None,
-                        "max_robots": activation.get("max_robots") if activation else None,
-                        "max_sensors": activation.get("max_sensors") if activation else None,
-                        "activation": activation,
-                    }
-                )
+                serialized = _serialize_tenant_row(row, conn)
+                if serialized is not None:
+                    tenants.append(serialized)
 
             return jsonify({"tenants": tenants}), 200
         finally:
@@ -3285,13 +3412,11 @@ def create_tenant_directly():
         # than silently downgrading to basic so PlatformAdmin actions are
         # explicit; this also unblocks creating "pro" tenants which the
         # previous hardcoded mapping did not support.
-        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+        from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
 
         plan_lower = plan.lower() if plan else "basic"
         if plan_lower not in PLAN_LEVELS:
-            return jsonify(
-                {"error": f"Invalid plan: {plan}. Allowed: {list(PLAN_LEVELS)}"}
-            ), 400
+            return jsonify({"error": f"Invalid plan: {plan}. Allowed: {list(PLAN_LEVELS)}"}), 400
         plan = plan_lower
         q = quotas_for_tier(plan_lower)
         plan_info = {
@@ -3341,13 +3466,13 @@ def create_tenant_directly():
                 logger.warning(f"Failed to create Keycloak user: {user_result.get('error')}")
 
         audit_log(
-            action='admin.tenant.create',
-            resource_type='tenant',
+            action="admin.tenant.create",
+            resource_type="tenant",
             resource_id=tenant_id,
             metadata={
-                'plan': plan,
-                'email': email,
-                'user_created': bool(user_result and user_result.get("success")),
+                "plan": plan,
+                "email": email,
+                "user_created": bool(user_result and user_result.get("success")),
             },
         )
 
@@ -3365,8 +3490,7 @@ def create_tenant_directly():
 
     except Exception as e:
         logger.error(f"Error creating tenant directly: {e}")
-        audit_log(action='admin.tenant.create', resource_type='tenant',
-                  success=False, error=str(e))
+        audit_log(action="admin.tenant.create", resource_type="tenant", success=False, error=str(e))
         return _internal_error(e, "create_tenant_directly", user_message="Failed to create tenant")
 
 
@@ -3470,10 +3594,10 @@ def delete_tenant_directly(tenant_id: str):  # noqa: C901
                 conn.close()
 
         audit_log(
-            action='admin.tenant.delete',
-            resource_type='tenant',
+            action="admin.tenant.delete",
+            resource_type="tenant",
             resource_id=tenant_id,
-            metadata={'warnings': errors} if errors else {},
+            metadata={"warnings": errors} if errors else {},
         )
 
         if errors:
@@ -3494,8 +3618,13 @@ def delete_tenant_directly(tenant_id: str):  # noqa: C901
         import traceback
 
         logger.error(traceback.format_exc())
-        audit_log(action='admin.tenant.delete', resource_type='tenant',
-                  resource_id=tenant_id, success=False, error=str(e))
+        audit_log(
+            action="admin.tenant.delete",
+            resource_type="tenant",
+            resource_id=tenant_id,
+            success=False,
+            error=str(e),
+        )
         return _internal_error(e, "delete_tenant_admin", user_message="Failed to delete tenant")
 
 
@@ -3736,19 +3865,79 @@ def delete_user_directly(user_id: str):
 
         logger.info(f"User {user_email} deleted by admin")
         audit_log(
-            action='admin.user.delete',
-            resource_type='user',
+            action="admin.user.delete",
+            resource_type="user",
             resource_id=user_id,
-            metadata={'email': user_email},
+            metadata={"email": user_email},
         )
 
         return jsonify({"success": True, "message": f"User {user_email} deleted successfully"}), 200
 
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
-        audit_log(action='admin.user.delete', resource_type='user',
-                  resource_id=user_id, success=False, error=str(e))
+        audit_log(
+            action="admin.user.delete",
+            resource_type="user",
+            resource_id=user_id,
+            success=False,
+            error=str(e),
+        )
         return _internal_error(e, "delete_user_admin", user_message="Failed to delete user")
+
+
+def _parse_roles_payload(data):
+    """Validate the body of PUT /api/admin/users/<id>/roles.
+
+    Returns (roles, error_response). Exactly one of the two is None.
+    """
+    if not data or "roles" not in data:
+        return None, (jsonify({"error": "roles array is required"}), 400)
+    new_roles = data.get("roles", [])
+    if not isinstance(new_roles, list):
+        return None, (jsonify({"error": "roles must be an array"}), 400)
+    return new_roles, None
+
+
+def _clear_user_realm_roles(keycloak_url: str, user_id: str, headers: dict) -> None:
+    """Remove all current realm role-mappings from a Keycloak user.
+
+    Best-effort: if the GET fails or the user has no roles, no DELETE is
+    issued. Silently swallows errors here because the caller is about
+    to assign a new role set anyway — log noise stays in the new POSTs.
+    """
+    current_roles_url = (
+        f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm"
+    )
+    current_response = requests.get(current_roles_url, headers=headers, timeout=10)
+    current_roles = current_response.json() if current_response.status_code == 200 else []
+    if current_roles:
+        requests.delete(current_roles_url, headers=headers, json=current_roles, timeout=10)
+
+
+def _assign_realm_roles_to_user(
+    keycloak_url: str, user_id: str, role_names: list, headers: dict
+) -> list:
+    """POST realm role-mappings for each requested role.
+
+    Returns the list of role names whose POST returned 200/204. Any
+    failure is silently skipped — the caller exposes the assigned set
+    so the client can detect partial application.
+    """
+    assigned = []
+    mapping_url = (
+        f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm"
+    )
+    for role_name in role_names:
+        role_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/roles/{role_name}"
+        role_response = requests.get(role_url, headers=headers, timeout=10)
+        if role_response.status_code != 200:
+            continue
+        assign_resp = requests.post(
+            mapping_url, headers=headers, json=[role_response.json()], timeout=10
+        )
+        if assign_resp.status_code in (200, 204):
+            assigned.append(role_name)
+    return assigned
 
 
 @app.route("/api/admin/users/<user_id>/roles", methods=["PUT"])
@@ -3762,13 +3951,9 @@ def update_user_roles(user_id: str):
     TenantAdmin, GestorCUE, TechnicalConsultant, and Farmer.
     """
     try:
-        data = request.get_json()
-        if not data or "roles" not in data:
-            return jsonify({"error": "roles array is required"}), 400
-
-        new_roles = data.get("roles", [])
-        if not isinstance(new_roles, list):
-            return jsonify({"error": "roles must be an array"}), 400
+        new_roles, parse_err = _parse_roles_payload(request.get_json())
+        if parse_err is not None:
+            return parse_err
 
         token = webhook_service.get_keycloak_token()
         if not token:
@@ -3780,15 +3965,12 @@ def update_user_roles(user_id: str):
             "Content-Type": "application/json",
         }
 
-        # Verify user exists
         user_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
         user_response = requests.get(user_url, headers=headers, timeout=10)
         if user_response.status_code != 200:
             return jsonify({"error": "User not found"}), 404
-
         user_email = user_response.json().get("email")
 
-        # Fetch available realm roles to validate requested roles
         roles_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/roles"
         roles_response = requests.get(roles_url, headers=headers, timeout=10)
         if roles_response.status_code != 200:
@@ -3797,75 +3979,41 @@ def update_user_roles(user_id: str):
         available_roles = {r["name"] for r in roles_response.json()}
         invalid = [r for r in new_roles if r not in available_roles]
         if invalid:
-            return jsonify({
-                "error": f"Unknown roles: {', '.join(invalid)}",
-                "available_roles": sorted(available_roles),
-            }), 400
+            return jsonify(
+                {
+                    "error": f"Unknown roles: {', '.join(invalid)}",
+                    "available_roles": sorted(available_roles),
+                }
+            ), 400
 
-        # Get current user roles
-        current_roles_url = (
-            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-            f"/users/{user_id}/role-mappings/realm"
-        )
-        current_response = requests.get(
-            current_roles_url, headers=headers, timeout=10
-        )
-        current_roles = []
-        if current_response.status_code == 200:
-            current_roles = current_response.json()
+        _clear_user_realm_roles(keycloak_url, user_id, headers)
+        assigned = _assign_realm_roles_to_user(keycloak_url, user_id, new_roles, headers)
 
-        # Remove all current realm roles
-        if current_roles:
-            requests.delete(
-                current_roles_url,
-                headers=headers,
-                json=current_roles,
-                timeout=10,
-            )
-
-        # Assign new roles
-        assigned = []
-        for role_name in new_roles:
-            role_url = (
-                f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-                f"/roles/{role_name}"
-            )
-            role_response = requests.get(role_url, headers=headers, timeout=10)
-            if role_response.status_code == 200:
-                role_data = role_response.json()
-                mapping_url = (
-                    f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-                    f"/users/{user_id}/role-mappings/realm"
-                )
-                assign_resp = requests.post(
-                    mapping_url,
-                    headers=headers,
-                    json=[role_data],
-                    timeout=10,
-                )
-                if assign_resp.status_code in [200, 204]:
-                    assigned.append(role_name)
-
-        logger.info(
-            f"Roles updated for user {user_email}: {assigned}"
-        )
+        logger.info(f"Roles updated for user {user_email}: {assigned}")
         audit_log(
-            action='admin.user.roles_update',
-            resource_type='user',
+            action="admin.user.roles_update",
+            resource_type="user",
             resource_id=user_id,
-            metadata={'email': user_email, 'roles': assigned},
+            metadata={"email": user_email, "roles": assigned},
         )
 
-        return jsonify({
-            "success": True,
-            "user_id": user_id,
-            "roles": assigned,
-        }), 200
+        return jsonify(
+            {
+                "success": True,
+                "user_id": user_id,
+                "roles": assigned,
+            }
+        ), 200
 
     except Exception as e:
         logger.error(f"Error updating user roles: {e}")
-        audit_log(action='admin.user.roles_update', resource_type='user',
-                  resource_id=user_id, success=False, error=str(e))
+        audit_log(
+            action="admin.user.roles_update",
+            resource_type="user",
+            resource_id=user_id,
+            success=False,
+            error=str(e),
+        )
         return _internal_error(e, "update_user_roles", user_message="Failed to update roles")
 
 
@@ -3929,9 +4077,9 @@ def forgot_password():
                     json={
                         "email": email.lower(),
                         "farmer_name": (
-                            f"{user_info.get('firstName', '')} "
-                            f"{user_info.get('lastName', '')}"
-                        ).strip() or email.split("@")[0],
+                            f"{user_info.get('firstName', '')} {user_info.get('lastName', '')}"
+                        ).strip()
+                        or email.split("@")[0],
                         # Placeholder; Keycloak handles the actual reset token.
                         "reset_token": "KEYCLOAK_RESET",
                         "reset_url": reset_link,
@@ -4149,7 +4297,11 @@ def activate_tenant():  # noqa: C901
         # Create Keycloak user (CRITICAL - this must succeed)
         # Assign TenantAdmin role to first farmer (owner)
         user_result = webhook_service.create_keycloak_user(
-            email, tenant_id, plan_info, password, is_owner=True,
+            email,
+            tenant_id,
+            plan_info,
+            password,
+            is_owner=True,
             first_name=data.get("first_name") or data.get("firstName") or "",
             last_name=data.get("last_name") or data.get("lastName") or "",
         )  # noqa: E501
@@ -4258,11 +4410,15 @@ def activate_tenant():  # noqa: C901
 
         logger.info(f"Successfully activated tenant: {tenant_id} with code: {code}")
         audit_log(
-            action='tenant.activate',
-            resource_type='tenant',
+            action="tenant.activate",
+            resource_type="tenant",
             resource_id=tenant_id,
-            metadata={'plan': plan_info['plan'], 'activation_code': code,
-                      'user_created': user_success, 'grafana': grafana_success},
+            metadata={
+                "plan": plan_info["plan"],
+                "activation_code": code,
+                "user_created": user_success,
+                "grafana": grafana_success,
+            },
         )
 
         return jsonify(
@@ -4287,8 +4443,7 @@ def activate_tenant():  # noqa: C901
 
     except Exception as e:
         logger.error(f"Error activating tenant: {e}")
-        audit_log(action='tenant.activate', resource_type='tenant',
-                  success=False, error=str(e))
+        audit_log(action="tenant.activate", resource_type="tenant", success=False, error=str(e))
         return jsonify({"error": "Failed to activate tenant"}), 500
 
 
@@ -4393,7 +4548,9 @@ def activate_ros2_service():
 
     except Exception as e:
         logger.error(f"Error activating ROS2 service: {e}")
-        return _internal_error(e, "activate_ros2_service", user_message="Failed to activate ROS2 service")  # noqa: E501
+        return _internal_error(
+            e, "activate_ros2_service", user_message="Failed to activate ROS2 service"
+        )  # noqa: E501
 
 
 @app.route("/api/tenant/services/ros2/status", methods=["GET"])
@@ -4545,7 +4702,9 @@ def activate_vpn_service():
         import traceback
 
         logger.error(traceback.format_exc())
-        return _internal_error(e, "activate_vpn_service", user_message="Failed to activate VPN service")  # noqa: E501
+        return _internal_error(
+            e, "activate_vpn_service", user_message="Failed to activate VPN service"
+        )  # noqa: E501
 
 
 @app.route("/api/tenant/services/vpn/status", methods=["GET"])
@@ -4886,10 +5045,7 @@ def _delete_keycloak_user_best_effort(user_id: str, context: str) -> None:
                 f"{user_id}: {resp.status_code} {resp.text}"
             )
     except Exception as exc:
-        logger.error(
-            f"[{context}] Exception compensating orphan Keycloak user "
-            f"{user_id}: {exc}"
-        )
+        logger.error(f"[{context}] Exception compensating orphan Keycloak user {user_id}: {exc}")
 
 
 @app.route("/api/tenant/users/accept-invitation", methods=["POST"])
@@ -4978,9 +5134,7 @@ def accept_invitation():  # noqa: C901
         )
         current_users = cursor.fetchone()[0]
         if current_users >= max_users:
-            return jsonify(
-                {"error": f"Tenant has reached maximum users limit ({max_users})"}
-            ), 400
+            return jsonify({"error": f"Tenant has reached maximum users limit ({max_users})"}), 400
 
         # ---- Keycloak-first: create identity before any DB write ----------
         plan_info = {
@@ -5022,9 +5176,7 @@ def accept_invitation():  # noqa: C901
         # ---- DB writes in a single transaction ----------------------------
         import bcrypt
 
-        password_hash = bcrypt.hashpw(
-            password.encode("utf-8"), bcrypt.gensalt()
-        ).decode("utf-8")
+        password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
         cursor.execute(
             """
@@ -5159,18 +5311,23 @@ def delete_tenant_user(user_id: str):
 
         logger.info(f"User {email} deleted from tenant {tenant_id}")
         audit_log(
-            action='tenant.user.delete',
-            resource_type='user',
+            action="tenant.user.delete",
+            resource_type="user",
             resource_id=str(farmer_id),
-            metadata={'email': email, 'tenant_id': tenant_id},
+            metadata={"email": email, "tenant_id": tenant_id},
         )
 
         return jsonify({"success": True, "message": f"User {email} deleted from tenant"}), 200
 
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
-        audit_log(action='tenant.user.delete', resource_type='user',
-                  resource_id=user_id, success=False, error=str(e))
+        audit_log(
+            action="tenant.user.delete",
+            resource_type="user",
+            resource_id=user_id,
+            success=False,
+            error=str(e),
+        )
         return _internal_error(e, "delete_user_tenant", user_message="Failed to delete user")
 
 
@@ -5198,12 +5355,14 @@ def register_tenant():
         # this try-block) until the pool's idle timeout reclaimed it.
         plan_lower = plan.lower() if plan else "pro"
         if plan_lower not in ("pro", "premium", "enterprise"):
-            return jsonify({
-                "error": (
-                    "Public registration restricted to pro/premium/enterprise. "
-                    "Basic requires NEK invitation code."
-                )
-            }), 400
+            return jsonify(
+                {
+                    "error": (
+                        "Public registration restricted to pro/premium/enterprise. "
+                        "Basic requires NEK invitation code."
+                    )
+                }
+            ), 400
 
         # 1. Normalize and check existence
         tenant_slug = webhook_service._normalize_tenant_slug(organization_name)  # noqa: F841
@@ -5214,6 +5373,7 @@ def register_tenant():
 
         # 2. Setup initial limits from canonical tier quotas
         from common.tier_quotas import quotas_for_tier
+
         q = quotas_for_tier(plan_lower)
         limits = {
             "max_users": q["max_users"],
@@ -5221,9 +5381,7 @@ def register_tenant():
             "max_sensors": q["max_sensors"],
             "max_parcels": q["max_parcels"],
             "max_area_hectares": (
-                float(q["max_area_hectares"])
-                if q["max_area_hectares"] is not None
-                else None
+                float(q["max_area_hectares"]) if q["max_area_hectares"] is not None else None
             ),
             "max_entities_total": q["max_entities_total"],
             "duration": 45,
@@ -5267,6 +5425,7 @@ def register_tenant():
 
             # 5. Set initial plan level in tenants table (SOTA Migration 058)
             from common.tier_quotas import plan_level_for
+
             plan_level = plan_level_for(plan_lower)
             cursor = conn.cursor()
             webhook_service._apply_admin_context(conn)
@@ -5315,7 +5474,9 @@ def register_tenant():
         except Exception as e:
             conn.rollback()
             logger.error(f"Onboarding failed for {email}: {str(e)}")
-            return _internal_error(e, "register_tenant.provision", user_message="Provisioning failed")  # noqa: E501
+            return _internal_error(
+                e, "register_tenant.provision", user_message="Provisioning failed"
+            )  # noqa: E501
         finally:
             conn.close()
 
