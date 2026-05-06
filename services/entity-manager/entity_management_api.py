@@ -1161,7 +1161,7 @@ def create_ndvi_job():
     max_cloud = data.get('maxCloudCoverage', 40)
 
     job_id = str(uuid.uuid4())
-    requested_by = (getattr(g, 'current_user', {}) or {}).get('email')
+    requested_by = getattr(g, 'email', None)
 
     # Attempt to fetch parcel area if not provided and parcelId available
     if parcel_id and area_hectares is None:
@@ -3432,7 +3432,7 @@ def create_asset():
     """Create a new asset from digitization workflow"""
     try:
         # Verify permissions
-        user_roles = g.get('user_roles', [])
+        user_roles = getattr(g, 'roles', None) or []
         if not any(role in ['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant'] for role in user_roles):
             return jsonify({'error': 'Insufficient permissions. Only TechnicalConsultant or higher can create assets.'}), 403
         
@@ -7662,14 +7662,11 @@ def update_tenant_governance(tenant_id):
         plan_type = data.get('plan_type')
         plan_level = data.get('plan_level')
         
+        from common.tier_quotas import PLAN_LEVELS as plan_hierarchy, LEVEL_TO_TIER
         if plan_type and plan_level is None:
-            # Map string to level
-            mapping = {'basic': 0, 'premium': 1, 'pro': 1, 'enterprise': 2}
-            plan_level = mapping.get(plan_type, 0)
+            plan_level = plan_hierarchy.get(plan_type, 0)
         elif plan_level is not None and not plan_type:
-            # Map level to string
-            mapping = {0: 'basic', 1: 'pro', 2: 'enterprise'}
-            plan_type = mapping.get(plan_level, 'basic')
+            plan_type = LEVEL_TO_TIER.get(plan_level, 'basic')
 
         # Allowed fields to update
         allowed_fields = {
@@ -7741,7 +7738,7 @@ def update_tenant_governance(tenant_id):
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (
                 tenant_id,
-                g.username,
+                getattr(g, 'user', None) or 'unknown',
                 'governance_update',
                 json.dumps(old_values),
                 json.dumps(dict(updated_tenant), default=str),

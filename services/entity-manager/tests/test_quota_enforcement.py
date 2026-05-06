@@ -1,6 +1,16 @@
 """Test quota enforcement logic."""
+import os
 import sys
 from unittest.mock import MagicMock, patch
+
+
+# Load real tier_quotas before mocking common (used by plan level tests)
+_services_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if _services_dir not in sys.path:
+    sys.path.insert(0, _services_dir)
+import common.tier_quotas as _tq_module  # noqa: E402
+_TQ_PLAN_LEVELS = _tq_module.PLAN_LEVELS
+_TQ_LEVEL_TO_TIER = _tq_module.LEVEL_TO_TIER
 
 
 # Mock modules that entity_management_api depends on before importing
@@ -55,3 +65,17 @@ def test_parcel_count_limit():
 def test_unlimited_parcels():
     """max_parcels=None → no limit."""
     assert _check_parcel_count_limit(current_count=100, max_parcels=None)
+
+
+def test_canonical_plan_levels_match_spec():
+    """PLAN_LEVELS must match the 4-tier spec: basic=0, pro=1, premium=2, enterprise=3."""
+    assert _TQ_PLAN_LEVELS['basic'] == 0
+    assert _TQ_PLAN_LEVELS['pro'] == 1
+    assert _TQ_PLAN_LEVELS['premium'] == 2
+    assert _TQ_PLAN_LEVELS['enterprise'] == 3
+
+
+def test_level_to_tier_roundtrip():
+    """Every tier should round-trip through PLAN_LEVELS → LEVEL_TO_TIER."""
+    for tier, level in _TQ_PLAN_LEVELS.items():
+        assert _TQ_LEVEL_TO_TIER[level] == tier
