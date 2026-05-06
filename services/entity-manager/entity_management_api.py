@@ -1517,6 +1517,19 @@ def register_sensor():
             conn.rollback()
             conn.close()
             logger.error(f"Error registering sensor: {e}")
+            # Best-effort cleanup of Orion-LD entity if it was created
+            if orion_entity_created and orion_entity_id:
+                try:
+                    requests.delete(
+                        f"{ORION_URL}/ngsi-ld/v1/entities/{orion_entity_id}",
+                        headers=orion_headers, timeout=5
+                    )
+                    logger.info(f"Cleaned up Orion-LD entity {orion_entity_id} after Postgres failure")
+                except Exception as cleanup_error:
+                    logger.critical(
+                        f"INCONSISTENCY: Orion-LD entity {orion_entity_id} exists "
+                        f"but Postgres operation failed and cleanup also failed: {cleanup_error}"
+                    )
             return jsonify({
                 'error': f'Database error: {str(e)}'
             }), 500
@@ -5433,7 +5446,7 @@ def put_modules_visibility():
 @require_auth(require_hmac=False)
 def admin_sync_parcels():
     """Trigger parcel synchronization for a tenant (PlatformAdmin only)"""
-    user_roles = getattr(g, 'roles', None) or []
+    user_roles = _get_user_roles()
     if 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
     
@@ -5454,7 +5467,7 @@ def admin_sync_parcels():
 @require_auth(require_hmac=False)
 def admin_list_tenants():
     """List all tenants in the system with their plan details (PlatformAdmin only)"""
-    user_roles = getattr(g, 'roles', None) or []
+    user_roles = _get_user_roles()
     if 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
     
@@ -5478,7 +5491,7 @@ def admin_list_tenants():
 @require_auth(require_hmac=False)
 def admin_list_activations():
     """List all activation codes (PlatformAdmin only)"""
-    user_roles = getattr(g, 'roles', None) or []
+    user_roles = _get_user_roles()
     if 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
     
@@ -5505,7 +5518,7 @@ def admin_purge_tenant(tenant_id):
     Nuclear purge of a tenant: PostgreSQL, Orion-LD entities, and Kubernetes Namespace.
     (PlatformAdmin only)
     """
-    user_roles = getattr(g, 'roles', None) or []
+    user_roles = _get_user_roles()
     if 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
     
