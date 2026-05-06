@@ -420,6 +420,10 @@ class TestAdminRoutes:
             ("GET", "/api/admin/audit-logs", 200),
         ],
     )
+    # Patch blueprint namespaces so extracted routes see the same mocks
+    @patch("blueprints.admin.return_db_connection")
+    @patch("blueprints.admin.get_db_connection_with_tenant")
+    @patch("blueprints.admin.get_db_connection_simple")
     @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
@@ -428,6 +432,9 @@ class TestAdminRoutes:
         mock_db_simple,
         mock_db_tenant,
         mock_req,
+        mock_bp_db_simple,
+        mock_bp_db_tenant,
+        mock_bp_return_db,
         client,
         method,
         path,
@@ -436,6 +443,8 @@ class TestAdminRoutes:
         conn = _make_db_conn()
         mock_db_simple.return_value = conn
         mock_db_tenant.return_value = conn
+        mock_bp_db_simple.return_value = conn
+        mock_bp_db_tenant.return_value = conn
         r = client.open(path, method=method)
         assert r.status_code == expected_status, f"{method} {path} got {r.status_code}"
         r.get_json()
