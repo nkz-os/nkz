@@ -10,7 +10,6 @@ import json
 import logging
 import time
 import secrets
-import subprocess
 from math import cos, radians
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List, Mapping
@@ -172,6 +171,17 @@ if AUDIT_MIDDLEWARE_AVAILABLE:
 # CORS must be configured before routes to handle OPTIONS preflight
 _cors_env = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
 ALLOWED_ORIGINS = {o.strip() for o in _cors_env.split(',') if o.strip()}
+
+
+def _get_user_roles():
+    """Get user roles from Flask g (set by auth middleware)"""
+    roles = g.get('roles', [])
+    if not roles:
+        payload = g.get('current_user', {})
+        if payload:
+            roles = payload.get('realm_access', {}).get('roles', [])
+    return roles
+
 
 @app.route('/api/weather/<path:subpath>', methods=['OPTIONS'])
 def weather_cors_preflight(subpath):
@@ -763,6 +773,7 @@ def get_entity_type(category, type_name):
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/entity-types/<category>/<type_name>', methods=['POST'])
+@require_auth
 def create_entity_type(category, type_name):
     """Create new entity type definition"""
     try:
@@ -801,6 +812,7 @@ def create_entity_type(category, type_name):
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/entity-types/<category>/<type_name>', methods=['DELETE'])
+@require_auth
 def delete_entity_type(category, type_name):
     """Delete entity type definition"""
     try:
@@ -2253,8 +2265,8 @@ def create_asset():
     """Create a new asset from digitization workflow"""
     try:
         # Verify permissions
-        user_roles = g.get('user_roles', [])
-        if not any(role in ['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant'] for role in user_roles):
+        user_roles = _get_user_roles()
+if not any(role in ['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant'] for role in user_roles):
             return jsonify({'error': 'Insufficient permissions. Only TechnicalConsultant or higher can create assets.'}), 403
         
         data = request.get_json()
@@ -2347,28 +2359,8 @@ def version():
 # =============================================================================
 
 def get_platform_credential(credential_name: str) -> Optional[str]:
-    """Get platform credential from Kubernetes secret or environment"""
-    # Try environment variable first (for local dev or if injected)
-    env_value = os.getenv(credential_name)
-    if env_value:
-        return env_value
-    
-    # Try to get from Kubernetes secret (if running in K8s)
-    try:
-        import subprocess
-        result = subprocess.run(
-            ['kubectl', 'get', 'secret', 'aemet-secret', '-n', 'nekazari', '-o', 'jsonpath={.data.api-key}'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode == 0 and result.stdout:
-            import base64
-            return base64.b64decode(result.stdout).decode('utf-8')
-    except Exception:
-        pass
-    
-    return None
+    """Get platform credential from environment variable"""
+    return os.getenv(credential_name)
 
 
 def geocode_municipality_on_demand(name: str, province: Optional[str] = None, ine_code: Optional[str] = None, country: str = 'Spain') -> Optional[tuple]:
@@ -3937,7 +3929,7 @@ def save_terms(language):
     """Save or update terms and conditions for a specific language (admin only)"""
     try:
         # Verify user is PlatformAdmin
-        user_roles = g.get('roles', [])
+        user_roles = _get_user_roles()
         if 'PlatformAdmin' not in user_roles:
             return jsonify({'error': 'Unauthorized. Only PlatformAdmin can manage terms.'}), 403
         
@@ -4194,94 +4186,8 @@ def provision_robot():
 
 
 # =============================================================================
-# Vercel Blob Upload Authorization
-# =============================================================================
-
-@app.route('/api/upload/authorize', methods=['POST'])
-@require_auth
-def authorize_upload():
-    """
-    Authorize Vercel Blob upload (proxy for frontend)
-    
-    Since the frontend is Vite/React (not Next.js), we need a backend endpoint
-    to securely provide the blob token for client-side uploads.
-    
-    The frontend will use this endpoint to get authorization, then upload
-    directly to Vercel Blob using @vercel/blob SDK.
-    """
-    try:
-        blob_token = os.getenv('BLOB_READ_WRITE_TOKEN')
-        if not blob_token:
-            logger.warning("BLOB_READ_WRITE_TOKEN not configured")
-            return jsonify({
-                'error': 'Blob storage not configured',
-                'message': 'BLOB_READ_WRITE_TOKEN environment variable is required'
-            }), 500
-        
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        filename = data.get('filename')
-        content_type = data.get('contentType', 'application/octet-stream')
-        
-        if not filename:
-            return jsonify({'error': 'filename is required'}), 400
-        
-        # Validate file type
-        allowed_icon_types = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
-        allowed_model_types = ['model/gltf-binary', 'model/gltf+json', 'application/octet-stream']
-        allowed_types = allowed_icon_types + allowed_model_types
-        
-        if content_type not in allowed_types:
-            # Try to infer from extension
-            ext = filename.lower().split('.')[-1]
-            if ext in ['png', 'jpg', 'jpeg', 'svg']:
-                content_type = f'image/{ext}' if ext != 'svg' else 'image/svg+xml'
-            elif ext in ['glb', 'gltf']:
-                content_type = 'model/gltf-binary' if ext == 'glb' else 'model/gltf+json'
-            else:
-                return jsonify({
-                    'error': 'Invalid file type',
-                    'allowed_types': allowed_types,
-                    'received': content_type
-                }), 400
-        
-        # Validate file size (will be checked on upload, but we can warn here)
-        max_size_mb = 2 if content_type.startswith('image/') else 10
-        file_size_mb = data.get('fileSize', 0) / (1024 * 1024) if data.get('fileSize') else 0
-        
-        if file_size_mb > max_size_mb:
-            return jsonify({
-                'error': f'File too large',
-                'max_size_mb': max_size_mb,
-                'received_mb': round(file_size_mb, 2)
-            }), 400
-        
-        # Generate unique filename with tenant prefix for organization
-        tenant_id = g.tenant
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-        unique_filename = f"{tenant_id}/{timestamp}_{filename}"
-        
-        # Return authorization info
-        # The frontend will use @vercel/blob SDK with this token
-        return jsonify({
-            'token': blob_token,  # Frontend will use this with @vercel/blob
-            'filename': unique_filename,
-            'contentType': content_type,
-            'maxSizeBytes': max_size_mb * 1024 * 1024,
-            'tenant': tenant_id
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error authorizing upload: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
-
-
-# =============================================================================
 # Asset Service - MinIO-based 3D Models and Icons Storage
 # =============================================================================
-# Replaces Vercel Blob with local MinIO storage
 # Bucket: assets-3d/{tenant_id}/{asset_type}/{asset_id}.{ext}
 # =============================================================================
 
@@ -4633,11 +4539,7 @@ def upload_public_asset():
     Upload a GLOBAL/PUBLIC asset to MinIO (Platform Admin only).
     """
     try:
-        # Use g.roles directly (set by auth middleware) or fallback to current_user
-        user_roles = getattr(g, 'roles', [])
-        if not user_roles and hasattr(g, 'current_user'):
-            user_roles = g.current_user.get('realm_access', {}).get('roles', [])
-             
+        user_roles = _get_user_roles()
         if 'PlatformAdmin' not in user_roles:
             return jsonify({'error': 'Only Platform Admin can upload global assets'}), 403
 
@@ -4710,11 +4612,7 @@ def upload_public_asset():
 def delete_public_asset(filename):
     """Delete a public asset (Platform Admin only)"""
     try:
-        # Use g.roles directly (set by auth middleware) or fallback to current_user
-        user_roles = getattr(g, 'roles', [])
-        if not user_roles and hasattr(g, 'current_user'):
-            user_roles = g.current_user.get('realm_access', {}).get('roles', [])
-             
+        user_roles = _get_user_roles()
         if 'PlatformAdmin' not in user_roles:
             return jsonify({'error': 'Only Platform Admin can delete global assets'}), 403
             
@@ -4848,8 +4746,7 @@ def get_tenant_modules():
     if not user_roles:
         # Try to extract from current_user payload (set by common.auth_middleware)
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     
     logger.info(f"[get_tenant_modules] tenant_id={tenant_id}, user_roles={user_roles}")
     
@@ -5024,8 +4921,7 @@ def toggle_module(module_id):
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     
     # Log user roles for debugging
     logger.info(f"[toggle_module] Initial check - tenant_id={tenant_id}, user_roles={user_roles}, has_PlatformAdmin={'PlatformAdmin' in user_roles}")
@@ -5174,8 +5070,7 @@ def get_marketplace_modules():
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     is_platform_admin = 'PlatformAdmin' in user_roles
     
     logger.info(f"[get_marketplace_modules] user_roles={user_roles}, is_platform_admin={is_platform_admin}")
@@ -5227,8 +5122,7 @@ def activate_marketplace_module(module_id):
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -5300,8 +5194,7 @@ def can_install_module(module_id):
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     
     try:
         # Get tenant plan_type from Orion-LD (source of truth for limits)
@@ -5345,12 +5238,7 @@ def can_install_module(module_id):
                 'module': dict(module)
             }), 200
         
-        # Get user roles for PlatformAdmin check
-        user_roles = []
-        if hasattr(g, 'current_user'):
-            payload = g.current_user
-            realm_access = payload.get('realm_access', {})
-            user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
         is_platform_admin = 'PlatformAdmin' in user_roles
 
         # PlatformAdmin can install any module regardless of plan requirements
@@ -5464,8 +5352,7 @@ def get_modules_visibility():
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', []) or []
+        user_roles = _get_user_roles() or []
 
     if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. TenantAdmin or PlatformAdmin required.'}), 403
@@ -5489,8 +5376,7 @@ def put_modules_visibility():
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', []) or []
+        user_roles = _get_user_roles() or []
 
     if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. TenantAdmin or PlatformAdmin required.'}), 403
@@ -5745,8 +5631,7 @@ def upload_module():
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -5908,8 +5793,7 @@ def get_validation_status(upload_id):
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -6072,8 +5956,7 @@ def deploy_module(module_id):
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -6127,8 +6010,7 @@ def get_validation_logs(upload_id):
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -6210,8 +6092,7 @@ def get_module_uploads():
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -6706,8 +6587,7 @@ def get_audit_logs():
     user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
     if not user_roles:
         payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
