@@ -27,6 +27,12 @@ ALLOWED_ORIGINS = {o.strip() for o in _cors_env.split(',') if o.strip()}
 
 ORION_URL = os.getenv('ORION_URL')
 
+
+def get_platform_credential(credential_name: str) -> Optional[str]:
+    """Get platform credential from environment variable"""
+    return os.getenv(credential_name)
+
+
 weather_bp = Blueprint('weather', __name__)
 
 # === Lines 186-208 from entity_management_api.py ===

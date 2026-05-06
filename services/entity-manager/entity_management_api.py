@@ -2359,11 +2359,6 @@ def version():
 # Weather Data Endpoints
 # =============================================================================
 
-def get_platform_credential(credential_name: str) -> Optional[str]:
-    """Get platform credential from environment variable"""
-    return os.getenv(credential_name)
-
-
 
 
 
