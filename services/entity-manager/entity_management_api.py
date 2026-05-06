@@ -10,7 +10,6 @@ import json
 import logging
 import time
 import secrets
-import subprocess
 from math import cos, radians
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List, Mapping
@@ -153,7 +152,6 @@ except ImportError:
             return f
         return decorator
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple, return_db_connection, set_platform_admin_context
-from task_queue import enqueue_task, TaskType
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 
@@ -173,6 +171,17 @@ if AUDIT_MIDDLEWARE_AVAILABLE:
 # CORS must be configured before routes to handle OPTIONS preflight
 _cors_env = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
 ALLOWED_ORIGINS = {o.strip() for o in _cors_env.split(',') if o.strip()}
+
+
+def _get_user_roles():
+    """Get user roles from Flask g (set by auth middleware)"""
+    roles = g.get('roles', [])
+    if not roles:
+        payload = g.get('current_user', {})
+        if payload:
+            roles = payload.get('realm_access', {}).get('roles', [])
+    return roles
+
 
 @app.route('/api/weather/<path:subpath>', methods=['OPTIONS'])
 def weather_cors_preflight(subpath):
@@ -211,13 +220,6 @@ CORS(
             "supports_credentials": True,
         },
         r"/api/parcels/*": {
-            "origins": list(ALLOWED_ORIGINS),
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Tenant-ID", "x-tenant-id", "X-Auth-Signature"],
-            "expose_headers": ["Content-Type", "Authorization", "X-Tenant-ID"],
-            "supports_credentials": True,
-        },
-        r"/api/ndvi/*": {
             "origins": list(ALLOWED_ORIGINS),
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
             "allow_headers": ["Content-Type", "Authorization", "X-Tenant-ID", "x-tenant-id", "X-Auth-Signature"],
@@ -307,10 +309,6 @@ SENSOR_ENTITY_TYPES = set([t.strip() for t in os.getenv('SENSOR_ENTITY_TYPES', '
 PARCEL_ENTITY_TYPES = set([t.strip() for t in os.getenv('PARCEL_ENTITY_TYPES', 'AgriParcel,Parcel,Vineyard,OliveGrove,vineyard,olive_grove').split(',') if t.strip()])
 ENTITY_BASE_PATH = os.getenv('ENTITY_BASE_PATH', '/app/config/entities')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-NDVI_QUEUE_NAME = os.getenv('NDVI_QUEUE_NAME', 'ndvi')
-DEFAULT_SATELLITE = os.getenv('NDVI_DEFAULT_SATELLITE', 'sentinel-2-l2a')
-DEFAULT_RESOLUTION = int(os.getenv('NDVI_DEFAULT_RESOLUTION', '10'))
-MAX_NDVI_RESULT_HISTORY = int(os.getenv('NDVI_RESULTS_HISTORY', '100'))
 # Get URLs from config manager or construct from PRODUCTION_DOMAIN
 try:
     from common.config_manager import ConfigManager
@@ -340,14 +338,6 @@ REQUEST_COUNT = Counter(
     'entity_manager_requests_total',
     'Total de peticiones HTTP en entity-manager',
     ['method', 'endpoint', 'http_status']
-)
-NDVI_JOBS_CREATED = Counter(
-    'entity_manager_ndvi_job_created_total',
-    'Trabajos NDVI creados correctamente'
-)
-NDVI_JOB_CREATION_FAILURES = Counter(
-    'entity_manager_ndvi_job_failed_total',
-    'Intentos fallidos de creación de trabajos NDVI'
 )
 
 # Set logging level
@@ -777,12 +767,13 @@ def get_entity_type(category, type_name):
             'definition': entity_types[category][type_name],
             'tenant': g.tenant
         })
-    
+
     except Exception as e:
         logger.error(f"Error getting entity type: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/entity-types/<category>/<type_name>', methods=['POST'])
+@require_auth
 def create_entity_type(category, type_name):
     """Create new entity type definition"""
     try:
@@ -821,6 +812,7 @@ def create_entity_type(category, type_name):
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/entity-types/<category>/<type_name>', methods=['DELETE'])
+@require_auth
 def delete_entity_type(category, type_name):
     """Delete entity type definition"""
     try:
@@ -836,1133 +828,11 @@ def delete_entity_type(category, type_name):
             'category': category,
             'type_name': type_name
         })
-    
+
     except Exception as e:
         logger.error(f"Error deleting entity type: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-
-# =============================================================================
-# NDVI Jobs Endpoints
-# =============================================================================
-
-def _normalize_polygon(geometry: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Validate and normalize a Polygon GeoJSON"""
-    if not geometry or geometry.get('type') != 'Polygon':
-        return None
-    coordinates = geometry.get('coordinates')
-    if not coordinates or not isinstance(coordinates, list):
-        return None
-    exterior = coordinates[0]
-    if not exterior or len(exterior) < 3:
-        return None
-
-    # Ensure coordinates are list of [lon, lat]
-    normalized = []
-    for point in exterior:
-        if (
-            not isinstance(point, (list, tuple))
-            or len(point) < 2
-            or not isinstance(point[0], (int, float))
-            or not isinstance(point[1], (int, float))
-        ):
-            return None
-        normalized.append([float(point[0]), float(point[1])])
-
-    # Ensure polygon is closed
-    if normalized[0] != normalized[-1]:
-        normalized.append(normalized[0])
-
-    return {
-        'type': 'Polygon',
-        'coordinates': [normalized],
-    }
-
-
-def _calculate_area_hectares_from_polygon(polygon: Dict[str, Any]) -> Optional[float]:
-    """Approximate polygon area (hectares) using equirectangular projection"""
-    if not polygon:
-        return None
-    exterior = polygon.get('coordinates', [[]])[0]
-    if len(exterior) < 4:
-        return None
-
-    # Remove last point if duplicate for area calculation
-    coords = exterior[:-1]
-    if len(coords) < 3:
-        return None
-
-    # Convert degrees to meters using equirectangular approximation
-    lats = [coord[1] for coord in coords]
-    lat0 = sum(lats) / len(lats)
-    lat0_rad = radians(lat0)
-    earth_radius = 6378137.0  # meters
-
-    xy = []
-    for lon, lat in coords:
-        x = radians(lon) * earth_radius * cos(lat0_rad)
-        y = radians(lat) * earth_radius
-        xy.append((x, y))
-
-    # Shoelace formula
-    area = 0.0
-    for i in range(len(xy)):
-        x1, y1 = xy[i]
-        x2, y2 = xy[(i + 1) % len(xy)]
-        area += x1 * y2 - x2 * y1
-
-    area_sq_m = abs(area) / 2.0
-    return round(area_sq_m / 10_000.0, 4)
-
-
-def _serialize_job(row: Dict[str, Any], tenant_id: Optional[str] = None) -> Dict[str, Any]:
-    # Calculate estimated time remaining for processing jobs
-    estimated_seconds_remaining = None
-    if row.get('status') == 'processing' and row.get('started_at'):
-        try:
-            # Use tenant_id from row if not provided
-            job_tenant = tenant_id or row.get('tenant_id') or (hasattr(g, 'tenant') and g.tenant)
-            if job_tenant:
-                # Get average duration from similar completed jobs
-                with get_db_connection_with_tenant(job_tenant) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        SELECT AVG(EXTRACT(EPOCH FROM (finished_at - started_at))) as avg_duration
-                        FROM ndvi_jobs
-                        WHERE tenant_id = %s
-                        AND status = 'completed'
-                        AND started_at IS NOT NULL
-                        AND finished_at IS NOT NULL
-                        AND started_at > NOW() - INTERVAL '30 days'
-                        LIMIT 10
-                    """, (job_tenant,))
-                    result = cursor.fetchone()
-                    cursor.close()
-                    
-                    if result and result[0]:
-                        avg_duration = result[0]
-                        started = row.get('started_at')
-                        if isinstance(started, str):
-                            from dateutil.parser import parse
-                            started = parse(started)
-                        elapsed = (datetime.utcnow() - started).total_seconds() if started else 0
-                        estimated_seconds_remaining = max(0, avg_duration - elapsed)
-        except Exception:
-            pass  # Ignore errors in estimation
-    
-    # Helper function to convert NaN/Infinity to None for JSON serialization
-    def clean_numeric_value(value):
-        import math
-        if value is None:
-            return None
-        if isinstance(value, (int, float)):
-            if math.isnan(value) or math.isinf(value):
-                return None
-        return value
-    
-    ndvi_mean = row.get('ndvi_mean')
-    area_hectares = row.get('area_hectares')
-    
-    return {
-        'id': row.get('id'),
-        'parcelId': row.get('parcel_id'),
-        'status': row.get('status'),
-        'requestedBy': row.get('requested_by'),
-        'requestedAt': row.get('requested_at').isoformat() if row.get('requested_at') else None,
-        'startedAt': row.get('started_at').isoformat() if row.get('started_at') else None,
-        'finishedAt': row.get('finished_at').isoformat() if row.get('finished_at') else None,
-        'timeRange': {
-            'from': row.get('time_from').isoformat() if row.get('time_from') else None,
-            'to': row.get('time_to').isoformat() if row.get('time_to') else None
-        },
-        'resolution': row.get('resolution'),
-        'satellite': row.get('satellite'),
-        'ndviMean': clean_numeric_value(ndvi_mean),
-        'previewUrl': row.get('preview_url'),
-        'error': row.get('error_message'),
-        'parameters': row.get('parameters'),
-        'geometry': row.get('geometry'),
-        'areaHectares': clean_numeric_value(area_hectares),
-        'jobType': row.get('job_type', 'parcel'),
-        'progressMessage': row.get('progress_message'),
-        'estimatedSecondsRemaining': int(estimated_seconds_remaining) if estimated_seconds_remaining else None
-    }
-
-
-def _clean_indices_data(indices_data: Any) -> Optional[Dict[str, Any]]:
-    """Clean NaN values from indices_data JSONB structure"""
-    import math
-    if indices_data is None:
-        return None
-    if isinstance(indices_data, str):
-        try:
-            import json
-            indices_data = json.loads(indices_data)
-        except Exception:
-            return indices_data
-    if isinstance(indices_data, dict):
-        cleaned = {}
-        for key, value in indices_data.items():
-            if isinstance(value, dict):
-                cleaned[key] = {}
-                for sub_key, sub_value in value.items():
-                    if isinstance(sub_value, (int, float)):
-                        if math.isnan(sub_value) or math.isinf(sub_value):
-                            cleaned[key][sub_key] = None
-                        else:
-                            cleaned[key][sub_key] = sub_value
-                    else:
-                        cleaned[key][sub_key] = sub_value
-            else:
-                cleaned[key] = value
-        return cleaned
-    return indices_data
-
-def _serialize_result(row: Dict[str, Any]) -> Dict[str, Any]:
-    # Helper function to convert NaN/Infinity to None for JSON serialization
-    def clean_numeric_value(value):
-        import math
-        if value is None:
-            return None
-        if isinstance(value, (int, float)):
-            if math.isnan(value) or math.isinf(value):
-                return None
-        return value
-    
-    # Helper function to convert MinIO internal URLs to proxy URLs
-    def convert_minio_url(url: Optional[str]) -> Optional[str]:
-        if not url:
-            return None
-        # If URL is internal MinIO URL (minio-service:9000), convert to proxy endpoint
-        if 'minio-service:9000' in url or 'http://minio-service:9000' in url or 'https://minio-service:9000' in url:
-            # Extract the path part after the bucket name
-            # URL format: http://minio-service:9000/ndvi-rasters/tenant/parcel/file.tif
-            try:
-                from urllib.parse import urlparse
-                parsed = urlparse(url)
-                # Path format: /bucket/key -> extract key part (e.g., /ndvi-rasters/platformadmin/parcel/file.tif)
-                path = parsed.path.strip('/')
-                # Remove bucket name (first part) to get the key
-                path_parts = path.split('/', 1)
-                if len(path_parts) == 2:
-                    bucket, key = path_parts
-                    # Return proxy URL: /api/ndvi/download/tenant/parcel/file.tif
-                    converted_url = f'/api/ndvi/download/{key}'
-                    logger.info(f"Converting MinIO URL: {url} -> {converted_url}")
-                    return converted_url
-                else:
-                    logger.warning(f"Unexpected MinIO URL format: {url}")
-            except Exception as e:
-                logger.warning(f"Failed to convert MinIO URL {url}: {e}")
-        return url
-    
-    # Clean indices_data
-    indices_data_cleaned = None
-    if 'indices_data' in row:
-        raw_indices_data = row.get('indices_data')
-        if raw_indices_data:
-            # Handle both JSONB (dict) and JSON string formats
-            if isinstance(raw_indices_data, str):
-                try:
-                    import json
-                    raw_indices_data = json.loads(raw_indices_data)
-                except Exception:
-                    logger.warning(f"Failed to parse indices_data JSON string: {raw_indices_data[:100] if raw_indices_data else 'None'}")
-                    raw_indices_data = None
-            if raw_indices_data:
-                indices_data_cleaned = _clean_indices_data(raw_indices_data)
-                # Validate that we have at least some index data
-                if indices_data_cleaned and isinstance(indices_data_cleaned, dict):
-                    # Check if it's empty dict or has at least one valid index
-                    has_valid_index = any(
-                        isinstance(v, dict) and v.get('mean') is not None
-                        for k, v in indices_data_cleaned.items()
-                        if k != 'cloud_cover_real'
-                    )
-                    if not has_valid_index:
-                        logger.debug(f"indices_data has no valid index stats: {list(indices_data_cleaned.keys())}")
-    
-    return {
-        'id': row.get('id'),
-        'jobId': row.get('job_id'),
-        'parcelId': row.get('parcel_id'),
-        'date': row.get('acquisition_date').isoformat() if row.get('acquisition_date') else None,
-        'ndviMean': clean_numeric_value(row.get('ndvi_mean')),
-        'ndviMin': clean_numeric_value(row.get('ndvi_min')),
-        'ndviMax': clean_numeric_value(row.get('ndvi_max')),
-        'ndviStddev': clean_numeric_value(row.get('ndvi_stddev')),
-        'cloudCover': clean_numeric_value(row.get('cloud_cover')),
-        'rasterUrl': convert_minio_url(row.get('raster_url')),
-        'previewUrl': convert_minio_url(row.get('preview_url')),
-        'createdAt': row.get('created_at').isoformat() if row.get('created_at') else None,
-        'geometry': row.get('geometry') if 'geometry' in row else None,
-        'areaHectares': clean_numeric_value(row.get('area_hectares')) if 'area_hectares' in row else None,
-        'indicesData': indices_data_cleaned
-    }
-
-
-def _parse_time_range(data: Dict[str, Any]) -> Dict[str, Optional[datetime]]:
-    time_range = data.get('timeRange') or {}
-    start = time_range.get('start')
-    end = time_range.get('end')
-    try:
-        start_dt = datetime.fromisoformat(start) if start else None
-        end_dt = datetime.fromisoformat(end) if end else None
-    except Exception:
-        start_dt = None
-        end_dt = None
-    return {'start': start_dt, 'end': end_dt}
-
-
-@app.route('/ndvi/jobs', methods=['POST'])
-@require_auth(require_hmac=False)
-def create_ndvi_job():
-    """Enqueue NDVI calculation for a parcel"""
-    if not POSTGRES_URL:
-        return jsonify({'error': 'NDVI database not configured'}), 503
-
-    data = request.get_json() or {}
-    parcel_id = data.get('parcelId') or data.get('parcel_id')
-    raw_geometry = data.get('geometry')
-    
-    # Detect source module: from header, parameter, or default to 'ndvi' (legacy)
-    source_module = (
-        request.headers.get('X-Source-Module') or
-        data.get('sourceModule') or
-        data.get('source_module') or
-        'ndvi'  # Default to legacy for backward compatibility
-    )
-    # Validate source_module (only allow known modules)
-    if source_module not in ['ndvi']:
-        logger.warning(f"Invalid source_module '{source_module}', defaulting to 'ndvi'")
-        source_module = 'ndvi'
-
-    normalized_geometry: Optional[Dict[str, Any]] = None
-    area_hectares: Optional[float] = None
-    job_type = 'parcel'
-
-    if raw_geometry:
-        normalized_geometry = _normalize_polygon(raw_geometry)
-        if not normalized_geometry:
-            return jsonify({'error': 'Invalid geometry. Expecting GeoJSON Polygon.'}), 400
-        area_hectares = _calculate_area_hectares_from_polygon(normalized_geometry)
-        job_type = 'manual'
-
-    if not parcel_id and not normalized_geometry:
-        return jsonify({'error': 'Either parcelId or geometry must be provided'}), 400
-
-    time_range = _parse_time_range(data)
-    if not time_range['start'] or not time_range['end']:
-        time_range['end'] = datetime.utcnow()
-        time_range['start'] = time_range['end'] - timedelta(days=7)
-
-    resolution = int(data.get('resolution') or DEFAULT_RESOLUTION)
-    satellite = data.get('satellite') or DEFAULT_SATELLITE
-    max_cloud = data.get('maxCloudCoverage', 40)
-
-    job_id = str(uuid.uuid4())
-    requested_by = getattr(g, 'email', None)
-
-    # Attempt to fetch parcel area if not provided and parcelId available
-    if parcel_id and area_hectares is None:
-        try:
-            with get_db_connection_with_tenant(g.tenant) as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    """
-                    SELECT area_hectares
-                    FROM cadastral_parcels
-                    WHERE id = %s
-                    LIMIT 1
-                    """,
-                    (parcel_id,)
-                )
-                parcel_row = cursor.fetchone()
-                cursor.close()
-            if parcel_row:
-                area_hectares = parcel_row[0]
-        except Exception as parcel_err:
-            logger.warning(f"Unable to fetch parcel metadata for {parcel_id}: {parcel_err}")
-
-    parameters = {
-        'timeRange': {
-            'start': time_range['start'].isoformat(),
-            'end': time_range['end'].isoformat()
-        },
-        'resolution': resolution,
-        'satellite': satellite,
-        'maxCloudCoverage': max_cloud
-    }
-
-    try:
-        with get_db_connection_with_tenant(g.tenant) as conn:
-            cursor = conn.cursor()
-            # Check if source_module column exists (for backward compatibility)
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'ndvi_jobs' 
-                AND column_name = 'source_module'
-            """)
-            has_source_module = cursor.fetchone() is not None
-            
-            if has_source_module:
-                cursor.execute("""
-                    INSERT INTO ndvi_jobs (
-                        id, tenant_id, parcel_id, status,
-                        requested_by, requested_at, time_from, time_to,
-                        resolution, satellite, parameters,
-                        geometry, area_hectares, job_type, source_module
-                    ) VALUES (
-                        %s, %s, %s, 'queued',
-                        %s, NOW(), %s, %s,
-                        %s, %s, %s::jsonb,
-                        %s::jsonb, %s, %s, %s
-                    )
-                """, (
-                    job_id, g.tenant, parcel_id,
-                    requested_by,
-                    time_range['start'], time_range['end'],
-                    resolution, satellite,
-                    json.dumps(parameters),
-                    json.dumps(normalized_geometry) if normalized_geometry else None,
-                    area_hectares,
-                    job_type,
-                    source_module
-                ))
-            else:
-                # Fallback for databases without source_module column
-                cursor.execute("""
-                    INSERT INTO ndvi_jobs (
-                        id, tenant_id, parcel_id, status,
-                        requested_by, requested_at, time_from, time_to,
-                        resolution, satellite, parameters,
-                        geometry, area_hectares, job_type
-                    ) VALUES (
-                        %s, %s, %s, 'queued',
-                        %s, NOW(), %s, %s,
-                        %s, %s, %s::jsonb,
-                        %s::jsonb, %s, %s
-                    )
-                """, (
-                    job_id, g.tenant, parcel_id,
-                    requested_by,
-                    time_range['start'], time_range['end'],
-                    resolution, satellite,
-                    json.dumps(parameters),
-                    json.dumps(normalized_geometry) if normalized_geometry else None,
-                    area_hectares,
-                    job_type
-                ))
-            conn.commit()
-            cursor.close()
-    except Exception as e:
-        logger.error(f"Failed to insert NDVI job: {e}")
-        NDVI_JOB_CREATION_FAILURES.inc()
-        return jsonify({'error': 'Failed to create job'}), 500
-
-    payload = {
-        'job_id': job_id,
-        'tenant_id': g.tenant,
-        'parcel_id': parcel_id,
-        'time_range': parameters['timeRange'],
-        'resolution': resolution,
-        'satellite': satellite,
-        'max_cloud_coverage': max_cloud,
-        'requested_by': requested_by,
-        'geometry': normalized_geometry,
-        'area_hectares': area_hectares
-    }
-
-    try:
-        logger.info(f"Attempting to enqueue NDVI task for job {job_id}, tenant {g.tenant}, queue {NDVI_QUEUE_NAME}")
-        task_id = enqueue_task(
-            tenant_id=g.tenant,
-            task_type=TaskType.NDVI_PROCESSING,
-            payload=payload,
-            queue_name=NDVI_QUEUE_NAME,
-            max_retries=3
-        )
-        if task_id:
-            logger.info(f"Successfully enqueued NDVI task {task_id} for job {job_id}")
-        else:
-            logger.error(f"enqueue_task returned None for job {job_id}")
-    except Exception as e:
-        logger.error(f"Exception while enqueueing NDVI task for job {job_id}: {e}", exc_info=True)
-        task_id = None
-
-    if not task_id:
-        logger.error(f"Failed to enqueue NDVI task for job {job_id}; marking job as failed")
-        NDVI_JOB_CREATION_FAILURES.inc()
-        try:
-            with get_db_connection_with_tenant(g.tenant) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE ndvi_jobs
-                    SET status = 'failed',
-                        finished_at = NOW(),
-                        error_message = %s
-                    WHERE id = %s
-                """, ("Queue unavailable", job_id))
-                conn.commit()
-                cursor.close()
-        except Exception as e:
-            logger.error(f"Failed to update job after enqueue failure: {e}")
-        return jsonify({'error': 'Unable to enqueue NDVI job'}), 503
-
-    NDVI_JOBS_CREATED.inc()
-    return jsonify({
-        'job': {
-            'id': job_id,
-            'parcelId': parcel_id,
-            'status': 'queued',
-            'requestedAt': datetime.utcnow().isoformat(),
-            'timeRange': parameters['timeRange'],
-            'resolution': resolution,
-            'satellite': satellite
-        }
-    }), 202
-
-
-@app.route('/ndvi/jobs', methods=['GET'])
-@require_auth(require_hmac=False)
-def list_ndvi_jobs():
-    if not POSTGRES_URL:
-        return jsonify({'jobs': []})
-
-    try:
-        with get_db_connection_with_tenant(g.tenant) as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            # Check if progress_message column exists
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'ndvi_jobs' 
-                AND column_name = 'progress_message'
-            """)
-            has_progress = cursor.fetchone() is not None
-            
-            if has_progress:
-                cursor.execute("""
-                    SELECT
-                        id, parcel_id, status, requested_by, requested_at,
-                        started_at, finished_at, time_from, time_to,
-                        resolution, satellite, ndvi_mean, preview_url,
-                        error_message, parameters,
-                        geometry, area_hectares, job_type, progress_message
-                    FROM ndvi_jobs
-                    WHERE tenant_id = %s
-                    ORDER BY requested_at DESC
-                    LIMIT 100
-                """, (g.tenant,))
-            else:
-                cursor.execute("""
-                    SELECT
-                        id, parcel_id, status, requested_by, requested_at,
-                        started_at, finished_at, time_from, time_to,
-                        resolution, satellite, ndvi_mean, preview_url,
-                        error_message, parameters,
-                        geometry, area_hectares, job_type
-                    FROM ndvi_jobs
-                    WHERE tenant_id = %s
-                    ORDER BY requested_at DESC
-                    LIMIT 100
-                """, (g.tenant,))
-            rows = cursor.fetchall()
-            cursor.close()
-        jobs = [_serialize_job(row, g.tenant) for row in rows]
-        logger.info(f"Returning {len(jobs)} jobs for tenant {g.tenant}")
-        if jobs:
-            logger.info(f"First job ID: {jobs[0].get('id')}, status: {jobs[0].get('status')}")
-        return jsonify({'jobs': jobs}), 200
-    except Exception as e:
-        logger.error(f"Error listing NDVI jobs: {e}")
-        return jsonify({'error': 'Failed to list jobs'}), 500
-
-
-@app.route('/ndvi/jobs/<job_id>', methods=['GET', 'DELETE'])
-@require_auth(require_hmac=False)
-def get_ndvi_job(job_id: str):
-    if not POSTGRES_URL:
-        return jsonify({'error': 'NDVI not configured'}), 503
-
-    if request.method == 'DELETE':
-        # Delete or cancel NDVI job and associated data
-        logger.info(f"DELETE request for job {job_id}, tenant {g.tenant}, query params: {dict(request.args)}")
-        try:
-            # Get S3 configuration for file deletion
-            S3_ENDPOINT_URL = os.getenv('S3_ENDPOINT_URL', 'http://minio-service:9000')
-            S3_ACCESS_KEY = os.getenv('S3_ACCESS_KEY')
-            S3_SECRET_KEY = os.getenv('S3_SECRET_KEY')
-            S3_BUCKET = os.getenv('S3_BUCKET', 'ndvi-rasters')
-            S3_REGION = os.getenv('S3_REGION', 'us-east-1')
-            S3_USE_SSL = os.getenv('S3_USE_SSL', 'false').lower() == 'true'
-            
-            s3_client = None
-            if S3_ACCESS_KEY and S3_SECRET_KEY:
-                s3_client = boto3.client(
-                    's3',
-                    endpoint_url=S3_ENDPOINT_URL,
-                    aws_access_key_id=S3_ACCESS_KEY,
-                    aws_secret_access_key=S3_SECRET_KEY,
-                    region_name=S3_REGION,
-                    use_ssl=S3_USE_SSL,
-                    verify=S3_USE_SSL
-                )
-            
-            with get_db_connection_with_tenant(g.tenant) as conn:
-                cursor = conn.cursor(cursor_factory=RealDictCursor)
-                
-                # Get job details including status
-                cursor.execute("""
-                    SELECT status, parcel_id FROM ndvi_jobs
-                    WHERE id = %s AND tenant_id = %s
-                """, (job_id, g.tenant))
-                job_row = cursor.fetchone()
-                
-                if not job_row:
-                    cursor.close()
-                    return jsonify({'error': 'Job not found'}), 404
-                
-                current_status = job_row['status']
-                parcel_id = job_row.get('parcel_id')
-                
-                # Get all results associated with this job to delete files
-                cursor.execute("""
-                    SELECT id, raster_url, preview_url FROM ndvi_results
-                    WHERE job_id = %s AND tenant_id = %s
-                """, (job_id, g.tenant))
-                results = cursor.fetchall()
-                
-                # Delete files from MinIO
-                deleted_files = 0
-                if s3_client and results:
-                    for result in results:
-                        for url_field in ['raster_url', 'preview_url']:
-                            url = result.get(url_field)
-                            if url and 'minio-service:9000' in url:
-                                try:
-                                    from urllib.parse import urlparse
-                                    parsed = urlparse(url)
-                                    path = parsed.path.strip('/')
-                                    # Remove bucket name (first part) to get the key
-                                    path_parts = path.split('/', 1)
-                                    if len(path_parts) == 2:
-                                        bucket, key = path_parts
-                                        try:
-                                            s3_client.delete_object(Bucket=S3_BUCKET, Key=key)
-                                            deleted_files += 1
-                                            logger.info(f"Deleted file from S3: {S3_BUCKET}/{key}")
-                                        except ClientError as e:
-                                            logger.warning(f"Failed to delete file {key} from S3: {e}")
-                                except Exception as e:
-                                    logger.warning(f"Failed to parse URL {url} for deletion: {e}")
-                
-                # Delete results from database
-                if results:
-                    cursor.execute("""
-                        DELETE FROM ndvi_results
-                        WHERE job_id = %s AND tenant_id = %s
-                    """, (job_id, g.tenant))
-                    deleted_results = cursor.rowcount
-                    logger.info(f"Deleted {deleted_results} results for job {job_id}")
-                
-                # If job is processing, cancel it (mark as failed with cancellation message)
-                if current_status == 'processing':
-                    cursor.execute("""
-                        UPDATE ndvi_jobs
-                        SET status = 'failed',
-                            error_message = 'Job cancelled by user',
-                            finished_at = NOW()
-                        WHERE id = %s AND tenant_id = %s
-                    """, (job_id, g.tenant))
-                    conn.commit()
-                    updated = cursor.rowcount
-                    cursor.close()
-                    if updated == 0:
-                        return jsonify({'error': 'Failed to cancel job'}), 500
-                    logger.info(f"Job {job_id} cancelled by user, deleted {deleted_files} files and {len(results)} results")
-                    return jsonify({
-                        'status': 'cancelled', 
-                        'job_id': job_id,
-                        'deleted_results': len(results),
-                        'deleted_files': deleted_files
-                    }), 200
-                
-                # For pending, queued, or failed jobs, delete them completely
-                elif current_status in ('pending', 'queued', 'failed'):
-                    cursor.execute("""
-                        DELETE FROM ndvi_jobs
-                        WHERE id = %s AND tenant_id = %s
-                    """, (job_id, g.tenant))
-                    conn.commit()
-                    deleted = cursor.rowcount
-                    cursor.close()
-                    if deleted == 0:
-                        return jsonify({'error': 'Failed to delete job'}), 500
-                    logger.info(f"Job {job_id} deleted, removed {deleted_files} files and {len(results)} results")
-                    return jsonify({
-                        'status': 'deleted', 
-                        'job_id': job_id,
-                        'deleted_results': len(results),
-                        'deleted_files': deleted_files
-                    }), 200
-                
-                # For completed jobs, allow deletion but keep results by default
-                # If ?delete_results=true is passed, also delete results
-                else:  # current_status == 'completed'
-                    delete_results = request.args.get('delete_results', 'false').lower() == 'true'
-                    logger.info(f"Deleting completed job {job_id}, delete_results={delete_results}")
-                    if delete_results:
-                        # Delete job and results
-                        cursor.execute("""
-                            DELETE FROM ndvi_jobs
-                            WHERE id = %s AND tenant_id = %s
-                        """, (job_id, g.tenant))
-                        conn.commit()
-                        deleted = cursor.rowcount
-                        cursor.close()
-                        logger.info(f"Completed job {job_id} deleted with results, removed {deleted_files} files")
-                        return jsonify({
-                            'status': 'deleted', 
-                            'job_id': job_id,
-                            'deleted_results': len(results),
-                            'deleted_files': deleted_files
-                        }), 200
-                    else:
-                        # Just delete the job, keep results
-                        cursor.execute("""
-                            DELETE FROM ndvi_jobs
-                            WHERE id = %s AND tenant_id = %s
-                        """, (job_id, g.tenant))
-                        conn.commit()
-                        deleted = cursor.rowcount
-                        cursor.close()
-                        logger.info(f"Completed job {job_id} deleted (results kept)")
-                        return jsonify({
-                            'status': 'deleted', 
-                            'job_id': job_id,
-                            'results_kept': True
-                        }), 200
-                    
-        except Exception as e:
-            logger.error(f"Error deleting/cancelling NDVI job: {e}", exc_info=True)
-            return jsonify({'error': 'Failed to delete job'}), 500
-
-    # GET method
-    try:
-        with get_db_connection_with_tenant(g.tenant) as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            # Check if progress_message column exists
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'ndvi_jobs' 
-                AND column_name = 'progress_message'
-            """)
-            has_progress = cursor.fetchone() is not None
-            
-            if has_progress:
-                cursor.execute("""
-                    SELECT
-                        id, parcel_id, status, requested_by, requested_at,
-                        started_at, finished_at, time_from, time_to,
-                        resolution, satellite, ndvi_mean, preview_url,
-                        error_message, parameters,
-                        geometry, area_hectares, job_type, progress_message
-                    FROM ndvi_jobs
-                    WHERE id = %s AND tenant_id = %s
-                    LIMIT 1
-                """, (job_id, g.tenant))
-            else:
-                cursor.execute("""
-                    SELECT
-                        id, parcel_id, status, requested_by, requested_at,
-                        started_at, finished_at, time_from, time_to,
-                        resolution, satellite, ndvi_mean, preview_url,
-                        error_message, parameters,
-                        geometry, area_hectares, job_type
-                    FROM ndvi_jobs
-                    WHERE id = %s AND tenant_id = %s
-                    LIMIT 1
-                """, (job_id, g.tenant))
-            row = cursor.fetchone()
-            cursor.close()
-        if not row:
-            return jsonify({'error': 'Job not found'}), 404
-        return jsonify({'job': _serialize_job(row, g.tenant)}), 200
-    except Exception as e:
-        logger.error(f"Error fetching NDVI job: {e}")
-        return jsonify({'error': 'Failed to fetch job'}), 500
-
-
-@app.route('/ndvi/results', methods=['GET'])
-@require_auth(require_hmac=False)
-def list_ndvi_results():
-    parcel_id = request.args.get('parcelId') or request.args.get('parcel_id')
-    limit = min(int(request.args.get('limit', MAX_NDVI_RESULT_HISTORY)), 500)
-
-    if not POSTGRES_URL:
-        return jsonify({'results': []})
-
-    try:
-        with get_db_connection_with_tenant(g.tenant) as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            
-            # Check which columns exist in the table
-            cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = 'ndvi_results' 
-                ORDER BY ordinal_position
-            """)
-            rows = cursor.fetchall()
-            # RealDictCursor returns dicts, regular cursor returns tuples
-            if rows and isinstance(rows[0], dict):
-                existing_columns = {row['column_name'] for row in rows}
-            else:
-                existing_columns = {row[0] for row in rows}
-            
-            # Build SELECT query based on available columns
-            # Only include columns that actually exist in the table
-            base_columns = [
-                'id', 'job_id', 'parcel_id', 'acquisition_date',
-                'ndvi_mean', 'ndvi_min', 'ndvi_max', 'ndvi_stddev',
-                'cloud_cover', 'raster_url', 'preview_url', 'created_at'
-            ]
-            
-            # Add optional columns if they exist
-            if 'geometry' in existing_columns:
-                base_columns.append('geometry')
-            if 'area_hectares' in existing_columns:
-                base_columns.append('area_hectares')
-            if 'indices_data' in existing_columns:
-                base_columns.append('indices_data')
-            
-            columns_str = ', '.join(base_columns)
-            
-            if parcel_id:
-                cursor.execute(f"""
-                    SELECT {columns_str}
-                    FROM ndvi_results
-                    WHERE tenant_id = %s AND parcel_id = %s
-                    ORDER BY acquisition_date DESC
-                    LIMIT %s
-                """, (g.tenant, parcel_id, limit))
-            else:
-                cursor.execute(f"""
-                    SELECT {columns_str}
-                    FROM ndvi_results
-                    WHERE tenant_id = %s
-                    ORDER BY acquisition_date DESC
-                    LIMIT %s
-                """, (g.tenant, limit))
-            rows = cursor.fetchall()
-            cursor.close()
-        results = [_serialize_result(row) for row in rows]
-        return jsonify(results), 200  # Return array directly, not wrapped in object
-    except Exception as e:
-        logger.error(f"Error listing NDVI results: {e}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return jsonify({'error': 'Failed to fetch results'}), 500
-
-@app.route('/ndvi/download/<path:file_path>', methods=['GET'])
-@require_auth(require_hmac=False)
-def download_ndvi_file(file_path: str):
-    """
-    Proxy endpoint to download NDVI raster/preview files from MinIO.
-    Converts internal MinIO URLs to accessible download URLs.
-    
-    Args:
-        file_path: Path to file in MinIO bucket (e.g., 'tenant/parcel/file.tif')
-    """
-    try:
-        # Get MinIO configuration from environment
-        S3_ENDPOINT_URL = os.getenv('S3_ENDPOINT_URL', 'http://minio-service:9000')
-        S3_ACCESS_KEY = os.getenv('S3_ACCESS_KEY')
-        S3_SECRET_KEY = os.getenv('S3_SECRET_KEY')
-        S3_BUCKET = os.getenv('S3_BUCKET', 'ndvi-rasters')
-        S3_REGION = os.getenv('S3_REGION', 'us-east-1')
-        S3_USE_SSL = os.getenv('S3_USE_SSL', 'false').lower() == 'true'
-        
-        if not S3_ACCESS_KEY or not S3_SECRET_KEY:
-            logger.error("S3 credentials not configured for NDVI file download")
-            return jsonify({'error': 'File storage not configured'}), 503
-        
-        # Verify tenant access (file path should start with tenant_id)
-        tenant_id = g.tenant
-        if not file_path.startswith(tenant_id):
-            logger.warning(f"Access denied: file path {file_path} does not start with tenant {tenant_id}")
-            return jsonify({'error': 'Access denied'}), 403
-        
-        # Create S3 client
-        s3_client = boto3.client(
-            's3',
-            endpoint_url=S3_ENDPOINT_URL,
-            aws_access_key_id=S3_ACCESS_KEY,
-            aws_secret_access_key=S3_SECRET_KEY,
-            region_name=S3_REGION,
-            use_ssl=S3_USE_SSL,
-            verify=S3_USE_SSL
-        )
-        
-        # Download file from S3
-        # file_path format from convert_minio_url: platformadmin/parcel/file.tif (bucket name already removed)
-        # The s3_key format from worker: tenant_id/parcel_id/file.tif (same format, no bucket prefix)
-        # So we can use file_path directly as the S3 key
-        s3_key = file_path
-        logger.info(f"Downloading file from S3: bucket={S3_BUCKET}, key={s3_key}, tenant={tenant_id}, file_path={file_path}")
-        try:
-            s3_response = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
-            file_data = s3_response['Body'].read()
-            content_type = s3_response.get('ContentType', 'application/octet-stream')
-            
-            # Determine file extension for proper content type
-            if file_path.endswith('.tif') or file_path.endswith('.tiff'):
-                content_type = 'image/tiff'
-            elif file_path.endswith('.png'):
-                content_type = 'image/png'
-            elif file_path.endswith('.jpg') or file_path.endswith('.jpeg'):
-                content_type = 'image/jpeg'
-            
-            # Extract filename from path for Content-Disposition header
-            filename = file_path.split('/')[-1]
-            
-            # Return file with appropriate headers
-            return Response(
-                file_data,
-                mimetype=content_type,
-                headers={
-                    'Content-Disposition': f'attachment; filename="{filename}"',
-                    'Content-Length': str(len(file_data))
-                }
-            )
-        except ClientError as e:
-            error_code = e.response.get('Error', {}).get('Code', '')
-            if error_code == 'NoSuchKey':
-                logger.warning(f"File not found in S3: {S3_BUCKET}/{file_path}")
-                return jsonify({'error': 'File not found'}), 404
-            else:
-                logger.error(f"Error downloading file from S3: {e}", exc_info=True)
-                return jsonify({'error': 'Failed to download file'}), 500
-        except Exception as e:
-            logger.error(f"Error downloading file from S3: {e}", exc_info=True)
-            return jsonify({'error': 'Failed to download file'}), 500
-            
-    except Exception as e:
-        logger.error(f"Error in download_ndvi_file: {e}", exc_info=True)
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/ndvi/results/<result_id>', methods=['DELETE'])
-@require_auth(require_hmac=False)
-def delete_ndvi_result(result_id: str):
-    """
-    Delete an NDVI result and its associated files from MinIO.
-    """
-    try:
-        # Get S3 configuration
-        S3_ENDPOINT_URL = os.getenv('S3_ENDPOINT_URL', 'http://minio-service:9000')
-        S3_ACCESS_KEY = os.getenv('S3_ACCESS_KEY')
-        S3_SECRET_KEY = os.getenv('S3_SECRET_KEY')
-        S3_BUCKET = os.getenv('S3_BUCKET', 'ndvi-rasters')
-        S3_REGION = os.getenv('S3_REGION', 'us-east-1')
-        S3_USE_SSL = os.getenv('S3_USE_SSL', 'false').lower() == 'true'
-        
-        if not S3_ACCESS_KEY or not S3_SECRET_KEY:
-            logger.error("S3 credentials not configured for NDVI file deletion")
-            return jsonify({'error': 'File storage not configured'}), 503
-        
-        s3_client = boto3.client(
-            's3',
-            endpoint_url=S3_ENDPOINT_URL,
-            aws_access_key_id=S3_ACCESS_KEY,
-            aws_secret_access_key=S3_SECRET_KEY,
-            region_name=S3_REGION,
-            use_ssl=S3_USE_SSL,
-            verify=S3_USE_SSL
-        )
-        
-        with get_db_connection_with_tenant(g.tenant) as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            
-            # Get result details including file URLs
-            cursor.execute("""
-                SELECT id, raster_url, preview_url FROM ndvi_results
-                WHERE id = %s AND tenant_id = %s
-            """, (result_id, g.tenant))
-            result = cursor.fetchone()
-            
-            if not result:
-                cursor.close()
-                return jsonify({'error': 'Result not found'}), 404
-            
-            # Delete files from MinIO
-            deleted_files = 0
-            for url_field in ['raster_url', 'preview_url']:
-                url = result.get(url_field)
-                if url and 'minio-service:9000' in url:
-                    try:
-                        from urllib.parse import urlparse
-                        parsed = urlparse(url)
-                        path = parsed.path.strip('/')
-                        # Remove bucket name (first part) to get the key
-                        path_parts = path.split('/', 1)
-                        if len(path_parts) == 2:
-                            bucket, key = path_parts
-                            try:
-                                s3_client.delete_object(Bucket=S3_BUCKET, Key=key)
-                                deleted_files += 1
-                                logger.info(f"Deleted file from S3: {S3_BUCKET}/{key}")
-                            except ClientError as e:
-                                if e.response['Error']['Code'] != 'NoSuchKey':
-                                    logger.warning(f"Failed to delete file {key} from S3: {e}")
-                    except Exception as e:
-                        logger.warning(f"Failed to parse URL {url} for deletion: {e}")
-            
-            # Delete result from database
-            cursor.execute("""
-                DELETE FROM ndvi_results
-                WHERE id = %s AND tenant_id = %s
-            """, (result_id, g.tenant))
-            conn.commit()
-            deleted = cursor.rowcount
-            cursor.close()
-            
-            if deleted == 0:
-                return jsonify({'error': 'Failed to delete result'}), 500
-            
-            logger.info(f"Result {result_id} deleted, removed {deleted_files} files")
-            return jsonify({
-                'status': 'deleted',
-                'result_id': result_id,
-                'deleted_files': deleted_files
-            }), 200
-            
-    except Exception as e:
-        logger.error(f"Error deleting NDVI result: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to delete result'}), 500
-
-@app.route('/ndvi/jobs/cleanup', methods=['POST'])
-@require_auth(require_hmac=False)
-def cleanup_ndvi_jobs():
-    """
-    Clean up old or problematic NDVI jobs.
-    Query params:
-    - status: comma-separated list of statuses to delete (default: 'failed,queued')
-    - older_than_days: delete jobs older than N days (optional)
-    - delete_results: also delete associated results and files (default: false)
-    """
-    try:
-        status_filter = request.args.get('status', 'failed,queued').split(',')
-        older_than_days = request.args.get('older_than_days', type=int)
-        delete_results = request.args.get('delete_results', 'false').lower() == 'true'
-        
-        # Get S3 configuration for file deletion
-        S3_ENDPOINT_URL = os.getenv('S3_ENDPOINT_URL', 'http://minio-service:9000')
-        S3_ACCESS_KEY = os.getenv('S3_ACCESS_KEY')
-        S3_SECRET_KEY = os.getenv('S3_SECRET_KEY')
-        S3_BUCKET = os.getenv('S3_BUCKET', 'ndvi-rasters')
-        S3_REGION = os.getenv('S3_REGION', 'us-east-1')
-        S3_USE_SSL = os.getenv('S3_USE_SSL', 'false').lower() == 'true'
-        
-        s3_client = None
-        if S3_ACCESS_KEY and S3_SECRET_KEY:
-            s3_client = boto3.client(
-                's3',
-                endpoint_url=S3_ENDPOINT_URL,
-                aws_access_key_id=S3_ACCESS_KEY,
-                aws_secret_access_key=S3_SECRET_KEY,
-                region_name=S3_REGION,
-                use_ssl=S3_USE_SSL,
-                verify=S3_USE_SSL
-            )
-        
-        with get_db_connection_with_tenant(g.tenant) as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            
-            # Build query to find jobs to delete
-            query = """
-                SELECT id FROM ndvi_jobs
-                WHERE tenant_id = %s AND status = ANY(%s)
-            """
-            params = [g.tenant, status_filter]
-            
-            if older_than_days:
-                query += " AND requested_at < NOW() - INTERVAL '%s days'"
-                params.append(older_than_days)
-            
-            cursor.execute(query, params)
-            jobs_to_delete = cursor.fetchall()
-            job_ids = [job['id'] for job in jobs_to_delete]
-            
-            if not job_ids:
-                cursor.close()
-                return jsonify({
-                    'status': 'success',
-                    'deleted_jobs': 0,
-                    'message': 'No jobs found matching criteria'
-                }), 200
-            
-            deleted_files = 0
-            deleted_results = 0
-            
-            if delete_results and s3_client:
-                # Get all results for these jobs
-                cursor.execute("""
-                    SELECT id, raster_url, preview_url FROM ndvi_results
-                    WHERE job_id = ANY(%s) AND tenant_id = %s
-                """, (job_ids, g.tenant))
-                results = cursor.fetchall()
-                
-                # Delete files from MinIO
-                for result in results:
-                    for url_field in ['raster_url', 'preview_url']:
-                        url = result.get(url_field)
-                        if url and 'minio-service:9000' in url:
-                            try:
-                                from urllib.parse import urlparse
-                                parsed = urlparse(url)
-                                path = parsed.path.strip('/')
-                                path_parts = path.split('/', 1)
-                                if len(path_parts) == 2:
-                                    bucket, key = path_parts
-                                    try:
-                                        s3_client.delete_object(Bucket=S3_BUCKET, Key=key)
-                                        deleted_files += 1
-                                    except ClientError:
-                                        pass  # File might not exist
-                            except Exception:
-                                pass
-                
-                # Delete results
-                if results:
-                    cursor.execute("""
-                        DELETE FROM ndvi_results
-                        WHERE job_id = ANY(%s) AND tenant_id = %s
-                    """, (job_ids, g.tenant))
-                    deleted_results = cursor.rowcount
-            
-            # Delete jobs
-            cursor.execute("""
-                DELETE FROM ndvi_jobs
-                WHERE id = ANY(%s) AND tenant_id = %s
-            """, (job_ids, g.tenant))
-            deleted_jobs = cursor.rowcount
-            conn.commit()
-            cursor.close()
-            
-            logger.info(f"Cleaned up {deleted_jobs} jobs, {deleted_results} results, {deleted_files} files")
-            return jsonify({
-                'status': 'success',
-                'deleted_jobs': deleted_jobs,
-                'deleted_results': deleted_results,
-                'deleted_files': deleted_files
-            }), 200
-            
-    except Exception as e:
-        logger.error(f"Error cleaning up NDVI jobs: {e}", exc_info=True)
-        return jsonify({'error': 'Failed to cleanup jobs'}), 500
 
 @app.route('/instances/<entity_type>', methods=['GET'])
 @require_auth
@@ -1994,7 +864,7 @@ def list_instances(entity_type):
             'count': len(entities),
             'tenant': g.tenant
         })
-    
+
     except Exception as e:
         logger.error(f"Error listing instances: {e}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -2086,13 +956,16 @@ def create_instance(entity_type):
                     'requested_hectares': new_area
                 }), 403
         
+        # Inject @context for NGSI-LD compliance
+        entity_data['@context'] = CONTEXT_URL
+
         # Send to Orion-LD
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
         headers = {
             'Content-Type': 'application/ld+json'
         }
         headers = inject_fiware_headers(headers, g.tenant)
-        
+
         response = requests.post(orion_url, json=entity_data, headers=headers)
         if response.status_code in [200, 201]:
             # Log the operation
@@ -2149,12 +1022,15 @@ def update_instance(entity_type, entity_id):
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
+        # Inject @context for NGSI-LD compliance
+        data['@context'] = CONTEXT_URL
+
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
         headers = {
             'Content-Type': 'application/ld+json'
         }
         headers = inject_fiware_headers(headers, g.tenant)
-        
+
         response = requests.patch(orion_url, json=data, headers=headers)
         if response.status_code in [200, 204]:
             # Log the operation
@@ -2338,8 +1214,8 @@ def api_update_tenant_limits():
 @require_auth
 def register_sensor():
     """
-    Register a sensor in the sensors table for SDM mapping
-    
+    Register a sensor - creates Orion-LD entity first, then records in sensors table
+
     Request body:
     {
         "external_id": "BP_Vaso_PAR_1",
@@ -2354,44 +1230,45 @@ def register_sensor():
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         tenant_id = g.tenant
         if not tenant_id:
             return jsonify({'error': 'Tenant not found in token'}), 401
-        
+
         external_id = data.get('external_id')
         name = data.get('name')
         profile_code = data.get('profile')
-        
+
         if not external_id or not name or not profile_code:
             return jsonify({
                 'error': 'Missing required fields: external_id, name, profile'
             }), 400
-        
+
         location = data.get('location', {})
         lat = location.get('lat')
         lon = location.get('lon')
-        
+
         if not lat or not lon:
             return jsonify({
                 'error': 'Location (lat, lon) is required'
             }), 400
-        
+
         conn = get_db_connection_with_tenant(tenant_id)
         if not conn:
             return jsonify({'error': 'Database connection error'}), 500
-        
+
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            
-            # Check if profile exists
+
+            # Check if profile exists and get SDM mapping
             cur.execute("""
-                SELECT id FROM sensor_profiles 
+                SELECT id, sdm_entity_type, mapping
+                FROM sensor_profiles
                 WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
                 ORDER BY tenant_id NULLS LAST
                 LIMIT 1
             """, (profile_code, tenant_id))
-            
+
             profile_row = cur.fetchone()
             if not profile_row:
                 cur.close()
@@ -2399,15 +1276,17 @@ def register_sensor():
                 return jsonify({
                     'error': f'Profile "{profile_code}" not found'
                 }), 404
-            
+
             profile_id = profile_row['id']
-            
+            sdm_entity_type = profile_row.get('sdm_entity_type') or 'AgriSensor'
+            profile_mapping = profile_row.get('mapping') or {}
+
             # Check if sensor already exists
             cur.execute("""
-                SELECT id, external_id, name FROM sensors 
+                SELECT id, external_id, name FROM sensors
                 WHERE tenant_id = %s AND external_id = %s
             """, (tenant_id, external_id))
-            
+
             existing = cur.fetchone()
             if existing:
                 cur.close()
@@ -2420,17 +1299,65 @@ def register_sensor():
                         'name': existing['name']
                     }
                 }), 409
-            
+
             # Prepare metadata
             metadata = data.get('metadata', {})
             if data.get('station_id'):
                 metadata['group'] = data['station_id']
                 metadata['station_id'] = data['station_id']
-            
+
             import json
             metadata_json = json.dumps(metadata)
-            
-            # Insert sensor
+
+            # =============================================================================
+            # STEP 1: Create NGSI-LD entity in Orion-LD (FIRST - before Postgres INSERT)
+            # =============================================================================
+            orion_entity_id = f"urn:ngsi-ld:{sdm_entity_type}:{tenant_id}:{external_id}"
+
+            orion_entity = {
+                '@context': [CONTEXT_URL],
+                'id': orion_entity_id,
+                'type': sdm_entity_type,
+                'name': {'type': 'Property', 'value': name},
+                'location': {
+                    'type': 'GeoProperty',
+                    'value': {'type': 'Point', 'coordinates': [lon, lat]}
+                },
+                'externalId': {'type': 'Property', 'value': external_id},
+                'sensorType': {'type': 'Property', 'value': profile_code}
+            }
+
+            if metadata:
+                orion_entity['metadata'] = {'type': 'Property', 'value': metadata}
+            if data.get('is_under_canopy'):
+                orion_entity['isUnderCanopy'] = {'type': 'Property', 'value': True}
+            if data.get('station_id'):
+                orion_entity['stationId'] = {'type': 'Property', 'value': data['station_id']}
+
+            orion_headers = {
+                'Content-Type': 'application/ld+json',
+                'Fiware-Service': tenant_id,
+                'Fiware-ServicePath': '/'
+            }
+            orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
+
+            orion_entity_created = False
+            orion_response = requests.post(orion_url, json=orion_entity, headers=orion_headers, timeout=10)
+            if orion_response.status_code in [200, 201]:
+                orion_entity_created = True
+                logger.info(f"Created Orion-LD entity {orion_entity_id} for sensor {external_id}")
+            elif orion_response.status_code == 409:
+                orion_entity_created = True
+                logger.info(f"Orion-LD entity {orion_entity_id} already exists for sensor {external_id}")
+            else:
+                cur.close()
+                conn.close()
+                logger.error(f"Failed to create Orion-LD entity for sensor {external_id}: {orion_response.status_code} - {orion_response.text}")
+                return jsonify({'error': 'Failed to create sensor entity in context broker'}), 502
+
+            # =============================================================================
+            # STEP 2: INSERT sensor into Postgres (SECOND - after Orion-LD success)
+            # =============================================================================
             cur.execute("""
                 INSERT INTO sensors (
                     tenant_id, external_id, profile_id, name,
@@ -2448,104 +1375,15 @@ def register_sensor():
                 data.get('is_under_canopy', False),
                 metadata_json
             ))
-            
+
             sensor_row = cur.fetchone()
-            
-            # Get profile info for SDM entity type and mapping
-            cur.execute("""
-                SELECT sdm_entity_type, sdm_category, mapping
-                FROM sensor_profiles
-                WHERE id = %s
-            """, (profile_id,))
-            profile_info = cur.fetchone()
-            
-            sdm_entity_type = profile_info.get('sdm_entity_type') if profile_info else 'AgriSensor'
-            profile_mapping = profile_info.get('mapping') if profile_info else {}
-            
             conn.commit()
             cur.close()
-            
-            # Create NGSI-LD entity in Orion-LD for SDM compatibility
-            orion_entity_created = False
-            orion_entity_id = None
-            try:
-                # Generate entity ID following NGSI-LD format
-                orion_entity_id = f"urn:ngsi-ld:{sdm_entity_type}:{tenant_id}:{external_id}"
-                
-                # Build NGSI-LD entity
-                orion_entity = {
-                    'id': orion_entity_id,
-                    'type': sdm_entity_type,
-                    'name': {
-                        'type': 'Property',
-                        'value': name
-                    },
-                    'location': {
-                        'type': 'GeoProperty',
-                        'value': {
-                            'type': 'Point',
-                            'coordinates': [lon, lat]
-                        }
-                    },
-                    'externalId': {
-                        'type': 'Property',
-                        'value': external_id
-                    },
-                    'sensorType': {
-                        'type': 'Property',
-                        'value': profile_code
-                    }
-                }
-                
-                # Add metadata if available
-                if metadata:
-                    orion_entity['metadata'] = {
-                        'type': 'Property',
-                        'value': metadata
-                    }
-                
-                # Add isUnderCanopy if set
-                if data.get('is_under_canopy'):
-                    orion_entity['isUnderCanopy'] = {
-                        'type': 'Property',
-                        'value': True
-                    }
-                
-                # Add station_id if available
-                if data.get('station_id'):
-                    orion_entity['stationId'] = {
-                        'type': 'Property',
-                        'value': data['station_id']
-                    }
-                
-                # Send to Orion-LD (direct internal access - entity-manager is inside the cluster)
-                orion_headers = {
-                    'Content-Type': 'application/ld+json',
-                    'Fiware-Service': tenant_id,
-                    'Fiware-ServicePath': '/'
-                }
-                orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-                
-                response = requests.post(orion_url, json=orion_entity, headers=orion_headers, timeout=10)
-                
-                if response.status_code in [200, 201]:
-                    orion_entity_created = True
-                    logger.info(f"Created Orion-LD entity {orion_entity_id} for sensor {external_id}")
-                elif response.status_code == 409:
-                    # Entity already exists, that's OK
-                    orion_entity_created = True
-                    logger.info(f"Orion-LD entity {orion_entity_id} already exists for sensor {external_id}")
-                else:
-                    logger.warning(f"Failed to create Orion-LD entity for sensor {external_id}: {response.status_code} - {response.text}")
-            
-            except Exception as orion_error:
-                logger.error(f"Error creating Orion-LD entity for sensor {external_id}: {orion_error}")
-                # Don't fail the whole request if Orion-LD fails, but log it
-            
+
             conn.close()
-            
+
             # =============================================================================
-            # STEP 2: Create MQTT credentials for the device
+            # STEP 3: Create MQTT credentials for the device
             # =============================================================================
             mqtt_credentials = None
             mqtt_credentials_created = False
@@ -2571,7 +1409,7 @@ def register_sensor():
                 # Don't fail the whole request, but log it
             
             # =============================================================================
-            # STEP 3: Configure IoT Agent for this device
+            # STEP 4: Configure IoT Agent for this device
             # =============================================================================
             iot_agent_configured = False
             try:
@@ -2678,6 +1516,19 @@ def register_sensor():
             conn.rollback()
             conn.close()
             logger.error(f"Error registering sensor: {e}")
+            # Best-effort cleanup of Orion-LD entity if it was created
+            if orion_entity_created and orion_entity_id:
+                try:
+                    requests.delete(
+                        f"{ORION_URL}/ngsi-ld/v1/entities/{orion_entity_id}",
+                        headers=orion_headers, timeout=5
+                    )
+                    logger.info(f"Cleaned up Orion-LD entity {orion_entity_id} after Postgres failure")
+                except Exception as cleanup_error:
+                    logger.critical(
+                        f"INCONSISTENCY: Orion-LD entity {orion_entity_id} exists "
+                        f"but Postgres operation failed and cleanup also failed: {cleanup_error}"
+                    )
             return jsonify({
                 'error': f'Database error: {str(e)}'
             }), 500
@@ -3432,7 +2283,7 @@ def create_asset():
     """Create a new asset from digitization workflow"""
     try:
         # Verify permissions
-        user_roles = getattr(g, 'roles', None) or []
+        user_roles = _get_user_roles()
         if not any(role in ['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant'] for role in user_roles):
             return jsonify({'error': 'Insufficient permissions. Only TechnicalConsultant or higher can create assets.'}), 403
         
@@ -3526,28 +2377,8 @@ def version():
 # =============================================================================
 
 def get_platform_credential(credential_name: str) -> Optional[str]:
-    """Get platform credential from Kubernetes secret or environment"""
-    # Try environment variable first (for local dev or if injected)
-    env_value = os.getenv(credential_name)
-    if env_value:
-        return env_value
-    
-    # Try to get from Kubernetes secret (if running in K8s)
-    try:
-        import subprocess
-        result = subprocess.run(
-            ['kubectl', 'get', 'secret', 'aemet-secret', '-n', 'nekazari', '-o', 'jsonpath={.data.api-key}'],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.returncode == 0 and result.stdout:
-            import base64
-            return base64.b64decode(result.stdout).decode('utf-8')
-    except Exception:
-        pass
-    
-    return None
+    """Get platform credential from environment variable"""
+    return os.getenv(credential_name)
 
 
 def geocode_municipality_on_demand(name: str, province: Optional[str] = None, ine_code: Optional[str] = None, country: str = 'Spain') -> Optional[tuple]:
@@ -5116,7 +3947,7 @@ def save_terms(language):
     """Save or update terms and conditions for a specific language (admin only)"""
     try:
         # Verify user is PlatformAdmin
-        user_roles = g.get('roles', [])
+        user_roles = _get_user_roles()
         if 'PlatformAdmin' not in user_roles:
             return jsonify({'error': 'Unauthorized. Only PlatformAdmin can manage terms.'}), 403
         
@@ -5373,94 +4204,8 @@ def provision_robot():
 
 
 # =============================================================================
-# Vercel Blob Upload Authorization
-# =============================================================================
-
-@app.route('/api/upload/authorize', methods=['POST'])
-@require_auth
-def authorize_upload():
-    """
-    Authorize Vercel Blob upload (proxy for frontend)
-    
-    Since the frontend is Vite/React (not Next.js), we need a backend endpoint
-    to securely provide the blob token for client-side uploads.
-    
-    The frontend will use this endpoint to get authorization, then upload
-    directly to Vercel Blob using @vercel/blob SDK.
-    """
-    try:
-        blob_token = os.getenv('BLOB_READ_WRITE_TOKEN')
-        if not blob_token:
-            logger.warning("BLOB_READ_WRITE_TOKEN not configured")
-            return jsonify({
-                'error': 'Blob storage not configured',
-                'message': 'BLOB_READ_WRITE_TOKEN environment variable is required'
-            }), 500
-        
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        filename = data.get('filename')
-        content_type = data.get('contentType', 'application/octet-stream')
-        
-        if not filename:
-            return jsonify({'error': 'filename is required'}), 400
-        
-        # Validate file type
-        allowed_icon_types = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
-        allowed_model_types = ['model/gltf-binary', 'model/gltf+json', 'application/octet-stream']
-        allowed_types = allowed_icon_types + allowed_model_types
-        
-        if content_type not in allowed_types:
-            # Try to infer from extension
-            ext = filename.lower().split('.')[-1]
-            if ext in ['png', 'jpg', 'jpeg', 'svg']:
-                content_type = f'image/{ext}' if ext != 'svg' else 'image/svg+xml'
-            elif ext in ['glb', 'gltf']:
-                content_type = 'model/gltf-binary' if ext == 'glb' else 'model/gltf+json'
-            else:
-                return jsonify({
-                    'error': 'Invalid file type',
-                    'allowed_types': allowed_types,
-                    'received': content_type
-                }), 400
-        
-        # Validate file size (will be checked on upload, but we can warn here)
-        max_size_mb = 2 if content_type.startswith('image/') else 10
-        file_size_mb = data.get('fileSize', 0) / (1024 * 1024) if data.get('fileSize') else 0
-        
-        if file_size_mb > max_size_mb:
-            return jsonify({
-                'error': f'File too large',
-                'max_size_mb': max_size_mb,
-                'received_mb': round(file_size_mb, 2)
-            }), 400
-        
-        # Generate unique filename with tenant prefix for organization
-        tenant_id = g.tenant
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-        unique_filename = f"{tenant_id}/{timestamp}_{filename}"
-        
-        # Return authorization info
-        # The frontend will use @vercel/blob SDK with this token
-        return jsonify({
-            'token': blob_token,  # Frontend will use this with @vercel/blob
-            'filename': unique_filename,
-            'contentType': content_type,
-            'maxSizeBytes': max_size_mb * 1024 * 1024,
-            'tenant': tenant_id
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error authorizing upload: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
-
-
-# =============================================================================
 # Asset Service - MinIO-based 3D Models and Icons Storage
 # =============================================================================
-# Replaces Vercel Blob with local MinIO storage
 # Bucket: assets-3d/{tenant_id}/{asset_type}/{asset_id}.{ext}
 # =============================================================================
 
@@ -5812,11 +4557,7 @@ def upload_public_asset():
     Upload a GLOBAL/PUBLIC asset to MinIO (Platform Admin only).
     """
     try:
-        # Use g.roles directly (set by auth middleware) or fallback to current_user
-        user_roles = getattr(g, 'roles', [])
-        if not user_roles and hasattr(g, 'current_user'):
-            user_roles = g.current_user.get('realm_access', {}).get('roles', [])
-             
+        user_roles = _get_user_roles()
         if 'PlatformAdmin' not in user_roles:
             return jsonify({'error': 'Only Platform Admin can upload global assets'}), 403
 
@@ -5889,11 +4630,7 @@ def upload_public_asset():
 def delete_public_asset(filename):
     """Delete a public asset (Platform Admin only)"""
     try:
-        # Use g.roles directly (set by auth middleware) or fallback to current_user
-        user_roles = getattr(g, 'roles', [])
-        if not user_roles and hasattr(g, 'current_user'):
-            user_roles = g.current_user.get('realm_access', {}).get('roles', [])
-             
+        user_roles = _get_user_roles()
         if 'PlatformAdmin' not in user_roles:
             return jsonify({'error': 'Only Platform Admin can delete global assets'}), 403
             
@@ -6023,12 +4760,7 @@ def get_tenant_modules():
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
     # Extract roles from multiple possible sources
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        # Try to extract from current_user payload (set by common.auth_middleware)
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     
     logger.info(f"[get_tenant_modules] tenant_id={tenant_id}, user_roles={user_roles}")
     
@@ -6200,11 +4932,7 @@ def toggle_module(module_id):
     Only TenantAdmin and PlatformAdmin can manage modules.
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     
     # Log user roles for debugging
     logger.info(f"[toggle_module] Initial check - tenant_id={tenant_id}, user_roles={user_roles}, has_PlatformAdmin={'PlatformAdmin' in user_roles}")
@@ -6350,11 +5078,7 @@ def get_marketplace_modules():
     Get all available modules from marketplace.
     PlatformAdmin can see all, others see only active modules.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     is_platform_admin = 'PlatformAdmin' in user_roles
     
     logger.info(f"[get_marketplace_modules] user_roles={user_roles}, is_platform_admin={is_platform_admin}")
@@ -6403,11 +5127,7 @@ def activate_marketplace_module(module_id):
     Only PlatformAdmin can activate/deactivate modules globally.
     This controls module visibility for all tenants.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -6476,11 +5196,7 @@ def can_install_module(module_id):
     Returns: {can_install: bool, reason: str, module: {...}}
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     
     try:
         # Get tenant plan_type from Orion-LD (source of truth for limits)
@@ -6524,12 +5240,7 @@ def can_install_module(module_id):
                 'module': dict(module)
             }), 200
         
-        # Get user roles for PlatformAdmin check
-        user_roles = []
-        if hasattr(g, 'current_user'):
-            payload = g.current_user
-            realm_access = payload.get('realm_access', {})
-            user_roles = realm_access.get('roles', [])
+        user_roles = _get_user_roles()
         is_platform_admin = 'PlatformAdmin' in user_roles
 
         # PlatformAdmin can install any module regardless of plan requirements
@@ -6640,11 +5351,7 @@ def get_modules_visibility():
     is a purely UI-level feature: backend access remains governed by required_roles.
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', []) or []
+    user_roles = _get_user_roles() or []
 
     if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. TenantAdmin or PlatformAdmin required.'}), 403
@@ -6665,11 +5372,7 @@ def put_modules_visibility():
       }
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', []) or []
+    user_roles = _get_user_roles() or []
 
     if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. TenantAdmin or PlatformAdmin required.'}), 403
@@ -6742,7 +5445,7 @@ def put_modules_visibility():
 @require_auth(require_hmac=False)
 def admin_sync_parcels():
     """Trigger parcel synchronization for a tenant (PlatformAdmin only)"""
-    user_roles = getattr(g, 'roles', None) or []
+    user_roles = _get_user_roles()
     if 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
     
@@ -6763,7 +5466,7 @@ def admin_sync_parcels():
 @require_auth(require_hmac=False)
 def admin_list_tenants():
     """List all tenants in the system with their plan details (PlatformAdmin only)"""
-    user_roles = getattr(g, 'roles', None) or []
+    user_roles = _get_user_roles()
     if 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
     
@@ -6787,7 +5490,7 @@ def admin_list_tenants():
 @require_auth(require_hmac=False)
 def admin_list_activations():
     """List all activation codes (PlatformAdmin only)"""
-    user_roles = getattr(g, 'roles', None) or []
+    user_roles = _get_user_roles()
     if 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
     
@@ -6814,7 +5517,7 @@ def admin_purge_tenant(tenant_id):
     Nuclear purge of a tenant: PostgreSQL, Orion-LD entities, and Kubernetes Namespace.
     (PlatformAdmin only)
     """
-    user_roles = getattr(g, 'roles', None) or []
+    user_roles = _get_user_roles()
     if 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
     
@@ -6921,11 +5624,7 @@ def upload_module():
             'version': str
         }
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -7084,11 +5783,7 @@ def get_validation_status(upload_id):
     
     Only PlatformAdmin can check status.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -7248,11 +5943,7 @@ def deploy_module(module_id):
     
     Only PlatformAdmin can deploy modules.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -7303,11 +5994,7 @@ def get_validation_logs(upload_id):
     
     Only PlatformAdmin can view logs.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -7386,11 +6073,7 @@ def get_module_uploads():
     
     Only PlatformAdmin can view uploads.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -7879,11 +6562,7 @@ def get_audit_logs():
     Only accessible to PlatformAdmin.
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        realm_access = payload.get('realm_access', {})
-        user_roles = realm_access.get('roles', [])
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
