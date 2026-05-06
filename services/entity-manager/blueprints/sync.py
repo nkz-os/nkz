@@ -15,8 +15,7 @@ from psycopg2.extras import RealDictCursor
 import requests
 import redis
 
-from common.auth_middleware import require_auth
-from common import inject_fiware_headers
+from common.auth_middleware import require_auth, inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, return_db_connection
 
 # Import shared helpers

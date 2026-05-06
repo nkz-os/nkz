@@ -15,8 +15,7 @@ from flask import Blueprint, request, jsonify, g
 from psycopg2.extras import RealDictCursor
 import requests
 
-from common.auth_middleware import require_auth
-from common import inject_fiware_headers
+from common.auth_middleware import require_auth, inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, return_db_connection, get_db_connection_simple
 
 # Import shared helpers

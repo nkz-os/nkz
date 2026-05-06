@@ -15,8 +15,7 @@ from flask import Blueprint, request, jsonify, g, Response
 from psycopg2.extras import RealDictCursor
 import requests
 
-from common.auth_middleware import require_auth
-from common import inject_fiware_headers
+from common.auth_middleware import require_auth, inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple
 
 logger = logging.getLogger(__name__)
