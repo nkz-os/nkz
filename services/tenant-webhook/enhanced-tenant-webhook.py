@@ -19,8 +19,8 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any
-from uuid import UUID
 from urllib.parse import quote, urlencode
+from uuid import UUID
 
 import psycopg2
 import pymongo
@@ -116,6 +116,16 @@ except ImportError:
     k8s_config = None  # type: ignore
     ApiException = Exception  # type: ignore
     K8S_ENABLED = False
+
+# Canonical SSOT for billing plan levels. Imported at module level (and
+# not inline within `internal_update_tenant_license`) so the alias is
+# exported as a stable attribute that tests can grab via the module
+# object — see `tests/test_tier_quotas_ssot.py::test_billing_plan_levels_alias_resolves_to_ssot`.
+try:
+    from common.tier_quotas import PLAN_LEVELS as _BILLING_PLAN_LEVELS
+except ImportError:
+    logger.warning("common.tier_quotas not available; billing plan validation disabled")
+    _BILLING_PLAN_LEVELS = {}  # type: ignore[assignment]
 
 app = Flask(__name__)
 
@@ -1866,7 +1876,7 @@ def woocommerce_webhook():  # noqa: C901
         # Plan limits — quotas come from the canonical SSOT
         # (services/common/tier_quotas.py). Activation-code expiration
         # windows are not part of the SSOT and stay tier-mapped here.
-        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+        from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
 
         plan_lower = plan.lower() if plan else "basic"
         if plan_lower not in PLAN_LEVELS:
@@ -2017,7 +2027,7 @@ def generate_activation_code():  # noqa: C901
             return jsonify({"error": "Email is required"}), 400
 
         # Validate plan and get canonical quotas
-        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+        from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
         plan_lower = plan.lower() if plan else "basic"
         if plan_lower not in PLAN_LEVELS:
             return jsonify({"error": f"Invalid plan: {plan}. Allowed: {list(PLAN_LEVELS)}"}), 400
@@ -2494,9 +2504,6 @@ def revoke_activation_code(code_id):
         return jsonify({"error": "Internal server error"}), 500
 
 
-from common.tier_quotas import PLAN_LEVELS as _BILLING_PLAN_LEVELS
-
-
 _BILLING_ACTIVE_STATUSES = frozenset({"active", "trialing", "past_due"})
 _BILLING_INACTIVE_STATUSES = frozenset({"canceled", "cancelled", "unpaid"})
 
@@ -2536,7 +2543,6 @@ def internal_list_expired_tenants():
         for row in cursor.fetchall():
             tenant_id = row["tenant_id"]
             t_expires = row["t_expires_at"]
-            status = row["status"]
             ac_expires = row["ac_expires_at"]
             
             # If status is active but t_expires is null, we assume they are active unless
@@ -3285,7 +3291,7 @@ def create_tenant_directly():
         # than silently downgrading to basic so PlatformAdmin actions are
         # explicit; this also unblocks creating "pro" tenants which the
         # previous hardcoded mapping did not support.
-        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+        from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
 
         plan_lower = plan.lower() if plan else "basic"
         if plan_lower not in PLAN_LEVELS:
