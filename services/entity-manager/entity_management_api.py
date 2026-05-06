@@ -1196,8 +1196,8 @@ def api_update_tenant_limits():
 @require_auth
 def register_sensor():
     """
-    Register a sensor in the sensors table for SDM mapping
-    
+    Register a sensor - creates Orion-LD entity first, then records in sensors table
+
     Request body:
     {
         "external_id": "BP_Vaso_PAR_1",
@@ -1212,44 +1212,45 @@ def register_sensor():
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
-        
+
         tenant_id = g.tenant
         if not tenant_id:
             return jsonify({'error': 'Tenant not found in token'}), 401
-        
+
         external_id = data.get('external_id')
         name = data.get('name')
         profile_code = data.get('profile')
-        
+
         if not external_id or not name or not profile_code:
             return jsonify({
                 'error': 'Missing required fields: external_id, name, profile'
             }), 400
-        
+
         location = data.get('location', {})
         lat = location.get('lat')
         lon = location.get('lon')
-        
+
         if not lat or not lon:
             return jsonify({
                 'error': 'Location (lat, lon) is required'
             }), 400
-        
+
         conn = get_db_connection_with_tenant(tenant_id)
         if not conn:
             return jsonify({'error': 'Database connection error'}), 500
-        
+
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            
-            # Check if profile exists
+
+            # Check if profile exists and get SDM mapping
             cur.execute("""
-                SELECT id FROM sensor_profiles 
+                SELECT id, sdm_entity_type, mapping
+                FROM sensor_profiles
                 WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
                 ORDER BY tenant_id NULLS LAST
                 LIMIT 1
             """, (profile_code, tenant_id))
-            
+
             profile_row = cur.fetchone()
             if not profile_row:
                 cur.close()
@@ -1257,15 +1258,17 @@ def register_sensor():
                 return jsonify({
                     'error': f'Profile "{profile_code}" not found'
                 }), 404
-            
+
             profile_id = profile_row['id']
-            
+            sdm_entity_type = profile_row.get('sdm_entity_type') or 'AgriSensor'
+            profile_mapping = profile_row.get('mapping') or {}
+
             # Check if sensor already exists
             cur.execute("""
-                SELECT id, external_id, name FROM sensors 
+                SELECT id, external_id, name FROM sensors
                 WHERE tenant_id = %s AND external_id = %s
             """, (tenant_id, external_id))
-            
+
             existing = cur.fetchone()
             if existing:
                 cur.close()
@@ -1278,17 +1281,66 @@ def register_sensor():
                         'name': existing['name']
                     }
                 }), 409
-            
+
             # Prepare metadata
             metadata = data.get('metadata', {})
             if data.get('station_id'):
                 metadata['group'] = data['station_id']
                 metadata['station_id'] = data['station_id']
-            
+
             import json
             metadata_json = json.dumps(metadata)
-            
-            # Insert sensor
+
+            # =============================================================================
+            # STEP 1: Create NGSI-LD entity in Orion-LD (FIRST - before Postgres INSERT)
+            # =============================================================================
+            orion_entity_id = f"urn:ngsi-ld:{sdm_entity_type}:{tenant_id}:{external_id}"
+
+            orion_entity = {
+                '@context': [CONTEXT_URL],
+                'id': orion_entity_id,
+                'type': sdm_entity_type,
+                'name': {'type': 'Property', 'value': name},
+                'location': {
+                    'type': 'GeoProperty',
+                    'value': {'type': 'Point', 'coordinates': [lon, lat]}
+                },
+                'externalId': {'type': 'Property', 'value': external_id},
+                'sensorType': {'type': 'Property', 'value': profile_code}
+            }
+
+            if metadata:
+                orion_entity['metadata'] = {'type': 'Property', 'value': metadata}
+            if data.get('is_under_canopy'):
+                orion_entity['isUnderCanopy'] = {'type': 'Property', 'value': True}
+            if data.get('station_id'):
+                orion_entity['stationId'] = {'type': 'Property', 'value': data['station_id']}
+
+            orion_headers = {
+                'Content-Type': 'application/ld+json',
+                'Fiware-Service': tenant_id,
+                'Fiware-ServicePath': '/'
+            }
+            orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
+
+            orion_response = requests.post(orion_url, json=orion_entity, headers=orion_headers, timeout=10)
+
+            orion_entity_created = False
+            if orion_response.status_code in [200, 201]:
+                orion_entity_created = True
+                logger.info(f"Created Orion-LD entity {orion_entity_id} for sensor {external_id}")
+            elif orion_response.status_code == 409:
+                orion_entity_created = True
+                logger.info(f"Orion-LD entity {orion_entity_id} already exists for sensor {external_id}")
+            else:
+                cur.close()
+                conn.close()
+                logger.error(f"Failed to create Orion-LD entity for sensor {external_id}: {orion_response.status_code} - {orion_response.text}")
+                return jsonify({'error': 'Failed to create sensor entity in context broker'}), 502
+
+            # =============================================================================
+            # STEP 2: INSERT sensor into Postgres (SECOND - after Orion-LD success)
+            # =============================================================================
             cur.execute("""
                 INSERT INTO sensors (
                     tenant_id, external_id, profile_id, name,
@@ -1306,104 +1358,15 @@ def register_sensor():
                 data.get('is_under_canopy', False),
                 metadata_json
             ))
-            
+
             sensor_row = cur.fetchone()
-            
-            # Get profile info for SDM entity type and mapping
-            cur.execute("""
-                SELECT sdm_entity_type, sdm_category, mapping
-                FROM sensor_profiles
-                WHERE id = %s
-            """, (profile_id,))
-            profile_info = cur.fetchone()
-            
-            sdm_entity_type = profile_info.get('sdm_entity_type') if profile_info else 'AgriSensor'
-            profile_mapping = profile_info.get('mapping') if profile_info else {}
-            
             conn.commit()
             cur.close()
-            
-            # Create NGSI-LD entity in Orion-LD for SDM compatibility
-            orion_entity_created = False
-            orion_entity_id = None
-            try:
-                # Generate entity ID following NGSI-LD format
-                orion_entity_id = f"urn:ngsi-ld:{sdm_entity_type}:{tenant_id}:{external_id}"
-                
-                # Build NGSI-LD entity
-                orion_entity = {
-                    'id': orion_entity_id,
-                    'type': sdm_entity_type,
-                    'name': {
-                        'type': 'Property',
-                        'value': name
-                    },
-                    'location': {
-                        'type': 'GeoProperty',
-                        'value': {
-                            'type': 'Point',
-                            'coordinates': [lon, lat]
-                        }
-                    },
-                    'externalId': {
-                        'type': 'Property',
-                        'value': external_id
-                    },
-                    'sensorType': {
-                        'type': 'Property',
-                        'value': profile_code
-                    }
-                }
-                
-                # Add metadata if available
-                if metadata:
-                    orion_entity['metadata'] = {
-                        'type': 'Property',
-                        'value': metadata
-                    }
-                
-                # Add isUnderCanopy if set
-                if data.get('is_under_canopy'):
-                    orion_entity['isUnderCanopy'] = {
-                        'type': 'Property',
-                        'value': True
-                    }
-                
-                # Add station_id if available
-                if data.get('station_id'):
-                    orion_entity['stationId'] = {
-                        'type': 'Property',
-                        'value': data['station_id']
-                    }
-                
-                # Send to Orion-LD (direct internal access - entity-manager is inside the cluster)
-                orion_headers = {
-                    'Content-Type': 'application/ld+json',
-                    'Fiware-Service': tenant_id,
-                    'Fiware-ServicePath': '/'
-                }
-                orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-                
-                response = requests.post(orion_url, json=orion_entity, headers=orion_headers, timeout=10)
-                
-                if response.status_code in [200, 201]:
-                    orion_entity_created = True
-                    logger.info(f"Created Orion-LD entity {orion_entity_id} for sensor {external_id}")
-                elif response.status_code == 409:
-                    # Entity already exists, that's OK
-                    orion_entity_created = True
-                    logger.info(f"Orion-LD entity {orion_entity_id} already exists for sensor {external_id}")
-                else:
-                    logger.warning(f"Failed to create Orion-LD entity for sensor {external_id}: {response.status_code} - {response.text}")
-            
-            except Exception as orion_error:
-                logger.error(f"Error creating Orion-LD entity for sensor {external_id}: {orion_error}")
-                # Don't fail the whole request if Orion-LD fails, but log it
-            
+
             conn.close()
-            
+
             # =============================================================================
-            # STEP 2: Create MQTT credentials for the device
+            # STEP 3: Create MQTT credentials for the device
             # =============================================================================
             mqtt_credentials = None
             mqtt_credentials_created = False
@@ -1429,7 +1392,7 @@ def register_sensor():
                 # Don't fail the whole request, but log it
             
             # =============================================================================
-            # STEP 3: Configure IoT Agent for this device
+            # STEP 4: Configure IoT Agent for this device
             # =============================================================================
             iot_agent_configured = False
             try:
