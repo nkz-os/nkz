@@ -14,6 +14,7 @@ import {
   Key,
   CheckCircle,
   AlertTriangle,
+  AlertCircle,
   Loader2,
   Eye,
   EyeOff,
@@ -66,7 +67,8 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
   const [error, setError] = useState('');
   const [errorReason, setErrorReason] = useState(''); // Razón detallada del error
   const [success, setSuccess] = useState<ActivationResponse | null>(null);
-  const [step, setStep] = useState<'form' | 'success'>('form');
+  const [step, setStep] = useState<'form' | 'otp' | 'success'>('form');
+  const [otp, setOtp] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState(''); // Mensaje de progreso
   const [tenantValidation, setTenantValidation] = useState<TenantValidationResult | null>(null);
@@ -204,8 +206,32 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
       let endpoint = '/webhook/activate';
 
       if (isRegister) {
+        if (step === 'form') {
+          // Request OTP step
+          setLoadingMessage('Solicitando código de verificación...');
+          try {
+            const response = await axios.post(
+              `${config.api.baseUrl}/webhook/register/request-otp`,
+              { email: formData.email.toLowerCase() }
+            );
+            
+            if (response.data.success) {
+              setStep('otp');
+              setLoading(false);
+              return; // Stop here, wait for OTP
+            }
+          } catch (err: any) {
+            setError('Error al solicitar el código.');
+            setErrorReason(err.response?.data?.error || err.message);
+            setLoading(false);
+            return;
+          }
+        }
+        
+        // Final registration step
         endpoint = '/webhook/register';
         payload.organization_name = formData.tenant_name;
+        payload.otp = otp;
       } else {
         // Ensure code is in correct format: NEK-XXXX-XXXX-XXXX
         let codeToSend = formData.code.toUpperCase().trim();
@@ -302,6 +328,74 @@ export const Activation: React.FC<ActivationProps> = ({ isRegister = false }) =>
     if (codePart.length <= 8) return `NEK-${codePart.slice(0, 4)}-${codePart.slice(4)}`;
     return `NEK-${codePart.slice(0, 4)}-${codePart.slice(4, 8)}-${codePart.slice(8, 12)}`;
   };
+
+  if (step === 'otp') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-lg shadow p-8 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">{t('registration.otp_title') || 'Verifica tu correo electrónico'}</h2>
+          <p className="text-gray-600 mb-6">
+            {t('registration.otp_message') || 'Hemos enviado un código de 6 dígitos a'} <strong>{formData.email}</strong>. 
+            {t('registration.otp_instruction') || 'Introdúcelo a continuación para crear tu cuenta.'}
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label htmlFor="otp" className="sr-only">{t('registration.otp_label') || 'Código de verificación'}</label>
+              <input
+                id="otp"
+                name="otp"
+                type="text"
+                required
+                className="appearance-none rounded-md relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-xl text-center tracking-widest font-mono"
+                placeholder="000000"
+                value={otp}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setOtp(val);
+                }}
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-md bg-red-50 p-4 border border-red-200 text-left">
+                <div className="flex">
+                  <AlertCircle className="h-5 w-5 text-red-400" />
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                    {errorReason && <p className="text-sm text-red-700 mt-1">{errorReason}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className={`w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed`}
+              disabled={loading || otp.length !== 6}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  {t('registration.verifying') || 'Verificando...'}
+                </>
+              ) : (
+                t('registration.confirm_otp') || 'Confirmar y Crear Cuenta'
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStep('form')}
+              className="mt-4 text-sm text-green-600 hover:text-green-500"
+            >
+              {t('registration.back_to_email') || 'Volver y corregir email'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   if (step === 'success' && success) {
     return (

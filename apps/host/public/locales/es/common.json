@@ -757,7 +757,14 @@
     "processing": "Procesando registro...",
     "creating": "Creando cuenta y recursos...",
     "finalizing": "Finalizando configuración...",
-    "registering": "Registrando..."
+    "registering": "Registrando...",
+    "otp_title": "Verifica tu correo electrónico",
+    "otp_message": "Hemos enviado un código de 6 dígitos a",
+    "otp_instruction": "Introdúcelo a continuación para crear tu cuenta.",
+    "otp_label": "Código de verificación",
+    "verifying": "Verificando...",
+    "confirm_otp": "Confirmar y Crear Cuenta",
+    "back_to_email": "Volver y corregir email"
   },
   "quota": {
     "parcel_count_exceeded": "Límite de parcelas alcanzado",
