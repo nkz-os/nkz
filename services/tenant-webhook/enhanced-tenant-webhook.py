@@ -1017,6 +1017,159 @@ class EnhancedTenantWebhookService:
             cursor.close()
             conn.close()
 
+    def _build_keycloak_user_payload(
+        self,
+        email: str,
+        tenant_id: str,
+        plan_info: dict[str, Any],
+        first_name: str,
+        last_name: str,
+        is_owner: bool,
+    ) -> dict[str, Any]:
+        """Build the JSON body POSTed/PUT to Keycloak /admin/.../users.
+
+        Identical to the dict that was previously inlined three times in
+        `create_keycloak_user`. Extracted so a future attribute change
+        (new tier limit, attribute rename) lives in exactly one place.
+        """
+        return {
+            "username": email,
+            "email": email,
+            "enabled": True,
+            "emailVerified": True,
+            "firstName": first_name,
+            "lastName": last_name,
+            "attributes": {
+                "tenant_id": [tenant_id],
+                "plan": [plan_info["plan"]],
+                "max_users": [str(plan_info["max_users"])],
+                "max_robots": [str(plan_info["max_robots"])],
+                "max_sensors": [str(plan_info["max_sensors"])],
+                "activation_code": [plan_info.get("code", "")],
+                "created_by": ["activation_code" if is_owner else "tenant_admin"],
+                "is_owner": [str(is_owner).lower()],
+            },
+        }
+
+    def _recover_user_after_409(
+        self,
+        search_url: str,
+        search_params: dict,
+        headers: dict,
+        response_text: str,
+        email: str,
+    ) -> str:
+        """After Keycloak returns 409 on POST, look up the user that
+        already exists. Raises if recovery fails — the caller treats
+        that as a hard error.
+
+        Used in two places: when our pre-check found nothing but the
+        POST raced with another writer, and when the pre-check itself
+        failed but we tried POST anyway.
+        """
+        search_response = requests.get(
+            search_url, headers=headers, params=search_params, timeout=10
+        )
+        if search_response.status_code != 200:
+            raise Exception(
+                f"Failed to create user (409) and search failed: {response_text}"
+            )
+        existing_users = search_response.json()
+        if not existing_users:
+            raise Exception(
+                f"Failed to create user and user not found: {response_text}"
+            )
+        user_id = existing_users[0]["id"]
+        logger.info(f"Found existing user {email} after 409: {user_id}")
+        return user_id
+
+    def _create_user_or_recover(
+        self,
+        user_url: str,
+        search_url: str,
+        search_params: dict,
+        user_data: dict,
+        headers: dict,
+        email: str,
+    ) -> str:
+        """POST a new Keycloak user, falling back to lookup on 409.
+
+        Returns the user_id of the created or recovered user. Raises on
+        any other HTTP failure.
+        """
+        response = requests.post(user_url, json=user_data, headers=headers, timeout=10)
+        if response.status_code == 409:
+            return self._recover_user_after_409(
+                search_url, search_params, headers, response.text, email
+            )
+        response.raise_for_status()
+        return response.headers["Location"].split("/")[-1]
+
+    def _update_existing_keycloak_user(
+        self,
+        keycloak_url: str,
+        user_id: str,
+        user_data: dict,
+        headers: dict,
+        email: str,
+    ) -> None:
+        """Best-effort PUT to update an existing user's attributes.
+
+        A non-2xx is logged as a warning; the caller continues on
+        because the user_id is already known and downstream group/role
+        assignment is the user-visible work that matters.
+        """
+        update_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
+        update_response = requests.put(
+            update_url, json=user_data, headers=headers, timeout=10
+        )
+        if update_response.status_code in (204, 200):
+            logger.info(f"Updated existing Keycloak user: {email}")
+        else:
+            logger.warning(
+                f"Failed to update existing user: "
+                f"{update_response.status_code} {update_response.text}"
+            )
+
+    def _resolve_user_id(
+        self,
+        keycloak_url: str,
+        user_data: dict,
+        email: str,
+        headers: dict,
+    ) -> str:
+        """Find or create the Keycloak user_id for `email`.
+
+        Strategy (preserves the original four-branch logic exactly):
+
+          1. Search by email. If found -> use that user_id and PUT the
+             new attributes (best-effort).
+          2. If search returns 200 + empty list -> POST new user.
+             A 409 (race) triggers `_recover_user_after_409`.
+          3. If search itself fails -> POST anyway. Same 409 fallback.
+        """
+        users_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
+        search_params = {"email": email.lower(), "exact": "true"}
+        search_response = requests.get(
+            users_url, headers=headers, params=search_params, timeout=10
+        )
+
+        if search_response.status_code == 200:
+            existing_users = search_response.json()
+            if existing_users:
+                user_id = existing_users[0]["id"]
+                logger.info(
+                    f"User {email} already exists in Keycloak, using existing user: {user_id}"
+                )
+                self._update_existing_keycloak_user(
+                    keycloak_url, user_id, user_data, headers, email
+                )
+                return user_id
+
+        return self._create_user_or_recover(
+            users_url, users_url, search_params, user_data, headers, email
+        )
+
     def create_keycloak_user(
         self,
         email: str,
@@ -1026,7 +1179,7 @@ class EnhancedTenantWebhookService:
         is_owner: bool = False,
         first_name: str = "",
         last_name: str = "",
-    ) -> dict[str, Any]:  # noqa: C901, E501
+    ) -> dict[str, Any]:
         """Create user in Keycloak with tenant group
 
         Args:
@@ -1034,7 +1187,8 @@ class EnhancedTenantWebhookService:
             tenant_id: Tenant ID
             plan_info: Plan information with limits
             password: User password (optional)
-            is_owner: If True, assign TenantAdmin role (first farmer/owner), else Farmer role
+            is_owner: If True, assign TenantAdmin role (first farmer/owner),
+                else Farmer role
             first_name: Explicit first name (if empty, derived from email)
             last_name: Explicit last name (if empty, derived from email)
         """
@@ -1044,10 +1198,10 @@ class EnhancedTenantWebhookService:
 
         try:
             keycloak_url = self._get_keycloak_base_url()
-
-            # Create user in Keycloak
-            user_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
-            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
 
             # Use explicit names from caller if available, fall back to email-derived
             if not first_name:
@@ -1055,142 +1209,10 @@ class EnhancedTenantWebhookService:
                 first_name = name_parts[0].title() if name_parts else "User"
                 last_name = name_parts[1].title() if len(name_parts) > 1 else last_name
 
-            # Check if user already exists in Keycloak
-            search_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
-            search_params = {"email": email.lower(), "exact": "true"}
-            search_response = requests.get(
-                search_url, headers=headers, params=search_params, timeout=10
-            )  # noqa: E501
-
-            if search_response.status_code == 200:
-                existing_users = search_response.json()
-                if existing_users and len(existing_users) > 0:
-                    # User already exists, use existing user_id
-                    user_id = existing_users[0]["id"]
-                    logger.info(
-                        f"User {email} already exists in Keycloak, using existing user: {user_id}"
-                    )  # noqa: E501
-
-                    # Update user attributes if needed
-                    update_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
-                    user_data = {
-                        "username": email,
-                        "email": email,
-                        "enabled": True,
-                        "emailVerified": True,
-                        "firstName": first_name,
-                        "lastName": last_name,
-                        "attributes": {
-                            "tenant_id": [tenant_id],
-                            "plan": [plan_info["plan"]],
-                            "max_users": [str(plan_info["max_users"])],
-                            "max_robots": [str(plan_info["max_robots"])],
-                            "max_sensors": [str(plan_info["max_sensors"])],
-                            "activation_code": [plan_info.get("code", "")],
-                            "created_by": ["activation_code" if is_owner else "tenant_admin"],
-                            "is_owner": [str(is_owner).lower()],
-                        },
-                    }
-                    update_response = requests.put(
-                        update_url, json=user_data, headers=headers, timeout=10
-                    )  # noqa: E501
-                    if update_response.status_code in (204, 200):
-                        logger.info(f"Updated existing Keycloak user: {email}")
-                    else:
-                        logger.warning(
-                            f"Failed to update existing user: "
-                            f"{update_response.status_code} {update_response.text}"
-                        )
-                else:
-                    # User doesn't exist, create new one
-                    user_data = {
-                        "username": email,
-                        "email": email,
-                        "enabled": True,
-                        "emailVerified": True,
-                        "firstName": first_name,
-                        "lastName": last_name,
-                        "attributes": {
-                            "tenant_id": [tenant_id],
-                            "plan": [plan_info["plan"]],
-                            "max_users": [str(plan_info["max_users"])],
-                            "max_robots": [str(plan_info["max_robots"])],
-                            "max_sensors": [str(plan_info["max_sensors"])],
-                            "activation_code": [plan_info.get("code", "")],
-                            "created_by": ["activation_code" if is_owner else "tenant_admin"],
-                            "is_owner": [str(is_owner).lower()],
-                        },
-                    }
-                    response = requests.post(user_url, json=user_data, headers=headers, timeout=10)
-                    if response.status_code == 409:
-                        # Conflict - user might have been created between check and create
-                        logger.warning(
-                            f"User {email} was created by another process, searching again..."
-                        )  # noqa: E501
-                        search_response = requests.get(
-                            search_url, headers=headers, params=search_params, timeout=10
-                        )  # noqa: E501
-                        if search_response.status_code == 200:
-                            existing_users = search_response.json()
-                            if existing_users and len(existing_users) > 0:
-                                user_id = existing_users[0]["id"]
-                                logger.info(f"Found existing user after conflict: {user_id}")
-                            else:
-                                raise Exception(
-                                    f"Failed to create user and user not found: {response.text}"
-                                )  # noqa: E501
-                        else:
-                            raise Exception(
-                                f"Failed to create user (409) and search failed: {response.text}"
-                            )  # noqa: E501
-                    else:
-                        response.raise_for_status()
-                        # Get user ID from location header
-                        user_id = response.headers["Location"].split("/")[-1]
-            else:
-                # Search failed, try to create anyway
-                user_data = {
-                    "username": email,
-                    "email": email,
-                    "enabled": True,
-                    "emailVerified": True,
-                    "firstName": first_name,
-                    "lastName": last_name,
-                    "attributes": {
-                        "tenant_id": [tenant_id],
-                        "plan": [plan_info["plan"]],
-                        "max_users": [str(plan_info["max_users"])],
-                        "max_robots": [str(plan_info["max_robots"])],
-                        "max_sensors": [str(plan_info["max_sensors"])],
-                        "activation_code": [plan_info.get("code", "")],
-                        "created_by": ["activation_code" if is_owner else "tenant_admin"],
-                        "is_owner": [str(is_owner).lower()],
-                    },
-                }
-                response = requests.post(user_url, json=user_data, headers=headers, timeout=10)
-                if response.status_code == 409:
-                    # User exists but search failed, try to find it
-                    logger.warning("User creation returned 409, attempting to find user...")
-                    search_response = requests.get(
-                        search_url, headers=headers, params=search_params, timeout=10
-                    )  # noqa: E501
-                    if search_response.status_code == 200:
-                        existing_users = search_response.json()
-                        if existing_users and len(existing_users) > 0:
-                            user_id = existing_users[0]["id"]
-                            logger.info(f"Found existing user after 409: {user_id}")
-                        else:
-                            raise Exception(
-                                "User creation failed with 409 but user not found in search"
-                            )  # noqa: E501
-                    else:
-                        raise Exception(
-                            f"Failed to create user (409) and search failed: {response.text}"
-                        )  # noqa: E501
-                else:
-                    response.raise_for_status()
-                    # Get user ID from location header
-                    user_id = response.headers["Location"].split("/")[-1]
+            user_data = self._build_keycloak_user_payload(
+                email, tenant_id, plan_info, first_name, last_name, is_owner
+            )
+            user_id = self._resolve_user_id(keycloak_url, user_data, email, headers)
 
             # Ensure tenant group exists and assign roles
             tenant_group_name = tenant_id
