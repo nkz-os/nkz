@@ -11,10 +11,7 @@ import type {
   AgriculturalMachine,
   LivestockAnimal,
   WeatherStation,
-  NDVIJob,
-  NDVIResult,
   AssetCreationPayload,
-  GeoPolygon,
   TenantLimits,
   TenantUsageSummary,
   GrafanaLink,
@@ -201,22 +198,9 @@ class ApiService {
     this.client.interceptors.response.use(
       (response) => {
         // Log successful responses for debugging
-        if (response.config.url?.includes('/api/ndvi/')) {
-          logger.debug(`[API] NDVI request successful: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
-        }
         return response;
       },
       async (error: AxiosError) => {
-        // Log all errors for NDVI requests
-        if (error.config?.url?.includes('/api/ndvi/')) {
-          logger.error(`[API] NDVI request error: ${error.config.method?.toUpperCase()} ${error.config.url}`, {
-            message: error.message,
-            code: error.code,
-            status: error.response?.status,
-            responseData: error.response?.data,
-            requestData: error.config?.data,
-          });
-        }
         // Handle empty responses or non-JSON responses
         if (error.response && typeof error.response.data === 'string' && error.response.data.trim() === '') {
           logger.warn('[API] Empty response received, converting to error object');
@@ -1192,195 +1176,6 @@ class ApiService {
   // Legacy methods removed - parcelApi.ts provides Orion-LD First architecture
 
   // =============================================================================
-  // NDVI Jobs & Results
-  // =============================================================================
-
-  async createNdviJob(payload: {
-    parcelId?: string | null;
-    geometry?: GeoPolygon | null;
-    timeRange?: { start?: string; end?: string };
-    resolution?: number;
-    satellite?: string;
-    maxCloudCoverage?: number;
-    indexType?: string;
-  }): Promise<NDVIJob> {
-    try {
-      logger.debug('[API] Creating NDVI job with payload:', payload);
-      const response = await this.client.post('/api/ndvi/jobs', {
-        parcelId: payload.parcelId,
-        geometry: payload.geometry || undefined,
-        timeRange: payload.timeRange,
-        resolution: payload.resolution,
-        satellite: payload.satellite,
-        maxCloudCoverage: payload.maxCloudCoverage,
-        indexType: payload.indexType,
-      });
-      logger.debug('[API] NDVI job response:', response.status, response.data);
-      logger.debug('[API] Response data type:', typeof response.data);
-      logger.debug('[API] Response data keys:', response.data ? Object.keys(response.data) : 'null/undefined');
-      // Backend returns {job: {...}}, extract the job object
-      const job = (response.data as any)?.job || response.data;
-      logger.debug('[API] Extracted job:', job);
-      if (!job) {
-        logger.error('[API] No job found in response! Response data:', response.data);
-        throw new Error('Invalid response format: job not found in response');
-      }
-      return job;
-    } catch (error: any) {
-      logger.error('[API] Error creating NDVI job:', error);
-      logger.error('[API] Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        config: error.config,
-      });
-      throw error;
-    }
-  }
-
-  async getNdviJobs(): Promise<NDVIJob[]> {
-    const response = await this.client.get('/api/ndvi/jobs');
-    logger.debug('[API] getNdviJobs RAW response.data type:', typeof response.data, 'isArray:', Array.isArray(response.data));
-
-    // CRITICAL FIX: response.data is coming as a string JSON, not parsed object
-    // Parse it first, then extract jobs array
-    let data = response.data;
-
-    // If it's a string, parse it
-    if (typeof data === 'string') {
-      logger.debug('[API] getNdviJobs: response.data is string, parsing JSON...');
-      logger.debug('[API] getNdviJobs: String length:', data.length, 'first 200 chars:', data.substring(0, 200));
-      logger.debug('[API] getNdviJobs: Last 200 chars:', data.substring(Math.max(0, data.length - 200)));
-      try {
-        logger.debug('[API] getNdviJobs: About to call JSON.parse...');
-        const startTime = performance.now();
-        let parsedData;
-        try {
-          parsedData = JSON.parse(data);
-          const parseTime = performance.now() - startTime;
-          logger.debug('[API] getNdviJobs: ✅ JSON.parse completed in', parseTime.toFixed(2), 'ms');
-          data = parsedData;
-        } catch (parseError: any) {
-          const parseTime = performance.now() - startTime;
-          logger.error('[API] getNdviJobs: ❌ JSON.parse threw error after', parseTime.toFixed(2), 'ms');
-          throw parseError;
-        }
-        logger.debug('[API] getNdviJobs: ✅ Parsed successfully, type:', typeof data, 'isArray:', Array.isArray(data), 'has jobs:', !!data?.jobs);
-
-        if (data && typeof data === 'object') {
-          const keys = Object.keys(data);
-          logger.debug('[API] getNdviJobs: Parsed data keys:', keys);
-
-          if (data.jobs) {
-            logger.debug('[API] getNdviJobs: data.jobs type:', typeof data.jobs, 'isArray:', Array.isArray(data.jobs), 'length:', data.jobs?.length);
-            if (Array.isArray(data.jobs) && data.jobs.length > 0) {
-              logger.debug('[API] getNdviJobs: First job ID:', data.jobs[0]?.id);
-            }
-          } else {
-            logger.warn('[API] getNdviJobs: data.jobs is missing! Available keys:', keys);
-          }
-        }
-      } catch (e: any) {
-        logger.error('[API] ❌ Failed to parse response.data:', e);
-        logger.error('[API] Parse error type:', typeof e, 'name:', e?.name, 'message:', e?.message);
-        logger.error('[API] Parse error details:', {
-          message: e?.message,
-          name: e?.name,
-          stack: e?.stack?.substring(0, 500)
-        });
-        // Try to find where the JSON is malformed
-        // Firefox uses "column X", Chrome uses "position X"
-        let pos = -1;
-        if (e?.message?.includes('column')) {
-          const match = e.message.match(/column (\d+)/);
-          if (match) {
-            pos = parseInt(match[1]) - 1; // column is 1-based, substring is 0-based
-          }
-        } else if (e?.message?.includes('position')) {
-          const match = e.message.match(/position (\d+)/);
-          if (match) {
-            pos = parseInt(match[1]);
-          }
-        }
-
-        if (pos >= 0 && pos < data.length) {
-          logger.error('[API] JSON error at position/column', pos);
-          logger.error('[API] Character at error position:', JSON.stringify(data[pos]), 'charCode:', data.charCodeAt(pos));
-          logger.error('[API] Context before error (100 chars):', data.substring(Math.max(0, pos - 100), pos));
-          logger.error('[API] Context at error (50 chars):', data.substring(pos, Math.min(data.length, pos + 50)));
-          logger.error('[API] Context after error (100 chars):', data.substring(Math.min(data.length, pos + 1), Math.min(data.length, pos + 101)));
-
-          // Try to find the problematic character
-          const problematicChar = data[pos];
-          logger.error('[API] Problematic character:', problematicChar, 'charCode:', problematicChar?.charCodeAt?.(0));
-        }
-        logger.error('[API] ❌ Returning empty array due to parse error');
-        return [];
-      }
-    }
-
-    // Handle both formats: direct array or {jobs: [...]}
-    logger.debug('[API] getNdviJobs: Checking data format - isArray:', Array.isArray(data), 'isObject:', data && typeof data === 'object', 'has jobs prop:', !!(data && typeof data === 'object' && data.jobs));
-
-    if (Array.isArray(data)) {
-      logger.debug('[API] getNdviJobs: ✅ Returning array with', data.length, 'jobs');
-      logger.debug('[API] getNdviJobs: First job in array:', data[0]?.id || 'N/A');
-      return data;
-    } else if (data && typeof data === 'object' && data.jobs && Array.isArray(data.jobs)) {
-      logger.debug('[API] getNdviJobs: ✅ Extracting jobs array from object, length:', data.jobs.length);
-      logger.debug('[API] getNdviJobs: First job ID:', data.jobs[0]?.id || 'N/A');
-      logger.debug('[API] getNdviJobs: ✅ Returning', data.jobs.length, 'jobs');
-      const jobsArray = data.jobs;
-      logger.debug('[API] getNdviJobs: ✅ Final return - jobsArray type:', typeof jobsArray, 'isArray:', Array.isArray(jobsArray), 'length:', jobsArray?.length);
-      return jobsArray;
-    }
-
-    logger.warn('[API] getNdviJobs: ❌ Unexpected data format:', typeof data);
-    logger.warn('[API] getNdviJobs: Data structure:', {
-      isArray: Array.isArray(data),
-      isObject: data && typeof data === 'object',
-      hasJobs: !!(data && typeof data === 'object' && data.jobs),
-      keys: data && typeof data === 'object' ? Object.keys(data) : 'N/A',
-      dataType: typeof data,
-      dataPreview: data && typeof data === 'object' ? JSON.stringify(data).substring(0, 200) : String(data).substring(0, 200)
-    });
-    logger.warn('[API] getNdviJobs: ❌ Returning empty array');
-    return [];
-  }
-
-  async getNdviJob(jobId: string): Promise<NDVIJob | null> {
-    const response = await this.client.get(`/api/ndvi/jobs/${jobId}`);
-    return response.data || null;
-  }
-
-  async deleteNdviJob(jobId: string, deleteResults: boolean = false): Promise<any> {
-    const params = deleteResults ? { delete_results: 'true' } : {};
-    const response = await this.client.delete(`/api/ndvi/jobs/${jobId}`, { params });
-    return response.data;
-  }
-
-  async deleteNdviResult(resultId: string): Promise<any> {
-    const response = await this.client.delete(`/api/ndvi/results/${resultId}`);
-    return response.data;
-  }
-
-  async cleanupNdviJobs(
-    statuses: string[] = ['failed', 'queued'],
-    olderThanDays?: number,
-    deleteResults: boolean = false
-  ): Promise<any> {
-    const params: any = {
-      status: statuses.join(','),
-      delete_results: deleteResults.toString(),
-    };
-    if (olderThanDays) {
-      params.older_than_days = olderThanDays.toString();
-    }
-    const response = await this.client.post('/api/ndvi/jobs/cleanup', null, { params });
-    return response.data;
-  }
-
-  // =============================================================================
   // Terrain 3D Service - REMOVED
   // =============================================================================
   // El sistema antiguo de generación de terrain bajo demanda ha sido eliminado.
@@ -1394,34 +1189,6 @@ class ApiService {
   async createAsset(asset: AssetCreationPayload): Promise<any> {
     const response = await this.client.post('/entity-manager/api/assets', asset);
     return response.data;
-  }
-
-  async getNdviResults(params?: { parcelId?: string; limit?: number }): Promise<NDVIResult[]> {
-    try {
-      logger.debug('[API] getNdviResults called with params:', params);
-      const response = await this.client.get('/api/ndvi/results', {
-        params: {
-          parcel_id: params?.parcelId,
-          limit: params?.limit,
-        },
-      });
-      logger.debug('[API] getNdviResults response:', response.status, response.data);
-      logger.debug('[API] getNdviResults response.data type:', typeof response.data, 'isArray:', Array.isArray(response.data));
-
-      // Handle both formats: direct array or {results: [...]}
-      let data = response.data;
-      if (data && typeof data === 'object' && !Array.isArray(data) && data.results && Array.isArray(data.results)) {
-        logger.debug('[API] getNdviResults: Extracting results array from object');
-        data = data.results;
-      }
-
-      return Array.isArray(data) ? data : [];
-    } catch (error: any) {
-      logger.error('[API] getNdviResults error:', error);
-      logger.error('[API] getNdviResults error response:', error.response?.data);
-      logger.error('[API] getNdviResults error status:', error.response?.status);
-      return [];
-    }
   }
 
   // Terms and Conditions
