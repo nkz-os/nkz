@@ -19,8 +19,8 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any
-from uuid import UUID
 from urllib.parse import quote, urlencode
+from uuid import UUID
 
 import psycopg2
 import pymongo
@@ -1016,6 +1016,7 @@ class EnhancedTenantWebhookService:
         is_owner: bool = False,
         first_name: str = "",
         last_name: str = "",
+        fail_if_exists: bool = False,
     ) -> dict[str, Any]:  # noqa: C901, E501
         """Create user in Keycloak with tenant group
 
@@ -1055,6 +1056,14 @@ class EnhancedTenantWebhookService:
             if search_response.status_code == 200:
                 existing_users = search_response.json()
                 if existing_users and len(existing_users) > 0:
+                    if fail_if_exists:
+                        logger.warning(f"Registration aborted: User {email} already exists.")
+                        return {
+                            "success": False,
+                            "error": "Email already registered",
+                            "conflict": True
+                        }
+
                     # User already exists, use existing user_id
                     user_id = existing_users[0]["id"]
                     logger.info(
@@ -1866,7 +1875,7 @@ def woocommerce_webhook():  # noqa: C901
         # Plan limits — quotas come from the canonical SSOT
         # (services/common/tier_quotas.py). Activation-code expiration
         # windows are not part of the SSOT and stay tier-mapped here.
-        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+        from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
 
         plan_lower = plan.lower() if plan else "basic"
         if plan_lower not in PLAN_LEVELS:
@@ -2017,7 +2026,7 @@ def generate_activation_code():  # noqa: C901
             return jsonify({"error": "Email is required"}), 400
 
         # Validate plan and get canonical quotas
-        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+        from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
         plan_lower = plan.lower() if plan else "basic"
         if plan_lower not in PLAN_LEVELS:
             return jsonify({"error": f"Invalid plan: {plan}. Allowed: {list(PLAN_LEVELS)}"}), 400
@@ -2495,7 +2504,6 @@ def revoke_activation_code(code_id):
 
 
 from common.tier_quotas import PLAN_LEVELS as _BILLING_PLAN_LEVELS
-
 
 _BILLING_ACTIVE_STATUSES = frozenset({"active", "trialing", "past_due"})
 _BILLING_INACTIVE_STATUSES = frozenset({"canceled", "cancelled", "unpaid"})
@@ -3285,7 +3293,7 @@ def create_tenant_directly():
         # than silently downgrading to basic so PlatformAdmin actions are
         # explicit; this also unblocks creating "pro" tenants which the
         # previous hardcoded mapping did not support.
-        from common.tier_quotas import quotas_for_tier, PLAN_LEVELS
+        from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
 
         plan_lower = plan.lower() if plan else "basic"
         if plan_lower not in PLAN_LEVELS:
@@ -5174,6 +5182,86 @@ def delete_tenant_user(user_id: str):
         return _internal_error(e, "delete_user_tenant", user_message="Failed to delete user")
 
 
+
+# Existing imports should be here, we'll just inject the new endpoint before register_tenant
+# Wait, let's locate the exact spot
+@app.route("/webhook/register/request-otp", methods=["POST"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+@limiter.limit("5 per hour")
+def request_registration_otp():
+    """
+    Step 1 of Identity-First Provisioning: Request OTP.
+    Validates email and sends a 6-digit OTP via email.
+    """
+    try:
+        data = request.get_json()
+        email = data.get("email")
+
+        if not email or not isinstance(email, str) or '@' not in email:
+            return jsonify({"error": "Valid email is required"}), 400
+
+        email = email.lower().strip()
+        
+        # 1. Check if user already exists in Keycloak (anti-enumeration check)
+        token = webhook_service.get_keycloak_token()
+        if token:
+            keycloak_url = webhook_service._get_keycloak_base_url()
+            search_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            search_response = requests.get(
+                search_url, 
+                headers=headers, 
+                params={"email": email, "exact": "true"}, 
+                timeout=10
+            )
+            
+            if search_response.status_code == 200:
+                existing_users = search_response.json()
+                if existing_users and len(existing_users) > 0:
+                    logger.info(f"OTP request for existing user {email}. Faking success.")
+                    # Return 200 OK to prevent email enumeration, but don't send OTP
+                    return jsonify(
+                        {"success": True, "message": "Si el email es válido, recibirás un código."}
+                    ), 200
+
+        # 2. Generate secure 6-digit OTP
+        otp = f"{secrets.randbelow(1000000):06d}"
+        
+        # 3. Store OTP in Redis with 15-min TTL
+        import redis
+        redis_client = redis.Redis.from_url(
+            f"redis://{redis_host}/0", 
+            decode_responses=True
+        )
+        redis_key = f"registro:otp:{email}"
+        redis_client.setex(redis_key, 900, otp)  # 900 seconds = 15 minutes
+        
+        # 4. Call email-service to send the OTP
+        email_service_url = os.getenv("EMAIL_SERVICE_URL", "http://email-service.nekazari.svc.cluster.local:8080")
+        email_payload = {
+            "email": email,
+            "otp": otp
+        }
+        
+        email_resp = requests.post(
+            f"{email_service_url}/email/verification-otp", 
+            json=email_payload, 
+            timeout=10
+        )
+        
+        if email_resp.status_code == 200:
+            logger.info(f"OTP generated and email requested for {email}")
+            return jsonify(
+                {"success": True, "message": "Si el email es válido, recibirás un código."}
+            ), 200
+        else:
+            logger.error(f"Email service failed to send OTP to {email}: {email_resp.text}")
+            return jsonify({"error": "Failed to send verification email"}), 500
+            
+    except Exception as e:
+        logger.error(f"Error in request_registration_otp endpoint: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
 @app.route("/webhook/register", methods=["POST"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 @limiter.limit("3 per hour")
@@ -5188,9 +5276,26 @@ def register_tenant():
         organization_name = data.get("organization_name")
         password = data.get("password")
         plan = data.get("plan", "pro")  # Defaults to pro for 45-day trial
+        otp = data.get("otp")
 
-        if not all([email, organization_name, password]):
-            return jsonify({"error": "Email, organization name and password are required"}), 400
+        if not all([email, organization_name, password, otp]):
+            return jsonify(
+                {"error": "Email, organization name, password, and OTP are required"}
+            ), 400
+
+        email = email.lower().strip()
+
+        # 0. Verify OTP before proceeding
+        import redis
+        redis_client = redis.Redis.from_url(f"redis://{redis_host}/0", decode_responses=True)
+        redis_key = f"registro:otp:{email}"
+        stored_otp = redis_client.get(redis_key)
+
+        if not stored_otp or stored_otp != str(otp).strip():
+            return jsonify({"error": "Código de verificación inválido o expirado."}), 401
+            
+        # OTP is valid, delete it to ensure single-use
+        redis_client.delete(redis_key)
 
         # Validate plan BEFORE acquiring any DB connection. The previous
         # ordering opened the connection first and then early-returned 400
@@ -5258,9 +5363,12 @@ def register_tenant():
                 is_owner=True,
                 first_name=data.get("first_name") or data.get("firstName") or "",
                 last_name=data.get("last_name") or data.get("lastName") or "",
+                fail_if_exists=True,
             )
 
             if not kc_result.get("success"):
+                if kc_result.get("conflict"):
+                    return jsonify({"error": "El email ya está registrado"}), 409
                 return jsonify(
                     {"error": f"Identity creation failed: {kc_result.get('error')}"}
                 ), 500  # noqa: E501

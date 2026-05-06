@@ -667,7 +667,14 @@
     "processing": "Processant el registre...",
     "creating": "Creant el compte i els recursos...",
     "finalizing": "Finalitzant la configuració...",
-    "registering": "Registrant..."
+    "registering": "Registrant...",
+    "otp_title": "Verify your email address",
+    "otp_message": "We have sent a 6-digit code to",
+    "otp_instruction": "Enter it below to create your account.",
+    "otp_label": "Verification code",
+    "verifying": "Verifying...",
+    "confirm_otp": "Confirm and Create Account",
+    "back_to_email": "Go back and fix email"
   },
   "quota": {
     "parcel_count_exceeded": "Parcel limit reached",

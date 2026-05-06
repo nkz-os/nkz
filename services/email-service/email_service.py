@@ -21,16 +21,9 @@ import smtplib
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
-import json
-import secrets
-import string
-from flask import Flask, request, jsonify, render_template_string
+from datetime import datetime
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-import requests
 
 # Configurar logging
 logging.basicConfig(
@@ -374,7 +367,7 @@ class EmailTemplates:
         try:
             expires_date = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
             expires_str = expires_date.strftime('%d/%m/%Y a las %H:%M')
-        except:
+        except Exception:
             expires_str = expires_at
         
         role_names = {
@@ -515,6 +508,24 @@ class EmailService:
         subject = f"🎉 Invitación para unirte a {tenant_name} en Nekazari"
         return self.send_email(email, subject, html_content)
     
+    def send_verification_otp_email(self, email: str, otp: str) -> bool:
+        """Send an OTP verification email to the user."""
+        try:
+            with open(os.path.join(self.templates_dir, "verification_otp.html"), "r", encoding='utf-8') as f:
+                template = f.read()
+
+            html_content = template.format(
+                OTP=otp,
+                YEAR=datetime.now().year,
+                NKZ_URL="https://nekazari.robotika.cloud"
+            )
+
+            text_content = f"Tu código de verificación de Nekazari es: {otp}\nEste código caducará en 15 minutos.\nSi no has solicitado este código, ignora este correo."
+            return self.send_email(email, "Verifica tu correo - Nekazari", html_content, text_content)
+        except Exception as e:
+            logger.error(f"Error sending OTP verification email: {e}")
+            return False
+
     def send_activation_success_notification(self, user_email: str, tenant_id: str, tenant_name: str, plan: str, activation_code: str, platform_email: str, tenant_admin_email: str) -> bool:
         """Envía notificación de registro exitoso a administradores"""
         html_content = self.templates.activation_success_notification(
@@ -763,7 +774,30 @@ def send_invitation():
         logger.error(f"Error in send_invitation endpoint: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
-@app.route('/send/activation-success', methods=['POST'])
+@app.route('/email/verification-otp', methods=['POST'])
+def send_verification_otp():
+    """Send an OTP verification email"""
+    data = request.json
+    email = data.get('email')
+    otp = data.get('otp')
+
+    if not all([email, otp]):
+        return jsonify({'error': 'Email and OTP are required'}), 400
+
+    try:
+        success = email_service.send_verification_otp_email(
+            email=email,
+            otp=otp
+        )
+        if success:
+            return jsonify({'message': 'OTP email sent successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to send email'}), 500
+    except Exception as e:
+        logger.error(f"Error in send_verification_otp endpoint: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/email/activation-success', methods=['POST'])
 def send_activation_success():
     """Endpoint para enviar notificación de registro exitoso"""
     try:
