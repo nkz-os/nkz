@@ -302,43 +302,6 @@ class RiskProcessor:
         )
         return None
 
-    def _get_ndvi_data(
-        self, tenant_id: str, parcel_id: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
-        """Get latest NDVI data for tenant/parcel"""
-        if not self.postgres:
-            return None
-
-        try:
-            cursor = self.postgres.cursor()
-            set_tenant_context(self.postgres, tenant_id)
-
-            query = """
-                SELECT 
-                    ndvi_mean, ndvi_min, ndvi_max, ndvi_stddev,
-                    acquisition_date, parcel_id
-                FROM ndvi_results
-                WHERE tenant_id = %s
-            """
-
-            params = [tenant_id]
-            if parcel_id:
-                query += " AND parcel_id = %s"
-                params.append(parcel_id)
-
-            query += " ORDER BY acquisition_date DESC LIMIT 1"
-
-            cursor.execute(query, params)
-            result = cursor.fetchone()
-            cursor.close()
-
-            if result:
-                return dict(result)
-            return None
-        except Exception as e:
-            logger.error(f"Failed to get NDVI data: {e}")
-            return None
-
     def _get_gdd_accumulated(
         self,
         tenant_id: str,
@@ -479,21 +442,6 @@ class RiskProcessor:
             )
             if gdd_data:
                 data_sources["gdd"] = gdd_data
-
-        # Get NDVI data if needed
-        if "ndvi" in required_sources:
-            parcel_id = None
-            # Try to extract parcel ID from entity
-            if "id" in entity:
-                entity_id = entity["id"]
-                if "parcel" in entity_id.lower() or "AgriCrop" in entity.get(
-                    "type", ""
-                ):
-                    # Extract parcel ID from entity ID or attributes
-                    pass
-            ndvi_data = self._get_ndvi_data(tenant_id, parcel_id)
-            if ndvi_data:
-                data_sources["ndvi"] = ndvi_data
 
         # Get telemetry data if needed
         if "telemetry" in required_sources:
