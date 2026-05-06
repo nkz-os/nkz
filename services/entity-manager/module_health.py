@@ -15,11 +15,8 @@ from psycopg2.extras import RealDictCursor
 logger = logging.getLogger(__name__)
 
 # Module-specific health checks
+# NDVI module removed - functionality migrated to Vegetation Prime module
 MODULE_HEALTH_CHECKS = {
-    'ndvi': {
-        'tables': ['ndvi_jobs', 'ndvi_results'],
-        'endpoints': ['/ndvi/jobs', '/ndvi/results'],
-    },
     # Add more modules as needed
 }
 
