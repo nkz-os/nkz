@@ -20,8 +20,8 @@ from common.auth_middleware import require_auth
 from common import inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple
 
-# Import shared config from main module
-from entity_management_api import ORION_URL, CONTEXT_URL
+# Import shared config
+from helpers import ORION_URL, CONTEXT_URL
 
 logger = logging.getLogger(__name__)
 

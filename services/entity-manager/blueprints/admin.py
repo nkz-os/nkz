@@ -20,9 +20,9 @@ from db_helper import get_db_connection_with_tenant, get_db_connection_simple, r
 
 logger = logging.getLogger(__name__)
 
-# Import shared helpers from main module (imported at bottom to avoid circular imports)
-from entity_management_api import get_limits_for_tenant, _gather_usage_for_tenant, _count_all_entities, upsert_limits_in_orion
-from entity_management_api import _limits_cache, _limits_cache_ts, _extract_number
+# Import shared helpers
+from helpers import get_limits_for_tenant, _gather_usage_for_tenant, _count_all_entities, upsert_limits_in_orion
+from helpers import _limits_cache, _limits_cache_ts, _extract_number
 
 ORION_URL = os.getenv('ORION_URL')
 POSTGRES_URL = os.getenv('POSTGRES_URL')

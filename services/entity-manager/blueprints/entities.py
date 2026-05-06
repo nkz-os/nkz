@@ -19,8 +19,8 @@ from common.auth_middleware import require_auth
 from common import inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, return_db_connection, get_db_connection_simple
 
-# Import shared helpers from main module
-from entity_management_api import (
+# Import shared helpers
+from helpers import (
     ORION_URL, CONTEXT_URL, _extract_number,
     get_limits_for_tenant, _count_all_entities, _count_entities_by_type,
     _check_entity_total_limit, _check_parcel_count_limit, _sum_parcel_area,

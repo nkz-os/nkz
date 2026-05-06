@@ -19,9 +19,9 @@ from common.auth_middleware import require_auth
 from common import inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple, return_db_connection
 
-# Import shared helpers from main module (imported at bottom to avoid circular imports)
+# Import shared helpers
+from helpers import get_limits_for_tenant
 from entity_management_api import (
-    get_limits_for_tenant,
     log_module_toggle, AUDIT_LOGGER_AVAILABLE,
     MODULE_UPLOAD_SERVICE_AVAILABLE, ModuleUploadService, K8S_NAMESPACE,
     MODULE_HEALTH_AVAILABLE, get_module_health,

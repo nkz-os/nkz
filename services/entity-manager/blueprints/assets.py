@@ -20,8 +20,8 @@ from common import inject_fiware_headers
 
 logger = logging.getLogger(__name__)
 
-# Import shared helpers from main module (imported at bottom to avoid circular imports)
-from entity_management_api import _get_user_roles, log_entity_operation, CONTEXT_URL
+# Import shared helpers
+from helpers import _get_user_roles, log_entity_operation, CONTEXT_URL
 
 assets_bp = Blueprint('assets', __name__)
 

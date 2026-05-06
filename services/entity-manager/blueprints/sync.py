@@ -19,8 +19,8 @@ from common.auth_middleware import require_auth
 from common import inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, return_db_connection
 
-# Import shared helpers from main module
-from entity_management_api import ORION_URL, _extract_number, log_entity_operation
+# Import shared helpers
+from helpers import ORION_URL, _extract_number, log_entity_operation
 
 logger = logging.getLogger(__name__)
 
