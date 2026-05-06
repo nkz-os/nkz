@@ -3177,6 +3177,72 @@ def update_tenant_info(tenant_id):
 
 
 @app.route("/api/admin/tenants", methods=["GET"])
+def _resolve_tenant_expires(tenant_id: str | None, row: dict, activation_expires):
+    """Compute (expires_at_iso, days_remaining) for a tenant row.
+
+    Resolution order:
+      1. Platform tenant -> always (None, None) regardless of DB data.
+      2. tenants.expires_at (the canonical license window end) when set.
+      3. Activation-code expires_at as fallback.
+
+    Behavior preserved exactly from the original list_tenants body —
+    only the branching is moved out so the route stays under the C901
+    threshold.
+    """
+    is_platform_tenant = (tenant_id or "").lower() == "platform"
+    if is_platform_tenant:
+        return None, None
+
+    if "expires_at" in row and row["expires_at"] is not None:
+        tenant_expires = row["expires_at"]
+    else:
+        tenant_expires = activation_expires
+
+    if isinstance(tenant_expires, datetime):
+        delta = tenant_expires - datetime.utcnow()
+        return tenant_expires.isoformat(), max(delta.days, 0)
+    if tenant_expires:
+        return str(tenant_expires), None
+    return None, None
+
+
+def _serialize_tenant_row(row: dict, conn) -> dict | None:
+    """Return the JSON-friendly tenant dict that list_tenants emits."""
+    tenant_id = row.get("tenant_id")
+    if not tenant_id:
+        return None
+
+    activation = webhook_service.get_latest_activation_for_tenant(conn, tenant_id)
+    activation_email = (
+        activation.get("email") if activation else row.get("tenant_email")
+    )
+    activation_expires = activation.get("expires_at") if activation else None
+    expires_at_iso, days_remaining = _resolve_tenant_expires(
+        tenant_id, row, activation_expires
+    )
+
+    created_at = row.get("created_at")
+    updated_at = row.get("updated_at")
+
+    return {
+        "id": tenant_id,
+        "tenant": tenant_id,
+        "tenant_id": tenant_id,
+        "email": activation_email,
+        "name": row.get("tenant_name"),
+        "plan": row.get("plan_type") or "basic",
+        "status": row.get("status") or "active",
+        "created_at": created_at.isoformat() if created_at else None,
+        "updated_at": updated_at.isoformat() if updated_at else None,
+        "expires_at": expires_at_iso,
+        "days_remaining": days_remaining,
+        "max_users": activation.get("max_users") if activation else None,
+        "max_robots": activation.get("max_robots") if activation else None,
+        "max_sensors": activation.get("max_sensors") if activation else None,
+        "activation": activation,
+    }
+
+
 @app.route("/tenants", methods=["GET"])  # For ingress prefix removal
 @require_platform_admin
 def list_tenants():
@@ -3213,69 +3279,9 @@ def list_tenants():
                 if not isinstance(row, dict):
                     logger.warning(f"Unexpected row format when listing tenants: {row}")
                     continue
-
-                tenant_id = row.get("tenant_id")
-                if not tenant_id:
-                    continue
-
-                activation = webhook_service.get_latest_activation_for_tenant(conn, tenant_id)
-                activation_email = (
-                    activation.get("email") if activation else row.get("tenant_email")
-                )  # noqa: E501
-                activation_expires = activation.get("expires_at") if activation else None
-                
-                # If tenants table has an explicit expires_at, use it.
-                # If it's null but the tenant is active, it might be an
-                # unlimited/stripe-managed active plan. However, to avoid
-                # falling back to an old activation code that triggers an
-                # expiration alert, we prioritize the tenants table explicitly.
-                if "expires_at" in row and row["expires_at"] is not None:
-                    tenant_expires = row["expires_at"]
-                else:
-                    tenant_expires = activation_expires
-
-                # Platform tenant is internal administration; it never has a
-                # consumer-facing plan lifecycle, so we never emit a
-                # days_remaining countdown for it even if the DB has stale data.
-                is_platform_tenant = (tenant_id or "").lower() == "platform"
-
-                if is_platform_tenant:
-                    expires_at_iso = None
-                    days_remaining = None
-                elif isinstance(tenant_expires, datetime):
-                    delta = tenant_expires - datetime.utcnow()
-                    days_remaining = max(delta.days, 0)
-                    expires_at_iso = tenant_expires.isoformat()
-                elif tenant_expires:
-                    expires_at_iso = str(tenant_expires)
-                    days_remaining = None
-                else:
-                    expires_at_iso = None
-                    days_remaining = None
-
-                tenants.append(
-                    {
-                        "id": tenant_id,
-                        "tenant": tenant_id,
-                        "tenant_id": tenant_id,
-                        "email": activation_email,
-                        "name": row.get("tenant_name"),
-                        "plan": row.get("plan_type") or "basic",
-                        "status": row.get("status") or "active",
-                        "created_at": row.get("created_at").isoformat()
-                        if row.get("created_at")
-                        else None,  # noqa: E501
-                        "updated_at": row.get("updated_at").isoformat()
-                        if row.get("updated_at")
-                        else None,  # noqa: E501
-                        "expires_at": expires_at_iso,
-                        "days_remaining": days_remaining,
-                        "max_users": activation.get("max_users") if activation else None,
-                        "max_robots": activation.get("max_robots") if activation else None,
-                        "max_sensors": activation.get("max_sensors") if activation else None,
-                        "activation": activation,
-                    }
-                )
+                serialized = _serialize_tenant_row(row, conn)
+                if serialized is not None:
+                    tenants.append(serialized)
 
             return jsonify({"tenants": tenants}), 200
         finally:
@@ -3781,6 +3787,69 @@ def delete_user_directly(user_id: str):
         return _internal_error(e, "delete_user_admin", user_message="Failed to delete user")
 
 
+def _parse_roles_payload(data):
+    """Validate the body of PUT /api/admin/users/<id>/roles.
+
+    Returns (roles, error_response). Exactly one of the two is None.
+    """
+    if not data or "roles" not in data:
+        return None, (jsonify({"error": "roles array is required"}), 400)
+    new_roles = data.get("roles", [])
+    if not isinstance(new_roles, list):
+        return None, (jsonify({"error": "roles must be an array"}), 400)
+    return new_roles, None
+
+
+def _clear_user_realm_roles(keycloak_url: str, user_id: str, headers: dict) -> None:
+    """Remove all current realm role-mappings from a Keycloak user.
+
+    Best-effort: if the GET fails or the user has no roles, no DELETE is
+    issued. Silently swallows errors here because the caller is about
+    to assign a new role set anyway — log noise stays in the new POSTs.
+    """
+    current_roles_url = (
+        f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+        f"/users/{user_id}/role-mappings/realm"
+    )
+    current_response = requests.get(current_roles_url, headers=headers, timeout=10)
+    current_roles = (
+        current_response.json() if current_response.status_code == 200 else []
+    )
+    if current_roles:
+        requests.delete(
+            current_roles_url, headers=headers, json=current_roles, timeout=10
+        )
+
+
+def _assign_realm_roles_to_user(
+    keycloak_url: str, user_id: str, role_names: list, headers: dict
+) -> list:
+    """POST realm role-mappings for each requested role.
+
+    Returns the list of role names whose POST returned 200/204. Any
+    failure is silently skipped — the caller exposes the assigned set
+    so the client can detect partial application.
+    """
+    assigned = []
+    mapping_url = (
+        f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+        f"/users/{user_id}/role-mappings/realm"
+    )
+    for role_name in role_names:
+        role_url = (
+            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/roles/{role_name}"
+        )
+        role_response = requests.get(role_url, headers=headers, timeout=10)
+        if role_response.status_code != 200:
+            continue
+        assign_resp = requests.post(
+            mapping_url, headers=headers, json=[role_response.json()], timeout=10
+        )
+        if assign_resp.status_code in (200, 204):
+            assigned.append(role_name)
+    return assigned
+
+
 @app.route("/api/admin/users/<user_id>/roles", methods=["PUT"])
 @require_platform_admin
 def update_user_roles(user_id: str):
@@ -3792,13 +3861,9 @@ def update_user_roles(user_id: str):
     TenantAdmin, GestorCUE, TechnicalConsultant, and Farmer.
     """
     try:
-        data = request.get_json()
-        if not data or "roles" not in data:
-            return jsonify({"error": "roles array is required"}), 400
-
-        new_roles = data.get("roles", [])
-        if not isinstance(new_roles, list):
-            return jsonify({"error": "roles must be an array"}), 400
+        new_roles, parse_err = _parse_roles_payload(request.get_json())
+        if parse_err is not None:
+            return parse_err
 
         token = webhook_service.get_keycloak_token()
         if not token:
@@ -3810,15 +3875,12 @@ def update_user_roles(user_id: str):
             "Content-Type": "application/json",
         }
 
-        # Verify user exists
         user_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
         user_response = requests.get(user_url, headers=headers, timeout=10)
         if user_response.status_code != 200:
             return jsonify({"error": "User not found"}), 404
-
         user_email = user_response.json().get("email")
 
-        # Fetch available realm roles to validate requested roles
         roles_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/roles"
         roles_response = requests.get(roles_url, headers=headers, timeout=10)
         if roles_response.status_code != 200:
@@ -3832,53 +3894,12 @@ def update_user_roles(user_id: str):
                 "available_roles": sorted(available_roles),
             }), 400
 
-        # Get current user roles
-        current_roles_url = (
-            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-            f"/users/{user_id}/role-mappings/realm"
+        _clear_user_realm_roles(keycloak_url, user_id, headers)
+        assigned = _assign_realm_roles_to_user(
+            keycloak_url, user_id, new_roles, headers
         )
-        current_response = requests.get(
-            current_roles_url, headers=headers, timeout=10
-        )
-        current_roles = []
-        if current_response.status_code == 200:
-            current_roles = current_response.json()
 
-        # Remove all current realm roles
-        if current_roles:
-            requests.delete(
-                current_roles_url,
-                headers=headers,
-                json=current_roles,
-                timeout=10,
-            )
-
-        # Assign new roles
-        assigned = []
-        for role_name in new_roles:
-            role_url = (
-                f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-                f"/roles/{role_name}"
-            )
-            role_response = requests.get(role_url, headers=headers, timeout=10)
-            if role_response.status_code == 200:
-                role_data = role_response.json()
-                mapping_url = (
-                    f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-                    f"/users/{user_id}/role-mappings/realm"
-                )
-                assign_resp = requests.post(
-                    mapping_url,
-                    headers=headers,
-                    json=[role_data],
-                    timeout=10,
-                )
-                if assign_resp.status_code in [200, 204]:
-                    assigned.append(role_name)
-
-        logger.info(
-            f"Roles updated for user {user_email}: {assigned}"
-        )
+        logger.info(f"Roles updated for user {user_email}: {assigned}")
         audit_log(
             action='admin.user.roles_update',
             resource_type='user',
