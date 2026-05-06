@@ -1757,28 +1757,61 @@ def health_check():
     )
 
 
+def _authenticate_keycloak_webhook():
+    """Bearer-token auth for the Keycloak webhook.
+
+    Fails closed (503) when WEBHOOK_SECRET is not configured. Returns
+    None when the request is authentic, or a `(response, status)` tuple
+    otherwise — caller forwards it directly. Constant-time comparison
+    prevents trivial timing oracles.
+    """
+    expected_secret = (WEBHOOK_SECRET or "").strip()
+    if not expected_secret:
+        logger.error("WEBHOOK_SECRET not configured; refusing keycloak webhook request")
+        return jsonify({"error": "Webhook not configured"}), 503
+
+    auth_header = request.headers.get("Authorization") or ""
+    if not auth_header.startswith("Bearer "):
+        logger.warning("Unauthorized webhook request: missing Bearer token")
+        return jsonify({"error": "Unauthorized"}), 401
+
+    provided = auth_header[len("Bearer "):].strip().encode("utf-8")
+    if not hmac.compare_digest(provided, expected_secret.encode("utf-8")):
+        logger.warning("Unauthorized webhook request: token mismatch")
+        return jsonify({"error": "Unauthorized"}), 401
+
+    return None
+
+
+def _dispatch_keycloak_event(event_type, tenant_id, payload):
+    """Route a validated Keycloak event to its handler.
+
+    The dispatch table is built lazily on each call because the handler
+    functions are defined later in the module — this preserves the
+    file's existing top-down reading order without a forward-declaration
+    section. The cost is one dict construction per event, which is
+    negligible compared to the downstream Keycloak/DB work.
+    """
+    handlers = {
+        "TENANT_CREATED": handle_tenant_created,
+        "TENANT_UPDATED": handle_tenant_updated,
+        "TENANT_DELETED": handle_tenant_deleted,
+    }
+    handler = handlers.get(event_type)
+    if handler is None:
+        logger.info(f"Unhandled event type: {event_type}")
+        return jsonify({"message": "Event type not handled"}), 200
+    return handler(tenant_id, payload)
+
+
 @app.route("/webhook/keycloak", methods=["POST"])
 def keycloak_webhook():
     """Handle Keycloak webhook events"""
     try:
-        # Fail-closed if the shared webhook secret is not configured. Without
-        # this, an empty WEBHOOK_SECRET would let `Bearer ` (or any non-empty
-        # token) authenticate, opening a tenant-creation surface to the world.
-        expected_secret = (WEBHOOK_SECRET or "").strip()
-        if not expected_secret:
-            logger.error("WEBHOOK_SECRET not configured; refusing keycloak webhook request")
-            return jsonify({"error": "Webhook not configured"}), 503
+        auth_resp = _authenticate_keycloak_webhook()
+        if auth_resp is not None:
+            return auth_resp
 
-        auth_header = request.headers.get("Authorization") or ""
-        if not auth_header.startswith("Bearer "):
-            logger.warning("Unauthorized webhook request: missing Bearer token")
-            return jsonify({"error": "Unauthorized"}), 401
-        provided = auth_header[len("Bearer "):].strip().encode("utf-8")
-        if not hmac.compare_digest(provided, expected_secret.encode("utf-8")):
-            logger.warning("Unauthorized webhook request: token mismatch")
-            return jsonify({"error": "Unauthorized"}), 401
-
-        # Parse webhook payload
         payload = request.get_json()
         if not payload:
             logger.warning("Empty webhook payload")
@@ -1786,7 +1819,6 @@ def keycloak_webhook():
 
         logger.info(f"Received Keycloak webhook: {json.dumps(payload, indent=2)}")
 
-        # Process different event types
         event_type = payload.get("type")
         tenant_id = payload.get("tenant_id") or payload.get("group_name")
 
@@ -1794,21 +1826,13 @@ def keycloak_webhook():
             logger.warning("No tenant_id found in webhook payload")
             return jsonify({"error": "Missing tenant_id"}), 400
 
-        # Reject malformed tenant_id before it reaches handlers that use it
-        # as a path component or subprocess argument.
+        # Reject malformed tenant_id before it reaches handlers that use
+        # it as a path component or subprocess argument.
         if not _is_valid_tenant_id(tenant_id):
             logger.warning(f"Rejected webhook with invalid tenant_id format: {tenant_id!r}")
             return jsonify({"error": "Invalid tenant_id format"}), 400
 
-        if event_type == "TENANT_CREATED":
-            return handle_tenant_created(tenant_id, payload)
-        elif event_type == "TENANT_UPDATED":
-            return handle_tenant_updated(tenant_id, payload)
-        elif event_type == "TENANT_DELETED":
-            return handle_tenant_deleted(tenant_id, payload)
-        else:
-            logger.info(f"Unhandled event type: {event_type}")
-            return jsonify({"message": "Event type not handled"}), 200
+        return _dispatch_keycloak_event(event_type, tenant_id, payload)
 
     except Exception as e:
         logger.error(f"Error processing Keycloak webhook: {e}")
