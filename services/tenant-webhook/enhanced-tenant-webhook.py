@@ -1616,10 +1616,11 @@ class EnhancedTenantWebhookService:
                         if has_key_type:
                             cur.execute(
                                 """
-                                INSERT INTO api_keys (key_hash, name, description, tenant_id, key_type, is_active)
+                                INSERT INTO api_keys
+                                    (key_hash, name, description, tenant_id, key_type, is_active)
                                 VALUES (%s, %s, %s, %s, 'tenant', true)
-                            """,
-                                (  # noqa: E501
+                                """,
+                                (
                                     api_key_hash,
                                     f"API Key for {tenant_id}",
                                     f"Auto-generated API key for tenant {tenant_id}",
@@ -1630,10 +1631,11 @@ class EnhancedTenantWebhookService:
                             # Fallback for older schema without key_type
                             cur.execute(
                                 """
-                                INSERT INTO api_keys (key_hash, name, description, tenant_id, is_active)
+                                INSERT INTO api_keys
+                                    (key_hash, name, description, tenant_id, is_active)
                                 VALUES (%s, %s, %s, %s, true)
-                            """,
-                                (  # noqa: E501
+                                """,
+                                (
                                     api_key_hash,
                                     f"API Key for {tenant_id}",
                                     f"Auto-generated API key for tenant {tenant_id}",
@@ -1705,8 +1707,9 @@ class EnhancedTenantWebhookService:
             # Return API key if at least one storage succeeded
             if db_success or k8s_success:
                 logger.info(
-                    f"Successfully generated API key for tenant: {tenant_id} (DB: {db_success}, K8s: {k8s_success})"
-                )  # noqa: E501
+                    f"Successfully generated API key for tenant: {tenant_id} "
+                    f"(DB: {db_success}, K8s: {k8s_success})"
+                )
                 return api_key
             else:
                 logger.error(
@@ -1953,8 +1956,9 @@ def woocommerce_webhook():  # noqa: C901
                     logger.info(f"WooCommerce: Activation email sent to {email}")
                 else:
                     logger.error(
-                        f"WooCommerce: Failed to send activation email: {email_response.status_code} - {email_response.text}"
-                    )  # noqa: E501
+                        f"WooCommerce: Failed to send activation email: "
+                        f"{email_response.status_code} - {email_response.text}"
+                    )
             except requests.exceptions.ConnectionError as e:
                 logger.error(
                     f"WooCommerce: Cannot connect to email service at {EMAIL_SERVICE_URL}: {e}"
@@ -2023,7 +2027,11 @@ def generate_activation_code():  # noqa: C901
             "max_robots": q["max_robots"],
             "max_sensors": q["max_sensors"],
             "max_parcels": q["max_parcels"],
-            "max_area_hectares": float(q["max_area_hectares"]) if q["max_area_hectares"] is not None else None,
+            "max_area_hectares": (
+                float(q["max_area_hectares"])
+                if q["max_area_hectares"] is not None
+                else None
+            ),
             "max_entities_total": q["max_entities_total"],
         }
         expires_at = datetime.utcnow() + timedelta(days=duration_days)
@@ -2107,8 +2115,9 @@ def generate_activation_code():  # noqa: C901
                     logger.info(f"Admin: Activation email sent to {email}")
                 else:
                     logger.error(
-                        f"Admin: Failed to send activation email: {email_response.status_code} - {email_response.text}"
-                    )  # noqa: E501
+                        f"Admin: Failed to send activation email: "
+                        f"{email_response.status_code} - {email_response.text}"
+                    )
             except requests.exceptions.ConnectionError as e:
                 logger.error(f"Admin: Cannot connect to email service at {EMAIL_SERVICE_URL}: {e}")
             except requests.exceptions.Timeout as e:
@@ -2534,7 +2543,8 @@ def internal_list_expired_tenants():
             # they have an expired activation code.
             # But the most robust way is: if t_expires is present and past -> expired.
             # If t_expires is null, look at ac_expires. If ac_expires is past -> expired.
-            # If both are null, it depends on whether we allow forever trials. We assume they don't expire.
+            # If both are null, it depends on whether we allow forever trials.
+            # We assume they don't expire.
             
             is_expired = False
             now = datetime.utcnow()
@@ -2640,7 +2650,8 @@ def internal_update_tenant_license(tenant_id):
             return jsonify({"error": "Tenant not found"}), 404
 
         cursor.execute(
-            f"UPDATE tenants SET {', '.join(updates)} WHERE tenant_id = %s RETURNING tenant_id, expires_at, status, plan_type, plan_level",
+            f"UPDATE tenants SET {', '.join(updates)} WHERE tenant_id = %s "
+            "RETURNING tenant_id, expires_at, status, plan_type, plan_level",
             params,
         )
         row = cursor.fetchone()
@@ -3117,7 +3128,10 @@ def update_tenant_info(tenant_id):
             
         params.append(tenant_id)
         
-        query = f"UPDATE tenants SET {', '.join(updates)}, updated_at = CURRENT_TIMESTAMP WHERE tenant_id = %s"
+        query = (
+            f"UPDATE tenants SET {', '.join(updates)}, "
+            "updated_at = CURRENT_TIMESTAMP WHERE tenant_id = %s"
+        )
         
         cursor.execute(query, params)
         conn.commit()
@@ -3180,10 +3194,11 @@ def list_tenants():
                 )  # noqa: E501
                 activation_expires = activation.get("expires_at") if activation else None
                 
-                # If tenants table has an explicit expires_at, use it. 
-                # If it's null but the tenant is active, it might be an unlimited/stripe-managed active plan.
-                # However, to avoid falling back to an old activation code that triggers an expiration alert,
-                # we prioritize the tenants table explicitly.
+                # If tenants table has an explicit expires_at, use it.
+                # If it's null but the tenant is active, it might be an
+                # unlimited/stripe-managed active plan. However, to avoid
+                # falling back to an old activation code that triggers an
+                # expiration alert, we prioritize the tenants table explicitly.
                 if "expires_at" in row and row["expires_at"] is not None:
                     tenant_expires = row["expires_at"]
                 else:
@@ -3329,7 +3344,11 @@ def create_tenant_directly():
             action='admin.tenant.create',
             resource_type='tenant',
             resource_id=tenant_id,
-            metadata={'plan': plan, 'email': email, 'user_created': bool(user_result and user_result.get("success"))},
+            metadata={
+                'plan': plan,
+                'email': email,
+                'user_created': bool(user_result and user_result.get("success")),
+            },
         )
 
         return jsonify(
@@ -3387,8 +3406,9 @@ def delete_tenant_directly(tenant_id: str):  # noqa: C901
                                 logger.info(f"Deleted user {user.get('email')} from Keycloak")
                             else:
                                 errors.append(
-                                    f"Failed to delete user {user.get('email')}: {delete_user_response.status_code}"
-                                )  # noqa: E501
+                                    f"Failed to delete user {user.get('email')}: "
+                                    f"{delete_user_response.status_code}"
+                                )
 
                 # Find and delete tenant group
                 groups_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/groups"
@@ -3908,9 +3928,12 @@ def forgot_password():
                     f"{EMAIL_SERVICE_URL}/send/password-reset",
                     json={
                         "email": email.lower(),
-                        "farmer_name": f"{user_info.get('firstName', '')} {user_info.get('lastName', '')}".strip()
-                        or email.split("@")[0],  # noqa: E501
-                        "reset_token": "KEYCLOAK_RESET",  # Placeholder, Keycloak handles the actual token  # noqa: E501
+                        "farmer_name": (
+                            f"{user_info.get('firstName', '')} "
+                            f"{user_info.get('lastName', '')}"
+                        ).strip() or email.split("@")[0],
+                        # Placeholder; Keycloak handles the actual reset token.
+                        "reset_token": "KEYCLOAK_RESET",
                         "reset_url": reset_link,
                     },
                     timeout=10,
@@ -4000,12 +4023,14 @@ def activate_tenant():  # noqa: C901
                     cursor = conn.cursor()
                     cursor.execute(
                         """
-                        UPDATE activation_codes 
-                        SET status = 'pending', activated_at = NULL, used_count = GREATEST(used_count - 1, 0)
-                        WHERE code = %s
-                    """,
+                        UPDATE activation_codes
+                           SET status = 'pending',
+                               activated_at = NULL,
+                               used_count = GREATEST(used_count - 1, 0)
+                         WHERE code = %s
+                        """,
                         (code,),
-                    )  # noqa: E501
+                    )
                     conn.commit()
                     cursor.close()
                     conn.close()
@@ -4105,8 +4130,9 @@ def activate_tenant():  # noqa: C901
                         farmer_id = farmer_result["id"]
                         conn.commit()
                         logger.info(
-                            f"Created first farmer (owner) in database: {farmer_id} for tenant: {tenant_id}"
-                        )  # noqa: E501
+                            f"Created first farmer (owner) in database: "
+                            f"{farmer_id} for tenant: {tenant_id}"
+                        )
                     else:
                         conn.rollback()
                 else:
@@ -5172,7 +5198,12 @@ def register_tenant():
         # this try-block) until the pool's idle timeout reclaimed it.
         plan_lower = plan.lower() if plan else "pro"
         if plan_lower not in ("pro", "premium", "enterprise"):
-            return jsonify({"error": "Public registration restricted to pro/premium/enterprise. Basic requires NEK invitation code."}), 400
+            return jsonify({
+                "error": (
+                    "Public registration restricted to pro/premium/enterprise. "
+                    "Basic requires NEK invitation code."
+                )
+            }), 400
 
         # 1. Normalize and check existence
         tenant_slug = webhook_service._normalize_tenant_slug(organization_name)  # noqa: F841
@@ -5189,7 +5220,11 @@ def register_tenant():
             "max_robots": q["max_robots"],
             "max_sensors": q["max_sensors"],
             "max_parcels": q["max_parcels"],
-            "max_area_hectares": float(q["max_area_hectares"]) if q["max_area_hectares"] is not None else None,
+            "max_area_hectares": (
+                float(q["max_area_hectares"])
+                if q["max_area_hectares"] is not None
+                else None
+            ),
             "max_entities_total": q["max_entities_total"],
             "duration": 45,
         }
