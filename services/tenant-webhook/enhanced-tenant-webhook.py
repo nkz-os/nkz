@@ -222,8 +222,11 @@ def require_platform_admin(f):  # noqa: C901
 
             if "PlatformAdmin" not in all_roles:
                 logger.warning(
-                    f"User {payload.get('preferred_username')} ({payload.get('email')}) attempted admin action without PlatformAdmin role. Available roles: {all_roles}. Request: {request.method} {request.path}"
-                )  # noqa: E501
+                    f"User {payload.get('preferred_username')} "
+                    f"({payload.get('email')}) attempted admin action "
+                    f"without PlatformAdmin role. Available roles: {all_roles}. "
+                    f"Request: {request.method} {request.path}"
+                )
                 return jsonify(
                     {
                         "error": "Insufficient permissions. PlatformAdmin role required.",
@@ -245,8 +248,9 @@ def require_platform_admin(f):  # noqa: C901
             is_platform_admin = "PlatformAdmin" in all_roles
             if not tenant_id and is_platform_admin:
                 logger.debug(
-                    f"PlatformAdmin user {payload.get('preferred_username')} working without tenant (expected)"
-                )  # noqa: E501
+                    f"PlatformAdmin user {payload.get('preferred_username')} "
+                    "working without tenant (expected)"
+                )
 
             return f(*args, **kwargs)
 
@@ -256,7 +260,10 @@ def require_platform_admin(f):  # noqa: C901
                 {
                     "error": "Token validation failed",
                     "details": str(e),
-                    "suggestion": "Your token may have expired. Please refresh the page and try again.",
+                    "suggestion": (
+                        "Your token may have expired. "
+                        "Please refresh the page and try again."
+                    ),
                 }
             ), 401
         except KeycloakAuthError as e:
@@ -471,8 +478,9 @@ def get_tenant_namespace(tenant_id: str) -> str:
     if tenant_id.startswith("nekazari-tenant-"):
         normalized_id = tenant_id[len("nekazari-tenant-") :]
         logger.warning(
-            f"Tenant ID '{tenant_id}' already has 'nekazari-tenant-' prefix, using '{normalized_id}'"
-        )  # noqa: E501
+            f"Tenant ID '{tenant_id}' already has 'nekazari-tenant-' prefix, "
+            f"using '{normalized_id}'"
+        )
     elif tenant_id.startswith("nekazari-"):
         normalized_id = tenant_id[len("nekazari-") :]
         logger.warning(
@@ -1080,8 +1088,9 @@ class EnhancedTenantWebhookService:
                         logger.info(f"Updated existing Keycloak user: {email}")
                     else:
                         logger.warning(
-                            f"Failed to update existing user: {update_response.status_code} {update_response.text}"
-                        )  # noqa: E501
+                            f"Failed to update existing user: "
+                            f"{update_response.status_code} {update_response.text}"
+                        )
                 else:
                     # User doesn't exist, create new one
                     user_data = {
@@ -1189,8 +1198,9 @@ class EnhancedTenantWebhookService:
                     logger.info(f"Assigned Farmer role to user: {email}")
             else:
                 logger.warning(
-                    f"Couldn't ensure tenant group for {tenant_group_name}, user {email} will miss group assignment"
-                )  # noqa: E501
+                    f"Couldn't ensure tenant group for {tenant_group_name}, "
+                    f"user {email} will miss group assignment"
+                )
 
             # Add user to tenant group
             # Set password (use provided password or generate temporary one)
@@ -1332,8 +1342,9 @@ class EnhancedTenantWebhookService:
                 logger.info(f"User {email} added to tenant group {group_name}")
             else:
                 logger.warning(
-                    f"Unexpected response adding user {email} to group {group_name}: {response.status_code} {response.text}"
-                )  # noqa: E501
+                    f"Unexpected response adding user {email} to group {group_name}: "
+                    f"{response.status_code} {response.text}"
+                )
         except Exception as e:
             logger.error(f"Failed to add user {email} to group {group_name}: {e}")
 
@@ -1361,8 +1372,9 @@ class EnhancedTenantWebhookService:
                 return True
             else:
                 logger.warning(
-                    f"Failed to assign role {role_name} to user {user_id}: {response.status_code} {response.text}"
-                )  # noqa: E501
+                    f"Failed to assign role {role_name} to user {user_id}: "
+                    f"{response.status_code} {response.text}"
+                )
                 return False
         except Exception as e:
             logger.error(f"Error assigning role {role_name} to user {user_id}: {e}")
@@ -1503,11 +1515,13 @@ class EnhancedTenantWebhookService:
             # Verify script exists
             if not os.path.exists(CREATE_ROS2_SCRIPT):
                 logger.warning(
-                    f"⚠️  ROS2 creation script not found: {CREATE_ROS2_SCRIPT} - skipping ROS2 setup"
-                )  # noqa: E501
+                    f"⚠️  ROS2 creation script not found: {CREATE_ROS2_SCRIPT} "
+                    "- skipping ROS2 setup"
+                )
                 logger.warning(
-                    f"Tenant {tenant_id} will be created without ROS2 resources. They can be added later."
-                )  # noqa: E501
+                    f"Tenant {tenant_id} will be created without ROS2 resources. "
+                    "They can be added later."
+                )
                 return False
 
             # Run the ROS2 creation script
@@ -1528,15 +1542,17 @@ class EnhancedTenantWebhookService:
                 )  # noqa: E501
                 logger.warning(f"Script stdout: {result.stdout}")
                 logger.warning(
-                    f"Tenant {tenant_id} will be created without ROS2 resources. They can be retried later."
-                )  # noqa: E501
+                    f"Tenant {tenant_id} will be created without ROS2 resources. "
+                    "They can be retried later."
+                )
                 return False
 
         except subprocess.TimeoutExpired:
             logger.warning(f"⚠️  ROS2 creation script timed out for: {tenant_id}")
             logger.warning(
-                f"Tenant {tenant_id} will be created without ROS2 resources. ROS2 setup can be retried later."
-            )  # noqa: E501
+                f"Tenant {tenant_id} will be created without ROS2 resources. "
+                "ROS2 setup can be retried later."
+            )
             return False
         except FileNotFoundError as e:
             logger.warning(f"⚠️  ROS2 creation script not found: {e}")
@@ -1545,8 +1561,9 @@ class EnhancedTenantWebhookService:
         except Exception as e:
             logger.warning(f"⚠️  Error creating ROS2 resources for {tenant_id}: {e}")
             logger.warning(
-                f"Tenant {tenant_id} will be created without ROS2 resources. ROS2 setup can be retried later."
-            )  # noqa: E501
+                f"Tenant {tenant_id} will be created without ROS2 resources. "
+                "ROS2 setup can be retried later."
+            )
             return False
 
     def generate_api_key(self, tenant_id: str) -> str | None:  # noqa: C901
