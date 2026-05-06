@@ -956,13 +956,16 @@ def create_instance(entity_type):
                     'requested_hectares': new_area
                 }), 403
         
+        # Inject @context for NGSI-LD compliance
+        entity_data['@context'] = CONTEXT_URL
+
         # Send to Orion-LD
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
         headers = {
             'Content-Type': 'application/ld+json'
         }
         headers = inject_fiware_headers(headers, g.tenant)
-        
+
         response = requests.post(orion_url, json=entity_data, headers=headers)
         if response.status_code in [200, 201]:
             # Log the operation
@@ -1019,12 +1022,15 @@ def update_instance(entity_type, entity_id):
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
+        # Inject @context for NGSI-LD compliance
+        data['@context'] = CONTEXT_URL
+
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
         headers = {
             'Content-Type': 'application/ld+json'
         }
         headers = inject_fiware_headers(headers, g.tenant)
-        
+
         response = requests.patch(orion_url, json=data, headers=headers)
         if response.status_code in [200, 204]:
             # Log the operation
@@ -4742,11 +4748,7 @@ def get_tenant_modules():
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
     # Extract roles from multiple possible sources
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        # Try to extract from current_user payload (set by common.auth_middleware)
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     
     logger.info(f"[get_tenant_modules] tenant_id={tenant_id}, user_roles={user_roles}")
     
@@ -4918,10 +4920,7 @@ def toggle_module(module_id):
     Only TenantAdmin and PlatformAdmin can manage modules.
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     
     # Log user roles for debugging
     logger.info(f"[toggle_module] Initial check - tenant_id={tenant_id}, user_roles={user_roles}, has_PlatformAdmin={'PlatformAdmin' in user_roles}")
@@ -5067,10 +5066,7 @@ def get_marketplace_modules():
     Get all available modules from marketplace.
     PlatformAdmin can see all, others see only active modules.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     is_platform_admin = 'PlatformAdmin' in user_roles
     
     logger.info(f"[get_marketplace_modules] user_roles={user_roles}, is_platform_admin={is_platform_admin}")
@@ -5119,10 +5115,7 @@ def activate_marketplace_module(module_id):
     Only PlatformAdmin can activate/deactivate modules globally.
     This controls module visibility for all tenants.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -5191,10 +5184,7 @@ def can_install_module(module_id):
     Returns: {can_install: bool, reason: str, module: {...}}
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     
     try:
         # Get tenant plan_type from Orion-LD (source of truth for limits)
@@ -5349,10 +5339,7 @@ def get_modules_visibility():
     is a purely UI-level feature: backend access remains governed by required_roles.
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles() or []
+    user_roles = _get_user_roles() or []
 
     if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. TenantAdmin or PlatformAdmin required.'}), 403
@@ -5373,10 +5360,7 @@ def put_modules_visibility():
       }
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles() or []
+    user_roles = _get_user_roles() or []
 
     if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
         return jsonify({'error': 'Insufficient permissions. TenantAdmin or PlatformAdmin required.'}), 403
@@ -5628,10 +5612,7 @@ def upload_module():
             'version': str
         }
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -5790,10 +5771,7 @@ def get_validation_status(upload_id):
     
     Only PlatformAdmin can check status.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -5953,10 +5931,7 @@ def deploy_module(module_id):
     
     Only PlatformAdmin can deploy modules.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -6007,10 +5982,7 @@ def get_validation_logs(upload_id):
     
     Only PlatformAdmin can view logs.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -6089,10 +6061,7 @@ def get_module_uploads():
     
     Only PlatformAdmin can view uploads.
     """
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
@@ -6584,10 +6553,7 @@ def get_audit_logs():
     Only accessible to PlatformAdmin.
     """
     tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
-    user_roles = getattr(g, 'roles', None) or getattr(g, 'user_roles', None) or []
-    if not user_roles:
-        payload = getattr(g, 'current_user', {}) or {}
-        user_roles = _get_user_roles()
+    user_roles = _get_user_roles()
     
     # Check permissions - only PlatformAdmin
     if 'PlatformAdmin' not in user_roles:
