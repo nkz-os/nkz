@@ -685,6 +685,8 @@ class TestSensorRoutes:
             ("GET", "/api/devices/test-device/commands", 200),
         ],
     )
+    @patch("blueprints.sensors.get_db_connection_with_tenant")
+    @patch("blueprints.sensors.get_db_connection_simple")
     @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
@@ -693,6 +695,8 @@ class TestSensorRoutes:
         mock_db_simple,
         mock_db_tenant,
         mock_req,
+        mock_bp_db_simple,
+        mock_bp_db_tenant,
         client,
         method,
         path,
@@ -701,18 +705,24 @@ class TestSensorRoutes:
         conn = _make_db_conn()
         mock_db_tenant.return_value = conn
         mock_db_simple.return_value = conn
+        mock_bp_db_tenant.return_value = conn
+        mock_bp_db_simple.return_value = conn
         r = client.open(path, method=method)
         assert r.status_code in (expected_status, 500), (
             f"{method} {path} got {r.status_code}"
         )
         r.get_json()
 
+    @patch("blueprints.sensors.get_db_connection_with_tenant")
+    @patch("blueprints.sensors.get_db_connection_simple")
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
-    def test_register_sensor_ok(self, mock_db_simple, mock_db_tenant, client):
+    def test_register_sensor_ok(self, mock_db_simple, mock_db_tenant, mock_bp_db_simple, mock_bp_db_tenant, client):
         conn = _make_db_conn()
         mock_db_tenant.return_value = conn
         mock_db_simple.return_value = conn
+        mock_bp_db_tenant.return_value = conn
+        mock_bp_db_simple.return_value = conn
         r = client.post(
             "/api/sensors/register",
             content_type="application/json",
@@ -730,9 +740,12 @@ class TestSensorRoutes:
         )
         r.get_json()
 
+    @patch("blueprints.sensors.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_with_tenant")
-    def test_post_command_ok(self, mock_db, client):
-        mock_db.return_value = _make_db_conn()
+    def test_post_command_ok(self, mock_db, mock_bp_db, client):
+        conn = _make_db_conn()
+        mock_db.return_value = conn
+        mock_bp_db.return_value = conn
         r = client.post(
             "/api/devices/test-device/commands",
             content_type="application/json",
@@ -743,8 +756,9 @@ class TestSensorRoutes:
         )
         r.get_json()
 
-    @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
-    def test_heartbeat_ok(self, mock_get, client):
+    @patch("blueprints.sensors.psycopg2.connect")
+    def test_heartbeat_ok(self, mock_conn, client):
+        mock_conn.return_value = _make_db_conn()
         r = client.get("/api/heartbeat/check")
         assert r.status_code in (200, 400, 500, 503), (
             f"GET heartbeat got {r.status_code}"
