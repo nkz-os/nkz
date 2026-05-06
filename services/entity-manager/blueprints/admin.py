@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import logging
+import time
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
@@ -21,9 +22,17 @@ logger = logging.getLogger(__name__)
 
 # Import shared helpers from main module (imported at bottom to avoid circular imports)
 from entity_management_api import get_limits_for_tenant, _gather_usage_for_tenant, _count_all_entities, upsert_limits_in_orion
+from entity_management_api import _limits_cache, _limits_cache_ts, _extract_number
 
 ORION_URL = os.getenv('ORION_URL')
 POSTGRES_URL = os.getenv('POSTGRES_URL')
+
+# Import parcel sync
+try:
+    from parcel_sync import parcel_sync
+    PARCEL_SYNC_AVAILABLE = True
+except ImportError:
+    PARCEL_SYNC_AVAILABLE = False
 
 # Import audit_log with fallback
 try:

@@ -781,14 +781,14 @@ class TestAssetRoutes:
             ("GET", "/api/assets/public", 200),
         ],
     )
+    @patch("blueprints.assets.get_assets_s3_client")
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
-    @patch("entity_management_api.get_assets_s3_client")
     def test_get_ok(
         self,
-        mock_s3,
         mock_db_simple,
         mock_db_tenant,
+        mock_s3,
         client,
         method,
         path,
