@@ -22,13 +22,11 @@ import requests
 import paho.mqtt.client as mqtt
 import threading
 import psycopg2
-import redis
 from io import BytesIO
 
 # Configuration - All environment variables are REQUIRED for security
 POSTGRES_URL = os.getenv('POSTGRES_URL')
 ORION_URL = os.getenv('ORION_URL')
-_REDIS_URL = os.getenv('REDIS_URL', 'redis://:default@redis-service:6379/0')
 
 # Add common directory to path for imports
 # Try multiple paths for compatibility (local dev vs container)
@@ -2996,273 +2994,6 @@ def module_health_check(module_id):
         }), 500
 
 
-# =============================================================================
-# Admin Audit Logs Endpoint
-# =============================================================================
-
-
-@app.route('/api/core/sync/vectorial', methods=['GET', 'POST'])
-@require_auth
-def core_vector_sync():
-    """
-    Offline vector sync for WatermelonDB (pull GET, push POST).
-
-    GET: WatermelonDB shape
-    ``{ "changes": { "<table>": { "created"|"updated"|"deleted" } }, "timestamp": <ms> }``.
-    Each created/updated row must include string ``id`` (here: NGSI-LD entity URN).
-
-    Query params:
-    - last_pulled_at: epoch ms; rows with updated_at < this are omitted from updated lists.
-    - collections: comma list ``parcels``, ``routing_lines`` (default: both).
-
-    POST: apply local parcel changes to Orion-LD via PATCH; optional
-    ``experimentalRejectedIds`` for WatermelonDB.
-    """
-    if request.method == 'POST':
-        return _core_vector_sync_push()
-    return _core_vector_sync_pull()
-
-
-def _get_redis():
-    """Lazy Redis connection. Returns None if Redis is unavailable."""
-    try:
-        return redis.Redis.from_url(
-            _REDIS_URL, socket_timeout=2, socket_connect_timeout=2, decode_responses=False
-        )
-    except Exception:
-        return None
-
-
-def _sync_cache_key(tenant, collections_str, last_pulled_at):
-    return f"sync:pull:tenant:{tenant}:collections:{collections_str}:since:{last_pulled_at}"
-
-
-_SYNC_CACHE_TTL = 30
-
-
-def _core_vector_sync_pull():
-    try:
-        tenant = g.tenant
-        last_pulled_at = request.args.get('last_pulled_at', type=int, default=0) or 0
-        current_ts = int(time.time() * 1000)
-        collections = _parse_vectorial_collections()
-        collections_key = ','.join(sorted(collections))
-
-        # Try Redis cache first
-        r = _get_redis()
-        cache_key = _sync_cache_key(tenant, collections_key, last_pulled_at)
-        if r:
-            try:
-                cached = r.get(cache_key)
-                if cached:
-                    logger.debug("sync_pull cache hit for tenant=%s collections=%s", tenant, collections_key)
-                    return jsonify(json.loads(cached))
-            except Exception as e:
-                logger.debug("Redis cache read skipped: %s", e)
-
-        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant)
-
-        changes = {}
-
-        if 'parcels' in collections:
-            params_parcels = {
-                'type': 'AgriParcel,Parcel,OliveGrove,Vineyard',
-                'limit': 1000,
-            }
-            resp_parcels = requests.get(orion_url, params=params_parcels, headers=headers)
-            updated_parcels = []
-            if resp_parcels.status_code == 200:
-                for ent in resp_parcels.json():
-                    try:
-                        mobile_ent = _parcel_record_for_watermelon(ent)
-                        if mobile_ent['updated_at'] >= last_pulled_at:
-                            updated_parcels.append(mobile_ent)
-                    except Exception as e:
-                        logger.warning(f"Error mapping parcel {ent.get('id')}: {e}")
-            changes['parcels'] = {
-                'created': [],
-                'updated': updated_parcels,
-                'deleted': [],
-            }
-
-        if 'routing_lines' in collections:
-            params_routes = {'type': 'RoutingLine,AgriNavigationLine', 'limit': 1000}
-            resp_routes = requests.get(orion_url, params=params_routes, headers=headers)
-            updated_routes = []
-            if resp_routes.status_code == 200:
-                for ent in resp_routes.json():
-                    try:
-                        route_rec = _routing_line_record_for_watermelon(ent, current_ts)
-                        if route_rec['updated_at'] >= last_pulled_at:
-                            updated_routes.append(route_rec)
-                    except Exception as e:
-                        logger.warning(f"Error mapping route {ent.get('id')}: {e}")
-            changes['routing_lines'] = {
-                'created': [],
-                'updated': updated_routes,
-                'deleted': [],
-            }
-
-        if 'equipment' in collections:
-            params_eq = {
-                'type': 'AgriEquipment',
-                'limit': 1000,
-            }
-            resp_eq = requests.get(orion_url, params=params_eq, headers=headers)
-            updated_eq = []
-            if resp_eq.status_code == 200:
-                for ent in resp_eq.json():
-                    try:
-                        eq_rec = _equipment_record_for_watermelon(ent, current_ts)
-                        if eq_rec['updated_at'] >= last_pulled_at:
-                            updated_eq.append(eq_rec)
-                    except Exception as e:
-                        logger.warning(f"Error mapping equipment {ent.get('id')}: {e}")
-            changes['equipment'] = {
-                'created': [],
-                'updated': updated_eq,
-                'deleted': [],
-            }
-
-        if 'operations' in collections:
-            params_ops = {
-                'type': 'AgriParcelOperation',
-                'limit': 1000,
-            }
-            resp_ops = requests.get(orion_url, params=params_ops, headers=headers)
-            updated_ops = []
-            if resp_ops.status_code == 200:
-                for ent in resp_ops.json():
-                    try:
-                        op_rec = _operation_record_for_watermelon(ent, current_ts)
-                        if op_rec['updated_at'] >= last_pulled_at:
-                            updated_ops.append(op_rec)
-                    except Exception as e:
-                        logger.warning(f"Error mapping operation {ent.get('id')}: {e}")
-            changes['operations'] = {
-                'created': [],
-                'updated': updated_ops,
-                'deleted': [],
-            }
-
-        response_data = {'changes': changes, 'timestamp': current_ts}
-
-        if r:
-            try:
-                r.setex(cache_key, _SYNC_CACHE_TTL, json.dumps(response_data))
-            except Exception as e:
-                logger.debug("Redis cache write skipped: %s", e)
-
-        return jsonify(response_data)
-    except Exception as e:
-        logger.error(f"Core Vector Sync pull error: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-def _core_vector_sync_push():
-    """
-    WatermelonDB push: PATCH parcel attributes on Orion-LD.
-    Does not support creating new NGSI-LD entities from the client (SDM POST TBD).
-    """
-    try:
-        data = request.get_json(silent=True) or {}
-        if 'changes' not in data:
-            return jsonify({'error': 'Invalid body: missing changes'}), 400
-
-        changes = data['changes']
-        last_pulled_at = data.get('last_pulled_at', 0)
-        tenant = g.tenant
-        current_ts = int(time.time() * 1000)
-
-        # Conflict detection: reject if client cursor is behind server
-        r = _get_redis()
-        if r and last_pulled_at:
-            try:
-                cursor_key = f"sync:cursor:tenant:{tenant}"
-                server_cursor = int(r.get(cursor_key) or 0)
-                if last_pulled_at < server_cursor:
-                    return jsonify({
-                        'error': {
-                            'code': 'CONFLICT',
-                            'message': f'Client timestamp {last_pulled_at} is behind server cursor {server_cursor}. Pull first.',
-                            'server_timestamp': server_cursor,
-                        }
-                    }), 409
-            except Exception as e:
-                logger.debug("Redis cursor check skipped: %s", e)
-
-        headers = inject_fiware_headers({'Content-Type': 'application/ld+json'}, tenant)
-        # WatermelonDB expects { tableName: [recordId, ...] } (local Watermelon record ids).
-        rejected_by_table = {}
-
-        if 'parcels' in changes:
-            parcels = changes['parcels']
-            parcel_rejected = []
-
-            created = parcels.get('created') or []
-            if created:
-                for item in created:
-                    wid = item.get('id')
-                    if wid:
-                        parcel_rejected.append(str(wid))
-                logger.info(
-                    'Vectorial sync push: parcel create not supported; rejecting %d record(s)',
-                    len(created),
-                )
-
-            if 'updated' in parcels:
-                for item in parcels['updated']:
-                    sync_id = str(item.get('id') or '')
-                    entity_id = item.get('remote_id') or item.get('id')
-                    if not entity_id or not str(entity_id).startswith('urn:'):
-                        if sync_id:
-                            parcel_rejected.append(sync_id)
-                        logger.warning('Push skip: non-URN parcel id %s', entity_id)
-                        continue
-
-                    attrs = {}
-                    if 'name' in item and item['name'] is not None:
-                        attrs['name'] = {'type': 'Property', 'value': item['name']}
-                    if 'crop_type' in item and item['crop_type'] is not None:
-                        attrs['cropType'] = {'type': 'Property', 'value': item['crop_type']}
-
-                    if not attrs:
-                        continue
-
-                    try:
-                        patch_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
-                        pr = requests.patch(patch_url, json=attrs, headers=headers, timeout=30)
-                        if not pr.ok:
-                            logger.error(
-                                'Orion PATCH failed for %s: %s %s',
-                                entity_id,
-                                pr.status_code,
-                                pr.text[:500],
-                            )
-                            parcel_rejected.append(sync_id or str(entity_id))
-                    except Exception as up_err:
-                        logger.error('Error pushing update for %s: %s', entity_id, up_err)
-                        parcel_rejected.append(sync_id or str(entity_id))
-
-            if parcel_rejected:
-                rejected_by_table['parcels'] = parcel_rejected
-
-        body = {'status': 'success'}
-        if rejected_by_table:
-            body['experimentalRejectedIds'] = rejected_by_table
-
-        # Update Redis cursor after successful push
-        if r:
-            try:
-                r.set(f"sync:cursor:tenant:{tenant}", current_ts)
-            except Exception as e:
-                logger.debug("Redis cursor update skipped: %s", e)
-
-        return jsonify(body)
-    except Exception as e:
-        logger.error(f"Core Vector Sync push error: {e}")
-        return jsonify({'error': str(e)}), 500
 
 
 # Import and register blueprints (at bottom to avoid circular imports)
@@ -3270,10 +3001,12 @@ from blueprints.weather import weather_bp
 from blueprints.admin import admin_bp
 from blueprints.assets import assets_bp
 from blueprints.entities import entities_bp
+from blueprints.sync import sync_bp
 app.register_blueprint(weather_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(assets_bp)
 app.register_blueprint(entities_bp)
+app.register_blueprint(sync_bp)
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
