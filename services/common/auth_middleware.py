@@ -4,6 +4,7 @@
 # =============================================================================
 
 import os
+import sys
 import jwt
 import logging
 import time
@@ -14,6 +15,11 @@ from flask import request, jsonify, g
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+# Ensure sibling modules (keycloak_auth) are importable regardless of sys.path state
+_common_dir = os.path.dirname(os.path.abspath(__file__))
+if _common_dir not in sys.path:
+    sys.path.insert(0, _common_dir)
 
 # Configuration
 JWT_SECRET = os.getenv("JWT_SECRET")  # DEPRECATED, fallback only if enabled
@@ -182,9 +188,11 @@ def require_auth(_func=None, *, require_hmac: bool = None):
                 g.current_user = payload
                 g.tenant = tenant
                 g.farmer_id = payload.get("farmer_id")
-                g.user = payload.get("preferred_username") or payload.get(
-                    "clientId"
-                ) or payload.get("sub", "gateway")
+                g.user = (
+                    payload.get("preferred_username")
+                    or payload.get("clientId")
+                    or payload.get("sub", "gateway")
+                )
                 g.user_id = payload.get("sub")
                 roles = []
                 realm_access = payload.get("realm_access") or {}
@@ -281,7 +289,9 @@ def inject_fiware_headers(headers, tenant=None):
     # Link header provides a fallback for parsers that check it.
     context_url = os.getenv("CONTEXT_URL", "")
     if context_url:
-        headers["Link"] = f'<{context_url}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+        headers["Link"] = (
+            f'<{context_url}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+        )
 
     return headers
 
