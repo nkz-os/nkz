@@ -32,16 +32,15 @@ import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, Weath
 import {
     ChevronDown,
     ChevronUp,
-    Layers,
     X,
     Loader2,
     AlertTriangle,
 } from 'lucide-react';
 
-// Legacy glass panel styles — used by bottom panel, layer manager, map toolbar
-const glassPanel = {
-    base: 'bg-white/90 backdrop-blur-md border border-white/20 shadow-xl',
-    header: 'bg-gradient-to-r from-slate-50/80 to-white/80 backdrop-blur-sm',
+// Opaque surface styles for viewer overlays
+const overlayPanel = {
+    base: 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl',
+    header: 'bg-slate-50 dark:bg-slate-800',
 };
 
 // Loading fallback for lazy-loaded content
@@ -400,30 +399,18 @@ const UnifiedViewerInner: React.FC = () => {
 
     return (
         <ThemeProvider profile={profile} onChange={setProfile}>
-        <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-900">
+        <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-100 dark:bg-slate-950">
             {/* Floating Header - Logo with dropdown menu + controls; right strip includes Layers + Theme + Language */}
-            <ViewerHeader
-                rightContent={
-                    <button
-                        type="button"
-                        onClick={() => setIsLayerManagerOpen(!isLayerManagerOpen)}
-                        className={`p-2.5 rounded-xl ${glassPanel.base} hover:bg-white transition-all shadow-lg`}
-                        title="Gestionar capas"
-                        aria-label="Gestionar capas"
-                    >
-                        <Layers className="w-5 h-5 text-slate-700 dark:text-slate-200" />
-                    </button>
-                }
-            />
+            <ViewerHeader onToggleLayerManager={() => setIsLayerManagerOpen(!isLayerManagerOpen)} />
 
             {/* Map Toolbar - Contextual toolbar for drawing/editing modes */}
             {mapMode === 'PICK_LOCATION' && (
                 <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50">
-                    <div className={`${glassPanel.base} px-6 py-3 rounded-full flex items-center gap-4`}>
-                        <p className="text-slate-700 font-medium">Haga clic en el mapa para seleccionar ubicación</p>
+                    <div className={`${overlayPanel.base} px-6 py-3 rounded-full flex items-center gap-4`}>
+                        <p className="text-slate-700 dark:text-slate-100 font-medium">Haga clic en el mapa para seleccionar ubicación</p>
                         <button
                             onClick={cancelPicking}
-                            className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded-full text-sm font-medium transition-colors"
+                            className="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-100 px-3 py-1 rounded-full text-sm font-medium transition-colors"
                         >
                             Cancelar
                         </button>
@@ -499,13 +486,12 @@ const UnifiedViewerInner: React.FC = () => {
 
             {/* Layer Manager Dropdown - below the header right strip */}
             {isLayerManagerOpen && (
-                <div className={`absolute top-16 right-4 z-40 w-64 rounded-xl ${glassPanel.base} overflow-hidden`}>
-                    <div className={`px-4 py-3 ${glassPanel.header} border-b border-slate-200/50 flex items-center justify-between`}>
-                        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-                            <Layers className="w-4 h-4" />
+                <div className={`absolute top-16 right-4 z-40 w-64 rounded-xl ${overlayPanel.base} overflow-hidden`}>
+                    <div className={`px-4 py-3 ${overlayPanel.header} border-b border-slate-200 dark:border-slate-700 flex items-center justify-between`}>
+                        <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                             Capas
                         </h3>
-                        <button onClick={() => setIsLayerManagerOpen(false)} className="text-slate-400 hover:text-slate-600">
+                        <button onClick={() => setIsLayerManagerOpen(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
                             <X className="w-4 h-4" />
                         </button>
                     </div>
@@ -517,7 +503,7 @@ const UnifiedViewerInner: React.FC = () => {
                             className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors mb-1 ${
                                 riskEnabled
                                     ? 'bg-red-50 text-red-700 border border-red-200'
-                                    : 'text-slate-600 hover:bg-slate-100'
+                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                         >
                             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
@@ -615,14 +601,14 @@ const UnifiedViewerInner: React.FC = () => {
             >
                 <button
                     onClick={toggleBottomPanel}
-                    className={`absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full z-40 px-4 py-1 rounded-t-lg ${glassPanel.base} hover:bg-white transition-all text-xs text-slate-600 flex items-center gap-1`}
+                    className={`absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full z-40 px-4 py-1 rounded-t-lg ${overlayPanel.base} hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1`}
                 >
                     {isBottomPanelOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
                     Timeline
                 </button>
 
                 {isBottomPanelOpen && (
-                    <div className={`h-24 mb-4 rounded-xl ${glassPanel.base} flex items-center justify-center`}>
+                    <div className={`h-24 mb-4 rounded-xl ${overlayPanel.base} flex items-center justify-center`}>
                         <Suspense fallback={<PanelLoadingFallback />}>
                             <SlotRenderer slot="bottom-panel" />
                         </Suspense>
