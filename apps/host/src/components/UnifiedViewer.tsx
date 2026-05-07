@@ -406,11 +406,11 @@ const UnifiedViewerInner: React.FC = () => {
             {/* Map Toolbar - Contextual toolbar for drawing/editing modes */}
             {mapMode === 'PICK_LOCATION' && (
                 <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50">
-                    <div className={`${glassPanel.base} px-6 py-3 rounded-full flex items-center gap-4`}>
-                        <p className="text-slate-700 font-medium">Haga clic en el mapa para seleccionar ubicación</p>
+                    <div className={`${overlayPanel.base} px-6 py-3 rounded-full flex items-center gap-4`}>
+                        <p className="text-slate-700 dark:text-slate-100 font-medium">Haga clic en el mapa para seleccionar ubicación</p>
                         <button
                             onClick={cancelPicking}
-                            className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded-full text-sm font-medium transition-colors"
+                            className="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-100 px-3 py-1 rounded-full text-sm font-medium transition-colors"
                         >
                             Cancelar
                         </button>
