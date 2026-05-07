@@ -275,12 +275,12 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
   return (
     <div ref={containerRef} className={`flex flex-col h-full ${className}`}>
       {/* Header */}
-      <div className="flex-shrink-0 px-4 py-3 border-b border-slate-200/50 bg-gradient-to-r from-slate-50/80 to-white/80 backdrop-blur-sm">
+      <div className="flex-shrink-0 px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
         <div className="flex items-center justify-between gap-3">
           {/* Title & Count */}
           <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-slate-800">Assets</h2>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">
+            <h2 className="font-semibold text-slate-800 dark:text-slate-100">Assets</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-200">
               {filteredCount === totalCount
                 ? totalCount
                 : `${filteredCount} / ${totalCount}`}
@@ -292,7 +292,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             <button
               onClick={() => refresh()}
               disabled={isRefreshing}
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
               title="Actualizar"
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -304,7 +304,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                 Array.isArray(v) ? v.length > 0 : v !== '' && v !== null
               )
                 ? 'bg-blue-100 text-blue-600'
-                : 'hover:bg-slate-100 text-slate-500 hover:text-slate-700'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
               title="Filtros"
             >
@@ -318,7 +318,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               onClick={() => setViewMode('list')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'list'
                 ? 'bg-slate-200 text-slate-700'
-                : 'hover:bg-slate-100 text-slate-500'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'
                 }`}
               title="Vista lista"
             >
@@ -329,7 +329,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               onClick={() => setViewMode('tree')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'tree'
                 ? 'bg-emerald-100 text-emerald-700'
-                : 'hover:bg-slate-100 text-slate-500'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'
                 }`}
               title="Vista jerárquica"
             >
@@ -340,7 +340,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'grid'
                 ? 'bg-slate-200 text-slate-700'
-                : 'hover:bg-slate-100 text-slate-500'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'
                 }`}
               title="Vista cuadrícula"
             >
@@ -364,20 +364,20 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
         {/* Search Bar */}
         <div className="mt-3 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
           <input
             type="text"
             placeholder="Buscar por nombre, tipo o ubicación..."
             value={filters.search}
             onChange={handleSearch}
-            className="w-full pl-9 pr-8 py-2 text-sm border border-slate-200 rounded-lg bg-white/80 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            className="w-full pl-9 pr-8 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           />
           {filters.search && (
             <button
               onClick={() => setFilters({ search: '' })}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-100"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
             >
-              <X className="w-3 h-3 text-slate-400" />
+              <X className="w-3 h-3 text-slate-400 dark:text-slate-500" />
             </button>
           )}
         </div>
@@ -523,7 +523,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             {/* Table Container with min-width to enable horizontal scroll */}
             <div className="min-w-[600px]">
               {/* Table Header */}
-              <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-slate-50/95 backdrop-blur-sm border-b border-slate-200 text-xs font-medium text-slate-500 uppercase tracking-wider">
+              <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                 <button
                   onClick={handleSelectAllToggle}
                   className="flex-shrink-0 p-1 rounded hover:bg-slate-200"

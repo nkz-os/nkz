@@ -73,7 +73,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
   );
   
   return (
-    <div className="flex-shrink-0 px-4 py-2 border-b border-slate-200/50 bg-white/50">
+    <div className="flex-shrink-0 px-4 py-2 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
       <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
         {visibleCategories.map(cat => {
           const isAll = cat === 'all';
@@ -86,7 +86,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
           const colorClasses: Record<string, { active: string; inactive: string }> = {
             all: { 
               active: 'bg-slate-800 text-white',
-              inactive: 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              inactive: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
             },
             parcels: {
               active: 'bg-green-600 text-white',
@@ -102,7 +102,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
             },
             infrastructure: {
               active: 'bg-slate-600 text-white',
-              inactive: 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              inactive: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
             },
             vegetation: {
               active: 'bg-emerald-600 text-white',
