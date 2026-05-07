@@ -45,11 +45,11 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
 };
 
 export interface ViewerHeaderProps {
-    /** Optional content to show in the right strip (e.g. layer toggle button) to avoid crowding */
-    rightContent?: React.ReactNode;
+    /** Toggle unified viewer layer manager */
+    onToggleLayerManager?: () => void;
 }
 
-export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
+export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager }) => {
     const { user, logout, hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
     const { t } = useI18n();
@@ -273,7 +273,13 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                             <Search className="w-4 h-4" />
                             Buscar parcela
                         </button>
-                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <button
+                            onClick={() => {
+                                onToggleLayerManager?.();
+                                setIsMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
                             <Layers className="w-4 h-4" />
                             Capas
                         </button>
@@ -300,23 +306,6 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                             Help
                         </button>
                     </div>
-                </div>
-            </div>
-
-            {/* Right: Single strip – optional rightContent (e.g. Layers) + theme + language, icon-only to avoid crowding */}
-            {/* Moved to right-24 to avoid overlapping with Cesium Navigation controls (top-right) */}
-            <div className="absolute top-4 right-24 z-50 flex items-center gap-3">
-                {rightContent}
-                <div className={`rounded-xl ${surfaceStyles.base} p-1.5 flex items-center gap-2`}>
-                    <button
-                        onClick={toggle}
-                        className="p-2 rounded-lg text-nkz-text-secondary hover:text-nkz-text-primary hover:bg-nkz-surface-sunken transition-colors"
-                        aria-label={isLight ? 'Cambiar a tema oscuro' : 'Cambiar a tema claro'}
-                        title={isLight ? 'Tema oscuro' : 'Tema claro'}
-                    >
-                        {isLight ? '☼' : '🌙'}
-                    </button>
-                    <LanguageSelector variant="iconOnly" />
                 </div>
             </div>
         </>

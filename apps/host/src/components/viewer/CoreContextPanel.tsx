@@ -343,8 +343,8 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
     return (
         <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="px-4 py-3 border-b border-slate-200/50 bg-gradient-to-r from-slate-50/80 to-white/80 flex items-center justify-between">
-                <h2 className="font-semibold text-slate-800 flex items-center gap-2">
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
+                <h2 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     {getEntityIcon()}
                     Detalles
                 </h2>
@@ -414,7 +414,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                                     <Info className="w-4 h-4" />
                                     Propiedades
                                 </div>
-                                <div className="space-y-2 text-sm border border-slate-200 rounded-lg p-3 bg-slate-50/50">
+                                <div className="space-y-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-slate-50 dark:bg-slate-800">
                                     {getAllAttributes.slice(0, 10).map((attr) => (
                                         <div key={attr.key} className="flex justify-between items-start gap-2">
                                             <span className="text-slate-600 min-w-0 flex-1">{attr.label}</span>
@@ -454,7 +454,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                                 <Clock className="w-4 h-4" />
                                 Historial de Cambios
                             </div>
-                            <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                            <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-800">
                                 <p className="text-xs text-slate-500 text-center">
                                     El historial de cambios se mostrará aquí cuando esté disponible
                                 </p>
@@ -470,7 +470,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
 
             {/* Actions - Only show for non-parcel entities */}
             {selectedEntityType !== 'AgriParcel' && (
-                <div className="px-4 py-3 border-t border-slate-200/50 bg-slate-50/50">
+                <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                     <button
                         onClick={clearSelection}
                         className="w-full py-2 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
@@ -592,21 +592,21 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
             </div>
 
             {isLoadingLatest && !latestTelemetry && !entityData ? (
-                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-800">
                     <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Cargando telemetría...
                     </div>
                 </div>
             ) : telemetryError && !entityData ? (
-                <div className="border border-red-200 rounded-lg p-4 bg-red-50/50">
+                <div className="border border-red-200 rounded-lg p-4 bg-red-50 dark:bg-red-950/30">
                     <div className="flex items-center gap-2 text-sm text-red-700">
                         <AlertCircle className="w-4 h-4" />
                         <span>{telemetryError}</span>
                     </div>
                 </div>
             ) : latestTelemetry || (temperature !== null || humidity !== null || moisture !== null || battery !== null || pressure !== null) ? (
-                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-800">
                     <div className="grid grid-cols-2 gap-3">
                         {temperature !== null && (
                             <div className="bg-gradient-to-br from-red-50 to-orange-50 p-2 rounded-lg border border-red-100">
@@ -683,7 +683,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                     )}
                 </div>
             ) : (
-                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-800">
                     <p className="text-xs text-slate-500 text-center">
                         No hay datos de telemetría disponibles
                     </p>
