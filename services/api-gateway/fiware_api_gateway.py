@@ -466,17 +466,34 @@ def entities():
     if signature:
         headers["X-Auth-Signature"] = signature
 
+    # Inject @context into body for mutation requests so Orion-LD preserves
+    # short entity types (e.g. "AgriParcel") instead of expanding to full
+    # JSON-LD URIs (e.g. "https://saref.etsi.org/saref4agri/AgriParcel").
+    # Without this, entities created via api-gateway are invisible to
+    # queries by short type name.
+    json_body = (
+        request.get_json(silent=True)
+        if request.method in ("POST", "PUT", "PATCH")
+        else None
+    )
+    if isinstance(json_body, dict) and "@context" not in json_body:
+        json_body["@context"] = [
+            "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
+            CONTEXT_URL,
+        ]
+        headers["Content-Type"] = "application/ld+json"
+        headers.pop("Link", None)  # Remove Link header; @context is now in body
     # Forward request to Orion-LD
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
         if request.method == "GET":
             response = requests.get(orion_url, headers=headers, params=request.args)
         elif request.method == "POST":
-            response = requests.post(orion_url, headers=headers, json=request.json)
+            response = requests.post(orion_url, headers=headers, json=json_body)
         elif request.method == "PUT":
-            response = requests.put(orion_url, headers=headers, json=request.json)
+            response = requests.put(orion_url, headers=headers, json=json_body)
         elif request.method == "PATCH":
-            response = requests.patch(orion_url, headers=headers, json=request.json)
+            response = requests.patch(orion_url, headers=headers, json=json_body)
         elif request.method == "DELETE":
             response = requests.delete(orion_url, headers=headers)
 
