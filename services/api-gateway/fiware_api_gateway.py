@@ -120,6 +120,9 @@ CROP_HEALTH_API_URL = os.getenv(
 )
 ROBOTICS_API_URL = os.getenv("ROBOTICS_API_URL", "http://robotics-api-service:80")
 RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
+ROUTING_API_URL = os.getenv(
+    "ROUTING_API_URL", "http://nkz-module-gis-routing-service:8000"
+)
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
 ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
@@ -3288,6 +3291,14 @@ def robotics_proxy(path):
 )
 def risk_proxy(path):
     return generic_proxy(RISK_API_URL, f"api/risks/{path}")
+
+
+@app.route(
+    "/api/routing/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def routing_proxy(path):
+    return generic_proxy(ROUTING_API_URL, f"api/routing/{path}")
 
 
 # =============================================================================
