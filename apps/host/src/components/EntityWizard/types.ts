@@ -75,6 +75,19 @@ export interface FleetFormData extends BaseFormData {
   manufacturer?: string;
   serialNumber?: string;
   isobusCompatible?: boolean;
+  machineRole?: 'tractor' | 'implement';
+  trackWidth?: number;
+  wheelbase?: number;
+  gpsOffsetX?: number;
+  gpsOffsetY?: number;
+  gpsOffsetZ?: number;
+  hitchType?: string;
+  hitchOffsetX?: number;
+  implementLength?: number;
+  implementOffsetX?: number;
+  implementWidth?: number;
+  steeringType?: string;
+  steeringAxles?: string;
   additionalAttributes: Record<string, string | number>;
 }
 

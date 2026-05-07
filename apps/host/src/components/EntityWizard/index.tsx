@@ -82,7 +82,12 @@ function validateStep(
 
     case 'geo-config':
     case 'fleet-config':
-      return formData?.name.trim() ? null : 'El nombre es obligatorio';
+      if (!formData?.name.trim()) return 'El nombre es obligatorio';
+      if (stepId === 'fleet-config' && entityType === 'ManufacturingMachine') {
+        const fleetData = formData as FleetFormData;
+        if (!fleetData.machineRole) return 'Selecciona rol de máquina (tractor o apero)';
+      }
+      return null;
 
     case 'iot-config': {
       if (!formData?.name.trim()) return 'El nombre es obligatorio';

@@ -52,6 +52,45 @@ export async function submitFleet(
   if (formData.isobusCompatible !== undefined) {
     entity.isobusCompatible = { type: 'Property', value: formData.isobusCompatible };
   }
+  if (entityType === 'ManufacturingMachine' && formData.machineRole) {
+    entity.category = { type: 'Property', value: formData.machineRole };
+  }
+  if (formData.trackWidth !== undefined) {
+    entity.trackWidth = { type: 'Property', value: formData.trackWidth };
+  }
+  if (formData.wheelbase !== undefined) {
+    entity.wheelbase = { type: 'Property', value: formData.wheelbase };
+  }
+  if (formData.gpsOffsetX !== undefined) {
+    entity.gpsOffsetX = { type: 'Property', value: formData.gpsOffsetX };
+  }
+  if (formData.gpsOffsetY !== undefined) {
+    entity.gpsOffsetY = { type: 'Property', value: formData.gpsOffsetY };
+  }
+  if (formData.gpsOffsetZ !== undefined) {
+    entity.gpsOffsetZ = { type: 'Property', value: formData.gpsOffsetZ };
+  }
+  if (formData.hitchType) {
+    entity.hitchType = { type: 'Property', value: formData.hitchType };
+  }
+  if (formData.hitchOffsetX !== undefined) {
+    entity.hitchOffsetX = { type: 'Property', value: formData.hitchOffsetX };
+  }
+  if (formData.implementLength !== undefined) {
+    entity.implementLength = { type: 'Property', value: formData.implementLength };
+  }
+  if (formData.implementOffsetX !== undefined) {
+    entity.implementOffsetX = { type: 'Property', value: formData.implementOffsetX };
+  }
+  if (formData.implementWidth !== undefined) {
+    entity.implementWidth = { type: 'Property', value: formData.implementWidth };
+  }
+  if (formData.steeringType) {
+    entity.steeringType = { type: 'Property', value: formData.steeringType };
+  }
+  if (formData.steeringAxles) {
+    entity.steeringAxles = { type: 'Property', value: formData.steeringAxles };
+  }
 
   if (formData.iconUrl) {
     entity.icon2d = { type: 'Property', value: formData.iconUrl };

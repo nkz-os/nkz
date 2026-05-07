@@ -53,6 +53,8 @@ function makeFleetFormData(): FleetFormData {
     description: '',
     geometry: null,
     geometryType: 'Point',
+    machineRole: 'tractor',
+    steeringType: 'ackermann',
     additionalAttributes: {},
     modelScale: 1.0,
     modelRotation: [0, 0, 0],

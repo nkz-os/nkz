@@ -2,6 +2,8 @@ import { useWizard } from '../WizardContext';
 import type { FleetFormData } from '../types';
 
 const ROBOT_TYPES = ['Wheeled', 'Tracked', 'Aerial', 'Legged', 'Hybrid'] as const;
+const HITCH_TYPES = ['three_point', 'drawbar', 'semi_mounted', 'trailed'] as const;
+const STEERING_TYPES = ['ackermann', 'skid_steer', 'crab', 'none'] as const;
 
 export function StepFleetConfig() {
   const { entityType, formData, updateFormData } = useWizard();
@@ -99,7 +101,22 @@ export function StepFleetConfig() {
 
       {/* Machine-specific (tractor/implement) */}
       {isMachine && (
-        <div className="pt-3 border-t">
+        <div className="pt-3 border-t space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Rol de máquina *</label>
+            <select
+              value={data.machineRole ?? 'tractor'}
+              onChange={e => updateFormData({ machineRole: e.target.value as FleetFormData['machineRole'] })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
+            >
+              <option value="tractor">Tractor (unidad de potencia)</option>
+              <option value="implement">Apero (implemento)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Este valor define la categoría SDM usada por GIS Routing para separar tractores y aperos.
+            </p>
+          </div>
+
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -112,6 +129,161 @@ export function StepFleetConfig() {
               Compatible con ISOBUS (ISO 11783)
             </label>
           </div>
+
+          {(data.machineRole ?? 'tractor') === 'tractor' ? (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-700">Dimensiones tractor (m)</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ancho de vía (trackWidth)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={data.trackWidth ?? ''}
+                    onChange={e => updateFormData({ trackWidth: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej: 1.80"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Batalla (wheelbase)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={data.wheelbase ?? ''}
+                    onChange={e => updateFormData({ wheelbase: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej: 2.45"
+                  />
+                </div>
+              </div>
+              <h5 className="text-xs font-medium text-gray-600">Offset antena GNSS respecto al centro trasero del tractor (m)</h5>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">gpsOffsetX</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={data.gpsOffsetX ?? ''}
+                    onChange={e => updateFormData({ gpsOffsetX: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej: 0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">gpsOffsetY</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={data.gpsOffsetY ?? ''}
+                    onChange={e => updateFormData({ gpsOffsetY: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej: 0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">gpsOffsetZ</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={data.gpsOffsetZ ?? ''}
+                    onChange={e => updateFormData({ gpsOffsetZ: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej: 2.60"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de dirección (steeringType)</label>
+                  <select
+                    value={data.steeringType ?? 'ackermann'}
+                    onChange={e => updateFormData({ steeringType: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
+                  >
+                    {STEERING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ejes directrices (steeringAxles)</label>
+                  <input
+                    type="text"
+                    value={data.steeringAxles ?? ''}
+                    onChange={e => updateFormData({ steeringAxles: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej: front"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium text-gray-700">Dimensiones apero (m)</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Ancho efectivo (implementWidth)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={data.implementWidth ?? ''}
+                    onChange={e => updateFormData({ implementWidth: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej: 24.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Longitud apero (implementLength)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={data.implementLength ?? ''}
+                    onChange={e => updateFormData({ implementLength: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej: 3.20"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Offset enganche X (hitchOffsetX)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={data.hitchOffsetX ?? ''}
+                    onChange={e => updateFormData({ hitchOffsetX: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej: -0.45"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Offset apero X (implementOffsetX)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={data.implementOffsetX ?? ''}
+                    onChange={e => updateFormData({ implementOffsetX: e.target.value === '' ? undefined : Number(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Ej: 0.00"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de enganche (hitchType)</label>
+                <select
+                  value={data.hitchType ?? ''}
+                  onChange={e => updateFormData({ hitchType: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="">-- Selecciona tipo de enganche --</option>
+                  {HITCH_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
