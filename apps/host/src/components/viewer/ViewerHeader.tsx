@@ -26,13 +26,16 @@ import {
     ChevronDown,
     LogOut,
     Puzzle,
-    ExternalLink,
+    Search,
+    Layers,
+    Settings,
+    CircleHelp,
 } from 'lucide-react';
 
 // Glassmorphism styling
-const glassStyles = {
-    base: 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/30 dark:border-slate-700/50 shadow-xl',
-    hover: 'hover:bg-white/90 dark:hover:bg-slate-800/90',
+const surfaceStyles = {
+    base: 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg',
+    hover: 'hover:bg-slate-50 dark:hover:bg-slate-800',
 };
 
 // Module icon mapping (same as Sidebar)
@@ -122,7 +125,7 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                         setIsMenuOpen(false);
                         navigate('/dashboard');
                     }}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${glassStyles.base} ${glassStyles.hover} transition-all duration-300 group`}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${surfaceStyles.base} ${surfaceStyles.hover} transition-all duration-300 group`}
                 >
                     <span className="text-2xl">🌾</span>
                     <span className="text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight">
@@ -136,13 +139,13 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
 
                 {/* Dropdown Menu */}
                 <div
-                    className={`absolute top-full left-0 mt-2 min-w-[280px] rounded-xl ${glassStyles.base} overflow-hidden transition-all duration-300 origin-top-left ${isMenuOpen
+                    className={`group absolute top-full left-0 mt-2 min-w-[320px] rounded-xl ${surfaceStyles.base} overflow-visible transition-all duration-300 origin-top-left ${isMenuOpen
                         ? 'opacity-100 scale-100 translate-y-0'
                         : 'opacity-0 scale-95 -translate-y-2 pointer-events-none'
                         }`}
                 >
                     {/* User Info */}
-                    <div className="px-4 py-3 border-b border-slate-200/50 dark:border-slate-700/50 bg-gradient-to-r from-slate-50/80 to-white/80 dark:from-slate-800/80 dark:to-slate-900/80">
+                    <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center text-white font-bold shadow-md">
                                 {user?.email?.charAt(0).toUpperCase() || 'U'}
@@ -189,13 +192,14 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
 
                     {/* Addons Section (only if modules exist) */}
                     {safeModules.length > 0 && (
-                        <div className="py-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                        <div className="py-2 border-t border-slate-200 dark:border-slate-700">
                             <div className="px-4 py-1">
                                 <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                                     Addons
                                 </span>
                             </div>
-                            {safeModules.slice(0, 5).map((module) => {
+                            <div className="max-h-64 overflow-y-auto px-1 pb-1">
+                            {safeModules.map((module) => {
                                 const Icon = moduleIconMap[module.icon || 'default'] || Puzzle;
                                 const active = isActive(module.routePath);
                                 const emoji = module.metadata?.icon;
@@ -222,22 +226,13 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                                     </Link>
                                 );
                             })}
-                            {safeModules.length > 5 && (
-                                <Link
-                                    to="/admin/modules"
-                                    onClick={() => setIsMenuOpen(false)}
-                                    className="flex items-center gap-2 px-4 py-2 mx-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                                >
-                                    <ExternalLink className="w-4 h-4" />
-                                    Ver todos ({safeModules.length})
-                                </Link>
-                            )}
+                            </div>
                         </div>
                     )}
 
                     {/* Admin/Settings Section */}
                     {adminItems.length > 0 && (
-                        <div className="py-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                        <div className="py-2 border-t border-slate-200 dark:border-slate-700">
                             {adminItems.map((item) => {
                                 const Icon = item.icon;
                                 const active = isActive(item.path);
@@ -262,13 +257,47 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
                     )}
 
                     {/* Logout */}
-                    <div className="py-2 border-t border-slate-200/50 dark:border-slate-700/50">
+                    <div className="py-2 border-t border-slate-200 dark:border-slate-700">
                         <button
                             onClick={handleLogout}
                             className="flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg w-[calc(100%-16px)] text-left text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-all"
                         >
                             <LogOut className="w-5 h-5" />
                             <span className="font-medium">{t('layout.logout', { defaultValue: 'Cerrar sesión' })}</span>
+                        </button>
+                    </div>
+
+                    {/* Right hover submenu for global quick actions */}
+                    <div className="absolute left-full top-0 ml-2 w-56 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg p-2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-200">
+                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <Search className="w-4 h-4" />
+                            Buscar parcela
+                        </button>
+                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <Layers className="w-4 h-4" />
+                            Capas
+                        </button>
+                        <button
+                            onClick={toggle}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                            <span className="w-4 text-center">{isLight ? '☼' : '🌙'}</span>
+                            Tema
+                        </button>
+                        <div className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300">
+                            <span className="w-4 text-center">🌐</span>
+                            <LanguageSelector variant="iconOnly" />
+                        </div>
+                        <button
+                            onClick={() => navigate('/settings')}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                            <Settings className="w-4 h-4" />
+                            Settings
+                        </button>
+                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <CircleHelp className="w-4 h-4" />
+                            Help
                         </button>
                     </div>
                 </div>
@@ -278,7 +307,7 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ rightContent }) => {
             {/* Moved to right-24 to avoid overlapping with Cesium Navigation controls (top-right) */}
             <div className="absolute top-4 right-24 z-50 flex items-center gap-3">
                 {rightContent}
-                <div className={`rounded-xl ${glassStyles.base} p-1.5 flex items-center gap-2`}>
+                <div className={`rounded-xl ${surfaceStyles.base} p-1.5 flex items-center gap-2`}>
                     <button
                         onClick={toggle}
                         className="p-2 rounded-lg text-nkz-text-secondary hover:text-nkz-text-primary hover:bg-nkz-surface-sunken transition-colors"

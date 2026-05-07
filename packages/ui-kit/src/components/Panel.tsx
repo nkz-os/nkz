@@ -8,7 +8,7 @@ import clsx from 'clsx';
 import { Surface } from './Surface';
 
 interface PanelProps {
-  variant?: 'glass' | 'solid';
+  variant?: 'glass' | 'solid' | 'opaque';
   children: React.ReactNode;
   className?: string;
 }
@@ -21,6 +21,7 @@ function PanelRoot({ variant = 'solid', children, className }: PanelProps) {
       radius="lg"
       className={clsx(
         variant === 'glass' && 'backdrop-blur-xl saturate-[180%]',
+        variant === 'opaque' && 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700',
         'flex flex-col',
         className
       )}

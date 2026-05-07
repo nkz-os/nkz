@@ -114,7 +114,7 @@ function SidebarShellRoot({
   return (
     <div
       className={clsx(
-        'relative flex flex-col h-full bg-nkz-surface border-nkz-border z-nkz-rail shadow-nkz-lg rounded-nkz-lg pointer-events-auto nkz-glass',
+        'relative flex flex-col h-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 z-nkz-rail shadow-nkz-lg rounded-nkz-lg pointer-events-auto',
         'transition-all duration-nkz-normal',
         side === 'left' ? 'border-r ml-4' : 'border-l mr-4',
         !isOpen && 'border-0 shadow-none bg-transparent',
@@ -133,8 +133,8 @@ function SidebarShellRoot({
         className={clsx(
           'absolute top-1/2 -translate-y-1/2 z-40',
           'p-2 rounded-full',
-          'bg-white/90 backdrop-blur-md border border-white/20 shadow-xl',
-          'text-slate-600 hover:text-blue-600 hover:bg-white hover:scale-110',
+          'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl',
+          'text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:scale-110',
           'active:scale-95 transition-all duration-300',
           'flex items-center justify-center pointer-events-auto',
           isOpen

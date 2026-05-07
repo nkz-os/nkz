@@ -3266,7 +3266,7 @@ def lidar_proxy(path):
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
 )
 def bioorchestrator_proxy(path):
-    return generic_proxy(BIOORCHESTRATOR_API_URL, f"api/bioorchestrator/{path}")
+    return generic_proxy(BIOORCHESTRATOR_API_URL, path)
 
 
 @app.route(
