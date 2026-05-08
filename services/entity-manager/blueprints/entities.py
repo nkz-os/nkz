@@ -309,6 +309,17 @@ def list_instances(entity_type):
         return jsonify({'error': 'Internal server error'}), 500
 
 
+def _build_ngsild_urn(entity_type: str, tenant: str, custom_id: str | None = None) -> str:
+    """Build NGSI-LD compliant URN: urn:ngsi-ld:<type>:<tenant>:<id>
+
+    Per ETSI NGSI-LD spec, entity IDs MUST be URNs in the format:
+    urn:ngsi-ld:<entity-type>:<remaining-parts>
+    """
+    _id = custom_id or str(uuid.uuid4())
+    _id = _id.replace(':', '-').replace(' ', '_')
+    return f"urn:ngsi-ld:{entity_type}:{tenant}:{_id}"
+
+
 # === Lines 857-970 from entity_management_api.py ===
 @entities_bp.route('/instances/<entity_type>', methods=['POST'])
 @require_auth
@@ -319,8 +330,13 @@ def create_instance(entity_type):
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
-        # Add type and ID to entity
-        entity_id = data.get('id', f"{entity_type}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}")
+        # Add type and ID to entity — NGSI-LD URN format
+        entity_id = data.get('id')
+        if entity_id:
+            if not entity_id.startswith('urn:ngsi-ld:'):
+                entity_id = _build_ngsild_urn(entity_type, g.tenant, entity_id)
+        else:
+            entity_id = _build_ngsild_urn(entity_type, g.tenant)
         entity_data = {
             'id': entity_id,
             'type': entity_type,
