@@ -254,58 +254,21 @@ def validate_jwt_token(token):
 
 
 def inject_fiware_headers(headers, tenant=None):
-    """Inject FIWARE service headers for NGSI-LD"""
-    if tenant:
-        # Normalize tenant ID using common utility function
-        # This ensures consistency across all services (PostgreSQL, MongoDB, etc.)
-        try:
-            # Try importing from common module (works when /common is in sys.path)
-            from tenant_utils import normalize_tenant_id
+    """Inject FIWARE service headers for NGSI-LD.
 
-            normalized_tenant = normalize_tenant_id(tenant)
-            headers["NGSILD-Tenant"] = normalized_tenant
-            headers["Fiware-Service"] = (
-                normalized_tenant  # Legacy, remove after 2026-04-02
-            )
-        except (ImportError, ValueError) as e:
-            # Fallback to old behavior if import fails, but log warning
-            logger.warning(
-                f"Failed to normalize tenant ID '{tenant}': {e}. Using fallback normalization."
-            )
-            sanitized_tenant = tenant.lower().replace("-", "_").replace(" ", "_")
-            # Remove any remaining invalid characters
-            import re
+    Delegates to canonical ngsi_headers implementation.
+    Auto-detects @context in request body for POST/PUT/PATCH requests.
+    """
+    from common.ngsi_headers import inject_fiware_headers as _canonical
 
-            sanitized_tenant = re.sub(r"[^a-z0-9_]", "", sanitized_tenant)
-            headers["NGSILD-Tenant"] = sanitized_tenant
-            headers["Fiware-Service"] = (
-                sanitized_tenant  # Legacy, remove after 2026-04-02
-            )
-
-    # NGSI-LD specific headers
-    # Check if payload has @context (only for POST/PUT/PATCH with JSON body).
-    # Never call request.json on GET/DELETE: clients may send Content-Type application/ld+json
-    # with an empty body (e.g. module SDK defaults), which can trigger Werkzeug BadRequest HTML.
+    # Auto-detect @context in body (only for mutation requests)
     has_context_in_body = False
     if request.method in ("POST", "PUT", "PATCH") and request.is_json:
         json_body = request.get_json(silent=True)
         if isinstance(json_body, dict) and "@context" in json_body:
             has_context_in_body = True
 
-    if has_context_in_body:
-        # If context is in body, Content-Type MUST be application/ld+json and Link header MUST NOT be present
-        headers["Content-Type"] = "application/ld+json"
-        # Do not add Link header
-    else:
-        # If context is NOT in body, use Link header and application/json
-        headers["Content-Type"] = "application/json"
-        headers["Link"] = (
-            f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
-        )
-
-    headers["Accept"] = "application/ld+json"
-
-    return headers
+    return _canonical(headers, tenant=tenant, has_context_in_body=has_context_in_body)
 
 
 @app.route("/api/auth/session", methods=["POST", "OPTIONS"])

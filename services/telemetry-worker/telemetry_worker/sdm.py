@@ -499,9 +499,23 @@ def _persist_to_timescaledb(
     entity_id: str,
     settings: Settings
 ) -> None:
-    """
-    Persist raw telemetry directly to TimescaleDB hypertable.
-    This bypasses Orion for historical storage, reducing Context Broker load.
+    """Persist raw telemetry directly to TimescaleDB hypertable.
+
+    FIWARE COMPLIANCE NOTE: This bypasses Orion-LD for high-volume time-series
+    storage. Each row represents a sensor reading at a timestamp — writing each
+    one as an NGSI-LD entity update would overload the Context Broker.
+
+    Mitigation:
+      1. The canonical entity state IS written to Orion-LD first (see
+         _update_orion_entity_sync).
+      2. The NGSI-LD subscription → notification_handler → event_sink flow
+         provides the compliant path for TimescaleDB population.
+      3. This direct write is a performance optimization for raw time-series,
+         not the canonical entity state.
+
+    TODO (FIWARE certification): Route raw time-series through Orion-LD
+    temporal endpoints or document this as a valid architectural exception
+    for high-frequency sensor data (>1 Hz).
     """
     try:
         conn = psycopg2.connect(settings.postgres_url)
