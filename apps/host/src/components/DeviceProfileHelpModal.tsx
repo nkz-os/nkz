@@ -83,12 +83,12 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-5 flex justify-between items-start rounded-t-2xl">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white/20 rounded-lg backdrop-blur-md">
+                        <div className="p-2 bg-white/20 rounded-lg">
                             <BookOpen className="w-6 h-6 text-white" />
                         </div>
                         <div>

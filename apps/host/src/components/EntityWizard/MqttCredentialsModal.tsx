@@ -143,7 +143,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-5 flex justify-between items-start rounded-t-2xl">

@@ -269,7 +269,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
     } as const;
 
     return (
-        <div className="absolute top-0 right-0 h-full w-96 bg-gray-900/95 backdrop-blur-md shadow-2xl z-50 flex flex-col border-l border-gray-700/50">
+        <div className="absolute top-0 right-0 h-full w-96 bg-gray-900 shadow-2xl z-50 flex flex-col border-l border-gray-700/50">
             {/* Header */}
             <div className="p-4 border-b border-gray-700/50 flex-shrink-0">
                 <div className="flex items-center justify-between">

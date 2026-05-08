@@ -71,7 +71,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
   if (!isOpen || !assetType) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
