@@ -1632,7 +1632,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           {/* Fullscreen Toggle */}
           <button
             onClick={toggleFullscreen}
-            className="p-2 bg-slate-800/90 hover:bg-slate-700 text-white rounded-lg shadow-lg backdrop-blur-sm transition-all border border-slate-600"
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg shadow-lg transition-all border border-slate-600"
             title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
           >
             {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
@@ -1646,7 +1646,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               // For now, just a visual toggle if we can't change the prop from here
               logger.debug('Toggle 3D Terrain clicked');
             }}
-            className={`p-2 rounded-lg shadow-lg backdrop-blur-sm transition-all border border-slate-600 ${enable3DTerrain ? 'bg-emerald-600/90 hover:bg-emerald-500 text-white' : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300'}`}
+            className={`p-2 rounded-lg shadow-lg transition-all border border-slate-600 ${enable3DTerrain ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}
             title={enable3DTerrain ? 'Desactivar relieve 3D' : 'Activar relieve 3D'}
           >
             <Mountain size={20} />
@@ -1657,7 +1657,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             <button
               type="button"
               onClick={() => setShowTerrainPicker(!showTerrainPicker)}
-              className="p-2 bg-slate-800/90 hover:bg-slate-700 text-white rounded-lg shadow-lg backdrop-blur-sm transition-all border border-slate-600"
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg shadow-lg transition-all border border-slate-600"
               title="Seleccionar capas"
             >
               <Layers size={20} />
@@ -1737,7 +1737,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
       {/* Risk severity legend — shown when risk overlay is active */}
       {riskOverlay && riskOverlay.size > 0 && (
-        <div className="absolute bottom-4 left-4 z-10 bg-slate-900/85 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-white border border-slate-600 pointer-events-none">
+        <div className="absolute bottom-4 left-4 z-10 bg-slate-900 rounded-lg px-3 py-2 text-xs text-white border border-slate-600 pointer-events-none">
           <p className="font-semibold mb-1.5 text-slate-300">Riesgo</p>
           {(['critical', 'high', 'medium', 'low'] as const).map(sev => (
             <div key={sev} className="flex items-center gap-1.5 mb-0.5">
