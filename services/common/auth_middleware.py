@@ -210,11 +210,17 @@ def require_auth(_func=None, *, require_hmac: bool = None):
             if KEYCLOAK_AUTH_AVAILABLE:
                 tenant = extract_tenant_id(payload)
             else:
-                tenant = (
+                _raw_tenant = (
                     payload.get("tenant-id")
                     or payload.get("tenant_id")
-                    or payload.get("tenant")
+                    or payload.get("tenant", "master")
                 )
+                try:
+                    from tenant_utils import normalize_tenant_id
+
+                    tenant = normalize_tenant_id(_raw_tenant)
+                except (ImportError, ValueError):
+                    tenant = _raw_tenant
 
             # Fallback for when services (like Ingress) forward X-Tenant-ID but token extraction fails
             if not tenant:
@@ -275,18 +281,32 @@ def require_auth(_func=None, *, require_hmac: bool = None):
 
 
 def inject_fiware_headers(headers, tenant=None):
-    """Inject FIWARE service headers with tenant isolation for NGSI-LD"""
+    """Inject NGSI-LD + FIWARE tenant headers for Orion-LD multitenancy.
+
+    Sends BOTH NGSILD-Tenant (ETSI NGSI-LD standard) AND Fiware-Service
+    (legacy FIWARE v2 backward compat). Normalizes tenant ID.
+    Includes Link header with @context for NGSI-LD compliance.
+    """
     if tenant:
-        headers["Fiware-Service"] = tenant
+        try:
+            from tenant_utils import normalize_tenant_id
+
+            normalized = normalize_tenant_id(tenant)
+        except (ImportError, ValueError):
+            import re
+
+            normalized = tenant.lower().replace("-", "_").replace(" ", "_")
+            normalized = re.sub(r"[^a-z0-9_]", "", normalized)
+            normalized = normalized.strip("_") or tenant
+
+        headers["NGSILD-Tenant"] = normalized
+        headers["Fiware-Service"] = normalized
         headers["Fiware-ServicePath"] = "/"
 
-    # NGSI-LD specific headers
+    # NGSI-LD required headers
     headers["Content-Type"] = "application/ld+json"
     headers["Accept"] = "application/ld+json"
 
-    # Link header as fallback @context for NGSI-LD compliance
-    # When Content-Type is application/ld+json, @context in body takes precedence.
-    # Link header provides a fallback for parsers that check it.
     context_url = os.getenv("CONTEXT_URL", "")
     if context_url:
         headers["Link"] = (
