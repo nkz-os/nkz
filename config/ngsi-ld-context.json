@@ -12,7 +12,7 @@
     "AgriculturalRobot": {
       "@id": "nkz:AgriculturalRobot",
       "@type": "@id",
-      "_comment": "Platform extension — no equivalent in SAREF4AGRI or any SDM catalog. Legacy mapping: saref4agri:AgriculturalRobot (retained for backward compat; new entities use nkz prefix)."
+      "_comment": "Platform extension — no equivalent in SAREF4AGRI or any SDM catalog. Alias: AgriRobot (robotics module) maps to same nkz:AgriculturalRobot URI. Legacy mapping: saref4agri:AgriculturalRobot."
     },
     "AgriSensor": {
       "@id": "nkz:AgriSensor",
@@ -98,6 +98,51 @@
       "@id": "nkz:EnergyStorageSystem",
       "@type": "@id",
       "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:EnergyStorageSystem."
+    },
+    "CropHealthAssessment": {
+      "@id": "nkz:CropHealthAssessment",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Proposed for FIWARE Smart Data Models AgriFood domain (P1). Crop health evaluation result from epidemiological models."
+    },
+    "DiseaseRiskAssessment": {
+      "@id": "nkz:DiseaseRiskAssessment",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Proposed for FIWARE Smart Data Models AgriFood domain (P1). Daily disease risk evaluation per parcel."
+    },
+    "CarbonStock": {
+      "@id": "nkz:CarbonStock",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Soil organic carbon stock assessment per parcel."
+    },
+    "DigitalAsset": {
+      "@id": "nkz:DigitalAsset",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. LiDAR point cloud and 3D model assets."
+    },
+    "AgriEnergyTracker": {
+      "@id": "nkz:AgriEnergyTracker",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Energy production/consumption tracking for agricultural installations."
+    },
+    "EnergyMeter": {
+      "@id": "nkz:EnergyMeter",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Energy metering device for Odoo ERP integration."
+    },
+    "AgriDevice": {
+      "@id": "nkz:AgriDevice",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Legacy device type used by DaTaK setup scripts. Prefer AgriSensor for new entities."
+    },
+    "AgriculturalMachine": {
+      "@id": "nkz:AgriculturalMachine",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Generic agricultural machinery parent type for tractors and implements."
+    },
+    "AgriRobot": {
+      "@id": "nkz:AgriculturalRobot",
+      "@type": "@id",
+      "_comment": "Alias for AgriculturalRobot — both resolve to nkz:AgriculturalRobot. Robotics module uses AgriRobot as entity type. Standardized 2026-05-08."
     },
 
     "name": "schema:name",
