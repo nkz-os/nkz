@@ -30,6 +30,19 @@ from helpers import (
 
 logger = logging.getLogger(__name__)
 
+# NGSI-LD Smart Data Model type allowlist
+# Only recognized FIWARE SDM types can be created via the wizard.
+# Custom/invented types are rejected with 422.
+SDM_ALLOWED_TYPES = {
+    'AgriParcel', 'AgriCrop', 'AgriBuilding', 'AgriSensor',
+    'AgriculturalRobot', 'Device', 'WeatherObserved', 'WeatherForecast',
+    'CarbonAssessment', 'CarbonStock', 'VegetationIndex',
+    'AgriParcelOperation', 'AgriParcelRecord',
+    'CropHealthObservation', 'SoilObservation',
+    'ManagementPractice', 'IrrigationOperation',
+    'Animal', 'LivestockFarm', 'Building', 'Farm',
+}
+
 entities_bp = Blueprint('entities', __name__)
 
 
@@ -329,6 +342,14 @@ def create_instance(entity_type):
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data provided'}), 400
+
+        # NGSI-LD Smart Data Model type allowlist
+        if entity_type not in SDM_ALLOWED_TYPES:
+            return jsonify({
+                'error': f'Invalid entity type: {entity_type}',
+                'error_en': f'Entity type "{entity_type}" is not a recognized FIWARE Smart Data Model type.',
+                'allowed_types': sorted(SDM_ALLOWED_TYPES),
+            }), 422
 
         # Add type and ID to entity — NGSI-LD URN format
         entity_id = data.get('id')

@@ -47,11 +47,14 @@ SENSOR_ENTITY_TYPES = {
     for t in os.getenv('SENSOR_ENTITY_TYPES', 'AgriSensor').split(',')
     if t.strip()
 }
+# Only FIWARE Smart Data Model types are valid parcels.
+# 'Parcel', 'Vineyard', 'OliveGrove' are NOT FIWARE SDM types.
+# Use AgriParcel with category/cropType attributes for differentiation.
 PARCEL_ENTITY_TYPES = {
     t.strip()
     for t in os.getenv(
         'PARCEL_ENTITY_TYPES',
-        'AgriParcel,Parcel,Vineyard,OliveGrove,vineyard,olive_grove',
+        'AgriParcel',
     ).split(',')
     if t.strip()
 }
