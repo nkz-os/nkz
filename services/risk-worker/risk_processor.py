@@ -490,7 +490,18 @@ class RiskProcessor:
         evaluation_data: Dict[str, Any],
         confidence: float = 1.0,
     ) -> bool:
-        """Store risk evaluation in database"""
+        """Persist daily risk state to PostgreSQL.
+
+        FIWARE COMPLIANCE NOTE: Writes directly to risk_daily_states table.
+        Risk evaluation results are NOT written to Orion-LD as NGSI-LD entities.
+        This is the most significant data flow gap — risk state data lives
+        entirely outside the FIWARE data model.
+
+        TODO (FIWARE certification): Create DiseaseRiskAssessment entities in
+        Orion-LD for each evaluation result, then use subscription notifications
+        to populate risk_daily_states. The entity type is already registered
+        in ngsi-ld-context.json.
+        """
         if not self.postgres:
             return False
 

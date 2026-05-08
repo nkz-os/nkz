@@ -110,13 +110,22 @@ class TimescaleDBWriter:
         observations: List[Dict[str, Any]],
         tenant_id: str
     ) -> int:
-        """
-        Write weather observations to database
-        
+        """Write weather observations to TimescaleDB.
+
+        FIWARE COMPLIANCE NOTE: Writes directly to weather_observations table,
+        then syncs back to Orion-LD via sync_weather_to_orion().
+        The dual-write pattern (DB then Orion) is deliberate: weather data must
+        be available for TimescaleDB continuous aggregates immediately, while
+        Orion-LD entity updates are asynchronous.
+
+        TODO (FIWARE certification): Reverse the order — write to Orion-LD first,
+        use subscription notification to populate TimescaleDB. The subscription
+        infrastructure already exists (telemetry-worker subscription_manager.py).
+
         Args:
             observations: List of observation dictionaries
             tenant_id: Tenant ID
-        
+
         Returns:
             Number of observations written
         """
