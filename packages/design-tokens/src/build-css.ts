@@ -59,9 +59,8 @@ function buildProfileCSS(name: TokenProfile, def: TokenProfileDefinition): strin
     lines.push(`  ${toVarName(`space-${key}`)}: ${value};`);
   }
 
-  // Glass effect is emitted as a utility class (see .nkz-glass below),
-  // NOT as part of the profile selector. Applying backdrop-filter to <html>
-  // is wasteful and causes a border around the entire viewport.
+  // Glass effect — emitted as CSS custom property consumed by .nkz-glass utility
+  lines.push(`  --nkz-glass: ${def.glass};`);
 
   // Header layout variables (always emitted, shared)
   lines.push(`  --nkz-host-header-h: 56px;`);
@@ -108,8 +107,8 @@ function buildCSS(): string {
   // that float over Cesium get the expensive backdrop-filter GPU layer.
   parts.push('/* Glass effect — use on panels that float over the map */');
   parts.push('.nkz-glass {');
-  parts.push('  backdrop-filter: blur(12px) saturate(180%);');
-  parts.push('  -webkit-backdrop-filter: blur(12px) saturate(180%);');
+  parts.push('  backdrop-filter: var(--nkz-glass, none);');
+  parts.push('  -webkit-backdrop-filter: var(--nkz-glass, none);');
   parts.push('  border: 1px solid var(--nkz-color-border);');
   parts.push('}');
   parts.push('');

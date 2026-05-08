@@ -249,11 +249,11 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
   viewer: {
     colors: {
       canvas: 'transparent',
-      surface: 'rgba(15, 23, 42, 0.78)',
-      surfaceRaised: 'rgba(30, 41, 59, 0.88)',
-      surfaceSunken: 'rgba(51, 65, 85, 0.55)',
-      border: 'rgba(148, 163, 184, 0.14)',
-      borderStrong: 'rgba(148, 163, 184, 0.28)',
+      surface: '#0F172A',
+      surfaceRaised: '#1E293B',
+      surfaceSunken: '#020617',
+      border: 'rgba(148, 163, 184, 0.20)',
+      borderStrong: 'rgba(148, 163, 184, 0.35)',
       textPrimary: '#F8FAFC',
       textSecondary: '#CBD5E1',
       textMuted: '#94A3B8',
@@ -265,17 +265,17 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
     radii,
     shadows: shadowsViewer,
     motion, zIndex, space,
-    glass: 'backdrop-filter: blur(12px) saturate(180%); border: 1px solid var(--nkz-color-border);',
+    glass: 'none',
   },
 
   'viewer-light': {
     colors: {
       canvas: 'transparent',
-      surface: 'rgba(248, 250, 252, 0.85)',
-      surfaceRaised: 'rgba(255, 255, 255, 0.92)',
-      surfaceSunken: 'rgba(241, 245, 249, 0.7)',
-      border: 'rgba(15, 23, 42, 0.10)',
-      borderStrong: 'rgba(15, 23, 42, 0.18)',
+      surface: '#F8FAFC',
+      surfaceRaised: '#FFFFFF',
+      surfaceSunken: '#F1F5F9',
+      border: 'rgba(15, 23, 42, 0.12)',
+      borderStrong: 'rgba(15, 23, 42, 0.20)',
       textPrimary: '#0F172A',
       textSecondary: '#475569',
       textMuted: '#94A3B8',
@@ -287,7 +287,7 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
     radii,
     shadows: shadowsPage,
     motion, zIndex, space,
-    glass: 'backdrop-filter: blur(12px) saturate(180%); border: 1px solid var(--nkz-color-border);',
+    glass: 'none',
   },
 
   field: {

@@ -535,27 +535,32 @@ def get_current_tenant() -> Optional[str]:
 
 
 def inject_fiware_headers(headers: Dict, tenant: Optional[str] = None, context_url: Optional[str] = None) -> Dict:
-    """
-    Inject FIWARE service headers for NGSI-LD
-    
-    Args:
-        headers: Headers dictionary to modify
-        tenant: Tenant ID for Fiware-Service header
-        context_url: NGSI-LD context URL
-    
-    Returns:
-        Modified headers dictionary
+    """Inject NGSI-LD + FIWARE tenant headers for Orion-LD multitenancy.
+
+    Sends BOTH NGSILD-Tenant (ETSI standard) AND Fiware-Service (legacy).
+    Normalizes tenant ID. Includes Link @context header.
     """
     if tenant:
-        headers['NGSILD-Tenant'] = tenant
-    
-    # NGSI-LD specific headers
+        try:
+            from tenant_utils import normalize_tenant_id
+            normalized = normalize_tenant_id(tenant)
+        except (ImportError, ValueError):
+            import re
+            normalized = tenant.lower().replace('-', '_').replace(' ', '_')
+            normalized = re.sub(r'[^a-z0-9_]', '', normalized)
+            normalized = normalized.strip('_') or tenant
+
+        headers['NGSILD-Tenant'] = normalized
+        headers['Fiware-Service'] = normalized
+        headers['Fiware-ServicePath'] = '/'
+
     headers['Content-Type'] = 'application/ld+json'
     headers['Accept'] = 'application/ld+json'
-    
-    if context_url:
-        headers['Link'] = f'<{context_url}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
-    
+
+    url = context_url or os.getenv("CONTEXT_URL", "")
+    if url:
+        headers['Link'] = f'<{url}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+
     return headers
 
 

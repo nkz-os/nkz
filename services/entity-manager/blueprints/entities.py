@@ -30,6 +30,19 @@ from helpers import (
 
 logger = logging.getLogger(__name__)
 
+# NGSI-LD Smart Data Model type allowlist
+# Only recognized FIWARE SDM types can be created via the wizard.
+# Custom/invented types are rejected with 422.
+SDM_ALLOWED_TYPES = {
+    'AgriParcel', 'AgriCrop', 'AgriBuilding', 'AgriSensor',
+    'AgriculturalRobot', 'Device', 'WeatherObserved', 'WeatherForecast',
+    'CarbonAssessment', 'CarbonStock', 'VegetationIndex',
+    'AgriParcelOperation', 'AgriParcelRecord',
+    'CropHealthObservation', 'SoilObservation',
+    'ManagementPractice', 'IrrigationOperation',
+    'Animal', 'LivestockFarm', 'Building', 'Farm',
+}
+
 entities_bp = Blueprint('entities', __name__)
 
 
@@ -309,6 +322,17 @@ def list_instances(entity_type):
         return jsonify({'error': 'Internal server error'}), 500
 
 
+def _build_ngsild_urn(entity_type: str, tenant: str, custom_id: str | None = None) -> str:
+    """Build NGSI-LD compliant URN: urn:ngsi-ld:<type>:<tenant>:<id>
+
+    Per ETSI NGSI-LD spec, entity IDs MUST be URNs in the format:
+    urn:ngsi-ld:<entity-type>:<remaining-parts>
+    """
+    _id = custom_id or str(uuid.uuid4())
+    _id = _id.replace(':', '-').replace(' ', '_')
+    return f"urn:ngsi-ld:{entity_type}:{tenant}:{_id}"
+
+
 # === Lines 857-970 from entity_management_api.py ===
 @entities_bp.route('/instances/<entity_type>', methods=['POST'])
 @require_auth
@@ -319,8 +343,21 @@ def create_instance(entity_type):
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
-        # Add type and ID to entity
-        entity_id = data.get('id', f"{entity_type}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}")
+        # NGSI-LD Smart Data Model type allowlist
+        if entity_type not in SDM_ALLOWED_TYPES:
+            return jsonify({
+                'error': f'Invalid entity type: {entity_type}',
+                'error_en': f'Entity type "{entity_type}" is not a recognized FIWARE Smart Data Model type.',
+                'allowed_types': sorted(SDM_ALLOWED_TYPES),
+            }), 422
+
+        # Add type and ID to entity — NGSI-LD URN format
+        entity_id = data.get('id')
+        if entity_id:
+            if not entity_id.startswith('urn:ngsi-ld:'):
+                entity_id = _build_ngsild_urn(entity_type, g.tenant, entity_id)
+        else:
+            entity_id = _build_ngsild_urn(entity_type, g.tenant)
         entity_data = {
             'id': entity_id,
             'type': entity_type,
