@@ -347,7 +347,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
 
                     {/* REGENERATE CONFIRM MODAL */}
                     {showRegenerateConfirm && (
-                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
                             <div className="bg-gray-800 rounded-xl max-w-sm w-full p-6 border border-gray-700 shadow-2xl">
                                 <div className="flex flex-col items-center text-center gap-4">
                                     <div className="p-3 bg-red-500/20 rounded-full">
@@ -447,7 +447,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
 
             {/* Save Profile Dialog - Should be portalled or absolute, but simple conditional here works if container is relative */}
             {showSaveDialog && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
                     <div className="bg-gray-900 rounded-xl p-6 w-full max-w-md border border-gray-700">
                         <h3 className="text-lg font-semibold text-white mb-4">Guardar Perfil</h3>
                         <input

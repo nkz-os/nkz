@@ -93,7 +93,7 @@ function SlotShell({
   const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
 
   const content = (
-    <Panel variant="solid" className={clsx('rounded-nkz-lg shadow-nkz-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700', className)}>
+    <Panel variant="solid" className={clsx('rounded-xl shadow-nkz-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700', className)}>
       {(title || icon || collapsible) && (
         <Panel.Header>
           <Panel.Title icon={icon}>{title}</Panel.Title>
@@ -159,7 +159,7 @@ function SlotShellCompact({
   className,
 }: SlotShellCompactProps) {
   const content = (
-    <Panel variant="solid" className={clsx('rounded-nkz-lg shadow-nkz-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700', className)}>
+    <Panel variant="solid" className={clsx('rounded-xl shadow-nkz-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700', className)}>
       <Panel.Body>{children}</Panel.Body>
     </Panel>
   );

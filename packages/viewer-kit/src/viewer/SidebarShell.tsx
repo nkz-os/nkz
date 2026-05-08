@@ -114,7 +114,7 @@ function SidebarShellRoot({
   return (
     <div
       className={clsx(
-        'relative flex flex-col h-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 z-nkz-rail shadow-nkz-lg rounded-nkz-lg pointer-events-auto',
+        'relative flex flex-col h-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 z-nkz-rail shadow-nkz-lg rounded-xl pointer-events-auto',
         'transition-all duration-nkz-normal',
         side === 'left' ? 'border-r ml-4' : 'border-l mr-4',
         !isOpen && 'border-0 shadow-none bg-transparent',

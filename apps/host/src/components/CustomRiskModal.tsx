@@ -137,7 +137,7 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 max-w-5xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 text-white flex justify-between items-center">

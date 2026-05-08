@@ -33,7 +33,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
       className={`rounded-2xl shadow-lg p-6 text-white transform hover:scale-[1.02] transition duration-200 ease-out bg-gradient-to-br ${gradientFrom} ${gradientTo} ${className}`}
     >
       <div className={`flex items-start justify-between gap-4 mb-4 ${contentClassName}`}>
-        <div className="flex items-center justify-center w-12 h-12 bg-white bg-opacity-20 rounded-xl backdrop-blur-sm">
+        <div className="flex items-center justify-center w-12 h-12 bg-white/20 rounded-xl">
           <Icon className="w-6 h-6" />
         </div>
         {AccentIcon ? <AccentIcon className="w-5 h-5 opacity-80" /> : null}

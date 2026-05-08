@@ -86,7 +86,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
 
     return (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200/50 p-3 flex items-center gap-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-3 flex items-center gap-4">
                 {/* Mode Indicator */}
                 <div className="flex items-center gap-2 pr-3 border-r border-gray-200">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isPreviewMode ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
