@@ -283,37 +283,13 @@ def require_auth(_func=None, *, require_hmac: bool = None):
 def inject_fiware_headers(headers, tenant=None):
     """Inject NGSI-LD + FIWARE tenant headers for Orion-LD multitenancy.
 
-    Sends BOTH NGSILD-Tenant (ETSI NGSI-LD standard) AND Fiware-Service
-    (legacy FIWARE v2 backward compat). Normalizes tenant ID.
-    Includes Link header with @context for NGSI-LD compliance.
+    Delegates to the canonical implementation in ngsi_headers.py.
+    Preserved for backward compatibility — all callers pass empty headers
+    and rely on the old default behavior (no @context in body detection).
     """
-    if tenant:
-        try:
-            from tenant_utils import normalize_tenant_id
+    from ngsi_headers import inject_fiware_headers as _canonical
 
-            normalized = normalize_tenant_id(tenant)
-        except (ImportError, ValueError):
-            import re
-
-            normalized = tenant.lower().replace("-", "_").replace(" ", "_")
-            normalized = re.sub(r"[^a-z0-9_]", "", normalized)
-            normalized = normalized.strip("_") or tenant
-
-        headers["NGSILD-Tenant"] = normalized
-        headers["Fiware-Service"] = normalized
-        headers["Fiware-ServicePath"] = "/"
-
-    # NGSI-LD required headers
-    headers["Content-Type"] = "application/ld+json"
-    headers["Accept"] = "application/ld+json"
-
-    context_url = os.getenv("CONTEXT_URL", "")
-    if context_url:
-        headers["Link"] = (
-            f'<{context_url}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
-        )
-
-    return headers
+    return _canonical(headers, tenant=tenant, has_context_in_body=False)
 
 
 def validate_entity_ownership(entity_id, tenant):

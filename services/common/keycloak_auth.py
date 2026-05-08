@@ -537,31 +537,13 @@ def get_current_tenant() -> Optional[str]:
 def inject_fiware_headers(headers: Dict, tenant: Optional[str] = None, context_url: Optional[str] = None) -> Dict:
     """Inject NGSI-LD + FIWARE tenant headers for Orion-LD multitenancy.
 
-    Sends BOTH NGSILD-Tenant (ETSI standard) AND Fiware-Service (legacy).
-    Normalizes tenant ID. Includes Link @context header.
+    Delegates to the canonical implementation in ngsi_headers.py.
+    The context_url parameter is accepted for backward compatibility but ignored
+    (CONTEXT_URL is read from environment by the canonical function).
     """
-    if tenant:
-        try:
-            from tenant_utils import normalize_tenant_id
-            normalized = normalize_tenant_id(tenant)
-        except (ImportError, ValueError):
-            import re
-            normalized = tenant.lower().replace('-', '_').replace(' ', '_')
-            normalized = re.sub(r'[^a-z0-9_]', '', normalized)
-            normalized = normalized.strip('_') or tenant
+    from ngsi_headers import inject_fiware_headers as _canonical
 
-        headers['NGSILD-Tenant'] = normalized
-        headers['Fiware-Service'] = normalized
-        headers['Fiware-ServicePath'] = '/'
-
-    headers['Content-Type'] = 'application/ld+json'
-    headers['Accept'] = 'application/ld+json'
-
-    url = context_url or os.getenv("CONTEXT_URL", "")
-    if url:
-        headers['Link'] = f'<{url}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
-
-    return headers
+    return _canonical(headers, tenant=tenant, has_context_in_body=False)
 
 
 def is_authenticated() -> bool:
