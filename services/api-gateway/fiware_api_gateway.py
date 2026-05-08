@@ -259,7 +259,7 @@ def inject_fiware_headers(headers, tenant=None):
     Delegates to canonical ngsi_headers implementation.
     Auto-detects @context in request body for POST/PUT/PATCH requests.
     """
-    from common.ngsi_headers import inject_fiware_headers as _canonical
+    from ngsi_headers import inject_fiware_headers as _canonical
 
     # Auto-detect @context in body (only for mutation requests)
     has_context_in_body = False
