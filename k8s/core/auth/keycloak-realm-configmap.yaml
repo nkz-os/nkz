@@ -11,7 +11,7 @@ data:
 {
   "realm": "nekazari",
   "displayName": "Nekazari Platform",
-  "displayNameHtml": "<div class=\"kc-logo-text\"><span>Nekazari</span></div>",
+  "displayNameHtml": "<span class=\"nkz-kc-wordmark\">Nekazari</span>",
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": true,
@@ -448,7 +448,7 @@ data:
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
   "smtpServer": {},
-  "loginTheme": "keycloak",
+  "loginTheme": "nkz",
   "accountTheme": "keycloak",
   "adminTheme": "keycloak",
   "emailTheme": "keycloak",
