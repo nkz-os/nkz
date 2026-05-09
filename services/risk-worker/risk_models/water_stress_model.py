@@ -33,6 +33,7 @@
 
 import logging
 import os
+import re
 from typing import Any, Dict, Optional
 
 import requests
@@ -47,6 +48,23 @@ CONTEXT_URL = os.getenv(
 )
 
 
+def _make_headers(tenant_id: str) -> dict:
+    """Build Orion-LD headers with normalized tenant ID."""
+    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
+    n = re.sub(r'[^a-z0-9_]', '', n)
+    n = n.strip('_') or tenant_id
+    headers = {
+        "NGSILD-Tenant": n,
+        "Fiware-Service": n,
+        "Fiware-ServicePath": "/",
+        "Accept": "application/ld+json",
+    }
+    ctx = os.getenv("CONTEXT_URL", "")
+    if ctx:
+        headers["Link"] = f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return headers
+
+
 class WaterStressRiskModel(BaseRiskModel):
     """Unified water stress model: CWSI > MDS > weather balance > soil moisture."""
 
@@ -55,11 +73,7 @@ class WaterStressRiskModel(BaseRiskModel):
     ) -> Optional[Dict[str, Any]]:
         """Query Orion-LD for the latest CropHealthAssessment for an entity."""
         try:
-            headers = {
-                "Accept": "application/ld+json",
-                "NGSILD-Tenant": tenant_id,
-                "Link": f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"',
-            }
+            headers = _make_headers(tenant_id)
             resp = requests.get(
                 f"{ORION_URL}/ngsi-ld/v1/entities",
                 params={

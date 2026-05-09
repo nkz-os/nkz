@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 import requests
 
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -91,13 +92,21 @@ SUBSCRIPTIONS = [
 ]
 
 
-def _get_headers(tenant: str) -> dict:
-    """Standard NGSI-LD headers with tenant and @context Link."""
-    return {
-        "Content-Type": "application/json",
-        "NGSILD-Tenant": tenant,
-        "Link": f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"',
+def _make_headers(tenant_id: str) -> dict:
+    """Build Orion-LD headers with normalized tenant ID."""
+    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
+    n = re.sub(r'[^a-z0-9_]', '', n)
+    n = n.strip('_') or tenant_id
+    headers = {
+        "NGSILD-Tenant": n,
+        "Fiware-Service": n,
+        "Fiware-ServicePath": "/",
+        "Accept": "application/ld+json",
     }
+    ctx = os.getenv("CONTEXT_URL", "")
+    if ctx:
+        headers["Link"] = f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return headers
 
 
 def _get_active_tenants() -> list:
@@ -126,7 +135,7 @@ def _get_active_tenants() -> list:
 
 def _cleanup_broken_subscriptions(tenant_id: str):
     """Delete subscriptions with wrong port (legacy bug)."""
-    headers = _get_headers(tenant_id)
+    headers = _make_headers(tenant_id)
     try:
         r = requests.get(f"{ORION_URL}/ngsi-ld/v1/subscriptions", headers=headers)
         if r.status_code != 200:
@@ -146,7 +155,8 @@ def _cleanup_broken_subscriptions(tenant_id: str):
 
 def _ensure_tenant_subscriptions(tenant_id: str):
     """Create missing NGSI-LD subscriptions for a single tenant."""
-    headers = _get_headers(tenant_id)
+    headers = _make_headers(tenant_id)
+    headers["Content-Type"] = "application/json"  # needed for POST below
     try:
         response = requests.get(
             f"{ORION_URL}/ngsi-ld/v1/subscriptions",
