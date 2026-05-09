@@ -135,6 +135,8 @@ spec:
                   key: bot-api-key
             - name: ZULIP_PROVISIONER_URL
               value: "http://zulip-provisioner-service:5000"
+            - name: ZULIP_HOST
+              value: "messaging.robotika.cloud"
           command: ["gunicorn"]
           args:
             [
