@@ -525,6 +525,7 @@ const UnifiedViewerInner: React.FC = () => {
                     side="left"
                     state={sidebarState}
                     onStateChange={handleLeftStateChange}
+                    variant="glass"
                 >
                     <SidebarShell.Pinned>
                         <Suspense fallback={<PanelLoadingFallback />}>
@@ -544,6 +545,7 @@ const UnifiedViewerInner: React.FC = () => {
                     side="right"
                     state={rightSidebarState}
                     onStateChange={handleRightStateChange}
+                    variant="solid"
                 >
                     {mapMode === 'DRAW_PARCEL' && drawnGeometry ? (
                         <div className="flex-1 overflow-y-auto p-4">
