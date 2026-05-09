@@ -277,6 +277,12 @@ export const Navigation: React.FC = () => {
                       })}
                     </div>
                   )}
+
+                  {/* Controls: Theme + Language */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 border-t border-gray-100 dark:border-gray-700/50">
+                    <ThemeToggle variant="compact" />
+                    <LanguageSelector variant="compact" />
+                  </div>
                 </div>
               </div>
 
@@ -306,14 +312,6 @@ export const Navigation: React.FC = () => {
                   </div>
                 )}
               </div>
-
-              <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block"></div>
-
-              {/* Theme Toggle */}
-              <ThemeToggle variant="compact" />
-
-              {/* Language Selector */}
-              <LanguageSelector variant="compact" />
 
               {/* Logout Button (Desktop) */}
               <button
