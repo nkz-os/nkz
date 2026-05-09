@@ -339,3 +339,7 @@ debug_*.py
 test_*.cjs
 test_*.js
 *.tar.gz
+
+# FIWARE compliance audit artifacts (2026-05-08) — private documents
+# Note: ../documents/ is outside this repo; these entries document what's excluded
+tests/fiware-compliance/
