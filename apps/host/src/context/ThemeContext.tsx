@@ -4,6 +4,7 @@
 // Manages theme state (light/dark mode) with persistence and system preference detection
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import type { TokenProfile } from '@nekazari/design-tokens';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -130,3 +131,13 @@ export const useTheme = (): ThemeContextType => {
   return context;
 };
 
+/**
+ * Derive viewer token profile from global theme.
+ * 'dark' -> 'viewer' (dark opaque surfaces)
+ * 'light' -> 'viewer-light' (light opaque surfaces)
+ */
+export const useViewerProfile = (): { profile: TokenProfile } => {
+  const { resolvedTheme } = useTheme();
+  const profile: TokenProfile = resolvedTheme === 'dark' ? 'viewer' : 'viewer-light';
+  return { profile };
+};

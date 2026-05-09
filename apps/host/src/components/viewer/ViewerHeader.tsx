@@ -15,7 +15,7 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { useModules } from '@/context/ModuleContext';
 import { useI18n } from '@/context/I18nContext';
 import { LanguageSelector } from '@/components/LanguageSelector';
-import { useViewerTheme } from '@/hooks/useViewerTheme';
+import { useTheme } from '@/context/ThemeContext';
 import {
     CORE_NAVIGATION_ITEMS,
     ADMIN_NAVIGATION_ITEMS,
@@ -53,8 +53,8 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager
     const { user, logout, hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
     const { t } = useI18n();
-    const { profile, toggle } = useViewerTheme();
-    const isLight = profile === 'viewer-light';
+    const { resolvedTheme, toggleTheme } = useTheme();
+    const isLight = resolvedTheme === 'light';
     const navigate = useNavigate();
     const location = useLocation();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -285,7 +285,7 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager
                             Capas
                         </button>
                         <button
-                            onClick={toggle}
+                            onClick={toggleTheme}
                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
                             <span className="w-4 text-center">{isLight ? '☼' : '🌙'}</span>
