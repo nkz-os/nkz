@@ -26,10 +26,8 @@ import {
     ChevronDown,
     LogOut,
     Puzzle,
-    Search,
-    Layers,
-    Settings,
-    CircleHelp,
+    Sun,
+    Moon,
 } from 'lucide-react';
 
 // Glassmorphism styling
@@ -49,7 +47,7 @@ export interface ViewerHeaderProps {
     onToggleLayerManager?: () => void;
 }
 
-export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager }) => {
+export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager: _onToggleLayerManager }) => {
     const { user, logout, hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
     const { t } = useI18n();
@@ -268,44 +266,20 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager
                         </button>
                     </div>
 
-                    {/* Right hover submenu for global quick actions */}
-                    <div className="absolute left-full top-0 ml-2 w-56 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg p-2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-200">
-                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-                            <Search className="w-4 h-4" />
-                            Buscar parcela
-                        </button>
-                        <button
-                            onClick={() => {
-                                onToggleLayerManager?.();
-                                setIsMenuOpen(false);
-                            }}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                            <Layers className="w-4 h-4" />
-                            Capas
-                        </button>
+                    {/* Controls: Theme + Language */}
+                    <div className="flex items-center gap-2 px-3 py-2.5 border-t border-slate-200 dark:border-slate-700">
                         <button
                             onClick={toggleTheme}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
-                            <span className="w-4 text-center">{isLight ? '☼' : '🌙'}</span>
-                            Tema
+                            {isLight ? (
+                                <Sun className="w-4 h-4" />
+                            ) : (
+                                <Moon className="w-4 h-4" />
+                            )}
+                            <span>{isLight ? 'Claro' : 'Oscuro'}</span>
                         </button>
-                        <div className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300">
-                            <span className="w-4 text-center">🌐</span>
-                            <LanguageSelector variant="iconOnly" />
-                        </div>
-                        <button
-                            onClick={() => navigate('/settings')}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                            <Settings className="w-4 h-4" />
-                            Settings
-                        </button>
-                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-                            <CircleHelp className="w-4 h-4" />
-                            Help
-                        </button>
+                        <LanguageSelector variant="compact" />
                     </div>
                 </div>
             </div>
