@@ -11,6 +11,9 @@ COPY services/keycloak/postgresql-42.7.1.jar /opt/keycloak/providers/
 # The JAR contains the JavaScript mapper script and META-INF descriptor
 COPY services/keycloak/keycloak-script-mappers.jar /opt/keycloak/providers/
 
+# Login / registration UI theme (extends keycloak.v2; baked in at build for optimized mode)
+COPY services/keycloak/themes/nkz /opt/keycloak/themes/nkz
+
 # Build Keycloak with PostgreSQL driver and script mappers
 # Enable scripts feature for script-based protocol mappers
 # Include all runtime options in build to avoid configuration mismatch
