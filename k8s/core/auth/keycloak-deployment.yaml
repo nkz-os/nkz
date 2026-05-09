@@ -39,16 +39,15 @@ spec:
         ']
       containers:
       - name: keycloak
-        image: keycloak:26.4.1-custom
-        # Using custom image built from services/keycloak/Dockerfile
-        # Contains: PostgreSQL driver + Script Mappers JAR
-        imagePullPolicy: Never
+        image: ghcr.io/nkz-os/nkz/keycloak:latest
+        # Built by .github/workflows/docker-build.yml from services/keycloak/Dockerfile
+        # Contains: PostgreSQL driver + Script Mappers JAR + themes/nkz login branding
+        imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
             drop:
               - ALL
-        # Never = use local image (built on server)
         args:
         - start
         - --import-realm

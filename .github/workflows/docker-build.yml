@@ -77,6 +77,11 @@ jobs:
             context: .
             dockerfile: apps/host/Dockerfile
 
+          # Identity (matches production: services/keycloak/Dockerfile + PG driver + themes)
+          - service: keycloak
+            context: .
+            dockerfile: services/keycloak/Dockerfile
+
     permissions:
       contents: read
       packages: write
