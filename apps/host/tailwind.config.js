@@ -6,6 +6,9 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
+    // Scan workspace packages so Tailwind doesn't purge their classes
+    "../../packages/viewer-kit/src/**/*.{js,ts,jsx,tsx}",
+    "../../packages/ui-kit/src/**/*.{js,ts,jsx,tsx}",
   ],
   darkMode: 'class', // Enable class-based dark mode
   theme: {
