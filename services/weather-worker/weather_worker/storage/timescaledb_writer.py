@@ -440,11 +440,8 @@ class TimescaleDBWriter:
         try:
             import requests
 
-            headers = {
-                "Fiware-Service": tenant_id,
-                "Fiware-ServicePath": "/",
-                "Accept": "application/ld+json",
-            }
+            from weather_worker.storage.orion_writer import _make_headers
+            headers = _make_headers(tenant_id)
             params = {
                 "type": "AgriParcel",
                 "attrs": "location",

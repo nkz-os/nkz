@@ -20,6 +20,23 @@ ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
 CONTEXT_URL = os.getenv("CONTEXT_URL", "")
 
 
+def _make_headers(tenant_id: str) -> dict:
+    """Build Orion-LD headers with normalized tenant ID — both NGSI-LD + FIWARE."""
+    import re
+    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
+    n = re.sub(r'[^a-z0-9_]', '', n)
+    n = n.strip('_') or tenant_id
+    headers = {
+        "NGSILD-Tenant": n,
+        "Fiware-Service": n,
+        "Fiware-ServicePath": "/",
+        "Accept": "application/ld+json",
+    }
+    if CONTEXT_URL:
+        headers["Link"] = f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return headers
+
+
 def find_existing_weather_observed(
     tenant_id: str, latitude: float, longitude: float, radius_km: float = 4.0
 ) -> Optional[Dict[str, Any]]:
@@ -50,11 +67,7 @@ def find_existing_weather_observed(
             "options": "count",
         }
 
-        headers = {
-            "Fiware-Service": tenant_id,
-            "Fiware-ServicePath": "/",
-            "Accept": "application/ld+json",
-        }
+        headers = _make_headers(tenant_id)
 
         url = f"{ORION_URL}/ngsi-ld/v1/entities"
         response = requests.get(url, params=query_params, headers=headers, timeout=10)
@@ -120,11 +133,7 @@ def get_parcels_by_location(
             "options": "count",
         }
 
-        headers = {
-            "Fiware-Service": tenant_id,
-            "Fiware-ServicePath": "/",
-            "Accept": "application/ld+json",
-        }
+        headers = _make_headers(tenant_id)
         if CONTEXT_URL:
             headers["Link"] = (
                 f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
@@ -283,11 +292,9 @@ def create_weather_observed_entity(
 
         # Prepare headers — no Link header: context is embedded inline in the body
         # (application/ld+json + Link is not allowed by the NGSI-LD spec)
-        headers = {
-            "Content-Type": "application/ld+json",
-            "Fiware-Service": tenant_id,
-            "Fiware-ServicePath": "/",
-        }
+        headers = _make_headers(tenant_id)
+        headers["Content-Type"] = "application/ld+json"
+        headers.pop("Link", None)  # @context in body — no Link header per NGSI-LD spec
 
         # Try to create entity
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
@@ -425,10 +432,10 @@ def update_weather_observed_entity(
         if headers is None:
             headers = {}
 
+        if headers is None:
+            headers = _make_headers(tenant_id)
         headers["Content-Type"] = "application/ld+json"
-        headers["Fiware-Service"] = tenant_id
-        headers["Fiware-ServicePath"] = "/"
-        # no Link header: context is embedded in the entity body (ld+json spec)
+        headers.pop("Link", None)  # @context in body — no Link header per NGSI-LD spec
 
         # Update entity
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
