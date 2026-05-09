@@ -127,10 +127,11 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager
                     }}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${surfaceStyles.base} ${surfaceStyles.hover} transition-all duration-300 group`}
                 >
-                    <span className="text-2xl">🌾</span>
-                    <span className="text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-                        Nekazari
-                    </span>
+                    <img
+                        src="/nkz-os-logo.svg"
+                        alt="Nekazari"
+                        className="h-7 w-auto dark:invert"
+                    />
                     <ChevronDown
                         className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-300 ${isMenuOpen ? 'rotate-180' : ''
                             }`}

@@ -150,10 +150,11 @@ export const Navigation: React.FC = () => {
                 <button
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-200 ${isMenuOpen ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
-                  <span className="text-2xl">🌾</span>
-                  <span className="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
-                    Nekazari
-                  </span>
+                  <img
+                    src="/nkz-os-logo.svg"
+                    alt="Nekazari"
+                    className="h-7 w-auto dark:invert"
+                  />
                   <ChevronDown
                     className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform duration-300 ${isMenuOpen ? 'rotate-180' : ''}`}
                   />

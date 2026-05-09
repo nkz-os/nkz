@@ -139,8 +139,11 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
         {/* Drawer Header */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
           <Link to="/dashboard" onClick={onClose} className="flex items-center">
-            <span className="text-2xl mr-2">🌾</span>
-            <span className="text-xl font-bold text-gray-900 dark:text-gray-100">Nekazari</span>
+            <img
+              src="/nkz-os-logo.svg"
+              alt="Nekazari"
+              className="h-7 w-auto dark:invert"
+            />
           </Link>
           <button
             onClick={onClose}
