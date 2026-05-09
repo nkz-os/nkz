@@ -209,6 +209,14 @@ spec:
                 name: intelligence-api-service
                 port:
                   number: 8000
+          # n8n Integration Hub Module API
+          - path: /api/n8n-nkz
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n-nkz-api-service
+                port:
+                  number: 8000
           # Catastro Spain Module API
           - path: /api/cadastral-api
             pathType: Prefix
@@ -360,6 +368,14 @@ spec:
             backend:
               service:
                 name: datahub-api-service
+                port:
+                  number: 8000
+          # n8n Integration Hub Module API
+          - path: /api/n8n-nkz
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n-nkz-api-service
                 port:
                   number: 8000
           # Entity-manager module management for CUE — Traefik longest-path priority
