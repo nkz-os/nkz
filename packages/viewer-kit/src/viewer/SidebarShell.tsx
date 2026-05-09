@@ -114,7 +114,7 @@ function SidebarShellRoot({
   );
 
   const surfaceClass = variant === 'glass'
-    ? 'bg-white/70 dark:bg-slate-900/60 backdrop-blur-md'
+    ? 'bg-white/30 dark:bg-slate-900/40 backdrop-blur-md'
     : 'bg-white dark:bg-slate-900';
 
   // --------------- Render ---------------
@@ -122,7 +122,7 @@ function SidebarShellRoot({
   return (
     <div
       className={clsx(
-        'relative z-nkz-rail pointer-events-auto',
+        'relative h-full z-nkz-rail pointer-events-auto',
         !isOpen && 'border-0 shadow-none bg-transparent',
       )}
       style={{
@@ -203,7 +203,7 @@ function SidebarShellRoot({
             'border border-slate-200 dark:border-slate-700',
             side === 'left' ? 'border-r ml-4' : 'border-l mr-4',
             'shadow-nkz-lg rounded-xl',
-            'transition-all duration-nkz-normal overflow-hidden',
+            'transition-all duration-nkz-normal overflow-y-auto',
             className,
           )}
         >

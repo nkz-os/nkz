@@ -112,7 +112,7 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager
             {/* Left: Logo and Navigation Menu */}
             <div
                 ref={menuRef}
-                className="absolute top-4 left-4 z-50"
+                className="absolute top-4 left-6 z-50"
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
             >
