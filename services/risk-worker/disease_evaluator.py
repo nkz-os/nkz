@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any
 
 import requests
@@ -18,6 +19,23 @@ ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
 CONTEXT_URL = os.getenv(
     "CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json"
 )
+
+
+def _make_headers(tenant_id: str) -> dict:
+    """Build Orion-LD headers with normalized tenant ID."""
+    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
+    n = re.sub(r'[^a-z0-9_]', '', n)
+    n = n.strip('_') or tenant_id
+    headers = {
+        "NGSILD-Tenant": n,
+        "Fiware-Service": n,
+        "Fiware-ServicePath": "/",
+        "Accept": "application/ld+json",
+    }
+    ctx = os.getenv("CONTEXT_URL", "")
+    if ctx:
+        headers["Link"] = f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return headers
 
 
 def evaluate_disease_risks(
@@ -149,10 +167,9 @@ def _publish_disease_risk(
                 "object": f"urn:ngsi-ld:AgriParcel:{parcel_id}",
             }
 
-        headers = {
-            "Content-Type": "application/ld+json",
-            "NGSILD-Tenant": tenant_id,
-        }
+        headers = _make_headers(tenant_id)
+        headers["Content-Type"] = "application/ld+json"
+        headers.pop("Link", None)  # @context is in body
         resp = requests.post(
             f"{ORION_URL}/ngsi-ld/v1/entityOperations/upsert",
             json=[entity],

@@ -15,7 +15,7 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { useModules } from '@/context/ModuleContext';
 import { useI18n } from '@/context/I18nContext';
 import { LanguageSelector } from '@/components/LanguageSelector';
-import { useViewerTheme } from '@/hooks/useViewerTheme';
+import { useTheme } from '@/context/ThemeContext';
 import {
     CORE_NAVIGATION_ITEMS,
     ADMIN_NAVIGATION_ITEMS,
@@ -26,10 +26,8 @@ import {
     ChevronDown,
     LogOut,
     Puzzle,
-    Search,
-    Layers,
-    Settings,
-    CircleHelp,
+    Sun,
+    Moon,
 } from 'lucide-react';
 
 // Glassmorphism styling
@@ -49,12 +47,12 @@ export interface ViewerHeaderProps {
     onToggleLayerManager?: () => void;
 }
 
-export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager }) => {
+export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager: _onToggleLayerManager }) => {
     const { user, logout, hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
     const { t } = useI18n();
-    const { profile, toggle } = useViewerTheme();
-    const isLight = profile === 'viewer-light';
+    const { resolvedTheme, toggleTheme } = useTheme();
+    const isLight = resolvedTheme === 'light';
     const navigate = useNavigate();
     const location = useLocation();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -127,10 +125,11 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager
                     }}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${surfaceStyles.base} ${surfaceStyles.hover} transition-all duration-300 group`}
                 >
-                    <span className="text-2xl">🌾</span>
-                    <span className="text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-                        Nekazari
-                    </span>
+                    <img
+                        src="/nkz-os-logo.svg"
+                        alt="Nekazari"
+                        className="h-7 w-auto dark:invert"
+                    />
                     <ChevronDown
                         className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-300 ${isMenuOpen ? 'rotate-180' : ''
                             }`}
@@ -267,44 +266,20 @@ export const ViewerHeader: React.FC<ViewerHeaderProps> = ({ onToggleLayerManager
                         </button>
                     </div>
 
-                    {/* Right hover submenu for global quick actions */}
-                    <div className="absolute left-full top-0 ml-2 w-56 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg p-2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-200">
-                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-                            <Search className="w-4 h-4" />
-                            Buscar parcela
-                        </button>
+                    {/* Controls: Theme + Language */}
+                    <div className="flex items-center gap-2 px-3 py-2.5 border-t border-slate-200 dark:border-slate-700">
                         <button
-                            onClick={() => {
-                                onToggleLayerManager?.();
-                                setIsMenuOpen(false);
-                            }}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            onClick={toggleTheme}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
-                            <Layers className="w-4 h-4" />
-                            Capas
+                            {isLight ? (
+                                <Sun className="w-4 h-4" />
+                            ) : (
+                                <Moon className="w-4 h-4" />
+                            )}
+                            <span>{isLight ? 'Claro' : 'Oscuro'}</span>
                         </button>
-                        <button
-                            onClick={toggle}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                            <span className="w-4 text-center">{isLight ? '☼' : '🌙'}</span>
-                            Tema
-                        </button>
-                        <div className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300">
-                            <span className="w-4 text-center">🌐</span>
-                            <LanguageSelector variant="iconOnly" />
-                        </div>
-                        <button
-                            onClick={() => navigate('/settings')}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        >
-                            <Settings className="w-4 h-4" />
-                            Settings
-                        </button>
-                        <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-                            <CircleHelp className="w-4 h-4" />
-                            Help
-                        </button>
+                        <LanguageSelector variant="compact" />
                     </div>
                 </div>
             </div>

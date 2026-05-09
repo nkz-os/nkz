@@ -17,6 +17,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_values
+import re
 import requests
 import redis
 
@@ -27,6 +28,23 @@ logger = logging.getLogger(__name__)
 
 # Redis client for API key caching
 _redis_client: Optional[redis.Redis] = None
+
+
+def _make_headers(tenant_id: str) -> dict:
+    """Build Orion-LD headers with normalized tenant ID."""
+    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
+    n = re.sub(r'[^a-z0-9_]', '', n)
+    n = n.strip('_') or tenant_id
+    headers = {
+        "NGSILD-Tenant": n,
+        "Fiware-Service": n,
+        "Fiware-ServicePath": "/",
+        "Accept": "application/ld+json",
+    }
+    ctx = os.getenv("CONTEXT_URL", "")
+    if ctx:
+        headers["Link"] = f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return headers
 
 
 def get_redis_client(settings: Settings) -> redis.Redis:
@@ -205,16 +223,14 @@ async def _update_orion_entity(tenant_id: str, entity_id: str, updates: Dict[str
     orion_url = settings.orion_url
     
     try:
-        headers = {
-            'Content-Type': 'application/ld+json',
-            'Fiware-Service': tenant_id,
-            'Fiware-ServicePath': '/'
-        }
-        
+        headers = _make_headers(tenant_id)
+        headers['Content-Type'] = 'application/ld+json'
+        headers.pop('Link', None)  # @context is in body
+
         # Add required NGSI-LD @context to updates
         if '@context' not in updates:
             updates['@context'] = settings.context_url
-            
+
         # Use PATCH to update entity
         response = requests.patch(
             f'{orion_url}/ngsi-ld/v1/entities/{entity_id}/attrs',
@@ -222,7 +238,7 @@ async def _update_orion_entity(tenant_id: str, entity_id: str, updates: Dict[str
             headers=headers,
             timeout=10
         )
-        
+
         if response.status_code not in [200, 204]:
             logger.warning(f"Failed to update Orion-LD entity: {response.status_code} - {response.text}")
     except Exception as e:
@@ -474,12 +490,10 @@ def _update_orion_entity_sync(tenant_id: str, entity_id: str, updates: Dict[str,
     orion_url = settings.orion_url
     
     try:
-        headers = {
-            'Content-Type': 'application/ld+json',
-            'Fiware-Service': tenant_id,
-            'Fiware-ServicePath': '/'
-        }
-        
+        headers = _make_headers(tenant_id)
+        headers['Content-Type'] = 'application/ld+json'
+        headers.pop('Link', None)  # @context is in body
+
         response = requests.patch(
             f'{orion_url}/ngsi-ld/v1/entities/{entity_id}/attrs',
             json=updates,
@@ -729,12 +743,10 @@ def _batch_update_orion(tenant_id: str, entities: List[Dict], settings: Settings
     orion_url = settings.orion_url
     
     try:
-        headers = {
-            'Content-Type': 'application/ld+json',
-            'Fiware-Service': tenant_id,
-            'Fiware-ServicePath': '/'
-        }
-        
+        headers = _make_headers(tenant_id)
+        headers['Content-Type'] = 'application/ld+json'
+        headers.pop('Link', None)  # @context is in body
+
         # Use batch update endpoint
         response = requests.post(
             f'{orion_url}/ngsi-ld/v1/entityOperations/update',

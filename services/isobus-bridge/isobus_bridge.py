@@ -22,6 +22,7 @@ from datetime import datetime
 
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
+import re
 import requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -48,6 +49,23 @@ HMAC_SECRET = os.getenv('HMAC_SECRET', '')
 
 # Cache de API keys por tenant
 API_KEYS_CACHE: Dict[str, str] = {}
+
+
+def _make_headers(tenant_id: str) -> dict:
+    """Build Orion-LD headers with normalized tenant ID."""
+    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
+    n = re.sub(r'[^a-z0-9_]', '', n)
+    n = n.strip('_') or tenant_id
+    headers = {
+        "NGSILD-Tenant": n,
+        "Fiware-Service": n,
+        "Fiware-ServicePath": "/",
+        "Accept": "application/ld+json",
+    }
+    ctx = os.getenv("CONTEXT_URL", "")
+    if ctx:
+        headers["Link"] = f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return headers
 
 
 def load_api_keys_from_db():
@@ -132,11 +150,7 @@ def get_entity_from_orion(entity_id: str, tenant_id: str) -> Optional[Dict[str, 
     """Obtener entidad desde Orion-LD"""
     try:
         url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
-        headers = {
-            'Accept': 'application/ld+json',
-            'Fiware-Service': tenant_id,
-            'Fiware-ServicePath': '/'
-        }
+        headers = _make_headers(tenant_id)
         response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
             return response.json()
@@ -337,12 +351,10 @@ def update_entity_in_orion(
                     logger.info(f"Keeping existing location for {entity_id}, GPS data ignored")
         
         url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
-        headers = {
-            'Content-Type': 'application/ld+json',
-            'Fiware-Service': tenant_id,
-            'Fiware-ServicePath': '/'
-        }
-        
+        headers = _make_headers(tenant_id)
+        headers['Content-Type'] = 'application/ld+json'
+        headers.pop('Link', None)  # @context is in body
+
         response = requests.patch(url, json=ngsi_payload, headers=headers, timeout=10)
         
         if response.status_code in (204, 200):
@@ -401,12 +413,10 @@ def create_entity_if_not_exists(
         }
         
         url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        headers = {
-            'Content-Type': 'application/ld+json',
-            'Fiware-Service': tenant_id,
-            'Fiware-ServicePath': '/'
-        }
-        
+        headers = _make_headers(tenant_id)
+        headers['Content-Type'] = 'application/ld+json'
+        headers.pop('Link', None)  # @context is in body
+
         response = requests.post(url, json=entity_payload, headers=headers, timeout=10)
         
         if response.status_code in (201, 200):

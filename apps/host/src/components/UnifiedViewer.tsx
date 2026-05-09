@@ -23,7 +23,7 @@ import { cadastralApi } from '@/services/cadastralApi';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { logger } from '@/utils/logger';
 import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay';
-import { useViewerTheme } from '@/hooks/useViewerTheme';
+import { useViewerProfile } from '@/context/ThemeContext';
 import { ThemeProvider } from '@nekazari/design-tokens';
 import { SidebarShell } from '@nekazari/viewer-kit';
 type SidebarState = 'closed' | 'compact' | 'expanded';
@@ -395,10 +395,10 @@ const UnifiedViewerInner: React.FC = () => {
     }, [selectEntity]);
 
     // ThemeProvider for the viewer only — does NOT affect other routes
-    const { profile, setProfile } = useViewerTheme();
+    const { profile } = useViewerProfile();
 
     return (
-        <ThemeProvider profile={profile} onChange={setProfile}>
+        <ThemeProvider profile={profile}>
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-100 dark:bg-slate-950">
             {/* Floating Header - Logo with dropdown menu + controls; right strip includes Layers + Theme + Language */}
             <ViewerHeader onToggleLayerManager={() => setIsLayerManagerOpen(!isLayerManagerOpen)} />
@@ -525,6 +525,7 @@ const UnifiedViewerInner: React.FC = () => {
                     side="left"
                     state={sidebarState}
                     onStateChange={handleLeftStateChange}
+                    variant="glass"
                 >
                     <SidebarShell.Pinned>
                         <Suspense fallback={<PanelLoadingFallback />}>
@@ -544,6 +545,7 @@ const UnifiedViewerInner: React.FC = () => {
                     side="right"
                     state={rightSidebarState}
                     onStateChange={handleRightStateChange}
+                    variant="solid"
                 >
                     {mapMode === 'DRAW_PARCEL' && drawnGeometry ? (
                         <div className="flex-1 overflow-y-auto p-4">

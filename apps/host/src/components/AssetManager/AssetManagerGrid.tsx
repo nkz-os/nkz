@@ -275,12 +275,12 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
   return (
     <div ref={containerRef} className={`flex flex-col h-full ${className}`}>
       {/* Header */}
-      <div className="flex-shrink-0 px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+      <div className="flex-shrink-0 px-4 py-3 border-b border-white/10 bg-transparent">
         <div className="flex items-center justify-between gap-3">
           {/* Title & Count */}
           <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-slate-800 dark:text-slate-100">Assets</h2>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-200">
+            <h2 className="font-semibold text-white">Assets</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/70">
               {filteredCount === totalCount
                 ? totalCount
                 : `${filteredCount} / ${totalCount}`}
@@ -292,7 +292,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             <button
               onClick={() => refresh()}
               disabled={isRefreshing}
-              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
               title="Actualizar"
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -304,7 +304,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                 Array.isArray(v) ? v.length > 0 : v !== '' && v !== null
               )
                 ? 'bg-blue-100 text-blue-600'
-                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                : 'hover:bg-white/10 text-white/60 hover:text-white'
                 }`}
               title="Filtros"
             >
@@ -317,8 +317,8 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             <button
               onClick={() => setViewMode('list')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'list'
-                ? 'bg-slate-200 text-slate-700'
-                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'
+                ? 'bg-white/15 text-white'
+                : 'hover:bg-white/10 text-white/60 hover:text-white'
                 }`}
               title="Vista lista"
             >
@@ -329,7 +329,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               onClick={() => setViewMode('tree')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'tree'
                 ? 'bg-emerald-100 text-emerald-700'
-                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'
+                : 'hover:bg-white/10 text-white/60 hover:text-white'
                 }`}
               title="Vista jerárquica"
             >
@@ -339,8 +339,8 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             <button
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'grid'
-                ? 'bg-slate-200 text-slate-700'
-                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'
+                ? 'bg-white/15 text-white'
+                : 'hover:bg-white/10 text-white/60 hover:text-white'
                 }`}
               title="Vista cuadrícula"
             >
@@ -364,20 +364,20 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
         {/* Search Bar */}
         <div className="mt-3 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
           <input
             type="text"
             placeholder="Buscar por nombre, tipo o ubicación..."
             value={filters.search}
             onChange={handleSearch}
-            className="w-full pl-9 pr-8 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            className="w-full pl-9 pr-8 py-2 text-sm border border-white/10 rounded-lg bg-white/5 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30"
           />
           {filters.search && (
             <button
               onClick={() => setFilters({ search: '' })}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
             >
-              <X className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+              <X className="w-3 h-3 text-white/40" />
             </button>
           )}
         </div>
@@ -451,7 +451,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-              <p className="text-sm text-slate-500">Cargando assets...</p>
+              <p className="text-sm text-white/60">Cargando assets...</p>
             </div>
           </div>
         )}
@@ -476,10 +476,10 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
         {!isLoading && !error && filteredAssets.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-3 text-center px-4">
-              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
-                <Search className="w-8 h-8 text-slate-300" />
+              <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
+                <Search className="w-8 h-8 text-white/30" />
               </div>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-white/60">
                 {filters.search || filters.categories.length > 0
                   ? 'No se encontraron assets con estos filtros'
                   : 'No hay assets registrados'}
@@ -523,7 +523,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             {/* Table Container with min-width to enable horizontal scroll */}
             <div className="min-w-[600px]">
               {/* Table Header */}
-              <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">
+              <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-white/5 border-b border-white/10 text-xs font-medium text-white/60 uppercase tracking-wider">
                 <button
                   onClick={handleSelectAllToggle}
                   className="flex-shrink-0 p-1 rounded hover:bg-slate-200"
@@ -533,21 +533,21 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
                 <button
                   onClick={() => handleSortChange('name')}
-                  className="flex-1 min-w-[180px] flex items-center gap-1 hover:text-slate-700 text-left"
+                  className="flex-1 min-w-[180px] flex items-center gap-1 hover:text-white text-left"
                 >
                   Nombre {renderSortIcon('name')}
                 </button>
 
                 <button
                   onClick={() => handleSortChange('type')}
-                  className="w-28 flex-shrink-0 flex items-center gap-1 hover:text-slate-700"
+                  className="w-28 flex-shrink-0 flex items-center gap-1 hover:text-white"
                 >
                   Tipo {renderSortIcon('type')}
                 </button>
 
                 <button
                   onClick={() => handleSortChange('status')}
-                  className="w-24 flex-shrink-0 flex items-center gap-1 hover:text-slate-700"
+                  className="w-24 flex-shrink-0 flex items-center gap-1 hover:text-white"
                 >
                   Estado {renderSortIcon('status')}
                 </button>
@@ -555,7 +555,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                 {!compact && (
                   <button
                     onClick={() => handleSortChange('municipality')}
-                    className="w-32 flex-shrink-0 flex items-center gap-1 hover:text-slate-700 hidden md:flex"
+                    className="w-32 flex-shrink-0 flex items-center gap-1 hover:text-white hidden md:flex"
                   >
                     Ubicación {renderSortIcon('municipality')}
                   </button>

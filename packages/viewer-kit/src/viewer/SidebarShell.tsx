@@ -18,10 +18,13 @@ import clsx from 'clsx';
 
 export type SidebarState = 'closed' | 'compact' | 'expanded';
 
+export type SidebarVariant = 'glass' | 'solid';
+
 interface SidebarShellRootProps {
   side: 'left' | 'right';
   state: SidebarState;
   onStateChange: (state: SidebarState) => void;
+  variant?: SidebarVariant;
   compactWidth?: number;
   expandedWidth?: number;
   minWidth?: number;
@@ -44,6 +47,7 @@ function SidebarShellRoot({
   side,
   state,
   onStateChange,
+  variant = 'solid',
   compactWidth = 380,
   expandedWidth = 650,
   minWidth = 320,
@@ -109,34 +113,33 @@ function SidebarShellRoot({
     [side, width, minWidth, maxWidth, compactWidth, state, onStateChange],
   );
 
+  const surfaceClass = variant === 'glass'
+    ? 'bg-white/70 dark:bg-slate-900/60 backdrop-blur-md'
+    : 'bg-white dark:bg-slate-900';
+
   // --------------- Render ---------------
 
   return (
     <div
       className={clsx(
-        'relative flex flex-col h-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 z-nkz-rail shadow-nkz-lg rounded-xl pointer-events-auto',
-        'transition-all duration-nkz-normal',
-        side === 'left' ? 'border-r ml-4' : 'border-l mr-4',
+        'relative z-nkz-rail pointer-events-auto',
         !isOpen && 'border-0 shadow-none bg-transparent',
-        isOpen && className,
       )}
       style={{
-        width: isOpen ? `${width}px` : '0px',
-        minWidth: isOpen ? `${width}px` : '0px',
-        overflow: isOpen ? 'hidden' : 'visible',
+        width: isOpen ? `${width}px` : 'auto',
+        minWidth: isOpen ? `${width}px` : undefined,
       }}
     >
-      {/* ---------- Toggle button — always visible on the edge ---------- */}
-      {/* Mimics the original LeftPanel/RightPanel: round button, white glass, tooltip */}
+      {/* Toggle button — outside overflow container, always fully visible */}
       <button
         onClick={handleCycle}
         className={clsx(
-          'absolute top-1/2 -translate-y-1/2 z-40',
+          'absolute top-1/2 -translate-y-1/2 z-50 group',
           'p-2 rounded-full',
           'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl',
           'text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:scale-110',
           'active:scale-95 transition-all duration-300',
-          'flex items-center justify-center pointer-events-auto',
+          'flex items-center justify-center',
           isOpen
             ? (side === 'left' ? 'right-0 translate-x-1/2' : 'left-0 -translate-x-1/2')
             : (side === 'left' ? 'left-2' : 'right-2'),
@@ -152,7 +155,6 @@ function SidebarShellRoot({
             : 'Open sidebar'
         }
       >
-        {/* Chevron pointing in the appropriate direction */}
         <svg
           width="20"
           height="20"
@@ -178,8 +180,6 @@ function SidebarShellRoot({
             strokeLinejoin="round"
           />
         </svg>
-
-        {/* Tooltip on hover */}
         <span className={clsx(
           'absolute top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-xs rounded',
           'opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none',
@@ -194,12 +194,22 @@ function SidebarShellRoot({
         </span>
       </button>
 
-      {/* ---------- Open state: content ---------- */}
+      {/* Content container with overflow hidden — only rendered when open */}
       {isOpen && (
-        <>
+        <div
+          className={clsx(
+            'flex flex-col h-full',
+            surfaceClass,
+            'border border-slate-200 dark:border-slate-700',
+            side === 'left' ? 'border-r ml-4' : 'border-l mr-4',
+            'shadow-nkz-lg rounded-xl',
+            'transition-all duration-nkz-normal overflow-hidden',
+            className,
+          )}
+        >
           <div className="flex flex-col flex-1 min-h-0">{children}</div>
 
-          {/* Resize handle — sits on the inner edge */}
+          {/* Resize handle */}
           <div
             onMouseDown={handleResizeStart}
             className={clsx(
@@ -209,7 +219,7 @@ function SidebarShellRoot({
           >
             <div className="w-full h-full opacity-0 group-hover:opacity-100 transition-opacity bg-nkz-accent-base rounded-full" />
           </div>
-        </>
+        </div>
       )}
     </div>
   );

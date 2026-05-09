@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
+import re
 import requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -64,6 +65,24 @@ CONTEXT_URL = os.getenv(
     "CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json"
 )
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis-service:6379")
+
+
+def _make_headers(tenant_id: str) -> dict:
+    """Build Orion-LD headers with normalized tenant ID."""
+    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
+    n = re.sub(r'[^a-z0-9_]', '', n)
+    n = n.strip('_') or tenant_id
+    headers = {
+        "NGSILD-Tenant": n,
+        "Fiware-Service": n,
+        "Fiware-ServicePath": "/",
+        "Accept": "application/ld+json",
+    }
+    ctx = os.getenv("CONTEXT_URL", "")
+    if ctx:
+        headers["Link"] = f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    return headers
+
 
 # Build PostgreSQL URL
 if POSTGRES_PASSWORD:
@@ -137,12 +156,7 @@ class RiskProcessor:
     ) -> List[Dict[str, Any]]:
         """Get entities from Orion-LD, paginating through all results."""
         all_entities: List[Dict[str, Any]] = []
-        headers = {
-            "Accept": "application/json",
-            "NGSILD-Tenant": tenant_id,
-            "Fiware-Service": tenant_id,  # Legacy, remove after 2026-04-02
-            "Link": f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"',
-        }
+        headers = _make_headers(tenant_id)
         page_size = 200
         offset = 0
 
