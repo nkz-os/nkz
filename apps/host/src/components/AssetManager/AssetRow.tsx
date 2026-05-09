@@ -117,8 +117,8 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
     <div
       className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer transition-colors ${
         isSelected
-          ? 'bg-blue-50 hover:bg-blue-100'
-          : 'hover:bg-slate-50'
+          ? 'bg-white/15 hover:bg-white/20'
+          : 'hover:bg-white/10'
       }`}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
@@ -132,9 +132,9 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
         }}
         className="flex-shrink-0 p-1 rounded hover:bg-slate-200"
       >
-        {isSelected 
-          ? <CheckSquare className="w-4 h-4 text-blue-600" />
-          : <Square className="w-4 h-4 text-slate-300 hover:text-slate-400" />
+        {isSelected
+          ? <CheckSquare className="w-4 h-4 text-blue-400" />
+          : <Square className="w-4 h-4 text-white/30 hover:text-white/50" />
         }
       </button>
       
@@ -146,7 +146,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
         
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm text-slate-800 truncate" title={asset.name}>
+            <span className="font-medium text-sm text-white truncate" title={asset.name}>
               {asset.name}
             </span>
             {asset.hasLocation && (
@@ -154,7 +154,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
             )}
           </div>
           {!compact && asset.description && (
-            <p className="text-xs text-slate-500 truncate" title={asset.description}>
+            <p className="text-xs text-white/50 truncate" title={asset.description}>
               {asset.description}
             </p>
           )}
@@ -163,7 +163,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
       
       {/* Type */}
       <div className="w-28 flex-shrink-0">
-        <span className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full truncate inline-block max-w-full" title={typeInfo?.label || asset.type}>
+        <span className="text-xs text-white/60 bg-white/10 px-2 py-0.5 rounded-full truncate inline-block max-w-full" title={typeInfo?.label || asset.type}>
           {typeInfo?.label || asset.type}
         </span>
       </div>
@@ -186,7 +186,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
       {/* Location (only on medium+ screens and non-compact) */}
       {!compact && (
         <div className="w-32 flex-shrink-0 hidden md:block">
-          <span className="text-xs text-slate-500 truncate block" title={asset.municipality || (asset.hasLocation ? 'Con ubicación' : '—')}>
+          <span className="text-xs text-white/50 truncate block" title={asset.municipality || (asset.hasLocation ? 'Con ubicación' : '—')}>
             {asset.municipality || (asset.hasLocation ? 'Con ubicación' : '—')}
           </span>
         </div>
@@ -195,7 +195,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
       {/* Last Seen / Telemetry */}
       {!compact && asset.lastSeen && (
         <div className="w-28 flex-shrink-0 hidden xl:block text-right">
-          <span className="text-xs text-slate-400" title={formatDistanceToNow(asset.lastSeen, { addSuffix: true, locale: es })}>
+          <span className="text-xs text-white/40" title={formatDistanceToNow(asset.lastSeen, { addSuffix: true, locale: es })}>
             {formatDistanceToNow(asset.lastSeen, { addSuffix: true, locale: es })}
           </span>
         </div>
@@ -207,7 +207,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
           e.stopPropagation();
           onContextMenu?.(e);
         }}
-        className="flex-shrink-0 p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600"
+        className="flex-shrink-0 p-1 rounded hover:bg-white/10 text-white/40 hover:text-white/70"
       >
         <MoreVertical className="w-4 h-4" />
       </button>
