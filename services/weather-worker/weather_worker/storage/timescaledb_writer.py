@@ -268,6 +268,7 @@ class TimescaleDBWriter:
                                                 observed_at=obs_timestamp if isinstance(obs_timestamp, datetime) else None,
                                                 radius_km=10.0,
                                                 station_altitude_m=station_alt,
+                                                municipality_code=first_obs.get("municipality_code"),
                                             )
                                             if synced > 0:
                                                 logger.debug(f"Synced {synced} WeatherObserved entities to Orion-LD for timestamp {obs_timestamp}")
