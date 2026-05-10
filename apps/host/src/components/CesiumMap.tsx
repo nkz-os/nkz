@@ -1516,7 +1516,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     skipInitialParcelsFit
   );
 
-  useFlyToEntity(viewerRef, selectedEntity);
+  useFlyToEntity(viewerRef, selectedEntity, viewerContext?.entityListCameraNonce ?? 0);
 
   // Handle 3D Model Preview (PREVIEW_MODEL mode) (extracted hook)
   useModelPreview(viewerRef, isViewerReady, viewerContext);
