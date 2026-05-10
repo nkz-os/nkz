@@ -166,7 +166,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
   }, [sort, setSort]);
 
   const handleRowClick = useCallback((asset: UnifiedAsset) => {
-    selectEntity(asset.id, asset.type);
+    selectEntity(asset.id, asset.type, { cameraFrame: true });
   }, [selectEntity]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, asset: UnifiedAsset) => {

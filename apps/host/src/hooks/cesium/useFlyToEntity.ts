@@ -1,29 +1,30 @@
 import { useEffect, useRef } from 'react';
-import { getEntityCoordinates, getEntityGeometryType } from '@/utils/ngsiEntityCoordinates';
 import { logger } from '@/utils/logger';
 
 /**
- * Camera focus when the selected entity id/type changes (not when parent re-renders).
- * Runs after entity sync: caller must register this hook after the entities useEffect.
- * Parcels use a bounding-sphere distance derived from geometry (tighter framing).
+ * Camera framing only when `listCameraNonce` bumps (left entity list + cameraFrame).
+ * Map picks and module UI do not bump the nonce, so the camera is left unchanged.
+ * Parcels: `viewer.zoomTo(entity)` so Cesium frames the polygon hull (avoids ground-level punch-in).
  */
 export function useFlyToEntity(
   viewerRef: React.MutableRefObject<any>,
-  selectedEntity: any
+  selectedEntity: any,
+  listCameraNonce: number
 ) {
-  const entityId = selectedEntity?.id ?? null;
-  const entityKind = (selectedEntity?.type || selectedEntity?._type || '') as string;
   const selectedRef = useRef(selectedEntity);
   selectedRef.current = selectedEntity;
 
   useEffect(() => {
-    if (!viewerRef.current || !entityId) return;
+    if (!viewerRef.current || listCameraNonce === 0) return;
 
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
-    const viewer = viewerRef.current;
-    const latestSelected = selectedRef.current;
+    const latest = selectedRef.current;
+    const entityId = latest?.id ?? null;
+    if (!entityId) return;
+
+    const entityKind = (latest?.type || latest?._type || '') as string;
     let cesiumEntityId = '';
     let range = 500;
 
@@ -79,48 +80,38 @@ export function useFlyToEntity(
 
     const isParcel = entityKind === 'AgriParcel' || entityKind === 'parcel';
 
-    if (isParcel && latestSelected) {
-      try {
-        const coordinates = getEntityCoordinates(latestSelected);
-        const gType = getEntityGeometryType(latestSelected);
-        if (gType === 'Polygon' && coordinates?.[0] && Array.isArray(coordinates[0])) {
-          const positions: any[] = [];
-          (coordinates[0] as number[][]).forEach((coord: number[]) => {
-            if (Array.isArray(coord) && coord.length >= 2) {
-              const lon = Number(coord[0]);
-              const lat = Number(coord[1]);
-              if (!Number.isNaN(lon) && !Number.isNaN(lat)) {
-                positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, 0));
-              }
-            }
-          });
-          if (positions.length >= 3) {
-            const bs = Cesium.BoundingSphere.fromPoints(positions);
-            if (bs && Number.isFinite(bs.radius) && bs.radius > 0) {
-              const offsetRange = Math.min(Math.max(bs.radius * 2.05, 95), 45_000);
-              logger.debug('[useFlyToEntity] Parcel bounding sphere fly', { entityId, offsetRange });
-              viewer.camera.flyToBoundingSphere(bs, {
-                duration: 1.5,
-                offset: new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_FOUR, offsetRange),
-              });
-              return;
-            }
-          }
-        }
-      } catch (e) {
-        logger.warn('[useFlyToEntity] Parcel geometry fly failed, falling back:', e);
-      }
-    }
+    const attemptFly = (): boolean => {
+      const v = viewerRef.current;
+      if (!v || v.isDestroyed?.()) return true;
 
-    const entity = viewer.entities.getById(cesiumEntityId);
-    if (entity) {
-      logger.debug('[useFlyToEntity] flyTo entity', { cesiumEntityId, range });
-      viewer.flyTo(entity, {
+      if (isParcel) {
+        const e = v.entities.getById(cesiumEntityId);
+        if (!e) return false;
+        logger.debug('[useFlyToEntity] zoomTo parcel', { cesiumEntityId, listCameraNonce });
+        Promise.resolve(v.zoomTo(e)).catch((err: unknown) => {
+          logger.warn('[useFlyToEntity] zoomTo parcel failed:', err);
+        });
+        return true;
+      }
+
+      const entity = v.entities.getById(cesiumEntityId);
+      if (!entity) return false;
+      logger.debug('[useFlyToEntity] flyTo entity', { cesiumEntityId, range, listCameraNonce });
+      v.flyTo(entity, {
         duration: 1.5,
         offset: new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_FOUR, range),
       });
-    } else {
-      logger.warn('[useFlyToEntity] Entity not found:', cesiumEntityId);
-    }
-  }, [entityId, entityKind]);
+      return true;
+    };
+
+    if (attemptFly()) return;
+
+    let frames = 0;
+    const maxFrames = 15;
+    const tick = () => {
+      if (attemptFly() || frames++ >= maxFrames) return;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [listCameraNonce]);
 }

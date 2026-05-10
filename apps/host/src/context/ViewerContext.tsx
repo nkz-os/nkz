@@ -59,10 +59,18 @@ export interface StampOptions {
     randomRotation: boolean;
 }
 
+/** Options for {@link ViewerContextType.selectEntity} */
+export interface EntitySelectionOptions {
+    /** When true (left asset list only), map runs a camera framing flight */
+    cameraFrame?: boolean;
+}
+
 export interface ViewerState {
     // Entity selection
     selectedEntityId: string | null;
     selectedEntityType: string | null;
+    /** Bumps only when selecting from the left entity list with cameraFrame — Cesium uses this for fly-to */
+    entityListCameraNonce: number;
 
     // Temporal state
     currentDate: Date;
@@ -88,7 +96,7 @@ export interface ViewerState {
 
 interface ViewerContextType extends ViewerState {
     // Entity selection
-    selectEntity: (id: string | null, type?: string | null) => void;
+    selectEntity: (id: string | null, type?: string | null, options?: EntitySelectionOptions) => void;
     clearSelection: () => void;
 
     // Temporal control
@@ -176,6 +184,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
     // Entity selection
     const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
     const [selectedEntityType, setSelectedEntityType] = useState<string | null>(null);
+    const [entityListCameraNonce, setEntityListCameraNonce] = useState(0);
 
     // Temporal state - default to 90 days ago for satellite data availability
     const [currentDate, setCurrentDateState] = useState<Date>(() => {
@@ -255,10 +264,14 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
     }, []); // Run only on mount
 
     // Entity selection handlers
-    const selectEntity = useCallback((id: string | null, type?: string | null) => {
+    const selectEntity = useCallback((id: string | null, type?: string | null, options?: EntitySelectionOptions) => {
         setSelectedEntityId(id);
         setSelectedEntityType(type ?? null);
-        
+
+        if (options?.cameraFrame && id) {
+            setEntityListCameraNonce((n) => n + 1);
+        }
+
         // GLOBAL EVENT DISPATCH - Reliability bridge for remote modules
         window.dispatchEvent(new CustomEvent('nekazari:entity:selected', { 
             detail: { id, type: type ?? null } 
@@ -484,6 +497,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         // State
         selectedEntityId,
         selectedEntityType,
+        entityListCameraNonce,
         currentDate,
         isTimelinePlaying,
         activeLayers,
@@ -542,6 +556,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
     }), [
         selectedEntityId,
         selectedEntityType,
+        entityListCameraNonce,
         currentDate,
         isTimelinePlaying,
         activeLayers,
