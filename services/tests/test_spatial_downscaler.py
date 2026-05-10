@@ -5,9 +5,9 @@ Tests for spatial_downscaler — verify correction math is physically reasonable
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "weather-worker"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from weather_worker.processors.spatial_downscaler import (
+from common.weather_utils.spatial_downscaler import (
     correct_temperature_altitude,
     correct_solar_radiation_aspect,
     interpolate_idw,

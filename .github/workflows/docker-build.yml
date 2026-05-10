@@ -43,6 +43,9 @@ jobs:
           - service: weather-worker
             context: .
             dockerfile: services/weather-worker/Dockerfile
+          - service: weather-api
+            context: .
+            dockerfile: services/weather-api/Dockerfile
           - service: telemetry-worker
             context: .
             dockerfile: services/telemetry-worker/Dockerfile

@@ -4,7 +4,8 @@ Weather data processors
 
 from .metrics_calculator import MetricsCalculator
 from .data_transformer import DataTransformer
-from .spatial_downscaler import (
+# Moved to common/weather_utils/ — shared between weather-api and weather-worker
+from common.weather_utils.spatial_downscaler import (
     downscale_for_parcel,
     extract_parcel_terrain,
     interpolate_idw,
