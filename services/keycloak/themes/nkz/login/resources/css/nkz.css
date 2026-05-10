@@ -1,34 +1,147 @@
-/* NKZ branding for Keycloak v2 login (login, register, reset password, errors). */
+/* NKZ login theme — light white/mint + brand green (#144c4b from nkz-os-logo.svg). */
+
+:root {
+  --nkz-green: #144c4b;
+  --nkz-green-hover: #0f3d3c;
+  --nkz-green-muted: #e8f4f3;
+  --nkz-page-bg: #f2faf8;
+  --nkz-card-bg: #ffffff;
+  --nkz-text: #1a2e2e;
+  --nkz-text-muted: #4a6665;
+
+  /* Neutralise upstream Keycloak marketing assets (center logo + full-page watermark). */
+  --keycloak-logo-url: none;
+  --keycloak-bg-logo-url: none;
+  --keycloak-card-top-color: var(--nkz-green);
+}
+
+/* Hide legacy Keycloak wordmark block if any screen still renders .kc-logo-text */
+div.kc-logo-text {
+  display: none !important;
+}
+
+html,
+body#keycloak-bg {
+  background: var(--nkz-page-bg) !important;
+  background-image: none !important;
+  color: var(--nkz-text);
+}
+
+/* Safety: if dark class ever appears, keep NKZ light surfaces */
+html.pf-v5-theme-dark body#keycloak-bg,
+html.pf-v5-theme-dark .pf-v5-c-login__main {
+  background: var(--nkz-page-bg) !important;
+  color: var(--nkz-text) !important;
+}
+
+.pf-v5-c-login {
+  background: transparent;
+  min-height: 100vh;
+}
+
+.pf-v5-c-login__container {
+  padding-top: 1.5rem;
+  padding-bottom: 2rem;
+}
+
+/* --- Header: single centered NKZ block (logo + optional wordmark) --- */
+#kc-header.pf-v5-c-login__header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 1rem;
+}
 
 #kc-header-wrapper.pf-v5-c-brand {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  max-width: 36rem;
+  margin: 0 auto;
+  text-align: center;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  font-size: 1.25rem !important;
+  line-height: 1.3 !important;
+  color: var(--nkz-green) !important;
 }
 
-/* Decorative wordmark graphic; title text remains in markup for accessibility. */
 #kc-header-wrapper.pf-v5-c-brand::before {
   content: "";
   display: block;
-  width: 7.5rem;
-  height: 2rem;
+  width: min(14rem, 85vw);
+  height: 3.25rem;
   flex-shrink: 0;
-  background: url("../img/nkz-os-logo.svg") no-repeat left center / contain;
+  background: url("../img/nkz-os-logo.svg") no-repeat center center / contain;
+  margin: 0 auto;
 }
 
 #kc-header-wrapper .nkz-kc-wordmark {
   font-weight: 600;
-  letter-spacing: 0.01em;
+  color: var(--nkz-text);
 }
 
+/* Main card: white panel, green top accent from upstream border-top */
+.pf-v5-c-login__main {
+  background: var(--nkz-card-bg) !important;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 24px rgba(20, 76, 75, 0.1);
+  border: 1px solid rgba(20, 76, 75, 0.12);
+}
+
+.pf-v5-c-login__main-header {
+  border-top-color: var(--nkz-green) !important;
+}
+
+#kc-page-title {
+  color: var(--nkz-text) !important;
+}
+
+/* Primary actions & links */
+.pf-v5-c-button.pf-m-primary {
+  background-color: var(--nkz-green) !important;
+  border-color: var(--nkz-green) !important;
+  color: #fff !important;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+  background-color: var(--nkz-green-hover) !important;
+  border-color: var(--nkz-green-hover) !important;
+}
+
+.pf-v5-c-login__main-footer a,
+.pf-v5-c-login__main-body a {
+  color: var(--nkz-green) !important;
+}
+
+.pf-v5-c-login__main-footer a:hover,
+.pf-v5-c-login__main-body a:hover {
+  color: var(--nkz-green-hover) !important;
+}
+
+.pf-v5-c-form-control:focus {
+  border-color: var(--nkz-green) !important;
+  box-shadow: 0 0 0 1px var(--nkz-green);
+}
+
+/* Footer attribution */
 .nkz-kc-footer {
   display: block;
   text-align: center;
   margin-top: 1rem;
   padding-top: 0.5rem;
+  color: var(--nkz-text-muted);
 }
 
 .nkz-kc-footer-line a {
   font-weight: 500;
+  color: var(--nkz-green) !important;
+}
+
+.nkz-kc-footer-line a:hover {
+  color: var(--nkz-green-hover) !important;
 }
