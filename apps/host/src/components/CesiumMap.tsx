@@ -2,7 +2,7 @@
 // Cesium Map Component - GeoServer Integration
 // =============================================================================
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Maximize2,
   Minimize2,
@@ -18,9 +18,11 @@ import { useTerrainProvider } from '@/hooks/cesium/useTerrainProvider';
 import { use3DTiles } from '@/hooks/cesium/use3DTiles';
 import { useEntitySelection } from '@/hooks/cesium/useEntitySelection';
 import { useFlyToEntity } from '@/hooks/cesium/useFlyToEntity';
+import { useInitialParcelsFit } from '@/hooks/cesium/useInitialParcelsFit';
 import { useModelPreview } from '@/hooks/cesium/useModelPreview';
 import { logger } from '@/utils/logger';
 import { normalizeAssetUrl } from '@/utils/urlNormalizer';
+import { getEntityCoordinates, getEntityGeometryType } from '@/utils/ngsiEntityCoordinates';
 import type { RiskOverlayInfo } from '@/hooks/cesium/useRiskOverlay';
 // Removed hardcoded vegetation layer import - modules should use slot system
 
@@ -122,30 +124,6 @@ const getIconDataUri = (iconKeyOrUrl: string): string | null => {
   return null;
 };
 
-// Helper to safely extract coordinates handling both Normalized and Simplified NGSI-LD formats
-const getEntityCoordinates = (entity: any): any[] | undefined => {
-  if (!entity) return undefined;
-  // Standard GeoJSON at root (typical for Parcel objects in app)
-  if (entity.geometry?.coordinates) return entity.geometry.coordinates;
-  // Normalized NGSI-LD
-  if (entity.location?.value?.coordinates) return entity.location.value.coordinates;
-  // Simplified NGSI-LD (KeyValues)
-  if (entity.location?.coordinates) return entity.location.coordinates;
-  return undefined;
-};
-
-const getEntityGeometryType = (entity: any): string | undefined => {
-  if (!entity) return undefined;
-  // GeoJSON/Parcel
-  if (entity.geometry?.type) return entity.geometry.type;
-  // Normalized NGSI-LD
-  if (entity.location?.value?.type) return entity.location.value.type;
-  // Simplified NGSI-LD
-  if (entity.location?.type && entity.location.type !== 'GeoProperty') return entity.location.type;
-  return undefined;
-};
-
-
 /** Fallback UI shown when the browser cannot create a WebGL context */
 const WebGLFallback: React.FC = () => {
   const isFirefox = navigator.userAgent.includes('Firefox');
@@ -240,6 +218,12 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const cesiumLayerRef = useRef<any>(null);
   const viewerContext = useViewerOptional();
   const setCesiumViewer = viewerContext?.setCesiumViewer;
+
+  const parcelsIdentityKey = useMemo(
+    () => [...parcels].map((p) => String(p.id)).sort().join('|'),
+    [parcels]
+  );
+  const skipInitialParcelsFit = Boolean(viewerContext?.selectedEntityId);
 
   // Update local state if prop changes
   useEffect(() => {
@@ -599,9 +583,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       element.requestFullscreen?.().catch((err) => logger.warn('[CesiumMap] requestFullscreen failed', err));
     }
   };
-
-  // Fly to selected entity (extracted hook)
-  useFlyToEntity(viewerRef, selectedEntity);
 
   // Update entities when props change
 
@@ -1398,73 +1379,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         }
       });
 
-      // Calculate center of parcels for camera positioning
-      let parcelCenter: { lon: number; lat: number } | null = null;
-      if (parcels.length > 0) {
-        let totalLon = 0;
-        let totalLat = 0;
-        let count = 0;
-
-        parcels.forEach((parcel) => {
-          try {
-            const coordinates = getEntityCoordinates(parcel);
-            if (!coordinates) return;
-
-            const type = getEntityGeometryType(parcel);
-
-            if (type === 'Polygon' && Array.isArray(coordinates[0])) {
-              // Polygon: coords[0] is the outer ring
-              const outerRing = coordinates[0] as unknown as number[][];
-              outerRing.forEach((coord: number[]) => {
-                if (Array.isArray(coord) && coord.length >= 2) {
-                  const lon = Number(coord[0]);
-                  const lat = Number(coord[1]);
-                  if (!isNaN(lon) && !isNaN(lat)) {
-                    totalLon += lon;
-                    totalLat += lat;
-                    count++;
-                  }
-                }
-              });
-            } else if (type === 'Point') {
-              // Point: coordinates is [lon, lat]
-              if (Array.isArray(coordinates) && coordinates.length >= 2) {
-                const lon = Number(coordinates[0]);
-                const lat = Number(coordinates[1]);
-                if (!isNaN(lon) && !isNaN(lat)) {
-                  totalLon += lon;
-                  totalLat += lat;
-                  count++;
-                }
-              }
-            }
-          } catch (e) {
-            logger.warn('[CesiumMap] Error calculating center for parcel:', parcel.id, e);
-          }
-        });
-
-        if (count > 0) {
-          parcelCenter = {
-            lon: totalLon / count,
-            lat: totalLat / count,
-          };
-        }
-      }
-
-      // Center camera on parcels if available, otherwise use default Spain center
-      if (parcelCenter && viewer.camera) {
-        try {
-          if (!isNaN(parcelCenter.lon) && !isNaN(parcelCenter.lat)) {
-            viewer.camera.flyTo({
-              destination: Cesium.Cartesian3.fromDegrees(parcelCenter.lon, parcelCenter.lat, 10000),
-              duration: 2.0,
-            });
-          }
-        } catch (error) {
-          logger.warn('[CesiumMap] Error centering on parcels:', error);
-        }
-      }
-
       // Add parcels as polygons
       parcels.forEach((parcel, _index) => {
         try {
@@ -1587,12 +1501,22 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     parcels,
     enable3DTerrain,
     enable3DTiles,
-    selectedEntity,
+    selectedEntity?.id,
     riskOverlay,
     // Add context dependencies for preview
     viewerContext?.mapMode,
     viewerContext?.modelPlacement
   ]);
+
+  useInitialParcelsFit(
+    viewerRef,
+    isViewerReady,
+    parcelsIdentityKey,
+    parcels,
+    skipInitialParcelsFit
+  );
+
+  useFlyToEntity(viewerRef, selectedEntity);
 
   // Handle 3D Model Preview (PREVIEW_MODEL mode) (extracted hook)
   useModelPreview(viewerRef, isViewerReady, viewerContext);

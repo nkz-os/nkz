@@ -1,85 +1,126 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { getEntityCoordinates, getEntityGeometryType } from '@/utils/ngsiEntityCoordinates';
+import { logger } from '@/utils/logger';
 
 /**
- * Handles camera fly-to when a selected entity changes.
- * Each entity type has a type-specific zoom range.
- * Extracted from CesiumMap.tsx fly-to useEffect.
+ * Camera focus when the selected entity id/type changes (not when parent re-renders).
+ * Runs after entity sync: caller must register this hook after the entities useEffect.
+ * Parcels use a bounding-sphere distance derived from geometry (tighter framing).
  */
 export function useFlyToEntity(
   viewerRef: React.MutableRefObject<any>,
   selectedEntity: any
 ) {
-  useEffect(() => {
-    if (!viewerRef.current || !selectedEntity) return;
+  const entityId = selectedEntity?.id ?? null;
+  const entityKind = (selectedEntity?.type || selectedEntity?._type || '') as string;
+  const selectedRef = useRef(selectedEntity);
+  selectedRef.current = selectedEntity;
 
-    // @ts-ignore
+  useEffect(() => {
+    if (!viewerRef.current || !entityId) return;
+
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
     const viewer = viewerRef.current;
-    let entityId = '';
-
-    const type = selectedEntity.type || selectedEntity._type;
+    const latestSelected = selectedRef.current;
+    let cesiumEntityId = '';
     let range = 500;
 
-    switch (type) {
+    switch (entityKind) {
       case 'AgriParcel':
       case 'parcel':
-        entityId = `parcel-${selectedEntity.id}`;
+        cesiumEntityId = `parcel-${entityId}`;
         range = 1000;
         break;
       case 'AutonomousMobileRobot':
       case 'robot':
-        entityId = `robot-${selectedEntity.id}`;
+        cesiumEntityId = `robot-${entityId}`;
         range = 50;
         break;
       case 'AgriSensor':
       case 'sensor':
-        entityId = `sensor-${selectedEntity.id}`;
+        cesiumEntityId = `sensor-${entityId}`;
         range = 50;
         break;
       case 'ManufacturingMachine':
       case 'machine':
-        entityId = `machine-${selectedEntity.id}`;
+        cesiumEntityId = `machine-${entityId}`;
         range = 100;
         break;
       case 'LivestockAnimal':
       case 'livestock':
-        entityId = `livestock-${selectedEntity.id}`;
+        cesiumEntityId = `livestock-${entityId}`;
         range = 100;
         break;
       case 'WeatherObserved':
       case 'weather':
-        entityId = `weather-${selectedEntity.id}`;
+        cesiumEntityId = `weather-${entityId}`;
         range = 1000;
         break;
       case 'AgriCrop':
       case 'crop':
-        entityId = `crop-${selectedEntity.id}`;
+        cesiumEntityId = `crop-${entityId}`;
         range = 200;
         break;
       case 'AgriBuilding':
       case 'building':
-        entityId = `building-${selectedEntity.id}`;
+        cesiumEntityId = `building-${entityId}`;
         range = 300;
         break;
       case 'Device':
       case 'device':
-        entityId = `device-${selectedEntity.id}`;
+        cesiumEntityId = `device-${entityId}`;
         range = 50;
         break;
-      default: entityId = selectedEntity.id;
+      default:
+        cesiumEntityId = entityId;
     }
 
-    const entity = viewer.entities.getById(entityId);
+    const isParcel = entityKind === 'AgriParcel' || entityKind === 'parcel';
+
+    if (isParcel && latestSelected) {
+      try {
+        const coordinates = getEntityCoordinates(latestSelected);
+        const gType = getEntityGeometryType(latestSelected);
+        if (gType === 'Polygon' && coordinates?.[0] && Array.isArray(coordinates[0])) {
+          const positions: any[] = [];
+          (coordinates[0] as number[][]).forEach((coord: number[]) => {
+            if (Array.isArray(coord) && coord.length >= 2) {
+              const lon = Number(coord[0]);
+              const lat = Number(coord[1]);
+              if (!Number.isNaN(lon) && !Number.isNaN(lat)) {
+                positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, 0));
+              }
+            }
+          });
+          if (positions.length >= 3) {
+            const bs = Cesium.BoundingSphere.fromPoints(positions);
+            if (bs && Number.isFinite(bs.radius) && bs.radius > 0) {
+              const offsetRange = Math.min(Math.max(bs.radius * 2.05, 95), 45_000);
+              logger.debug('[useFlyToEntity] Parcel bounding sphere fly', { entityId, offsetRange });
+              viewer.camera.flyToBoundingSphere(bs, {
+                duration: 1.5,
+                offset: new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_FOUR, offsetRange),
+              });
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        logger.warn('[useFlyToEntity] Parcel geometry fly failed, falling back:', e);
+      }
+    }
+
+    const entity = viewer.entities.getById(cesiumEntityId);
     if (entity) {
-      console.log(`[CesiumMap] Flying to entity: ${entityId}, range: ${range}`);
+      logger.debug('[useFlyToEntity] flyTo entity', { cesiumEntityId, range });
       viewer.flyTo(entity, {
         duration: 1.5,
-        offset: new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_FOUR, range)
+        offset: new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_FOUR, range),
       });
     } else {
-      console.warn(`[CesiumMap] Entity not found: ${entityId}`);
+      logger.warn('[useFlyToEntity] Entity not found:', cesiumEntityId);
     }
-  }, [selectedEntity]);
+  }, [entityId, entityKind]);
 }
