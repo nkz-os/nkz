@@ -4,7 +4,7 @@
 // Full-screen viewer with persistent CesiumMap and collapsible overlay panels.
 // Uses the Slot System to render widgets from modules dynamically.
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { CesiumMap } from '@/components/CesiumMap';
 import { EntityWizard } from '@/components/EntityWizard';
 import { PlacementToolbar } from '@/components/EntityWizard/PlacementToolbar';
@@ -208,22 +208,19 @@ const UnifiedViewerInner: React.FC = () => {
         loadAllEntities();
     }, [loadAllEntities]);
 
-    // Get selected entity data for the map
-    const getSelectedEntityData = () => {
+    // Stable reference for map + context panel: avoids Cesium fly-to on unrelated viewer re-renders.
+    const selectedEntityForMap = useMemo(() => {
         if (!selectedEntityId) return undefined;
-
-        // Search in all entity arrays
         const allEntities = [
-            ...parcels.map(p => ({ ...p, _type: 'parcel' })),
-            ...robots.map(r => ({ ...r, _type: 'robot' })),
-            ...sensors.map(s => ({ ...s, _type: 'sensor' })),
-            ...machines.map(m => ({ ...m, _type: 'machine' })),
-            ...weatherStations.map(w => ({ ...w, _type: 'weather' })),
-            ...livestock.map(l => ({ ...l, _type: 'livestock' })),
+            ...parcels.map(p => ({ ...p, _type: 'parcel' as const })),
+            ...robots.map(r => ({ ...r, _type: 'robot' as const })),
+            ...sensors.map(s => ({ ...s, _type: 'sensor' as const })),
+            ...machines.map(m => ({ ...m, _type: 'machine' as const })),
+            ...weatherStations.map(w => ({ ...w, _type: 'weather' as const })),
+            ...livestock.map(l => ({ ...l, _type: 'livestock' as const })),
         ];
-
         return allEntities.find(e => e.id === selectedEntityId);
-    };
+    }, [selectedEntityId, parcels, robots, sensors, machines, weatherStations, livestock]);
 
     // Handle drawing completion (for DRAW_PARCEL mode)
     const handleDrawingComplete = useCallback((geometry: GeoPolygon, area: number | null) => {
@@ -447,7 +444,7 @@ const UnifiedViewerInner: React.FC = () => {
                     energyTrackers={energyTrackers} // AgriEnergyTracker (solar panels)
                     enable3DTerrain={true}
                     terrainProvider="auto"
-                    selectedEntity={getSelectedEntityData()}
+                    selectedEntity={selectedEntityForMap}
                     // vegetationLayerConfig removed - modules use slot system
                     // Disable entity selection when in drawing/editing/placement modes.
                     // 'picker' mode disables entity selection click handler, preventing
@@ -584,7 +581,7 @@ const UnifiedViewerInner: React.FC = () => {
                                 <SlotRenderer
                                     slot="context-panel"
                                     className="flex flex-col gap-3"
-                                    additionalProps={{ entityData: getSelectedEntityData() }}
+                                    additionalProps={{ entityData: selectedEntityForMap }}
                                     resetKeys={selectedEntityId ? [selectedEntityId] : []}
                                 />
                             </div>
