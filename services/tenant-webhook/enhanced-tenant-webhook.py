@@ -432,6 +432,7 @@ POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 CREATE_TENANT_SCRIPT = os.getenv("CREATE_TENANT_SCRIPT", "/app/scripts/create-tenant.sh")
 CREATE_ROS2_SCRIPT = os.getenv("CREATE_ROS2_SCRIPT", "/app/scripts/create-tenant-ros2.sh")
 TENANT_NAMESPACE_PREFIX = os.getenv("TENANT_NAMESPACE_PREFIX", "nekazari-tenant-")
+N8N_NKZ_SERVICE_URL = os.getenv("N8N_NKZ_SERVICE_URL", "http://n8n-nkz-api-service:8000")
 K8S_API_TIMEOUT = int(os.getenv("K8S_API_TIMEOUT", "15"))
 
 # Import config manager for URL construction
@@ -5460,6 +5461,95 @@ def handle_tenant_deleted(tenant_id: str, payload: dict[str, Any]) -> tuple:
     except Exception as e:
         logger.error(f"Error handling tenant deletion for {tenant_id}: {e}")
         return jsonify({"error": "Failed to process tenant deletion"}), 500
+
+
+# =============================================================================
+# n8n Provisioning — Internal endpoints called by billing module
+# =============================================================================
+# The billing module forwards n8n-related Stripe events here.
+# These call the n8n-nkz backend internal endpoints for provisioning lifecycle.
+
+
+@app.route(
+    "/internal/billing/tenants/<tenant_id>/n8n/provision",
+    methods=["POST"],
+)
+@limiter.exempt
+def internal_n8n_provision(tenant_id):
+    """Forward Stripe checkout.session.completed -> n8n-nkz provision."""
+    if not _verify_internal_billing_secret():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if not tenant_id or not re.match(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", tenant_id):
+        return jsonify({"error": "Invalid tenant_id"}), 400
+
+    data = request.get_json(silent=True) or {}
+    stripe_sub_id = data.get("stripe_subscription_id")
+
+    try:
+        resp = requests.post(
+            f"{N8N_NKZ_SERVICE_URL}/internal/n8n/provision",
+            json={
+                "tenant_id": tenant_id,
+                "stripe_subscription_id": stripe_sub_id,
+            },
+            headers={
+                "X-Internal-Billing-Secret": (os.getenv("INTERNAL_BILLING_SECRET") or ""),
+                "Content-Type": "application/json",
+            },
+            timeout=120,
+        )
+        if resp.status_code >= 400:
+            logger.error(f"n8n provision failed for {tenant_id}: {resp.status_code} {resp.text}")
+            return jsonify({"error": f"n8n provision failed: {resp.text}"}), 502
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"n8n provision error for {tenant_id}: {e}")
+        return jsonify({"error": str(e)}), 502
+
+
+@app.route(
+    "/internal/billing/tenants/<tenant_id>/n8n/suspension-event",
+    methods=["POST"],
+)
+@limiter.exempt
+def internal_n8n_suspension_event(tenant_id):
+    """Forward Stripe payment lifecycle events -> n8n-nkz suspension handler."""
+    if not _verify_internal_billing_secret():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if not tenant_id or not re.match(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", tenant_id):
+        return jsonify({"error": "Invalid tenant_id"}), 400
+
+    data = request.get_json(silent=True) or {}
+    event = data.get("event", "")
+
+    if event not in ("suspend", "reactivate", "grace_period"):
+        return jsonify({"error": f"Invalid event: {event}"}), 400
+
+    try:
+        resp = requests.post(
+            f"{N8N_NKZ_SERVICE_URL}/internal/n8n/suspension-event",
+            json={
+                "tenant_id": tenant_id,
+                "event": event,
+            },
+            headers={
+                "X-Internal-Billing-Secret": (os.getenv("INTERNAL_BILLING_SECRET") or ""),
+                "Content-Type": "application/json",
+            },
+            timeout=30,
+        )
+        if resp.status_code >= 400:
+            logger.error(
+                f"n8n suspension event failed for {tenant_id}: "
+                f"{resp.status_code} {resp.text}"
+            )
+            return jsonify({"error": f"n8n event failed: {resp.text}"}), 502
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        logger.error(f"n8n suspension event error for {tenant_id}: {e}")
+        return jsonify({"error": str(e)}), 502
 
 
 if __name__ == "__main__":
