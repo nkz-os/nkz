@@ -554,7 +554,7 @@ def sync_weather_to_orion(
             # Apply spatial downscaling for this specific parcel
             parcel_weather = weather_data
             try:
-                from weather_worker.processors.spatial_downscaler import (
+                from common.weather_utils.spatial_downscaler import (
                     downscale_for_parcel,
                     extract_parcel_terrain,
                 )

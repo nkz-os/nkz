@@ -149,11 +149,6 @@ logging.getLogger().setLevel(getattr(logging, LOG_LEVEL))
 # ---------------------------------------------------------------------------
 
 @app.before_request
-def handle_preflight():
-    if '/api/weather' in request.path:
-        logger.info(f"[before_request] Incoming request: {request.method} {request.path}, origin={request.headers.get('Origin')}, has_auth={bool(request.headers.get('Authorization'))}")
-
-@app.before_request
 def _start_timer():
     g._request_start_time = time.perf_counter()
 
@@ -165,15 +160,7 @@ def _record_metrics(response):
         REQUEST_LATENCY.labels(request.method, request.endpoint or request.path or 'unknown').observe(elapsed)
         REQUEST_COUNT.labels(request.method, request.endpoint or request.path or 'unknown', response.status_code).inc()
     origin = request.headers.get('Origin')
-    if request.method == 'OPTIONS' and '/api/weather' in request.path:
-        if origin and origin in ALLOWED_ORIGINS:
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Vary'] = 'Origin'
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Tenant-ID, x-tenant-id, X-Auth-Signature'
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
-            response.headers['Access-Control-Max-Age'] = '86400'
-    elif origin and origin in ALLOWED_ORIGINS:
+    if origin and origin in ALLOWED_ORIGINS:
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Vary'] = 'Origin'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
@@ -249,7 +236,7 @@ def get_tenant_limits_with_usage():
 # Blueprint registrations (at bottom to avoid circular imports)
 # ---------------------------------------------------------------------------
 
-from blueprints.weather import weather_bp
+# weather routes extracted to standalone weather-api service
 from blueprints.admin import admin_bp
 from blueprints.assets import assets_bp
 from blueprints.entities import entities_bp
@@ -257,7 +244,7 @@ from blueprints.sync import sync_bp
 from blueprints.modules import modules_bp
 from blueprints.sensors import sensors_bp
 
-app.register_blueprint(weather_bp)
+# weather_bp removed — routes now served by standalone weather-api service
 app.register_blueprint(admin_bp)
 app.register_blueprint(assets_bp)
 app.register_blueprint(entities_bp)

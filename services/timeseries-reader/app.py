@@ -50,8 +50,6 @@ except ImportError:
     def inject_fiware_headers(headers, tenant):
         headers["Fiware-Service"] = tenant
         return headers
-
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -65,8 +63,6 @@ except ImportError:
 
     def normalize_device_id(x):  # type: ignore
         return x.rsplit(":", 1)[-1] if x and ":" in x else (x or "")
-
-
 # Whitelist of valid column names to prevent SQL injection (weather_observations only).
 # Never interpolate user input into SQL as identifiers except values verified against these sets.
 VALID_ATTRIBUTES = frozenset(
@@ -100,14 +96,10 @@ _WEATHER_ATTRIBUTE_MAP: Dict[str, str] = {
 # DB column names also accepted (passthrough for scripts, direct API)
 for _col in VALID_ATTRIBUTES:
     _WEATHER_ATTRIBUTE_MAP.setdefault(_col, _col)
-
-
 def _resolve_weather_attribute(requested: str) -> Optional[str]:
     """Map NGSI-LD attribute name or DB column name to weather_observations column."""
     r = (requested or "").strip() if requested else ""
     return _WEATHER_ATTRIBUTE_MAP.get(r)
-
-
 # Whitelist for telemetry payload.measurements object keys (bound as %s via ->>; restricted to known names).
 # Extend via env TIMESERIES_V2_TELEMETRY_ATTR_WHITELIST_EXTRA=comma,separated,keys
 _VALID_TELEMETRY_BASE = frozenset(
@@ -140,16 +132,12 @@ _VALID_TELEMETRY_BASE = frozenset(
 _TELEMETRY_MEASUREMENT_UI_ALIASES: Dict[str, str] = {
     "sensorsinsolation": "solarRadiation",
 }
-
-
 def _telemetry_measurement_whitelist() -> frozenset:
     extra = os.getenv("TIMESERIES_V2_TELEMETRY_ATTR_WHITELIST_EXTRA", "")
     if not extra.strip():
         return _VALID_TELEMETRY_BASE
     more = frozenset(x.strip() for x in extra.split(",") if x.strip())
     return _VALID_TELEMETRY_BASE | more
-
-
 def _resolve_telemetry_measurement_key(requested: str) -> Optional[str]:
     """
     Map a requested attribute (from Orion/Data BFF) to the key inside payload.measurements.
@@ -165,8 +153,6 @@ def _resolve_telemetry_measurement_key(requested: str) -> Optional[str]:
     if canonical and canonical in twl:
         return canonical
     return None
-
-
 # Hard cap for POST /v2/query series count (DoS / query size). Override via env if needed.
 MAX_V2_QUERY_SERIES = int(os.getenv("MAX_V2_QUERY_SERIES", "10"))
 TIMESERIES_STATS_ENGINE = os.getenv("TIMESERIES_STATS_ENGINE", "v1").strip().lower()
@@ -191,13 +177,9 @@ if not POSTGRES_URL:
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 logger.setLevel(getattr(logging, LOG_LEVEL))
-
-
 # =============================================================================
 # Database Connection
 # =============================================================================
-
-
 def get_db_connection():
     """Get PostgreSQL connection"""
     try:
@@ -206,20 +188,14 @@ def get_db_connection():
     except Exception as e:
         logger.error(f"Database connection error: {e}")
         raise
-
-
 # =============================================================================
 # Helper Functions
 # =============================================================================
-
-
 def parse_datetime(value: str) -> datetime:
     """Parse ISO 8601 datetime string"""
     if isinstance(value, datetime):
         return value
     return isoparse(value)
-
-
 def get_tenant_from_request() -> Optional[str]:
     """Extract tenant ID: must agree with JWT (g.tenant) when gateway sends X-Tenant-ID/Fiware-Service."""
     if getattr(g, "system_gateway_delegation", False):
@@ -240,8 +216,6 @@ def get_tenant_from_request() -> Optional[str]:
         logger.warning("Tenant header does not match token tenant")
         return None
     return jwt_tenant or header_tenant
-
-
 def _resolve_tenant_context() -> Union[str, Tuple[Any, int]]:
     """Return tenant_id or (jsonify body, status_code)."""
     tenant_id = get_tenant_from_request()
@@ -250,8 +224,6 @@ def _resolve_tenant_context() -> Union[str, Tuple[Any, int]]:
     if not tenant_id:
         return jsonify({"error": "Tenant ID required"}), 400
     return tenant_id
-
-
 def format_time_bucket(aggregation: str) -> Optional[str]:
     """Convert aggregation type to TimescaleDB time_bucket interval"""
     mapping = {
@@ -262,8 +234,6 @@ def format_time_bucket(aggregation: str) -> Optional[str]:
         "monthly": "1 month",
     }
     return mapping.get(aggregation.lower(), "1 hour")
-
-
 # Standard intervals for quantization (seconds, PostgreSQL interval string).
 # Using standard intervals optimizes TimescaleDB query planner and cache.
 STANDARD_INTERVALS: List[Tuple[int, str]] = [
@@ -290,8 +260,6 @@ STANDARD_INTERVAL_STRINGS = frozenset(pg for _, pg in STANDARD_INTERVALS)
 _SAFE_DEVICE_ID = re.compile(r"^[a-zA-Z0-9_:.\-]{1,256}$")
 # Municipality INE-style or alphanumeric station keys (parameter binding only)
 _SAFE_WEATHER_ENTITY_KEY = re.compile(r"^[a-zA-Z0-9_.\-]{1,64}$")
-
-
 def _execute_align_query(
     conn,
     tenant_id: str,
@@ -368,8 +336,6 @@ def _execute_align_query(
             [r[f"value_{idx}"] for r in rows], type=pa.float64()
         )
     return pa.table(cols)
-
-
 def _execute_telemetry_align_query(
     conn,
     tenant_id: str,
@@ -447,8 +413,6 @@ def _execute_telemetry_align_query(
             [r[f"value_{idx}"] for r in rows], type=pa.float64()
         )
     return pa.table(cols)
-
-
 def _execute_v2_align_unified_sql(
     conn,
     tenant_id: str,
@@ -637,8 +601,6 @@ ORDER BY timestamp ASC
             [r[f"value_{idx}"] for r in rows], type=pa.float64()
         )
     return pa.table(cols_out)
-
-
 def calculate_dynamic_bucket(
     start_time: datetime, end_time: datetime, resolution: int
 ) -> str:
@@ -654,13 +616,9 @@ def calculate_dynamic_bucket(
         if raw_bucket_sec <= sec:
             return pg_interval
     return "1 month"
-
-
 # =============================================================================
 # API Endpoints
 # =============================================================================
-
-
 @app.route("/health", methods=["GET"])
 def health():
     """Health check endpoint"""
@@ -673,8 +631,6 @@ def health():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
-
-
 @app.route("/api/timeseries/entities", methods=["GET"])
 @require_auth
 def list_timeseries_entities():
@@ -723,8 +679,6 @@ def list_timeseries_entities():
     except Exception as e:
         logger.error(f"Error listing timeseries entities: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
-
-
 @app.route("/api/timeseries/entities/<entity_id>/data", methods=["GET"])
 @require_auth
 def get_entity_timeseries(entity_id: str):
@@ -931,8 +885,6 @@ def get_entity_timeseries(entity_id: str):
     except Exception as e:
         logger.error(f"Error querying timeseries: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
-
-
 @app.route("/api/timeseries/align", methods=["POST"])
 @require_auth
 def post_timeseries_align():
@@ -1011,8 +963,6 @@ def post_timeseries_align():
     except Exception as e:
         logger.error(f"Error in align: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
-
-
 def _get_s3_client():
     """S3 client for MinIO (exports bucket). Requires S3_* env vars."""
     import boto3
@@ -1031,12 +981,8 @@ def _get_s3_client():
         config=Config(signature_version="s3v4"),
         region_name=os.getenv("S3_REGION", "us-east-1"),
     )
-
-
 # Spool to disk above 25 MB to avoid OOM in the pod (Parquet export).
 _PARQUET_SPOOL_MAX_SIZE = 25 * 1024 * 1024
-
-
 def _upload_parquet_and_presign(table: pa.Table, tenant_id: str) -> Optional[str]:
     """
     Write table to MinIO under exports/<tenant_id>/<uuid>.parquet; return presigned GET URL or None.
@@ -1068,16 +1014,12 @@ def _upload_parquet_and_presign(table: pa.Table, tenant_id: str) -> Optional[str
     except Exception as e:
         logger.error(f"MinIO upload/presign failed: {e}", exc_info=True)
         return None
-
-
 # Export aggregation: analytical granularity, not screen resolution. "raw" = finest (1 second).
 EXPORT_AGGREGATION_MAP = {
     "raw": "1 second",
     "1 hour": "1 hour",
     "1 day": "1 day",
 }
-
-
 @app.route("/api/timeseries/export", methods=["POST"])
 @require_auth
 def post_timeseries_export():
@@ -1193,8 +1135,6 @@ def post_timeseries_export():
     except Exception as e:
         logger.error(f"Error in export: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
-
-
 def _build_telemetry_columnar(
     rows: List[Dict[str, Any]], attrs_filter: Optional[List[str]]
 ) -> Dict[str, Any]:
@@ -1255,8 +1195,6 @@ def _build_telemetry_columnar(
         for a in attr_list:
             attributes[a].append(rd.get(a))
     return {"timestamps": timestamps, "attributes": attributes}
-
-
 def _fetch_telemetry_rows(
     conn,
     tenant_id: str,
@@ -1291,8 +1229,6 @@ def _fetch_telemetry_rows(
         return list(cur.fetchall())
     finally:
         cur.close()
-
-
 def _weather_query_columnar(
     conn,
     tenant_id: str,
@@ -1337,8 +1273,6 @@ def _weather_query_columnar(
             v = row.get(a)
             attributes[a].append(float(v) if v is not None else None)
     return {"timestamps": timestamps, "attributes": attributes}
-
-
 @app.route("/api/timeseries/v2/entities/<path:entity_urn>/data", methods=["GET"])
 @require_auth
 def get_v2_entity_timeseries(entity_urn: str):
@@ -1525,8 +1459,6 @@ def get_v2_entity_timeseries(entity_urn: str):
                 "attributes": col["attributes"],
             }
         )
-
-
 @app.route("/api/timeseries/v2/query", methods=["POST"])
 @require_auth
 def post_v2_timeseries_query():
@@ -1682,8 +1614,6 @@ def post_v2_timeseries_query():
             "series_kind": series_kind,
         }
     )
-
-
 @app.route("/api/timeseries/entities/<entity_id>/stats", methods=["GET"])
 @require_auth
 def get_entity_stats(entity_id: str):
@@ -1785,188 +1715,6 @@ def get_entity_stats(entity_id: str):
     except Exception as e:
         logger.error(f"Error querying stats: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
-
-
-# =============================================================================
-# Weather API — unified weather data access for all platform modules
-# =============================================================================
-
-@app.route("/api/weather/current", methods=["GET"])
-@require_auth
-def weather_current():
-    """Latest weather for a location (lat/lon or municipality).
-
-    Returns: temp_avg, temp_min, temp_max, humidity_avg, precip_mm, eto_mm,
-             wind_speed_ms, wind_direction_deg, pressure_hpa, solar_rad_w_m2,
-             delta_t, gdd_accumulated, observed_at
-    """
-    auth_result = _resolve_tenant_context()
-    if isinstance(auth_result, tuple):
-        return auth_result
-    tenant_id = auth_result
-
-    lat = request.args.get("lat", type=float)
-    lon = request.args.get("lon", type=float)
-
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
-                )
-            except Exception:
-                pass
-
-            if lat is not None and lon is not None:
-                cursor.execute(
-                    """
-                    SELECT temp_avg, temp_min, temp_max, humidity_avg,
-                           precip_mm, eto_mm, wind_speed_ms, wind_direction_deg,
-                           pressure_hpa, solar_rad_w_m2, delta_t, gdd_accumulated,
-                           observed_at, municipality_code
-                    FROM weather_observations
-                    WHERE tenant_id = %s
-                      AND observed_at > NOW() - INTERVAL '3 hours'
-                    ORDER BY observed_at DESC
-                    LIMIT 1
-                    """,
-                    (tenant_id,),
-                )
-            else:
-                cursor.execute(
-                    """
-                    SELECT temp_avg, temp_min, temp_max, humidity_avg,
-                           precip_mm, eto_mm, wind_speed_ms, wind_direction_deg,
-                           pressure_hpa, solar_rad_w_m2, delta_t, gdd_accumulated,
-                           observed_at, municipality_code
-                    FROM weather_observations
-                    WHERE tenant_id = %s
-                      AND observed_at > NOW() - INTERVAL '3 hours'
-                    ORDER BY observed_at DESC
-                    LIMIT 1
-                    """,
-                    (tenant_id,),
-                )
-
-            row = cursor.fetchone()
-            if row is None:
-                return jsonify({"error": "No recent weather data"}), 404
-
-            return jsonify(dict(row)), 200
-    except Exception as e:
-        logger.error(f"Error querying current weather: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/weather/historical", methods=["GET"])
-@require_auth
-def weather_historical():
-    """Weather timeseries for a location and date range.
-
-    Query params: start_time (ISO 8601), end_time (ISO 8601, default=now),
-                  lat (optional), lon (optional), attributes (comma-separated)
-    """
-    auth_result = _resolve_tenant_context()
-    if isinstance(auth_result, tuple):
-        return auth_result
-    tenant_id = auth_result
-
-    start_time = request.args.get("start_time")
-    end_time = request.args.get("end_time")
-    attrs_param = request.args.get("attributes", "temp_avg,humidity_avg,precip_mm,eto_mm")
-
-    if not start_time:
-        return jsonify({"error": "start_time is required"}), 400
-
-    try:
-        import dateutil.parser
-        start_dt = dateutil.parser.parse(start_time)
-        end_dt = dateutil.parser.parse(end_time) if end_time else datetime.utcnow()
-
-        requested = [a.strip() for a in attrs_param.split(",") if a.strip() in VALID_ATTRIBUTES]
-        if not requested:
-            requested = ["temp_avg", "humidity_avg", "precip_mm", "eto_mm"]
-        columns = ", ".join(requested)
-
-        with get_db_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
-                )
-            except Exception:
-                pass
-
-            cursor.execute(
-                f"""
-                SELECT observed_at, {columns}
-                FROM weather_observations
-                WHERE tenant_id = %s
-                  AND observed_at >= %s
-                  AND observed_at < %s
-                ORDER BY observed_at ASC
-                """,
-                (tenant_id, start_dt, end_dt),
-            )
-            rows = cursor.fetchall()
-            return jsonify([dict(r) for r in rows]), 200
-    except Exception as e:
-        logger.error(f"Error querying historical weather: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/weather/gdd", methods=["GET"])
-@require_auth
-def weather_gdd():
-    """Growing Degree Days accumulated since a season start date.
-
-    Query params: base_temp (default=10.0), season_start (ISO 8601, required)
-    """
-    auth_result = _resolve_tenant_context()
-    if isinstance(auth_result, tuple):
-        return auth_result
-    tenant_id = auth_result
-
-    base_temp = request.args.get("base_temp", 10.0, type=float)
-    season_start = request.args.get("season_start")
-
-    if not season_start:
-        return jsonify({"error": "season_start is required"}), 400
-
-    try:
-        import dateutil.parser
-        start_dt = dateutil.parser.parse(season_start)
-
-        with get_db_connection() as conn:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cursor.execute(
-                    "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
-                )
-            except Exception:
-                pass
-
-            cursor.execute(
-                """
-                SELECT SUM(gdd_accumulated) AS gdd_total,
-                       COUNT(*) AS days_with_data,
-                       MIN(observed_at) AS first_date,
-                       MAX(observed_at) AS last_date
-                FROM weather_observations
-                WHERE tenant_id = %s
-                  AND observed_at >= %s
-                  AND gdd_accumulated IS NOT NULL
-                """,
-                (tenant_id, start_dt),
-            )
-            row = cursor.fetchone()
-            return jsonify(dict(row) if row else {"gdd_total": 0, "days_with_data": 0}), 200
-    except Exception as e:
-        logger.error(f"Error querying GDD: {e}")
-        return jsonify({"error": str(e)}), 500
-
-
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     debug = os.getenv("DEBUG", "false").lower() == "true"
