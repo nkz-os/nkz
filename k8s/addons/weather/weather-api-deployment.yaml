@@ -42,8 +42,8 @@ spec:
             - name: POSTGRES_URL
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
-                  key: url
+                  name: postgresql-secret
+                  key: postgres-url
             - name: ORION_URL
               value: "http://orion-ld-service:1026"
             - name: CONTEXT_URL
