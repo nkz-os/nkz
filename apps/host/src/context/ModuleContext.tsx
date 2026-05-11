@@ -6,9 +6,10 @@
 // through window.__NKZ__.register(). See utils/nkzRuntime.ts.
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { NekazariClient } from '@nekazari/sdk';
+import { NekazariClient, type ModuleApiContract } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { getConfig } from '@/config/environment';
+import { checkModuleContract } from '@/utils/moduleContract';
 
 // =============================================================================
 // Slot System Types
@@ -103,6 +104,8 @@ export interface ModuleDefinition {
   }>;
   // Slot system: widgets that this module contributes to the unified viewer
   viewerSlots?: ModuleViewerSlots;
+  // API contract for host compatibility checking (progressive feature)
+  apiContract?: ModuleApiContract;
 }
 
 /**
@@ -147,6 +150,11 @@ const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
     tenantConfig: module.tenantConfig && typeof module.tenantConfig === 'object' ? module.tenantConfig : undefined,
     navigationItems: Array.isArray(module.navigationItems) ? module.navigationItems : undefined,
     viewerSlots: module.viewerSlots && typeof module.viewerSlots === 'object' ? module.viewerSlots : undefined,
+    // API contract from backend response (camelCase) or manifest.json (snake_case)
+    apiContract: (() => {
+      const raw = module.apiContract ?? module.api_contract;
+      return raw && typeof raw === 'object' ? raw : undefined;
+    })(),
   };
 };
 
@@ -159,6 +167,7 @@ interface ModuleContextType {
   getModuleById: (id: string) => ModuleDefinition | undefined;
   getModuleByRoute: (path: string) => ModuleDefinition | undefined;
   visibilityRules: Record<string, { hiddenRoles: string[] }>;
+  incompatibleModules: ReadonlyMap<string, string>;
 }
 
 const ModuleContext = createContext<ModuleContextType | undefined>(undefined);
@@ -178,7 +187,8 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   const [modules, setModules] = useState<ModuleDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-   const [visibilityRules, setVisibilityRules] = useState<Record<string, { hiddenRoles: string[] }>>({});
+  const [visibilityRules, setVisibilityRules] = useState<Record<string, { hiddenRoles: string[] }>>({});
+  const [incompatibleModules, setIncompatibleModules] = useState<Map<string, string>>(new Map());
 
   const loadModules = useCallback(async () => {
     if (!isAuthenticated || !tenantId) {
@@ -296,6 +306,36 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
       });
 
       // =============================================================================
+      // Check API version contracts before loading module scripts
+      // =============================================================================
+      const incompatibleReasons = new Map<string, string>();
+
+      for (const [modId, modDef] of moduleMap.entries()) {
+        if (!modDef.remoteEntry && modDef.isLocal) continue;
+        const apiContract = modDef.apiContract;
+        if (!apiContract) {
+          // Module without a contract: log a warning but allow loading (progressive feature)
+          console.warn(
+            `[ModuleContext] Module "${modId}" does not declare an API contract. ` +
+            'Consider adding api_contract to manifest.json for compatibility guarantees.'
+          );
+          continue;
+        }
+        const result = checkModuleContract(apiContract);
+        if (!result.compatible) {
+          incompatibleReasons.set(modId, result.reason || 'Unknown incompatibility reason');
+          moduleMap.delete(modId);
+          console.warn(
+            `[ModuleContext] Module "${modId}" is incompatible with host: ${result.reason}`
+          );
+        }
+      }
+      setIncompatibleModules(incompatibleReasons);
+
+      // Filter remote modules for script loading (skip incompatible ones)
+      const filteredRemoteModules = remoteModules.filter(m => !incompatibleReasons.has(m.id));
+
+      // =============================================================================
       // Load IIFE bundles for remote modules
       // =============================================================================
       // Instead of Module Federation dynamic imports, we inject <script> tags.
@@ -324,7 +364,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
 
       // Load scripts for remote modules that have a bundle URL
       const { loadModuleScripts } = await import('@/utils/moduleLoader');
-      const modulesToLoad = remoteModules
+      const modulesToLoad = filteredRemoteModules
         .filter(m => m.remoteEntry && !m.isLocal)
         .map(m => ({ id: m.id, bundleUrl: m.remoteEntry! }));
 
@@ -393,6 +433,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     getModuleById,
     getModuleByRoute,
     visibilityRules,
+    incompatibleModules,
   };
 
   return (
