@@ -2368,7 +2368,7 @@ def proxy_weather_requests(subpath):
 
     try:
         # Build target URL
-        target_url = f"{ENTITY_MANAGER_URL}/api/weather/{subpath}"
+        target_url = f"{WEATHER_API_URL}/api/weather/{subpath}"
 
         # Prepare headers for entity-manager
         headers = {
