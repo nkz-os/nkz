@@ -4,7 +4,8 @@
 // Centralized registry for both local (bundled) and remote modules.
 // This eliminates duplication between SlotRegistry and ModuleContext.
 
-import type { ModuleDefinition, ModuleViewerSlots } from '@/context/ModuleContext';
+import type { ModuleDefinition } from '@/context/ModuleContext';
+import type { ModuleViewerSlots } from '@nekazari/sdk';
 
 // =============================================================================
 // Local Module Registry
