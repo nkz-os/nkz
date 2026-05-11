@@ -11,6 +11,9 @@ from flask import Flask, request, jsonify, make_response
 from flask_cors import cross_origin
 import jwt
 import requests
+
+# Module routes blueprint
+from module_routes import module_bp
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
@@ -3685,6 +3688,9 @@ def zulip_provisioning(subpath):
         logger.error("Zulip provisioner proxy error: %s", e)
         return jsonify({"error": "Provisioner unavailable"}), 502
 
+
+# Register dynamic module routing blueprint
+app.register_blueprint(module_bp)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
