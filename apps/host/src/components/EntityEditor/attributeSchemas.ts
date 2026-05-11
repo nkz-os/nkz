@@ -52,7 +52,8 @@ export const KNOWN_SCHEMAS: AttributeSchema[] = [
 
   // ── Relationships ──
   { key: 'refAgriParcel', labelKey: 'editor.field.refAgriParcel', type: 'relationship', section: 'relationships', targetType: 'AgriParcel', entityTypes: ['AgriSensor', 'Device', 'WeatherObserved', 'AgriEnergyTracker', 'PhotovoltaicInstallation', 'EnergyStorageSystem'] },
-  { key: 'refFarm', labelKey: 'editor.field.refFarm', type: 'relationship', section: 'relationships', targetType: 'AgriFarm', entityTypes: ['AgriParcel', 'Vineyard', 'OliveGrove', 'AutonomousMobileRobot', 'ManufacturingMachine'] },
+  // ASSUMPTION: refAgriFarm is the canonical NGSI-LD name. Legacy parcelApi.ts uses refFarm — this is a known bug filed separately.
+  { key: 'refAgriFarm', labelKey: 'editor.field.refAgriFarm', type: 'relationship', section: 'relationships', targetType: 'AgriFarm', entityTypes: ['AgriParcel', 'Vineyard', 'OliveGrove', 'AutonomousMobileRobot', 'ManufacturingMachine'] },
   { key: 'refDeviceProfile', labelKey: 'editor.field.refDeviceProfile', type: 'relationship', section: 'relationships', targetType: 'DeviceProfile', entityTypes: ['AgriSensor', 'Device'] },
   { key: 'refParent', labelKey: 'editor.field.refParent', type: 'relationship', section: 'relationships', entityTypes: ['AgriParcel', 'Vineyard', 'OliveGrove', 'AgriBuilding'] },
 
@@ -74,7 +75,7 @@ export function getSchemaByKey(key: string, entityType: string): AttributeSchema
     (s.entityTypes.includes('*') || s.entityTypes.includes(entityType)));
 }
 
-export function hasSection(section: string, entityType: string): boolean {
+export function hasSection(section: AttributeSchema['section'], entityType: string): boolean {
   return KNOWN_SCHEMAS.some(s => s.section === section &&
     (s.entityTypes.includes('*') || s.entityTypes.includes(entityType)));
 }

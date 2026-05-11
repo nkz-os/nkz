@@ -1,4 +1,4 @@
-import type { NGSIProperty, NGSIRelationship, NGSIGeoProperty } from '@/types/ngsi-ld';
+import type { NGSAttribute } from '@/types/ngsi-ld';
 
 export interface EntityEditorProps {
   entityId: string;
@@ -21,8 +21,6 @@ export interface AttributeSchema {
   targetType?: string;
   entityTypes: string[];
 }
-
-export type NGSAttribute = NGSIProperty | NGSIRelationship | NGSIGeoProperty;
 
 export interface EditorFormState {
   attributes: Record<string, NGSAttribute>;
