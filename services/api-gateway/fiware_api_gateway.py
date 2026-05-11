@@ -3160,6 +3160,11 @@ def generic_proxy(target_url, path):
     headers = {"X-Tenant-ID": tenant, "Authorization": f"Bearer {token}"}
     if request.headers.get("Content-Type"):
         headers["Content-Type"] = request.headers.get("Content-Type")
+    # Forward per-user DAD-IS credentials (FAO prohibits commercial use —
+    # each user brings their own API key stored client-side in localStorage)
+    for hdr in ("X-Dadis-Api-Url", "X-Dadis-Api-Token"):
+        if request.headers.get(hdr):
+            headers[hdr] = request.headers[hdr]
 
     try:
         resp = requests.request(
