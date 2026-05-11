@@ -1,85 +1,117 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { logger } from '@/utils/logger';
 
 /**
- * Handles camera fly-to when a selected entity changes.
- * Each entity type has a type-specific zoom range.
- * Extracted from CesiumMap.tsx fly-to useEffect.
+ * Camera framing only when `listCameraNonce` bumps (left entity list + cameraFrame).
+ * Map picks and module UI do not bump the nonce, so the camera is left unchanged.
+ * Parcels: `viewer.zoomTo(entity)` so Cesium frames the polygon hull (avoids ground-level punch-in).
  */
 export function useFlyToEntity(
   viewerRef: React.MutableRefObject<any>,
-  selectedEntity: any
+  selectedEntity: any,
+  listCameraNonce: number
 ) {
-  useEffect(() => {
-    if (!viewerRef.current || !selectedEntity) return;
+  const selectedRef = useRef(selectedEntity);
+  selectedRef.current = selectedEntity;
 
-    // @ts-ignore
+  useEffect(() => {
+    if (!viewerRef.current || listCameraNonce === 0) return;
+
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
-    const viewer = viewerRef.current;
-    let entityId = '';
+    const latest = selectedRef.current;
+    const entityId = latest?.id ?? null;
+    if (!entityId) return;
 
-    const type = selectedEntity.type || selectedEntity._type;
+    const entityKind = (latest?.type || latest?._type || '') as string;
+    let cesiumEntityId = '';
     let range = 500;
 
-    switch (type) {
+    switch (entityKind) {
       case 'AgriParcel':
       case 'parcel':
-        entityId = `parcel-${selectedEntity.id}`;
+        cesiumEntityId = `parcel-${entityId}`;
         range = 1000;
         break;
       case 'AutonomousMobileRobot':
       case 'robot':
-        entityId = `robot-${selectedEntity.id}`;
+        cesiumEntityId = `robot-${entityId}`;
         range = 50;
         break;
       case 'AgriSensor':
       case 'sensor':
-        entityId = `sensor-${selectedEntity.id}`;
+        cesiumEntityId = `sensor-${entityId}`;
         range = 50;
         break;
       case 'ManufacturingMachine':
       case 'machine':
-        entityId = `machine-${selectedEntity.id}`;
+        cesiumEntityId = `machine-${entityId}`;
         range = 100;
         break;
       case 'LivestockAnimal':
       case 'livestock':
-        entityId = `livestock-${selectedEntity.id}`;
+        cesiumEntityId = `livestock-${entityId}`;
         range = 100;
         break;
       case 'WeatherObserved':
       case 'weather':
-        entityId = `weather-${selectedEntity.id}`;
+        cesiumEntityId = `weather-${entityId}`;
         range = 1000;
         break;
       case 'AgriCrop':
       case 'crop':
-        entityId = `crop-${selectedEntity.id}`;
+        cesiumEntityId = `crop-${entityId}`;
         range = 200;
         break;
       case 'AgriBuilding':
       case 'building':
-        entityId = `building-${selectedEntity.id}`;
+        cesiumEntityId = `building-${entityId}`;
         range = 300;
         break;
       case 'Device':
       case 'device':
-        entityId = `device-${selectedEntity.id}`;
+        cesiumEntityId = `device-${entityId}`;
         range = 50;
         break;
-      default: entityId = selectedEntity.id;
+      default:
+        cesiumEntityId = entityId;
     }
 
-    const entity = viewer.entities.getById(entityId);
-    if (entity) {
-      console.log(`[CesiumMap] Flying to entity: ${entityId}, range: ${range}`);
-      viewer.flyTo(entity, {
+    const isParcel = entityKind === 'AgriParcel' || entityKind === 'parcel';
+
+    const attemptFly = (): boolean => {
+      const v = viewerRef.current;
+      if (!v || v.isDestroyed?.()) return true;
+
+      if (isParcel) {
+        const e = v.entities.getById(cesiumEntityId);
+        if (!e) return false;
+        logger.debug('[useFlyToEntity] zoomTo parcel', { cesiumEntityId, listCameraNonce });
+        Promise.resolve(v.zoomTo(e)).catch((err: unknown) => {
+          logger.warn('[useFlyToEntity] zoomTo parcel failed:', err);
+        });
+        return true;
+      }
+
+      const entity = v.entities.getById(cesiumEntityId);
+      if (!entity) return false;
+      logger.debug('[useFlyToEntity] flyTo entity', { cesiumEntityId, range, listCameraNonce });
+      v.flyTo(entity, {
         duration: 1.5,
-        offset: new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_FOUR, range)
+        offset: new Cesium.HeadingPitchRange(0, -Cesium.Math.PI_OVER_FOUR, range),
       });
-    } else {
-      console.warn(`[CesiumMap] Entity not found: ${entityId}`);
-    }
-  }, [selectedEntity]);
+      return true;
+    };
+
+    if (attemptFly()) return;
+
+    let frames = 0;
+    const maxFrames = 15;
+    const tick = () => {
+      if (attemptFly() || frames++ >= maxFrames) return;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [listCameraNonce]);
 }

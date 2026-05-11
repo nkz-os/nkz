@@ -23,9 +23,10 @@ CONTEXT_URL = os.getenv("CONTEXT_URL", "")
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers with normalized tenant ID — both NGSI-LD + FIWARE."""
     import re
-    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
-    n = re.sub(r'[^a-z0-9_]', '', n)
-    n = n.strip('_') or tenant_id
+
+    n = tenant_id.lower().strip().replace("-", "_").replace(" ", "_")
+    n = re.sub(r"[^a-z0-9_]", "", n)
+    n = n.strip("_") or tenant_id
     headers = {
         "NGSILD-Tenant": n,
         "Fiware-Service": n,
@@ -33,7 +34,9 @@ def _make_headers(tenant_id: str) -> dict:
         "Accept": "application/ld+json",
     }
     if CONTEXT_URL:
-        headers["Link"] = f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+        headers["Link"] = (
+            f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+        )
     return headers
 
 
@@ -554,7 +557,7 @@ def sync_weather_to_orion(
             # Apply spatial downscaling for this specific parcel
             parcel_weather = weather_data
             try:
-                from weather_worker.processors.spatial_downscaler import (
+                from weather_utils.spatial_downscaler import (
                     downscale_for_parcel,
                     extract_parcel_terrain,
                 )
@@ -566,7 +569,9 @@ def sync_weather_to_orion(
                         weather_data=weather_data,
                         parcel_lat=parcel_location[1],
                         parcel_lon=parcel_location[0],
-                        parcel_altitude_m=parcel_alt if parcel_alt > 0 else station_altitude_m,
+                        parcel_altitude_m=parcel_alt
+                        if parcel_alt > 0
+                        else station_altitude_m,
                         station_altitude_m=station_altitude_m,
                         parcel_aspect_deg=parcel_aspect,
                         parcel_slope_deg=parcel_slope,
@@ -575,7 +580,9 @@ def sync_weather_to_orion(
             except ImportError:
                 pass  # downscaler not available, use uncorrected data
             except Exception as exc:
-                logger.debug(f"Spatial downscaling skipped for parcel {parcel_id}: {exc}")
+                logger.debug(
+                    f"Spatial downscaling skipped for parcel {parcel_id}: {exc}"
+                )
 
             # Create/update WeatherObserved entity with corrected weather
             entity_id = create_weather_observed_entity(
