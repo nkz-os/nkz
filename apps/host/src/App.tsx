@@ -13,7 +13,7 @@
 // Everything else should come from marketplace modules.
 // =============================================================================
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/KeycloakAuthContext';
 import { NekazariI18nProvider } from '@nekazari/sdk';
@@ -44,6 +44,7 @@ import { Risks } from '@/pages/Risks';
 import { IntelligenceInfoPage } from '@/pages/IntelligenceInfoPage';
 import { NotFound } from '@/components/error/NotFound';
 import MobileViewer from '@/pages/MobileViewer';
+import { EntityEditorModal, initEntityEditorListener, type EditorEventDetail } from '@/components/EntityEditor';
 import { hostI18nConfig } from '@/config/hostI18nConfig';
 
 // Dynamic routes component that includes remote modules
@@ -216,7 +217,24 @@ const AppRoutes = () => {
 };
 
 const AppInitializer = () => {
-  return <AppRoutes />;
+  const [editorState, setEditorState] = useState<EditorEventDetail | null>(null);
+
+  useEffect(() => {
+    return initEntityEditorListener((detail) => setEditorState(detail));
+  }, []);
+
+  return (
+    <>
+      <AppRoutes />
+      <EntityEditorModal
+        entityId={editorState?.entityId || ''}
+        entityType={editorState?.entityType || ''}
+        isOpen={!!editorState}
+        onClose={() => setEditorState(null)}
+        onSuccess={() => setEditorState(null)}
+      />
+    </>
+  );
 };
 
 // Simple fallback component that shows diagnostic info
