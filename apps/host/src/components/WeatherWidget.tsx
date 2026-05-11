@@ -5,7 +5,7 @@
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { Cloud, Thermometer, Droplets, Wind, MapPin, Search, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Cloud, Thermometer, Droplets, Wind, MapPin, Search, Loader2, AlertCircle, RefreshCw, Sprout } from 'lucide-react';
 import api from '@/services/api';
 import { useI18n } from '@/context/I18nContext';
 import { useTenantMunicipality } from '@/hooks/useTenantMunicipality';
@@ -38,6 +38,11 @@ interface ForecastData {
   precipitacion_proba?: number;
 }
 
+interface ParcelOption {
+  id: string;
+  name: string;
+}
+
 interface WeatherWidgetProps {
   municipalityCode?: string;
   municipalityName?: string;
@@ -45,6 +50,7 @@ interface WeatherWidgetProps {
   longitude?: number;
   parcelId?: string;
   onMunicipalitySelect?: (code: string, name: string) => void;
+  onParcelSelect?: (parcelId: string, parcelName: string) => void;
 }
 
 export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
@@ -54,6 +60,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   longitude: _longitude,
   parcelId,
   onMunicipalitySelect,
+  onParcelSelect,
 }) => {
   const { t } = useI18n();
   
@@ -72,32 +79,63 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     effective_to: string;
     description: string;
   }>>([]);
-  const [showMunicipalitySearch, setShowMunicipalitySearch] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [municipalities, setMunicipalities] = useState<Array<{ code: string; name: string; province?: string; fullName?: string }>>([]);
-  const [searchingMunicipalities, setSearchingMunicipalities] = useState(false);
   const [selectedMunicipalityName, setSelectedMunicipalityName] = useState<string | null>(
     municipalityName || tenantMunicipality?.name || null
   );
-  const [selectedMunicipalityProvince, setSelectedMunicipalityProvince] = useState<string | null>(null);
+
+  // Parcel state
+  const [parcels, setParcels] = useState<ParcelOption[]>([]);
+  const [loadingParcels, setLoadingParcels] = useState(false);
+  const [showParcelSearch, setShowParcelSearch] = useState(false);
+  const [parcelSearchTerm, setParcelSearchTerm] = useState('');
+  const [localParcelId, setLocalParcelId] = useState<string | undefined>(undefined);
+  const [localParcelName, setLocalParcelName] = useState<string | null>(null);
   
   // Determine which municipality code to use (priority: prop > tenant)
   const effectiveMunicipalityCode = municipalityCode || tenantMunicipality?.code;
+  const effectiveParcelId = parcelId || localParcelId;
 
-  // Load weather data
+  // Fetch parcels on mount
   useEffect(() => {
-    if (effectiveMunicipalityCode) {
+    let cancelled = false;
+    const loadParcels = async () => {
+      setLoadingParcels(true);
+      try {
+        const result = await api.getParcels();
+        if (!cancelled) {
+          const items: ParcelOption[] = (result || [])
+            .filter((e: any) => e?.id)
+            .map((e: any) => ({
+              id: e.id,
+              name: e.name?.value || e.name || e.id?.split(':')?.pop() || 'Parcela',
+            }));
+          setParcels(items);
+        }
+      } catch (err) {
+        logger.warn('[WeatherWidget] Error loading parcels:', err);
+      } finally {
+        if (!cancelled) setLoadingParcels(false);
+      }
+    };
+    loadParcels();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load weather data (parcel priority > municipality)
+  useEffect(() => {
+    if (effectiveParcelId) {
+      loadWeatherByParcel(effectiveParcelId);
+    } else if (effectiveMunicipalityCode) {
       loadWeatherByMunicipality(
         effectiveMunicipalityCode,
         municipalityName || tenantMunicipality?.name,
         tenantMunicipality?.province
       );
     } else {
-      // Try to get primary location from tenant weather locations
       loadWeatherFromPrimaryLocation();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveMunicipalityCode, municipalityCode, tenantMunicipality]);
+  }, [effectiveParcelId, effectiveMunicipalityCode, municipalityCode, tenantMunicipality]);
 
   const loadWeatherFromPrimaryLocation = async () => {
     setLoading(true);
@@ -131,7 +169,123 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     }
   };
 
-  const loadWeatherByMunicipality = async (code?: string, name?: string, province?: string) => {
+  const loadWeatherByParcel = async (pid: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [historyRes, forecastRes] = await Promise.all([
+        api.getParcelWeather(pid, { source: 'OPEN-METEO', data_type: 'HISTORY', limit: 1 }),
+        api.getParcelWeather(pid, { source: 'OPEN-METEO', data_type: 'FORECAST', limit: 96 }),
+      ]);
+
+      const observations = historyRes?.observations || [];
+      const forecastObs = forecastRes?.observations || [];
+      setDownscaling(historyRes?.downscaling || null);
+
+      if (observations.length > 0) {
+        const latest = observations[0];
+        setWeatherData({
+          observed_at: latest.observed_at,
+          temp_avg: latest.temp_avg,
+          temp_min: latest.temp_min,
+          temp_max: latest.temp_max,
+          humidity_avg: latest.humidity_avg,
+          precip_mm: latest.precip_mm,
+          pressure_hpa: latest.pressure_hpa,
+          viento: {
+            direccion: latest.wind_direction_deg ? `${latest.wind_direction_deg}°` : 'N',
+            velocidad: latest.wind_speed_ms ? Math.round(latest.wind_speed_ms * 3.6) : 0,
+          },
+        });
+      } else {
+        setWeatherData(null);
+      }
+
+      // Process forecast
+      if (forecastObs.length > 0) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const maxDate = new Date(today);
+        maxDate.setDate(maxDate.getDate() + 5);
+
+        const dailyData = new Map<string, { temps: number[]; precip: number[] }>();
+        forecastObs.forEach((obs: any) => {
+          if (!obs.observed_at) return;
+          const obsDate = new Date(obs.observed_at);
+          if (isNaN(obsDate.getTime())) return;
+          const obsDateOnly = new Date(obsDate.getFullYear(), obsDate.getMonth(), obsDate.getDate());
+          const dateKey = obsDateOnly.toISOString().split('T')[0];
+          const todayTime = today.getTime();
+          const obsTime = obsDateOnly.getTime();
+          if (obsTime >= todayTime && obsTime <= maxDate.getTime()) {
+            if (!dailyData.has(dateKey)) dailyData.set(dateKey, { temps: [], precip: [] });
+            const dayData = dailyData.get(dateKey)!;
+            if (obs.temp_avg != null) dayData.temps.push(obs.temp_avg);
+            if (obs.temp_min != null) dayData.temps.push(obs.temp_min);
+            if (obs.temp_max != null) dayData.temps.push(obs.temp_max);
+            if (obs.precip_mm != null && obs.precip_mm > 0) dayData.precip.push(obs.precip_mm);
+          }
+        });
+
+        const forecastTransformed = Array.from(dailyData.entries())
+          .map(([dateKey, dayData]) => {
+            const dateOnly = new Date(dateKey + 'T00:00:00');
+            const temps = dayData.temps.filter(t => t != null);
+            const tMax = temps.length > 0 ? Math.max(...temps) : 0;
+            const tMin = temps.length > 0 ? Math.min(...temps) : 0;
+            const totalPrecip = dayData.precip.reduce((s, p) => s + p, 0);
+            return {
+              fecha: dateKey,
+              fechaDate: new Date(dateOnly.getFullYear(), dateOnly.getMonth(), dateOnly.getDate()),
+              t_maxima: tMax,
+              t_minima: tMin,
+              estado_cielo: totalPrecip > 0 ? 'Lluvia' : 'Despejado',
+              precipitacion_proba: totalPrecip > 0 ? Math.min(100, totalPrecip * 10) : 0,
+            };
+          })
+          .filter(item => item.fechaDate.getTime() >= today.getTime())
+          .sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime())
+          .slice(0, 5);
+
+        setForecast(forecastTransformed);
+      } else {
+        setForecast([]);
+      }
+
+      // Load alerts for parcel's municipality
+      if (historyRes?.municipality_code) {
+        try {
+          const alertData = await api.getWeatherAlerts({ municipality_code: historyRes.municipality_code });
+          setAlerts(alertData.alerts || []);
+        } catch {
+          setAlerts([]);
+        }
+      }
+    } catch (err: any) {
+      logger.warn('[WeatherWidget] Parcel weather failed, falling back to municipality:', err);
+      if (effectiveMunicipalityCode) {
+        await loadWeatherByMunicipality(
+          effectiveMunicipalityCode,
+          municipalityName || tenantMunicipality?.name,
+          tenantMunicipality?.province
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleParcelSelect = (id: string, name: string) => {
+    setLocalParcelId(id);
+    setLocalParcelName(name);
+    setShowParcelSearch(false);
+    setParcelSearchTerm('');
+    if (onParcelSelect) {
+      onParcelSelect(id, name);
+    }
+  };
+
+  const loadWeatherByMunicipality = async (code?: string, name?: string, _province?: string) => {
     const targetCode = code || municipalityCode;
     if (!targetCode) return;
 
@@ -139,62 +293,25 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     setError(null);
 
     try {
-      // When a parcel is selected, use the corrected parcel weather API
-      const useParcelApi = !!(parcelId && parcelId.length > 0);
-      let observations: any[] = [];
-      let forecastObs: any[] = [];
-      let parcelDownscaling: string | null = null;
+      // Municipality-based query
+      setDownscaling(null);
+      const observations = await api.getLatestWeatherObservations({
+        municipality_code: targetCode,
+        source: 'OPEN-METEO',
+        data_type: 'HISTORY',
+      });
 
-      if (useParcelApi) {
-        try {
-          const parcelWeather = await api.getParcelWeather(parcelId!, {
-            source: 'OPEN-METEO',
-            data_type: 'HISTORY',
-            limit: 1,
-          });
-          if (parcelWeather && parcelWeather.observations?.length > 0) {
-            observations = parcelWeather.observations;
-            parcelDownscaling = parcelWeather.downscaling || null;
-
-            // Also fetch forecast for this parcel
-            const parcelForecast = await api.getParcelWeather(parcelId!, {
-              source: 'OPEN-METEO',
-              data_type: 'FORECAST',
-              limit: 96,
-            });
-            forecastObs = parcelForecast?.observations || [];
-          }
-          setDownscaling(parcelDownscaling);
-        } catch (err) {
-          logger.warn('Parcel weather API failed, falling back to municipality:', err);
-          // Fall through to municipality-based query
-        }
-      }
-
-      // Municipality-based query (fallback or primary)
-      if (observations.length === 0) {
-        setDownscaling(null);
-        observations = await api.getLatestWeatherObservations({
+      // Get forecast data
+      let forecastData: { observations?: any[]; count?: number } | null = null;
+      try {
+        forecastData = await api.getWeatherObservations({
           municipality_code: targetCode,
           source: 'OPEN-METEO',
-          data_type: 'HISTORY',
+          data_type: 'FORECAST',
+          limit: 200,
         });
-      }
-
-      // Get forecast data if not already loaded from parcel API
-      let forecastData: { observations?: any[]; count?: number } | null = null;
-      if (forecastObs.length === 0) {
-        try {
-          forecastData = await api.getWeatherObservations({
-            municipality_code: targetCode,
-            source: 'OPEN-METEO',
-            data_type: 'FORECAST',
-            limit: 200,
-          });
-        } catch (forecastErr) {
-          logger.warn('Error fetching forecast data:', forecastErr);
-          // Continue without forecast - not critical
-        }
+      } catch (forecastErr) {
+        logger.warn('Error fetching forecast data:', forecastErr);
       }
 
       // No data in DB for this municipality — show clean empty state
@@ -213,7 +330,6 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
       if (observations.length > 0) {
         const latest = observations[0];
         if (name) setSelectedMunicipalityName(name);
-        if (province) setSelectedMunicipalityProvince(province || null);
         // Transform to widget format
         setWeatherData({
           observed_at: latest.observed_at,
@@ -230,10 +346,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         });
       }
 
-      // Process forecast from parcel API or DB
-      const forecastObservations = forecastObs.length > 0
-        ? forecastObs
-        : (forecastData?.observations || []);
+      // Process forecast from DB
+      const forecastObservations = forecastData?.observations || [];
 
       let forecastProcessed = false;
       if (forecastObservations.length > 0) {
@@ -367,85 +481,6 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     }
   };
 
-  const searchMunicipalities = async (term: string) => {
-    if (term.length < 2) {
-      setMunicipalities([]);
-      return;
-    }
-
-    setSearchingMunicipalities(true);
-    try {
-      logger.debug('[WeatherWidget] Searching municipalities with term:', term);
-      // Search in catalog using API endpoint (searches AEMET/INE catalog)
-      const response = await api.searchMunicipalities(term);
-      logger.debug('[WeatherWidget] Search response:', response);
-      const municipalities = response.municipalities || [];
-      
-      const filtered = municipalities.map((mun: any) => ({
-        code: mun.ine_code || mun.code,
-        name: mun.name,
-        province: mun.province,
-        fullName: mun.province ? `${mun.name} (${mun.province})` : mun.name,
-      }));
-      
-      logger.debug('[WeatherWidget] Filtered municipalities:', filtered);
-      setMunicipalities(filtered);
-    } catch (err: any) {
-      logger.error('[WeatherWidget] Error searching municipalities:', err);
-      logger.error('[WeatherWidget] Error details:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status,
-      });
-      setMunicipalities([]);
-      // Show error to user
-      setError(`Error buscando municipios: ${err.message || 'Error desconocido'}`);
-    } finally {
-      setSearchingMunicipalities(false);
-    }
-  };
-
-  useEffect(() => {
-    if (searchTerm) {
-      const timeout = setTimeout(() => searchMunicipalities(searchTerm), 300);
-      return () => clearTimeout(timeout);
-    } else {
-      setMunicipalities([]);
-    }
-  }, [searchTerm]);
-
-  const handleMunicipalitySelect = async (code: string, name: string, province?: string) => {
-    if (onMunicipalitySelect) {
-      onMunicipalitySelect(code, name);
-    }
-    setSelectedMunicipalityName(name);
-    setSelectedMunicipalityProvince(province || null);
-    setShowMunicipalitySearch(false);
-    setSearchTerm('');
-    setMunicipalities([]);
-    
-    // Ensure location exists in tenant_weather_locations
-    try {
-      const locations = await api.getWeatherLocations();
-      const locationExists = locations.some((loc: any) => loc.municipality_code === code);
-      
-      if (!locationExists) {
-        // Create location automatically if it doesn't exist
-        await api.createWeatherLocation({
-          municipality_code: code,
-          is_primary: locations.length === 0, // Set as primary if it's the first one
-          label: name,
-        });
-      }
-    } catch (err) {
-      logger.warn('Error ensuring weather location exists:', err);
-      // Continue anyway - the widget can still work without the location in the DB
-    }
-    
-    // Load weather for selected municipality
-    await loadWeatherByMunicipality(code, name, province);
-  };
-
   return (
     <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
       {/* Header */}
@@ -456,26 +491,36 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             <div>
               <h2 className="text-xl font-bold text-white">{t('weather.widget_title')}</h2>
               <p className="text-sm text-blue-100">
-                {selectedMunicipalityName || municipalityName || tenantMunicipality?.name || t('weather.widget_subtitle_select')}
-                {selectedMunicipalityProvince || tenantMunicipality?.province ? ` (${selectedMunicipalityProvince || tenantMunicipality?.province})` : ''}
+                {localParcelName
+                  ? `${localParcelName}`
+                  : selectedMunicipalityName || municipalityName || tenantMunicipality?.name || t('weather.widget_subtitle_select')}
+                {!localParcelName && tenantMunicipality?.province ? ` (${tenantMunicipality?.province})` : ''}
               </p>
             </div>
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => setShowMunicipalitySearch(!showMunicipalitySearch)}
+              onClick={() => setShowParcelSearch(!showParcelSearch)}
               className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white text-sm flex items-center gap-2"
             >
-              <Search className="w-4 h-4" />
-              {municipalityName ? t('weather.change_municipality') : t('weather.search_municipality')}
+              <Sprout className="w-4 h-4" />
+              {effectiveParcelId
+                ? t('weather.change_parcel') || 'Cambiar parcela'
+                : t('weather.select_parcel') || 'Seleccionar parcela'}
             </button>
             <button
-              onClick={() => effectiveMunicipalityCode && loadWeatherByMunicipality(
-                effectiveMunicipalityCode,
-                municipalityName || tenantMunicipality?.name,
-                tenantMunicipality?.province
-              )}
-              disabled={loading || !effectiveMunicipalityCode}
+              onClick={() => {
+                if (effectiveParcelId) {
+                  loadWeatherByParcel(effectiveParcelId);
+                } else if (effectiveMunicipalityCode) {
+                  loadWeatherByMunicipality(
+                    effectiveMunicipalityCode,
+                    municipalityName || tenantMunicipality?.name,
+                    tenantMunicipality?.province
+                  );
+                }
+              }}
+              disabled={loading || (!effectiveParcelId && !effectiveMunicipalityCode)}
               className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -484,52 +529,54 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         </div>
       </div>
 
-      {/* Municipality Search */}
-      {showMunicipalitySearch && (
+      {/* Parcel Search */}
+      {showParcelSearch && (
         <div className="p-4 bg-gray-50 border-b">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={t('weather.search_placeholder')}
+              value={parcelSearchTerm}
+              onChange={(e) => setParcelSearchTerm(e.target.value)}
+              placeholder={t('weather.search_parcel_placeholder') || 'Buscar parcela...'}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
-            {searchingMunicipalities && (
+            {loadingParcels && (
               <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />
             )}
           </div>
-          {searchingMunicipalities ? (
+          {loadingParcels ? (
             <div className="mt-2 p-4 text-center text-gray-500">
               <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-              <p className="text-sm">Buscando municipios...</p>
+              <p className="text-sm">{t('weather.loading_parcels') || 'Cargando parcelas...'}</p>
             </div>
-          ) : municipalities.length > 0 ? (
+          ) : parcels.length > 0 ? (
             <div className="mt-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg bg-white shadow-lg">
-              {municipalities.map((municipality) => (
-                <button
-                  key={municipality.code}
-                  onClick={() => handleMunicipalitySelect(municipality.code, municipality.name, municipality.province)}
-                  className="w-full px-4 py-2 text-left hover:bg-blue-50 transition flex items-center gap-2 border-b border-gray-100 last:border-b-0"
-                >
-                  <MapPin className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-900 block truncate">
-                      {municipality.fullName || municipality.name}
-                    </span>
-                    {municipality.province && municipality.name !== municipality.province && (
-                      <span className="text-xs text-gray-500">{municipality.province}</span>
-                    )}
-                  </div>
-                </button>
-              ))}
+              {parcels
+                .filter(p => !parcelSearchTerm || p.name.toLowerCase().includes(parcelSearchTerm.toLowerCase()))
+                .map((parcel) => (
+                  <button
+                    key={parcel.id}
+                    onClick={() => handleParcelSelect(parcel.id, parcel.name)}
+                    className={`w-full px-4 py-2 text-left hover:bg-green-50 transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
+                      effectiveParcelId === parcel.id ? 'bg-green-100 font-medium' : ''
+                    }`}
+                  >
+                    <MapPin className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span className="text-sm text-gray-900 truncate">{parcel.name}</span>
+                  </button>
+                ))}
+              {parcels.filter(p => !parcelSearchTerm || p.name.toLowerCase().includes(parcelSearchTerm.toLowerCase())).length === 0 && (
+                <div className="p-3 text-sm text-gray-500 text-center">
+                  {t('weather.no_parcels_found') || 'No se encontraron parcelas'}
+                </div>
+              )}
             </div>
-          ) : searchTerm.length >= 2 ? (
+          ) : (
             <div className="mt-2 p-3 text-sm text-gray-500 text-center bg-gray-50 rounded-lg">
-              No se encontraron municipios. Intenta con otro término de búsqueda.
+              {t('weather.no_parcels') || 'No hay parcelas disponibles'}
             </div>
-          ) : null}
+          )}
         </div>
       )}
 
@@ -701,10 +748,10 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             <Cloud className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-600 mb-4">{t('weather.no_data')}</p>
             <button
-              onClick={() => setShowMunicipalitySearch(true)}
+              onClick={() => setShowParcelSearch(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
             >
-              {t('weather.search_municipality_button')}
+              {t('weather.select_parcel_button') || 'Seleccionar parcela'}
             </button>
           </div>
         )}

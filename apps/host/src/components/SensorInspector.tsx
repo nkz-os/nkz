@@ -14,7 +14,8 @@ import {
     Gauge,
     MapPin,
     Cpu,
-    Cable
+    Cable,
+    Pencil
 } from 'lucide-react';
 import {
     Chart as ChartJS,
@@ -27,6 +28,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import api from '@/services/api';
+import { openEntityEditor } from '@/components/EntityEditor';
 import { ConnectivityPanel } from './connectivity';
 import { ManagementPanel } from './management';
 import { Settings } from 'lucide-react';
@@ -284,12 +286,22 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                             <p className="text-gray-400 text-xs">{entityType}</p>
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => openEntityEditor(entity.id, entity.type)}
+                            className="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition flex items-center gap-1"
+                            title="Editar entidad"
+                        >
+                            <Pencil className="w-3.5 h-3.5" />
+                            Editar
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Time Range Selector */}

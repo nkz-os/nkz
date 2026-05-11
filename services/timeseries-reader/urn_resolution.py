@@ -97,8 +97,7 @@ def _find_nearest_weather_municipality(
 ) -> Optional[Tuple[str, str]]:
     """
     Find the nearest municipality that has weather data for the given tenant.
-    Uses PostGIS KNN (geometry <-> point) on catalog_municipalities joined
-    with weather_observations.
+    Uses PostGIS KNN directly on weather_observations.location.
     """
     if not POSTGRES_URL:
         return None
@@ -107,16 +106,12 @@ def _find_nearest_weather_municipality(
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
             """
-            SELECT cm.ine_code, cm.name,
-                   ST_Distance(cm.geom, ST_SetSRID(ST_MakePoint(%s, %s), 4326)) as dist_m
-            FROM catalog_municipalities cm
-            WHERE cm.geom IS NOT NULL
-              AND EXISTS (
-                  SELECT 1 FROM weather_observations wo
-                  WHERE wo.municipality_code = cm.ine_code
-                    AND wo.tenant_id = %s
-              )
-            ORDER BY cm.geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+            SELECT wo.municipality_code,
+                   ST_Distance(wo.location, ST_SetSRID(ST_MakePoint(%s, %s), 4326)) as dist_m
+            FROM weather_observations wo
+            WHERE wo.tenant_id = %s
+              AND wo.location IS NOT NULL
+            ORDER BY wo.location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
             LIMIT 1
             """,
             (lon, lat, tenant_id, lon, lat),
@@ -127,9 +122,9 @@ def _find_nearest_weather_municipality(
         if row:
             logger.debug(
                 "Spatial resolution: nearest municipality %s at %.0fm for (%.4f, %.4f)",
-                row["ine_code"], row["dist_m"], lat, lon,
+                row["municipality_code"], row["dist_m"], lat, lon,
             )
-            return (row["ine_code"], "municipality")
+            return (row["municipality_code"], "municipality")
     except Exception as e:
         logger.warning("Spatial weather resolution failed: %s", e)
     return None

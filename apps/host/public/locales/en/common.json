@@ -899,6 +899,79 @@
       "enterprise": "Enterprise"
     }
   },
+  "editor": {
+    "title": "Edit entity",
+    "unsaved_changes": "Unsaved changes",
+    "confirm_discard": "Discard changes?",
+    "select_entity": "Select entity...",
+    "search_entity": "Search...",
+    "no_results": "No results",
+    "section": {
+      "basic": "Basic attributes",
+      "kinematic": "Kinematics & hitch",
+      "geometry": "Geometry",
+      "relationships": "Relationships",
+      "visual": "Visualization",
+      "additional": "Additional attributes"
+    },
+    "geometry": {
+      "placeholder": "Geometry editor",
+      "hint": "Edit coordinates manually or use the map (next iteration)",
+      "polygon_hint": "Polygon — edit vertices on the map (next iteration).",
+      "vertices": "vertices"
+    },
+    "field": {
+      "name": "Name",
+      "description": "Description",
+      "category": "Category",
+      "manufacturer": "Manufacturer",
+      "serialNumber": "Serial number",
+      "isobusCompatible": "ISOBUS compatible",
+      "status": "Status",
+      "notes": "Notes",
+      "elevation": "Elevation",
+      "location": "Location",
+      "trackWidth": "Track width",
+      "wheelbase": "Wheelbase",
+      "gpsOffsetX": "GPS offset X",
+      "gpsOffsetY": "GPS offset Y",
+      "gpsOffsetZ": "GPS offset Z",
+      "hitchType": "Hitch type",
+      "hitchOffsetX": "Hitch offset X",
+      "implementLength": "Implement length",
+      "implementWidth": "Implement width",
+      "implementOffsetX": "Implement offset X",
+      "steeringType": "Steering type",
+      "steeringAxles": "Steering axles",
+      "refAgriParcel": "Associated parcel",
+      "refAgriFarm": "Farm",
+      "refDeviceProfile": "Device profile",
+      "refParent": "Parent entity",
+      "icon2d": "2D icon",
+      "ref3DModel": "3D model",
+      "modelScale": "Model scale",
+      "modelRotation": "Model rotation"
+    },
+    "hitch": {
+      "none": "None",
+      "three_point": "Three-point",
+      "drawbar": "Drawbar",
+      "pintle": "Pintle",
+      "ball": "Ball"
+    },
+    "steering": {
+      "ackermann": "Ackermann",
+      "articulated": "Articulated",
+      "skid_steer": "Skid-steer",
+      "differential": "Differential"
+    },
+    "axle": {
+      "front": "Front",
+      "rear": "Rear",
+      "both": "Both",
+      "none": "None"
+    }
+  },
   "common": {
     "error": "Error",
     "saving": "Saving...",

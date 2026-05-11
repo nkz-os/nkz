@@ -960,6 +960,79 @@
       "enterprise": "Enterprise"
     }
   },
+  "editor": {
+    "title": "Editar entidad",
+    "unsaved_changes": "Cambios sin guardar",
+    "confirm_discard": "¿Descartar cambios?",
+    "select_entity": "Seleccionar entidad...",
+    "search_entity": "Buscar...",
+    "no_results": "Sin resultados",
+    "section": {
+      "basic": "Atributos básicos",
+      "kinematic": "Cinemática y enganche",
+      "geometry": "Geometría",
+      "relationships": "Relaciones",
+      "visual": "Visualización",
+      "additional": "Atributos adicionales"
+    },
+    "geometry": {
+      "placeholder": "Editor de geometría",
+      "hint": "Edita las coordenadas manualmente o usa el mapa (próxima iteración)",
+      "polygon_hint": "Polígono — edición de vértices en el mapa (próxima iteración).",
+      "vertices": "vértices"
+    },
+    "field": {
+      "name": "Nombre",
+      "description": "Descripción",
+      "category": "Categoría",
+      "manufacturer": "Fabricante",
+      "serialNumber": "Nº de serie",
+      "isobusCompatible": "Compatible ISOBUS",
+      "status": "Estado",
+      "notes": "Notas",
+      "elevation": "Elevación",
+      "location": "Ubicación",
+      "trackWidth": "Ancho de vía",
+      "wheelbase": "Batalla",
+      "gpsOffsetX": "Offset GPS X",
+      "gpsOffsetY": "Offset GPS Y",
+      "gpsOffsetZ": "Offset GPS Z",
+      "hitchType": "Tipo de enganche",
+      "hitchOffsetX": "Offset enganche X",
+      "implementLength": "Longitud apero",
+      "implementWidth": "Ancho apero",
+      "implementOffsetX": "Offset apero X",
+      "steeringType": "Tipo de dirección",
+      "steeringAxles": "Ejes directrices",
+      "refAgriParcel": "Parcela asociada",
+      "refAgriFarm": "Explotación",
+      "refDeviceProfile": "Perfil de dispositivo",
+      "refParent": "Entidad padre",
+      "icon2d": "Icono 2D",
+      "ref3DModel": "Modelo 3D",
+      "modelScale": "Escala modelo",
+      "modelRotation": "Rotación modelo"
+    },
+    "hitch": {
+      "none": "Ninguno",
+      "three_point": "Tripuntal",
+      "drawbar": "Barra de tiro",
+      "pintle": "Pintle",
+      "ball": "Bola"
+    },
+    "steering": {
+      "ackermann": "Ackermann",
+      "articulated": "Articulada",
+      "skid_steer": "Skid-steer",
+      "differential": "Diferencial"
+    },
+    "axle": {
+      "front": "Delantero",
+      "rear": "Trasero",
+      "both": "Ambos",
+      "none": "Ninguno"
+    }
+  },
   "common": {
     "error": "Error",
     "saving": "Guardando...",
