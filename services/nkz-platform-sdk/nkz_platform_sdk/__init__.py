@@ -11,8 +11,15 @@ License: Apache-2.0 — modules using this SDK may use any license.
 """
 
 from nkz_platform_sdk.auth import require_auth, AuthContext
+from nkz_platform_sdk.orion import OrionClient
+from nkz_platform_sdk.lifecycle import ModuleLifecycle, LifecycleResult
+from nkz_platform_sdk.config import ModuleConfig
 
 __all__ = [
     "require_auth",
     "AuthContext",
+    "OrionClient",
+    "ModuleLifecycle",
+    "LifecycleResult",
+    "ModuleConfig",
 ]
