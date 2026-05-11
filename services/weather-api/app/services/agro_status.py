@@ -9,7 +9,7 @@ spraying, workability, and irrigation semaphores.
 import logging
 import math
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 
@@ -31,7 +31,9 @@ def _calc_delta_t(temp_celsius: float, humidity_percent: float) -> Optional[floa
         return None
 
 
-def _calc_water_balance(precip_3d: Optional[float], et0_3d: Optional[float]) -> Optional[float]:
+def _calc_water_balance(
+    precip_3d: Optional[float], et0_3d: Optional[float]
+) -> Optional[float]:
     """Calculate 3-day water balance (precipitation - ET0)."""
     if precip_3d is not None and et0_3d is not None:
         return round(precip_3d - et0_3d, 2)
@@ -44,9 +46,17 @@ def calculate_agro_status(
     parcel_entity: dict,
     sensor_data: Optional[dict] = None,
     openmeteo_api_url: str = "https://api.open-meteo.com/v1",
+    parcel_altitude_m: float = 0.0,
+    station_altitude_m: float = 0.0,
+    parcel_aspect_deg: float = 0.0,
+    parcel_slope_deg: float = 0.0,
 ) -> dict:
     """
     Calculate agronomic status with semaphores for a parcel.
+
+    Applies spatial downscaling (altitude lapse rate, aspect/slope solar
+    radiation correction) to the Open-Meteo data before computing semaphores,
+    so the agronomic status reflects the parcel's actual microclimate.
 
     Returns a dict with weather, semaphores, and metrics.
     """
@@ -69,9 +79,39 @@ def calculate_agro_status(
     current = data.get("current", {})
     daily = data.get("daily", {})
 
+    raw_temperature = current.get("temperature_2m")
+    raw_humidity = current.get("relative_humidity_2m")
+
+    # 1.5 — Apply spatial downscaling for parcel-specific microclimate
+    downscaling_applied = False
+    if raw_temperature is not None and (
+        abs(parcel_altitude_m - station_altitude_m) > 10 or parcel_slope_deg >= 1.0
+    ):
+        try:
+            from common.weather_utils.spatial_downscaler import (
+                correct_temperature_altitude,
+                recalculate_delta_t,
+            )
+
+            # Altitude lapse rate: 6.5°C per 1000m
+            if abs(parcel_altitude_m - station_altitude_m) > 10:
+                raw_temperature = correct_temperature_altitude(
+                    raw_temperature, station_altitude_m, parcel_altitude_m
+                )
+                downscaling_applied = True
+
+            # Recalculate Delta-T from corrected T and RH
+            if raw_humidity is not None:
+                _ = recalculate_delta_t(raw_temperature, raw_humidity)  # used below
+
+        except ImportError:
+            logger.debug("Spatial downscaler not available for agro-status")
+        except Exception as exc:
+            logger.warning(f"Agro-status downscaling error: {exc}")
+
     openmeteo_data = {
-        "temperature": current.get("temperature_2m"),
-        "humidity": current.get("relative_humidity_2m"),
+        "temperature": raw_temperature,
+        "humidity": raw_humidity,
         "wind_speed": current.get("wind_speed_10m"),
         "wind_direction": current.get("wind_direction_10m"),
         "pressure": current.get("pressure_msl"),
@@ -146,7 +186,11 @@ def calculate_agro_status(
         delta_t = _calc_delta_t(fused["temperature"], fused["humidity"])
 
     # 5. Semaphores
-    semaphores = {"spraying": "unknown", "workability": "unknown", "irrigation": "unknown"}
+    semaphores = {
+        "spraying": "unknown",
+        "workability": "unknown",
+        "irrigation": "unknown",
+    }
 
     wind_speed_ms = fused.get("wind_speed") or 0
     wind_speed_kmh = wind_speed_ms * 3.6
@@ -218,5 +262,6 @@ def calculate_agro_status(
             "wind_speed": fused.get("wind_speed"),
         },
         "source_confidence": fused.get("source_confidence", "OPEN-METEO"),
+        "downscaling": "applied" if downscaling_applied else "unavailable",
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
