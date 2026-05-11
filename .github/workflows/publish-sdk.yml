@@ -16,6 +16,7 @@ on:
       - "packages/viewer-kit/**"
       - "packages/design-tokens/**"
       - "packages/module-builder/**"
+      - "packages/module-kit/**"
       - ".github/workflows/publish-sdk.yml"
 
 jobs:
@@ -30,6 +31,7 @@ jobs:
           - viewer-kit
           - design-tokens
           - module-builder
+          - module-kit
     permissions:
       contents: write
       id-token: write
@@ -46,7 +48,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
