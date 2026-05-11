@@ -82,16 +82,17 @@ def get_nearest_municipality(
             cur.execute(
                 """
                 SELECT
-                    ine_code, name, province, autonomous_community,
-                    latitude, longitude,
+                    cm.ine_code, cm.name, cm.province, cm.autonomous_community,
+                    cm.latitude, cm.longitude,
                     ST_Distance(
-                        geom::geography,
+                        wo.location::geography,
                         ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
                     ) / 1000.0 as distance_km
-                FROM catalog_municipalities
-                WHERE geom IS NOT NULL
+                FROM weather_observations wo
+                JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
+                WHERE wo.location IS NOT NULL
                 AND ST_Distance(
-                    geom::geography,
+                    wo.location::geography,
                     ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
                 ) / 1000.0 <= %s
                 ORDER BY distance_km ASC
