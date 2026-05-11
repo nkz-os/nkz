@@ -122,22 +122,22 @@ def get_parcel_weather(
             cur.execute(
                 """
                 SELECT
-                    cm.ine_code as municipality_code,
+                    wo.municipality_code,
                     cm.name as municipality_name,
-                    cm.latitude as station_lat,
-                    cm.longitude as station_lon,
+                    ST_Y(wo.location) as station_lat,
+                    ST_X(wo.location) as station_lon,
                     ST_Distance(
-                        cm.geom,
+                        wo.location,
                         ST_SetSRID(ST_MakePoint(%s, %s), 4326)
                     ) as distance_m
-                FROM catalog_municipalities cm
-                WHERE cm.latitude IS NOT NULL
-                  AND cm.longitude IS NOT NULL
-                  AND cm.geom IS NOT NULL
-                ORDER BY cm.geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                FROM weather_observations wo
+                LEFT JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
+                WHERE wo.tenant_id = %s
+                  AND wo.location IS NOT NULL
+                ORDER BY wo.location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
                 LIMIT 1
                 """,
-                (parcel_lon, parcel_lat, parcel_lon, parcel_lat),
+                (parcel_lon, parcel_lat, tenant_id, parcel_lon, parcel_lat),
             )
             municipality = cur.fetchone()
             if not municipality:
@@ -379,10 +379,9 @@ def get_parcel_agro_status(
                 """
                 SELECT wo.metadata->>'station_elevation_m' as station_elevation_m
                 FROM weather_observations wo
-                JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
                 WHERE wo.tenant_id = %s
-                  AND cm.geom IS NOT NULL
-                ORDER BY cm.geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                  AND wo.location IS NOT NULL
+                ORDER BY wo.location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
                 LIMIT 1
                 """,
                 (tenant_id, lon, lat),

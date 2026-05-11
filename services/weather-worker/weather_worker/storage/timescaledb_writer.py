@@ -161,6 +161,7 @@ class TimescaleDBWriter:
                         soil_moisture_0_10cm, soil_moisture_10_40cm,
                         wind_speed_ms, wind_direction_deg, pressure_hpa,
                         gdd_accumulated, delta_t,
+                        location,
                         metrics, metadata
                     ) VALUES %s
                     ON CONFLICT (tenant_id, municipality_code, COALESCE(station_id, ''), observed_at)
@@ -181,17 +182,42 @@ class TimescaleDBWriter:
                         pressure_hpa = EXCLUDED.pressure_hpa,
                         gdd_accumulated = EXCLUDED.gdd_accumulated,
                         delta_t = EXCLUDED.delta_t,
+                        location = EXCLUDED.location,
                         metrics = EXCLUDED.metrics,
                         metadata = EXCLUDED.metadata,
                         source = EXCLUDED.source,
                         data_type = EXCLUDED.data_type
                 """
-                
+
+                # Resolve location coordinates for this municipality
+                location_wkt = None
+                first_muni_code = observations[0].get('municipality_code') if observations else None
+                if first_muni_code:
+                    try:
+                        cursor.execute("""
+                            SELECT ST_AsText(
+                                COALESCE(
+                                    cm.geom,
+                                    ST_SetSRID(ST_MakePoint(cm.longitude, cm.latitude), 4326)
+                                )
+                            ) as point_wkt
+                            FROM catalog_municipalities cm
+                            WHERE cm.ine_code = %s
+                              AND (cm.geom IS NOT NULL
+                                   OR (cm.latitude IS NOT NULL AND cm.longitude IS NOT NULL))
+                            LIMIT 1
+                        """, (first_muni_code,))
+                        loc_row = cursor.fetchone()
+                        if loc_row and loc_row[0]:
+                            location_wkt = loc_row[0]
+                    except Exception as loc_err:
+                        logger.warning(f"Could not resolve location for {first_muni_code}: {loc_err}")
+
                 values = []
                 for obs in observations:
                     if not obs:
                         continue
-                    
+
                     values.append((
                         obs['tenant_id'],
                         obs['observed_at'],
@@ -215,6 +241,7 @@ class TimescaleDBWriter:
                         obs.get('pressure_hpa'),
                         obs.get('gdd_accumulated'),
                         obs.get('delta_t'),
+                        location_wkt,
                         Json(obs.get('metrics', {})),
                         Json(obs.get('metadata', {}))
                     ))
@@ -230,11 +257,12 @@ class TimescaleDBWriter:
                             # Get location from first observation (all should be same location for batch)
                             first_obs = observations[0] if observations else None
                             if first_obs:
-                                # Get location from catalog_municipalities or use default
+                                # Get location from weather_observations or catalog_municipalities
                                 cursor.execute("""
-                                    SELECT latitude, longitude 
-                                    FROM catalog_municipalities 
-                                    WHERE ine_code = %s
+                                    SELECT ST_Y(wo.location) as latitude, ST_X(wo.location) as longitude
+                                    FROM weather_observations wo
+                                    WHERE wo.municipality_code = %s
+                                      AND wo.location IS NOT NULL
                                     LIMIT 1
                                 """, (first_obs.get('municipality_code'),))
                                 loc_row = cursor.fetchone()
@@ -496,16 +524,15 @@ class TimescaleDBWriter:
                     cursor.execute("""
                         SELECT
                             %s as tenant_id,
-                            cm.ine_code as municipality_code,
-                            cm.latitude,
-                            cm.longitude,
+                            wo.municipality_code,
+                            ST_Y(wo.location) as latitude,
+                            ST_X(wo.location) as longitude,
                             NULL as station_id,
                             cm.name as label
-                        FROM catalog_municipalities cm
-                        WHERE cm.latitude IS NOT NULL
-                          AND cm.longitude IS NOT NULL
-                          AND cm.geom IS NOT NULL
-                        ORDER BY cm.geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                        FROM weather_observations wo
+                        LEFT JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
+                        WHERE wo.location IS NOT NULL
+                        ORDER BY wo.location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
                         LIMIT 1
                     """, (tenant_id, lon, lat))
                     row = cursor.fetchone()
@@ -562,14 +589,14 @@ class TimescaleDBWriter:
                         SELECT DISTINCT
                             twl.tenant_id,
                             twl.municipality_code,
-                            cm.latitude,
-                            cm.longitude,
+                            ST_Y(wo.location) as latitude,
+                            ST_X(wo.location) as longitude,
                             twl.station_id,
                             twl.label
                         FROM tenant_weather_locations twl
-                        JOIN catalog_municipalities cm ON cm.ine_code = twl.municipality_code
-                        WHERE cm.latitude IS NOT NULL 
-                          AND cm.longitude IS NOT NULL
+                        JOIN weather_observations wo ON wo.municipality_code = twl.municipality_code
+                            AND wo.tenant_id = twl.tenant_id
+                        WHERE wo.location IS NOT NULL
                         ORDER BY twl.tenant_id, twl.municipality_code
                     """
                     
@@ -625,16 +652,15 @@ class TimescaleDBWriter:
                                 SELECT
                                     %s as tenant_id,
                                     wo.municipality_code,
-                                    cm.latitude,
-                                    cm.longitude,
+                                    ST_Y(wo.location) as latitude,
+                                    ST_X(wo.location) as longitude,
                                     NULL as station_id,
                                     cm.name as label
                                 FROM weather_observations wo
-                                JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
+                                LEFT JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
                                 WHERE wo.tenant_id = %s
-                                  AND cm.latitude IS NOT NULL
-                                  AND cm.longitude IS NOT NULL
-                                GROUP BY wo.municipality_code, cm.latitude, cm.longitude, cm.name
+                                  AND wo.location IS NOT NULL
+                                GROUP BY wo.municipality_code, wo.location, cm.name
                                 ORDER BY MAX(wo.observed_at) DESC
                                 LIMIT 1
                             """, (tenant_id, tenant_id))
@@ -642,21 +668,21 @@ class TimescaleDBWriter:
                         except Exception:
                             conn.rollback()
 
-                    # [PRIORITY 3] Pick the nearest municipality from catalog
+                    # [PRIORITY 3] Pick the most recently observed municipality
                     if not discovered:
                         try:
                             cursor.execute("""
                                 SELECT
                                     %s as tenant_id,
-                                    cm.ine_code as municipality_code,
-                                    cm.latitude,
-                                    cm.longitude,
+                                    wo.municipality_code,
+                                    ST_Y(wo.location) as latitude,
+                                    ST_X(wo.location) as longitude,
                                     NULL as station_id,
                                     cm.name as label
-                                FROM catalog_municipalities cm
-                                WHERE cm.latitude IS NOT NULL
-                                  AND cm.longitude IS NOT NULL
-                                ORDER BY cm.name
+                                FROM weather_observations wo
+                                LEFT JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
+                                WHERE wo.location IS NOT NULL
+                                ORDER BY wo.observed_at DESC
                                 LIMIT 1
                             """, (tenant_id,))
                             discovered = cursor.fetchone()
