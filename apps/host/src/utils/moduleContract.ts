@@ -37,9 +37,12 @@ export function checkModuleContract(
   const rangeMajor = rangeParts[0] ?? 0;
   const rangeMinor = rangeParts[1] ?? 0;
 
-  // caret (^) range: same major, minor >= range minor
+  // caret (^) range: same major, >= range minor, patch >= range patch when minor matches
   if (contract.hostApiVersion.startsWith('^')) {
-    if (hostMajor !== rangeMajor || hostMinor < rangeMinor) {
+    const rangePatch = rangeParts[2] ?? 0;
+    const hostPatch = hostParts[2] ?? 0;
+    if (hostMajor !== rangeMajor || hostMinor < rangeMinor ||
+        (hostMinor === rangeMinor && hostPatch < rangePatch)) {
       return {
         compatible: false,
         reason: `Module requires host API ${contract.hostApiVersion}, but host is ${hostVersion}`,
@@ -72,16 +75,4 @@ export function checkModuleContract(
   }
 
   return { compatible: true, contract, hostVersion };
-}
-
-/**
- * Validate that an object conforms to ModuleApiContract shape.
- */
-export function validateModuleApiContract(contract: unknown): contract is ModuleApiContract {
-  if (!contract || typeof contract !== 'object') return false;
-  const c = contract as Record<string, unknown>;
-  if (typeof c.hostApiVersion !== 'string') return false;
-  if (typeof c.moduleApiVersion !== 'string') return false;
-  if (typeof c.sdkVersion !== 'string') return false;
-  return true;
 }
