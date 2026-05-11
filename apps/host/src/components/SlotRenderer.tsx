@@ -7,7 +7,8 @@
 
 import React, { Suspense, useMemo, useState, useEffect } from 'react';
 import { useSlotRegistryOptional } from '@/context/SlotRegistry';
-import { SlotType, SlotWidgetDefinition, useModules, ModuleDefinition } from '@/context/ModuleContext';
+import type { SlotType, SlotWidgetDefinition } from '@nekazari/sdk';
+import { useModules, ModuleDefinition } from '@/context/ModuleContext';
 import { Loader2 } from 'lucide-react';
 import { ModuleErrorBoundary } from './ModuleErrorBoundary';
 import { loadRemoteModule } from './RemoteModuleLoader';

@@ -6,70 +6,11 @@
 // through window.__NKZ__.register(). See utils/nkzRuntime.ts.
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { NekazariClient } from '@nekazari/sdk';
+import { NekazariClient, type ModuleApiContract } from '@nekazari/sdk';
+import type { ModuleViewerSlots } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { getConfig } from '@/config/environment';
-
-// =============================================================================
-// Slot System Types
-// =============================================================================
-
-/** Available slot types in the Unified Viewer and Dashboard */
-export type SlotType =
-  | 'entity-tree'       // Left panel: entity tree, filters
-  | 'map-layer'         // Map overlays, markers, layers
-  | 'context-panel'     // Right panel: entity details, controls
-  | 'bottom-panel'      // Bottom panel: timeline, charts
-  | 'layer-toggle'      // Layer manager toggles
-  | 'dashboard-widget'  // Dashboard: module-contributed cards
-  | 'admin-tab';        // Admin Control Center: module-contributed tabs
-
-/** Definition of a widget that can be rendered in a slot */
-export interface SlotWidgetDefinition {
-  /** Unique identifier for this widget */
-  id: string;
-  /** 
-   * Module ID that owns this widget. Used by SlotRenderer to:
-   * - Group widgets from the same module
-   * - Apply the module's shared provider (for React Context)
-   * - Handle errors per-module
-   * 
-   * REQUIRED for remote modules. If not provided, SlotRenderer will
-   * attempt to infer it from the widget ID (legacy fallback).
-   */
-  moduleId?: string;
-  /** Component name exported by the module (for remote loading) */
-  component: string;
-  /** Render priority (lower = rendered first) */
-  priority: number;
-  /** Optional: Only show when conditions are met */
-  showWhen?: {
-    /** Show only when selected entity is one of these types */
-    entityType?: string[];
-    /** Show only when one of these layers is active */
-    layerActive?: string[];
-  };
-  /** Default props passed to the widget */
-  defaultProps?: Record<string, any>;
-  /** For local (bundled) widgets: the actual React component */
-  localComponent?: React.ComponentType<any>;
-}
-
-/** Slots configuration for a module */
-export interface ModuleViewerSlots {
-  'entity-tree'?: SlotWidgetDefinition[];
-  'map-layer'?: SlotWidgetDefinition[];
-  'context-panel'?: SlotWidgetDefinition[];
-  'bottom-panel'?: SlotWidgetDefinition[];
-  'layer-toggle'?: SlotWidgetDefinition[];
-  'dashboard-widget'?: SlotWidgetDefinition[];
-  'admin-tab'?: SlotWidgetDefinition[];
-  /** Optional module provider for remote modules that use React Context.
-   * When multiple widgets from the same module are rendered, they will share
-   * a single instance of this provider. Local modules don't need this as they're
-   * already in the host bundle. */
-  moduleProvider?: React.ComponentType<{ children: React.ReactNode }>;
-}
+import { checkModuleContract } from '@/utils/moduleContract';
 
 // =============================================================================
 // Module Definition
@@ -103,6 +44,8 @@ export interface ModuleDefinition {
   }>;
   // Slot system: widgets that this module contributes to the unified viewer
   viewerSlots?: ModuleViewerSlots;
+  // API contract for host compatibility checking (progressive feature)
+  apiContract?: ModuleApiContract;
 }
 
 /**
@@ -147,6 +90,11 @@ const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
     tenantConfig: module.tenantConfig && typeof module.tenantConfig === 'object' ? module.tenantConfig : undefined,
     navigationItems: Array.isArray(module.navigationItems) ? module.navigationItems : undefined,
     viewerSlots: module.viewerSlots && typeof module.viewerSlots === 'object' ? module.viewerSlots : undefined,
+    // API contract from backend response (camelCase) or manifest.json (snake_case)
+    apiContract: (() => {
+      const raw = module.apiContract ?? module.api_contract;
+      return raw && typeof raw === 'object' ? raw : undefined;
+    })(),
   };
 };
 
@@ -159,6 +107,7 @@ interface ModuleContextType {
   getModuleById: (id: string) => ModuleDefinition | undefined;
   getModuleByRoute: (path: string) => ModuleDefinition | undefined;
   visibilityRules: Record<string, { hiddenRoles: string[] }>;
+  incompatibleModules: ReadonlyMap<string, string>;
 }
 
 const ModuleContext = createContext<ModuleContextType | undefined>(undefined);
@@ -178,7 +127,8 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   const [modules, setModules] = useState<ModuleDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-   const [visibilityRules, setVisibilityRules] = useState<Record<string, { hiddenRoles: string[] }>>({});
+  const [visibilityRules, setVisibilityRules] = useState<Record<string, { hiddenRoles: string[] }>>({});
+  const [incompatibleModules, setIncompatibleModules] = useState<Map<string, string>>(new Map());
 
   const loadModules = useCallback(async () => {
     if (!isAuthenticated || !tenantId) {
@@ -296,6 +246,36 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
       });
 
       // =============================================================================
+      // Check API version contracts before loading module scripts
+      // =============================================================================
+      const incompatibleReasons = new Map<string, string>();
+
+      for (const [modId, modDef] of moduleMap.entries()) {
+        if (!modDef.remoteEntry && modDef.isLocal) continue;
+        const apiContract = modDef.apiContract;
+        if (!apiContract) {
+          // Module without a contract: log a warning but allow loading (progressive feature)
+          console.warn(
+            `[ModuleContext] Module "${modId}" does not declare an API contract. ` +
+            'Consider adding api_contract to manifest.json for compatibility guarantees.'
+          );
+          continue;
+        }
+        const result = checkModuleContract(apiContract);
+        if (!result.compatible) {
+          incompatibleReasons.set(modId, result.reason || 'Unknown incompatibility reason');
+          moduleMap.delete(modId);
+          console.warn(
+            `[ModuleContext] Module "${modId}" is incompatible with host: ${result.reason}`
+          );
+        }
+      }
+      setIncompatibleModules(incompatibleReasons);
+
+      // Filter remote modules for script loading (skip incompatible ones)
+      const filteredRemoteModules = remoteModules.filter(m => !incompatibleReasons.has(m.id));
+
+      // =============================================================================
       // Load IIFE bundles for remote modules
       // =============================================================================
       // Instead of Module Federation dynamic imports, we inject <script> tags.
@@ -324,7 +304,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
 
       // Load scripts for remote modules that have a bundle URL
       const { loadModuleScripts } = await import('@/utils/moduleLoader');
-      const modulesToLoad = remoteModules
+      const modulesToLoad = filteredRemoteModules
         .filter(m => m.remoteEntry && !m.isLocal)
         .map(m => ({ id: m.id, bundleUrl: m.remoteEntry! }));
 
@@ -393,6 +373,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     getModuleById,
     getModuleByRoute,
     visibilityRules,
+    incompatibleModules,
   };
 
   return (

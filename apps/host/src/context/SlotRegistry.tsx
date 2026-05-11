@@ -5,7 +5,8 @@
 // of the Unified Command Center. Supports both local and remote modules.
 
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode, useEffect } from 'react';
-import { useModules, SlotType, SlotWidgetDefinition, ModuleViewerSlots } from './ModuleContext';
+import type { SlotType, SlotWidgetDefinition, ModuleViewerSlots } from '@nekazari/sdk';
+import { useModules } from './ModuleContext';
 import { useViewer } from './ViewerContext';
 import { getLocalModuleSlots, isLocalModule } from '@/modules/registry';
 

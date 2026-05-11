@@ -18,6 +18,16 @@ export { NKZClient, type NKZClientOptions } from './api/client';
 // NGSI-LD helpers
 export { getEntityDisplayName, getNGSIValue } from './ngsi/helpers';
 
+// Slot & Module types (canonical source of truth)
+export type {
+  SlotType,
+  SlotWidgetDefinition,
+  ModuleViewerSlots,
+  NKZModuleRegistration,
+  ModuleApiContract,
+  ModuleCompatibilityResult,
+} from './types';
+
 // Backward compatibility: Export legacy names as aliases
 // These will be deprecated in v3.0.0
 export { NKZClient as NekazariClient } from './api/client';

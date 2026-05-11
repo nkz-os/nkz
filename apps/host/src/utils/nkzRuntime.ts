@@ -7,26 +7,12 @@
 // This file MUST be imported early in main.tsx (before any module loading).
 // =============================================================================
 
-import type { ModuleViewerSlots } from '@/context/ModuleContext';
+import type { NKZModuleRegistration } from '@nekazari/sdk';
 import { logger } from '@/utils/logger';
 
 // =============================================================================
 // Types
 // =============================================================================
-
-/** Registration payload a module passes to window.__NKZ__.register() */
-export interface NKZModuleRegistration {
-    /** Module ID — must match the ID in marketplace_modules DB */
-    id: string;
-    /** Viewer slot definitions (layer-toggle, context-panel, etc.) */
-    viewerSlots?: ModuleViewerSlots;
-    /** Optional React provider for module-level context */
-    provider?: React.ComponentType<{ children: React.ReactNode }>;
-    /** Optional main component for routing (e.g., /modules/my-module) */
-    main?: React.ComponentType<any>;
-    /** Optional module version */
-    version?: string;
-}
 
 /** Registration listener callback */
 type RegistrationListener = (id: string, registration: NKZModuleRegistration) => void;
