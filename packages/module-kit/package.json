@@ -1,0 +1,32 @@
+{
+  "name": "@nekazari/module-kit",
+  "version": "0.1.0",
+  "description": "Nekazari Module Development Kit — single entry point for building Nekazari modules",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --external react --external react-dom --external @nekazari/sdk --external @nekazari/ui-kit --external @nekazari/viewer-kit --external @nekazari/design-tokens --external @nekazari/module-builder",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@nekazari/module-builder": ">=1.0.0",
+    "@nekazari/sdk": ">=1.1.0",
+    "react": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@nekazari/module-builder": "workspace:*",
+    "@nekazari/sdk": "workspace:*",
+    "@types/react": "^18.3.0",
+    "react": "^18.3.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0"
+  }
+}
