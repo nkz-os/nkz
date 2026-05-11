@@ -7,70 +7,10 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { NekazariClient, type ModuleApiContract } from '@nekazari/sdk';
+import type { ModuleViewerSlots } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { getConfig } from '@/config/environment';
 import { checkModuleContract } from '@/utils/moduleContract';
-
-// =============================================================================
-// Slot System Types
-// =============================================================================
-
-/** Available slot types in the Unified Viewer and Dashboard */
-export type SlotType =
-  | 'entity-tree'       // Left panel: entity tree, filters
-  | 'map-layer'         // Map overlays, markers, layers
-  | 'context-panel'     // Right panel: entity details, controls
-  | 'bottom-panel'      // Bottom panel: timeline, charts
-  | 'layer-toggle'      // Layer manager toggles
-  | 'dashboard-widget'  // Dashboard: module-contributed cards
-  | 'admin-tab';        // Admin Control Center: module-contributed tabs
-
-/** Definition of a widget that can be rendered in a slot */
-export interface SlotWidgetDefinition {
-  /** Unique identifier for this widget */
-  id: string;
-  /** 
-   * Module ID that owns this widget. Used by SlotRenderer to:
-   * - Group widgets from the same module
-   * - Apply the module's shared provider (for React Context)
-   * - Handle errors per-module
-   * 
-   * REQUIRED for remote modules. If not provided, SlotRenderer will
-   * attempt to infer it from the widget ID (legacy fallback).
-   */
-  moduleId?: string;
-  /** Component name exported by the module (for remote loading) */
-  component: string;
-  /** Render priority (lower = rendered first) */
-  priority: number;
-  /** Optional: Only show when conditions are met */
-  showWhen?: {
-    /** Show only when selected entity is one of these types */
-    entityType?: string[];
-    /** Show only when one of these layers is active */
-    layerActive?: string[];
-  };
-  /** Default props passed to the widget */
-  defaultProps?: Record<string, any>;
-  /** For local (bundled) widgets: the actual React component */
-  localComponent?: React.ComponentType<any>;
-}
-
-/** Slots configuration for a module */
-export interface ModuleViewerSlots {
-  'entity-tree'?: SlotWidgetDefinition[];
-  'map-layer'?: SlotWidgetDefinition[];
-  'context-panel'?: SlotWidgetDefinition[];
-  'bottom-panel'?: SlotWidgetDefinition[];
-  'layer-toggle'?: SlotWidgetDefinition[];
-  'dashboard-widget'?: SlotWidgetDefinition[];
-  'admin-tab'?: SlotWidgetDefinition[];
-  /** Optional module provider for remote modules that use React Context.
-   * When multiple widgets from the same module are rendered, they will share
-   * a single instance of this provider. Local modules don't need this as they're
-   * already in the host bundle. */
-  moduleProvider?: React.ComponentType<{ children: React.ReactNode }>;
-}
 
 // =============================================================================
 // Module Definition
