@@ -1371,9 +1371,7 @@ class ApiService {
     timestamp?: string;
   }> {
     try {
-      // Use new entity-manager endpoint
       const response = await this.client.get(`/api/weather/parcel/${parcelId}/agro-status`);
-      // Transform response to expected format
       return {
         semaphores: response.data.semaphores || {
           spraying: 'unknown',
@@ -1385,15 +1383,8 @@ class ApiService {
         timestamp: response.data.timestamp
       };
     } catch (error) {
-      // Fallback to old endpoint if new one fails
-      logger.warn('Error with new agro-status endpoint, trying fallback:', error);
-      try {
-        const response = await this.client.get(`/sensor-ingestor/api/weather/parcel/${parcelId}/status`);
-        return response.data;
-      } catch (fallbackError) {
-        logger.error('Both agro-status endpoints failed:', fallbackError);
-        throw fallbackError;
-      }
+      logger.error('Agro-status endpoint failed:', error);
+      throw error;
     }
   }
 

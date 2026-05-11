@@ -354,13 +354,58 @@ def get_parcel_agro_status(
         except Exception as e:
             logger.warning(f"Error fetching sensor data: {e}")
 
-        # 4. Calculate agronomic status
+        # 4. Extract terrain attributes for spatial downscaling
+        parcel_altitude = 0.0
+        elev = parcel_entity.get("elevation", {})
+        if isinstance(elev, dict):
+            parcel_altitude = float(elev.get("value", 0) or 0)
+
+        parcel_aspect = 0.0
+        ta = parcel_entity.get("terrainAspect", {})
+        if isinstance(ta, dict):
+            parcel_aspect = float(ta.get("value", 0) or 0)
+
+        parcel_slope = 0.0
+        ts = parcel_entity.get("terrainSlope", {})
+        if isinstance(ts, dict):
+            parcel_slope = float(ts.get("value", 0) or 0)
+
+        # Station altitude from parcel's nearest municipality (from DB)
+        station_altitude = 0.0
+        try:
+            conn = get_db_connection(tenant_id)
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT wo.metadata->>'station_elevation_m' as station_elevation_m
+                FROM weather_observations wo
+                JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
+                WHERE wo.tenant_id = %s
+                  AND cm.geom IS NOT NULL
+                ORDER BY cm.geom <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                LIMIT 1
+                """,
+                (tenant_id, lon, lat),
+            )
+            row = cur.fetchone()
+            if row and row.get("station_elevation_m"):
+                station_altitude = float(row["station_elevation_m"])
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"Could not resolve station altitude: {e}")
+
+        # 5. Calculate agronomic status with spatial downscaling
         result = calculate_agro_status(
             lat=lat,
             lon=lon,
             parcel_entity=parcel_entity,
             sensor_data=sensor_data,
             openmeteo_api_url=settings.openmeteo_api_url,
+            parcel_altitude_m=parcel_altitude,
+            station_altitude_m=station_altitude,
+            parcel_aspect_deg=parcel_aspect,
+            parcel_slope_deg=parcel_slope,
         )
         return result
 
