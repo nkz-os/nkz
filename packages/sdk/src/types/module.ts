@@ -1,3 +1,8 @@
+/**
+ * Copyright 2025 NKZ Platform (Nekazari)
+ * Licensed under Apache-2.0
+ */
+
 import type { ModuleViewerSlots } from './slots';
 
 /** Registration payload a module passes to window.__NKZ__.register() */

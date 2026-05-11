@@ -1,4 +1,9 @@
 /**
+ * Copyright 2025 NKZ Platform (Nekazari)
+ * Licensed under Apache-2.0
+ */
+
+/**
  * Slot types available in the Nekazari Unified Viewer and Dashboard.
  * These are the extension points where module widgets render.
  */
