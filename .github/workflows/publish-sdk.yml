@@ -51,8 +51,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build package
-        run: pnpm --filter @nekazari/${{ matrix.package }} build
+      - name: Build package (with workspace deps)
+        run: pnpm --filter '@nekazari/${{ matrix.package }}^...' build
 
       - name: Check if version is already published
         id: check
