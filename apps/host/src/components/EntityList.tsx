@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { openEntityEditor } from '@/components/EntityEditor';
 import {
     MapPin,
     Bot,
@@ -12,7 +13,8 @@ import {
     Zap,
     Droplets,
     Activity,
-    Layers
+    Layers,
+    Pencil
 } from 'lucide-react';
 
 export interface EntityListItem {
@@ -141,11 +143,23 @@ export const EntityList: React.FC<EntityListProps> = ({
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between mb-0.5">
                             <p className="font-medium text-gray-900 truncate">{entity.name || 'Sin nombre'}</p>
-                            {entity.status && (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full uppercase font-bold tracking-wider ${getStatusColor(entity.status)}`}>
-                                    {entity.status}
-                                </span>
-                            )}
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        openEntityEditor(entity.id, entity.type);
+                                    }}
+                                    className="p-1 text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition"
+                                    title="Editar"
+                                >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                {entity.status && (
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full uppercase font-bold tracking-wider ${getStatusColor(entity.status)}`}>
+                                        {entity.status}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="flex items-center text-xs text-gray-500 gap-2">
                             <span className="capitalize">{type.replace(/([A-Z])/g, ' $1').trim()}</span>
