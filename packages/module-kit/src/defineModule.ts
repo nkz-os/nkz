@@ -1,95 +1,54 @@
-import type {
-  SlotWidgetDefinition,
-  ModuleViewerSlots,
-  NKZModuleRegistration,
-} from '@nekazari/sdk';
-import type { ModuleAccent, ModuleI18n } from './types';
-
-interface ViewerSlotConfig {
-  id: string;
-  component: React.ComponentType<any>;
-  priority?: number;
-  showWhen?: SlotWidgetDefinition['showWhen'];
-  defaultProps?: Record<string, any>;
-}
-
-export interface DefineModuleOptions {
-  /** Module identifier — must match marketplace_modules.id */
-  id: string;
-  /** Human-readable name */
-  displayName: string;
-  /** Visual accent colors */
-  accent: ModuleAccent;
-  /** Semver range of host API versions this module is compatible with */
-  hostApiVersion?: string;
-  /** Viewer slot definitions */
-  viewerSlots?: Partial<Record<string, ViewerSlotConfig[]>>;
-  /** Standalone page component (lazy import) */
-  main?: () => Promise<{ default: React.ComponentType<any> }>;
-  /** React context provider shared across all viewer slots */
-  provider?: React.ComponentType<{ children: React.ReactNode }>;
-  /** i18n resource bundles keyed by language code */
-  i18n?: ModuleI18n;
-  /** Preconfigured API client path */
-  api?: { basePath: string };
-}
+import { ModuleDefinitionSchema, type ModuleDefinition } from './schema';
 
 /**
- * Define a Nekazari module. Returns a configuration object that drives
- * IIFE registration, Vite config generation, i18n setup, and manifest generation.
+ * Define a Nekazari module. Returns the validated configuration object.
  *
- * This is THE single entry point for module creation.
+ * The returned object is consumed by:
+ *   1. @nekazari/module-builder — to generate the IIFE entry and manifest.json
+ *   2. The host runtime — to register routes, slots, navigation, permissions
+ *   3. `nkz dev` — to wire mocks and HMR
  *
  * @example
  * export default defineModule({
- *   id: 'my-module',
- *   displayName: 'My Module',
- *   accent: { base: '#3B82F6', soft: '#DBEAFE', strong: '#1D4ED8' },
+ *   id: 'soil-health',
+ *   displayName: 'Soil Health',
  *   hostApiVersion: '^2.0.0',
- *   viewerSlots: { 'context-panel': [{ id: 'my-panel', component: MyPanel, priority: 10 }] },
- *   api: { basePath: '/api/my-module' },
+ *   accent: { base: '#A16207', soft: '#FEF3C7', strong: '#713F12' },
+ *   route: '/soil-health',
+ *   navigation: { section: 'modules', priority: 60 },
+ *   api: { basePath: '/api/soil-health' },
  * });
  */
-export function defineModule(options: DefineModuleOptions): DefineModuleOptions {
-  // Validate required fields
-  if (!options.id || !/^[a-z][a-z0-9-]*$/.test(options.id)) {
-    throw new Error(
-      `defineModule: id "${options.id}" must be lowercase alphanumeric with hyphens, starting with a letter`
-    );
+export function defineModule(options: ModuleDefinition): ModuleDefinition {
+  const result = ModuleDefinitionSchema.safeParse(options);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((i) => `  - ${i.path.join('.') || '<root>'}: ${i.message}`)
+      .join('\n');
+    throw new Error(`defineModule: invalid module definition\n${issues}`);
   }
-
-  return options;
+  return result.data;
 }
 
+export type { ModuleDefinition };
+
 /**
- * Convert defineModule() options into the NKZRuntime registration payload
- * that window.__NKZ__.register() expects.
+ * Convert a ModuleDefinition to the legacy NKZModuleRegistration shape that
+ * `window.__NKZ__.register()` expects. Used by the generated moduleEntry.gen.ts.
+ *
+ * Note: this is internal — modules should NOT call this directly. The host
+ * runtime invokes it via @nekazari/module-builder's codegen.
  */
-export function toNKZRegistration(
-  options: DefineModuleOptions,
-): NKZModuleRegistration {
-  const viewerSlots: ModuleViewerSlots = {};
-
-  if (options.viewerSlots) {
-    for (const [slotType, widgets] of Object.entries(options.viewerSlots)) {
-      if (!widgets) continue;
-      const defs: SlotWidgetDefinition[] = widgets.map((w) => ({
-        id: w.id,
-        moduleId: options.id,
-        component: w.id,
-        priority: w.priority ?? 50,
-        localComponent: w.component,
-        showWhen: w.showWhen,
-        defaultProps: w.defaultProps,
-      }));
-      (viewerSlots as any)[slotType] = defs;
-    }
-  }
-
+export function toNKZRegistration(def: ModuleDefinition): {
+  id: string;
+  version: string;
+  viewerSlots?: unknown;
+  main?: unknown;
+} {
   return {
-    id: options.id,
-    version: '0.1.0',
-    viewerSlots,
-    provider: options.provider,
+    id: def.id,
+    version: def.version ?? '0.0.0',
+    viewerSlots: def.slots,
+    main: def.main,
   };
 }
