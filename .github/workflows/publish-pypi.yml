@@ -54,3 +54,5 @@ jobs:
       - name: Publish to PyPI
         if: steps.check.outputs.exists == 'false'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: services/nkz-platform-sdk/dist/
