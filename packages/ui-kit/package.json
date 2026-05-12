@@ -30,7 +30,8 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --external react,react-dom,@nekazari/design-tokens"
+    "build": "tsup src/index.ts --format cjs,esm --dts --external react,react-dom,@nekazari/design-tokens",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "@nekazari/design-tokens": "^0.1.0-alpha",
