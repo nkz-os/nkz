@@ -108,4 +108,68 @@ describe('ModuleDefinitionSchema', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('rejects hostApiVersion with 4 components like 2.0.0.x', () => {
+    const result = ModuleDefinitionSchema.safeParse({
+      ...minimalValid,
+      hostApiVersion: '2.0.0.x',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts hostApiVersion 2.x wildcard', () => {
+    const result = ModuleDefinitionSchema.safeParse({
+      ...minimalValid,
+      hostApiVersion: '2.x',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects hostApiVersion with prerelease like 2.0.0-alpha', () => {
+    const result = ModuleDefinitionSchema.safeParse({
+      ...minimalValid,
+      hostApiVersion: '2.0.0-alpha',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects route with consecutive slashes', () => {
+    const result = ModuleDefinitionSchema.safeParse({
+      ...minimalValid,
+      route: '/foo//bar',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects api.basePath with consecutive slashes', () => {
+    const result = ModuleDefinitionSchema.safeParse({
+      ...minimalValid,
+      api: { basePath: '/api//foo' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown top-level fields (typos)', () => {
+    const result = ModuleDefinitionSchema.safeParse({
+      ...minimalValid,
+      requiredPlans: 'basic', // typo: should be requiredPlan
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown accent fields', () => {
+    const result = ModuleDefinitionSchema.safeParse({
+      ...minimalValid,
+      accent: { base: '#A16207', soft: '#FEF3C7', strong: '#713F12', extra: '#000000' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts data.timeseries containing '*' as wildcard", () => {
+    const result = ModuleDefinitionSchema.safeParse({
+      ...minimalValid,
+      data: { timeseries: ['*'] },
+    });
+    expect(result.success).toBe(true);
+  });
 });
