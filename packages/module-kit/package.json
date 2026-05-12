@@ -1,6 +1,6 @@
 {
   "name": "@nekazari/module-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Nekazari Module Development Kit — single entry point for building Nekazari modules",
   "license": "Apache-2.0",
   "type": "module",
@@ -12,8 +12,15 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --external react --external react-dom --external @nekazari/sdk --external @nekazari/ui-kit --external @nekazari/viewer-kit --external @nekazari/design-tokens --external @nekazari/module-builder",
+    "prepublishOnly": "pnpm run build",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
