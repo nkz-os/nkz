@@ -1,3 +1,5 @@
+import type { NKZModuleRegistration, ModuleViewerSlots, SlotWidgetDefinition } from '@nekazari/sdk';
+import type * as React from 'react';
 import { ModuleDefinitionSchema, type ModuleDefinition } from './schema';
 
 /**
@@ -33,22 +35,39 @@ export function defineModule(options: ModuleDefinition): ModuleDefinition {
 export type { ModuleDefinition };
 
 /**
- * Convert a ModuleDefinition to the legacy NKZModuleRegistration shape that
- * `window.__NKZ__.register()` expects. Used by the generated moduleEntry.gen.ts.
+ * Convert a validated ModuleDefinition into the runtime NKZModuleRegistration
+ * shape that `window.__NKZ__.register()` accepts.
  *
- * Note: this is internal — modules should NOT call this directly. The host
- * runtime invokes it via @nekazari/module-builder's codegen.
+ * Intended for use by @nekazari/module-builder's generated moduleEntry.gen.ts.
+ * Modules normally do not need to call this directly — they `export default
+ * defineModule(...)` and the builder wires the registration.
  */
-export function toNKZRegistration(def: ModuleDefinition): {
-  id: string;
-  version: string;
-  viewerSlots?: unknown;
-  main?: unknown;
-} {
+export function toNKZRegistration(def: ModuleDefinition): NKZModuleRegistration {
+  const viewerSlots: ModuleViewerSlots = {};
+
+  if (def.slots) {
+    for (const [slotType, entries] of Object.entries(def.slots)) {
+      if (!entries) continue;
+      const widgets: SlotWidgetDefinition[] = entries.map((entry) => {
+        const comp = entry.component as React.ComponentType<any> & { displayName?: string; name?: string };
+        return {
+          id: entry.id,
+          moduleId: def.id,
+          component: comp.displayName || comp.name || entry.id,
+          priority: entry.priority ?? 50,
+          showWhen: entry.showWhen,
+          defaultProps: entry.defaultProps,
+          localComponent: comp,
+        };
+      });
+      (viewerSlots as Record<string, SlotWidgetDefinition[]>)[slotType] = widgets;
+    }
+  }
+
   return {
     id: def.id,
-    version: def.version ?? '0.0.0',
-    viewerSlots: def.slots,
-    main: def.main,
+    version: def.version,
+    viewerSlots,
+    main: def.main as React.ComponentType<any> | undefined,
   };
 }
