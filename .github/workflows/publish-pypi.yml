@@ -1,0 +1,56 @@
+name: Publish Packages to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Package path to publish (default: services/nkz-platform-sdk)"
+        required: false
+        default: "services/nkz-platform-sdk"
+  push:
+    branches:
+      - main
+    paths:
+      - "services/nkz-platform-sdk/**"
+      - ".github/workflows/publish-pypi.yml"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build package
+        run: |
+          cd services/nkz-platform-sdk
+          python -m build
+
+      - name: Check version on PyPI
+        id: check
+        run: |
+          cd services/nkz-platform-sdk
+          NAME=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['name'])")
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          if pip index versions "$NAME" 2>/dev/null | grep -q "$VERSION"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$NAME@$VERSION already published, skipping"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "$NAME@$VERSION not found on PyPI, will publish"
+          fi
+
+      - name: Publish to PyPI
+        if: steps.check.outputs.exists == 'false'
+        uses: pypa/gh-action-pypi-publish@release/v1
