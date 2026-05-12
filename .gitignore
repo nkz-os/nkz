@@ -330,6 +330,9 @@ documentation/
 # Git worktrees (isolated feature workspaces)
 .worktrees/
 
+# Claude Code state (never commit)
+.claude/
+
 # Build caches
 .turbo/
 .deploy/
