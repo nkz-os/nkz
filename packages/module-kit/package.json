@@ -21,6 +21,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --external react --external react-dom --external @nekazari/sdk --external @nekazari/ui-kit --external @nekazari/viewer-kit --external @nekazari/design-tokens --external @nekazari/module-builder",
     "prepublishOnly": "pnpm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
@@ -28,12 +30,16 @@
     "@nekazari/sdk": ">=1.1.0",
     "react": ">=18.0.0"
   },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
   "devDependencies": {
     "@nekazari/module-builder": "workspace:*",
     "@nekazari/sdk": "workspace:*",
     "@types/react": "^18.3.0",
     "react": "^18.3.0",
     "tsup": "^8.0.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.8"
   }
 }
