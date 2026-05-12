@@ -23,9 +23,13 @@
     "LICENSE",
     "package.json"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsx src/build-css.ts && tsx src/build-tailwind.ts && tsx src/build-native.ts && tsup src/index.ts --format cjs,esm --dts --external react,react-dom",
-    "dev": "tsx watch src/build-css.ts"
+    "dev": "tsx watch src/build-css.ts",
+    "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
     "react": "^18.3.1",
