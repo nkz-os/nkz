@@ -55,6 +55,133 @@ def _extract_float(value, default=0.0):
     return default
 
 
+def _saxton_rawls_2006(
+    sand_pct: float, clay_pct: float, organic_carbon_pct: float
+) -> dict:
+    """Saxton & Rawls (2006) pedotransfer functions.
+
+    Computes field capacity, wilting point, and saturated hydraulic conductivity
+    from soil texture (sand %, clay %, organic carbon %).
+
+    Returns dict with ksat (mm/h), field_capacity (cm3/cm3), wilting_point (cm3/cm3).
+    """
+    s = sand_pct / 100.0
+    c = clay_pct / 100.0
+    om = (organic_carbon_pct * 1.724) / 100.0
+
+    # Wilting point (-1500 kPa)
+    theta_1500t = (
+        -0.024 * s
+        + 0.487 * c
+        + 0.006 * om
+        + 0.005 * s * om
+        - 0.013 * c * om
+        + 0.068 * s * c
+        + 0.031
+    )
+    theta_1500 = theta_1500t + 0.14 * theta_1500t - 0.02
+
+    # Field capacity (-33 kPa)
+    theta_33t = (
+        -0.251 * s
+        + 0.195 * c
+        + 0.011 * om
+        + 0.006 * s * om
+        - 0.027 * c * om
+        + 0.452 * s * c
+        + 0.299
+    )
+    theta_33 = theta_33t + 1.283 * theta_33t**2 - 0.374 * theta_33t - 0.015
+
+    # Saturated -33 kPa (for Ksat computation)
+    theta_s33t = (
+        0.278 * s
+        + 0.034 * c
+        + 0.022 * om
+        - 0.018 * s * om
+        - 0.027 * c * om
+        - 0.584 * s * c
+        + 0.078
+    )
+    theta_s33 = theta_s33t + 0.636 * theta_s33t - 0.107
+
+    lam = max(theta_33 - theta_1500, 0.001)
+    diff = max(theta_s33 - theta_33, 0.001)
+    ksat = 1930.0 * diff ** (3.0 - lam)
+
+    return {
+        "ksat": round(ksat, 2),
+        "field_capacity": round(theta_33, 3),
+        "wilting_point": round(theta_1500, 3),
+    }
+
+
+def _usda_texture_class(sand: float, clay: float) -> str:
+    """USDA soil texture classification from sand and clay percentages."""
+    silt = 100.0 - sand - clay
+    if silt + 1.5 * clay < 15:
+        return "sand"
+    if silt + 1.5 * clay >= 15 and silt + 2 * clay < 30:
+        return "loamy_sand"
+    if clay >= 7 and clay <= 20 and sand > 52 and silt + 2 * clay >= 30:
+        return "sandy_loam"
+    if clay >= 7 and clay <= 27 and silt >= 28 and silt <= 50 and sand <= 52:
+        return "loam"
+    if silt >= 50 and clay >= 12 and clay <= 27:
+        return "silt_loam"
+    if silt >= 80 and clay < 12:
+        return "silt"
+    if clay >= 20 and clay <= 35 and silt < 28 and sand > 45:
+        return "sandy_clay_loam"
+    if clay >= 27 and clay <= 40 and sand >= 20 and sand <= 45:
+        return "clay_loam"
+    if clay >= 27 and clay <= 40 and silt >= 40:
+        return "silty_clay_loam"
+    if clay >= 35 and sand > 45:
+        return "sandy_clay"
+    if clay >= 40 and silt >= 40:
+        return "silty_clay"
+    if clay >= 40 and sand <= 45 and silt < 40:
+        return "clay"
+    return "loam"
+
+
+def _texture_workability(
+    soil_moisture: Optional[float],
+    field_capacity: float,
+    wilting_point: float,
+    recent_precip: float = 0.0,
+    humidity: float = 0.0,
+) -> str:
+    """Compute workability semaphore using texture-aware thresholds.
+
+    When soil_moisture is available (sensor), thresholds are relative to FC and PWP.
+    Falls back to precipitation/humidity heuristic when no sensor data.
+    """
+    margin = 0.05  # 5% volumetric buffer from FC and PWP
+
+    if soil_moisture is not None:
+        too_wet = field_capacity - margin
+        too_dry = wilting_point + margin
+
+        if soil_moisture > too_wet:
+            return "too_wet"
+        if soil_moisture < too_dry:
+            return "too_dry"
+        if too_dry <= soil_moisture <= too_wet:
+            return "optimal"
+        return "caution"
+
+    # No sensor — fallback to precipitation/humidity heuristic
+    if recent_precip > 5 or humidity > 80:
+        return "too_wet"
+    if recent_precip == 0 and humidity < 40:
+        return "too_dry"
+    if 1 <= recent_precip <= 5 and 40 <= humidity <= 80:
+        return "optimal"
+    return "caution"
+
+
 def calculate_agro_status(
     lat: float,
     lon: float,
@@ -62,6 +189,7 @@ def calculate_agro_status(
     weather_observation: dict,
     weather_3d: Optional[list] = None,
     sensor_data: Optional[dict] = None,
+    soil_texture: Optional[dict] = None,
     parcel_altitude_m: float = 0.0,
     station_altitude_m: float = 0.0,
     parcel_aspect_deg: float = 0.0,
@@ -72,6 +200,10 @@ def calculate_agro_status(
 
     Uses weather data from the weather-worker (weather_observations table)
     rather than calling Open-Meteo directly — no external API dependency.
+
+    When soil_texture is provided (sand, clay, organic_carbon from AgriSoil),
+    workability thresholds are texture-aware via Saxton-Rawls 2006 PTF.
+    Falls back to generic thresholds otherwise.
 
     Returns a dict with weather, semaphores, and metrics.
     """
@@ -203,17 +335,37 @@ def calculate_agro_status(
     precip = fused.get("precipitation") or 0
 
     # 6a. Spraying semaphore
+    precip_prob = weather_observation.get("precip_probability")
+    spraying_reason = None
+
     if delta_t is not None and wind_speed_kmh is not None:
         if wind_gusts_kmh > 25:
             semaphores["spraying"] = "not_suitable"
+            spraying_reason = "wind_gusts"
         elif wind_speed_kmh < 15 and 2 <= delta_t <= 8:
             semaphores["spraying"] = "optimal"
         elif wind_speed_kmh > 20 or delta_t > 10 or (precip and precip > 0.5):
             semaphores["spraying"] = "not_suitable"
+            spraying_reason = (
+                "wind_speed"
+                if wind_speed_kmh > 20
+                else "delta_t"
+                if delta_t > 10
+                else "precipitation"
+            )
         else:
             semaphores["spraying"] = "caution"
 
-    # 6b. Workability semaphore
+        # Degrade spraying to caution if rain risk in next 6h
+        if (
+            semaphores["spraying"] == "optimal"
+            and precip_prob is not None
+            and precip_prob > 50
+        ):
+            semaphores["spraying"] = "caution"
+            spraying_reason = "rain_risk"
+
+    # 6b. Workability semaphore — texture-aware when soil data available
     soil_moisture = None
     if sensor_data and sensor_data.get("payload"):
         p = sensor_data["payload"]
@@ -222,24 +374,49 @@ def calculate_agro_status(
     recent_precip = fused.get("precipitation_3d", 0)
     humidity = fused.get("humidity") or 0
 
-    if soil_moisture is not None:
-        if 15 <= soil_moisture <= 25:
-            semaphores["workability"] = "optimal"
-        elif soil_moisture > 25:
-            semaphores["workability"] = "too_wet"
-        elif soil_moisture < 10:
-            semaphores["workability"] = "too_dry"
-        else:
-            semaphores["workability"] = "caution"
+    # Compute texture-aware thresholds if soil data available
+    fc = None  # field capacity
+    wp = None  # wilting point
+    texture_applied = False
+
+    if soil_texture and soil_texture.get("sand") and soil_texture.get("clay"):
+        try:
+            oc = soil_texture.get("organic_carbon", 0.5) or 0.5
+            ptf = _saxton_rawls_2006(
+                float(soil_texture["sand"]),
+                float(soil_texture["clay"]),
+                float(oc),
+            )
+            fc = ptf["field_capacity"]
+            wp = ptf["wilting_point"]
+            texture_applied = True
+        except Exception as exc:
+            logger.warning(f"Saxton-Rawls PTF failed, using generic thresholds: {exc}")
+
+    if texture_applied and fc is not None and wp is not None:
+        semaphores["workability"] = _texture_workability(
+            soil_moisture, fc, wp, recent_precip, humidity
+        )
     else:
-        if recent_precip > 5 or humidity > 80:
-            semaphores["workability"] = "too_wet"
-        elif recent_precip == 0 and humidity < 40:
-            semaphores["workability"] = "too_dry"
-        elif 1 <= recent_precip <= 5 and 40 <= humidity <= 80:
-            semaphores["workability"] = "optimal"
+        # Generic fallback thresholds
+        if soil_moisture is not None:
+            if 15 <= soil_moisture <= 25:
+                semaphores["workability"] = "optimal"
+            elif soil_moisture > 25:
+                semaphores["workability"] = "too_wet"
+            elif soil_moisture < 10:
+                semaphores["workability"] = "too_dry"
+            else:
+                semaphores["workability"] = "caution"
         else:
-            semaphores["workability"] = "caution"
+            if recent_precip > 5 or humidity > 80:
+                semaphores["workability"] = "too_wet"
+            elif recent_precip == 0 and humidity < 40:
+                semaphores["workability"] = "too_dry"
+            elif 1 <= recent_precip <= 5 and 40 <= humidity <= 80:
+                semaphores["workability"] = "optimal"
+            else:
+                semaphores["workability"] = "caution"
 
     # 6c. Irrigation semaphore
     water_balance = fused.get("water_balance")
@@ -269,7 +446,19 @@ def calculate_agro_status(
             "water_balance": fused.get("water_balance"),
             "wind_speed": fused.get("wind_speed"),
             "wind_gusts": fused.get("wind_gusts"),
+            "precip_probability": precip_prob,
+            "spraying_reason": spraying_reason,
         },
+        "soil": {
+            "texture_applied": texture_applied,
+            "field_capacity": fc,
+            "wilting_point": wp,
+            "texture_class": soil_texture.get("texture_class")
+            if soil_texture
+            else None,
+        }
+        if soil_texture
+        else None,
         "source_confidence": fused.get("source_confidence", "WEATHER-OBS"),
         "downscaling": "applied" if downscaling_applied else "unavailable",
         "timestamp": datetime.now(timezone.utc).isoformat(),
