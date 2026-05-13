@@ -378,6 +378,14 @@ spec:
                 name: n8n-nkz-api-service
                 port:
                   number: 8000
+          # BioOrchestrator Module API
+          - path: /api/bioorchestrator
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service
+                port:
+                  number: 5000
           # Entity-manager module management for CUE — Traefik longest-path priority
           - path: /api/modules/cue/activate
             pathType: Exact
