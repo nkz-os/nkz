@@ -1,5 +1,11 @@
 import { createContext, useContext } from 'react';
-import type { UseAuthReturn, UseI18nReturn, UsePlatformEventsReturn } from '../hooks/types';
+import type {
+  UseAuthReturn,
+  UseI18nReturn,
+  UsePlatformEventsReturn,
+  OrionTransport,
+  ModuleAPITransport,
+} from '../hooks/types';
 
 /** Runtime value injected by the provider — real (host) or mock (nkz dev) */
 export interface NKZRuntime {
@@ -8,6 +14,8 @@ export interface NKZRuntime {
   auth: UseAuthReturn;
   i18n: UseI18nReturn;
   events: UsePlatformEventsReturn;
+  orion: OrionTransport;
+  moduleApi: ModuleAPITransport;
 }
 
 export const NKZContext = createContext<NKZRuntime | null>(null);
