@@ -1,6 +1,6 @@
 {
     "name": "@nekazari/module-builder",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "private": false,
     "license": "Apache-2.0",
     "description": "Vite preset for building Nekazari module IIFE bundles",
@@ -23,7 +23,8 @@
     },
     "peerDependencies": {
         "vite": ">=5.0.0",
-        "@vitejs/plugin-react": ">=4.0.0"
+        "@vitejs/plugin-react": ">=4.0.0",
+        "@nekazari/module-kit": ">=0.2.0"
     },
     "scripts": {
         "build": "tsc",
@@ -36,6 +37,7 @@
         "vite": "^5.4.0",
         "typescript": "^5.5.0",
         "vitest": "^2.1.8",
-        "ts-morph": "^23.0.0"
+        "ts-morph": "^23.0.0",
+        "@nekazari/module-kit": "workspace:*"
     }
 }
