@@ -10,7 +10,7 @@ from typing import Optional
 import requests
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, Json
 
 from app.auth import require_auth, require_auth_optional
 from app.config import settings
@@ -104,6 +104,114 @@ def _cross_validate_sensors(sensors: list) -> dict:
         "unreliable_ids": [s["external_id"] for s in sensors if s["_unreliable"]],
     }
     return primary
+
+
+def _persist_agro_status_to_orion(tenant_id: str, parcel_id: str, result: dict):
+    """Write agroStatus semaphores to the AgriParcel entity in Orion-LD.
+
+    Non-blocking best-effort: failures are logged but never propagated.
+    """
+    try:
+        headers = _orion_headers(tenant_id)
+        headers["Content-Type"] = "application/json"
+        semaphores = result.get("semaphores", {})
+        soil = result.get("soil") or {}
+        metrics = result.get("metrics", {})
+
+        agro_status_value = {
+            "spraying": semaphores.get("spraying", "unknown"),
+            "workability": semaphores.get("workability", "unknown"),
+            "irrigation": semaphores.get("irrigation", "unknown"),
+            "calculatedAt": result.get("timestamp"),
+            "sourceConfidence": result.get("source_confidence"),
+            "downscalingApplied": result.get("downscaling") == "applied",
+        }
+        if soil.get("texture_applied"):
+            agro_status_value["soilTexture"] = soil.get("texture_class")
+            agro_status_value["fieldCapacity"] = soil.get("field_capacity")
+            agro_status_value["wiltingPoint"] = soil.get("wilting_point")
+        if metrics.get("delta_t") is not None:
+            agro_status_value["deltaT"] = metrics["delta_t"]
+        if metrics.get("water_balance") is not None:
+            agro_status_value["waterBalance"] = metrics["water_balance"]
+        if metrics.get("spraying_reason"):
+            agro_status_value["sprayingReason"] = metrics["spraying_reason"]
+
+        body = {
+            "agroStatus": {
+                "type": "Property",
+                "value": agro_status_value,
+            }
+        }
+
+        resp = requests.patch(
+            f"{settings.orion_url}/ngsi-ld/v1/entities/{parcel_id}/attrs",
+            headers=headers,
+            json=body,
+            timeout=3,
+        )
+        if resp.status_code not in (200, 201, 204):
+            logger.debug(f"Orion agroStatus persist returned {resp.status_code}")
+    except Exception as e:
+        logger.debug(f"Could not persist agroStatus to Orion: {e}")
+
+
+def _persist_agro_status_to_db(
+    tenant_id: str, parcel_id: str, result: dict, sensor_data: Optional[dict]
+):
+    """Write agro-status calculation to agro_status_log for historical queries."""
+    try:
+        conn = get_db_connection(tenant_id)
+        try:
+            cur = conn.cursor()
+            semaphores = result.get("semaphores", {})
+            metrics = result.get("metrics", {})
+            soil = result.get("soil") or {}
+
+            cur.execute(
+                """
+                INSERT INTO agro_status_log (
+                    tenant_id, parcel_id, calculated_at,
+                    spraying, workability, irrigation,
+                    source_confidence, soil_texture,
+                    field_capacity, wilting_point,
+                    delta_t, water_balance,
+                    downscaling_applied, sensor_count, metadata
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    tenant_id,
+                    parcel_id,
+                    result.get("timestamp"),
+                    semaphores.get("spraying"),
+                    semaphores.get("workability"),
+                    semaphores.get("irrigation"),
+                    result.get("source_confidence"),
+                    soil.get("texture_class"),
+                    soil.get("field_capacity"),
+                    soil.get("wilting_point"),
+                    metrics.get("delta_t"),
+                    metrics.get("water_balance"),
+                    result.get("downscaling") == "applied",
+                    sensor_data.get("validation", {}).get("total_sensors", 1)
+                    if sensor_data
+                    else 0,
+                    Json(
+                        {
+                            "sensor_validation": sensor_data.get("validation")
+                            if sensor_data
+                            else None,
+                            "spraying_reason": metrics.get("spraying_reason"),
+                        }
+                    ),
+                ),
+            )
+            conn.commit()
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        logger.debug(f"Could not persist agroStatus to DB: {e}")
 
 
 def _orion_headers(tenant_id: str) -> dict:
@@ -603,10 +711,71 @@ def get_parcel_agro_status(
             parcel_aspect_deg=parcel_aspect,
             parcel_slope_deg=parcel_slope,
         )
+
+        # Persist agroStatus to Orion-LD and PostgreSQL (non-blocking, best-effort)
+        _persist_agro_status_to_orion(tenant_id, parcel_id, result)
+        _persist_agro_status_to_db(tenant_id, parcel_id, result, sensor_data)
+
         return result
 
     except requests.exceptions.Timeout:
         return JSONResponse({"error": "Orion-LD request timed out"}, status_code=504)
     except Exception as e:
         logger.error(f"Error in get_parcel_agro_status: {e}", exc_info=True)
+        return JSONResponse({"error": "Internal server error"}, status_code=500)
+
+
+@router.get("/parcel/{parcel_id}/agro-status/history")
+def get_parcel_agro_status_history(
+    parcel_id: str,
+    tenant_id: str = Depends(require_auth),
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    limit: int = Query(30, le=365),
+):
+    """
+    Get historical agro-status semaphores for a parcel.
+
+    Returns time-series of spraying/workability/irrigation semaphores
+    for trend analysis and decision audit.
+    """
+    try:
+        conn = get_db_connection(tenant_id)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            query = """
+                SELECT calculated_at, spraying, workability, irrigation,
+                       source_confidence, soil_texture,
+                       field_capacity, wilting_point,
+                       delta_t, water_balance,
+                       downscaling_applied, sensor_count, metadata
+                FROM agro_status_log
+                WHERE tenant_id = %s AND parcel_id = %s
+            """
+            params = [tenant_id, parcel_id]
+
+            if from_date:
+                query += " AND calculated_at >= %s"
+                params.append(from_date)
+            if to_date:
+                query += " AND calculated_at <= %s"
+                params.append(to_date)
+
+            query += " ORDER BY calculated_at DESC LIMIT %s"
+            params.append(limit)
+
+            cur.execute(query, params)
+            rows = [dict(r) for r in cur.fetchall()]
+
+            return {
+                "parcel_id": parcel_id,
+                "history": rows,
+                "count": len(rows),
+            }
+        finally:
+            cur.close()
+            conn.close()
+    except Exception as e:
+        logger.error(f"Error fetching agro-status history: {e}", exc_info=True)
         return JSONResponse({"error": "Internal server error"}, status_code=500)
