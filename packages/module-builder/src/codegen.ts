@@ -73,3 +73,54 @@ export function generateModuleEntry(projectRoot: string): string {
   writeFileSync(outFile, code, 'utf-8');
   return outFile;
 }
+
+import type { ModuleDefinition } from '@nekazari/module-kit';
+
+/**
+ * Strip runtime-only fields from a ModuleDefinition and return a plain JSON
+ * object suitable for writing as `dist/manifest.json`.
+ *
+ * The manifest is what the host reads from MinIO when discovering a module —
+ * it must be pure data (no functions, no React components).
+ */
+export function generateManifest(def: ModuleDefinition): Record<string, unknown> {
+  const manifest: Record<string, unknown> = {
+    id: def.id,
+    displayName: def.displayName,
+    version: def.version,
+    hostApiVersion: def.hostApiVersion,
+    description: def.description,
+    accent: def.accent,
+    icon: def.icon,
+    route: def.route,
+    navigation: def.navigation,
+    api: def.api,
+    requiredRoles: def.requiredRoles,
+    requiredPlan: def.requiredPlan,
+    data: def.data,
+  };
+
+  if (def.slots) {
+    const slotsOut: Record<string, Array<Record<string, unknown>>> = {};
+    for (const [slotType, entries] of Object.entries(def.slots)) {
+      slotsOut[slotType] = (entries as Array<Record<string, unknown>>).map((entry) => {
+        const stripped: Record<string, unknown> = { id: entry.id };
+        if (entry.priority !== undefined) stripped.priority = entry.priority;
+        if (entry.showWhen !== undefined) stripped.showWhen = entry.showWhen;
+        if (entry.defaultProps !== undefined) stripped.defaultProps = entry.defaultProps;
+        return stripped;
+      });
+    }
+    manifest.slots = slotsOut;
+  }
+
+  if (def.i18n) {
+    manifest.i18nLangs = Object.keys(def.i18n);
+  }
+
+  for (const key of Object.keys(manifest)) {
+    if (manifest[key] === undefined) delete manifest[key];
+  }
+
+  return manifest;
+}
