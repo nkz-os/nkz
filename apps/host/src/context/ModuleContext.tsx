@@ -108,6 +108,8 @@ interface ModuleContextType {
   getModuleByRoute: (path: string) => ModuleDefinition | undefined;
   visibilityRules: Record<string, { hiddenRoles: string[] }>;
   incompatibleModules: ReadonlyMap<string, string>;
+  /** Inject the IIFE <script> for a module on demand (idempotent — no-op if already loaded). */
+  ensureModuleScript: (id: string, bundleUrl: string) => Promise<void>;
 }
 
 const ModuleContext = createContext<ModuleContextType | undefined>(undefined);
@@ -272,20 +274,13 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
       }
       setIncompatibleModules(incompatibleReasons);
 
-      // Filter remote modules for script loading (skip incompatible ones)
-      const filteredRemoteModules = remoteModules.filter(m => !incompatibleReasons.has(m.id));
-
       // =============================================================================
-      // Load IIFE bundles for remote modules
+      // Subscribe to IIFE registrations before any script loads
       // =============================================================================
-      // Instead of Module Federation dynamic imports, we inject <script> tags.
-      // Each script is an IIFE that calls window.__NKZ__.register({ id, viewerSlots }).
-      // We subscribe to registration events to update module state reactively.
-
-      // Subscribe to runtime registrations BEFORE loading scripts
-      // so we catch modules that register synchronously on script load.
-      // Unsubscribe is intentionally not called — listener stays active for
-      // the entire lifecycle so late-registering modules work.
+      // Each IIFE calls window.__NKZ__.register({ id, viewerSlots }) on execution.
+      // Scripts are injected ON DEMAND (lazy) by RemoteModuleLoader via
+      // ensureModuleScript(), not eagerly at startup.
+      // The listener stays active for the entire lifecycle to handle late registrations.
       window.__NKZ__?.onRegister((registeredId, registration) => {
         const existingModule = moduleMap.get(registeredId);
         if (existingModule) {
@@ -302,45 +297,8 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         }
       });
 
-      // Load scripts for remote modules that have a bundle URL
-      const { loadModuleScripts } = await import('@/utils/moduleLoader');
-      const modulesToLoad = filteredRemoteModules
-        .filter(m => m.remoteEntry && !m.isLocal)
-        .map(m => ({ id: m.id, bundleUrl: m.remoteEntry! }));
-
-      const scriptLoadFailedIds = new Set<string>();
-      if (modulesToLoad.length > 0) {
-        const results = await loadModuleScripts(modulesToLoad);
-        results.forEach(r => {
-          if (!r.success) {
-            scriptLoadFailedIds.add(r.id);
-            console.warn(
-              `[ModuleContext] Failed to load module "${r.id}":`,
-              r.error?.message,
-              `— Check that the bundle exists at the remoteEntry URL (e.g. MinIO /modules/${r.id}/nkz-module.js) and DB marketplace_modules.remote_entry_url is set.`
-            );
-          }
-        });
-      }
-
-      // Also check if any modules were registered before we subscribed
-      // (e.g., if scripts were cached and executed instantly)
-      if (window.__NKZ__) {
-        window.__NKZ__.getRegisteredIds().forEach(registeredId => {
-          const reg = window.__NKZ__.getRegistered(registeredId);
-          const mod = moduleMap.get(registeredId);
-          if (reg && mod && !mod.viewerSlots && reg.viewerSlots) {
-            mod.viewerSlots = reg.viewerSlots;
-          }
-        });
-      }
-
-      // Exclude remote modules whose script failed to load (404, CORS, etc.)
-      // so the sidebar does not show them and users don't hit "not found in registry"
-      const finalModules = Array.from(moduleMap.values()).filter(
-        m => !m.remoteEntry || !scriptLoadFailedIds.has(m.id)
-      );
-      setModules(finalModules);
+      // Set modules without waiting for script loading — scripts are lazy
+      setModules(Array.from(moduleMap.values()));
       setVisibilityRules(visibility);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load modules');
@@ -365,6 +323,11 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     return modules.find(m => m.routePath === path || path.startsWith(m.routePath));
   }, [modules]);
 
+  const ensureModuleScript = useCallback(async (id: string, bundleUrl: string) => {
+    const { loadModuleScript } = await import('@/utils/moduleLoader');
+    await loadModuleScript({ id, bundleUrl });
+  }, []);
+
   const value: ModuleContextType = {
     modules,
     isLoading,
@@ -374,6 +337,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     getModuleByRoute,
     visibilityRules,
     incompatibleModules,
+    ensureModuleScript,
   };
 
   return (
