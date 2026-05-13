@@ -8,7 +8,7 @@ import * as DesignTokens from '@nekazari/design-tokens';
 import * as ViewerKit from '@nekazari/viewer-kit';
 import App from './App.tsx';
 import './index.css';
-import 'cesium/Build/Cesium/Widgets/widgets.css';
+// Cesium CSS is imported by Cesium-using components (CesiumMap, MobileViewer) via lazy chunks
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initNKZRuntime } from './utils/nkzRuntime';
 

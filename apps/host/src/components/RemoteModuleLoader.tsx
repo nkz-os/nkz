@@ -10,8 +10,8 @@
 // are injected by ModuleContext via moduleLoader.ts — by the time this component
 // renders, the module should already be registered in the runtime.
 
-import React, { Suspense, ComponentType, ErrorInfo } from 'react';
-import { ModuleDefinition } from '@/context/ModuleContext';
+import React, { Suspense, ComponentType, ErrorInfo, useEffect } from 'react';
+import { ModuleDefinition, useModules } from '@/context/ModuleContext';
 import { isLocalAddon, getLocalAddon } from '@/config/localAddons';
 
 interface RemoteModuleLoaderProps {
@@ -157,6 +157,15 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
   const [Component, setComponent] = React.useState<ComponentType<any> | React.LazyExoticComponent<ComponentType<any>> | null>(null);
   const [loadError, setLoadError] = React.useState<Error | null>(null);
   const [isLocal, setIsLocal] = React.useState<boolean>(false);
+  const { ensureModuleScript } = useModules();
+
+  // Trigger IIFE script injection on mount (idempotent — no-op if already loaded).
+  // This replaces the previous eager loading at startup.
+  useEffect(() => {
+    if (module.remoteEntry && !module.isLocal && !isLocalAddon(module.id)) {
+      ensureModuleScript(module.id, module.remoteEntry);
+    }
+  }, [module.id, module.remoteEntry, module.isLocal, ensureModuleScript]);
 
   React.useEffect(() => {
     let isMounted = true;
