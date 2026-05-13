@@ -83,7 +83,7 @@ interface WeatherAgroPanelProps {
 }
 
 type SprayingCondition = 'optimal' | 'caution' | 'not_suitable' | 'unknown';
-type WorkabilityCondition = 'optimal' | 'too_wet' | 'too_dry' | 'unknown';
+type WorkabilityCondition = 'optimal' | 'too_wet' | 'too_dry' | 'caution' | 'unknown';
 type IrrigationCondition = 'satisfied' | 'alert' | 'deficit' | 'unknown';
 
 export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
