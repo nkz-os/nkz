@@ -325,7 +325,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
 
   const ensureModuleScript = useCallback(async (id: string, bundleUrl: string) => {
     const { loadModuleScript } = await import('@/utils/moduleLoader');
-    await loadModuleScript({ id, bundleUrl });
+    await loadModuleScript(bundleUrl, id);
   }, []);
 
   const value: ModuleContextType = {

@@ -1509,10 +1509,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     if (!viewer || !isViewerReady) return;
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
-    const hr = heightRef.current || (enable3DTerrain
-      ? Cesium.HeightReference.CLAMP_TO_GROUND
-      : Cesium.HeightReference.NONE);
-
     entityRefs.current.parcel.forEach(e => viewer.entities.remove(e));
     entityRefs.current.parcel.clear();
 
