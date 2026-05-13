@@ -52,8 +52,10 @@ class OpenMeteoProvider(BaseWeatherProvider):
                     'temperature_2m',
                     'relative_humidity_2m',
                     'precipitation',
+                    'precipitation_probability',
                     'weather_code',
                     'wind_speed_10m',
+                    'wind_gusts_10m',
                     'wind_direction_10m',
                     'surface_pressure',
                     'global_tilted_irradiance',  # Solar radiation (GHI)
@@ -69,13 +71,13 @@ class OpenMeteoProvider(BaseWeatherProvider):
                 ],
                 'models': 'best_match',  # Use best available model
             }
-            
+
             # For historical data, use historical API endpoint
             if start_date < datetime.now() - timedelta(days=1):
                 url = f"{self.api_url}/forecast"
                 # Open-Meteo historical data endpoint
                 url = f"{self.api_url.replace('/v1', '/v1/forecast')}"
-            
+
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
@@ -115,8 +117,10 @@ class OpenMeteoProvider(BaseWeatherProvider):
                     'temperature_2m',
                     'relative_humidity_2m',
                     'precipitation',
+                    'precipitation_probability',
                     'weather_code',
                     'wind_speed_10m',
+                    'wind_gusts_10m',
                     'wind_direction_10m',
                     'surface_pressure',
                     'global_tilted_irradiance',  # Solar radiation (GHI)
@@ -132,7 +136,7 @@ class OpenMeteoProvider(BaseWeatherProvider):
                 ],
                 'models': 'best_match',
             }
-            
+
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
@@ -185,7 +189,9 @@ class OpenMeteoProvider(BaseWeatherProvider):
                             'temperature_2m_max': daily.get('temperature_2m_max', [None])[i],
                             'relative_humidity_2m': None,  # Not available in daily
                             'precipitation': daily.get('precipitation_sum', [None])[i],
+                            'precipitation_probability': None,  # Not available in daily
                             'wind_speed_10m': None,
+                            'wind_gusts_10m': None,
                             'wind_direction_10m': None,
                             'surface_pressure': None,
                             'global_horizontal_irradiance': None,
@@ -201,7 +207,9 @@ class OpenMeteoProvider(BaseWeatherProvider):
                             'temperature_2m_max': None,
                             'relative_humidity_2m': hourly.get('relative_humidity_2m', [None])[i],
                             'precipitation': hourly.get('precipitation', [None])[i],
+                            'precipitation_probability': hourly.get('precipitation_probability', [None])[i],
                             'wind_speed_10m': hourly.get('wind_speed_10m', [None])[i],
+                            'wind_gusts_10m': hourly.get('wind_gusts_10m', [None])[i],
                             'wind_direction_10m': hourly.get('wind_direction_10m', [None])[i],
                             'surface_pressure': hourly.get('surface_pressure', [None])[i],
                             'global_horizontal_irradiance': hourly.get('global_tilted_irradiance', [None])[i],

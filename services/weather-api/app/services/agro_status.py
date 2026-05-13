@@ -1,17 +1,15 @@
 """
 Agronomic status calculation for parcels.
-Extracted from entity-manager weather blueprint (agro-status endpoint).
 
-Fuses sensor data with Open-Meteo current conditions to calculate
-spraying, workability, and irrigation semaphores.
+Fuses sensor data with weather observations (from weather-worker) to calculate
+spraying, workability, and irrigation semaphores. No direct Open-Meteo dependency
+— all weather data comes from the pre-ingested weather_observations table.
 """
 
 import logging
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
-
-import requests
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +38,30 @@ def _calc_water_balance(
     return None
 
 
+def _extract_float(value, default=0.0):
+    """Safely extract a float from a nested NGSI-LD attribute dict."""
+    if isinstance(value, dict):
+        v = value.get("value")
+        if v is not None:
+            try:
+                return float(v)
+            except (ValueError, TypeError):
+                pass
+    if value is not None:
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            pass
+    return default
+
+
 def calculate_agro_status(
     lat: float,
     lon: float,
     parcel_entity: dict,
+    weather_observation: dict,
+    weather_3d: Optional[list] = None,
     sensor_data: Optional[dict] = None,
-    openmeteo_api_url: str = "https://api.open-meteo.com/v1",
     parcel_altitude_m: float = 0.0,
     station_altitude_m: float = 0.0,
     parcel_aspect_deg: float = 0.0,
@@ -54,33 +70,14 @@ def calculate_agro_status(
     """
     Calculate agronomic status with semaphores for a parcel.
 
-    Applies spatial downscaling (altitude lapse rate, aspect/slope solar
-    radiation correction) to the Open-Meteo data before computing semaphores,
-    so the agronomic status reflects the parcel's actual microclimate.
+    Uses weather data from the weather-worker (weather_observations table)
+    rather than calling Open-Meteo directly — no external API dependency.
 
     Returns a dict with weather, semaphores, and metrics.
     """
-    # 1. Fetch Open-Meteo current + daily data
-    params = {
-        "latitude": lat,
-        "longitude": lon,
-        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,pressure_msl,precipitation",
-        "hourly": "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m",
-        "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,et0_fao_evapotranspiration",
-        "timezone": "Europe/Madrid",
-        "forecast_days": 7,
-    }
-
-    response = requests.get(openmeteo_api_url, params=params, timeout=10)
-    if response.status_code != 200:
-        raise Exception(f"Open-Meteo API returned {response.status_code}")
-
-    data = response.json()
-    current = data.get("current", {})
-    daily = data.get("daily", {})
-
-    raw_temperature = current.get("temperature_2m")
-    raw_humidity = current.get("relative_humidity_2m")
+    # 1. Extract current conditions from weather observation
+    raw_temperature = weather_observation.get("temp_avg")
+    raw_humidity = weather_observation.get("humidity_avg")
 
     # 1.5 — Apply spatial downscaling for parcel-specific microclimate
     downscaling_applied = False
@@ -93,61 +90,68 @@ def calculate_agro_status(
                 recalculate_delta_t,
             )
 
-            # Altitude lapse rate: 6.5°C per 1000m
             if abs(parcel_altitude_m - station_altitude_m) > 10:
                 raw_temperature = correct_temperature_altitude(
                     raw_temperature, station_altitude_m, parcel_altitude_m
                 )
                 downscaling_applied = True
 
-            # Recalculate Delta-T from corrected T and RH
             if raw_humidity is not None:
-                _ = recalculate_delta_t(raw_temperature, raw_humidity)  # used below
+                _ = recalculate_delta_t(raw_temperature, raw_humidity)
 
         except ImportError:
             logger.debug("Spatial downscaler not available for agro-status")
         except Exception as exc:
             logger.warning(f"Agro-status downscaling error: {exc}")
 
-    openmeteo_data = {
+    # 2. Aggregate 3-day precipitation and ET0 from history
+    precip_3d = 0.0
+    et0_3d = 0.0
+    if weather_3d:
+        for obs in weather_3d:
+            precip_3d += obs.get("precip_mm") or 0
+            et0_val = obs.get("eto_mm")
+            if et0_val is not None:
+                et0_3d += et0_val
+
+    weather_data = {
         "temperature": raw_temperature,
         "humidity": raw_humidity,
-        "wind_speed": current.get("wind_speed_10m"),
-        "wind_direction": current.get("wind_direction_10m"),
-        "pressure": current.get("pressure_msl"),
-        "precipitation": current.get("precipitation", 0),
-        "et0_today": daily.get("et0_fao_evapotranspiration", [0])[0]
-        if daily.get("et0_fao_evapotranspiration")
-        else None,
-        "precipitation_3d": sum(daily.get("precipitation_sum", [0])[:3])
-        if daily.get("precipitation_sum")
-        else 0,
-        "et0_3d": sum(daily.get("et0_fao_evapotranspiration", [0])[:3])
-        if daily.get("et0_fao_evapotranspiration")
-        else None,
-        "observed_at": datetime.utcnow().isoformat() + "Z",
+        "wind_speed": weather_observation.get("wind_speed_ms"),
+        "wind_direction": weather_observation.get("wind_direction_deg"),
+        "pressure": weather_observation.get("pressure_hpa"),
+        "precipitation": weather_observation.get("precip_mm") or 0,
+        "eto_today": weather_observation.get("eto_mm"),
+        "precipitation_3d": round(precip_3d, 2),
+        "eto_3d": round(et0_3d, 2) if et0_3d else None,
+        "wind_gusts": weather_observation.get("wind_gusts_ms"),
+        "observed_at": weather_observation.get(
+            "observed_at", datetime.now(timezone.utc)
+        ),
     }
 
-    # 2. Fuse sensor and Open-Meteo data (Sensor > Open-Meteo)
+    # 3. Fuse sensor and weather data (Sensor > weather observation)
     fused = {
-        "temperature": openmeteo_data.get("temperature"),
-        "humidity": openmeteo_data.get("humidity"),
-        "wind_speed": openmeteo_data.get("wind_speed"),
-        "wind_direction": openmeteo_data.get("wind_direction"),
-        "pressure": openmeteo_data.get("pressure"),
-        "precipitation": openmeteo_data.get("precipitation", 0),
-        "precipitation_3d": openmeteo_data.get("precipitation_3d", 0),
-        "et0_today": openmeteo_data.get("et0_today"),
-        "et0_3d": openmeteo_data.get("et0_3d"),
+        "temperature": weather_data.get("temperature"),
+        "humidity": weather_data.get("humidity"),
+        "wind_speed": weather_data.get("wind_speed"),
+        "wind_direction": weather_data.get("wind_direction"),
+        "pressure": weather_data.get("pressure"),
+        "precipitation": weather_data.get("precipitation", 0),
+        "precipitation_3d": weather_data.get("precipitation_3d", 0),
+        "eto_today": weather_data.get("eto_today"),
+        "eto_3d": weather_data.get("eto_3d"),
+        "wind_gusts": weather_data.get("wind_gusts"),
         "sources": {
-            "temperature": "OPEN-METEO",
-            "humidity": "OPEN-METEO",
-            "wind_speed": "OPEN-METEO",
-            "wind_direction": "OPEN-METEO",
-            "pressure": "OPEN-METEO",
-            "precipitation": "OPEN-METEO",
+            "temperature": "WEATHER-OBS",
+            "humidity": "WEATHER-OBS",
+            "wind_speed": "WEATHER-OBS",
+            "wind_direction": "WEATHER-OBS",
+            "pressure": "WEATHER-OBS",
+            "precipitation": "WEATHER-OBS",
+            "wind_gusts": "WEATHER-OBS",
         },
-        "source_confidence": "OPEN-METEO",
+        "source_confidence": "WEATHER-OBS",
     }
 
     if sensor_data and sensor_data.get("payload"):
@@ -175,17 +179,17 @@ def calculate_agro_status(
             "last_observation": sensor_data["observed_at"],
         }
 
-    # 3. Calculate water balance
+    # 4. Calculate water balance
     fused["water_balance"] = _calc_water_balance(
-        fused.get("precipitation_3d"), fused.get("et0_3d")
+        fused.get("precipitation_3d"), fused.get("eto_3d")
     )
 
-    # 4. Calculate Delta-T
+    # 5. Calculate Delta-T
     delta_t = None
     if fused.get("temperature") is not None and fused.get("humidity") is not None:
         delta_t = _calc_delta_t(fused["temperature"], fused["humidity"])
 
-    # 5. Semaphores
+    # 6. Semaphores
     semaphores = {
         "spraying": "unknown",
         "workability": "unknown",
@@ -194,18 +198,22 @@ def calculate_agro_status(
 
     wind_speed_ms = fused.get("wind_speed") or 0
     wind_speed_kmh = wind_speed_ms * 3.6
+    wind_gusts_ms = fused.get("wind_gusts") or 0
+    wind_gusts_kmh = wind_gusts_ms * 3.6
     precip = fused.get("precipitation") or 0
 
-    # Spraying semaphore
+    # 6a. Spraying semaphore
     if delta_t is not None and wind_speed_kmh is not None:
-        if wind_speed_kmh < 15 and 2 <= delta_t <= 8:
+        if wind_gusts_kmh > 25:
+            semaphores["spraying"] = "not_suitable"
+        elif wind_speed_kmh < 15 and 2 <= delta_t <= 8:
             semaphores["spraying"] = "optimal"
         elif wind_speed_kmh > 20 or delta_t > 10 or (precip and precip > 0.5):
             semaphores["spraying"] = "not_suitable"
         else:
             semaphores["spraying"] = "caution"
 
-    # Workability semaphore
+    # 6b. Workability semaphore
     soil_moisture = None
     if sensor_data and sensor_data.get("payload"):
         p = sensor_data["payload"]
@@ -233,7 +241,7 @@ def calculate_agro_status(
         else:
             semaphores["workability"] = "caution"
 
-    # Irrigation semaphore
+    # 6c. Irrigation semaphore
     water_balance = fused.get("water_balance")
     if water_balance is not None:
         if water_balance > 0:
@@ -260,8 +268,9 @@ def calculate_agro_status(
             "delta_t": delta_t,
             "water_balance": fused.get("water_balance"),
             "wind_speed": fused.get("wind_speed"),
+            "wind_gusts": fused.get("wind_gusts"),
         },
-        "source_confidence": fused.get("source_confidence", "OPEN-METEO"),
+        "source_confidence": fused.get("source_confidence", "WEATHER-OBS"),
         "downscaling": "applied" if downscaling_applied else "unavailable",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }

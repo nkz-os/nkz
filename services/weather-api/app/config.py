@@ -10,11 +10,13 @@ class Settings:
         self.cors_origins = os.getenv(
             "CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
         )
-        self.orion_url = os.getenv("ORION_URL", "http://orion-ld-service:1026").rstrip("/")
+        self.orion_url = os.getenv("ORION_URL", "http://orion-ld-service:1026").rstrip(
+            "/"
+        )
         self.context_url = os.getenv("CONTEXT_URL", "")
         self.postgres_url = os.getenv("POSTGRES_URL", "")
         self.openmeteo_api_url = os.getenv(
-            "OPENMETEO_API_URL", "https://api.open-meteo.com/v1"
+            "OPENMETEO_API_URL", "https://api.open-meteo.com/v1/forecast"
         )
         self.aemet_api_key = os.getenv("AEMET_API_KEY", "")
         self.log_level = os.getenv("LOG_LEVEL", "INFO")

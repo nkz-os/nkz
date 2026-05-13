@@ -72,6 +72,7 @@ class BaseWeatherProvider(ABC):
             'temp_max': raw_data.get('temperature_2m_max'),
             'humidity_avg': raw_data.get('relative_humidity_2m'),
             'precip_mm': raw_data.get('precipitation'),
+            'precip_probability': raw_data.get('precipitation_probability'),
             'solar_rad_w_m2': raw_data.get('solar_radiation'),
             'solar_rad_ghi_w_m2': raw_data.get('global_horizontal_irradiance'),
             'solar_rad_dni_w_m2': raw_data.get('direct_normal_irradiance'),
@@ -79,6 +80,7 @@ class BaseWeatherProvider(ABC):
             'soil_moisture_0_10cm': raw_data.get('soil_moisture_0_10cm'),
             'soil_moisture_10_40cm': raw_data.get('soil_moisture_10_40cm'),
             'wind_speed_ms': raw_data.get('wind_speed_10m'),
+            'wind_gusts_ms': raw_data.get('wind_gusts_10m'),
             'wind_direction_deg': raw_data.get('wind_direction_10m'),
             'pressure_hpa': raw_data.get('surface_pressure'),
         }

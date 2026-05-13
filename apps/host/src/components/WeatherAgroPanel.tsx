@@ -56,6 +56,25 @@ interface ParcelSensor {
   };
 }
 
+interface AgroStatusSemaphore {
+  semaphores: {
+    spraying: SprayingCondition;
+    workability: WorkabilityCondition;
+    irrigation: IrrigationCondition;
+  };
+  source_confidence: 'SENSOR_REAL' | 'WEATHER-OBS' | 'OPEN-METEO';
+  metrics?: {
+    temperature?: number;
+    humidity?: number;
+    delta_t?: number;
+    water_balance?: number;
+    wind_speed?: number;
+    wind_gusts?: number;
+  };
+  downscaling?: string;
+  timestamp?: string;
+}
+
 interface WeatherAgroPanelProps {
   municipalityCode?: string;
   municipalityName?: string;
@@ -64,7 +83,7 @@ interface WeatherAgroPanelProps {
 }
 
 type SprayingCondition = 'optimal' | 'caution' | 'not_suitable' | 'unknown';
-type WorkabilityCondition = 'optimal' | 'too_wet' | 'too_dry' | 'unknown';
+type WorkabilityCondition = 'optimal' | 'too_wet' | 'too_dry' | 'caution' | 'unknown';
 type IrrigationCondition = 'satisfied' | 'alert' | 'deficit' | 'unknown';
 
 export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
@@ -102,6 +121,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   const [currentWeather, setCurrentWeather] = useState<WeatherObservation | null>(null);
   const [historicalWeather, setHistoricalWeather] = useState<WeatherObservation[]>([]);
   const [parcelSensors, setParcelSensors] = useState<ParcelSensor[]>([]);
+  const [agroStatus, setAgroStatus] = useState<AgroStatusSemaphore | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMunicipalitySearch, setShowMunicipalitySearch] = useState(false);
@@ -151,8 +171,57 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   useEffect(() => {
     if (parcelId) {
       loadParcelSensors();
+      loadAgroStatus();
+    } else {
+      setAgroStatus(null);
     }
   }, [parcelId]);
+
+  const loadAgroStatus = async () => {
+    if (!parcelId) return;
+    try {
+      const resp = await api.getParcelAgroStatus(parcelId);
+      setAgroStatus(resp);
+    } catch (err) {
+      logger.warn('Agro-status API failed, falling back to local calculation:', err);
+      setAgroStatus(null);
+    }
+  };
+
+  // Map backend semaphore value to UI color
+  const semaphoreColor = (value: string): string => {
+    switch (value) {
+      case 'optimal': case 'satisfied': return 'green';
+      case 'caution': case 'alert': return 'yellow';
+      case 'not_suitable': case 'too_wet': case 'too_dry': case 'deficit': return 'red';
+      default: return 'gray';
+    }
+  };
+
+  const semaphoreLabel = (type: string, value: string): string => {
+    const labels: Record<string, Record<string, string>> = {
+      spraying: {
+        optimal: 'Condiciones óptimas para pulverización',
+        caution: 'Precaución - Condiciones marginales',
+        not_suitable: 'No tratar - Condiciones desfavorables',
+        unknown: 'Sin datos',
+      },
+      workability: {
+        optimal: 'Suelo apto para labor',
+        too_wet: 'Riesgo de compactación - Suelo muy húmedo',
+        too_dry: 'Suelo muy seco - Considerar riego',
+        caution: 'Precaución - Condiciones marginales',
+        unknown: 'Sin datos',
+      },
+      irrigation: {
+        satisfied: 'Suelo con agua suficiente',
+        alert: 'Alerta - Déficit hídrico moderado',
+        deficit: 'Necesita riego urgente',
+        unknown: 'Sin datos de balance hídrico',
+      },
+    };
+    return labels[type]?.[value] || 'Sin datos';
+  };
 
   const loadWeatherData = async () => {
     const codeToUse = selectedMunicipalityCode || municipalityCode;
@@ -447,9 +516,17 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     };
   };
 
-  const spraying = getSprayingCondition();
-  const workability = getWorkabilityCondition();
-  const irrigation = getIrrigationCondition();
+  // Use backend semaphores when available (parcel selected + API success), fall back to local
+  const backendSemaphores = agroStatus?.semaphores;
+  const spraying = backendSemaphores
+    ? { condition: backendSemaphores.spraying as SprayingCondition, message: semaphoreLabel('spraying', backendSemaphores.spraying), color: semaphoreColor(backendSemaphores.spraying) }
+    : getSprayingCondition();
+  const workability = backendSemaphores
+    ? { condition: backendSemaphores.workability as WorkabilityCondition, message: semaphoreLabel('workability', backendSemaphores.workability), color: semaphoreColor(backendSemaphores.workability), soilMoisture: null as number | null }
+    : getWorkabilityCondition();
+  const irrigation = backendSemaphores
+    ? { condition: backendSemaphores.irrigation as IrrigationCondition, message: semaphoreLabel('irrigation', backendSemaphores.irrigation), color: semaphoreColor(backendSemaphores.irrigation), balance: agroStatus?.metrics?.water_balance ?? 0 }
+    : getIrrigationCondition();
 
   const getStatusIcon = (color: string) => {
     switch (color) {
