@@ -19,8 +19,12 @@
     "README.md",
     "package.json"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --external react,react-dom,@nekazari/design-tokens,@nekazari/ui-kit"
+    "build": "tsup src/index.ts --format cjs,esm --dts --external react,react-dom,@nekazari/design-tokens,@nekazari/ui-kit",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "@nekazari/design-tokens": "^0.1.0-alpha",

@@ -16,4 +16,13 @@ program
     await validateCommand(modulePath, options);
   });
 
+program
+  .command('dev')
+  .description('Start development server with host shell + HMR')
+  .argument('[path]', 'Path to module directory', '.')
+  .action(async (modulePath: string) => {
+    const { devCommand } = await import('./commands/dev.js');
+    await devCommand(modulePath);
+  });
+
 program.parse();
