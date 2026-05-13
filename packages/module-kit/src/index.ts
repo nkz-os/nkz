@@ -1,7 +1,26 @@
+// defineModule / schema (A.1)
 export { defineModule, toNKZRegistration } from './defineModule';
 export { ModuleDefinitionSchema } from './schema';
 export type { ModuleDefinition } from './schema';
 export type { ModuleAccent, ModuleI18n } from './types';
-export { initPlatformEvents, type PlatformEvents, type PlatformEvent } from './runtime/events';
+
+// Runtime provider (real)
+export { NKZProvider } from './runtime/NKZProvider';
+
+// Hooks
+export { useAuth } from './hooks/useAuth';
+export { useI18n } from './hooks/useI18n';
 export { usePlatformEvents, usePlatformEvent } from './hooks/usePlatformEvents';
 export { useAPI } from './hooks/useAPI';
+
+// Hook return types (useful for typing component props)
+export type {
+  AuthInfo,
+  PlanTier,
+  UseAuthReturn,
+  UseI18nReturn,
+  UsePlatformEventsReturn,
+} from './hooks/types';
+
+// Legacy event bus (preserved for backward compat)
+export { initPlatformEvents, type PlatformEvents, type PlatformEvent } from './runtime/events';
