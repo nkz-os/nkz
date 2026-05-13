@@ -26,13 +26,12 @@
 // =============================================================================
 
 import type { Plugin, UserConfig } from 'vite';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import react from '@vitejs/plugin-react';
 import {
     detectEntryStrategy,
     generateModuleEntry,
-    generateManifest,
 } from './codegen.js';
 
 export { detectEntryStrategy, generateModuleEntry, generateManifest } from './codegen.js';
@@ -86,25 +85,14 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
 
     let entry: string;
     let moduleId: string;
-    let manifestPlugin: Plugin | null = null;
 
     if (strategy === 'modern') {
         entry = generateModuleEntry(root);
         moduleId = options.moduleId ?? readModuleIdFromPackage(root);
-
-        manifestPlugin = {
-            name: 'nkz-module-builder:manifest',
-            apply: 'build',
-            async closeBundle() {
-                const moduleSourcePath = join(root, 'src/Module.tsx');
-                const { default: moduleConfig } = (await import(/* @vite-ignore */ moduleSourcePath)) as {
-                    default: Parameters<typeof generateManifest>[0];
-                };
-                const manifest = generateManifest(moduleConfig);
-                const outDir = resolve(root, viteConfig.build?.outDir ?? 'dist');
-                writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
-            },
-        };
+        // NOTE: dist/manifest.json emission is deferred to the `nkz build` CLI
+        // (Fase A.2) where vite-node / jiti can safely evaluate the TSX source
+        // to obtain the runtime ModuleDefinition. `generateManifest()` is still
+        // exported from this package for the CLI to consume.
     } else {
         entry = options.entry ?? 'src/moduleEntry.ts';
         if (!options.moduleId) {
@@ -130,7 +118,6 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
             },
         },
     ];
-    if (manifestPlugin) plugins.push(manifestPlugin);
 
     const config: UserConfig = {
         plugins,
