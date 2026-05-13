@@ -6,7 +6,9 @@ export type {
   ModuleApiContract,
 } from '@nekazari/sdk';
 
-/** Accent color definition for a module's visual identity */
+export type { ModuleDefinition } from './schema';
+
+/** Accent color definition for a module's visual identity (re-exported from schema for backward compat) */
 export interface ModuleAccent {
   base: string;
   soft: string;
