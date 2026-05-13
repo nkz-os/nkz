@@ -15,11 +15,95 @@ from psycopg2.extras import RealDictCursor
 from app.auth import require_auth, require_auth_optional
 from app.config import settings
 from app.deps import get_db_connection
-from app.services.agro_status import calculate_agro_status
+from app.services.agro_status import (
+    calculate_agro_status,
+    _usda_texture_class,
+    _extract_float,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/weather", tags=["parcels"])
+
+
+def _cross_validate_sensors(sensors: list) -> dict:
+    """Cross-validate multiple sensors, flag outliers >30% from median.
+
+    Returns the primary (nearest reliable) sensor data with validation metadata.
+    When one sensor diverges significantly, uses median of remaining sensors.
+    """
+    if len(sensors) < 2:
+        return sensors[0] if sensors else None
+
+    # Numeric metrics to cross-validate
+    keys = [
+        "temperature",
+        "temp",
+        "humidity",
+        "soil_moisture",
+        "moisture",
+        "wind_speed",
+        "pressure",
+    ]
+
+    def _median(values):
+        sorted_vals = sorted(v for v in values if v is not None)
+        if not sorted_vals:
+            return None
+        n = len(sorted_vals)
+        mid = n // 2
+        return (
+            sorted_vals[mid] if n % 2 else (sorted_vals[mid - 1] + sorted_vals[mid]) / 2
+        )
+
+    # Flag unreliable sensors
+    reliable = []
+    for s in sensors:
+        s["_unreliable"] = False
+        reliable.append(s)
+
+    if len(reliable) >= 2:
+        for key in keys:
+            values = [
+                s["payload"].get(key)
+                for s in reliable
+                if s["payload"].get(key) is not None
+            ]
+            if len(values) < 2:
+                continue
+            med = _median(values)
+            if med and med > 0:
+                for s in reliable:
+                    val = s["payload"].get(key)
+                    if val is not None and med > 0:
+                        deviation = abs(val - med) / med
+                        if deviation > 0.3:
+                            s["_unreliable"] = True
+
+    # Build fused payload from reliable sensors (median of each metric)
+    reliable_only = [s for s in reliable if not s["_unreliable"]]
+    if not reliable_only:
+        reliable_only = reliable  # fallback: all sensors unreliable, use all
+
+    fused_payload = {}
+    for key in keys:
+        vals = [
+            s["payload"].get(key)
+            for s in reliable_only
+            if s["payload"].get(key) is not None
+        ]
+        fused_payload[key] = _median(vals)
+
+    # Use nearest reliable sensor as primary
+    primary = reliable_only[0]
+    primary["payload"] = fused_payload
+    primary["validation"] = {
+        "status": "cross_validated",
+        "total_sensors": len(sensors),
+        "reliable_sensors": len(reliable_only),
+        "unreliable_ids": [s["external_id"] for s in sensors if s["_unreliable"]],
+    }
+    return primary
 
 
 def _orion_headers(tenant_id: str) -> dict:
@@ -292,6 +376,7 @@ def get_parcel_agro_status(
         lon, lat = loc
 
         # 3. Try to get sensor data near the parcel (within 5km radius)
+        #    Fetch all nearby sensors for cross-validation
         sensor_data = None
         try:
             conn = get_db_connection(tenant_id)
@@ -325,28 +410,39 @@ def get_parcel_agro_status(
                         ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
                     ) <= 5000
                     ORDER BY distance_m ASC
-                    LIMIT 1
                     """,
                     (lon, lat, tenant_id, tenant_id, lon, lat),
                 )
-                sensor_row = cur.fetchone()
-                if sensor_row and sensor_row["payload"]:
-                    payload = (
-                        sensor_row["payload"]
-                        if isinstance(sensor_row["payload"], dict)
-                        else json.loads(sensor_row["payload"])
-                    )
-                    sensor_data = {
-                        "external_id": sensor_row["external_id"],
-                        "name": sensor_row["name"],
-                        "distance_m": float(sensor_row["distance_m"])
-                        if sensor_row["distance_m"]
-                        else None,
-                        "observed_at": sensor_row["observed_at"].isoformat()
-                        if sensor_row["observed_at"]
-                        else None,
-                        "payload": payload,
-                    }
+                all_sensors = []
+                for row in cur.fetchall():
+                    if row["payload"]:
+                        payload = (
+                            row["payload"]
+                            if isinstance(row["payload"], dict)
+                            else json.loads(row["payload"])
+                        )
+                        all_sensors.append(
+                            {
+                                "external_id": row["external_id"],
+                                "name": row["name"],
+                                "distance_m": float(row["distance_m"])
+                                if row["distance_m"]
+                                else None,
+                                "observed_at": row["observed_at"].isoformat()
+                                if row["observed_at"]
+                                else None,
+                                "payload": payload,
+                            }
+                        )
+
+                # Cross-validate: if 2+ sensors, compare and flag outliers (>30% from median)
+                if len(all_sensors) >= 2:
+                    sensor_data = _cross_validate_sensors(all_sensors)
+                elif all_sensors:
+                    sensor_data = all_sensors[0]
+                    sensor_data["validation"] = {"status": "single"}
+                else:
+                    sensor_data = None
             finally:
                 cur.close()
                 conn.close()
@@ -368,6 +464,47 @@ def get_parcel_agro_status(
         ts = parcel_entity.get("terrainSlope", {})
         if isinstance(ts, dict):
             parcel_slope = float(ts.get("value", 0) or 0)
+
+        # 4.5. Try to get soil texture from AgriSoil entity linked to this parcel
+        soil_texture = None
+        try:
+            soil_headers = _orion_headers(tenant_id)
+            soil_response = requests.get(
+                f"{settings.orion_url}/ngsi-ld/v1/entities",
+                params={
+                    "type": "AgriSoil",
+                    "q": f"refAgriParcel=={parcel_id}",
+                    "limit": 1,
+                },
+                headers=soil_headers,
+                timeout=5,
+            )
+            if soil_response.status_code == 200:
+                soil_entities = soil_response.json()
+                if isinstance(soil_entities, list) and soil_entities:
+                    soil = soil_entities[0]
+                    horizons = soil.get("horizons", {}).get("value", [])
+                    if isinstance(horizons, list) and horizons:
+                        # Use top horizon (0-30cm)
+                        h = horizons[0]
+                        soil_texture = {
+                            "sand": _extract_float(h.get("sand")),
+                            "clay": _extract_float(h.get("clay")),
+                            "organic_carbon": _extract_float(
+                                h.get("organicCarbon"), 0.5
+                            ),
+                        }
+                        # Determine USDA texture class
+                        silt = 100.0 - soil_texture["sand"] - soil_texture["clay"]
+                        soil_texture["silt"] = max(0.0, silt)
+                        soil_texture["texture_class"] = _usda_texture_class(
+                            soil_texture["sand"], soil_texture["clay"]
+                        )
+                        logger.debug(
+                            f"Soil texture found for parcel {parcel_id}: {soil_texture['texture_class']}"
+                        )
+        except Exception as e:
+            logger.debug(f"Could not fetch AgriSoil for parcel {parcel_id}: {e}")
 
         # 5. Query weather_observations: nearest municipality, latest obs, and 3-day history
         weather_observation = {}
@@ -460,6 +597,7 @@ def get_parcel_agro_status(
             weather_observation=weather_observation,
             weather_3d=weather_3d,
             sensor_data=sensor_data,
+            soil_texture=soil_texture,
             parcel_altitude_m=parcel_altitude,
             station_altitude_m=station_altitude,
             parcel_aspect_deg=parcel_aspect,
