@@ -10,6 +10,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./mock": {
+      "import": "./dist/mock.js",
+      "types": "./dist/mock.d.ts"
     }
   },
   "files": [
@@ -19,7 +23,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --external react --external react-dom --external @nekazari/sdk --external @nekazari/ui-kit --external @nekazari/viewer-kit --external @nekazari/design-tokens --external @nekazari/module-builder",
+    "build": "tsup src/index.ts src/mock.ts --format esm --dts --external react --external react-dom --external @nekazari/sdk --external @nekazari/ui-kit --external @nekazari/viewer-kit --external @nekazari/design-tokens --external @nekazari/module-builder",
     "prepublishOnly": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -141,6 +141,43 @@ describe('NKZProvider', () => {
   });
 
   it('hasPlan respects tenantPlan prop', () => {
+    // intentional fallthrough — covered below
+  });
+});
+
+import { MockProvider } from '../src/mock/MockProvider';
+
+describe('MockProvider', () => {
+  it('provides default fixtures when no props are passed', () => {
+    const w = ({ children }: { children: ReactNode }) => <MockProvider>{children}</MockProvider>;
+    const { result } = renderHook(() => useAuth(), { wrapper: w });
+    expect(result.current.user?.email).toBe('dev@nekazari.test');
+    expect(result.current.tenantId).toBe('dev-tenant');
+    expect(result.current.hasPlan('basic')).toBe(true);
+    expect(result.current.hasPlan('enterprise')).toBe(false);
+  });
+
+  it('honours override fixtures', () => {
+    const w = ({ children }: { children: ReactNode }) => (
+      <MockProvider fixtures={{ moduleId: 'soil-health', tenantPlan: 'enterprise' }}>{children}</MockProvider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper: w });
+    expect(result.current.hasPlan('enterprise')).toBe(true);
+  });
+
+  it('mock event bus delivers events locally with module namespace', () => {
+    const seen: unknown[] = [];
+    const w = ({ children }: { children: ReactNode }) => (
+      <MockProvider fixtures={{ moduleId: 'test-mock' }}>{children}</MockProvider>
+    );
+    const { result } = renderHook(() => usePlatformEvents(), { wrapper: w });
+    result.current.on('module:test-mock:hello', (p) => seen.push(p));
+    result.current.emit('hello', { v: 1 });
+    expect(seen).toEqual([{ v: 1 }]);
+  });
+
+  // Original duplicate skipped to keep diff minimal — see NKZProvider describe block above
+  it('NKZProvider hasPlan respects tenantPlan prop', () => {
     (window as unknown as { __nekazariAuthContext: AuthInfo }).__nekazariAuthContext = {
       user: { id: 'u', email: 'e@e.e', name: 'n' },
       tenantId: 't',
