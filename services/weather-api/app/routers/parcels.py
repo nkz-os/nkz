@@ -259,10 +259,9 @@ def get_parcel_agro_status(
     """
     Get agronomic weather status for a parcel.
 
-    Fuses sensor data (if available) with Open-Meteo data:
-    - Priority: Sensor > Open-Meteo
-    - Calculates parcel centroid from geometry
-    - Returns current conditions and agroclimatic metrics
+    Uses weather-worker data (weather_observations) — no direct Open-Meteo call.
+    Fuses sensor data when available within 5km radius.
+    Applies spatial downscaling for parcel-specific microclimate.
     """
     try:
         # 1. Get parcel from Orion-LD
@@ -370,37 +369,97 @@ def get_parcel_agro_status(
         if isinstance(ts, dict):
             parcel_slope = float(ts.get("value", 0) or 0)
 
-        # Station altitude from parcel's nearest municipality (from DB)
+        # 5. Query weather_observations: nearest municipality, latest obs, and 3-day history
+        weather_observation = {}
+        weather_3d = []
         station_altitude = 0.0
+
         try:
             conn = get_db_connection(tenant_id)
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT wo.metadata->>'station_elevation_m' as station_elevation_m
-                FROM weather_observations wo
-                WHERE wo.tenant_id = %s
-                  AND wo.location IS NOT NULL
-                ORDER BY wo.location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                LIMIT 1
-                """,
-                (tenant_id, lon, lat),
-            )
-            row = cur.fetchone()
-            if row and row.get("station_elevation_m"):
-                station_altitude = float(row["station_elevation_m"])
-            cur.close()
-            conn.close()
-        except Exception as e:
-            logger.debug(f"Could not resolve station altitude: {e}")
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # 5. Calculate agronomic status with spatial downscaling
+                # 5a. Find nearest municipality with weather data
+                cur.execute(
+                    """
+                    SELECT municipality_code,
+                           metadata->>'station_elevation_m' as station_elevation_m
+                    FROM weather_observations
+                    WHERE tenant_id = %s AND location IS NOT NULL
+                    ORDER BY location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                    LIMIT 1
+                    """,
+                    (tenant_id, lon, lat),
+                )
+                nearest = cur.fetchone()
+
+                if nearest:
+                    muni_code = nearest["municipality_code"]
+                    if nearest.get("station_elevation_m"):
+                        station_altitude = float(nearest["station_elevation_m"])
+
+                    # 5b. Latest observation for current conditions
+                    cur.execute(
+                        """
+                        SELECT observed_at, temp_avg, temp_min, temp_max,
+                               humidity_avg, precip_mm, precip_probability,
+                               wind_speed_ms, wind_gusts_ms, wind_direction_deg,
+                               pressure_hpa,
+                               solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
+                               eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
+                               gdd_accumulated, delta_t,
+                               source, data_type, metadata
+                        FROM weather_observations
+                        WHERE tenant_id = %s
+                          AND municipality_code = %s
+                          AND source = 'OPEN-METEO'
+                        ORDER BY observed_at DESC
+                        LIMIT 1
+                        """,
+                        (tenant_id, muni_code),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        weather_observation = dict(row)
+
+                    # 5c. Last 3 days for water balance aggregation
+                    cur.execute(
+                        """
+                        SELECT precip_mm, eto_mm, observed_at
+                        FROM weather_observations
+                        WHERE tenant_id = %s
+                          AND municipality_code = %s
+                          AND source = 'OPEN-METEO'
+                          AND data_type = 'HISTORY'
+                          AND observed_at >= NOW() - INTERVAL '3 days'
+                        ORDER BY observed_at DESC
+                        """,
+                        (tenant_id, muni_code),
+                    )
+                    weather_3d = [dict(r) for r in cur.fetchall()]
+            finally:
+                cur.close()
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Could not fetch weather observations: {e}")
+
+        if not weather_observation:
+            return JSONResponse(
+                {
+                    "error": "No weather data available for this location",
+                    "details": "Weather data has not been ingested yet for this area",
+                },
+                status_code=503,
+            )
+
+        # 6. Calculate agronomic status
         result = calculate_agro_status(
             lat=lat,
             lon=lon,
             parcel_entity=parcel_entity,
+            weather_observation=weather_observation,
+            weather_3d=weather_3d,
             sensor_data=sensor_data,
-            openmeteo_api_url=settings.openmeteo_api_url,
             parcel_altitude_m=parcel_altitude,
             station_altitude_m=station_altitude,
             parcel_aspect_deg=parcel_aspect,
