@@ -1,24 +1,41 @@
 // =============================================================================
 // @nekazari/module-builder — Vite Preset for NKZ Module IIFE Bundles
 // =============================================================================
-// Usage in a module's vite.config.ts:
+// Two modes:
 //
-//   import { defineConfig } from 'vite';
-//   import { nkzModulePreset } from '@nekazari/module-builder';
+// MODERN — src/Module.tsx exports `export default defineModule({...})`.
+//   The preset auto-generates `node_modules/.nkz/moduleEntry.gen.ts` and
+//   emits `dist/manifest.json`. The module id is read from
+//   package.json#nkz.moduleId (or from the moduleId option).
 //
-//   export default defineConfig(nkzModulePreset({
-//     moduleId: 'catastro-spain',
-//     entry: 'src/moduleEntry.ts',
-//   }));
+//     // vite.config.ts
+//     import { defineConfig } from 'vite';
+//     import { nkzModulePreset } from '@nekazari/module-builder';
+//     export default defineConfig(nkzModulePreset());
 //
-// This produces a single IIFE bundle at dist/nkz-module.js that:
-// - Externalizes React, ReactDOM, @nekazari/sdk, @nekazari/ui-kit
-// - Maps them to window globals (window.React, window.__NKZ_SDK__, etc.)
+// LEGACY — src/moduleEntry.ts written by hand. The preset uses it as-is
+//   and does NOT emit a manifest. This is the path the existing modules
+//   use today. New modules should use modern mode.
+//
+//     export default defineConfig(nkzModulePreset({ moduleId: 'my-module' }));
+//
+// Either way the output is a single IIFE bundle at dist/nkz-module.js that:
+// - Externalizes React, ReactDOM, @nekazari/sdk, @nekazari/ui-kit, etc.
+// - Maps them to window globals provided by the host
 // - Wraps everything in an IIFE that calls window.__NKZ__.register()
 // =============================================================================
 
-import type { UserConfig } from 'vite';
+import type { Plugin, UserConfig } from 'vite';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import react from '@vitejs/plugin-react';
+import {
+    detectEntryStrategy,
+    generateModuleEntry,
+    generateManifest,
+} from './codegen.js';
+
+export { detectEntryStrategy, generateModuleEntry, generateManifest } from './codegen.js';
 
 // =============================================================================
 // External Dependencies — mapped to window globals provided by the host
@@ -33,79 +50,90 @@ const NKZ_EXTERNALS: Record<string, string> = {
     '@nekazari/ui-kit': '__NKZ_UI__',
     '@nekazari/design-tokens': '__NKZ_THEME__',
     '@nekazari/viewer-kit': '__NKZ_VIEWER__',
+    '@nekazari/module-kit': '__NKZ_MODULE_KIT__',
 };
 
-// =============================================================================
-// Preset Options
-// =============================================================================
-
 export interface NKZModulePresetOptions {
-    /** Module identifier (must match DB entry in marketplace_modules) */
-    moduleId: string;
-    /** Entry point file (default: 'src/moduleEntry.ts') */
+    /**
+     * Module identifier. REQUIRED in legacy mode. In modern mode it is
+     * derived from package.json#nkz.moduleId unless explicitly passed.
+     */
+    moduleId?: string;
+    /** Entry point file (legacy mode only; default: 'src/moduleEntry.ts'). */
     entry?: string;
-    /** Output filename (default: 'nkz-module.js') */
+    /** Output filename (default: 'nkz-module.js'). */
     outputFile?: string;
-    /** Additional Vite config to merge */
+    /** Additional Vite config to merge. */
     viteConfig?: Partial<UserConfig>;
-    /** Additional externals beyond the defaults */
+    /** Additional externals beyond the defaults. */
     additionalExternals?: Record<string, string>;
+    /** Project root (default: process.cwd()). */
+    root?: string;
 }
-
-// =============================================================================
-// Preset Function
-// =============================================================================
 
 /**
  * Creates a Vite config for building a Nekazari module as an IIFE bundle.
- *
- * @example
- * ```ts
- * // vite.config.ts
- * import { defineConfig } from 'vite';
- * import { nkzModulePreset } from '@nekazari/module-builder';
- *
- * export default defineConfig(nkzModulePreset({
- *   moduleId: 'catastro-spain',
- * }));
- * ```
  */
-export function nkzModulePreset(options: NKZModulePresetOptions): UserConfig {
+export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfig {
     const {
-        moduleId,
-        entry = 'src/moduleEntry.ts',
         outputFile = 'nkz-module.js',
         viteConfig = {},
         additionalExternals = {},
+        root = process.cwd(),
     } = options;
 
-    if (!moduleId) {
-        throw new Error('[module-builder] moduleId is required');
+    const strategy = detectEntryStrategy(root);
+
+    let entry: string;
+    let moduleId: string;
+    let manifestPlugin: Plugin | null = null;
+
+    if (strategy === 'modern') {
+        entry = generateModuleEntry(root);
+        moduleId = options.moduleId ?? readModuleIdFromPackage(root);
+
+        manifestPlugin = {
+            name: 'nkz-module-builder:manifest',
+            apply: 'build',
+            async closeBundle() {
+                const moduleSourcePath = join(root, 'src/Module.tsx');
+                const { default: moduleConfig } = (await import(/* @vite-ignore */ moduleSourcePath)) as {
+                    default: Parameters<typeof generateManifest>[0];
+                };
+                const manifest = generateManifest(moduleConfig);
+                const outDir = resolve(root, viteConfig.build?.outDir ?? 'dist');
+                writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+            },
+        };
+    } else {
+        entry = options.entry ?? 'src/moduleEntry.ts';
+        if (!options.moduleId) {
+            throw new Error('[module-builder] Legacy mode requires moduleId in nkzModulePreset({ moduleId: "..." })');
+        }
+        moduleId = options.moduleId;
     }
 
-    // Merge default externals with any additional ones
     const allExternals = { ...NKZ_EXTERNALS, ...additionalExternals };
     const externalKeys = Object.keys(allExternals);
     const globals = { ...allExternals };
 
-    const config: UserConfig = {
-        plugins: [
-            // Use 'classic' runtime to emit React.createElement() calls.
-            // The 'automatic' runtime emits _jsx() which doesn't exist on
-            // window.React (UMD global). Classic runtime is required for IIFE modules.
-            react({ jsxRuntime: 'classic' }),
-            // Banner plugin to add module metadata comment
-            {
-                name: 'nkz-module-banner',
-                generateBundle(_options, bundle) {
-                    for (const chunk of Object.values(bundle)) {
-                        if (chunk.type === 'chunk' && chunk.isEntry) {
-                            chunk.code = `/* NKZ Module: ${moduleId} | Built: ${new Date().toISOString()} */\n${chunk.code}`;
-                        }
+    const plugins: Plugin[] = [
+        ...(react({ jsxRuntime: 'classic' }) as Plugin[]),
+        {
+            name: 'nkz-module-banner',
+            generateBundle(_options, bundle) {
+                for (const chunk of Object.values(bundle)) {
+                    if (chunk.type === 'chunk' && chunk.isEntry) {
+                        chunk.code = `/* NKZ Module: ${moduleId} | Built: ${new Date().toISOString()} */\n${chunk.code}`;
                     }
-                },
+                }
             },
-        ],
+        },
+    ];
+    if (manifestPlugin) plugins.push(manifestPlugin);
+
+    const config: UserConfig = {
+        plugins,
 
         define: {
             'process.env.NODE_ENV': JSON.stringify('production'),
@@ -123,23 +151,16 @@ export function nkzModulePreset(options: NKZModulePresetOptions): UserConfig {
                 external: externalKeys,
                 output: {
                     globals,
-                    // Single file output
                     inlineDynamicImports: true,
                 },
             },
-            // Output to dist/
             outDir: 'dist',
-            // Clean dist on build
             emptyOutDir: true,
-            // Generate sourcemaps for debugging
             sourcemap: true,
-            // Minify for production
             minify: 'esbuild',
-            // Don't copy public directory
             copyPublicDir: false,
         },
 
-        // Resolve aliases for development
         resolve: {
             alias: {
                 '@': '/src',
@@ -147,7 +168,6 @@ export function nkzModulePreset(options: NKZModulePresetOptions): UserConfig {
         },
     };
 
-    // Deep merge with user's additional config
     if (viteConfig.plugins) {
         config.plugins = [...(config.plugins || []), ...viteConfig.plugins];
     }
@@ -155,7 +175,7 @@ export function nkzModulePreset(options: NKZModulePresetOptions): UserConfig {
         config.define = { ...config.define, ...viteConfig.define };
     }
     if (viteConfig.resolve?.alias) {
-        const existingAlias = config.resolve?.alias as Record<string, string> || {};
+        const existingAlias = (config.resolve?.alias as Record<string, string>) || {};
         const newAlias = viteConfig.resolve.alias as Record<string, string>;
         config.resolve = { ...config.resolve, alias: { ...existingAlias, ...newAlias } };
     }
@@ -163,6 +183,20 @@ export function nkzModulePreset(options: NKZModulePresetOptions): UserConfig {
     return config;
 }
 
-// Re-export for convenience
+function readModuleIdFromPackage(root: string): string {
+    const pkgPath = join(root, 'package.json');
+    if (!existsSync(pkgPath)) {
+        throw new Error(`[module-builder] package.json not found at ${pkgPath}`);
+    }
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as {
+        nkz?: { moduleId?: string };
+        name?: string;
+    };
+    if (pkg.nkz?.moduleId) return pkg.nkz.moduleId;
+    throw new Error(
+        '[module-builder] Modern mode needs a moduleId. Add "nkz": { "moduleId": "your-id" } to package.json, or pass moduleId in nkzModulePreset({...}).',
+    );
+}
+
 export { NKZ_EXTERNALS };
 export default nkzModulePreset;
