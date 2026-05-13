@@ -5,6 +5,8 @@ import { NKZContext, type NKZRuntime } from '../src/runtime/NKZContext';
 import { useAuth } from '../src/hooks/useAuth';
 import { useI18n } from '../src/hooks/useI18n';
 import { usePlatformEvents } from '../src/hooks/usePlatformEvents';
+import { NKZProvider } from '../src/runtime/NKZProvider';
+import type { AuthInfo } from '../src/hooks/types';
 
 const fixture: NKZRuntime = {
   moduleId: 'test',
@@ -116,5 +118,42 @@ describe('usePlatformEvents (namespaced)', () => {
     const { result } = renderHook(() => usePlatformEvents(), { wrapper: customWrapper });
     result.current.on('parcel:selected', () => {});
     expect(subs[0].ev).toBe('parcel:selected');
+  });
+});
+
+describe('NKZProvider', () => {
+  it('reads auth from window.__nekazariAuthContext', () => {
+    (window as unknown as { __nekazariAuthContext: AuthInfo }).__nekazariAuthContext = {
+      user: { id: 'host-u', email: 'host@x.com', name: 'Host User' },
+      tenantId: 'host-t',
+      tenantName: 'Host Tenant',
+      roles: ['Farmer'],
+      isAuthenticated: true,
+    };
+    const realWrapper = ({ children }: { children: ReactNode }) => (
+      <NKZProvider moduleId="soil-health">{children}</NKZProvider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper: realWrapper });
+    expect(result.current.user?.email).toBe('host@x.com');
+    expect(result.current.tenantId).toBe('host-t');
+    expect(result.current.hasRole('Farmer')).toBe(true);
+    expect(result.current.hasRole('Admin')).toBe(false);
+  });
+
+  it('hasPlan respects tenantPlan prop', () => {
+    (window as unknown as { __nekazariAuthContext: AuthInfo }).__nekazariAuthContext = {
+      user: { id: 'u', email: 'e@e.e', name: 'n' },
+      tenantId: 't',
+      tenantName: 'T',
+      roles: [],
+      isAuthenticated: true,
+    };
+    const realWrapper = ({ children }: { children: ReactNode }) => (
+      <NKZProvider moduleId="m" tenantPlan="pro">{children}</NKZProvider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper: realWrapper });
+    expect(result.current.hasPlan('basic')).toBe(true);
+    expect(result.current.hasPlan('pro')).toBe(true);
+    expect(result.current.hasPlan('premium')).toBe(false);
   });
 });
