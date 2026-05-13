@@ -28,22 +28,29 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AdminRoute, FarmerRoute, ModulesRoute } from '@/components/KeycloakProtectedRoute';
 import { RemoteModuleLoader } from '@/components/RemoteModuleLoader';
 import { Layout } from '@/components/Layout';
-import { UnifiedViewer } from '@/components/UnifiedViewer';
+const UnifiedViewer = React.lazy(() => import('@/components/UnifiedViewer').then(m => ({ default: m.UnifiedViewer })));
 
 // CORE Pages (essential for platform operation)
-import { Landing } from '@/pages/Landing';
-import { ForgotPassword } from '@/pages/ForgotPassword';
-import KeycloakLogin from '@/pages/KeycloakLogin';
-import { Activation } from '@/pages/Activation';
-import { DashboardImproved } from '@/pages/DashboardImproved';
-import { Settings } from '@/pages/Settings';
-import { Modules } from '@/pages/admin/Modules';
-import { AdminManagement } from '@/pages/admin/AdminManagement';
-// Entities page replaced by UnifiedViewer (Unified Command Center)
-import { Risks } from '@/pages/Risks';
-import { IntelligenceInfoPage } from '@/pages/IntelligenceInfoPage';
-import { NotFound } from '@/components/error/NotFound';
-import MobileViewer from '@/pages/MobileViewer';
+const Landing = React.lazy(() => import('@/pages/Landing').then(m => ({ default: m.Landing })));
+const ForgotPassword = React.lazy(() => import('@/pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
+const KeycloakLogin = React.lazy(() => import('@/pages/KeycloakLogin'));
+const Activation = React.lazy(() => import('@/pages/Activation').then(m => ({ default: m.Activation })));
+const DashboardImproved = React.lazy(() => import('@/pages/DashboardImproved').then(m => ({ default: m.DashboardImproved })));
+const Settings = React.lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })));
+const Modules = React.lazy(() => import('@/pages/admin/Modules').then(m => ({ default: m.Modules })));
+const AdminManagement = React.lazy(() => import('@/pages/admin/AdminManagement').then(m => ({ default: m.AdminManagement })));
+
+const Risks = React.lazy(() => import('@/pages/Risks').then(m => ({ default: m.Risks })));
+const IntelligenceInfoPage = React.lazy(() => import('@/pages/IntelligenceInfoPage').then(m => ({ default: m.IntelligenceInfoPage })));
+const NotFound = React.lazy(() => import('@/components/error/NotFound').then(m => ({ default: m.NotFound })));
+const MobileViewer = React.lazy(() => import('@/pages/MobileViewer'));
+// Route-level code splitting comment marker
+const RouteFallback = () => (
+  <div className="flex items-center justify-center min-h-screen bg-slate-950">
+    <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 import { EntityEditorModal, initEntityEditorListener, type EditorEventDetail } from '@/components/EntityEditor';
 import { hostI18nConfig } from '@/config/hostI18nConfig';
 
@@ -53,7 +60,8 @@ const DynamicRoutes = () => {
 
   try {
     return (
-      <Routes>
+      <React.Suspense fallback={<RouteFallback />}>
+        <Routes>
         {/* ============================================
             PUBLIC ROUTES (No authentication required)
             ============================================ */}
@@ -196,6 +204,7 @@ const DynamicRoutes = () => {
         {/* 404 - Not Found Page */}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </React.Suspense>
     );
   } catch (error) {
     console.error('🔥 [DynamicRoutes] CRITICAL RENDER ERROR:', error);

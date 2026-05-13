@@ -124,6 +124,64 @@ const getIconDataUri = (iconKeyOrUrl: string): string | null => {
   return null;
 };
 
+// Entity category helpers — extracted from the monolithic effect so each
+// per-category effect can reuse them without closure dependencies.
+
+const getRobotColor = (Cesium: any, status?: string): any => {
+  switch (status) {
+    case 'working':     return Cesium.Color.GREEN;
+    case 'idle':        return Cesium.Color.YELLOW;
+    case 'charging':    return Cesium.Color.BLUE;
+    case 'error':       return Cesium.Color.RED;
+    case 'maintenance': return Cesium.Color.ORANGE;
+    default:            return Cesium.Color.WHITE;
+  }
+};
+
+const getMachineColor = (Cesium: any, operationType?: string): any => {
+  switch (operationType) {
+    case 'seeding':       return Cesium.Color.GREEN;
+    case 'fertilization': return Cesium.Color.BLUE;
+    case 'spraying':      return Cesium.Color.ORANGE;
+    case 'harvesting':    return Cesium.Color.YELLOW;
+    case 'tillage':       return Cesium.Color.BROWN;
+    case 'irrigation':    return Cesium.Color.AQUA;
+    default:              return Cesium.Color.GRAY;
+  }
+};
+
+const getLivestockColor = (Cesium: any, activity?: string): any => {
+  switch (activity) {
+    case 'grazing': return Cesium.Color.GREEN;
+    case 'resting': return Cesium.Color.BLUE;
+    case 'moving':  return Cesium.Color.ORANGE;
+    case 'feeding': return Cesium.Color.YELLOW;
+    default:        return Cesium.Color.WHITE;
+  }
+};
+
+const getEntityModelUrl = (entity: any, defaultModel?: string): string | undefined => {
+  if (entity.ref3DModel?.value) return entity.ref3DModel.value;
+  if (entity.ref3DModel && typeof entity.ref3DModel === 'string') return entity.ref3DModel;
+  if (entity.model3d) return entity.model3d;
+  if (entity.model3DUrl) return entity.model3DUrl;
+  return defaultModel;
+};
+
+const resolveEntityIconUrl = (entity: any, defaultIcon: string): string | null => {
+  let iconValue: string | null = null;
+  if (entity.icon2d?.value) {
+    iconValue = entity.icon2d.value;
+  } else if (typeof entity.icon2d === 'string') {
+    iconValue = entity.icon2d;
+  }
+  if (iconValue) {
+    const dataUri = getIconDataUri(iconValue);
+    if (dataUri) return dataUri;
+  }
+  return getIconDataUri(defaultIcon);
+};
+
 /** Fallback UI shown when the browser cannot create a WebGL context */
 const WebGLFallback: React.FC = () => {
   const isFirefox = navigator.userAgent.includes('Firefox');
@@ -218,6 +276,23 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const cesiumLayerRef = useRef<any>(null);
   const viewerContext = useViewerOptional();
   const setCesiumViewer = viewerContext?.setCesiumViewer;
+
+  // Per-category entity tracking refs — each effect manages only its own entities,
+  // eliminating the full-scene rebuild (removeAll + re-add) that previously
+  // caused visible flicker and frame drops on every data update.
+  const entityRefs = useRef({
+    robot:    new Map<string, any>(),
+    sensor:   new Map<string, any>(),
+    machine:  new Map<string, any>(),
+    livestock:new Map<string, any>(),
+    weather:  new Map<string, any>(),
+    crop:     new Map<string, any>(),
+    building: new Map<string, any>(),
+    device:   new Map<string, any>(),
+    tree:     new Map<string, any>(),
+    tracker:  new Map<string, any>(),
+    parcel:   new Map<string, any>(),
+  });
 
   const parcelsIdentityKey = useMemo(
     () => [...parcels].map((p) => String(p.id)).sort().join('|'),
@@ -584,647 +659,783 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     }
   };
 
-  // Update entities when props change
+  // Height reference ref — updated when Cesium becomes available or terrain toggles
+  const heightRef = useRef<any>(undefined);
 
-  // Update entities when props change
+  useEffect(() => {
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    heightRef.current = enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE;
+  }, [enable3DTerrain, isViewerReady]);
+
+  // ── Per-category entity effects ──────────────────────────────────
+  // Each manages only its own entities via entityRefs, eliminating the
+  // monolithic full-scene rebuild (removeAll) that caused visible flicker.
+
+  // Robots effect
   useEffect(() => {
     const viewer = viewerRef.current;
-    if (!viewer) return;
-
-    // @ts-ignore
-    const Cesium = window.Cesium;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
     if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
 
-    try {
-      // Clear existing entities
-      viewer.entities.removeAll();
+    entityRefs.current.robot.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.robot.clear();
 
-      // Get color based on robot status
-      const getRobotColor = (status?: string): any => {
-        switch (status) {
-          case 'working':
-            return Cesium.Color.GREEN;
-          case 'idle':
-            return Cesium.Color.YELLOW;
-          case 'charging':
-            return Cesium.Color.BLUE;
-          case 'error':
-            return Cesium.Color.RED;
-          case 'maintenance':
-            return Cesium.Color.ORANGE;
-          default:
-            return Cesium.Color.WHITE;
-        }
-      };
+    robots.forEach((robot) => {
+      try {
+        const coordinates = getEntityCoordinates(robot);
+        if (!coordinates) return;
+        const [lon, lat] = coordinates;
 
-      // Determine height reference - CLAMP to terrain if enabled
-      const heightReference = enable3DTerrain
-        ? Cesium.HeightReference.CLAMP_TO_GROUND
-        : Cesium.HeightReference.NONE;
+        const robotName = typeof robot.name === 'string' ? robot.name : robot.name.value;
+        const robotStatus = typeof robot.status === 'string' ? robot.status : robot.status?.value;
+        const robotRisk = riskOverlay?.get(robot.id);
+        const robotPointColor = robotRisk
+          ? Cesium.Color.fromCssColorString(RISK_SEVERITY_COLORS[robotRisk.severity])
+          : getRobotColor(Cesium, robotStatus);
 
-      // Helper function to get icon URL, handling both direct URLs and icon keys
-      const getEntityIconUrl = (entity: any, defaultIcon: string): string | null => {
-        // Check for icon2d in various NGSI-LD formats
-        let iconValue = null;
-        if (entity.icon2d?.value) {
-          iconValue = entity.icon2d.value;
-        } else if (typeof entity.icon2d === 'string') {
-          iconValue = entity.icon2d;
-        }
+        const entity = viewer.entities.add({
+          id: `robot-${robot.id}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+          name: robotName,
+          point: {
+            pixelSize: 15,
+            color: robotPointColor,
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 2,
+            heightReference: hr,
+          },
+          label: {
+            text: robotName,
+            font: '14px sans-serif',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            pixelOffset: new Cesium.Cartesian2(0, -40),
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            heightReference: hr,
+          },
+        });
+        entityRefs.current.robot.set(robot.id, entity);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding robot:', robot, e);
+      }
+    });
 
-        if (iconValue) {
-          // Convert icon key to data URI
-          const dataUri = getIconDataUri(iconValue);
-          if (dataUri) return dataUri;
-        }
+    viewer.scene.requestRender();
+  }, [isViewerReady, robots, riskOverlay, enable3DTerrain]);
 
-        // Fallback to default icon if it exists
-        return getIconDataUri(defaultIcon);
-      };
+  // Sensors effect
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
 
-      // Helper function to get default 3D model URL or use custom model
-      // Supports multiple formats: ref3DModel (NGSI-LD), model3d (simplified), model3DUrl
-      const getEntityModel = (entity: any, defaultModel?: string): string | undefined => {
-        // NGSI-LD normalized format
-        if (entity.ref3DModel?.value) return entity.ref3DModel.value;
-        // NGSI-LD simplified/keyValues
-        if (entity.ref3DModel && typeof entity.ref3DModel === 'string') return entity.ref3DModel;
-        // Alternate property names
-        if (entity.model3d) return entity.model3d;
-        if (entity.model3DUrl) return entity.model3DUrl;
-        // Default
-        return defaultModel;
-      };
+    entityRefs.current.sensor.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.sensor.clear();
 
-      // Add robots - NGSI-LD format
-      robots.forEach((robot) => {
-        try {
-          const coordinates = getEntityCoordinates(robot);
-          if (!coordinates) return;
-          const [lon, lat] = coordinates;
+    logger.debug('[CesiumMap] Processing sensors:', sensors.length);
+    sensors.forEach((sensor) => {
+      try {
+        const coordinates = getEntityCoordinates(sensor);
+        logger.debug('[CesiumMap] Sensor', sensor.id, 'coordinates:', coordinates, 'location:', sensor.location);
+        if (!coordinates) return;
+        const [lon, lat] = coordinates;
 
-          const robotName = typeof robot.name === 'string' ? robot.name : robot.name.value;
-          const robotStatus = typeof robot.status === 'string' ? robot.status : robot.status?.value;
-          const robotRisk = riskOverlay?.get(robot.id);
-          const robotPointColor = robotRisk
-            ? Cesium.Color.fromCssColorString(RISK_SEVERITY_COLORS[robotRisk.severity])
-            : getRobotColor(robotStatus);
-
-          viewer.entities.add({
-            id: `robot-${robot.id}`,
-            position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-            name: robotName,
-            point: {
-              pixelSize: 15,
-              color: robotPointColor,
-              outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 2,
-              heightReference: heightReference,
-            },
-            label: {
-              text: robotName,
-              font: '14px sans-serif',
-              fillColor: Cesium.Color.WHITE,
-              outlineColor: Cesium.Color.BLACK,
-              outlineWidth: 2,
-              pixelOffset: new Cesium.Cartesian2(0, -40),
-              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-              heightReference: heightReference,
-            },
-          });
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding robot:', robot, e);
-        }
-      });
-
-      // Add sensors - NGSI-LD format
-      logger.debug('[CesiumMap] Processing sensors:', sensors.length);
-      sensors.forEach((sensor) => {
-        try {
-          const coordinates = getEntityCoordinates(sensor);
-          logger.debug('[CesiumMap] Sensor', sensor.id, 'coordinates:', coordinates, 'location:', sensor.location);
-          if (!coordinates) return;
-          const [lon, lat] = coordinates;
-
-          // Handle NGSI-LD namespaced name property
-          let sensorName = 'Unknown Sensor';
-          const nameProp = sensor.name;
-          if (typeof nameProp === 'string') {
-            sensorName = nameProp;
-          } else if (nameProp && typeof nameProp === 'object' && 'value' in nameProp && typeof (nameProp as { value: string }).value === 'string') {
-            sensorName = (nameProp as { value: string }).value;
-          } else {
-            const namespacedName = sensor['https://smartdatamodels.org/name'];
-            if (namespacedName && typeof namespacedName === 'object' && 'value' in namespacedName && typeof (namespacedName as { value: string }).value === 'string') {
-              sensorName = (namespacedName as { value: string }).value;
-            } else if (typeof namespacedName === 'string') {
-              sensorName = namespacedName;
-            }
+        // Handle NGSI-LD namespaced name property
+        let sensorName = 'Unknown Sensor';
+        const nameProp = sensor.name;
+        if (typeof nameProp === 'string') {
+          sensorName = nameProp;
+        } else if (nameProp && typeof nameProp === 'object' && 'value' in nameProp && typeof (nameProp as { value: string }).value === 'string') {
+          sensorName = (nameProp as { value: string }).value;
+        } else {
+          const namespacedName = sensor['https://smartdatamodels.org/name'];
+          if (namespacedName && typeof namespacedName === 'object' && 'value' in namespacedName && typeof (namespacedName as { value: string }).value === 'string') {
+            sensorName = (namespacedName as { value: string }).value;
+          } else if (typeof namespacedName === 'string') {
+            sensorName = namespacedName;
           }
+        }
 
-          const modelUrl = getEntityModel(sensor);
-          const iconUrl = getEntityIconUrl(sensor, '/assets/icons/sensor-default.png'); // Default fallback
-          const sensorRisk = riskOverlay?.get(sensor.id);
-          const sensorPointColor = sensorRisk
-            ? Cesium.Color.fromCssColorString(RISK_SEVERITY_COLORS[sensorRisk.severity])
-            : Cesium.Color.CYAN;
+        const modelUrl = getEntityModelUrl(sensor);
+        const iconUrl = resolveEntityIconUrl(sensor, '/assets/icons/sensor-default.png');
+        const sensorRisk = riskOverlay?.get(sensor.id);
+        const sensorPointColor = sensorRisk
+          ? Cesium.Color.fromCssColorString(RISK_SEVERITY_COLORS[sensorRisk.severity])
+          : Cesium.Color.CYAN;
 
-          // Common entity properties
-          const entityOptions: any = {
-            id: `sensor-${sensor.id}`,
-            position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-            name: sensorName,
-            label: {
-              text: sensorName,
-              font: '12px sans-serif',
-              fillColor: Cesium.Color.CYAN,
-              outlineColor: Cesium.Color.BLACK,
-              outlineWidth: 2,
-              pixelOffset: new Cesium.Cartesian2(0, -30),
-              heightReference: heightReference,
-            },
+        const entityOptions: any = {
+          id: `sensor-${sensor.id}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+          name: sensorName,
+          label: {
+            text: sensorName,
+            font: '12px sans-serif',
+            fillColor: Cesium.Color.CYAN,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            pixelOffset: new Cesium.Cartesian2(0, -30),
+            heightReference: hr,
+          },
+        };
+
+        if (modelUrl) {
+          const fixedModelUrl = normalizeAssetUrl(modelUrl);
+          entityOptions.model = {
+            uri: fixedModelUrl,
+            minimumPixelSize: 64,
+            maximumScale: 20000,
+            scale: (sensor.modelScale?.value || 1.0),
+            heightReference: hr,
           };
 
-          if (modelUrl) {
-            // Normalize legacy domain (artotxiki -> robotika)
-            const fixedModelUrl = normalizeAssetUrl(modelUrl);
-            // Render 3D Model
-            entityOptions.model = {
-              uri: fixedModelUrl,
-              minimumPixelSize: 64,
-              maximumScale: 20000,
-              scale: (sensor.modelScale?.value || 1.0),
-              heightReference: heightReference,
+          if (sensor.modelRotation?.value) {
+            const [rX, rY, rZ] = sensor.modelRotation.value;
+            const hpr = new Cesium.HeadingPitchRoll(
+              Cesium.Math.toRadians(rZ),
+              Cesium.Math.toRadians(rX),
+              Cesium.Math.toRadians(rY)
+            );
+            const orientation = Cesium.Transforms.headingPitchRollQuaternion(
+              Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+              hpr
+            );
+            entityOptions.orientation = orientation;
+          }
+        } else if (iconUrl && iconUrl !== '/assets/icons/sensor-default.png') {
+          let processedIconUrl = iconUrl;
+          if (iconUrl.startsWith('/') && !iconUrl.startsWith('//')) {
+            processedIconUrl = `${window.location.origin}${iconUrl}`;
+          }
+
+          logger.debug(`[CesiumMapDebug] Sensor ${sensor.id} using icon: ${processedIconUrl} (Original: ${iconUrl})`);
+
+          const validIcon = processedIconUrl.startsWith('http') || processedIconUrl.startsWith('data:');
+
+          if (validIcon) {
+            const fixedIconUrl = normalizeAssetUrl(processedIconUrl);
+            entityOptions.billboard = {
+              image: fixedIconUrl,
+              width: 32,
+              height: 32,
+              heightReference: hr,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
             };
-
-            // Apply rotation if present
-            if (sensor.modelRotation?.value) {
-              const [rX, rY, rZ] = sensor.modelRotation.value;
-              const hpr = new Cesium.HeadingPitchRoll(
-                Cesium.Math.toRadians(rZ), // Heading (Z)
-                Cesium.Math.toRadians(rX), // Pitch (X)
-                Cesium.Math.toRadians(rY)  // Roll (Y)
-              );
-              const orientation = Cesium.Transforms.headingPitchRollQuaternion(
-                Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-                hpr
-              );
-              entityOptions.orientation = orientation;
-            }
-          } else if (iconUrl && iconUrl !== '/assets/icons/sensor-default.png') {
-            // Render 2D Icon if custom icon exists (and is not just the fallback string checking)
-            // Resolve relative URLs to absolute if needed
-            let processedIconUrl = iconUrl;
-            if (iconUrl.startsWith('/') && !iconUrl.startsWith('//')) {
-              processedIconUrl = `${window.location.origin}${iconUrl}`;
-            }
-
-            // DEBUG: Log icon URL
-            logger.debug(`[CesiumMapDebug] Sensor ${sensor.id} using icon: ${processedIconUrl} (Original: ${iconUrl})`);
-
-            // Check if it's a real URL or key
-            const validIcon = processedIconUrl.startsWith('http') || processedIconUrl.startsWith('data:');
-
-            if (validIcon) {
-              const fixedIconUrl = normalizeAssetUrl(processedIconUrl);
-              entityOptions.billboard = {
-                image: fixedIconUrl,
-                width: 32,
-                height: 32,
-                heightReference: heightReference,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY, // Prevent occlusion
-                verticalOrigin: Cesium.VerticalOrigin.BOTTOM
-              };
-            } else {
-              // Fallback to Point
-              entityOptions.point = {
-                pixelSize: 10,
-                color: sensorPointColor,
-                outlineColor: Cesium.Color.WHITE,
-                outlineWidth: 1,
-                heightReference: heightReference,
-              };
-            }
           } else {
-            // Default Point
             entityOptions.point = {
               pixelSize: 10,
               color: sensorPointColor,
               outlineColor: Cesium.Color.WHITE,
               outlineWidth: 1,
-              heightReference: heightReference,
+              heightReference: hr,
             };
           }
-
-          viewer.entities.add(entityOptions);
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding sensor:', sensor, e);
+        } else {
+          entityOptions.point = {
+            pixelSize: 10,
+            color: sensorPointColor,
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 1,
+            heightReference: hr,
+          };
         }
-      });
 
+        const entity = viewer.entities.add(entityOptions);
+        entityRefs.current.sensor.set(sensor.id, entity);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding sensor:', sensor, e);
+      }
+    });
 
+    viewer.scene.requestRender();
+  }, [isViewerReady, sensors, riskOverlay, enable3DTerrain]);
 
-      // Helper function to get machine color based on operation type
-      const getMachineColor = (operationType?: string): any => {
-        switch (operationType) {
-          case 'seeding':
-            return Cesium.Color.GREEN;
-          case 'fertilization':
-            return Cesium.Color.BLUE;
-          case 'spraying':
-            return Cesium.Color.ORANGE;
-          case 'harvesting':
-            return Cesium.Color.YELLOW;
-          case 'tillage':
-            return Cesium.Color.BROWN;
-          case 'irrigation':
-            return Cesium.Color.AQUA;
-          default:
-            return Cesium.Color.GRAY;
+  // Machines effect
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
+
+    entityRefs.current.machine.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.machine.clear();
+
+    machines.forEach((machine) => {
+      try {
+        const coordinates = getEntityCoordinates(machine);
+        if (!coordinates) return;
+        const [lon, lat] = coordinates;
+
+        const machineName = typeof machine.name === 'string' ? machine.name : machine.name.value;
+        const operationType = typeof machine.operationType === 'string'
+          ? machine.operationType
+          : machine.operationType?.value;
+
+        const entityOptions: any = {
+          id: `machine-${machine.id}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+          name: machineName,
+          point: {
+            pixelSize: 18,
+            color: getMachineColor(Cesium, operationType),
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 2,
+            heightReference: hr,
+          },
+          label: {
+            text: machineName,
+            font: '14px sans-serif',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            pixelOffset: new Cesium.Cartesian2(0, -40),
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            heightReference: hr,
+          },
+        };
+
+        const modelUrl = getEntityModelUrl(machine, '/icons/machines/tractor.glb');
+        if (modelUrl) {
+          entityOptions.model = {
+            uri: normalizeAssetUrl(modelUrl),
+            minimumPixelSize: 64,
+            maximumScale: 20000,
+            heightReference: hr,
+          };
         }
-      };
 
-      // Helper function to get livestock color based on activity
-      const getLivestockColor = (activity?: string): any => {
-        switch (activity) {
-          case 'grazing':
-            return Cesium.Color.GREEN;
-          case 'resting':
-            return Cesium.Color.BLUE;
-          case 'moving':
-            return Cesium.Color.ORANGE;
-          case 'feeding':
-            return Cesium.Color.YELLOW;
-          default:
-            return Cesium.Color.WHITE;
+        if (!modelUrl) {
+          const iconUrl = resolveEntityIconUrl(machine, '/icons/machines/tractor.png');
+          if (iconUrl) {
+            entityOptions.billboard = {
+              image: normalizeAssetUrl(iconUrl),
+              width: 48,
+              height: 48,
+              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            };
+            delete entityOptions.point;
+          }
         }
-      };
 
-      // Add agricultural machines (ISOBUS tractors, etc.)
-      machines.forEach((machine) => {
-        try {
-          const coordinates = getEntityCoordinates(machine);
-          if (!coordinates) return;
-          const [lon, lat] = coordinates;
+        const entity = viewer.entities.add(entityOptions);
+        entityRefs.current.machine.set(machine.id, entity);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding machine:', machine, e);
+      }
+    });
 
-          const machineName = typeof machine.name === 'string' ? machine.name : machine.name.value;
-          const operationType = typeof machine.operationType === 'string'
-            ? machine.operationType
-            : machine.operationType?.value;
-          const entityOptions: any = {
-            id: `machine-${machine.id}`,
+    viewer.scene.requestRender();
+  }, [isViewerReady, machines, enable3DTerrain]);
+
+  // Livestock effect
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
+
+    entityRefs.current.livestock.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.livestock.clear();
+
+    livestock.forEach((animal) => {
+      try {
+        const coordinates = getEntityCoordinates(animal);
+        if (!coordinates) return;
+        const [lon, lat] = coordinates;
+
+        const animalName = typeof animal.name === 'string' ? animal.name : animal.name.value;
+        const activity = typeof animal.activity === 'string' ? animal.activity : animal.activity?.value;
+        const species = typeof animal.species === 'string' ? animal.species : animal.species?.value;
+
+        const entityOptions: any = {
+          id: `livestock-${animal.id}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+          name: animalName,
+          point: {
+            pixelSize: 12,
+            color: getLivestockColor(Cesium, activity),
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 1,
+            heightReference: hr,
+          },
+          label: {
+            text: animalName,
+            font: '12px sans-serif',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            pixelOffset: new Cesium.Cartesian2(0, -30),
+            heightReference: hr,
+          },
+        };
+
+        const modelUrl = getEntityModelUrl(animal, species === 'Bos taurus' ? '/icons/livestock/cow.glb' : '/icons/livestock/animal.glb');
+        if (modelUrl) {
+          entityOptions.model = {
+            uri: normalizeAssetUrl(modelUrl),
+            minimumPixelSize: 32,
+            maximumScale: 20000,
+            heightReference: hr,
+          };
+        }
+
+        if (!modelUrl) {
+          const iconUrl = resolveEntityIconUrl(animal, species === 'Bos taurus' ? '/icons/livestock/cow.png' : '/icons/livestock/animal.png');
+          if (iconUrl) {
+            entityOptions.billboard = {
+              image: normalizeAssetUrl(iconUrl),
+              width: 32,
+              height: 32,
+              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            };
+            delete entityOptions.point;
+          }
+        }
+
+        const entity = viewer.entities.add(entityOptions);
+        entityRefs.current.livestock.set(animal.id, entity);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding livestock:', animal, e);
+      }
+    });
+
+    viewer.scene.requestRender();
+  }, [isViewerReady, livestock, enable3DTerrain]);
+
+  // Weather stations effect
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
+
+    entityRefs.current.weather.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.weather.clear();
+
+    weatherStations.forEach((station) => {
+      try {
+        const coordinates = getEntityCoordinates(station);
+        if (!coordinates) return;
+        const [lon, lat] = coordinates;
+
+        const stationName = typeof station.name === 'string' ? station.name : station.name.value;
+
+        const entityOptions: any = {
+          id: `weather-${station.id}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+          name: stationName,
+          point: {
+            pixelSize: 14,
+            color: Cesium.Color.SKYBLUE,
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 2,
+            heightReference: hr,
+          },
+          label: {
+            text: stationName,
+            font: '12px sans-serif',
+            fillColor: Cesium.Color.SKYBLUE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            pixelOffset: new Cesium.Cartesian2(0, -30),
+            heightReference: hr,
+          },
+        };
+
+        const modelUrl = getEntityModelUrl(station, '/icons/weather/station.glb');
+        if (modelUrl) {
+          entityOptions.model = {
+            uri: normalizeAssetUrl(modelUrl),
+            minimumPixelSize: 48,
+            maximumScale: 20000,
+            heightReference: hr,
+          };
+        }
+
+        if (!modelUrl) {
+          const iconUrl = resolveEntityIconUrl(station, '/icons/weather/station.png');
+          if (iconUrl) {
+            entityOptions.billboard = {
+              image: normalizeAssetUrl(iconUrl),
+              width: 40,
+              height: 40,
+              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            };
+            delete entityOptions.point;
+          }
+        }
+
+        const entity = viewer.entities.add(entityOptions);
+        entityRefs.current.weather.set(station.id, entity);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding weather station:', station, e);
+      }
+    });
+
+    viewer.scene.requestRender();
+  }, [isViewerReady, weatherStations, enable3DTerrain]);
+
+  // Crops (AgriCrop) effect
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
+
+    entityRefs.current.crop.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.crop.clear();
+
+    crops.forEach((crop) => {
+      try {
+        const cropName = typeof crop.name === 'string' ? crop.name : crop.name?.value || 'Unknown Crop';
+        const cropType = typeof crop.agroVocConcept === 'string' ? crop.agroVocConcept : crop.agroVocConcept?.value;
+
+        const geomType = getEntityGeometryType(crop);
+        const coordinates = getEntityCoordinates(crop);
+
+        if (!coordinates) return;
+
+        if (geomType === 'Polygon') {
+          const coords = coordinates[0];
+          const hierarchy = (coords as any[]).map((c: any) => Cesium.Cartesian3.fromDegrees(c[0], c[1]));
+
+          const entity = viewer.entities.add({
+            id: `crop-${crop.id}`,
+            name: cropName,
+            polygon: {
+              hierarchy: hierarchy,
+              material: Cesium.Color.GREEN.withAlpha(0.4),
+              outline: true,
+              outlineColor: Cesium.Color.DARKGREEN,
+              heightReference: hr,
+            },
+            description: `Type: ${cropType}`
+          });
+          entityRefs.current.crop.set(crop.id, entity);
+        } else {
+          const [lon, lat] = coordinates as [number, number];
+          const entity = viewer.entities.add({
+            id: `crop-${crop.id}`,
             position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-            name: machineName,
+            name: cropName,
             point: {
-              pixelSize: 18,
-              color: getMachineColor(operationType),
+              pixelSize: 10,
+              color: Cesium.Color.GREEN,
               outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 2,
+              outlineWidth: 1,
+              heightReference: hr,
             },
             label: {
-              text: machineName,
-              font: '14px sans-serif',
+              text: cropName,
+              font: '12px sans-serif',
+              fillColor: Cesium.Color.GREEN,
+              outlineColor: Cesium.Color.BLACK,
+              outlineWidth: 2,
+              pixelOffset: new Cesium.Cartesian2(0, -20),
+              heightReference: hr,
+            }
+          });
+          entityRefs.current.crop.set(crop.id, entity);
+        }
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding crop:', crop, e);
+      }
+    });
+
+    viewer.scene.requestRender();
+  }, [isViewerReady, crops, enable3DTerrain]);
+
+  // Buildings (AgriBuilding) effect
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
+
+    entityRefs.current.building.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.building.clear();
+
+    buildings.forEach((building) => {
+      try {
+        const coordinates = getEntityCoordinates(building);
+        if (!coordinates) return;
+
+        const buildingName = typeof building.name === 'string' ? building.name : building.name?.value || 'Unknown Building';
+        const category = typeof building.category === 'string' ? building.category : building.category?.value;
+        const geomType = getEntityGeometryType(building);
+
+        if (geomType === 'Polygon') {
+          const coords = coordinates[0];
+          const hierarchy = (coords as any[]).map((c: any) => Cesium.Cartesian3.fromDegrees(c[0], c[1]));
+
+          const entity = viewer.entities.add({
+            id: `building-${building.id}`,
+            name: buildingName,
+            polygon: {
+              hierarchy: hierarchy,
+              material: Cesium.Color.GRAY.withAlpha(0.9),
+              extrudedHeight: 5,
+              outline: true,
+              outlineColor: Cesium.Color.BLACK,
+              heightReference: hr,
+            },
+            description: `Category: ${category}`
+          });
+          entityRefs.current.building.set(building.id, entity);
+        } else {
+          const [lon, lat] = coordinates as [number, number];
+
+          const entity = viewer.entities.add({
+            id: `building-${building.id}`,
+            position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+            name: buildingName,
+            model: {
+              uri: '/icons/infrastructure/building.glb',
+              minimumPixelSize: 64,
+              heightReference: hr,
+            },
+            label: {
+              text: buildingName,
+              font: '12px sans-serif',
               fillColor: Cesium.Color.WHITE,
               outlineColor: Cesium.Color.BLACK,
               outlineWidth: 2,
               pixelOffset: new Cesium.Cartesian2(0, -40),
-              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-            },
-          };
-
-          // Use custom 3D model if available
-          const modelUrl = getEntityModel(machine, '/icons/machines/tractor.glb');
-          if (modelUrl) {
-            entityOptions.model = {
-              uri: normalizeAssetUrl(modelUrl),
-              minimumPixelSize: 64,
-              maximumScale: 20000,
-              heightReference: heightReference,
-            };
-          }
-
-          // Use custom 2D icon if no 3D model
-          if (!modelUrl) {
-            const iconUrl = getEntityIconUrl(machine, '/icons/machines/tractor.png');
-            if (iconUrl) {
-              entityOptions.billboard = {
-                image: normalizeAssetUrl(iconUrl),
-                width: 48,
-                height: 48,
-                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-              };
-              delete entityOptions.point;
+              heightReference: hr,
             }
-          }
-
-          viewer.entities.add(entityOptions);
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding machine:', machine, e);
+          });
+          entityRefs.current.building.set(building.id, entity);
         }
-      });
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding building:', building, e);
+      }
+    });
 
-      // Add livestock animals
-      livestock.forEach((animal) => {
-        try {
-          const coordinates = getEntityCoordinates(animal);
-          if (!coordinates) return;
-          const [lon, lat] = coordinates;
+    viewer.scene.requestRender();
+  }, [isViewerReady, buildings, enable3DTerrain]);
 
-          const animalName = typeof animal.name === 'string' ? animal.name : animal.name.value;
-          const activity = typeof animal.activity === 'string' ? animal.activity : animal.activity?.value;
-          const species = typeof animal.species === 'string' ? animal.species : animal.species?.value;
+  // Devices effect
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
 
-          const entityOptions: any = {
-            id: `livestock-${animal.id}`,
-            position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-            name: animalName,
-            point: {
-              pixelSize: 12,
-              color: getLivestockColor(activity),
-              outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 1,
-              heightReference: heightReference,
-            },
-            label: {
-              text: animalName,
-              font: '12px sans-serif',
-              fillColor: Cesium.Color.WHITE,
-              outlineColor: Cesium.Color.BLACK,
-              outlineWidth: 2,
-              pixelOffset: new Cesium.Cartesian2(0, -30),
-              heightReference: heightReference,
-            },
-          };
+    entityRefs.current.device.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.device.clear();
 
-          // Use custom 3D model if available
-          const modelUrl = getEntityModel(animal, species === 'Bos taurus' ? '/icons/livestock/cow.glb' : '/icons/livestock/animal.glb');
-          if (modelUrl) {
-            entityOptions.model = {
+    devices.forEach((device) => {
+      try {
+        const coordinates = getEntityCoordinates(device);
+        if (!coordinates) return;
+
+        const [lon, lat] = coordinates;
+        const deviceName = typeof device.name === 'string' ? device.name : device.name?.value || 'Unknown Device';
+        const category = typeof device.category === 'string' ? device.category : device.category?.value;
+
+        const entity = viewer.entities.add({
+          id: `device-${device.id}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+          name: deviceName,
+          point: {
+            pixelSize: 8,
+            color: Cesium.Color.ORANGE,
+            outlineColor: Cesium.Color.WHITE,
+            outlineWidth: 1,
+            heightReference: hr,
+          },
+          label: {
+            text: deviceName,
+            font: '10px sans-serif',
+            fillColor: Cesium.Color.ORANGE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            pixelOffset: new Cesium.Cartesian2(0, -20),
+            heightReference: hr,
+          },
+          description: `Category: ${category}`
+        });
+        entityRefs.current.device.set(device.id, entity);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding device:', device, e);
+      }
+    });
+
+    viewer.scene.requestRender();
+  }, [isViewerReady, devices, enable3DTerrain]);
+
+  // Trees effect (OliveTree, AgriTree, FruitTree, Vine) — with 3D model support
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
+
+    entityRefs.current.tree.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.tree.clear();
+
+    if (trees.length > 0) {
+      logger.debug('[CesiumMap] Rendering trees:', trees.length);
+    }
+    trees.forEach((tree) => {
+      try {
+        const coordinates = getEntityCoordinates(tree);
+        if (!coordinates) {
+          logger.warn('[CesiumMap] Tree without coordinates:', tree.id);
+          return;
+        }
+
+        const [lon, lat] = coordinates;
+        const treeName = typeof tree.name === 'string' ? tree.name : tree.name?.value || 'Unknown Tree';
+        const treeType = tree.type || 'AgriTree';
+        const modelUrl = getEntityModelUrl(tree, undefined);
+        const modelScale = tree.modelScale?.value || tree.modelScale || 1;
+
+        if (modelUrl) {
+          logger.debug('[CesiumMap] Adding tree with model:', tree.id, modelUrl);
+
+          const modelRotation = tree.modelRotation?.value || tree.modelRotation || [0, 0, 0];
+          const heading = Cesium.Math.toRadians(modelRotation[0] || 0);
+          const pitch = Cesium.Math.toRadians(modelRotation[1] || 0);
+          const roll = Cesium.Math.toRadians(modelRotation[2] || 0);
+
+          const position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
+          const hpr = new Cesium.HeadingPitchRoll(heading, pitch, roll);
+          const orientation = Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
+
+          const entity = viewer.entities.add({
+            id: `tree-${tree.id}`,
+            position: position,
+            orientation: orientation,
+            name: treeName,
+            model: {
               uri: normalizeAssetUrl(modelUrl),
+              scale: modelScale,
               minimumPixelSize: 32,
               maximumScale: 20000,
-              heightReference: heightReference,
-            };
-          }
-
-          // Use custom 2D icon if no 3D model
-          if (!modelUrl) {
-            const iconUrl = getEntityIconUrl(animal, species === 'Bos taurus' ? '/icons/livestock/cow.png' : '/icons/livestock/animal.png');
-            if (iconUrl) {
-              entityOptions.billboard = {
-                image: normalizeAssetUrl(iconUrl),
-                width: 32,
-                height: 32,
-                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-              };
-              delete entityOptions.point;
-            }
-          }
-
-          viewer.entities.add(entityOptions);
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding livestock:', animal, e);
-        }
-      });
-
-      // Add weather stations
-      weatherStations.forEach((station) => {
-        try {
-          const coordinates = getEntityCoordinates(station);
-          if (!coordinates) return;
-          const [lon, lat] = coordinates;
-
-          const stationName = typeof station.name === 'string' ? station.name : station.name.value;
-
-          const entityOptions: any = {
-            id: `weather-${station.id}`,
-            position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-            name: stationName,
-            point: {
-              pixelSize: 14,
-              color: Cesium.Color.SKYBLUE,
-              outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 2,
-              heightReference: heightReference,
+              heightReference: hr,
             },
             label: {
-              text: stationName,
+              text: treeName,
               font: '12px sans-serif',
-              fillColor: Cesium.Color.SKYBLUE,
+              fillColor: Cesium.Color.GREEN,
               outlineColor: Cesium.Color.BLACK,
               outlineWidth: 2,
-              pixelOffset: new Cesium.Cartesian2(0, -30),
-              heightReference: heightReference,
+              pixelOffset: new Cesium.Cartesian2(0, -40),
+              heightReference: hr,
+              show: false,
             },
-          };
-
-          // Use custom 3D model if available
-          const modelUrl = getEntityModel(station, '/icons/weather/station.glb');
-          if (modelUrl) {
-            entityOptions.model = {
-              uri: normalizeAssetUrl(modelUrl),
-              minimumPixelSize: 48,
-              maximumScale: 20000,
-              heightReference: heightReference,
-            };
-          }
-
-          // Use custom 2D icon if no 3D model
-          if (!modelUrl) {
-            const iconUrl = getEntityIconUrl(station, '/icons/weather/station.png');
-            if (iconUrl) {
-              entityOptions.billboard = {
-                image: normalizeAssetUrl(iconUrl),
-                width: 40,
-                height: 40,
-                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-              };
-              delete entityOptions.point;
-            }
-          }
-
-          viewer.entities.add(entityOptions);
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding weather station:', station, e);
-        }
-      });
-
-      // Add crops (AgriCrop)
-      crops.forEach((crop) => {
-        try {
-          const cropName = typeof crop.name === 'string' ? crop.name : crop.name?.value || 'Unknown Crop';
-          const cropType = typeof crop.agroVocConcept === 'string' ? crop.agroVocConcept : crop.agroVocConcept?.value;
-
-          const geomType = getEntityGeometryType(crop);
-          const coordinates = getEntityCoordinates(crop);
-
-          if (!coordinates) return;
-
-          // If it's a polygon
-          if (geomType === 'Polygon') {
-            const coords = coordinates[0]; // Outer ring
-            const hierarchy = (coords as any[]).map((c: any) => Cesium.Cartesian3.fromDegrees(c[0], c[1]));
-
-            viewer.entities.add({
-              id: `crop-${crop.id}`,
-              name: cropName,
-              polygon: {
-                hierarchy: hierarchy,
-                material: Cesium.Color.GREEN.withAlpha(0.4),
-                outline: true,
-                outlineColor: Cesium.Color.DARKGREEN,
-                heightReference: heightReference,
-              },
-              description: `Type: ${cropType}`
-            });
-          } else {
-            // Point
-            const [lon, lat] = coordinates as [number, number];
-            viewer.entities.add({
-              id: `crop-${crop.id}`,
-              position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-              name: cropName,
-              point: {
-                pixelSize: 10,
-                color: Cesium.Color.GREEN,
-                outlineColor: Cesium.Color.WHITE,
-                outlineWidth: 1,
-                heightReference: heightReference,
-              },
-              label: {
-                text: cropName,
-                font: '12px sans-serif',
-                fillColor: Cesium.Color.GREEN,
-                outlineColor: Cesium.Color.BLACK,
-                outlineWidth: 2,
-                pixelOffset: new Cesium.Cartesian2(0, -20),
-                heightReference: heightReference,
-              }
-            });
-          }
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding crop:', crop, e);
-        }
-      });
-
-      // Add buildings (AgriBuilding)
-      buildings.forEach((building) => {
-        try {
-          const coordinates = getEntityCoordinates(building);
-          if (!coordinates) return;
-
-          const buildingName = typeof building.name === 'string' ? building.name : building.name?.value || 'Unknown Building';
-          const category = typeof building.category === 'string' ? building.category : building.category?.value;
-          const geomType = getEntityGeometryType(building);
-
-          // If it's a polygon (footprint)
-          if (geomType === 'Polygon') {
-            const coords = coordinates[0];
-            const hierarchy = (coords as any[]).map((c: any) => Cesium.Cartesian3.fromDegrees(c[0], c[1]));
-
-            viewer.entities.add({
-              id: `building-${building.id}`,
-              name: buildingName,
-              polygon: {
-                hierarchy: hierarchy,
-                material: Cesium.Color.GRAY.withAlpha(0.9),
-                extrudedHeight: 5, // Extrude 5 meters
-                outline: true,
-                outlineColor: Cesium.Color.BLACK,
-                heightReference: heightReference,
-              },
-              description: `Category: ${category}`
-            });
-          } else {
-            // Point
-            const [lon, lat] = coordinates as [number, number];
-
-            viewer.entities.add({
-              id: `building-${building.id}`,
-              position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-              name: buildingName,
-              model: {
-                uri: '/icons/infrastructure/building.glb', // Placeholder
-                minimumPixelSize: 64,
-                heightReference: heightReference,
-              },
-              label: {
-                text: buildingName,
-                font: '12px sans-serif',
-                fillColor: Cesium.Color.WHITE,
-                outlineColor: Cesium.Color.BLACK,
-                outlineWidth: 2,
-                pixelOffset: new Cesium.Cartesian2(0, -40),
-                heightReference: heightReference,
-              }
-            });
-          }
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding building:', building, e);
-        }
-      });
-
-      // Add devices (Device)
-      devices.forEach((device) => {
-        try {
-          const coordinates = getEntityCoordinates(device);
-          if (!coordinates) return;
-
-          const [lon, lat] = coordinates;
-          const deviceName = typeof device.name === 'string' ? device.name : device.name?.value || 'Unknown Device';
-          const category = typeof device.category === 'string' ? device.category : device.category?.value;
-
-          viewer.entities.add({
-            id: `device-${device.id}`,
+            description: `Type: ${treeType}`,
+          });
+          entityRefs.current.tree.set(tree.id, entity);
+        } else {
+          const entity = viewer.entities.add({
+            id: `tree-${tree.id}`,
             position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-            name: deviceName,
-            point: {
-              pixelSize: 8,
-              color: Cesium.Color.ORANGE,
-              outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 1,
-              heightReference: heightReference,
+            name: treeName,
+            billboard: {
+              image: '/icons/trees/olive-tree.svg',
+              width: 24,
+              height: 24,
+              heightReference: hr,
             },
             label: {
-              text: deviceName,
-              font: '10px sans-serif',
-              fillColor: Cesium.Color.ORANGE,
+              text: treeName,
+              font: '11px sans-serif',
+              fillColor: Cesium.Color.FORESTGREEN,
               outlineColor: Cesium.Color.BLACK,
               outlineWidth: 2,
               pixelOffset: new Cesium.Cartesian2(0, -20),
-              heightReference: heightReference,
+              heightReference: hr,
             },
-            description: `Category: ${category}`
+            description: `Type: ${treeType}`,
           });
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding device:', device, e);
+          entityRefs.current.tree.set(tree.id, entity);
         }
-      });
-
-      // Add trees (OliveTree, AgriTree, FruitTree, Vine) - with 3D model support
-      if (trees.length > 0) {
-        logger.debug('[CesiumMap] Rendering trees:', trees.length);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding tree:', tree, e);
       }
-      trees.forEach((tree) => {
-        try {
-          const coordinates = getEntityCoordinates(tree);
-          if (!coordinates) {
-            logger.warn('[CesiumMap] Tree without coordinates:', tree.id);
-            return;
-          }
+    });
 
-          const [lon, lat] = coordinates;
-          const treeName = typeof tree.name === 'string' ? tree.name : tree.name?.value || 'Unknown Tree';
-          const treeType = tree.type || 'AgriTree';
-          const modelUrl = getEntityModel(tree, undefined);
-          const modelScale = tree.modelScale?.value || tree.modelScale || 1;
+    viewer.scene.requestRender();
+  }, [isViewerReady, trees, enable3DTerrain]);
+
+  // Energy trackers (AgriEnergyTracker) effect — MultiPoint -> individual models
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
+
+    entityRefs.current.tracker.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.tracker.clear();
+
+    energyTrackers.forEach((tracker) => {
+      try {
+        const trackerName = typeof tracker.name === 'string' ? tracker.name : tracker.name?.value || 'Solar Tracker';
+        const modelUrl = getEntityModelUrl(tracker);
+        const modelScale = tracker.modelScale?.value ?? tracker.modelScale ?? 1;
+        const tilt = tracker.tilt?.value ?? 0;
+        const azimuth = tracker.azimuth?.value ?? 0;
+        const modelRotation = tracker.modelRotation?.value || [azimuth, -tilt, 0];
+
+        // Extract all coordinates — supports both Point and MultiPoint
+        const location = tracker.location?.value || tracker.location;
+        let coordsList: [number, number][] = [];
+
+        if (location?.type === 'MultiPoint' && Array.isArray(location.coordinates)) {
+          coordsList = location.coordinates;
+        } else if (location?.type === 'Point' && Array.isArray(location.coordinates)) {
+          coordsList = [location.coordinates];
+        } else {
+          // Fallback: try standard extraction
+          const coords = getEntityCoordinates(tracker);
+          if (coords) coordsList = [[coords[0], coords[1]]];
+        }
+
+        if (coordsList.length === 0) return;
+
+        coordsList.forEach((coord, idx) => {
+          const [lon, lat] = coord;
+          const entityId = `tracker-${tracker.id}-${idx}`;
 
           if (modelUrl) {
-            // Render with 3D model
-            logger.debug('[CesiumMap] Adding tree with model:', tree.id, modelUrl);
-
-            // Get rotation from entity
-            const modelRotation = tree.modelRotation?.value || tree.modelRotation || [0, 0, 0];
             const heading = Cesium.Math.toRadians(modelRotation[0] || 0);
             const pitch = Cesium.Math.toRadians(modelRotation[1] || 0);
             const roll = Cesium.Math.toRadians(modelRotation[2] || 0);
@@ -1233,280 +1444,167 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             const hpr = new Cesium.HeadingPitchRoll(heading, pitch, roll);
             const orientation = Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
 
-            viewer.entities.add({
-              id: `tree-${tree.id}`,
-              position: position,
-              orientation: orientation,
-              name: treeName,
+            const entity = viewer.entities.add({
+              id: entityId,
+              position,
+              orientation,
+              name: `${trackerName} [${idx + 1}]`,
               model: {
                 uri: normalizeAssetUrl(modelUrl),
                 scale: modelScale,
                 minimumPixelSize: 32,
                 maximumScale: 20000,
-                heightReference: heightReference,
+                heightReference: hr,
               },
               label: {
-                text: treeName,
+                text: idx === 0 ? trackerName : undefined,
                 font: '12px sans-serif',
-                fillColor: Cesium.Color.GREEN,
+                fillColor: Cesium.Color.YELLOW,
                 outlineColor: Cesium.Color.BLACK,
                 outlineWidth: 2,
                 pixelOffset: new Cesium.Cartesian2(0, -40),
-                heightReference: heightReference,
-                show: false, // Hide label by default to avoid clutter
+                heightReference: hr,
+                show: idx === 0,
               },
-              description: `Type: ${treeType}`,
+              description: ['Type: AgriEnergyTracker', 'Tilt: ' + tilt + '°', 'Azimuth: ' + azimuth + '°', 'Instance: ' + (idx + 1) + '/' + coordsList.length].join('\n'),
             });
+            entityRefs.current.tracker.set(`${tracker.id}-${idx}`, entity);
           } else {
-            // Fallback: render as point (no 3D model)
-            viewer.entities.add({
-              id: `tree-${tree.id}`,
+            // Fallback: yellow point marker
+            const entity = viewer.entities.add({
+              id: entityId,
               position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-              name: treeName,
-              billboard: {
-                image: '/icons/trees/olive-tree.svg', // Default tree icon
-                width: 24,
-                height: 24,
-                heightReference: heightReference,
+              name: `${trackerName} [${idx + 1}]`,
+              point: {
+                pixelSize: 10,
+                color: Cesium.Color.YELLOW.withAlpha(0.9),
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 2,
+                heightReference: hr,
               },
-              label: {
-                text: treeName,
-                font: '11px sans-serif',
-                fillColor: Cesium.Color.FORESTGREEN,
+              label: idx === 0 ? {
+                text: trackerName,
+                font: '12px sans-serif',
+                fillColor: Cesium.Color.YELLOW,
                 outlineColor: Cesium.Color.BLACK,
                 outlineWidth: 2,
                 pixelOffset: new Cesium.Cartesian2(0, -20),
-                heightReference: heightReference,
-              },
-              description: `Type: ${treeType}`,
+                heightReference: hr,
+              } : undefined,
             });
+            entityRefs.current.tracker.set(`${tracker.id}-${idx}`, entity);
           }
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding tree:', tree, e);
-        }
-      });
+        });
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding energy tracker:', tracker.id, e);
+      }
+    });
 
-      // Add energy trackers (AgriEnergyTracker) — MultiPoint entities expand into individual models
-      energyTrackers.forEach((tracker) => {
-        try {
-          const trackerName = typeof tracker.name === 'string' ? tracker.name : tracker.name?.value || 'Solar Tracker';
-          const modelUrl = getEntityModel(tracker);
-          const modelScale = tracker.modelScale?.value ?? tracker.modelScale ?? 1;
-          const tilt = tracker.tilt?.value ?? 0;
-          const azimuth = tracker.azimuth?.value ?? 0;
-          const modelRotation = tracker.modelRotation?.value || [azimuth, -tilt, 0];
+    viewer.scene.requestRender();
+  }, [isViewerReady, energyTrackers, enable3DTerrain]);
 
-          // Extract all coordinates — supports both Point and MultiPoint
-          const location = tracker.location?.value || tracker.location;
-          let coordsList: [number, number][] = [];
+  // Parcels effect (polygons with risk overlay and selection highlight)
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    entityRefs.current.parcel.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.parcel.clear();
 
-          if (location?.type === 'MultiPoint' && Array.isArray(location.coordinates)) {
-            coordsList = location.coordinates;
-          } else if (location?.type === 'Point' && Array.isArray(location.coordinates)) {
-            coordsList = [location.coordinates];
-          } else {
-            // Fallback: try standard extraction
-            const coords = getEntityCoordinates(tracker);
-            if (coords) coordsList = [[coords[0], coords[1]]];
-          }
+    const isParcelSelected = (parcelId: string) => selectedEntity?.id === parcelId;
 
-          if (coordsList.length === 0) return;
+    parcels.forEach((parcel) => {
+      try {
+        const coordinates = getEntityCoordinates(parcel);
+        if (!coordinates) return;
 
-          coordsList.forEach((coord, idx) => {
-            const [lon, lat] = coord;
-            const entityId = `tracker-${tracker.id}-${idx}`;
+        const type = getEntityGeometryType(parcel);
 
-            if (modelUrl) {
-              const heading = Cesium.Math.toRadians(modelRotation[0] || 0);
-              const pitch = Cesium.Math.toRadians(modelRotation[1] || 0);
-              const roll = Cesium.Math.toRadians(modelRotation[2] || 0);
+        // Convert GeoJSON Polygon to Cesium positions
+        const positions: any[] = [];
 
-              const position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
-              const hpr = new Cesium.HeadingPitchRoll(heading, pitch, roll);
-              const orientation = Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
-
-              viewer.entities.add({
-                id: entityId,
-                position,
-                orientation,
-                name: `${trackerName} [${idx + 1}]`,
-                model: {
-                  uri: normalizeAssetUrl(modelUrl),
-                  scale: modelScale,
-                  minimumPixelSize: 32,
-                  maximumScale: 20000,
-                  heightReference,
-                },
-                label: {
-                  text: idx === 0 ? trackerName : undefined,
-                  font: '12px sans-serif',
-                  fillColor: Cesium.Color.YELLOW,
-                  outlineColor: Cesium.Color.BLACK,
-                  outlineWidth: 2,
-                  pixelOffset: new Cesium.Cartesian2(0, -40),
-                  heightReference,
-                  show: idx === 0, // Only show label on first instance
-                },
-                description: `Type: AgriEnergyTracker\nTilt: ${tilt}°\nAzimuth: ${azimuth}°\nInstance: ${idx + 1}/${coordsList.length}`,
-              });
-            } else {
-              // Fallback: yellow point marker
-              viewer.entities.add({
-                id: entityId,
-                position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
-                name: `${trackerName} [${idx + 1}]`,
-                point: {
-                  pixelSize: 10,
-                  color: Cesium.Color.YELLOW.withAlpha(0.9),
-                  outlineColor: Cesium.Color.WHITE,
-                  outlineWidth: 2,
-                  heightReference,
-                },
-                label: idx === 0 ? {
-                  text: trackerName,
-                  font: '12px sans-serif',
-                  fillColor: Cesium.Color.YELLOW,
-                  outlineColor: Cesium.Color.BLACK,
-                  outlineWidth: 2,
-                  pixelOffset: new Cesium.Cartesian2(0, -20),
-                  heightReference,
-                } : undefined,
-              });
+        if (type === 'Polygon' && Array.isArray(coordinates[0])) {
+          coordinates[0].forEach((coord: any) => {
+            if (Array.isArray(coord) && coord.length >= 2) {
+              const lon = Number(coord[0]);
+              const lat = Number(coord[1]);
+              if (!isNaN(lon) && !isNaN(lat)) {
+                positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, 0));
+              }
             }
           });
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding energy tracker:', tracker.id, e);
         }
-      });
 
-      // Add parcels as polygons
-      parcels.forEach((parcel, _index) => {
-        try {
-          // if (index === 0) logger.debug('[CesiumMap] Processing first parcel:', parcel);
-
-          const coordinates = getEntityCoordinates(parcel);
-          if (!coordinates) return;
-
-          const type = getEntityGeometryType(parcel);
-
-          // Convert GeoJSON Polygon to Cesium positions
-          const positions: any[] = [];
-
-          // Handle Polygon format: [[[lon, lat], [lon, lat], ...]]
-          if (type === 'Polygon' && Array.isArray(coordinates[0])) {
-            coordinates[0].forEach((coord: any) => {
-              if (Array.isArray(coord) && coord.length >= 2) {
-                const lon = Number(coord[0]);
-                const lat = Number(coord[1]);
-                if (!isNaN(lon) && !isNaN(lat)) {
-                  // Use height 0 for now, will be clamped to terrain if 3D terrain is enabled
-                  positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, enable3DTerrain ? 0 : 0));
-                }
-              }
-            });
-          }
-
-          // Validate positions before adding
-          if (positions.length < 3) {
-            logger.warn(`[CesiumMap] Skipping parcel ${parcel.id}: Invalid geometry (less than 3 points)`);
-            return;
-          }
-
-          const parcelName = parcel.name || parcel.id;
-
-          const isSelected = selectedEntity?.id === parcel.id;
-
-          // Get color: default → risk overlay → selection (highest priority)
-          // Vegetation index overlays (NDVI, EVI, etc.) are handled by the vegetation-health
-          // module via the map-layer slot — NOT by a flat per-parcel color in this component.
-          let fillColor: any;
-          let outlineColor: any;
-
-          // 1. Default colors
-          fillColor = Cesium.Color.fromCssColorString('#4ade80').withAlpha(0.4);
-          outlineColor = Cesium.Color.fromCssColorString('#4ade80');
-
-          // 2. Risk overlay (overrides default)
-          const riskInfo = riskOverlay?.get(parcel.id);
-          if (riskInfo) {
-            const riskCss = RISK_SEVERITY_COLORS[riskInfo.severity];
-            fillColor = Cesium.Color.fromCssColorString(riskCss).withAlpha(0.55);
-            outlineColor = Cesium.Color.fromCssColorString(riskCss);
-          }
-
-          // 4. Selection highlight (always wins)
-          if (isSelected) {
-            fillColor = Cesium.Color.CYAN.withAlpha(0.08);
-            outlineColor = Cesium.Color.CYAN;
-          }
-
-          const currentColor = fillColor;
-          const currentOutlineColor = outlineColor;
-
-          viewer.entities.add({
-            id: `parcel-${parcel.id}`,
-            name: parcelName,
-            polygon: {
-              hierarchy: positions,
-              material: currentColor,
-              outline: !enable3DTerrain,
-              outlineColor: currentOutlineColor,
-              classificationType: enable3DTiles ? Cesium.ClassificationType.BOTH : Cesium.ClassificationType.TERRAIN,
-              arcType: Cesium.ArcType.GEODESIC,
-            },
-            label: {
-              text: parcelName,
-              font: isSelected ? '14px sans-serif' : '12px sans-serif',
-              fillColor: Cesium.Color.WHITE,
-              outlineColor: Cesium.Color.BLACK,
-              outlineWidth: 2,
-              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-              verticalOrigin: Cesium.VerticalOrigin.CENTER,
-              horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-              heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-              distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 5000), // Only show when close
-              show: isSelected || true, // Always show label, but maybe highlight if selected?
-            },
-            description: `
-                <div class="p-2">
-                  <h3 class="font-bold">${parcelName}</h3>
-                  <p>Área: ${parcel.area || 'N/A'} ha</p>
-                  <p>Cultivo: ${parcel.cropType || '—'}</p>
-                </div>
-              `
-          });
-
-        } catch (e) {
-          logger.warn('[CesiumMap] Error adding parcel:', parcel.id, e);
+        if (positions.length < 3) {
+          logger.warn(`[CesiumMap] Skipping parcel ${parcel.id}: Invalid geometry (less than 3 points)`);
+          return;
         }
-      });
 
-      // Force a render
-      viewer.scene.requestRender();
-    } catch (error) {
-      logger.error('[CesiumMap] Critical error updating entities:', error);
-    }
-  }, [
-    isViewerReady, // Critical dependency: wait for viewer to be ready
-    robots,
-    sensors,
-    machines,
-    livestock,
-    weatherStations,
-    crops,
-    buildings,
-    devices,
-    trees,
-    energyTrackers,
-    parcels,
-    enable3DTerrain,
-    enable3DTiles,
-    selectedEntity?.id,
-    riskOverlay,
-    // Add context dependencies for preview
-    viewerContext?.mapMode,
-    viewerContext?.modelPlacement
-  ]);
+        const parcelName = parcel.name || parcel.id;
+        const isSelected = isParcelSelected(parcel.id);
+
+        let fillColor: any;
+        let outlineColor: any;
+
+        // 1. Default colors
+        fillColor = Cesium.Color.fromCssColorString('#4ade80').withAlpha(0.4);
+        outlineColor = Cesium.Color.fromCssColorString('#4ade80');
+
+        // 2. Risk overlay (overrides default)
+        const riskInfo = riskOverlay?.get(parcel.id);
+        if (riskInfo) {
+          const riskCss = RISK_SEVERITY_COLORS[riskInfo.severity];
+          fillColor = Cesium.Color.fromCssColorString(riskCss).withAlpha(0.55);
+          outlineColor = Cesium.Color.fromCssColorString(riskCss);
+        }
+
+        // 3. Selection highlight (always wins)
+        if (isSelected) {
+          fillColor = Cesium.Color.CYAN.withAlpha(0.08);
+          outlineColor = Cesium.Color.CYAN;
+        }
+
+        const entity = viewer.entities.add({
+          id: `parcel-${parcel.id}`,
+          name: parcelName,
+          polygon: {
+            hierarchy: positions,
+            material: fillColor,
+            outline: !enable3DTerrain,
+            outlineColor: outlineColor,
+            classificationType: enable3DTiles ? Cesium.ClassificationType.BOTH : Cesium.ClassificationType.TERRAIN,
+            arcType: Cesium.ArcType.GEODESIC,
+          },
+          label: {
+            text: parcelName,
+            font: isSelected ? '14px sans-serif' : '12px sans-serif',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 5000),
+            show: true,
+          },
+          description: [
+            '<div class="p-2">',
+            '<h3 class="font-bold">' + parcelName + '</h3>',
+            '<p>Área: ' + (parcel.area || 'N/A') + ' ha</p>',
+            '<p>Cultivo: ' + (parcel.cropType || '—') + '</p>',
+            '</div>'
+          ].join('\n')
+        });
+        entityRefs.current.parcel.set(parcel.id, entity);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding parcel:', parcel.id, e);
+      }
+    });
+
+    viewer.scene.requestRender();
+  }, [isViewerReady, parcels, enable3DTerrain, enable3DTiles, selectedEntity?.id, riskOverlay]);
 
   useInitialParcelsFit(
     viewerRef,
