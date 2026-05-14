@@ -33,8 +33,10 @@ import {
     detectEntryStrategy,
     generateModuleEntry,
 } from './codegen.js';
+import { emitManifest } from './manifestEmitter.js';
 
 export { detectEntryStrategy, generateModuleEntry, generateManifest } from './codegen.js';
+export { emitManifest } from './manifestEmitter.js';
 
 // =============================================================================
 // External Dependencies — mapped to window globals provided by the host
@@ -85,14 +87,21 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
 
     let entry: string;
     let moduleId: string;
+    let manifestPlugin: Plugin | null = null;
 
     if (strategy === 'modern') {
         entry = generateModuleEntry(root);
         moduleId = options.moduleId ?? readModuleIdFromPackage(root);
-        // NOTE: dist/manifest.json emission is deferred to the `nkz build` CLI
-        // (Fase A.2) where vite-node / jiti can safely evaluate the TSX source
-        // to obtain the runtime ModuleDefinition. `generateManifest()` is still
-        // exported from this package for the CLI to consume.
+        // Emit dist/manifest.json after the IIFE bundle is written.
+        // emitManifest uses vite-node to safely evaluate src/Module.tsx, then
+        // serialises the validated ModuleDefinition via generateManifest.
+        manifestPlugin = {
+            name: 'nkz-module-builder:manifest',
+            apply: 'build',
+            async closeBundle() {
+                await emitManifest(root);
+            },
+        };
     } else {
         entry = options.entry ?? 'src/moduleEntry.ts';
         if (!options.moduleId) {
@@ -118,6 +127,7 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
             },
         },
     ];
+    if (manifestPlugin) plugins.push(manifestPlugin);
 
     const config: UserConfig = {
         plugins,
