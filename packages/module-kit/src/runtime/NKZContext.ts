@@ -5,6 +5,7 @@ import type {
   UsePlatformEventsReturn,
   OrionTransport,
   ModuleAPITransport,
+  FilesTransport,
 } from '../hooks/types';
 
 /** Runtime value injected by the provider — real (host) or mock (nkz dev) */
@@ -16,6 +17,7 @@ export interface NKZRuntime {
   events: UsePlatformEventsReturn;
   orion: OrionTransport;
   moduleApi: ModuleAPITransport;
+  files: FilesTransport;
 }
 
 export const NKZContext = createContext<NKZRuntime | null>(null);

@@ -59,3 +59,10 @@ export interface ModuleAPITransport {
   basePath: string | null;
   fetch<T = unknown>(path: string, init?: RequestInit): Promise<T>;
 }
+
+/** Transport for file storage scoped to `tenants/<tenant>/modules/<module>/<path>` */
+export interface FilesTransport {
+  upload(file: Blob, path: string): Promise<{ url: string }>;
+  getUrl(path: string, opts?: { expiresInSeconds?: number }): Promise<string>;
+  list(prefix: string): Promise<string[]>;
+}
