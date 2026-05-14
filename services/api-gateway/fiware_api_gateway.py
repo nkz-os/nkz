@@ -251,6 +251,66 @@ def enforce_pat_scopes():
     return None
 
 
+PAT_ENTITIES_MAX_LIMIT = 500
+PAT_ENTITIES_DEFAULT_LIMIT = 100
+
+
+@app.before_request
+def enforce_pat_pagination():
+    """Cap pagination for PAT requests to NGSI-LD entities endpoints."""
+    if not hasattr(g, "pat_info"):
+        return None
+
+    path = request.path or ""
+    scopes = g.pat_info.get("scopes") or []
+
+    if "entities" not in scopes:
+        return None
+
+    # GET /ngsi-ld/v1/entities — cap query param 'limit'
+    if request.method == "GET" and path.startswith("/ngsi-ld/v1/entities"):
+        limit_raw = request.args.get("limit")
+        if limit_raw:
+            try:
+                limit = int(limit_raw)
+            except (ValueError, TypeError):
+                limit = PAT_ENTITIES_DEFAULT_LIMIT
+            if limit > PAT_ENTITIES_MAX_LIMIT:
+                limit = PAT_ENTITIES_MAX_LIMIT
+            elif limit < 1:
+                limit = PAT_ENTITIES_DEFAULT_LIMIT
+        else:
+            limit = PAT_ENTITIES_DEFAULT_LIMIT
+
+        qs = dict(request.args)
+        qs["limit"] = str(limit)
+        from urllib.parse import urlencode
+
+        request.environ["QUERY_STRING"] = urlencode(qs)
+        return None
+
+    # POST /ngsi-ld/v1/entityOperations/query — cap JSON body 'limit'
+    if request.method == "POST" and path == "/ngsi-ld/v1/entityOperations/query":
+        if request.is_json:
+            body = request.get_json(silent=True) or {}
+            limit = body.get("limit")
+            if limit is not None:
+                try:
+                    limit = int(limit)
+                except (ValueError, TypeError):
+                    limit = PAT_ENTITIES_DEFAULT_LIMIT
+                if limit > PAT_ENTITIES_MAX_LIMIT:
+                    limit = PAT_ENTITIES_MAX_LIMIT
+                elif limit < 1:
+                    limit = PAT_ENTITIES_DEFAULT_LIMIT
+            else:
+                limit = PAT_ENTITIES_DEFAULT_LIMIT
+            body["limit"] = limit
+            g.pat_modified_body = body
+
+        return None
+
+
 @app.before_request
 def enforce_module_csp_of_data():
     """Fase A.2.3c — when a module-originated request (X-Module-Id) hits
