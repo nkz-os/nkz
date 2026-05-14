@@ -15,6 +15,7 @@ import requests
 # Module routes blueprint
 from module_routes import module_bp
 from storage_routes import storage_bp
+from module_csp import is_entity_type_allowed, is_timeseries_allowed
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
@@ -166,6 +167,59 @@ def reject_pat_outside_timeseries():
     tok = auth[7:].strip()
     if tok.startswith("nkz_pat_"):
         return jsonify({"error": "PAT allowed only on /api/timeseries"}), 401
+    return None
+
+
+@app.before_request
+def enforce_module_csp_of_data():
+    """Fase A.2.3c — when a module-originated request (X-Module-Id) hits
+    NGSI-LD or Timescale routes, validate the requested entity type or
+    hypertable against the module's declared `data.entities` /
+    `data.timeseries` in its published manifest. Fail-open when the
+    manifest is missing or hasn't declared a list — no breaking change
+    for modules that pre-date the manifest publish flow."""
+    if request.method == "OPTIONS":
+        return None
+    module_id = request.headers.get("X-Module-Id")
+    if not module_id:
+        return None
+    p = request.path or ""
+
+    # NGSI-LD entity routes — the type lives in the query string for list/GET,
+    # in the JSON body for POST/PATCH.
+    if p.startswith("/api/ngsi-ld/v1/entities"):
+        entity_type = request.args.get("type")
+        if entity_type is None and request.method in ("POST", "PATCH"):
+            body = request.get_json(silent=True) or {}
+            entity_type = body.get("type") if isinstance(body, dict) else None
+        if entity_type:
+            allowed, reason = is_entity_type_allowed(module_id, entity_type)
+            if not allowed:
+                logger.warning("CSP block: %s", reason)
+                return jsonify(
+                    {
+                        "error": "module-csp",
+                        "detail": reason,
+                    }
+                ), 403
+        return None
+
+    # Timeseries routes — hypertable name is the segment immediately
+    # following `/api/timeseries/`.
+    if p.startswith("/api/timeseries/"):
+        rest = p[len("/api/timeseries/") :].split("/", 1)[0]
+        if rest:
+            allowed, reason = is_timeseries_allowed(module_id, rest)
+            if not allowed:
+                logger.warning("CSP block: %s", reason)
+                return jsonify(
+                    {
+                        "error": "module-csp",
+                        "detail": reason,
+                    }
+                ), 403
+        return None
+
     return None
 
 
