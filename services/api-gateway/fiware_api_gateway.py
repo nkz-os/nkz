@@ -22,11 +22,35 @@ from datetime import datetime
 import time
 import uuid
 import boto3
+import re
 from collections import defaultdict, deque
 
 # Configure logging FIRST
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class PatSanitizingFilter(logging.Filter):
+    """Redact nkz_pat_ tokens from log records."""
+
+    _pat_re = re.compile(r"nkz_pat_[A-Za-z0-9_-]{32,}")
+
+    def filter(self, record):
+        if isinstance(record.msg, str):
+            record.msg = self._pat_re.sub("nkz_pat_[REDACTED]", record.msg)
+        if record.args:
+            record.args = tuple(
+                self._pat_re.sub("nkz_pat_[REDACTED]", str(a))
+                if isinstance(a, str)
+                else a
+                for a in record.args
+            )
+        return True
+
+
+# Attach to root logger
+logging.getLogger().addFilter(PatSanitizingFilter())
+
 
 # CORS configuration
 _cors_env = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
