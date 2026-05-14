@@ -30,11 +30,16 @@ const NavigationSchema = z.object({
 
 const SlotEntrySchema = z.object({
   id: KebabCase,
-  // component is a runtime React component reference — Zod can't validate it; accepted as any function/object
+  // component is either a React component reference (preferred, new shape) or
+  // the string name of an exported component (legacy SlotWidgetDefinition shape).
   component: z.any(),
   priority: z.number().int().optional(),
   showWhen: z.any().optional(),
   defaultProps: z.record(z.string(), z.any()).optional(),
+  // Legacy passthrough fields used by SlotWidgetDefinition from @nekazari/sdk.
+  // toNKZRegistration prefers localComponent when both are present.
+  moduleId: z.string().optional(),
+  localComponent: z.any().optional(),
 }).strict();
 
 // Slot type keys are intentionally loose (z.string()) so this schema stays
