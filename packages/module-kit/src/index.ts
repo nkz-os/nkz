@@ -33,3 +33,7 @@ export type { NgsiLdEntity, QueryResult, OrionTransport, ModuleAPITransport } fr
 // File storage hook (A.2.3)
 export { useFiles } from './hooks/useFiles';
 export type { FilesTransport } from './hooks/types';
+
+// Time series hook (A.2.1c)
+export { useTimeseries } from './hooks/useTimeseries';
+export type { TimeseriesPoint, TimeseriesQuery, TimeseriesTransport } from './hooks/types';

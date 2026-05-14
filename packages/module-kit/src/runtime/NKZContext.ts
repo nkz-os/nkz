@@ -6,6 +6,7 @@ import type {
   OrionTransport,
   ModuleAPITransport,
   FilesTransport,
+  TimeseriesTransport,
 } from '../hooks/types';
 
 /** Runtime value injected by the provider — real (host) or mock (nkz dev) */
@@ -18,6 +19,7 @@ export interface NKZRuntime {
   orion: OrionTransport;
   moduleApi: ModuleAPITransport;
   files: FilesTransport;
+  timeseries: TimeseriesTransport;
 }
 
 export const NKZContext = createContext<NKZRuntime | null>(null);

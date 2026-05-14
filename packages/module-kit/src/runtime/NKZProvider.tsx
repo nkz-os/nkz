@@ -7,6 +7,8 @@ import type {
   OrionTransport,
   ModuleAPITransport,
   FilesTransport,
+  TimeseriesTransport,
+  TimeseriesPoint,
   NgsiLdEntity,
 } from '../hooks/types';
 
@@ -103,6 +105,34 @@ function makeRealModuleApi(moduleId: string, basePath: string | null): ModuleAPI
       }
       const url = `${basePath}${path.startsWith('/') ? path : `/${path}`}`;
       return http<T>(url, init);
+    },
+  };
+}
+
+function makeRealTimeseries(moduleId: string): TimeseriesTransport {
+  const http = makeHttp(moduleId);
+  return {
+    async query({ entityId, attribute, from, to, resolution }) {
+      const sp = new URLSearchParams({
+        attribute,
+        start_time: typeof from === 'string' ? from : from.toISOString(),
+        end_time: typeof to === 'string' ? to : to.toISOString(),
+        format: 'json',
+      });
+      if (resolution !== undefined) sp.set('resolution', String(resolution));
+      const resp = await http<{ data?: Array<Record<string, unknown>> }>(
+        `/api/timeseries/entities/${encodeURIComponent(entityId)}/data?${sp.toString()}`,
+      );
+      const rows = resp?.data ?? [];
+      const points: TimeseriesPoint[] = [];
+      for (const row of rows) {
+        const ts = row.timestamp;
+        const v = row[attribute];
+        if (typeof ts === 'string' && typeof v === 'number') {
+          points.push({ timestamp: ts, value: v });
+        }
+      }
+      return points;
     },
   };
 }
@@ -214,6 +244,7 @@ export function NKZProvider({
       orion: makeRealOrion(moduleId),
       moduleApi: makeRealModuleApi(moduleId, apiBasePath ?? null),
       files: makeRealFiles(moduleId),
+      timeseries: makeRealTimeseries(moduleId),
     };
   }, [moduleId, tenantPlan, lang, apiBasePath, authSnapshot.tenantId, authSnapshot.user?.id]);
 
