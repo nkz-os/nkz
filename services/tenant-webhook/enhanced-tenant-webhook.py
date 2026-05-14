@@ -2918,10 +2918,10 @@ def create_tenant_personal_access_token():
                 key_hash, name, description, tenant_id, key_type,
                 is_active, expires_at, created_by_sub, scopes
             )
-            VALUES (%s, %s, %s, %s, 'pat', true, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, 'pat', true, %s, %s, %s::jsonb)
             RETURNING id, created_at
             """,
-            (key_hash, name, description, tenant_id, expires_at, creator_sub, scopes),
+            (key_hash, name, description, tenant_id, expires_at, creator_sub, json.dumps(scopes)),
         )
         ins = cur.fetchone()
         conn.commit()
@@ -5612,7 +5612,7 @@ def internal_n8n_suspension_event(tenant_id):
 
 
 def _migrate_001_scopes_column(conn):
-    """Add scopes column to api_keys if it doesn't exist."""
+    """Add scopes column to api_keys if it doesn't exist (jsonb for compatibility)."""
     cur = conn.cursor()
     cur.execute("""
         DO $$
@@ -5621,14 +5621,14 @@ def _migrate_001_scopes_column(conn):
                 SELECT 1 FROM information_schema.columns
                 WHERE table_name = 'api_keys' AND column_name = 'scopes'
             ) THEN
-                ALTER TABLE api_keys ADD COLUMN scopes TEXT[] NOT NULL DEFAULT '{}';
+                ALTER TABLE api_keys ADD COLUMN scopes JSONB NOT NULL DEFAULT '[]';
             END IF;
         END $$;
     """)
     cur.execute("""
         UPDATE api_keys
-        SET scopes = ARRAY['timeseries']
-        WHERE key_type = 'pat' AND (scopes IS NULL OR scopes = '{}');
+        SET scopes = '["timeseries"]'::jsonb
+        WHERE key_type = 'pat' AND (scopes IS NULL OR scopes = '[]' OR scopes = '{}');
     """)
     conn.commit()
     cur.close()
