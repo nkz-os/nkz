@@ -18,6 +18,7 @@
   "dependencies": {
     "@kurkle/color": "^0.3.4",
     "@nekazari/design-tokens": "workspace:*",
+    "@nekazari/module-kit": "workspace:*",
     "@nekazari/sdk": "workspace:*",
     "@nekazari/ui-kit": "workspace:*",
     "@nekazari/viewer-kit": "workspace:*",

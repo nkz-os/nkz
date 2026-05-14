@@ -23,6 +23,9 @@ importers:
       '@nekazari/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@nekazari/module-kit':
+        specifier: workspace:*
+        version: link:../../packages/module-kit
       '@nekazari/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
