@@ -1,5 +1,5 @@
 {
-  "name": "nkz",
+  "name": "@nekazari/cli",
   "version": "0.2.0",
   "description": "Nekazari Platform CLI — module development toolkit",
   "license": "Apache-2.0",
@@ -12,6 +12,9 @@
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
