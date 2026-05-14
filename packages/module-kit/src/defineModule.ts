@@ -49,15 +49,26 @@ export function toNKZRegistration(def: ModuleDefinition): NKZModuleRegistration 
     for (const [slotType, entries] of Object.entries(def.slots)) {
       if (!entries) continue;
       const widgets: SlotWidgetDefinition[] = entries.map((entry) => {
-        const comp = entry.component as React.ComponentType<any> & { displayName?: string; name?: string };
+        // Legacy shape: { component: '<string-name>', localComponent: ReactComp }
+        // Modern shape: { component: ReactComp } (localComponent absent)
+        const legacyLocal = (entry as { localComponent?: unknown }).localComponent as
+          | (React.ComponentType<any> & { displayName?: string; name?: string })
+          | undefined;
+        const localRef =
+          legacyLocal ??
+          (entry.component as React.ComponentType<any> & { displayName?: string; name?: string });
+        const componentName =
+          typeof entry.component === 'string'
+            ? entry.component
+            : localRef?.displayName || localRef?.name || entry.id;
         return {
           id: entry.id,
-          moduleId: def.id,
-          component: comp.displayName || comp.name || entry.id,
+          moduleId: (entry as { moduleId?: string }).moduleId ?? def.id,
+          component: componentName,
           priority: entry.priority ?? 50,
           showWhen: entry.showWhen,
           defaultProps: entry.defaultProps,
-          localComponent: comp,
+          localComponent: localRef,
         };
       });
       (viewerSlots as Record<string, SlotWidgetDefinition[]>)[slotType] = widgets;
