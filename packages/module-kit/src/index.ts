@@ -29,3 +29,7 @@ export { initPlatformEvents, type PlatformEvents, type PlatformEvent } from './r
 export { useEntity, useEntities, useCreateEntity, useUpdateEntity, useDeleteEntity } from './hooks/useOrion';
 export { useGet, usePost, usePatch, useDelete } from './hooks/useModuleAPI';
 export type { NgsiLdEntity, QueryResult, OrionTransport, ModuleAPITransport } from './hooks/types';
+
+// File storage hook (A.2.3)
+export { useFiles } from './hooks/useFiles';
+export type { FilesTransport } from './hooks/types';

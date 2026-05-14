@@ -6,6 +6,7 @@ import type {
   PlanTier,
   OrionTransport,
   ModuleAPITransport,
+  FilesTransport,
   NgsiLdEntity,
 } from '../hooks/types';
 
@@ -18,7 +19,7 @@ declare global {
 const PLAN_ORDER: Record<PlanTier, number> = { basic: 0, pro: 1, premium: 2, enterprise: 3 };
 
 interface NKZProviderProps {
-  /** Module id — used for event namespacing */
+  /** Module id — used for event namespacing AND injected as X-Module-Id on every gateway-bound request */
   moduleId: string;
   /** Plan currently held by the tenant (set by host; unknown in dev) */
   tenantPlan?: PlanTier;
@@ -39,51 +40,61 @@ function makeDefaultClient(): QueryClient {
   return new QueryClient({ defaultOptions: { queries: DEFAULT_QUERY_OPTIONS } });
 }
 
-async function httpJson<T>(input: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(input, {
-    credentials: 'include',
-    headers: { Accept: 'application/json', ...(init?.headers ?? {}) },
-    ...init,
-  });
-  if (!res.ok) {
-    throw new Error(`[module-kit] ${init?.method ?? 'GET'} ${input} → ${res.status} ${res.statusText}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+function makeHttp(moduleId: string) {
+  return async function httpJson<T>(input: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(input, {
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        'X-Module-Id': moduleId,
+        ...(init?.headers ?? {}),
+      },
+      ...init,
+    });
+    if (!res.ok) {
+      throw new Error(`[module-kit] ${init?.method ?? 'GET'} ${input} → ${res.status} ${res.statusText}`);
+    }
+    if (res.status === 204) return undefined as T;
+    return res.json() as Promise<T>;
+  };
 }
 
-const realOrion: OrionTransport = {
-  async getEntity(id, type) {
-    const q = type ? `?type=${encodeURIComponent(type)}` : '';
-    return httpJson<NgsiLdEntity>(`/api/ngsi-ld/v1/entities/${encodeURIComponent(id)}${q}`);
-  },
-  async listEntities(type, opts) {
-    const sp = new URLSearchParams({ type });
-    if (opts?.q) sp.set('q', opts.q);
-    if (opts?.limit) sp.set('limit', String(opts.limit));
-    if (opts?.offset) sp.set('offset', String(opts.offset));
-    return httpJson<NgsiLdEntity[]>(`/api/ngsi-ld/v1/entities?${sp.toString()}`);
-  },
-  async createEntity(entity) {
-    await httpJson<void>('/api/ngsi-ld/v1/entities', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/ld+json' },
-      body: JSON.stringify(entity),
-    });
-  },
-  async updateEntity(id, attrs) {
-    await httpJson<void>(`/api/ngsi-ld/v1/entities/${encodeURIComponent(id)}/attrs`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/ld+json' },
-      body: JSON.stringify(attrs),
-    });
-  },
-  async deleteEntity(id) {
-    await httpJson<void>(`/api/ngsi-ld/v1/entities/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  },
-};
+function makeRealOrion(moduleId: string): OrionTransport {
+  const http = makeHttp(moduleId);
+  return {
+    async getEntity(id, type) {
+      const q = type ? `?type=${encodeURIComponent(type)}` : '';
+      return http<NgsiLdEntity>(`/api/ngsi-ld/v1/entities/${encodeURIComponent(id)}${q}`);
+    },
+    async listEntities(type, opts) {
+      const sp = new URLSearchParams({ type });
+      if (opts?.q) sp.set('q', opts.q);
+      if (opts?.limit) sp.set('limit', String(opts.limit));
+      if (opts?.offset) sp.set('offset', String(opts.offset));
+      return http<NgsiLdEntity[]>(`/api/ngsi-ld/v1/entities?${sp.toString()}`);
+    },
+    async createEntity(entity) {
+      await http<void>('/api/ngsi-ld/v1/entities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/ld+json' },
+        body: JSON.stringify(entity),
+      });
+    },
+    async updateEntity(id, attrs) {
+      await http<void>(`/api/ngsi-ld/v1/entities/${encodeURIComponent(id)}/attrs`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/ld+json' },
+        body: JSON.stringify(attrs),
+      });
+    },
+    async deleteEntity(id) {
+      await http<void>(`/api/ngsi-ld/v1/entities/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
+  };
+}
 
-function makeRealModuleApi(basePath: string | null): ModuleAPITransport {
+function makeRealModuleApi(moduleId: string, basePath: string | null): ModuleAPITransport {
+  const http = makeHttp(moduleId);
   return {
     basePath,
     fetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
@@ -91,7 +102,51 @@ function makeRealModuleApi(basePath: string | null): ModuleAPITransport {
         throw new Error('[module-kit] useModuleAPI called but the module has no api.basePath in defineModule({...})');
       }
       const url = `${basePath}${path.startsWith('/') ? path : `/${path}`}`;
-      return httpJson<T>(url, init);
+      return http<T>(url, init);
+    },
+  };
+}
+
+function makeRealFiles(moduleId: string): FilesTransport {
+  const http = makeHttp(moduleId);
+  return {
+    async upload(file, path) {
+      const { url } = await http<{ url: string }>('/api/storage/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path,
+          operation: 'PUT',
+          contentType: file.type || 'application/octet-stream',
+        }),
+      });
+      const putRes = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!putRes.ok) {
+        throw new Error(`[module-kit] upload to MinIO failed: ${putRes.status} ${putRes.statusText}`);
+      }
+      return { url: url.split('?')[0] };
+    },
+    async getUrl(path, opts) {
+      const { url } = await http<{ url: string }>('/api/storage/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path,
+          operation: 'GET',
+          expiresInSeconds: opts?.expiresInSeconds,
+        }),
+      });
+      return url;
+    },
+    async list(prefix) {
+      const { items } = await http<{ items: string[] }>(
+        `/api/storage/list?prefix=${encodeURIComponent(prefix)}`,
+      );
+      return items;
     },
   };
 }
@@ -101,6 +156,10 @@ function makeRealModuleApi(basePath: string | null): ModuleAPITransport {
  * slot widgets. Reads auth from `window.__nekazariAuthContext`, i18n from
  * `@nekazari/sdk`'s singleton i18n instance, and routes events through
  * `window.__NKZ__.events` if present (else a no-op).
+ *
+ * Every gateway-bound request adds an `X-Module-Id: <moduleId>` header so
+ * the api-gateway can scope file storage and (in a later phase) enforce
+ * CSP-of-data against the module's manifest.
  *
  * Wraps children in a `<QueryClientProvider>` for the data hooks.
  */
@@ -152,8 +211,9 @@ export function NKZProvider({
           return typeof off === 'function' ? off : () => {};
         },
       },
-      orion: realOrion,
-      moduleApi: makeRealModuleApi(apiBasePath ?? null),
+      orion: makeRealOrion(moduleId),
+      moduleApi: makeRealModuleApi(moduleId, apiBasePath ?? null),
+      files: makeRealFiles(moduleId),
     };
   }, [moduleId, tenantPlan, lang, apiBasePath, authSnapshot.tenantId, authSnapshot.user?.id]);
 

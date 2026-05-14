@@ -1,4 +1,4 @@
-import type { NgsiLdEntity, OrionTransport, ModuleAPITransport } from '../hooks/types';
+import type { NgsiLdEntity, OrionTransport, ModuleAPITransport, FilesTransport } from '../hooks/types';
 
 /** Mutable in-memory NGSI-LD store used by MockProvider */
 export class OrionMockStore implements OrionTransport {
@@ -59,5 +59,26 @@ export class ModuleApiMockStore implements ModuleAPITransport {
     const handler = this.handlers.get(key);
     if (!handler) throw new Error(`[mock] no handler for ${key}`);
     return (await handler(init)) as T;
+  }
+}
+
+/** In-memory file store used by MockProvider — keyed by absolute path */
+export class FilesMockStore implements FilesTransport {
+  private blobs = new Map<string, Blob>();
+
+  async upload(file: Blob, path: string): Promise<{ url: string }> {
+    this.blobs.set(path, file);
+    return { url: `mock://files/${path}` };
+  }
+
+  async getUrl(path: string): Promise<string> {
+    if (!this.blobs.has(path)) {
+      throw new Error(`[mock] file not found: ${path}`);
+    }
+    return `mock://files/${path}`;
+  }
+
+  async list(prefix: string): Promise<string[]> {
+    return Array.from(this.blobs.keys()).filter((p) => p.startsWith(prefix));
   }
 }

@@ -4,7 +4,7 @@ import { NKZContext, type NKZRuntime } from '../runtime/NKZContext';
 import type { PlanTier, NgsiLdEntity } from '../hooks/types';
 import type { MockFixtures } from './types';
 import { DEFAULT_MOCK_FIXTURES } from './fixtures';
-import { OrionMockStore, ModuleApiMockStore } from './orionStore';
+import { OrionMockStore, ModuleApiMockStore, FilesMockStore } from './orionStore';
 
 const PLAN_ORDER: Record<PlanTier, number> = { basic: 0, pro: 1, premium: 2, enterprise: 3 };
 
@@ -39,6 +39,7 @@ export function MockProvider({ fixtures = {}, children }: MockProviderProps): Re
     return s;
   });
   const [moduleApiStore] = useState(() => new ModuleApiMockStore());
+  const [filesStore] = useState(() => new FilesMockStore());
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0 } } }));
 
   const runtime = useMemo<NKZRuntime>(() => {
@@ -70,8 +71,9 @@ export function MockProvider({ fixtures = {}, children }: MockProviderProps): Re
       },
       orion: orionStore,
       moduleApi: moduleApiStore,
+      files: filesStore,
     };
-  }, [merged.moduleId, auth, tenantPlan, lang, i18n, subscribers, orionStore, moduleApiStore]);
+  }, [merged.moduleId, auth, tenantPlan, lang, i18n, subscribers, orionStore, moduleApiStore, filesStore]);
 
   return (
     <QueryClientProvider client={client}>
