@@ -104,6 +104,7 @@ if not CONTEXT_URL:
 GEOSERVER_URL = os.getenv("GEOSERVER_URL", "http://geoserver-service:8080")
 TENANT_WEBHOOK_URL = os.getenv("TENANT_WEBHOOK_URL", "http://tenant-webhook:8080")
 ENTITY_MANAGER_URL = os.getenv("ENTITY_MANAGER_URL", "http://entity-manager:5000")
+DATAHUB_BFF_URL = os.getenv("DATAHUB_BFF_URL", "http://datahub-bff-service:8000")
 NDVI_SERVICE_URL = os.getenv("NDVI_SERVICE_URL", "http://entity-manager:5000")
 TENANT_USER_API_URL = os.getenv("TENANT_USER_API_URL", "http://tenant-user-api:5000")
 CADASTRAL_API_URL = os.getenv("CADASTRAL_API_URL", "http://cadastral-api-service:5000")
@@ -3883,6 +3884,99 @@ def zulip_provisioning(subpath):
     except Exception as e:
         logger.error("Zulip provisioner proxy error: %s", e)
         return jsonify({"error": "Provisioner unavailable"}), 502
+
+
+@app.route("/api/datahub/export", methods=["POST"])
+def proxy_datahub_export():
+    """Proxy export requests to DataHub BFF, enforcing PAT scopes upstream."""
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+
+    if is_pat_token(token):
+        tenant = getattr(g, "pat_tenant_id", None)
+        if not tenant:
+            return jsonify({"error": "PAT tenant not resolved"}), 401
+        gw_jwt = obtain_gateway_service_jwt()
+        if not gw_jwt:
+            return jsonify({"error": "Service authentication not configured"}), 503
+        headers = {
+            "Authorization": f"Bearer {gw_jwt}",
+            "X-Delegated-Tenant-ID": tenant,
+            "X-Tenant-ID": tenant,
+            "Content-Type": "application/json",
+        }
+    else:
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        tenant = extract_tenant_id(payload)
+        if not tenant:
+            return jsonify({"error": "Tenant not present in token"}), 401
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "X-Tenant-ID": tenant,
+            "Content-Type": "application/json",
+        }
+
+    try:
+        url = f"{DATAHUB_BFF_URL}/api/datahub/export"
+        body = (
+            getattr(g, "pat_modified_body", None) or request.get_json(silent=True) or {}
+        )
+        resp = requests.post(url, headers=headers, json=body, timeout=120)
+        return make_response(resp.content, resp.status_code, dict(resp.headers))
+    except requests.exceptions.RequestException as e:
+        logger.error(f"DataHub export proxy error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/datahub/timeseries/align", methods=["POST"])
+def proxy_datahub_align():
+    """Proxy timeseries align requests to DataHub BFF."""
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+
+    if is_pat_token(token):
+        tenant = getattr(g, "pat_tenant_id", None)
+        if not tenant:
+            return jsonify({"error": "PAT tenant not resolved"}), 401
+        gw_jwt = obtain_gateway_service_jwt()
+        if not gw_jwt:
+            return jsonify({"error": "Service authentication not configured"}), 503
+        headers = {
+            "Authorization": f"Bearer {gw_jwt}",
+            "X-Delegated-Tenant-ID": tenant,
+            "X-Tenant-ID": tenant,
+            "Content-Type": "application/json",
+        }
+    else:
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        tenant = extract_tenant_id(payload)
+        if not tenant:
+            return jsonify({"error": "Tenant not present in token"}), 401
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "X-Tenant-ID": tenant,
+            "Content-Type": "application/json",
+        }
+
+    try:
+        url = f"{DATAHUB_BFF_URL}/api/datahub/timeseries/align"
+        resp = requests.post(
+            url, headers=headers, json=request.get_json(silent=True) or {}, timeout=60
+        )
+        return make_response(resp.content, resp.status_code, dict(resp.headers))
+    except requests.exceptions.RequestException as e:
+        logger.error(f"DataHub align proxy error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # Register dynamic module routing blueprint
