@@ -6,7 +6,6 @@ import * as NKZSdk from '@nekazari/sdk';
 import * as UIKit from '@nekazari/ui-kit';
 import * as DesignTokens from '@nekazari/design-tokens';
 import * as ViewerKit from '@nekazari/viewer-kit';
-import * as ModuleKit from '@nekazari/module-kit';
 import App from './App.tsx';
 import './index.css';
 // Cesium CSS is imported by Cesium-using components (CesiumMap, MobileViewer) via lazy chunks
@@ -34,9 +33,6 @@ import { initNKZRuntime } from './utils/nkzRuntime';
 (window as any).__NKZ_DESIGN_TOKENS__ = DesignTokens; // backward compat
 (window as any).__NKZ_VIEWER__ = ViewerKit;
 (window as any).__NKZ_VIEWER_KIT__ = ViewerKit; // backward compat
-
-// Module-kit runtime (modules use: external "@nekazari/module-kit" → window.__NKZ_MODULE_KIT__)
-(window as any).__NKZ_MODULE_KIT__ = ModuleKit;
 
 // Initialize the module registration runtime (window.__NKZ__)
 initNKZRuntime();

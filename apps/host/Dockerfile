@@ -18,7 +18,6 @@ RUN pnpm --filter @nekazari/design-tokens build
 RUN pnpm --filter @nekazari/ui-kit build
 RUN pnpm --filter @nekazari/viewer-kit build
 RUN pnpm --filter @nekazari/sdk build
-RUN pnpm --filter @nekazari/module-kit build
 
 # Build Host
 WORKDIR /app/apps/host
