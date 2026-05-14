@@ -1,7 +1,7 @@
 # Nekazari — Production State
 
 > **Living document.** Update after every sprint/deploy.
-> Last updated: **2026-05-12**
+> Last updated: **2026-05-14**
 
 ---
 
@@ -26,8 +26,8 @@
 | Deployed bundle | Built from `main` (PR #236 merge, 2026-05-11). Docker image `ghcr.io/nkz-os/nkz/host:latest` |
 | Serving | `frontend-host` Docker pod (via main `nekazari-ingress`). `/modules` from `frontend-static` (MinIO). Module backends via api-gateway canary (MODULE_GATEWAY_ENABLED) |
 | Runtime config | `VITE_API_URL=https://nkz.robotika.cloud` (no `/api` suffix) |
-| Last deploy | 2026-05-11 — PR #236 merge (Phase 1: SDKs & Gateway). api-gateway + frontend-host rolled out |
-| Module loading | IIFE Runtime Injection — `window.__NKZ__.register()`. SDK types canonical in `@nekazari/sdk` v1.1.0. `@nekazari/module-kit` v0.1.0 provides `defineModule()`. |
+| Last deploy | 2026-05-14 — PR #263, #265, #267 (PAT scope expansion). api-gateway, tenant-webhook rolled out |
+| Module loading | IIFE Runtime Injection — `window.__NKZ__.register()`. SDK types canonical in `@nekazari/sdk` v1.1.0. `@nekazari/module-kit` v0.1.0 provides `defineModule()`. Host exposes `window.__NKZ_MODULE_KIT__` for IIFE externals. |
 | Module lint/validate | `nkz module validate` CLI — manifest schema, i18n parity, NGSI-LD entity check |
 | Module dev | `nkz module dev` — lightweight host shell with HMR |
 | Module migration | Phase 2 partial: 16/18 modules have @nekazari/module-kit dep. Backend migration (require_auth, OrionClient) pending nkz-platform-sdk PyPI publish |
@@ -89,6 +89,23 @@
 | odoo-backend (module API) | 1 | `nekazari-module-odoo/odoo-backend:latest` | Running. Uses ODOO_ADMIN_PASSWORD from secret when set |
 | agrienergy (module backend) | 1 | `nekazari-module-agrienergy/agrienergy:latest` | JSON Logic algorithm engine, solar parks, MQTT notify, shadow simulation. Ingress: `agrienergy-api-frontend-host` on `nekazari.robotika.cloud` |
 | cadastral (module backend) | 0 | — | CPU constraints |
+
+---
+
+## PAT Scope Expansion (2026-05-14) — DEPLOYED
+
+| Topic | Detail |
+|-------|--------|
+| Description | PAT tokens extended to 4 scoped data categories for external API access |
+| Scopes | `timeseries`, `entities`, `export`, `telemetry` — all read-only |
+| Enforcement | api-gateway `enforce_pat_scopes()` validates `(HTTP method, path prefix)` per scope |
+| Pagination cap | 500 entities/page (default 100), 10k rows export |
+| PRs merged | #263 (jsonb fix), #265 (DATAHUB_BFF_URL), #267 (pagination cap fix) |
+| Storage | `api_keys` table: `scopes JSONB`, `expires_at TIMESTAMPTZ` |
+| Log sanitization | `PatSanitizingFilter` redacts `nkz_pat_*` from gateway logs |
+| DataHub UI | Scope checkboxes + expiry selector in Integrations panel |
+| Docs | `nkz-module-datahub/docs/API_EXTERNAL_ACCESS.md`, `PLATFORM_CONVENTIONS.md §1c` |
+| Verification | 16/17 spec cases pass (1 NGSI-LD edge case: `limit` not a valid Query body field) |
 
 ---
 
