@@ -254,50 +254,26 @@ def enforce_pat_scopes():
 
 PAT_ENTITIES_MAX_LIMIT = 500
 PAT_ENTITIES_DEFAULT_LIMIT = 100
+PAT_EXPORT_MAX_ROWS = 10000
 
 
 @app.before_request
 def enforce_pat_pagination():
-    """Cap pagination for PAT requests to NGSI-LD entities endpoints."""
+    """Cap pagination and max_rows for PAT requests to entities/export endpoints."""
     if not hasattr(g, "pat_info"):
         return None
 
     path = request.path or ""
     scopes = g.pat_info.get("scopes") or []
 
-    if "entities" not in scopes:
-        return None
-
-    # GET /ngsi-ld/v1/entities — cap query param 'limit'
-    if request.method == "GET" and path.startswith("/ngsi-ld/v1/entities"):
-        limit_raw = request.args.get("limit")
-        if limit_raw:
-            try:
-                limit = int(limit_raw)
-            except (ValueError, TypeError):
-                limit = PAT_ENTITIES_DEFAULT_LIMIT
-            if limit > PAT_ENTITIES_MAX_LIMIT:
-                limit = PAT_ENTITIES_MAX_LIMIT
-            elif limit < 1:
-                limit = PAT_ENTITIES_DEFAULT_LIMIT
-        else:
-            limit = PAT_ENTITIES_DEFAULT_LIMIT
-
-        qs = dict(request.args)
-        qs["limit"] = str(limit)
-        from urllib.parse import urlencode
-
-        request.environ["QUERY_STRING"] = urlencode(qs)
-        return None
-
-    # POST /ngsi-ld/v1/entityOperations/query — cap JSON body 'limit'
-    if request.method == "POST" and path == "/ngsi-ld/v1/entityOperations/query":
-        if request.is_json:
-            body = request.get_json(silent=True) or {}
-            limit = body.get("limit")
-            if limit is not None:
+    # Entities scope: cap pagination
+    if "entities" in scopes:
+        # GET /ngsi-ld/v1/entities — cap query param 'limit'
+        if request.method == "GET" and path.startswith("/ngsi-ld/v1/entities"):
+            limit_raw = request.args.get("limit")
+            if limit_raw:
                 try:
-                    limit = int(limit)
+                    limit = int(limit_raw)
                 except (ValueError, TypeError):
                     limit = PAT_ENTITIES_DEFAULT_LIMIT
                 if limit > PAT_ENTITIES_MAX_LIMIT:
@@ -306,7 +282,56 @@ def enforce_pat_pagination():
                     limit = PAT_ENTITIES_DEFAULT_LIMIT
             else:
                 limit = PAT_ENTITIES_DEFAULT_LIMIT
-            body["limit"] = limit
+
+            qs = dict(request.args)
+            qs["limit"] = str(limit)
+            from urllib.parse import urlencode
+
+            request.environ["QUERY_STRING"] = urlencode(qs)
+            return None
+
+        # POST /ngsi-ld/v1/entityOperations/query — cap JSON body 'limit'
+        if request.method == "POST" and path == "/ngsi-ld/v1/entityOperations/query":
+            if request.is_json:
+                body = request.get_json(silent=True) or {}
+                limit = body.get("limit")
+                if limit is not None:
+                    try:
+                        limit = int(limit)
+                    except (ValueError, TypeError):
+                        limit = PAT_ENTITIES_DEFAULT_LIMIT
+                    if limit > PAT_ENTITIES_MAX_LIMIT:
+                        limit = PAT_ENTITIES_MAX_LIMIT
+                    elif limit < 1:
+                        limit = PAT_ENTITIES_DEFAULT_LIMIT
+                else:
+                    limit = PAT_ENTITIES_DEFAULT_LIMIT
+                body["limit"] = limit
+                g.pat_modified_body = body
+
+            return None
+
+    # Export scope: cap max_rows
+    if (
+        request.method == "POST"
+        and path.startswith("/api/datahub/export")
+        and "export" in scopes
+    ):
+        if request.is_json:
+            body = request.get_json(silent=True) or {}
+            max_rows = body.get("max_rows")
+            if max_rows is not None:
+                try:
+                    max_rows = int(max_rows)
+                except (ValueError, TypeError):
+                    max_rows = PAT_EXPORT_MAX_ROWS
+                if max_rows > PAT_EXPORT_MAX_ROWS:
+                    max_rows = PAT_EXPORT_MAX_ROWS
+                elif max_rows < 1:
+                    max_rows = PAT_EXPORT_MAX_ROWS
+            else:
+                max_rows = PAT_EXPORT_MAX_ROWS
+            body["max_rows"] = max_rows
             g.pat_modified_body = body
 
         return None
