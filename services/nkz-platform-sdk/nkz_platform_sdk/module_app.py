@@ -18,6 +18,7 @@ What you get for free:
 - OpenAPI at `/openapi.json` (FastAPI native — keep your endpoints typed for free docs).
 - `app.auth(roles=...)` shortcut → `require_auth(roles)`.
 - `app.orion(ctx)` → an `OrionClient` scoped to the authenticated tenant.
+- `app.timescale(ctx)` → a `TimescaleClient` scoped to the authenticated tenant.
 """
 
 import json
@@ -33,6 +34,7 @@ from fastapi.responses import JSONResponse
 
 from nkz_platform_sdk.auth import AuthContext, require_auth
 from nkz_platform_sdk.orion import OrionClient
+from nkz_platform_sdk.timescale import TimescaleClient
 
 
 def _parse_origins(env_value: str | None) -> list[str]:
@@ -167,3 +169,7 @@ class ModuleApp(FastAPI):
     def orion(self, ctx: AuthContext) -> OrionClient:
         """Create an OrionClient scoped to the authenticated tenant."""
         return OrionClient(ctx.tenant_id)
+
+    def timescale(self, ctx: AuthContext) -> TimescaleClient:
+        """Create a TimescaleClient scoped to the authenticated tenant."""
+        return TimescaleClient(ctx.tenant_id)
