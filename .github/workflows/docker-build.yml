@@ -85,6 +85,11 @@ jobs:
             context: .
             dockerfile: services/keycloak/Dockerfile
 
+          # SDK — base image for module backends (Python 3.11 + nkz-platform-sdk)
+          - service: module-base
+            context: .
+            dockerfile: services/nkz-platform-sdk/Dockerfile
+
     permissions:
       contents: read
       packages: write
