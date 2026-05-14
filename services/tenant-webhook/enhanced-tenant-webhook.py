@@ -2857,6 +2857,9 @@ def list_tenant_personal_access_tokens():
         )
 
 
+VALID_PAT_SCOPES = {"timeseries", "entities", "export", "telemetry"}
+
+
 @app.route("/api/tenant/api-keys", methods=["POST"])
 @require_keycloak_auth
 def create_tenant_personal_access_token():
@@ -2869,6 +2872,21 @@ def create_tenant_personal_access_token():
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "Personal access token").strip()[:200]
     description = (data.get("description") or "").strip()[:2000] or None
+
+    # Validate scopes
+    scopes = data.get("scopes")
+    if scopes is None:
+        scopes = []
+    if not isinstance(scopes, list) or not all(isinstance(s, str) for s in scopes):
+        return jsonify({"error": "scopes must be an array of strings"}), 400
+    invalid = [s for s in scopes if s not in VALID_PAT_SCOPES]
+    if invalid:
+        return jsonify({
+            "error": f"Invalid scope(s): {', '.join(invalid)}",
+            "valid_scopes": sorted(VALID_PAT_SCOPES),
+        }), 400
+
+    # Parse expires_at
     expires_at = None
     if data.get("expires_at"):
         try:
@@ -2876,7 +2894,7 @@ def create_tenant_personal_access_token():
                 str(data["expires_at"]).replace("Z", "+00:00")
             )
         except ValueError:
-            return jsonify({"error": "Invalid expires_at"}), 400
+            return jsonify({"error": "Invalid expires_at format"}), 400
 
     raw_token = f"nkz_pat_{secrets.token_urlsafe(32)}"
     key_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
@@ -2892,12 +2910,12 @@ def create_tenant_personal_access_token():
             """
             INSERT INTO api_keys (
                 key_hash, name, description, tenant_id, key_type,
-                is_active, expires_at, created_by_sub
+                is_active, expires_at, created_by_sub, scopes
             )
-            VALUES (%s, %s, %s, %s, 'pat', true, %s, %s)
+            VALUES (%s, %s, %s, %s, 'pat', true, %s, %s, %s)
             RETURNING id, created_at
             """,
-            (key_hash, name, description, tenant_id, expires_at, creator_sub),
+            (key_hash, name, description, tenant_id, expires_at, creator_sub, scopes),
         )
         ins = cur.fetchone()
         conn.commit()
@@ -2908,6 +2926,7 @@ def create_tenant_personal_access_token():
                 "id": str(ins["id"]),
                 "token": raw_token,
                 "name": name,
+                "scopes": scopes,
                 "expires_at": expires_at.isoformat() if expires_at else None,
                 "created_at": ins["created_at"].isoformat()
                 if ins.get("created_at")
