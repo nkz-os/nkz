@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 from contextlib import suppress
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -2897,6 +2897,10 @@ def create_tenant_personal_access_token():
             )
         except ValueError:
             return jsonify({"error": "Invalid expires_at format"}), 400
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            return jsonify({"error": "expires_at must be in the future"}), 400
 
     raw_token = f"nkz_pat_{secrets.token_urlsafe(32)}"
     key_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
