@@ -294,11 +294,7 @@ def enforce_pat_pagination():
     if "entities" in scopes:
         # GET /ngsi-ld/v1/entities — cap query param 'limit'
         if request.method == "GET" and path.startswith("/ngsi-ld/v1/entities"):
-            from urllib.parse import parse_qs, urlencode
-
-            raw_qs = request.environ.get("QUERY_STRING", "")
-            parsed = parse_qs(raw_qs, keep_blank_values=True)
-            limit_raw = parsed.get("limit", [None])[0]
+            limit_raw = request.args.get("limit") if request.args else None
             if limit_raw:
                 try:
                     limit = int(limit_raw)
@@ -311,8 +307,8 @@ def enforce_pat_pagination():
             else:
                 limit = PAT_ENTITIES_DEFAULT_LIMIT
 
-            parsed["limit"] = [str(limit)]
-            request.environ["QUERY_STRING"] = urlencode(parsed, doseq=True)
+            # Store capped limit for route handlers (request.args is immutable)
+            g.pat_entity_limit = limit
             return None
 
         # POST /ngsi-ld/v1/entityOperations/query — cap JSON body 'limit'
@@ -725,7 +721,10 @@ def entities():
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
         if request.method == "GET":
-            response = requests.get(orion_url, headers=headers, params=request.args)
+            params = dict(request.args)
+            if hasattr(g, "pat_entity_limit"):
+                params["limit"] = str(g.pat_entity_limit)
+            response = requests.get(orion_url, headers=headers, params=params)
         elif request.method == "POST":
             response = requests.post(orion_url, headers=headers, json=json_body)
         elif request.method == "PUT":
