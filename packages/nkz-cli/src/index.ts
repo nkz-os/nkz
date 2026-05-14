@@ -4,7 +4,19 @@ import { program } from 'commander';
 program
   .name('nkz')
   .description('Nekazari Platform CLI — module development toolkit')
-  .version('0.1.0');
+  .version('0.2.0');
+
+program
+  .command('init')
+  .description('Scaffold a new Nekazari module from the official template')
+  .argument('<name>', 'Module name (kebab-case)')
+  .option('--display-name <name>', 'Display name shown in the UI')
+  .option('--route <path>', 'Route path mounted in the host, e.g. /my-module')
+  .option('--skip-install', 'Skip running pnpm/npm install', false)
+  .action(async (name: string, options: { displayName?: string; route?: string; skipInstall: boolean }) => {
+    const { initCommand } = await import('./commands/init.js');
+    await initCommand(name, options);
+  });
 
 program
   .command('validate')
