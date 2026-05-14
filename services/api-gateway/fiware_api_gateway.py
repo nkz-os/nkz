@@ -14,6 +14,7 @@ import requests
 
 # Module routes blueprint
 from module_routes import module_bp
+from storage_routes import storage_bp
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
@@ -199,7 +200,7 @@ def set_cors_headers(response, origin=None):
         response.headers["Access-Control-Allow-Origin"] = cors_origin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, Cookie"
+            "Authorization, Content-Type, X-Tenant-ID, X-Module-Id, Cookie"
         )
         response.headers["Vary"] = "Origin"
     return response
@@ -2123,7 +2124,7 @@ def proxy_ndvi_requests(subpath):
             "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         )
         response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, Cookie"
+            "Authorization, Content-Type, X-Tenant-ID, X-Module-Id, Cookie"
         )
         response.headers["Access-Control-Max-Age"] = "3600"
         response.headers["Vary"] = "Origin"
@@ -2320,7 +2321,7 @@ def proxy_weather_requests(subpath):
             "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         )
         response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, Cookie"
+            "Authorization, Content-Type, X-Tenant-ID, X-Module-Id, Cookie"
         )
         response.headers["Access-Control-Max-Age"] = "3600"
         response.headers["Vary"] = "Origin"
@@ -2474,7 +2475,7 @@ def proxy_modules_requests(subpath):
             "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         )
         response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, Cookie, X-Gestor-Target-Tenant"
+            "Authorization, Content-Type, X-Tenant-ID, X-Module-Id, Cookie, X-Gestor-Target-Tenant"
         )
         response.headers["Access-Control-Max-Age"] = "3600"
         response.headers["Vary"] = "Origin"
@@ -2617,7 +2618,7 @@ def proxy_cadastral_api_requests(subpath):
             "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         )
         response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, Cookie"
+            "Authorization, Content-Type, X-Tenant-ID, X-Module-Id, Cookie"
         )
         response.headers["Access-Control-Max-Age"] = "3600"
         response.headers["Vary"] = "Origin"
@@ -3691,6 +3692,7 @@ def zulip_provisioning(subpath):
 
 # Register dynamic module routing blueprint
 app.register_blueprint(module_bp)
+app.register_blueprint(storage_bp)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
