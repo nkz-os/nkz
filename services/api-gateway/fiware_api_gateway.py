@@ -7,7 +7,7 @@ import os
 import json
 import logging
 import sys
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, g, request, jsonify, make_response
 from flask_cors import cross_origin
 import jwt
 import requests
@@ -179,9 +179,13 @@ def _scope_hint_for_path(path: str) -> str:
     """Map path to scope name for 403 hints (no info leak)."""
     if path.startswith("/api/timeseries"):
         return "timeseries"
-    if path.startswith("/ngsi-ld/v1/entities") or path.startswith("/ngsi-ld/v1/entityOperations"):
+    if path.startswith("/ngsi-ld/v1/entities") or path.startswith(
+        "/ngsi-ld/v1/entityOperations"
+    ):
         return "entities"
-    if path.startswith("/api/datahub/export") or path.startswith("/api/datahub/timeseries/align"):
+    if path.startswith("/api/datahub/export") or path.startswith(
+        "/api/datahub/timeseries/align"
+    ):
         return "export"
     if path.startswith("/api/devices/") or path.startswith("/api/sensors"):
         return "telemetry"
@@ -212,10 +216,12 @@ def enforce_pat_scopes():
 
     scopes = info.get("scopes") or []
     if not scopes:
-        return jsonify({
-            "error": "PAT has no scopes assigned",
-            "required_scope_hint": _scope_hint_for_path(path),
-        }), 403
+        return jsonify(
+            {
+                "error": "PAT has no scopes assigned",
+                "required_scope_hint": _scope_hint_for_path(path),
+            }
+        ), 403
 
     # Check if any scope allows this (method, path)
     allowed = False
@@ -228,10 +234,12 @@ def enforce_pat_scopes():
             break
 
     if not allowed:
-        return jsonify({
-            "error": "PAT does not have required scope for this route",
-            "required_scope_hint": _scope_hint_for_path(path),
-        }), 403
+        return jsonify(
+            {
+                "error": "PAT does not have required scope for this route",
+                "required_scope_hint": _scope_hint_for_path(path),
+            }
+        ), 403
 
     # Store for downstream routes
     g.pat_info = info
