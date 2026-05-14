@@ -2727,6 +2727,7 @@ def internal_update_tenant_license(tenant_id):
 def internal_validate_pat():
     """
     Internal-only PAT validation (hash in JSON body). ADR 003.
+    Returns tenant_id, scopes, expires_at on success.
     """
     if not _verify_internal_pat_secret():
         return jsonify({"error": "Unauthorized"}), 401
@@ -2748,19 +2749,52 @@ def internal_validate_pat():
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT tenant_id, valid FROM validate_pat_key_hash(%s)",
+            """
+            SELECT tenant_id, is_active, scopes, expires_at
+            FROM api_keys
+            WHERE key_hash = %s
+              AND key_type = 'pat'
+            LIMIT 1
+            """,
             (token_hash,),
         )
         row = cur.fetchone()
         cur.close()
         conn.close()
+
         if not row:
             return jsonify({"valid": False}), 200
-        tid = row.get("tenant_id") if isinstance(row, dict) else row[0]
-        ok = row.get("valid") if isinstance(row, dict) else row[1]
+
+        # Handle both dict cursor and tuple cursor
+        if hasattr(row, "keys"):
+            tid = row["tenant_id"]
+            ok = row["is_active"]
+            scopes = row.get("scopes") or []
+            expires_at = row.get("expires_at")
+        else:
+            tid = row[0]
+            ok = row[1]
+            scopes = row[2] or []
+            expires_at = row[3]
+
         if not ok:
             return jsonify({"valid": False}), 200
-        return jsonify({"valid": True, "tenant_id": tid}), 200
+
+        # Check expiry
+        if expires_at:
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at < now:
+                return jsonify({"valid": False, "error": "expired"}), 200
+
+        return jsonify({
+            "valid": True,
+            "tenant_id": tid,
+            "scopes": list(scopes) if scopes else [],
+            "expires_at": expires_at.isoformat() if expires_at else None,
+        }), 200
     except Exception as e:
         logger.error("internal_validate_pat: %s", e)
         if conn:
