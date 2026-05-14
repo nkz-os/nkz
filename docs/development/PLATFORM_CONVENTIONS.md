@@ -78,6 +78,65 @@ Device/Gateway → MQTT (Mosquitto) → IoT Agent JSON 3.13.0 → Orion-LD (NGSI
 
 ---
 
+## 1c. External API Access (PAT — Personal Access Tokens)
+
+External applications (PowerBI, Tableau, Python, custom apps) authenticate via **Personal Access Tokens** instead of browser cookies.
+
+### Token format
+
+```
+nkz_pat_<43 random chars>
+```
+
+Generated via `secrets.token_urlsafe(32)`. SHA-256 hash stored in `api_keys` table; raw token shown only once at creation.
+
+### Scopes
+
+Each PAT has one or more scopes. The api-gateway enforces `(HTTP method, path prefix)` pairs:
+
+| Scope | Allowed routes |
+|-------|---------------|
+| `timeseries` | `GET/POST /api/timeseries/*` |
+| `entities` | `GET /ngsi-ld/v1/entities*`, `POST /ngsi-ld/v1/entityOperations/query` |
+| `export` | `POST /api/datahub/export`, `POST /api/datahub/timeseries/align` |
+| `telemetry` | `GET /api/devices/*`, `GET /api/sensors*` |
+
+All scopes are **read-only**. PATs cannot create, update, or delete entities.
+
+### Pagination caps
+
+- Entity queries via PAT: max **500** per page (default **100** if absent)
+- Export rows via PAT: max **10,000**
+- Orion-LD `Link` header is forwarded transparently for pagination
+
+### PAT lifecycle
+
+- **Creation:** `POST /api/tenant/api-keys` (auth: user JWT)
+- **Listing:** `GET /api/tenant/api-keys` (returns metadata including `scopes`, never the raw token)
+- **Validation:** `POST /internal/validate-pat` (auth: `X-Internal-Secret`, called by api-gateway)
+- **Revocation:** `DELETE /api/tenant/api-keys/<id>` (soft-delete: sets `is_active=false`)
+- **Expiry:** Optional `expires_at` field; rejected at creation if in the past
+- **Cache:** Redis TTL 300s; revoked tokens may remain active up to 5 min
+
+### Architecture flow
+
+```
+External App → HTTPS → api-gateway
+                          ├── enforce_pat_scopes(): validates (method, path) against PAT scopes
+                          ├── enforce_pat_pagination(): caps limit/max_rows
+                          └── proxy to backend (Orion-LD, timeseries-reader, DataHub BFF)
+                              ↑ auth: gateway service JWT + X-Delegated-Tenant-ID
+```
+
+### Rules
+
+- PAT management UI is in **DataHub → Integrations**
+- PAT scope mapping lives in `PAT_SCOPE_ROUTES` constant in `fiware_api_gateway.py`
+- The `DATAHUB_BFF_URL` env var must point to `http://datahub-api-service:8000`
+- Never expose raw PAT in logs — `PatSanitizingFilter` redacts `nkz_pat_*` patterns
+
+---
+
 ## 2. Keycloak Configuration
 
 ### Admin token (for backend services)
