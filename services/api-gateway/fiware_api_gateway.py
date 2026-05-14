@@ -672,6 +672,63 @@ def entities():
         return jsonify({"error": "Internal server error"}), 500
 
 
+@app.route("/ngsi-ld/v1/entityOperations/query", methods=["POST", "GET"])
+def entity_operations_query():
+    """Proxy NGSI-LD entityOperations/query to Orion-LD (complex queries with filters in body)."""
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+
+    if not rate_limit(tenant):
+        return jsonify({"error": "Rate limit exceeded"}), 429
+
+    headers = {}
+    headers = inject_fiware_headers(headers, tenant)
+    headers["X-Tenant-ID"] = tenant
+    signature = generate_hmac_signature(token, tenant)
+    if signature:
+        headers["X-Auth-Signature"] = signature
+
+    try:
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entityOperations/query"
+
+        # Use PAT-modified body if present (from pagination interceptor)
+        if hasattr(g, "pat_modified_body"):
+            json_body = g.pat_modified_body
+        else:
+            json_body = request.get_json(silent=True) or {}
+
+        if request.method == "GET":
+            response = requests.get(
+                orion_url, headers=headers, params=request.args, timeout=60
+            )
+        else:
+            headers["Content-Type"] = "application/json"
+            response = requests.post(
+                orion_url, headers=headers, json=json_body, timeout=60
+            )
+
+        if response.status_code >= 400:
+            logger.error(
+                f"Orion-LD entityOperations/query error {response.status_code}: {response.text[:300]}"
+            )
+
+        return make_response(
+            response.content, response.status_code, dict(response.headers)
+        )
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error forwarding to Orion-LD entityOperations/query: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
 @app.route(
     "/ngsi-ld/v1/subscriptions", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
 )
