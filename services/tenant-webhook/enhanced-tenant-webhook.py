@@ -5552,6 +5552,29 @@ def internal_n8n_suspension_event(tenant_id):
         return jsonify({"error": str(e)}), 502
 
 
+def _migrate_001_scopes_column(conn):
+    """Add scopes column to api_keys if it doesn't exist."""
+    cur = conn.cursor()
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'api_keys' AND column_name = 'scopes'
+            ) THEN
+                ALTER TABLE api_keys ADD COLUMN scopes TEXT[] NOT NULL DEFAULT '{}';
+            END IF;
+        END $$;
+    """)
+    cur.execute("""
+        UPDATE api_keys
+        SET scopes = ARRAY['timeseries']
+        WHERE key_type = 'pat' AND (scopes IS NULL OR scopes = '{}');
+    """)
+    conn.commit()
+    cur.close()
+
+
 if __name__ == "__main__":
     logger.info("Starting Enhanced Tenant Webhook Service")
     logger.info(f"Keycloak URL: {KEYCLOAK_URL}")
@@ -5559,6 +5582,18 @@ if __name__ == "__main__":
     logger.info(
         f"WooCommerce Integration: {'Enabled' if WOOCOMMERCE_WEBHOOK_SECRET else 'Disabled'}"
     )  # noqa: E501
+
+    # Run startup migrations
+    if POSTGRES_URL:
+        try:
+            conn = psycopg2.connect(POSTGRES_URL, cursor_factory=RealDictCursor)
+            _migrate_001_scopes_column(conn)
+            conn.close()
+            logger.info("Startup migrations completed successfully")
+        except Exception as e:
+            logger.error(f"Startup migration failed: {e}")
+    else:
+        logger.warning("POSTGRES_URL not configured, skipping startup migrations")
 
     # Run the Flask app
     app.run(
