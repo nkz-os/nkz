@@ -4,7 +4,7 @@ import { NKZContext, type NKZRuntime } from '../runtime/NKZContext';
 import type { PlanTier, NgsiLdEntity } from '../hooks/types';
 import type { MockFixtures } from './types';
 import { DEFAULT_MOCK_FIXTURES } from './fixtures';
-import { OrionMockStore, ModuleApiMockStore, FilesMockStore } from './orionStore';
+import { OrionMockStore, ModuleApiMockStore, FilesMockStore, TimeseriesMockStore } from './orionStore';
 
 const PLAN_ORDER: Record<PlanTier, number> = { basic: 0, pro: 1, premium: 2, enterprise: 3 };
 
@@ -40,6 +40,7 @@ export function MockProvider({ fixtures = {}, children }: MockProviderProps): Re
   });
   const [moduleApiStore] = useState(() => new ModuleApiMockStore());
   const [filesStore] = useState(() => new FilesMockStore());
+  const [timeseriesStore] = useState(() => new TimeseriesMockStore());
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0 } } }));
 
   const runtime = useMemo<NKZRuntime>(() => {
@@ -72,8 +73,9 @@ export function MockProvider({ fixtures = {}, children }: MockProviderProps): Re
       orion: orionStore,
       moduleApi: moduleApiStore,
       files: filesStore,
+      timeseries: timeseriesStore,
     };
-  }, [merged.moduleId, auth, tenantPlan, lang, i18n, subscribers, orionStore, moduleApiStore, filesStore]);
+  }, [merged.moduleId, auth, tenantPlan, lang, i18n, subscribers, orionStore, moduleApiStore, filesStore, timeseriesStore]);
 
   return (
     <QueryClientProvider client={client}>

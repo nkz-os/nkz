@@ -66,3 +66,24 @@ export interface FilesTransport {
   getUrl(path: string, opts?: { expiresInSeconds?: number }): Promise<string>;
   list(prefix: string): Promise<string[]>;
 }
+
+/** A single point on a time series — ISO timestamp + numeric value */
+export interface TimeseriesPoint {
+  timestamp: string;
+  value: number;
+}
+
+/** Query parameters for useTimeseries */
+export interface TimeseriesQuery {
+  entityId: string;
+  attribute: string;
+  from: Date | string;
+  to: Date | string;
+  /** Target number of buckets (server quantises to a standard interval). Default 1000. */
+  resolution?: number;
+}
+
+/** Transport that the runtime injects — same shape for real and mock */
+export interface TimeseriesTransport {
+  query(opts: TimeseriesQuery): Promise<TimeseriesPoint[]>;
+}
