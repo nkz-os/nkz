@@ -146,6 +146,60 @@ def _usda_texture_class(sand: float, clay: float) -> str:
     return "loam"
 
 
+def _scs_hydrologic_group(ksat: float) -> str:
+    """Classify soil into SCS hydrologic group based on saturated conductivity."""
+    if ksat > 36:
+        return "A"
+    if ksat > 3.6:
+        return "B"
+    if ksat > 0.36:
+        return "C"
+    return "D"
+
+
+def _estimate_recovery_hours(hydrologic_group: str, precip_3d: float) -> int:
+    """Estimate hours until soil is trafficable after rain, by hydrologic group."""
+    base = {"A": 6, "B": 18, "C": 36, "D": 60}
+    hours = base.get(hydrologic_group, 24)
+    # Additional delay per mm of recent rain (capped)
+    extra = min(precip_3d * 0.5, 48)
+    return int(hours + extra)
+
+
+def _extract_crop_stage(parcel_entity: dict) -> Optional[str]:
+    """Extract crop growth stage from AgriParcel entity, normalized to lowercase."""
+    cs = parcel_entity.get("cropStatus", {})
+    if isinstance(cs, dict):
+        val = cs.get("value", "")
+        if val:
+            return str(val).lower().strip()
+    return None
+
+
+def _crop_spraying_sensitivity(stage: Optional[str]) -> str:
+    """Return spraying sensitivity level based on crop phenological stage.
+
+    flowering/fruiting = high sensitivity (avoid spraying)
+    vegetative/tillering = normal sensitivity
+    """
+    if not stage:
+        return "normal"
+    high_sensitivity = (
+        "flowering",
+        "bloom",
+        "floracion",
+        "fruit",
+        "fruiting",
+        "fructificacion",
+        "heading",
+        "espigado",
+    )
+    for kw in high_sensitivity:
+        if kw in stage:
+            return "high"
+    return "normal"
+
+
 def _texture_workability(
     soil_moisture: Optional[float],
     field_capacity: float,
@@ -338,10 +392,26 @@ def calculate_agro_status(
     precip_prob = weather_observation.get("precip_probability")
     spraying_reason = None
 
+    # Phenological stage awareness
+    crop_stage = _extract_crop_stage(parcel_entity)
+    crop_sensitivity = _crop_spraying_sensitivity(crop_stage)
+
+    # Temperature inversion detection (day/night ΔT > 15°C + low wind)
+    temp_min_24h = weather_observation.get("temp_min")
+    temp_current = fused.get("temperature")
+    inversion_risk = False
+    if temp_min_24h is not None and temp_current is not None:
+        delta_t_daynight = temp_current - temp_min_24h
+        if delta_t_daynight > 15 and wind_speed_kmh < 5:
+            inversion_risk = True
+
     if delta_t is not None and wind_speed_kmh is not None:
         if wind_gusts_kmh > 25:
             semaphores["spraying"] = "not_suitable"
             spraying_reason = "wind_gusts"
+        elif inversion_risk:
+            semaphores["spraying"] = "not_suitable"
+            spraying_reason = "inversion_risk"
         elif wind_speed_kmh < 15 and 2 <= delta_t <= 8:
             semaphores["spraying"] = "optimal"
         elif wind_speed_kmh > 20 or delta_t > 10 or (precip and precip > 0.5):
@@ -356,7 +426,7 @@ def calculate_agro_status(
         else:
             semaphores["spraying"] = "caution"
 
-        # Degrade spraying to caution if rain risk in next 6h
+        # Degrade spraying based on rain risk and crop sensitivity
         if (
             semaphores["spraying"] == "optimal"
             and precip_prob is not None
@@ -364,6 +434,10 @@ def calculate_agro_status(
         ):
             semaphores["spraying"] = "caution"
             spraying_reason = "rain_risk"
+
+        if semaphores["spraying"] == "optimal" and crop_sensitivity == "high":
+            semaphores["spraying"] = "caution"
+            spraying_reason = "crop_sensitive"
 
     # 6b. Workability semaphore — texture-aware when soil data available
     soil_moisture = None
@@ -377,6 +451,7 @@ def calculate_agro_status(
     # Compute texture-aware thresholds if soil data available
     fc = None  # field capacity
     wp = None  # wilting point
+    ksat = None  # saturated hydraulic conductivity
     texture_applied = False
 
     if soil_texture and soil_texture.get("sand") and soil_texture.get("clay"):
@@ -389,6 +464,7 @@ def calculate_agro_status(
             )
             fc = ptf["field_capacity"]
             wp = ptf["wilting_point"]
+            ksat = ptf["ksat"]
             texture_applied = True
         except Exception as exc:
             logger.warning(f"Saxton-Rawls PTF failed, using generic thresholds: {exc}")
@@ -428,6 +504,14 @@ def calculate_agro_status(
         else:
             semaphores["irrigation"] = "alert"
 
+    # 7. Post-rain workability recovery prediction
+    recovery_hours = None
+    hydrologic_group = None
+    if texture_applied and ksat is not None:
+        hydrologic_group = _scs_hydrologic_group(ksat)
+        if semaphores["workability"] == "too_wet" and recent_precip > 0:
+            recovery_hours = _estimate_recovery_hours(hydrologic_group, recent_precip)
+
     parcel_name = "Unnamed"
     name_attr = parcel_entity.get("name", {})
     if isinstance(name_attr, dict):
@@ -453,12 +537,22 @@ def calculate_agro_status(
             "texture_applied": texture_applied,
             "field_capacity": fc,
             "wilting_point": wp,
+            "ksat": ksat,
+            "hydrologic_group": hydrologic_group,
+            "recovery_hours": recovery_hours,
             "texture_class": soil_texture.get("texture_class")
             if soil_texture
             else None,
         }
         if soil_texture
         else None,
+        "crop": {
+            "stage": crop_stage,
+            "spraying_sensitivity": crop_sensitivity,
+        }
+        if crop_stage
+        else None,
+        "inversion_risk": inversion_risk,
         "source_confidence": fused.get("source_confidence", "WEATHER-OBS"),
         "downscaling": "applied" if downscaling_applied else "unavailable",
         "timestamp": datetime.now(timezone.utc).isoformat(),
