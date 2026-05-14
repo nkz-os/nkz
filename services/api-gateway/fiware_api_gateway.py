@@ -294,7 +294,11 @@ def enforce_pat_pagination():
     if "entities" in scopes:
         # GET /ngsi-ld/v1/entities — cap query param 'limit'
         if request.method == "GET" and path.startswith("/ngsi-ld/v1/entities"):
-            limit_raw = request.args.get("limit")
+            from urllib.parse import parse_qs, urlencode
+
+            raw_qs = request.environ.get("QUERY_STRING", "")
+            parsed = parse_qs(raw_qs, keep_blank_values=True)
+            limit_raw = parsed.get("limit", [None])[0]
             if limit_raw:
                 try:
                     limit = int(limit_raw)
@@ -307,11 +311,8 @@ def enforce_pat_pagination():
             else:
                 limit = PAT_ENTITIES_DEFAULT_LIMIT
 
-            qs = dict(request.args)
-            qs["limit"] = str(limit)
-            from urllib.parse import urlencode
-
-            request.environ["QUERY_STRING"] = urlencode(qs)
+            parsed["limit"] = [str(limit)]
+            request.environ["QUERY_STRING"] = urlencode(parsed, doseq=True)
             return None
 
         # POST /ngsi-ld/v1/entityOperations/query — cap JSON body 'limit'
@@ -582,38 +583,50 @@ def health_check():
 )
 def entity_by_id(entity_id):
     """Proxy to Orion-LD Context Broker for individual entity operations"""
-    # Validate JWT token
     token = get_request_token()
     if not token:
         return jsonify({"error": "Missing or invalid authorization"}), 401
-    payload = validate_jwt_token(token)
-    if not payload:
-        return jsonify({"error": "Invalid or expired token"}), 401
 
-    # Extract tenant from JWT payload
-    tenant = extract_tenant_id(payload)
-    if not tenant:
-        return jsonify({"error": "Tenant not present in token"}), 401
+    if is_pat_token(token):
+        tenant = getattr(g, "pat_tenant_id", None)
+        if not tenant:
+            return jsonify({"error": "PAT tenant not resolved"}), 401
+        gw_jwt = obtain_gateway_service_jwt()
+        if not gw_jwt:
+            return jsonify({"error": "Service authentication not configured"}), 503
+        headers = {
+            "Authorization": f"Bearer {gw_jwt}",
+            "X-Delegated-Tenant-ID": tenant,
+            "X-Tenant-ID": tenant,
+        }
+        headers = inject_fiware_headers(headers, tenant)
+    else:
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
 
-    # Rate limit por tenant
-    if not rate_limit(tenant):
-        return jsonify({"error": "Rate limit exceeded"}), 429
+        tenant = extract_tenant_id(payload)
+        if not tenant:
+            return jsonify({"error": "Tenant not present in token"}), 401
 
-    # Role based access control (Read-Only fallback)
-    has_pro_expired = has_role("role_pro_expired", payload)
-    if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
-        logger.warning(
-            f"Blocked mutation request to {request.path} for user with role_pro_expired"
-        )
-        return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
 
-    # Prepare headers for Orion-LD
-    headers = {}
-    headers = inject_fiware_headers(headers, tenant)
-    headers["X-Tenant-ID"] = tenant
-    signature = generate_hmac_signature(token, tenant)
-    if signature:
-        headers["X-Auth-Signature"] = signature
+        has_pro_expired = has_role("role_pro_expired", payload)
+        if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+            logger.warning(
+                f"Blocked mutation request to {request.path} for user with role_pro_expired"
+            )
+            return jsonify(
+                {"error": "Subscription expired. Read-only mode active."}
+            ), 403
+
+        headers = {}
+        headers = inject_fiware_headers(headers, tenant)
+        headers["X-Tenant-ID"] = tenant
+        signature = generate_hmac_signature(token, tenant)
+        if signature:
+            headers["X-Auth-Signature"] = signature
 
     # Forward request to Orion-LD
     try:
@@ -646,37 +659,50 @@ def entity_by_id(entity_id):
 @app.route("/ngsi-ld/v1/entities", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 def entities():
     """Proxy to Orion-LD Context Broker entities endpoint"""
-    # Validate JWT token
     token = get_request_token()
     if not token:
         return jsonify({"error": "Missing or invalid authorization"}), 401
-    payload = validate_jwt_token(token)
-    if not payload:
-        return jsonify({"error": "Invalid or expired token"}), 401
 
-    # Extract tenant from JWT payload - support multiple claim names
-    tenant = extract_tenant_id(payload)
-    if not tenant:
-        return jsonify({"error": "Tenant not present in token"}), 401
-    # Rate limit por tenant
-    if not rate_limit(tenant):
-        return jsonify({"error": "Rate limit exceeded"}), 429
+    if is_pat_token(token):
+        tenant = getattr(g, "pat_tenant_id", None)
+        if not tenant:
+            return jsonify({"error": "PAT tenant not resolved"}), 401
+        gw_jwt = obtain_gateway_service_jwt()
+        if not gw_jwt:
+            return jsonify({"error": "Service authentication not configured"}), 503
+        headers = {
+            "Authorization": f"Bearer {gw_jwt}",
+            "X-Delegated-Tenant-ID": tenant,
+            "X-Tenant-ID": tenant,
+        }
+        headers = inject_fiware_headers(headers, tenant)
+    else:
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
 
-    # Role based access control (Read-Only fallback)
-    has_pro_expired = has_role("role_pro_expired", payload)
-    if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
-        logger.warning(
-            f"Blocked mutation request to {request.path} for user with role_pro_expired"
-        )
-        return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
+        tenant = extract_tenant_id(payload)
+        if not tenant:
+            return jsonify({"error": "Tenant not present in token"}), 401
 
-    # Prepare headers for Orion-LD
-    headers = {}
-    headers = inject_fiware_headers(headers, tenant)
-    headers["X-Tenant-ID"] = tenant
-    signature = generate_hmac_signature(token, tenant)
-    if signature:
-        headers["X-Auth-Signature"] = signature
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+
+        has_pro_expired = has_role("role_pro_expired", payload)
+        if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+            logger.warning(
+                f"Blocked mutation request to {request.path} for user with role_pro_expired"
+            )
+            return jsonify(
+                {"error": "Subscription expired. Read-only mode active."}
+            ), 403
+
+        headers = {}
+        headers = inject_fiware_headers(headers, tenant)
+        headers["X-Tenant-ID"] = tenant
+        signature = generate_hmac_signature(token, tenant)
+        if signature:
+            headers["X-Auth-Signature"] = signature
 
     # Inject @context into body for mutation requests so Orion-LD preserves
     # short entity types (e.g. "AgriParcel") instead of expanding to full
@@ -727,32 +753,48 @@ def entity_operations_query():
     token = get_request_token()
     if not token:
         return jsonify({"error": "Missing or invalid authorization"}), 401
-    payload = validate_jwt_token(token)
-    if not payload:
-        return jsonify({"error": "Invalid or expired token"}), 401
 
-    tenant = extract_tenant_id(payload)
-    if not tenant:
-        return jsonify({"error": "Tenant not present in token"}), 401
+    # Use PAT-modified body if present (from pagination interceptor)
+    json_body = getattr(g, "pat_modified_body", None)
 
-    if not rate_limit(tenant):
-        return jsonify({"error": "Rate limit exceeded"}), 429
+    if is_pat_token(token):
+        tenant = getattr(g, "pat_tenant_id", None)
+        if not tenant:
+            return jsonify({"error": "PAT tenant not resolved"}), 401
+        gw_jwt = obtain_gateway_service_jwt()
+        if not gw_jwt:
+            return jsonify({"error": "Service authentication not configured"}), 503
+        headers = {
+            "Authorization": f"Bearer {gw_jwt}",
+            "X-Delegated-Tenant-ID": tenant,
+            "X-Tenant-ID": tenant,
+        }
+        headers = inject_fiware_headers(headers, tenant)
+        if json_body is None:
+            json_body = request.get_json(silent=True) or {}
+    else:
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
 
-    headers = {}
-    headers = inject_fiware_headers(headers, tenant)
-    headers["X-Tenant-ID"] = tenant
-    signature = generate_hmac_signature(token, tenant)
-    if signature:
-        headers["X-Auth-Signature"] = signature
+        tenant = extract_tenant_id(payload)
+        if not tenant:
+            return jsonify({"error": "Tenant not present in token"}), 401
+
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+
+        headers = {}
+        headers = inject_fiware_headers(headers, tenant)
+        headers["X-Tenant-ID"] = tenant
+        signature = generate_hmac_signature(token, tenant)
+        if signature:
+            headers["X-Auth-Signature"] = signature
+        if json_body is None:
+            json_body = request.get_json(silent=True) or {}
 
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entityOperations/query"
-
-        # Use PAT-modified body if present (from pagination interceptor)
-        if hasattr(g, "pat_modified_body"):
-            json_body = g.pat_modified_body
-        else:
-            json_body = request.get_json(silent=True) or {}
 
         if request.method == "GET":
             response = requests.get(
@@ -1026,15 +1068,9 @@ def timeseries_proxy(path):
 
     # ADR 003: PAT only on this route; strip any client-supplied delegation header (do not forward).
     if is_pat_token(token):
-        delegated_raw = resolve_pat_tenant_id(token, TENANT_WEBHOOK_URL)
-        if not delegated_raw:
-            return jsonify({"error": "Invalid or expired token"}), 401
-        try:
-            from tenant_utils import normalize_tenant_id
-
-            tenant = normalize_tenant_id(delegated_raw)
-        except (ImportError, ValueError):
-            tenant = delegated_raw
+        tenant = getattr(g, "pat_tenant_id", None)
+        if not tenant:
+            return jsonify({"error": "Invalid or expired PAT"}), 401
         if not rate_limit(tenant):
             return jsonify({"error": "Rate limit exceeded"}), 429
         gw_jwt = obtain_gateway_service_jwt()
