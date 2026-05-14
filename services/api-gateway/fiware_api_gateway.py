@@ -67,12 +67,16 @@ try:
     from gateway_pat import (
         is_pat_token,
         obtain_gateway_service_jwt,
+        resolve_pat_info,
         resolve_pat_tenant_id,
     )
 except ImportError:
     is_pat_token = lambda t: False  # noqa: E731
 
     def obtain_gateway_service_jwt():
+        return None
+
+    def resolve_pat_info(raw, base):
         return None
 
     def resolve_pat_tenant_id(raw, base):
@@ -150,23 +154,92 @@ logging.getLogger().setLevel(getattr(logging, LOG_LEVEL))
 # Rate limiting simple por tenant (ventana deslizante en memoria)
 tenant_requests = defaultdict(deque)
 
+# PAT scope -> allowed (method, path_prefix) tuples
+PAT_SCOPE_ROUTES = {
+    "timeseries": [
+        ("GET", "/api/timeseries/"),
+        ("POST", "/api/timeseries/"),
+    ],
+    "entities": [
+        ("GET", "/ngsi-ld/v1/entities"),
+        ("POST", "/ngsi-ld/v1/entityOperations/query"),
+    ],
+    "export": [
+        ("POST", "/api/datahub/export"),
+        ("POST", "/api/datahub/timeseries/align"),
+    ],
+    "telemetry": [
+        ("GET", "/api/devices/"),
+        ("GET", "/api/sensors"),
+    ],
+}
+
+
+def _scope_hint_for_path(path: str) -> str:
+    """Map path to scope name for 403 hints (no info leak)."""
+    if path.startswith("/api/timeseries"):
+        return "timeseries"
+    if path.startswith("/ngsi-ld/v1/entities") or path.startswith("/ngsi-ld/v1/entityOperations"):
+        return "entities"
+    if path.startswith("/api/datahub/export") or path.startswith("/api/datahub/timeseries/align"):
+        return "export"
+    if path.startswith("/api/devices/") or path.startswith("/api/sensors"):
+        return "telemetry"
+    return "unknown"
+
 
 @app.before_request
-def reject_pat_outside_timeseries():
-    """ADR 003: PAT (nkz_pat_) is valid only under /api/timeseries (QA case 3)."""
+def enforce_pat_scopes():
+    """Validate PAT tokens: check scope covers (method, path)."""
     if request.method == "OPTIONS":
         return None
-    p = request.path or ""
-    if p.startswith("/api/timeseries"):
+    path = request.path or ""
+    if path == "/health" or path.startswith("/health"):
         return None
-    if p == "/health" or p.startswith("/health"):
-        return None
+
     auth = request.headers.get("Authorization") or ""
     if not auth.startswith("Bearer "):
         return None
+
     tok = auth[7:].strip()
-    if tok.startswith("nkz_pat_"):
-        return jsonify({"error": "PAT allowed only on /api/timeseries"}), 401
+    if not tok.startswith("nkz_pat_"):
+        return None
+
+    # Resolve PAT metadata
+    info = resolve_pat_info(tok, TENANT_WEBHOOK_URL)
+    if not info:
+        return jsonify({"error": "Invalid or expired PAT"}), 401
+
+    scopes = info.get("scopes") or []
+    if not scopes:
+        return jsonify({
+            "error": "PAT has no scopes assigned",
+            "required_scope_hint": _scope_hint_for_path(path),
+        }), 403
+
+    # Check if any scope allows this (method, path)
+    allowed = False
+    for scope in scopes:
+        for method, prefix in PAT_SCOPE_ROUTES.get(scope, []):
+            if request.method == method and path.startswith(prefix):
+                allowed = True
+                break
+        if allowed:
+            break
+
+    if not allowed:
+        return jsonify({
+            "error": "PAT does not have required scope for this route",
+            "required_scope_hint": _scope_hint_for_path(path),
+        }), 403
+
+    # Store for downstream routes
+    g.pat_info = info
+    g.pat_tenant_id = info["tenant_id"]
+
+    # Sanitize Authorization header for logging
+    g.pat_auth_truncated = f"nkz_pat_...{tok[-8:]}"
+
     return None
 
 
