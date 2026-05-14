@@ -20,8 +20,11 @@ logger = logging.getLogger(__name__)
 storage_bp = Blueprint("storage", __name__, url_prefix="/api/storage")
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio-service:9000")
-MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "")
-MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "")
+# Credentials live in the `minio-secret` Kubernetes Secret as
+# `root-user` / `root-password`, exposed to the gateway as
+# MINIO_ROOT_USER / MINIO_ROOT_PASSWORD via valueFrom secretKeyRef.
+MINIO_ACCESS_KEY = os.getenv("MINIO_ROOT_USER") or os.getenv("MINIO_ACCESS_KEY", "")
+MINIO_SECRET_KEY = os.getenv("MINIO_ROOT_PASSWORD") or os.getenv("MINIO_SECRET_KEY", "")
 MINIO_BUCKET = os.getenv("MINIO_MODULE_DATA_BUCKET", "nekazari-module-data")
 
 DEFAULT_PUT_TTL_SECONDS = 5 * 60  # 5 min
