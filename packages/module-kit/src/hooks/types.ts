@@ -28,3 +28,34 @@ export interface UsePlatformEventsReturn {
   emit(event: string, payload: unknown): void;
   on(event: string, handler: (payload: unknown) => void): () => void;
 }
+
+/** Minimal NGSI-LD entity shape — modules may extend with their attribute set */
+export interface NgsiLdEntity {
+  id: string;
+  type: string;
+  [attr: string]: unknown;
+}
+
+/** Result shape returned by `useEntity` / `useEntities` (mirrors TanStack Query useQuery) */
+export interface QueryResult<T> {
+  data?: T;
+  isLoading: boolean;
+  isFetching: boolean;
+  error: Error | null;
+  refetch: () => Promise<unknown>;
+}
+
+/** Transport layer the runtime injects — same shape for real and mock */
+export interface OrionTransport {
+  getEntity(id: string, type?: string): Promise<NgsiLdEntity>;
+  listEntities(type: string, opts?: { q?: string; limit?: number; offset?: number }): Promise<NgsiLdEntity[]>;
+  createEntity(entity: NgsiLdEntity): Promise<void>;
+  updateEntity(id: string, attrs: Record<string, unknown>): Promise<void>;
+  deleteEntity(id: string): Promise<void>;
+}
+
+/** Transport for the module's own backend (basePath from defineModule({ api })) */
+export interface ModuleAPITransport {
+  basePath: string | null;
+  fetch<T = unknown>(path: string, init?: RequestInit): Promise<T>;
+}

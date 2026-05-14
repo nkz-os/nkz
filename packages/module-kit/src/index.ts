@@ -24,3 +24,8 @@ export type {
 
 // Legacy event bus (preserved for backward compat)
 export { initPlatformEvents, type PlatformEvents, type PlatformEvent } from './runtime/events';
+
+// Data hooks (A.2.1b)
+export { useEntity, useEntities, useCreateEntity, useUpdateEntity, useDeleteEntity } from './hooks/useOrion';
+export { useGet, usePost, usePatch, useDelete } from './hooks/useModuleAPI';
+export type { NgsiLdEntity, QueryResult, OrionTransport, ModuleAPITransport } from './hooks/types';
