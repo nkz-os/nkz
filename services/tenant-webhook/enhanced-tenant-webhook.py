@@ -2819,7 +2819,8 @@ def list_tenant_personal_access_tokens():
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, name, description, is_active, created_at, expires_at, created_by_sub
+            SELECT id, name, description, is_active, created_at, expires_at,
+                   created_by_sub, scopes
             FROM api_keys
             WHERE key_type = 'pat'
             ORDER BY created_at DESC
@@ -2843,6 +2844,7 @@ def list_tenant_personal_access_tokens():
                     if row.get("expires_at")
                     else None,
                     "created_by_sub": row.get("created_by_sub"),
+                    "scopes": list(row.get("scopes") or []),
                 }
             )
         return jsonify(out), 200
