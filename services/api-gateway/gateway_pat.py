@@ -7,10 +7,11 @@ See internal-docs/adr/003-pat-delegated-auth.md
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import requests
 
@@ -49,7 +50,9 @@ def get_redis_client():
     try:
         import redis
 
-        _redis_client = redis.from_url(url, decode_responses=True, socket_connect_timeout=2)
+        _redis_client = redis.from_url(
+            url, decode_responses=True, socket_connect_timeout=2
+        )
         _redis_client.ping()
         return _redis_client
     except Exception as e:
@@ -81,7 +84,9 @@ def obtain_gateway_service_jwt() -> Optional[str]:
     client_id = os.getenv("GATEWAY_KEYCLOAK_CLIENT_ID", "").strip()
     client_secret = os.getenv("GATEWAY_KEYCLOAK_CLIENT_SECRET", "").strip()
     if not client_id or not client_secret:
-        logger.error("GATEWAY_KEYCLOAK_CLIENT_ID/SECRET not configured; cannot mint service JWT")
+        logger.error(
+            "GATEWAY_KEYCLOAK_CLIENT_ID/SECRET not configured; cannot mint service JWT"
+        )
         return None
 
     try:
@@ -95,7 +100,11 @@ def obtain_gateway_service_jwt() -> Optional[str]:
             timeout=15,
         )
         if resp.status_code != 200:
-            logger.error("Keycloak client_credentials failed: %s %s", resp.status_code, resp.text[:200])
+            logger.error(
+                "Keycloak client_credentials failed: %s %s",
+                resp.status_code,
+                resp.text[:200],
+            )
             return None
         data = resp.json()
         token = data.get("access_token")
@@ -110,9 +119,10 @@ def obtain_gateway_service_jwt() -> Optional[str]:
         return None
 
 
-def resolve_pat_tenant_id(raw_pat: str, webhook_base: str) -> Optional[str]:
+def resolve_pat_info(raw_pat: str, webhook_base: str) -> Optional[dict]:
     """
-    Resolve tenant_id for a raw PAT using Redis then tenant-webhook internal validate.
+    Resolve PAT metadata using Redis then tenant-webhook internal validate.
+    Returns dict with tenant_id, scopes, expires_at, or None if invalid/expired.
     """
     h = pat_token_hash(raw_pat)
     key = f"{REDIS_KEY_PREFIX}{h}"
@@ -122,13 +132,15 @@ def resolve_pat_tenant_id(raw_pat: str, webhook_base: str) -> Optional[str]:
         try:
             cached = r.get(key)
             if cached:
-                return cached
+                return json.loads(cached)
         except Exception as e:
             logger.warning("Redis GET PAT cache failed (degrading to HTTP): %s", e)
 
     secret = os.getenv("INTERNAL_PAT_VALIDATE_SECRET", "").strip()
     if not secret:
-        logger.error("INTERNAL_PAT_VALIDATE_SECRET not set; cannot validate PAT via webhook")
+        logger.error(
+            "INTERNAL_PAT_VALIDATE_SECRET not set; cannot validate PAT via webhook"
+        )
         return None
 
     url = f"{webhook_base.rstrip('/')}/internal/validate-pat"
@@ -147,15 +159,26 @@ def resolve_pat_tenant_id(raw_pat: str, webhook_base: str) -> Optional[str]:
         tenant_id = body.get("tenant_id")
         if not tenant_id or not isinstance(tenant_id, str):
             return None
+        info = {
+            "tenant_id": tenant_id,
+            "scopes": body.get("scopes") or [],
+            "expires_at": body.get("expires_at"),
+        }
         if r:
             try:
-                r.setex(key, PAT_CACHE_TTL_SEC, tenant_id)
+                r.setex(key, PAT_CACHE_TTL_SEC, json.dumps(info))
             except Exception as e:
                 logger.warning("Redis SET PAT cache failed: %s", e)
-        return tenant_id
+        return info
     except Exception as e:
         logger.warning("validate-pat HTTP failed: %s", e)
         return None
+
+
+def resolve_pat_tenant_id(raw_pat: str, webhook_base: str) -> Optional[str]:
+    """Backwards-compat: return tenant_id only."""
+    info = resolve_pat_info(raw_pat, webhook_base)
+    return info["tenant_id"] if info else None
 
 
 def is_pat_token(token: Optional[str]) -> bool:

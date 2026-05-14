@@ -7,7 +7,7 @@ import os
 import json
 import logging
 import sys
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, g, request, jsonify, make_response
 from flask_cors import cross_origin
 import jwt
 import requests
@@ -22,11 +22,35 @@ from datetime import datetime
 import time
 import uuid
 import boto3
+import re
 from collections import defaultdict, deque
 
 # Configure logging FIRST
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class PatSanitizingFilter(logging.Filter):
+    """Redact nkz_pat_ tokens from log records."""
+
+    _pat_re = re.compile(r"nkz_pat_[A-Za-z0-9_-]{32,}")
+
+    def filter(self, record):
+        if isinstance(record.msg, str):
+            record.msg = self._pat_re.sub("nkz_pat_[REDACTED]", record.msg)
+        if record.args:
+            record.args = tuple(
+                self._pat_re.sub("nkz_pat_[REDACTED]", str(a))
+                if isinstance(a, str)
+                else a
+                for a in record.args
+            )
+        return True
+
+
+# Attach to root logger
+logging.getLogger().addFilter(PatSanitizingFilter())
+
 
 # CORS configuration
 _cors_env = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
@@ -67,12 +91,16 @@ try:
     from gateway_pat import (
         is_pat_token,
         obtain_gateway_service_jwt,
+        resolve_pat_info,
         resolve_pat_tenant_id,
     )
 except ImportError:
     is_pat_token = lambda t: False  # noqa: E731
 
     def obtain_gateway_service_jwt():
+        return None
+
+    def resolve_pat_info(raw, base):
         return None
 
     def resolve_pat_tenant_id(raw, base):
@@ -100,6 +128,7 @@ if not CONTEXT_URL:
 GEOSERVER_URL = os.getenv("GEOSERVER_URL", "http://geoserver-service:8080")
 TENANT_WEBHOOK_URL = os.getenv("TENANT_WEBHOOK_URL", "http://tenant-webhook:8080")
 ENTITY_MANAGER_URL = os.getenv("ENTITY_MANAGER_URL", "http://entity-manager:5000")
+DATAHUB_BFF_URL = os.getenv("DATAHUB_BFF_URL", "http://datahub-bff-service:8000")
 NDVI_SERVICE_URL = os.getenv("NDVI_SERVICE_URL", "http://entity-manager:5000")
 TENANT_USER_API_URL = os.getenv("TENANT_USER_API_URL", "http://tenant-user-api:5000")
 CADASTRAL_API_URL = os.getenv("CADASTRAL_API_URL", "http://cadastral-api-service:5000")
@@ -150,24 +179,186 @@ logging.getLogger().setLevel(getattr(logging, LOG_LEVEL))
 # Rate limiting simple por tenant (ventana deslizante en memoria)
 tenant_requests = defaultdict(deque)
 
+# PAT scope -> allowed (method, path_prefix) tuples
+PAT_SCOPE_ROUTES = {
+    "timeseries": [
+        ("GET", "/api/timeseries/"),
+        ("POST", "/api/timeseries/"),
+    ],
+    "entities": [
+        ("GET", "/ngsi-ld/v1/entities"),
+        ("POST", "/ngsi-ld/v1/entityOperations/query"),
+    ],
+    "export": [
+        ("POST", "/api/datahub/export"),
+        ("POST", "/api/datahub/timeseries/align"),
+    ],
+    "telemetry": [
+        ("GET", "/api/devices/"),
+        ("GET", "/api/sensors"),
+    ],
+}
+
+
+def _scope_hint_for_path(path: str) -> str:
+    """Map path to scope name for 403 hints (no info leak)."""
+    if path.startswith("/api/timeseries"):
+        return "timeseries"
+    if path.startswith("/ngsi-ld/v1/entities") or path.startswith(
+        "/ngsi-ld/v1/entityOperations"
+    ):
+        return "entities"
+    if path.startswith("/api/datahub/export") or path.startswith(
+        "/api/datahub/timeseries/align"
+    ):
+        return "export"
+    if path.startswith("/api/devices/") or path.startswith("/api/sensors"):
+        return "telemetry"
+    return "unknown"
+
 
 @app.before_request
-def reject_pat_outside_timeseries():
-    """ADR 003: PAT (nkz_pat_) is valid only under /api/timeseries (QA case 3)."""
+def enforce_pat_scopes():
+    """Validate PAT tokens: check scope covers (method, path)."""
     if request.method == "OPTIONS":
         return None
-    p = request.path or ""
-    if p.startswith("/api/timeseries"):
+    path = request.path or ""
+    if path == "/health" or path.startswith("/health"):
         return None
-    if p == "/health" or p.startswith("/health"):
-        return None
+
     auth = request.headers.get("Authorization") or ""
     if not auth.startswith("Bearer "):
         return None
+
     tok = auth[7:].strip()
-    if tok.startswith("nkz_pat_"):
-        return jsonify({"error": "PAT allowed only on /api/timeseries"}), 401
+    if not tok.startswith("nkz_pat_"):
+        return None
+
+    # Resolve PAT metadata
+    info = resolve_pat_info(tok, TENANT_WEBHOOK_URL)
+    if not info:
+        return jsonify({"error": "Invalid or expired PAT"}), 401
+
+    scopes = info.get("scopes") or []
+    if not scopes:
+        return jsonify(
+            {
+                "error": "PAT has no scopes assigned",
+                "required_scope_hint": _scope_hint_for_path(path),
+            }
+        ), 403
+
+    # Check if any scope allows this (method, path)
+    allowed = False
+    for scope in scopes:
+        for method, prefix in PAT_SCOPE_ROUTES.get(scope, []):
+            if request.method == method and path.startswith(prefix):
+                allowed = True
+                break
+        if allowed:
+            break
+
+    if not allowed:
+        return jsonify(
+            {
+                "error": "PAT does not have required scope for this route",
+                "required_scope_hint": _scope_hint_for_path(path),
+            }
+        ), 403
+
+    # Store for downstream routes
+    g.pat_info = info
+    g.pat_tenant_id = info["tenant_id"]
+
+    # Sanitize Authorization header for logging
+    g.pat_auth_truncated = f"nkz_pat_...{tok[-8:]}"
+
     return None
+
+
+PAT_ENTITIES_MAX_LIMIT = 500
+PAT_ENTITIES_DEFAULT_LIMIT = 100
+PAT_EXPORT_MAX_ROWS = 10000
+
+
+@app.before_request
+def enforce_pat_pagination():
+    """Cap pagination and max_rows for PAT requests to entities/export endpoints."""
+    if not hasattr(g, "pat_info"):
+        return None
+
+    path = request.path or ""
+    scopes = g.pat_info.get("scopes") or []
+
+    # Entities scope: cap pagination
+    if "entities" in scopes:
+        # GET /ngsi-ld/v1/entities — cap query param 'limit'
+        if request.method == "GET" and path.startswith("/ngsi-ld/v1/entities"):
+            limit_raw = request.args.get("limit")
+            if limit_raw:
+                try:
+                    limit = int(limit_raw)
+                except (ValueError, TypeError):
+                    limit = PAT_ENTITIES_DEFAULT_LIMIT
+                if limit > PAT_ENTITIES_MAX_LIMIT:
+                    limit = PAT_ENTITIES_MAX_LIMIT
+                elif limit < 1:
+                    limit = PAT_ENTITIES_DEFAULT_LIMIT
+            else:
+                limit = PAT_ENTITIES_DEFAULT_LIMIT
+
+            qs = dict(request.args)
+            qs["limit"] = str(limit)
+            from urllib.parse import urlencode
+
+            request.environ["QUERY_STRING"] = urlencode(qs)
+            return None
+
+        # POST /ngsi-ld/v1/entityOperations/query — cap JSON body 'limit'
+        if request.method == "POST" and path == "/ngsi-ld/v1/entityOperations/query":
+            if request.is_json:
+                body = request.get_json(silent=True) or {}
+                limit = body.get("limit")
+                if limit is not None:
+                    try:
+                        limit = int(limit)
+                    except (ValueError, TypeError):
+                        limit = PAT_ENTITIES_DEFAULT_LIMIT
+                    if limit > PAT_ENTITIES_MAX_LIMIT:
+                        limit = PAT_ENTITIES_MAX_LIMIT
+                    elif limit < 1:
+                        limit = PAT_ENTITIES_DEFAULT_LIMIT
+                else:
+                    limit = PAT_ENTITIES_DEFAULT_LIMIT
+                body["limit"] = limit
+                g.pat_modified_body = body
+
+            return None
+
+    # Export scope: cap max_rows
+    if (
+        request.method == "POST"
+        and path.startswith("/api/datahub/export")
+        and "export" in scopes
+    ):
+        if request.is_json:
+            body = request.get_json(silent=True) or {}
+            max_rows = body.get("max_rows")
+            if max_rows is not None:
+                try:
+                    max_rows = int(max_rows)
+                except (ValueError, TypeError):
+                    max_rows = PAT_EXPORT_MAX_ROWS
+                if max_rows > PAT_EXPORT_MAX_ROWS:
+                    max_rows = PAT_EXPORT_MAX_ROWS
+                elif max_rows < 1:
+                    max_rows = PAT_EXPORT_MAX_ROWS
+            else:
+                max_rows = PAT_EXPORT_MAX_ROWS
+            body["max_rows"] = max_rows
+            g.pat_modified_body = body
+
+        return None
 
 
 @app.before_request
@@ -527,6 +718,63 @@ def entities():
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error forwarding request to Orion-LD: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/ngsi-ld/v1/entityOperations/query", methods=["POST", "GET"])
+def entity_operations_query():
+    """Proxy NGSI-LD entityOperations/query to Orion-LD (complex queries with filters in body)."""
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+
+    if not rate_limit(tenant):
+        return jsonify({"error": "Rate limit exceeded"}), 429
+
+    headers = {}
+    headers = inject_fiware_headers(headers, tenant)
+    headers["X-Tenant-ID"] = tenant
+    signature = generate_hmac_signature(token, tenant)
+    if signature:
+        headers["X-Auth-Signature"] = signature
+
+    try:
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entityOperations/query"
+
+        # Use PAT-modified body if present (from pagination interceptor)
+        if hasattr(g, "pat_modified_body"):
+            json_body = g.pat_modified_body
+        else:
+            json_body = request.get_json(silent=True) or {}
+
+        if request.method == "GET":
+            response = requests.get(
+                orion_url, headers=headers, params=request.args, timeout=60
+            )
+        else:
+            headers["Content-Type"] = "application/json"
+            response = requests.post(
+                orion_url, headers=headers, json=json_body, timeout=60
+            )
+
+        if response.status_code >= 400:
+            logger.error(
+                f"Orion-LD entityOperations/query error {response.status_code}: {response.text[:300]}"
+            )
+
+        return make_response(
+            response.content, response.status_code, dict(response.headers)
+        )
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error forwarding to Orion-LD entityOperations/query: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -3742,6 +3990,99 @@ def zulip_provisioning(subpath):
     except Exception as e:
         logger.error("Zulip provisioner proxy error: %s", e)
         return jsonify({"error": "Provisioner unavailable"}), 502
+
+
+@app.route("/api/datahub/export", methods=["POST"])
+def proxy_datahub_export():
+    """Proxy export requests to DataHub BFF, enforcing PAT scopes upstream."""
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+
+    if is_pat_token(token):
+        tenant = getattr(g, "pat_tenant_id", None)
+        if not tenant:
+            return jsonify({"error": "PAT tenant not resolved"}), 401
+        gw_jwt = obtain_gateway_service_jwt()
+        if not gw_jwt:
+            return jsonify({"error": "Service authentication not configured"}), 503
+        headers = {
+            "Authorization": f"Bearer {gw_jwt}",
+            "X-Delegated-Tenant-ID": tenant,
+            "X-Tenant-ID": tenant,
+            "Content-Type": "application/json",
+        }
+    else:
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        tenant = extract_tenant_id(payload)
+        if not tenant:
+            return jsonify({"error": "Tenant not present in token"}), 401
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "X-Tenant-ID": tenant,
+            "Content-Type": "application/json",
+        }
+
+    try:
+        url = f"{DATAHUB_BFF_URL}/api/datahub/export"
+        body = (
+            getattr(g, "pat_modified_body", None) or request.get_json(silent=True) or {}
+        )
+        resp = requests.post(url, headers=headers, json=body, timeout=120)
+        return make_response(resp.content, resp.status_code, dict(resp.headers))
+    except requests.exceptions.RequestException as e:
+        logger.error(f"DataHub export proxy error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/datahub/timeseries/align", methods=["POST"])
+def proxy_datahub_align():
+    """Proxy timeseries align requests to DataHub BFF."""
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+
+    if is_pat_token(token):
+        tenant = getattr(g, "pat_tenant_id", None)
+        if not tenant:
+            return jsonify({"error": "PAT tenant not resolved"}), 401
+        gw_jwt = obtain_gateway_service_jwt()
+        if not gw_jwt:
+            return jsonify({"error": "Service authentication not configured"}), 503
+        headers = {
+            "Authorization": f"Bearer {gw_jwt}",
+            "X-Delegated-Tenant-ID": tenant,
+            "X-Tenant-ID": tenant,
+            "Content-Type": "application/json",
+        }
+    else:
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        tenant = extract_tenant_id(payload)
+        if not tenant:
+            return jsonify({"error": "Tenant not present in token"}), 401
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "X-Tenant-ID": tenant,
+            "Content-Type": "application/json",
+        }
+
+    try:
+        url = f"{DATAHUB_BFF_URL}/api/datahub/timeseries/align"
+        resp = requests.post(
+            url, headers=headers, json=request.get_json(silent=True) or {}, timeout=60
+        )
+        return make_response(resp.content, resp.status_code, dict(resp.headers))
+    except requests.exceptions.RequestException as e:
+        logger.error(f"DataHub align proxy error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 # Register dynamic module routing blueprint

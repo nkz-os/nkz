@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 from contextlib import suppress
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -2727,6 +2727,7 @@ def internal_update_tenant_license(tenant_id):
 def internal_validate_pat():
     """
     Internal-only PAT validation (hash in JSON body). ADR 003.
+    Returns tenant_id, scopes, expires_at on success.
     """
     if not _verify_internal_pat_secret():
         return jsonify({"error": "Unauthorized"}), 401
@@ -2748,19 +2749,52 @@ def internal_validate_pat():
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT tenant_id, valid FROM validate_pat_key_hash(%s)",
+            """
+            SELECT tenant_id, is_active, scopes, expires_at
+            FROM api_keys
+            WHERE key_hash = %s
+              AND key_type = 'pat'
+            LIMIT 1
+            """,
             (token_hash,),
         )
         row = cur.fetchone()
         cur.close()
         conn.close()
+
         if not row:
             return jsonify({"valid": False}), 200
-        tid = row.get("tenant_id") if isinstance(row, dict) else row[0]
-        ok = row.get("valid") if isinstance(row, dict) else row[1]
+
+        # Handle both dict cursor and tuple cursor
+        if hasattr(row, "keys"):
+            tid = row["tenant_id"]
+            ok = row["is_active"]
+            scopes = row.get("scopes") or []
+            expires_at = row.get("expires_at")
+        else:
+            tid = row[0]
+            ok = row[1]
+            scopes = row[2] or []
+            expires_at = row[3]
+
         if not ok:
             return jsonify({"valid": False}), 200
-        return jsonify({"valid": True, "tenant_id": tid}), 200
+
+        # Check expiry
+        if expires_at:
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at < now:
+                return jsonify({"valid": False, "error": "expired"}), 200
+
+        return jsonify({
+            "valid": True,
+            "tenant_id": tid,
+            "scopes": list(scopes) if scopes else [],
+            "expires_at": expires_at.isoformat() if expires_at else None,
+        }), 200
     except Exception as e:
         logger.error("internal_validate_pat: %s", e)
         if conn:
@@ -2785,7 +2819,8 @@ def list_tenant_personal_access_tokens():
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT id, name, description, is_active, created_at, expires_at, created_by_sub
+            SELECT id, name, description, is_active, created_at, expires_at,
+                   created_by_sub, scopes
             FROM api_keys
             WHERE key_type = 'pat'
             ORDER BY created_at DESC
@@ -2809,6 +2844,7 @@ def list_tenant_personal_access_tokens():
                     if row.get("expires_at")
                     else None,
                     "created_by_sub": row.get("created_by_sub"),
+                    "scopes": list(row.get("scopes") or []),
                 }
             )
         return jsonify(out), 200
@@ -2823,6 +2859,9 @@ def list_tenant_personal_access_tokens():
         )
 
 
+VALID_PAT_SCOPES = {"timeseries", "entities", "export", "telemetry"}
+
+
 @app.route("/api/tenant/api-keys", methods=["POST"])
 @require_keycloak_auth
 def create_tenant_personal_access_token():
@@ -2835,6 +2874,21 @@ def create_tenant_personal_access_token():
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "Personal access token").strip()[:200]
     description = (data.get("description") or "").strip()[:2000] or None
+
+    # Validate scopes
+    scopes = data.get("scopes")
+    if scopes is None:
+        scopes = []
+    if not isinstance(scopes, list) or not all(isinstance(s, str) for s in scopes):
+        return jsonify({"error": "scopes must be an array of strings"}), 400
+    invalid = [s for s in scopes if s not in VALID_PAT_SCOPES]
+    if invalid:
+        return jsonify({
+            "error": f"Invalid scope(s): {', '.join(invalid)}",
+            "valid_scopes": sorted(VALID_PAT_SCOPES),
+        }), 400
+
+    # Parse expires_at
     expires_at = None
     if data.get("expires_at"):
         try:
@@ -2842,7 +2896,11 @@ def create_tenant_personal_access_token():
                 str(data["expires_at"]).replace("Z", "+00:00")
             )
         except ValueError:
-            return jsonify({"error": "Invalid expires_at"}), 400
+            return jsonify({"error": "Invalid expires_at format"}), 400
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            return jsonify({"error": "expires_at must be in the future"}), 400
 
     raw_token = f"nkz_pat_{secrets.token_urlsafe(32)}"
     key_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
@@ -2858,12 +2916,12 @@ def create_tenant_personal_access_token():
             """
             INSERT INTO api_keys (
                 key_hash, name, description, tenant_id, key_type,
-                is_active, expires_at, created_by_sub
+                is_active, expires_at, created_by_sub, scopes
             )
-            VALUES (%s, %s, %s, %s, 'pat', true, %s, %s)
+            VALUES (%s, %s, %s, %s, 'pat', true, %s, %s, %s)
             RETURNING id, created_at
             """,
-            (key_hash, name, description, tenant_id, expires_at, creator_sub),
+            (key_hash, name, description, tenant_id, expires_at, creator_sub, scopes),
         )
         ins = cur.fetchone()
         conn.commit()
@@ -2874,6 +2932,7 @@ def create_tenant_personal_access_token():
                 "id": str(ins["id"]),
                 "token": raw_token,
                 "name": name,
+                "scopes": scopes,
                 "expires_at": expires_at.isoformat() if expires_at else None,
                 "created_at": ins["created_at"].isoformat()
                 if ins.get("created_at")
@@ -5552,6 +5611,29 @@ def internal_n8n_suspension_event(tenant_id):
         return jsonify({"error": str(e)}), 502
 
 
+def _migrate_001_scopes_column(conn):
+    """Add scopes column to api_keys if it doesn't exist."""
+    cur = conn.cursor()
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'api_keys' AND column_name = 'scopes'
+            ) THEN
+                ALTER TABLE api_keys ADD COLUMN scopes TEXT[] NOT NULL DEFAULT '{}';
+            END IF;
+        END $$;
+    """)
+    cur.execute("""
+        UPDATE api_keys
+        SET scopes = ARRAY['timeseries']
+        WHERE key_type = 'pat' AND (scopes IS NULL OR scopes = '{}');
+    """)
+    conn.commit()
+    cur.close()
+
+
 if __name__ == "__main__":
     logger.info("Starting Enhanced Tenant Webhook Service")
     logger.info(f"Keycloak URL: {KEYCLOAK_URL}")
@@ -5559,6 +5641,18 @@ if __name__ == "__main__":
     logger.info(
         f"WooCommerce Integration: {'Enabled' if WOOCOMMERCE_WEBHOOK_SECRET else 'Disabled'}"
     )  # noqa: E501
+
+    # Run startup migrations
+    if POSTGRES_URL:
+        try:
+            conn = psycopg2.connect(POSTGRES_URL, cursor_factory=RealDictCursor)
+            _migrate_001_scopes_column(conn)
+            conn.close()
+            logger.info("Startup migrations completed successfully")
+        except Exception as e:
+            logger.error(f"Startup migration failed: {e}")
+    else:
+        logger.warning("POSTGRES_URL not configured, skipping startup migrations")
 
     # Run the Flask app
     app.run(
