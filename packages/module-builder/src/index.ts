@@ -42,6 +42,10 @@ export { emitManifest } from './manifestEmitter.js';
 // External Dependencies — mapped to window globals provided by the host
 // =============================================================================
 
+// @nekazari/module-kit is intentionally NOT externalized: each IIFE bundles
+// its own copy. Trade-off: ~30 KB extra per module (mostly tree-shaken to the
+// hooks actually imported), in exchange for eliminating a fragile host↔window
+// global contract that broke prod when host main.tsx exposed it.
 const NKZ_EXTERNALS: Record<string, string> = {
     'react': 'React',
     'react-dom': 'ReactDOM',
@@ -51,7 +55,6 @@ const NKZ_EXTERNALS: Record<string, string> = {
     '@nekazari/ui-kit': '__NKZ_UI__',
     '@nekazari/design-tokens': '__NKZ_THEME__',
     '@nekazari/viewer-kit': '__NKZ_VIEWER__',
-    '@nekazari/module-kit': '__NKZ_MODULE_KIT__',
 };
 
 export interface NKZModulePresetOptions {
