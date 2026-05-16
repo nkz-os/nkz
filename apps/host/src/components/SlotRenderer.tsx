@@ -119,7 +119,7 @@ const RemoteSlotWidget: React.FC<{
                 );
                 applyModuleRegistration(module.id, registration);
                 const slotWidgets = registration.viewerSlots?.[slot];
-                const match = slotWidgets?.find(w => w.id === widget.id);
+                const match = slotWidgets?.find((w: { id: string }) => w.id === widget.id);
                 const Comp = match?.localComponent as React.ComponentType<any> | undefined;
                 if (!Comp) {
                     throw new Error(

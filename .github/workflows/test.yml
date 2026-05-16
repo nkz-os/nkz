@@ -35,6 +35,7 @@ jobs:
           pnpm --filter @nekazari/ui-kit build
           pnpm --filter @nekazari/viewer-kit build
           pnpm --filter @nekazari/sdk build
+          pnpm --filter @nekazari/module-kit build
         working-directory: .
 
       - name: Lint
