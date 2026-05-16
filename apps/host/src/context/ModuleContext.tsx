@@ -1,12 +1,14 @@
 // =============================================================================
-// Module Context — Runtime Module Registry (IIFE Script Injection)
+// Module Context — Module Federation 2.0 Runtime
 // =============================================================================
-// Manages loading and state of modules for the tenant.
-// Remote modules are loaded via <script> tags (IIFE bundles) that self-register
-// through window.__NKZ__.register(). See utils/nkzRuntime.ts.
+// Manages loading and state of modules for the tenant. Remote modules are
+// loaded via the Module Federation runtime: registerRemotes() declares the
+// available remotes (URLs from the backend), and RemoteModuleLoader calls
+// loadRemote('<id>/Module') on demand to retrieve the validated definition.
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { NekazariClient, type ModuleApiContract } from '@nekazari/sdk';
+import { registerRemotes } from '@module-federation/runtime';
+import { NekazariClient, type ModuleApiContract, type NKZModuleRegistration } from '@nekazari/sdk';
 import type { ModuleViewerSlots } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { getConfig } from '@/config/environment';
@@ -26,6 +28,7 @@ export interface ModuleDefinition {
   // Local modules (bundled) - these fields are optional
   isLocal?: boolean;
   // Remote modules - required if isLocal is false
+  // For Federation modules: URL to mf-manifest.json on MinIO.
   remoteEntry?: string;
   scope?: string;
   module?: string;
@@ -42,7 +45,10 @@ export interface ModuleDefinition {
     roles?: string[];
     adminOnly?: boolean;
   }>;
-  // Slot system: widgets that this module contributes to the unified viewer
+  // Slot system: widgets that this module contributes to the unified viewer.
+  // Pre-load: the metadata-only shape from the manifest. Post-load (after
+  // RemoteModuleLoader has called loadRemote): the full definition with
+  // localComponent refs filled in.
   viewerSlots?: ModuleViewerSlots;
   // API contract for host compatibility checking (progressive feature)
   apiContract?: ModuleApiContract;
@@ -53,13 +59,11 @@ export interface ModuleDefinition {
  * Returns null if the module is invalid.
  */
 const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
-  // Must be an object
   if (!module || typeof module !== 'object') {
     console.warn('[ModuleContext] Invalid module: not an object', module);
     return null;
   }
 
-  // Required fields must be strings
   const id = typeof module.id === 'string' ? module.id.trim() : '';
   const routePath = typeof module.routePath === 'string' ? module.routePath.trim() : '';
 
@@ -73,7 +77,6 @@ const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
     return null;
   }
 
-  // Sanitize and provide defaults for optional fields
   return {
     id,
     routePath,
@@ -90,7 +93,6 @@ const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
     tenantConfig: module.tenantConfig && typeof module.tenantConfig === 'object' ? module.tenantConfig : undefined,
     navigationItems: Array.isArray(module.navigationItems) ? module.navigationItems : undefined,
     viewerSlots: module.viewerSlots && typeof module.viewerSlots === 'object' ? module.viewerSlots : undefined,
-    // API contract from backend response (camelCase) or manifest.json (snake_case)
     apiContract: (() => {
       const raw = module.apiContract ?? module.api_contract;
       return raw && typeof raw === 'object' ? raw : undefined;
@@ -98,6 +100,9 @@ const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
   };
 };
 
+
+/** Federation alias must be a valid JS identifier; mirrors module-builder's fedName. */
+const toFederationAlias = (id: string): string => id.replace(/[^a-zA-Z0-9_]/g, '_');
 
 interface ModuleContextType {
   modules: ModuleDefinition[];
@@ -108,8 +113,16 @@ interface ModuleContextType {
   getModuleByRoute: (path: string) => ModuleDefinition | undefined;
   visibilityRules: Record<string, { hiddenRoles: string[] }>;
   incompatibleModules: ReadonlyMap<string, string>;
-  /** Inject the IIFE <script> for a module on demand (idempotent — no-op if already loaded). */
-  ensureModuleScript: (id: string, bundleUrl: string) => Promise<void>;
+  /**
+   * Federation alias for a module id. Use as the first segment of loadRemote
+   * paths: `loadRemote(\`${aliasFor(id)}/Module\`)`.
+   */
+  aliasFor: (id: string) => string;
+  /**
+   * Apply a registration produced by toNKZRegistration() after a remote has
+   * been loaded. Propagates viewerSlots so the slot system can render widgets.
+   */
+  applyModuleRegistration: (id: string, registration: NKZModuleRegistration) => void;
 }
 
 const ModuleContext = createContext<ModuleContextType | undefined>(undefined);
@@ -123,7 +136,6 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   children,
   apiBaseUrl
 }) => {
-  // Use config API base URL if not explicitly provided
   const effectiveApiBaseUrl = apiBaseUrl || getConfig().api.baseUrl || '/api';
   const { isAuthenticated, getToken, tenantId } = useAuth();
   const [modules, setModules] = useState<ModuleDefinition[]>([]);
@@ -143,8 +155,6 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
 
     try {
       // Load local modules from manifest first
-      // NOTE: This file may not exist in production (modules come from backend)
-      // If it fails, we silently continue - remote modules will be loaded from backend
       let localModules: ModuleDefinition[] = [];
       try {
         const manifestResponse = await fetch('/modules-manifest.json', {
@@ -178,7 +188,6 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         });
         const data = await client.get<ModuleDefinition[]>('/api/modules/me');
         remoteModules = Array.isArray(data) ? data : [];
-        // Load tenant-specific visibility rules (UI only)
         try {
           const visibilityResponse = await client.get<Record<string, { hiddenRoles?: string[] }>>(
             '/api/modules/visibility'
@@ -193,18 +202,14 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
             visibility = normalised;
           }
         } catch (visibilityError) {
-          // Visibility is an optional enhancement; log and continue on failure
           console.warn('[ModuleContext] Failed to load module visibility rules:', visibilityError);
         }
       } catch (remoteError) {
         console.warn('[ModuleContext] Failed to load remote modules:', remoteError);
       }
 
-      // Merge modules - for local modules, use local definition (which has viewerSlots)
-      // Remote modules override local only if they're not local modules
       const moduleMap = new Map<string, ModuleDefinition>();
 
-      // First add local modules from registry (these have viewerSlots)
       try {
         const { LOCAL_MODULE_REGISTRY } = await import('@/modules/registry');
         Object.values(LOCAL_MODULE_REGISTRY).forEach(m => {
@@ -214,41 +219,33 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         // Local module registry not available
       }
 
-      // Then add local modules from manifest (if any)
       localModules.forEach(m => {
-        // Only add if not already in map (registry takes precedence)
         if (!moduleMap.has(m.id)) {
           moduleMap.set(m.id, m);
         }
       });
 
-      // Finally add remote modules (but don't override local modules that have viewerSlots)
-      // Validate each module before adding to prevent sidebar crashes
       remoteModules.forEach(rawModule => {
-        // Validate and sanitize the module
         const m = validateAndSanitizeModule(rawModule);
         if (!m) {
           console.warn('[ModuleContext] Skipping invalid remote module:', rawModule);
-          return; // Skip invalid modules
+          return;
         }
 
         const existing = moduleMap.get(m.id);
-        // If it's a local module with viewerSlots, keep the local version
         if (existing?.isLocal && existing?.viewerSlots) {
-          // Merge remote metadata but keep local viewerSlots
           moduleMap.set(m.id, {
             ...existing,
             ...m,
-            viewerSlots: existing.viewerSlots, // Keep local viewerSlots
+            viewerSlots: existing.viewerSlots,
           });
         } else {
-          // For remote modules or local modules without slots, use remote version
           moduleMap.set(m.id, m);
         }
       });
 
       // =============================================================================
-      // Check API version contracts before loading module scripts
+      // Check API version contracts before registering federated remotes
       // =============================================================================
       const incompatibleReasons = new Map<string, string>();
 
@@ -256,7 +253,6 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         if (!modDef.remoteEntry && modDef.isLocal) continue;
         const apiContract = modDef.apiContract;
         if (!apiContract) {
-          // Module without a contract: log a warning but allow loading (progressive feature)
           console.warn(
             `[ModuleContext] Module "${modId}" does not declare an API contract. ` +
             'Consider adding api_contract to manifest.json for compatibility guarantees.'
@@ -275,29 +271,29 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
       setIncompatibleModules(incompatibleReasons);
 
       // =============================================================================
-      // Subscribe to IIFE registrations before any script loads
+      // Register federated remotes
       // =============================================================================
-      // Each IIFE calls window.__NKZ__.register({ id, viewerSlots }) on execution.
-      // Scripts are injected ON DEMAND (lazy) by RemoteModuleLoader via
-      // ensureModuleScript(), not eagerly at startup.
-      // The listener stays active for the entire lifecycle to handle late registrations.
-      window.__NKZ__?.onRegister((registeredId, registration) => {
-        const existingModule = moduleMap.get(registeredId);
-        if (existingModule) {
-          if (registration.viewerSlots) {
-            existingModule.viewerSlots = registration.viewerSlots;
-          }
-          setModules(prevModules =>
-            prevModules.map(m =>
-              m.id === registeredId
-                ? { ...m, viewerSlots: registration.viewerSlots || m.viewerSlots }
-                : m
-            )
-          );
-        }
-      });
+      // Each remote is keyed by its alias (sanitized id). The entry URL must
+      // point to the federation manifest (mf-manifest.json) emitted by
+      // @nekazari/module-builder. Registration is cheap — no fetch happens
+      // until loadRemote() is called.
+      const remotesToRegister = Array.from(moduleMap.values())
+        .filter(m => m.remoteEntry && !m.isLocal)
+        .map(m => ({
+          name: toFederationAlias(m.id),
+          alias: toFederationAlias(m.id),
+          entry: m.remoteEntry!,
+          type: 'module' as const,
+        }));
 
-      // Set modules without waiting for script loading — scripts are lazy
+      if (remotesToRegister.length > 0) {
+        try {
+          registerRemotes(remotesToRegister, { force: true });
+        } catch (regError) {
+          console.error('[ModuleContext] Failed to register federated remotes:', regError);
+        }
+      }
+
       setModules(Array.from(moduleMap.values()));
       setVisibilityRules(visibility);
     } catch (err) {
@@ -310,7 +306,6 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     }
   }, [isAuthenticated, tenantId, getToken, effectiveApiBaseUrl]);
 
-  // Load modules when authenticated or tenant changes
   useEffect(() => {
     loadModules();
   }, [loadModules]);
@@ -323,9 +318,17 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     return modules.find(m => m.routePath === path || path.startsWith(m.routePath));
   }, [modules]);
 
-  const ensureModuleScript = useCallback(async (id: string, bundleUrl: string) => {
-    const { loadModuleScript } = await import('@/utils/moduleLoader');
-    await loadModuleScript(bundleUrl, id);
+  const aliasFor = useCallback((id: string): string => toFederationAlias(id), []);
+
+  const applyModuleRegistration = useCallback((id: string, registration: NKZModuleRegistration) => {
+    if (!registration.viewerSlots) return;
+    setModules(prev =>
+      prev.map(m =>
+        m.id === id
+          ? { ...m, viewerSlots: registration.viewerSlots }
+          : m
+      )
+    );
   }, []);
 
   const value: ModuleContextType = {
@@ -337,7 +340,8 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     getModuleByRoute,
     visibilityRules,
     incompatibleModules,
-    ensureModuleScript,
+    aliasFor,
+    applyModuleRegistration,
   };
 
   return (
@@ -354,4 +358,3 @@ export const useModules = (): ModuleContextType => {
   }
   return context;
 };
-

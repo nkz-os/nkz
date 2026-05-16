@@ -17,7 +17,10 @@
   },
   "dependencies": {
     "@kurkle/color": "^0.3.4",
+    "@module-federation/runtime": "^2.4.0",
+    "@module-federation/vite": "^1.15.4",
     "@nekazari/design-tokens": "workspace:*",
+    "@nekazari/module-kit": "workspace:*",
     "@nekazari/sdk": "workspace:*",
     "@nekazari/ui-kit": "workspace:*",
     "@nekazari/viewer-kit": "workspace:*",
