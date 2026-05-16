@@ -1,16 +1,16 @@
 // =============================================================================
-// Module Loader - Hybrid Local/Remote Module Loading
+// Remote Module Loader — Federation-backed module rendering
 // =============================================================================
-// Loads addon modules using a two-tier strategy:
-// 1. LOCAL: Checks localAddonRegistry for bundled modules (lazy routes)
-// 2. REMOTE: Falls back to IIFE modules registered via window.__NKZ__
-//
-// Module Federation was removed (2026-02-17). All remote modules are now IIFE
-// bundles that self-register via window.__NKZ__.register(). The <script> tags
-// are injected by ModuleContext via moduleLoader.ts — by the time this component
-// renders, the module should already be registered in the runtime.
+// Resolves a module to a React component using two strategies:
+// 1. LOCAL: Bundled module from localAddonRegistry (no network).
+// 2. FEDERATION: loadRemote('<alias>/Module') from @module-federation/runtime,
+//    where <alias> is the module id sanitized to a JS identifier. The remote's
+//    default export is a `defineModule(...)` result; we run toNKZRegistration
+//    on it to extract the main component and propagate viewerSlots upstream.
 
-import React, { Suspense, ComponentType, ErrorInfo, useEffect } from 'react';
+import React, { Suspense, ComponentType, ErrorInfo } from 'react';
+import { loadRemote } from '@module-federation/runtime';
+import { toNKZRegistration } from '@nekazari/module-kit';
 import { ModuleDefinition, useModules } from '@/context/ModuleContext';
 import { isLocalAddon, getLocalAddon } from '@/config/localAddons';
 
@@ -80,104 +80,28 @@ const DefaultLoadingFallback: React.FC = () => (
 );
 
 // =============================================================================
-// IIFE Module Loading (single code path — no Module Federation)
-// =============================================================================
-
-/** Poll registry for module (handles async script execution). */
-function getRegistered(moduleName: string, remoteEntryUrl: string): any {
-  const possibleIds = [moduleName, moduleName.replace('./', '')];
-  for (const id of possibleIds) {
-    const reg = window.__NKZ__?.getRegistered(id);
-    if (reg) return reg;
-  }
-  const ids = window.__NKZ__?.getRegisteredIds() || [];
-  const match = ids.find(id => remoteEntryUrl.includes(id) || moduleName.includes(id));
-  if (match) return window.__NKZ__?.getRegistered(match);
-  return undefined;
-}
-
-/**
- * Load a module component from the NKZ runtime registry.
- * IIFE modules register via window.__NKZ__.register() when their <script>
- * runs (injected by ModuleContext/moduleLoader). Exported for SlotRenderer.
- * Waits up to 2s for registration in case the script is still executing.
- */
-export const loadRemoteModule = async (
-  moduleName: string,
-  remoteEntryUrl: string
-): Promise<any> => {
-  const REGISTRY_WAIT_MS = 2000;
-  const POLL_MS = 150;
-
-  let registered: any = getRegistered(moduleName, remoteEntryUrl);
-  if (!registered) {
-    const deadline = Date.now() + REGISTRY_WAIT_MS;
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, POLL_MS));
-      registered = getRegistered(moduleName, remoteEntryUrl);
-      if (registered) break;
-    }
-  }
-
-  if (registered) {
-    if (registered.main) {
-      return registered.main;
-    }
-    return () => (
-      <div className="p-8 text-center bg-gray-50 rounded-lg border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-700 mb-2">Module Active: {registered.id}</h3>
-        <p className="text-gray-500">This module is active and has registered its widgets.</p>
-        <p className="text-gray-400 text-sm mt-2">No main view component provided.</p>
-      </div>
-    );
-  }
-
-  const available = (window.__NKZ__?.getRegisteredIds() || []).join(', ') || 'none';
-  const scriptUrl = remoteEntryUrl.startsWith('http') ? remoteEntryUrl : `${window.location.origin}${remoteEntryUrl}`;
-  throw new Error(
-    `Module "${moduleName}" not found in registry. Ensure the module script loaded and called window.__NKZ__.register(). ` +
-    `Script URL: ${scriptUrl} — open in a new tab to check (404 or wrong MIME type will prevent registration). Available: ${available}`
-  );
-};
-
-// =============================================================================
 // Module Loader Component
 // =============================================================================
 
-/**
- * Hybrid loader supporting both local (bundled) and remote IIFE modules:
- * 1. First checks localAddonRegistry for bundled modules (fast, no network)
- * 2. Falls back to IIFE modules registered in window.__NKZ__
- */
 export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
   module,
   fallback = <DefaultLoadingFallback />,
   errorFallback,
 }) => {
-  const [Component, setComponent] = React.useState<ComponentType<any> | React.LazyExoticComponent<ComponentType<any>> | null>(null);
+  const [Component, setComponent] = React.useState<ComponentType<any> | null>(null);
   const [loadError, setLoadError] = React.useState<Error | null>(null);
   const [isLocal, setIsLocal] = React.useState<boolean>(false);
-  const { ensureModuleScript } = useModules();
-
-  // Trigger IIFE script injection on mount (idempotent — no-op if already loaded).
-  // This replaces the previous eager loading at startup.
-  useEffect(() => {
-    if (module.remoteEntry && !module.isLocal && !isLocalAddon(module.id)) {
-      ensureModuleScript(module.id, module.remoteEntry);
-    }
-  }, [module.id, module.remoteEntry, module.isLocal, ensureModuleScript]);
+  const { aliasFor, applyModuleRegistration } = useModules();
 
   React.useEffect(() => {
     let isMounted = true;
 
-    const loadModule = async () => {
+    const load = async () => {
       try {
-        // STRATEGY 1: Check local registry (bundled modules)
+        // STRATEGY 1: Local bundled module
         const shouldLoadLocal = module.isLocal || isLocalAddon(module.id);
-
         if (shouldLoadLocal && isLocalAddon(module.id)) {
           const localAddon = getLocalAddon(module.id);
-
           if (localAddon && isMounted) {
             setIsLocal(true);
             setComponent(() => localAddon.component);
@@ -185,44 +109,49 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
           }
         }
 
-        // STRATEGY 2: Remote IIFE module (registered via window.__NKZ__)
+        // STRATEGY 2: Federated remote
         if (!module.remoteEntry) {
-          throw new Error(`Module ${module.id} not found in local registry and has no remote entry URL. ` +
-            `Ensure it's registered in localAddons.ts or has a valid remote_entry_url in the database.`);
+          throw new Error(
+            `Module ${module.id} has no remote entry URL and is not in localAddons. ` +
+            `Ensure the module is registered with a remote_entry_url pointing to mf-manifest.json.`,
+          );
         }
 
-        const remoteEntryUrl = module.remoteEntry.startsWith('http')
-          ? module.remoteEntry
-          : `${window.location.origin}${module.remoteEntry}`;
+        const alias = aliasFor(module.id);
+        const exposed = await loadRemote<{ default?: unknown }>(`${alias}/Module`);
+        if (!exposed) {
+          throw new Error(`loadRemote returned null for "${alias}/Module".`);
+        }
 
-        const remoteModule = await loadRemoteModule(
-          module.id || module.module || './App', // Prefer ID for IIFE lookup
-          remoteEntryUrl
-        );
+        const moduleDef = (exposed as { default?: unknown }).default ?? exposed;
+        if (!moduleDef || typeof moduleDef !== 'object') {
+          throw new Error(
+            `Module "${module.id}" did not default-export a defineModule result. Got: ${typeof moduleDef}`,
+          );
+        }
 
-        if (isMounted) {
-          let RemoteComponent = null;
+        const registration = toNKZRegistration(moduleDef as Parameters<typeof toNKZRegistration>[0]);
 
-          if (typeof remoteModule === 'function') {
-            RemoteComponent = remoteModule;
-          } else if (remoteModule?.default) {
-            RemoteComponent = remoteModule.default;
-          } else if (remoteModule && typeof remoteModule === 'object') {
-            const moduleName = module.module?.replace('./', '') || 'App';
-            if (remoteModule[moduleName]) {
-              RemoteComponent = remoteModule[moduleName];
-            } else {
-              const keys = Object.keys(remoteModule);
-              const firstComponent = keys.find(key => typeof remoteModule[key] === 'function');
-              RemoteComponent = firstComponent ? remoteModule[firstComponent] : remoteModule;
-            }
-          }
+        if (!isMounted) return;
 
-          if (!RemoteComponent || typeof RemoteComponent !== 'function') {
-            throw new Error(`Module ${module.module || module.id} does not export a valid React component. Got: ${typeof remoteModule}`);
-          }
+        if (registration.viewerSlots && Object.keys(registration.viewerSlots).length > 0) {
+          applyModuleRegistration(module.id, registration);
+        }
 
-          setComponent(() => RemoteComponent);
+        const main = registration.main as ComponentType<any> | undefined;
+        if (main && typeof main === 'function') {
+          setComponent(() => main);
+        } else {
+          // Module registered slots but has no main page component. Render a
+          // placeholder rather than throwing — slot widgets will still mount
+          // wherever the host hosts them.
+          setComponent(() => () => (
+            <div className="p-8 text-center bg-gray-50 rounded-lg border border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">Module Active: {module.id}</h3>
+              <p className="text-gray-500">This module is active and has registered its widgets.</p>
+              <p className="text-gray-400 text-sm mt-2">No main view component provided.</p>
+            </div>
+          ));
         }
       } catch (error) {
         console.error(`[RemoteModuleLoader] Failed to load module ${module.id}:`, error);
@@ -232,12 +161,12 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
       }
     };
 
-    loadModule();
+    load();
 
     return () => {
       isMounted = false;
     };
-  }, [module]);
+  }, [module, aliasFor, applyModuleRegistration]);
 
   if (loadError) {
     if (errorFallback) {

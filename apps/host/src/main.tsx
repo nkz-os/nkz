@@ -1,41 +1,9 @@
 import React from 'react';
 import * as ReactDOMClient from 'react-dom/client';
-import * as ReactDOM from 'react-dom';
-import * as RRD from 'react-router-dom';
-import * as NKZSdk from '@nekazari/sdk';
-import * as UIKit from '@nekazari/ui-kit';
-import * as DesignTokens from '@nekazari/design-tokens';
-import * as ViewerKit from '@nekazari/viewer-kit';
 import App from './App.tsx';
 import './index.css';
 // Cesium CSS is imported by Cesium-using components (CesiumMap, MobileViewer) via lazy chunks
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { initNKZRuntime } from './utils/nkzRuntime';
-
-// =============================================================================
-// NKZ Runtime Initialization
-// =============================================================================
-// Expose shared dependencies via window globals for IIFE module bundles.
-// Modules use these as externals in their Vite config (build.rollupOptions.external).
-// This MUST run before any module scripts are loaded.
-
-// React (modules use: external "react" → window.React)
-(window as any).React = React;
-(window as any).ReactDOM = { ...ReactDOM, ...ReactDOMClient };
-(window as any).ReactRouterDOM = RRD;
-
-// SDK & UI Kit (modules use: external "@nekazari/sdk" → window.__NKZ_SDK__)
-(window as any).__NKZ_SDK__ = NKZSdk;
-(window as any).__NKZ_UI__ = UIKit;
-
-// Design tokens & viewer kit (modules use as externals)
-(window as any).__NKZ_THEME__ = DesignTokens;
-(window as any).__NKZ_DESIGN_TOKENS__ = DesignTokens; // backward compat
-(window as any).__NKZ_VIEWER__ = ViewerKit;
-(window as any).__NKZ_VIEWER_KIT__ = ViewerKit; // backward compat
-
-// Initialize the module registration runtime (window.__NKZ__)
-initNKZRuntime();
 
 // =============================================================================
 // Global Error Handlers

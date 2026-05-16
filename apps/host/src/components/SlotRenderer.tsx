@@ -2,16 +2,19 @@
 // Slot Renderer - Dynamic Widget Rendering
 // =============================================================================
 // Renders widgets registered for a specific slot in the Unified Viewer.
-// Supports both local (bundled) and remote (IIFE-registered) widgets.
-// Includes error boundaries for module isolation and lazy loading optimization.
+// Local widgets render their bundled component directly. Remote widgets
+// resolve via the Module Federation runtime: loadRemote('<alias>/Module')
+// returns the module's defineModule(...) result, from which we extract the
+// requested widget by id.
 
 import React, { Suspense, useMemo, useState, useEffect } from 'react';
+import { loadRemote } from '@module-federation/runtime';
+import { toNKZRegistration } from '@nekazari/module-kit';
 import { useSlotRegistryOptional } from '@/context/SlotRegistry';
 import type { SlotType, SlotWidgetDefinition } from '@nekazari/sdk';
 import { useModules, ModuleDefinition } from '@/context/ModuleContext';
 import { Loader2 } from 'lucide-react';
 import { ModuleErrorBoundary } from './ModuleErrorBoundary';
-import { loadRemoteModule } from './RemoteModuleLoader';
 
 interface SlotRendererProps {
     /** Which slot to render */
@@ -83,36 +86,53 @@ const getModuleNameFromWidget = (widget: SlotWidgetDefinition): string => {
 };
 
 /**
- * Loads a single slot component from a remote IIFE module by name (e.g. 'LidarLayer')
- * and renders it. Resolves via window.__NKZ__ registry after the module script has run.
+ * Loads a slot widget from a federated remote. Calls loadRemote('<alias>/Module')
+ * to retrieve the module's defineModule result, runs toNKZRegistration to
+ * materialize component refs, then locates the widget by id within its slot.
  */
 const RemoteSlotWidget: React.FC<{
     module: ModuleDefinition;
     widget: SlotWidgetDefinition;
     widgetProps: Record<string, any>;
+    slot: SlotType;
     moduleId: string;
     moduleName: string;
     resetKeys?: any[];
-}> = ({ module, widget, widgetProps, moduleId, moduleName, resetKeys }) => {
+}> = ({ module, widget, widgetProps, slot, moduleId, moduleName, resetKeys }) => {
     const [Component, setComponent] = useState<React.ComponentType<any> | null>(null);
     const [error, setError] = useState<Error | null>(null);
+    const { aliasFor, applyModuleRegistration } = useModules();
 
     useEffect(() => {
         let cancelled = false;
-        const remoteEntryUrl = module.remoteEntry!.startsWith('http')
-            ? module.remoteEntry!
-            : `${window.location.origin}${module.remoteEntry!}`;
-        const componentPath = widget.component.startsWith('./') ? widget.component : `./${widget.component}`;
+        const alias = aliasFor(module.id);
 
-        loadRemoteModule(componentPath, remoteEntryUrl)
-            .then((Comp) => {
-                if (!cancelled && Comp) setComponent(() => Comp);
+        loadRemote<{ default?: unknown }>(`${alias}/Module`)
+            .then((exposed) => {
+                if (!exposed) throw new Error(`loadRemote returned null for "${alias}/Module"`);
+                const moduleDef = (exposed as { default?: unknown }).default ?? exposed;
+                if (!moduleDef || typeof moduleDef !== 'object') {
+                    throw new Error(`Module "${module.id}" did not default-export a defineModule result`);
+                }
+                const registration = toNKZRegistration(
+                    moduleDef as Parameters<typeof toNKZRegistration>[0],
+                );
+                applyModuleRegistration(module.id, registration);
+                const slotWidgets = registration.viewerSlots?.[slot];
+                const match = slotWidgets?.find(w => w.id === widget.id);
+                const Comp = match?.localComponent as React.ComponentType<any> | undefined;
+                if (!Comp) {
+                    throw new Error(
+                        `Widget "${widget.id}" not found in slot "${slot}" of module "${module.id}"`,
+                    );
+                }
+                if (!cancelled) setComponent(() => Comp);
             })
             .catch((err) => {
-                if (!cancelled) setError(err);
+                if (!cancelled) setError(err instanceof Error ? err : new Error(String(err)));
             });
         return () => { cancelled = true; };
-    }, [module.remoteEntry, widget.component]);
+    }, [module.id, slot, widget.id, aliasFor, applyModuleRegistration]);
 
     if (error) {
         return (
@@ -143,10 +163,11 @@ const RemoteSlotWidget: React.FC<{
 /** Renders a single widget with error boundary and lazy loading */
 const WidgetRenderer: React.FC<{
     widget: SlotWidgetDefinition;
+    slot: SlotType;
     module?: ModuleDefinition | null;
     additionalProps?: Record<string, any>;
     resetKeys?: any[];
-}> = ({ widget, module, additionalProps, resetKeys }) => {
+}> = ({ widget, slot, module, additionalProps, resetKeys }) => {
     const moduleId = useMemo(() => getModuleIdFromWidget(widget), [widget]);
     const moduleName = useMemo(() => getModuleNameFromWidget(widget), [widget]);
 
@@ -176,13 +197,15 @@ const WidgetRenderer: React.FC<{
         );
     }
 
-    // Remote module: load component by name from remote entry when localComponent was not preserved
+    // Remote module: localComponent was not yet hydrated by RemoteModuleLoader.
+    // Load the federated module on demand and pull the widget by id.
     if (module?.remoteEntry && widget.component) {
         return (
             <RemoteSlotWidget
                 module={module}
                 widget={widget}
                 widgetProps={widgetProps}
+                slot={slot}
                 moduleId={moduleId}
                 moduleName={moduleName}
                 resetKeys={resetKeys}
@@ -252,6 +275,7 @@ export const SlotRenderer: React.FC<SlotRendererProps> = ({
             <WidgetRenderer
                 key={widget.id}
                 widget={widget}
+                slot={slot}
                 module={module}
                 additionalProps={additionalProps}
                 resetKeys={resetKeys}
