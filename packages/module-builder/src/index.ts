@@ -1,61 +1,63 @@
 // =============================================================================
-// @nekazari/module-builder — Vite Preset for NKZ Module IIFE Bundles
+// @nekazari/module-builder — Vite preset for NKZ modules (Module Federation 2.0)
 // =============================================================================
-// Two modes:
+// Builds a module as a federated remote that the host loads at runtime via
+// `registerRemotes` + `loadRemote('<id>/Module')`.
 //
-// MODERN — src/Module.tsx exports `export default defineModule({...})`.
-//   The preset auto-generates `node_modules/.nkz/moduleEntry.gen.ts` and
-//   emits `dist/manifest.json`. The module id is read from
-//   package.json#nkz.moduleId (or from the moduleId option).
+// Two source layouts:
+//
+// MODERN — `src/Module.tsx` exports `export default defineModule({...})`.
+//   The preset exposes that file as `./Module`. After build, the host can
+//   `loadRemote('<id>/Module')` and gets the validated definition.
+//   The module id comes from `package.json#nkz.moduleId` (or the option).
 //
 //     // vite.config.ts
 //     import { defineConfig } from 'vite';
 //     import { nkzModulePreset } from '@nekazari/module-builder';
 //     export default defineConfig(nkzModulePreset());
 //
-// LEGACY — src/moduleEntry.ts written by hand. The preset uses it as-is
-//   and does NOT emit a manifest. This is the path the existing modules
-//   use today. New modules should use modern mode.
+// LEGACY — `src/moduleEntry.ts` written by hand, still exposed as `./Module`.
+//   It MUST `export default` a defineModule result. Side-effect-only legacy
+//   entries that call `window.__NKZ__.register(...)` no longer work in 2.0.
 //
 //     export default defineConfig(nkzModulePreset({ moduleId: 'my-module' }));
 //
-// Either way the output is a single IIFE bundle at dist/nkz-module.js that:
-// - Externalizes React, ReactDOM, @nekazari/sdk, @nekazari/ui-kit, etc.
-// - Maps them to window globals provided by the host
-// - Wraps everything in an IIFE that calls window.__NKZ__.register()
+// Output:
+// - dist/remoteEntry.js          — federation entry (loaded by host)
+// - dist/mf-manifest.json        — federation manifest (preload metadata)
+// - dist/manifest.json           — NKZ data manifest (read by api-gateway CSP)
+// - dist/assets/*.js             — chunks (lazy loaded by federation runtime)
 // =============================================================================
 
 import type { Plugin, UserConfig } from 'vite';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import react from '@vitejs/plugin-react';
-import {
-    detectEntryStrategy,
-    generateModuleEntry,
-} from './codegen.js';
+import { federation } from '@module-federation/vite';
+import { detectEntryStrategy } from './codegen.js';
 import { emitManifest } from './manifestEmitter.js';
 
-export { detectEntryStrategy, generateModuleEntry, generateManifest } from './codegen.js';
+export { detectEntryStrategy, generateManifest } from './codegen.js';
 export { emitManifest } from './manifestEmitter.js';
 
 // =============================================================================
-// External Dependencies — mapped to window globals provided by the host
+// Shared dependencies (Module Federation singleton contract)
 // =============================================================================
+// All modules in the platform must agree on a single instance of these libs.
+// Singleton + requiredVersion forces the federation runtime to surface a
+// version mismatch instead of silently loading two copies (which was the root
+// cause of the AppInitializer crash under the old IIFE transport).
 
-// @nekazari/module-kit is intentionally NOT externalized: each IIFE bundles
-// its own copy. Trade-off: ~30 KB extra per module (mostly tree-shaken to the
-// hooks actually imported), in exchange for eliminating a fragile host↔window
-// global contract that broke prod when host main.tsx exposed it.
-const NKZ_EXTERNALS: Record<string, string> = {
-    'react': 'React',
-    'react-dom': 'ReactDOM',
-    'react-dom/client': 'ReactDOM',
-    'react-router-dom': 'ReactRouterDOM',
-    '@nekazari/sdk': '__NKZ_SDK__',
-    '@nekazari/ui-kit': '__NKZ_UI__',
-    '@nekazari/design-tokens': '__NKZ_THEME__',
-    '@nekazari/viewer-kit': '__NKZ_VIEWER__',
-};
+const NKZ_SHARED = {
+    react: { singleton: true, requiredVersion: '^18.0.0' },
+    'react-dom': { singleton: true, requiredVersion: '^18.0.0' },
+    'react-router-dom': { singleton: true, requiredVersion: '^6.0.0' },
+    '@nekazari/sdk': { singleton: true },
+    '@nekazari/module-kit': { singleton: true },
+    '@nekazari/ui-kit': { singleton: true },
+    '@nekazari/design-tokens': { singleton: true },
+    '@nekazari/viewer-kit': { singleton: true },
+} as const;
 
 export interface NKZModulePresetOptions {
     /**
@@ -65,24 +67,21 @@ export interface NKZModulePresetOptions {
     moduleId?: string;
     /** Entry point file (legacy mode only; default: 'src/moduleEntry.ts'). */
     entry?: string;
-    /** Output filename (default: 'nkz-module.js'). */
-    outputFile?: string;
     /** Additional Vite config to merge. */
     viteConfig?: Partial<UserConfig>;
-    /** Additional externals beyond the defaults. */
-    additionalExternals?: Record<string, string>;
+    /** Additional shared deps beyond the platform defaults. */
+    additionalShared?: Record<string, unknown>;
     /** Project root (default: process.cwd()). */
     root?: string;
 }
 
 /**
- * Creates a Vite config for building a Nekazari module as an IIFE bundle.
+ * Creates a Vite config that builds a Nekazari module as a federated remote.
  */
 export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfig {
     const {
-        outputFile = 'nkz-module.js',
         viteConfig = {},
-        additionalExternals = {},
+        additionalShared = {},
         root = process.cwd(),
     } = options;
 
@@ -93,11 +92,9 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
     let manifestPlugin: Plugin | null = null;
 
     if (strategy === 'modern') {
-        entry = generateModuleEntry(root);
+        entry = './src/Module.tsx';
         moduleId = options.moduleId ?? readModuleIdFromPackage(root);
-        // Emit dist/manifest.json after the IIFE bundle is written.
-        // emitManifest uses vite-node to safely evaluate src/Module.tsx, then
-        // serialises the validated ModuleDefinition via generateManifest.
+        // Emit dist/manifest.json after build for api-gateway CSP enforcement.
         manifestPlugin = {
             name: 'nkz-module-builder:manifest',
             apply: 'build',
@@ -106,29 +103,50 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
             },
         };
     } else {
-        entry = options.entry ?? 'src/moduleEntry.ts';
+        entry = options.entry ?? './src/moduleEntry.ts';
         if (!options.moduleId) {
             throw new Error('[module-builder] Legacy mode requires moduleId in nkzModulePreset({ moduleId: "..." })');
         }
         moduleId = options.moduleId;
     }
 
-    const allExternals = { ...NKZ_EXTERNALS, ...additionalExternals };
-    const externalKeys = Object.keys(allExternals);
-    const globals = { ...allExternals };
+    // Federation `name` must be a valid JS identifier.
+    const fedName = moduleId.replace(/[^a-zA-Z0-9_]/g, '_');
+
+    // The federation plugin resolves each shared dep's package.json at build
+    // time to verify the version. Modules that don't directly depend on a
+    // shared package (e.g. modules that don't use react-router-dom) crash the
+    // build with MODULE_NOT_FOUND. Filter the shared list to packages whose
+    // package.json exists on disk under node_modules — bypassing exports map
+    // strictness which would falsely reject @nekazari/* packages.
+    const sharedConfig: Record<string, unknown> = {};
+    for (const [pkg, opts] of Object.entries({ ...NKZ_SHARED, ...additionalShared })) {
+        if (existsSync(join(root, 'node_modules', pkg, 'package.json'))) {
+            sharedConfig[pkg] = opts;
+        }
+        // else: not installed in this module — skip. The host still shares it
+        // and other modules that need it can still import from the host.
+    }
 
     const plugins: Plugin[] = [
         ...(react({ jsxRuntime: 'classic' }) as Plugin[]),
-        {
-            name: 'nkz-module-banner',
-            generateBundle(_options, bundle) {
-                for (const chunk of Object.values(bundle)) {
-                    if (chunk.type === 'chunk' && chunk.isEntry) {
-                        chunk.code = `/* NKZ Module: ${moduleId} | Built: ${new Date().toISOString()} */\n${chunk.code}`;
-                    }
-                }
+        ...(federation({
+            name: fedName,
+            filename: 'remoteEntry.js',
+            exposes: {
+                './Module': entry,
             },
-        },
+            shared: sharedConfig as Record<string, never>,
+            // Emit dist/mf-manifest.json so the host can preload chunks via
+            // the federation runtime when registerRemotes() is called with a
+            // manifest URL.
+            manifest: true,
+            // Federation's DTS extractor spawns a long-lived worker that hangs
+            // the build. The host loads remotes through runtime APIs and treats
+            // their exports as opaque, so cross-federation typings have no
+            // consumer here. Disable.
+            dts: false,
+        }) as unknown as Plugin[]),
     ];
     if (manifestPlugin) plugins.push(manifestPlugin);
 
@@ -141,24 +159,22 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
         },
 
         build: {
-            lib: {
-                entry,
-                name: `NKZModule_${moduleId.replace(/[^a-zA-Z0-9_]/g, '_')}`,
-                formats: ['iife'],
-                fileName: () => outputFile,
-            },
-            rollupOptions: {
-                external: externalKeys,
-                output: {
-                    globals,
-                    inlineDynamicImports: true,
-                },
-            },
+            // Required for native top-level-await in the federation runtime.
+            // Modern browsers (Chrome 89+, Safari 15+, Firefox 89+) support it.
+            target: 'esnext',
             outDir: 'dist',
             emptyOutDir: true,
             sourcemap: true,
             minify: 'esbuild',
+            // Federation manages its own chunk preloading; let it.
+            modulePreload: false,
             copyPublicDir: false,
+            rollupOptions: {
+                // Skip index.html crawling. Modules ship a remote, not an app:
+                // the federation plugin emits remoteEntry.js + chunks from the
+                // exposes map, and the source entry is enough for tree-shaking.
+                input: entry,
+            },
         },
 
         resolve: {
@@ -198,5 +214,5 @@ function readModuleIdFromPackage(root: string): string {
     );
 }
 
-export { NKZ_EXTERNALS };
+export { NKZ_SHARED };
 export default nkzModulePreset;
