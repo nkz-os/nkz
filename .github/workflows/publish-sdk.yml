@@ -79,13 +79,12 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish to npm
+      - name: Publish to npm (Trusted Publishing + provenance)
         if: steps.check.outputs.exists == 'false'
-        # --provenance requires Trusted Publishing (OIDC) to be configured per
-        # package on npmjs.com (Settings → Trusted Publishers → add this repo +
-        # workflow). Until that is set up for the @nekazari scope, classic
-        # token-based publishing is used. To re-enable: configure Trusted
-        # Publishing on each package, then add `--provenance` back.
-        run: pnpm --filter @nekazari/${{ matrix.package }} publish --access=public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # Trusted Publishing is configured per package on npmjs.com
+        # (Settings → Trusted Publishers → GitHub Actions, repo=nkz-os/nkz,
+        # workflow=publish-sdk.yml, no environment). With it, npm derives
+        # the publish identity from the workflow's OIDC token at runtime —
+        # NODE_AUTH_TOKEN/NPM_TOKEN is no longer required. --provenance
+        # additionally signs the release with a public SLSA attestation.
+        run: pnpm --filter @nekazari/${{ matrix.package }} publish --access=public --no-git-checks --provenance
