@@ -45,6 +45,13 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
+      - name: Upgrade npm to >=11.5 for Trusted Publishing OIDC support
+        # Node 22 ships npm 10.9.x which does NOT auto-exchange the workflow's
+        # OIDC token for an npm publish token. npm CLI v11.5+ does. Without
+        # this upgrade, `npm publish` returns ENEEDAUTH even with Trusted
+        # Publishing configured on npmjs.com and id-token: write granted.
+        run: npm install -g npm@latest
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
