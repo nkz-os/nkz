@@ -51,21 +51,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build module-kit first (codegen.ts in module-builder needs its types)
-        # @nekazari/module-builder imports `ModuleDefinition` from
-        # @nekazari/module-kit at compile time, so module-kit's dist/ must
-        # exist before tsc runs in module-builder.
-        if: matrix.package == 'module-builder'
-        run: pnpm --filter @nekazari/module-kit build
-
-      - name: Build package
-        # No `^...` — each matrix job builds ONLY its own package. Earlier
-        # version used `^...` to pull in workspace deps automatically, but
-        # module-kit declares module-builder as a peerDep/devDep, so
-        # `module-kit^...` expanded to include module-builder, which then
-        # failed because its build precedes module-kit's. The explicit
-        # pre-step above handles the only real cross-package dependency.
-        run: pnpm --filter '@nekazari/${{ matrix.package }}' build
+      - name: Build all workspace packages in dependency order
+        # The @nekazari/* packages form a dep chain at compile time:
+        #   design-tokens → ui-kit, viewer-kit, sdk
+        #                                     ↓
+        #                                  module-kit ←─ module-builder
+        # Building only the matrix-target package (or following pnpm's
+        # `^...` filter) fails on:
+        #   - module-kit declares module-builder in peer+devDeps → `^...`
+        #     expands circularly
+        #   - module-kit dts build needs sdk/dist for type resolution
+        #   - module-builder build needs module-kit/dist
+        # `pnpm -r run build` respects workspace topological order and only
+        # builds packages that have a build script. Cheap (~20–30 s total)
+        # and removes every cross-package ordering edge case.
+        run: pnpm -r run build
 
       - name: Check if version is already published
         id: check
