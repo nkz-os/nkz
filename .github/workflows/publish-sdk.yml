@@ -97,7 +97,21 @@ jobs:
         # NODE_AUTH_TOKEN cleared so the .npmrc placeholder resolves to
         # empty; npm then takes the OIDC path because id-token: write is
         # granted on this job.
+        #
+        # npm 11+ rejects publishing a prerelease (1.2.3-alpha.0) without an
+        # explicit --tag, to prevent accidentally tagging it as `latest` and
+        # poisoning npm install. Derive the dist-tag from the version: a
+        # prerelease (contains '-') uses its pre-id (`alpha`, `beta`, ...),
+        # a stable version uses `latest`.
         working-directory: packages/${{ matrix.package }}
-        run: npx -p npm@latest -y npm publish --access=public --provenance
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            TAG=$(echo "$VERSION" | sed -E 's/^[^-]+-([a-zA-Z]+).*/\1/')
+          else
+            TAG="latest"
+          fi
+          echo "Publishing $VERSION with dist-tag '$TAG'"
+          npx -p npm@latest -y npm publish --access=public --provenance --tag "$TAG"
         env:
           NODE_AUTH_TOKEN: ""
