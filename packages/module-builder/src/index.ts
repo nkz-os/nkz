@@ -153,6 +153,13 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
     const config: UserConfig = {
         plugins,
 
+        // The module is served from `<host>/modules/<id>/` on MinIO. Vite's
+        // `base` is what @module-federation/vite emits into the manifest's
+        // `metaData.publicPath`; without it the runtime fetches chunks (incl.
+        // `remoteEntry.js`) from the host root and 404s. Modules can override
+        // by passing `viteConfig.base` if served from a different prefix.
+        base: `/modules/${moduleId}/`,
+
         define: {
             'process.env.NODE_ENV': JSON.stringify('production'),
             '__NKZ_MODULE_ID__': JSON.stringify(moduleId),
@@ -194,6 +201,9 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
         const existingAlias = (config.resolve?.alias as Record<string, string>) || {};
         const newAlias = viteConfig.resolve.alias as Record<string, string>;
         config.resolve = { ...config.resolve, alias: { ...existingAlias, ...newAlias } };
+    }
+    if (viteConfig.base) {
+        config.base = viteConfig.base;
     }
 
     return config;
