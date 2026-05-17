@@ -45,13 +45,6 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Upgrade npm to >=11.5 for Trusted Publishing OIDC support
-        # Node 22 ships npm 10.9.x which does NOT auto-exchange the workflow's
-        # OIDC token for an npm publish token. npm CLI v11.5+ does. Without
-        # this upgrade, `npm publish` returns ENEEDAUTH even with Trusted
-        # Publishing configured on npmjs.com and id-token: write granted.
-        run: npm install -g npm@latest
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
@@ -95,16 +88,16 @@ jobs:
         # --provenance signs the release with a public SLSA attestation.
         #
         # We must use `npm publish` (not `pnpm publish`) for the OIDC flow:
-        # only npm CLI v10.7+ exchanges the ACTIONS_ID_TOKEN_REQUEST_* env
-        # for a short-lived npm publish token. pnpm publish delegates to a
-        # pre-resolved auth path and never makes that exchange, falling back
-        # to the (now invalid) NODE_AUTH_TOKEN that setup-node injected into
-        # .npmrc — and failing with 404 PUT.
+        # only npm CLI v11.5+ exchanges the ACTIONS_ID_TOKEN_REQUEST_* env
+        # for a short-lived npm publish token. Node 22 ships npm 10.x, so
+        # we invoke the latest npm via `npx -p npm@latest -y` rather than
+        # upgrading the global npm (which fails with MODULE_NOT_FOUND while
+        # rebuilding itself in-place).
         #
-        # Unsetting NODE_AUTH_TOKEN here so the .npmrc placeholder resolves
-        # to empty; npm CLI then takes the OIDC path because id-token: write
-        # is granted on this job.
+        # NODE_AUTH_TOKEN cleared so the .npmrc placeholder resolves to
+        # empty; npm then takes the OIDC path because id-token: write is
+        # granted on this job.
         working-directory: packages/${{ matrix.package }}
-        run: npm publish --access=public --provenance
+        run: npx -p npm@latest -y npm publish --access=public --provenance
         env:
           NODE_AUTH_TOKEN: ""
