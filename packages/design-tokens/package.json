@@ -1,6 +1,6 @@
 {
   "name": "@nekazari/design-tokens",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.3",
   "private": false,
   "license": "Apache-2.0",
   "main": "./dist/index.js",
