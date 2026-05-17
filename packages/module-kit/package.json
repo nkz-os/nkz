@@ -1,8 +1,12 @@
 {
   "name": "@nekazari/module-kit",
   "version": "0.6.0",
-  "description": "Nekazari Module Development Kit — single entry point for building Nekazari modules",
+  "description": "Nekazari Module Development Kit \u2014 single entry point for building Nekazari modules",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nkz-os/nkz.git"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

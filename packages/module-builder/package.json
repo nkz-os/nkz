@@ -3,6 +3,10 @@
     "version": "2.0.1",
     "private": false,
     "license": "Apache-2.0",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/nkz-os/nkz.git"
+    },
     "description": "Vite preset for building Nekazari modules as Module Federation 2.0 remotes",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
