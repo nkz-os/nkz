@@ -20,18 +20,25 @@ import HttpBackendRaw from 'i18next-http-backend';
 // Under Module Federation 2.0 chunking + tsup's CJS interop, the default
 // export of CJS plugins (i18next-http-backend, i18next-browser-languagedetector,
 // ...) arrives at the consumer wrapped: `{ default: ActualPlugin }` instead of
-// `ActualPlugin`. i18next.use() inspects `module.type` (which has a known
-// value like 'backend' / 'languageDetector') and throws "You are passing a
-// wrong module!" if the type is absent, bricking init.
+// `ActualPlugin`. i18next.use() inspects `module.type` (the i18next plugin
+// contract: 'backend' | 'languageDetector' | 'i18nFormat' | 'postProcessor' |
+// 'logger' | '3rdParty') and throws "You are passing a wrong module!" if
+// absent, bricking init.
 //
-// The unwrap below is defensive: only unwrap when `.default` itself has the
-// i18next plugin shape (a `.type` property). That keeps it safe across all
-// bundlers — direct/unwrapped imports pass through untouched, wrapped imports
-// are flattened to the real plugin.
+// Walk the `.default` chain until we find an object/function whose `.type` is
+// a string — that's the actual i18next plugin. Direct/unwrapped imports pass
+// through untouched on the first iteration; one or more layers of wrapping
+// are flattened. Note: HttpBackend's default is a class (typeof === 'function',
+// NOT 'object'), so the type check must accept both.
 function unwrapI18nPlugin<T>(mod: T): T {
-  const m = mod as unknown as { default?: { type?: string } } & { type?: string };
-  if (m && typeof m === 'object' && m.default && typeof m.default === 'object' && typeof m.default.type === 'string') {
-    return m.default as unknown as T;
+  let cur: any = mod;
+  for (let depth = 0; depth < 5; depth++) {
+    if (cur && typeof cur.type === 'string') return cur as T;
+    if (cur && cur.default && cur.default !== cur) {
+      cur = cur.default;
+      continue;
+    }
+    break;
   }
   return mod;
 }
