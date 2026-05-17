@@ -81,6 +81,11 @@ jobs:
 
       - name: Publish to npm
         if: steps.check.outputs.exists == 'false'
-        run: pnpm --filter @nekazari/${{ matrix.package }} publish --access=public --provenance
+        # --provenance requires Trusted Publishing (OIDC) to be configured per
+        # package on npmjs.com (Settings → Trusted Publishers → add this repo +
+        # workflow). Until that is set up for the @nekazari scope, classic
+        # token-based publishing is used. To re-enable: configure Trusted
+        # Publishing on each package, then add `--provenance` back.
+        run: pnpm --filter @nekazari/${{ matrix.package }} publish --access=public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

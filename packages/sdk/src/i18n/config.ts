@@ -12,7 +12,31 @@
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import HttpBackend from 'i18next-http-backend';
+import HttpBackendRaw from 'i18next-http-backend';
+
+// =============================================================================
+// MF 2.0 / CJS interop unwrap
+// =============================================================================
+// Under Module Federation 2.0 chunking + tsup's CJS interop, the default
+// export of CJS plugins (i18next-http-backend, i18next-browser-languagedetector,
+// ...) arrives at the consumer wrapped: `{ default: ActualPlugin }` instead of
+// `ActualPlugin`. i18next.use() inspects `module.type` (which has a known
+// value like 'backend' / 'languageDetector') and throws "You are passing a
+// wrong module!" if the type is absent, bricking init.
+//
+// The unwrap below is defensive: only unwrap when `.default` itself has the
+// i18next plugin shape (a `.type` property). That keeps it safe across all
+// bundlers — direct/unwrapped imports pass through untouched, wrapped imports
+// are flattened to the real plugin.
+function unwrapI18nPlugin<T>(mod: T): T {
+  const m = mod as unknown as { default?: { type?: string } } & { type?: string };
+  if (m && typeof m === 'object' && m.default && typeof m.default === 'object' && typeof m.default.type === 'string') {
+    return m.default as unknown as T;
+  }
+  return mod;
+}
+
+const HttpBackend = unwrapI18nPlugin(HttpBackendRaw);
 
 export type SupportedLanguage = 'es' | 'en' | 'ca' | 'eu' | 'fr' | 'pt';
 
