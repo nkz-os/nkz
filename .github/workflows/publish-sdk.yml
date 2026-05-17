@@ -84,7 +84,20 @@ jobs:
         # Trusted Publishing is configured per package on npmjs.com
         # (Settings → Trusted Publishers → GitHub Actions, repo=nkz-os/nkz,
         # workflow=publish-sdk.yml, no environment). With it, npm derives
-        # the publish identity from the workflow's OIDC token at runtime —
-        # NODE_AUTH_TOKEN/NPM_TOKEN is no longer required. --provenance
-        # additionally signs the release with a public SLSA attestation.
-        run: pnpm --filter @nekazari/${{ matrix.package }} publish --access=public --no-git-checks --provenance
+        # the publish identity from the workflow's OIDC token at runtime.
+        # --provenance signs the release with a public SLSA attestation.
+        #
+        # We must use `npm publish` (not `pnpm publish`) for the OIDC flow:
+        # only npm CLI v10.7+ exchanges the ACTIONS_ID_TOKEN_REQUEST_* env
+        # for a short-lived npm publish token. pnpm publish delegates to a
+        # pre-resolved auth path and never makes that exchange, falling back
+        # to the (now invalid) NODE_AUTH_TOKEN that setup-node injected into
+        # .npmrc — and failing with 404 PUT.
+        #
+        # Unsetting NODE_AUTH_TOKEN here so the .npmrc placeholder resolves
+        # to empty; npm CLI then takes the OIDC path because id-token: write
+        # is granted on this job.
+        working-directory: packages/${{ matrix.package }}
+        run: npm publish --access=public --provenance
+        env:
+          NODE_AUTH_TOKEN: ""
