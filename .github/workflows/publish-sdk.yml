@@ -51,6 +51,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build module-kit first (codegen.ts needs its types)
+        # @nekazari/module-builder declares @nekazari/module-kit as a devDep
+        # (with peerDep for the published contract), and pnpm's `^...` filter
+        # only follows runtime dependencies, so it would not build module-kit
+        # before module-builder in the matrix and tsc fails resolving
+        # `import type { ModuleDefinition } from '@nekazari/module-kit'` in
+        # packages/module-builder/src/codegen.ts.
+        if: matrix.package == 'module-builder'
+        run: pnpm --filter @nekazari/module-kit build
+
       - name: Build package (with workspace deps)
         run: pnpm --filter '@nekazari/${{ matrix.package }}^...' build
 
