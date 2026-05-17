@@ -1,6 +1,6 @@
 {
   "name": "@nekazari/sdk",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": false,
   "license": "Apache-2.0",
   "repository": {
@@ -30,13 +30,12 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --external react --external i18next --external react-i18next --external i18next-http-backend --external i18next-browser-languagedetector || exit 1",
+    "build": "tsup src/index.ts --format cjs,esm --dts --external react --external i18next --external react-i18next --external i18next-http-backend || exit 1",
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "i18next": "^23.11.0",
     "i18next-http-backend": "^2.4.2",
-    "i18next-browser-languagedetector": "^8.0.0",
     "react-i18next": "^14.1.0"
   },
   "peerDependencies": {

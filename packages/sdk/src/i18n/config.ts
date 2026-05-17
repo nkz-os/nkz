@@ -13,7 +13,6 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import HttpBackend from 'i18next-http-backend';
-import LanguageDetector from 'i18next-browser-languagedetector';
 
 export type SupportedLanguage = 'es' | 'en' | 'ca' | 'eu' | 'fr' | 'pt';
 
@@ -49,9 +48,13 @@ async function runI18nInit(config: I18nConfig): Promise<void> {
     storedLang ||
     (finalConfig.supportedLanguages.includes(browserLang) ? browserLang : finalConfig.defaultLanguage);
 
+  // Manual detection above already resolves the language (localStorage > browser >
+  // configured default) and we pass it as `lng`. i18next-browser-languagedetector
+  // was redundant and, under Module Federation 2.0 chunking, the host receives its
+  // default export wrapped in a namespace object — i18next.use() then rejects it
+  // with "You are passing a wrong module!" and bricks the landing page.
   await i18n
     .use(HttpBackend)
-    .use(LanguageDetector)
     .use(initReactI18next)
     .init({
       lng: detectedLang,
@@ -63,12 +66,6 @@ async function runI18nInit(config: I18nConfig): Promise<void> {
       backend: {
         loadPath: finalConfig.loadPath,
         crossDomain: false,
-      },
-
-      detection: {
-        order: ['localStorage', 'navigator'],
-        caches: ['localStorage'],
-        lookupLocalStorage: 'language',
       },
 
       react: {
