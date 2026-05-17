@@ -51,21 +51,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build all workspace packages in dependency order
-        # The @nekazari/* packages form a dep chain at compile time:
-        #   design-tokens → ui-kit, viewer-kit, sdk
-        #                                     ↓
-        #                                  module-kit ←─ module-builder
-        # Building only the matrix-target package (or following pnpm's
-        # `^...` filter) fails on:
-        #   - module-kit declares module-builder in peer+devDeps → `^...`
-        #     expands circularly
-        #   - module-kit dts build needs sdk/dist for type resolution
-        #   - module-builder build needs module-kit/dist
-        # `pnpm -r run build` respects workspace topological order and only
-        # builds packages that have a build script. Cheap (~20–30 s total)
-        # and removes every cross-package ordering edge case.
-        run: pnpm -r run build
+      - name: Build all workspace packages strictly sequentially
+        # The @nekazari/* packages form a compile-time dep chain
+        # (design-tokens → sdk/ui-kit/viewer-kit → module-kit → module-builder).
+        # `pnpm -r run build` orders by topology BUT considers a script
+        # "done" the moment its main process exits. tsup spawns dts
+        # generation in a worker thread and returns before dts finishes, so
+        # downstream packages (e.g. module-builder needing module-kit's
+        # .d.ts) start building too soon and fail with:
+        #   error TS2307: Cannot find module '@nekazari/module-kit'
+        # --workspace-concurrency=1 forces strictly serial execution: a
+        # dependent only starts after the previous package's *entire* build
+        # script (dts worker included) has terminated.
+        run: pnpm -r --workspace-concurrency=1 run build
 
       - name: Check if version is already published
         id: check
