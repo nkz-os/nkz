@@ -27,14 +27,13 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/mock.ts --format esm --dts --external react --external react-dom --external @nekazari/sdk --external @nekazari/ui-kit --external @nekazari/viewer-kit --external @nekazari/design-tokens --external @nekazari/module-builder",
+    "build": "tsup src/index.ts src/mock.ts --format esm --dts --external react --external react-dom --external @nekazari/sdk --external @nekazari/ui-kit --external @nekazari/viewer-kit --external @nekazari/design-tokens",
     "prepublishOnly": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "@nekazari/module-builder": ">=1.0.0",
     "@nekazari/sdk": ">=1.1.0",
     "@tanstack/react-query": ">=5.0.0",
     "react": ">=18.0.0"
@@ -43,7 +42,6 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@nekazari/module-builder": "workspace:*",
     "@nekazari/sdk": "workspace:*",
     "@tanstack/react-query": "^5.59.0",
     "@testing-library/jest-dom": "^6.6.3",
