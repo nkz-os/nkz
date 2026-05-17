@@ -51,18 +51,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build module-kit first (codegen.ts needs its types)
-        # @nekazari/module-builder declares @nekazari/module-kit as a devDep
-        # (with peerDep for the published contract), and pnpm's `^...` filter
-        # only follows runtime dependencies, so it would not build module-kit
-        # before module-builder in the matrix and tsc fails resolving
-        # `import type { ModuleDefinition } from '@nekazari/module-kit'` in
-        # packages/module-builder/src/codegen.ts.
+      - name: Build module-kit first (codegen.ts in module-builder needs its types)
+        # @nekazari/module-builder imports `ModuleDefinition` from
+        # @nekazari/module-kit at compile time, so module-kit's dist/ must
+        # exist before tsc runs in module-builder.
         if: matrix.package == 'module-builder'
         run: pnpm --filter @nekazari/module-kit build
 
-      - name: Build package (with workspace deps)
-        run: pnpm --filter '@nekazari/${{ matrix.package }}^...' build
+      - name: Build package
+        # No `^...` — each matrix job builds ONLY its own package. Earlier
+        # version used `^...` to pull in workspace deps automatically, but
+        # module-kit declares module-builder as a peerDep/devDep, so
+        # `module-kit^...` expanded to include module-builder, which then
+        # failed because its build precedes module-kit's. The explicit
+        # pre-step above handles the only real cross-package dependency.
+        run: pnpm --filter '@nekazari/${{ matrix.package }}' build
 
       - name: Check if version is already published
         id: check
