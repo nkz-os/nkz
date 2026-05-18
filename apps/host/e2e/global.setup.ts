@@ -4,7 +4,10 @@
  */
 import { request } from '@playwright/test';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const BASE_URL = process.env['E2E_BASE_URL'] || 'http://localhost:3000';
 const AUTH_FILE = path.join(__dirname, '.auth', 'storageState.json');
 
