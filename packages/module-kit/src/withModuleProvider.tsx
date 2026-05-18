@@ -35,9 +35,10 @@ interface SlotEntry {
  *   };
  */
 export function withModuleProvider(
-  slots: Record<string, unknown>,
+  slots: object,
 ): Record<string, SlotEntry[]> {
-  const { moduleProvider: Provider, ...rawSlots } = slots;
+  const s = slots as Record<string, unknown>;
+  const { moduleProvider: Provider, ...rawSlots } = s;
 
   if (!Provider || typeof Provider !== 'function') {
     return rawSlots as Record<string, SlotEntry[]>;
