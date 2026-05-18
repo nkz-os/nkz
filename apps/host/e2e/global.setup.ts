@@ -1,7 +1,6 @@
 /**
- * Playwright global setup — log in via the app's own Keycloak flow.
- * The host app's Keycloak JS adapter generates PKCE params correctly;
- * we just navigate to / and let it redirect us.
+ * Playwright global setup — authenticate via the host app's Keycloak flow.
+ * We navigate to a protected route; the app redirects to Keycloak with PKCE.
  */
 import { chromium } from '@playwright/test';
 import * as path from 'path';
@@ -17,45 +16,31 @@ async function globalSetup() {
   const browser = await chromium.launch();
   const page = await browser.newPage();
 
-  // 1. Go to the app. The Keycloak JS adapter will auto-redirect to
-  //    Keycloak with correct PKCE params, or show a landing page with a
-  //    login link that leads there.
-  await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(3000);
+  // Navigate to a protected route — the Keycloak JS adapter will redirect
+  // to the login form with correct PKCE params. The landing page (/) may be
+  // public and not trigger auth.
+  await page.goto(BASE_URL + '/entities', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(4000);
 
-  // 2. If we're not already on the Keycloak login page, find and click a
-  //    login button/link.
-  if (!page.url().includes('/auth/')) {
-    const loginBtn = page.locator(
-      'a[href*="auth"], a:has-text("Login"), a:has-text("Iniciar"), a:has-text("Entrar"), button:has-text("Login")',
-    );
-    const count = await loginBtn.count();
-    if (count > 0) {
-      await loginBtn.first().click();
-    }
-    // Wait for the redirect to Keycloak
-    await page.waitForURL((url) => url.toString().includes('/auth/'), { timeout: 15000 });
+  // Should now be on the Keycloak login page
+  const url = page.url();
+  if (!url.includes('/auth/')) {
+    await saveDebug(page, 'no-redirect');
+    throw new Error(`Expected Keycloak redirect, got: ${url}`);
   }
 
-  // 3. Fill Keycloak login form
-  const usernameSelector = '#username, input[name="username"]';
-  try {
-    await page.waitForSelector(usernameSelector, { timeout: 20000 });
-  } catch (_err) {
-    await saveDebug(page, 'no-login-form');
-    throw new Error(`Login form not found at ${page.url()}`);
-  }
-
-  await page.fill(usernameSelector, 'demo@nekazari.local');
+  // Fill login form
+  await page.waitForSelector('#username, input[name="username"]', { timeout: 15000 });
+  await page.fill('#username, input[name="username"]', 'demo@nekazari.local');
   await page.fill('#password, input[name="password"]', 'Demo1234!');
   await page.click('#kc-login, input[type="submit"]');
 
-  // 4. Wait for redirect back to the app and session cookie
-  await page.waitForURL((url) => !url.toString().includes('/auth/'), { timeout: 20000 });
+  // Wait for redirect back to app + session cookie
+  await page.waitForURL((u) => !u.toString().includes('/auth/'), { timeout: 20000 });
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(3000);
 
-  // 5. Save browser state
+  // Save browser state
   await page.context().storageState({ path: AUTH_FILE });
   await browser.close();
 }
@@ -65,6 +50,7 @@ async function saveDebug(page: any, reason: string) {
     fs.mkdirSync(DEBUG_DIR, { recursive: true });
     await page.screenshot({ path: path.join(DEBUG_DIR, `${reason}.png`), fullPage: true });
     fs.writeFileSync(path.join(DEBUG_DIR, `${reason}.html`), await page.content());
+    console.error(`[setup] ${reason}: URL=${page.url()}, title="${await page.title()}"`);
   } catch (_ignored) { /* don't hide original error */ }
 }
 
