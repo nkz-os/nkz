@@ -6,7 +6,9 @@
 import { test, expect } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AUTH_FILE = path.join(__dirname, '.auth', 'storageState.json');
 const DIST_DIR = path.join(__dirname, 'fixtures', 'connectivity-dist');
 const MODULE_ID = 'connectivity';
