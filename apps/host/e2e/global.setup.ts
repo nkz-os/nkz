@@ -26,17 +26,16 @@ async function globalSetup() {
 
   try {
     await page.goto(loginUrl, { waitUntil: 'load', timeout: 30000 });
-  } catch {
-    // Save diagnostics before throwing
+  } catch (_err) {
     await saveDebug(page, 'goto-failed');
-    throw;
+    throw _err;
   }
 
   // 2. Wait for Keycloak login form
   const usernameSelector = '#username, input[name="username"]';
   try {
     await page.waitForSelector(usernameSelector, { timeout: 20000 });
-  } catch {
+  } catch (_err) {
     await saveDebug(page, 'no-login-form');
     throw new Error(
       `Keycloak login form not found. URL: ${page.url()}. Debug saved to ${DEBUG_DIR}`,
@@ -66,7 +65,7 @@ async function saveDebug(page: any, reason: string) {
     console.error(`[setup] Debug saved: ${DEBUG_DIR}/${reason}.{png,html}`);
     console.error(`[setup] Current URL: ${page.url()}`);
     console.error(`[setup] Page title: ${await page.title()}`);
-  } catch {
+  } catch (_ignored) {
     // don't let debug saving hide the original error
   }
 }
