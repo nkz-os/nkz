@@ -1,0 +1,27 @@
+{
+  "id": "connectivity",
+  "displayName": "Connectivity",
+  "version": "1.0.0",
+  "hostApiVersion": "^2.0.0",
+  "description": "Connectivity — Nekazari Platform Module",
+  "accent": {
+    "base": "#3B82F6",
+    "soft": "#DBEAFE",
+    "strong": "#1D4ED8"
+  },
+  "icon": "wifi",
+  "api": {
+    "basePath": "/api/connectivity"
+  },
+  "slots": {
+    "layer-toggle": [],
+    "context-panel": [
+      {
+        "id": "connectivity-example",
+        "priority": 50
+      }
+    ],
+    "bottom-panel": [],
+    "entity-tree": []
+  }
+}
