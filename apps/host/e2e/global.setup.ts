@@ -18,13 +18,12 @@ async function globalSetup() {
   const tokenRes = await context.post(
     '/auth/realms/nekazari/protocol/openid-connect/token',
     {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      data: new URLSearchParams({
+      form: {
         client_id: 'nekazari-frontend',
         grant_type: 'password',
         username: 'demo@nekazari.local',
         password: 'Demo1234!',
-      }),
+      },
     },
   );
 
