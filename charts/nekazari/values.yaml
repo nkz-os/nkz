@@ -1,0 +1,242 @@
+# =============================================================================
+# Nekazari Platform — Default values
+# =============================================================================
+# Install: helm install nekazari ./charts/nekazari -n nekazari --create-namespace
+# Dry run:  helm install nekazari ./charts/nekazari -n nekazari --dry-run
+# =============================================================================
+
+global:
+  namespace: nekazari
+  domain: nekazari.robotika.cloud
+  # Image pull policy for all services
+  imagePullPolicy: IfNotPresent
+  # Image registry (ghcr.io by default, public images — no imagePullSecrets needed)
+  imageRegistry: ghcr.io/nkz-os/nkz
+  # Common labels
+  labels:
+    app.kubernetes.io/part-of: nekazari
+    app.kubernetes.io/managed-by: helm
+
+# ---------------------------------------------------------------------------
+# PostgreSQL + TimescaleDB
+# ---------------------------------------------------------------------------
+postgresql:
+  enabled: true
+  image:
+    repository: timescale/timescaledb-ha
+    tag: pg14-latest
+  auth:
+    username: postgres
+    password: nekazari-dev-password
+    database: nekazari
+  service:
+    port: 5432
+  persistence:
+    enabled: true
+    size: 20Gi
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 1000m
+
+# ---------------------------------------------------------------------------
+# MongoDB (Orion-LD backend)
+# ---------------------------------------------------------------------------
+mongodb:
+  enabled: true
+  image:
+    repository: mongo
+    tag: "4.4"
+  auth:
+    rootUser: admin
+    rootPassword: nekazari-mongo-dev
+  service:
+    port: 27017
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# ---------------------------------------------------------------------------
+# Redis
+# ---------------------------------------------------------------------------
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: 7-alpine
+  auth:
+    password: nekazari-redis-dev
+  service:
+    port: 6379
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+
+# ---------------------------------------------------------------------------
+# MinIO (S3-compatible object storage)
+# ---------------------------------------------------------------------------
+minio:
+  enabled: true
+  image:
+    repository: minio/minio
+    tag: latest
+  auth:
+    rootUser: minioadmin
+    rootPassword: minioadmin
+  service:
+    apiPort: 9000
+    consolePort: 9001
+  persistence:
+    enabled: true
+    size: 10Gi
+  buckets:
+    - nekazari-frontend
+    - assets-3d
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# ---------------------------------------------------------------------------
+# Keycloak 26 — OIDC identity provider
+# ---------------------------------------------------------------------------
+keycloak:
+  enabled: true
+  image:
+    repository: ghcr.io/nkz-os/nkz/keycloak
+    tag: latest
+  auth:
+    adminUser: admin
+    adminPassword: admin
+  ingress:
+    host: auth.robotika.cloud
+  realm: nekazari
+  service:
+    port: 8080
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 1000m
+
+# ---------------------------------------------------------------------------
+# Orion-LD — FIWARE NGSI-LD Context Broker
+# ---------------------------------------------------------------------------
+orion-ld:
+  enabled: true
+  image:
+    repository: fiware/orion-ld
+    tag: "1.5.1"
+  service:
+    port: 1026
+  multiService: true
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+# ---------------------------------------------------------------------------
+# API Gateway — JWT validation, rate limiting, routing
+# ---------------------------------------------------------------------------
+api-gateway:
+  enabled: true
+  image:
+    repository: ghcr.io/nkz-os/nkz/api-gateway
+    tag: latest
+  service:
+    port: 5000
+  env:
+    orionUrl: http://orion-ld-service:1026
+    keycloakUrl: http://keycloak-service:8080/auth
+    contextUrl: http://api-gateway-service:5000/ngsi-ld-context.json
+    entityManagerUrl: http://entity-manager-service:5000
+    productionDomain: nekazari.robotika.cloud
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# ---------------------------------------------------------------------------
+# Entity Manager — NGSI-LD CRUD, module marketplace, S3 uploads
+# ---------------------------------------------------------------------------
+entity-manager:
+  enabled: true
+  image:
+    repository: ghcr.io/nkz-os/nkz/entity-manager
+    tag: latest
+  service:
+    port: 5000
+  env:
+    orionUrl: http://orion-ld-service:1026
+    keycloakUrl: http://keycloak-service:8080/auth
+    s3EndpointUrl: http://minio-service:9000
+    redisUrl: redis://:nekazari-redis-dev@redis-service:6379
+    contextUrl: http://api-gateway-service:5000/ngsi-ld-context.json
+    productionDomain: nekazari.robotika.cloud
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# ---------------------------------------------------------------------------
+# Frontend — React/nginx host serving the SPA + proxy
+# ---------------------------------------------------------------------------
+frontend:
+  enabled: true
+  image:
+    repository: ghcr.io/nkz-os/nkz/host
+    tag: latest
+  service:
+    port: 80
+    targetPort: 80
+  ingress:
+    enabled: true
+    host: nekazari.robotika.cloud
+    tls:
+      enabled: true
+      clusterIssuer: letsencrypt-prod
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# ---------------------------------------------------------------------------
+# Ingress — Traefik ingress routes
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: traefik
+  tls:
+    enabled: true
+    clusterIssuer: letsencrypt-prod

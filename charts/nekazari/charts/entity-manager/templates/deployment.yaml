@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-entity-manager
+  labels:
+    app: entity-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: entity-manager
+  template:
+    metadata:
+      labels:
+        app: entity-manager
+    spec:
+      containers:
+        - name: entity-manager
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          env:
+            - name: ORION_URL
+              value: {{ .Values.env.orionUrl | quote }}
+            - name: KEYCLOAK_URL
+              value: {{ .Values.env.keycloakUrl | quote }}
+            - name: S3_ENDPOINT_URL
+              value: {{ .Values.env.s3EndpointUrl | quote }}
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: root-user
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: root-password
+            - name: REDIS_URL
+              value: {{ .Values.env.redisUrl | quote }}
+            - name: CONTEXT_URL
+              value: {{ .Values.env.contextUrl | quote }}
+            - name: PRODUCTION_DOMAIN
+              value: {{ .Values.env.productionDomain | quote }}
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: url
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: entity-manager-service
+  labels:
+    app: entity-manager
+spec:
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+  selector:
+    app: entity-manager
