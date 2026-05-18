@@ -15,6 +15,9 @@ from flask import Blueprint, request, jsonify, g, Response, send_file
 from psycopg2.extras import RealDictCursor
 import requests
 
+import boto3
+from botocore.exceptions import ClientError
+
 from common.auth_middleware import require_auth, inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple, return_db_connection
 
@@ -39,6 +42,56 @@ def _get_user_roles():
         if payload:
             roles = payload.get('realm_access', {}).get('roles', [])
     return roles
+
+
+# =============================================================================
+# S3/MinIO helpers for module dist deployment
+# =============================================================================
+
+def _get_frontend_s3_client():
+    """Return a boto3 S3 client configured for the nekazari-frontend MinIO bucket.
+
+    Uses the same env vars as assets.py (S3_ENDPOINT_URL, S3_ACCESS_KEY,
+    S3_SECRET_KEY). Returns None if credentials are not configured.
+    """
+    s3_endpoint = os.getenv('S3_ENDPOINT_URL', 'http://minio:9000')
+    s3_access_key = os.getenv('S3_ACCESS_KEY', 'minioadmin')
+    s3_secret_key = os.getenv('S3_SECRET_KEY', 'minioadmin')
+    s3_region = os.getenv('S3_REGION', 'us-east-1')
+
+    if not s3_access_key or not s3_secret_key:
+        logging.warning("S3 credentials not configured — module dist uploads disabled")
+        return None
+
+    return boto3.client(
+        's3',
+        endpoint_url=s3_endpoint,
+        aws_access_key_id=s3_access_key,
+        aws_secret_access_key=s3_secret_key,
+        region_name=s3_region,
+        config=boto3.session.Config(signature_version='s3v4'),
+    )
+
+
+def _guess_dist_content_type(filename):
+    """Return MIME type for a dist/ file based on its extension."""
+    if not filename:
+        return 'application/octet-stream'
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    return {
+        'js': 'application/javascript',
+        'json': 'application/json',
+        'css': 'text/css',
+        'html': 'text/html',
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'svg': 'image/svg+xml',
+        'gif': 'image/gif',
+        'woff': 'font/woff',
+        'woff2': 'font/woff2',
+        'map': 'application/json',
+    }.get(ext, 'application/octet-stream')
 
 
 VisibilityRules = Mapping[str, Dict[str, List[str]]]
@@ -1255,6 +1308,210 @@ def get_module_uploads():
             'error': 'Internal server error',
             'message': str(e)
         }), 500
+
+
+# =============================================================================
+# Module Dist Deployment (compose / K8s-free)
+# =============================================================================
+
+@modules_bp.route('/api/modules/<module_id>/dist', methods=['POST'])
+@require_auth(require_hmac=False)
+def deploy_module_dist(module_id):
+    """Deploy a built module's dist/ to MinIO and register in marketplace.
+
+    Accepts multipart/form-data with one 'file' field per dist/ file.
+    Validates manifest.json, uploads all files to the nekazari-frontend bucket,
+    and upserts the module row in marketplace_modules.
+
+    Auth: PlatformAdmin or TenantAdmin (not Farmer).
+    """
+    user_roles = _get_user_roles()
+    if 'PlatformAdmin' not in user_roles and 'TenantAdmin' not in user_roles:
+        return jsonify({
+            'error': 'Insufficient permissions. PlatformAdmin or TenantAdmin required.'
+        }), 403
+
+    # --- input validation ---
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No files provided. Send dist/ files with field name "file".'}), 400
+
+    files = request.files.getlist('file')
+    if not files or all(not f.filename for f in files):
+        return jsonify({'error': 'No files provided.'}), 400
+
+    # --- locate and validate manifest.json ---
+
+    manifest_raw = None
+    for f in files:
+        if f.filename == 'manifest.json':
+            manifest_raw = f.read()
+            break
+
+    if not manifest_raw:
+        return jsonify({'error': 'manifest.json is required in the uploaded files.'}), 400
+
+    try:
+        manifest = json.loads(manifest_raw.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        return jsonify({'error': f'manifest.json is not valid JSON: {str(e)}'}), 400
+
+    for field in ('id', 'version', 'hostApiVersion'):
+        if field not in manifest:
+            return jsonify({
+                'error': f'manifest.json is missing required field: {field}'
+            }), 400
+
+    if manifest['id'] != module_id:
+        return jsonify({
+            'error': f"Module ID mismatch. URL has '{module_id}', manifest has '{manifest['id']}'."
+        }), 400
+
+    # --- path traversal guard ---
+
+    for f in files:
+        if not f.filename:
+            continue
+        if '..' in f.filename.split('/'):
+            return jsonify({'error': f'Invalid filename path: {f.filename}'}), 400
+
+    # --- S3 upload ---
+
+    s3_client = _get_frontend_s3_client()
+    if not s3_client:
+        return jsonify({'error': 'S3 storage not configured.'}), 503
+
+    bucket = os.getenv('S3_BUCKET', 'nekazari-frontend')
+    prefix = f'modules/{module_id}/'
+    uploaded = 0
+
+    for f in files:
+        if not f.filename or f.filename == 'manifest.json':
+            continue
+
+        s3_key = prefix + f.filename.lstrip('/')
+        content_type = _guess_dist_content_type(f.filename)
+        f.stream.seek(0)
+
+        try:
+            s3_client.put_object(
+                Bucket=bucket,
+                Key=s3_key,
+                Body=f.stream.read(),
+                ContentType=content_type,
+            )
+            uploaded += 1
+        except ClientError as e:
+            logger.error(f"S3 upload failed for {s3_key}: {e}")
+            return jsonify({
+                'error': f'Failed to upload {f.filename} to storage.',
+                'details': str(e),
+            }), 500
+
+    logger.info(f"Deployed {module_id} v{manifest['version']}: {uploaded} files to {bucket}/{prefix}")
+
+    # --- database upsert ---
+
+    name = manifest.get('name', module_id)
+    display_name = manifest.get('displayName', manifest.get('display_name', name))
+    description = manifest.get('description', '')
+    version = manifest['version']
+    author = manifest.get('author', '')
+    if isinstance(author, dict):
+        author = author.get('name', '')
+    category = manifest.get('category', '')
+    icon_url = manifest.get('icon', '')
+    route_path = manifest.get('route', manifest.get('route_path', f'/{module_id}'))
+    label = manifest.get('label', display_name)
+    required_roles = manifest.get('requiredRoles', manifest.get('required_roles', ['Farmer']))
+    required_plan_type = manifest.get('requiredPlan', manifest.get('required_plan_type', 'basic'))
+    scope = module_id.replace('-', '_')
+    exposed_module = './Module'
+    remote_entry_url = f'/modules/{module_id}/mf-manifest.json'
+
+    metadata = json.dumps({
+        'hostApiVersion': manifest.get('hostApiVersion', ''),
+        'deploy_method': 'dist_endpoint',
+        'slots': manifest.get('slots', {}),
+    })
+
+    conn = None
+    try:
+        conn = get_db_connection_simple()
+        cur = conn.cursor()
+
+        cur.execute("""
+            INSERT INTO marketplace_modules (
+                id, name, display_name, description, version, author, category,
+                icon_url, module_type, required_plan_type, pricing_tier,
+                route_path, label, required_roles, remote_entry_url, scope,
+                exposed_module, is_local, is_active, metadata, created_at, updated_at
+            ) VALUES (
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,NOW(),NOW()
+            )
+            ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                display_name = EXCLUDED.display_name,
+                description = EXCLUDED.description,
+                version = EXCLUDED.version,
+                author = EXCLUDED.author,
+                category = EXCLUDED.category,
+                icon_url = EXCLUDED.icon_url,
+                route_path = EXCLUDED.route_path,
+                label = EXCLUDED.label,
+                required_roles = EXCLUDED.required_roles,
+                remote_entry_url = EXCLUDED.remote_entry_url,
+                scope = EXCLUDED.scope,
+                exposed_module = EXCLUDED.exposed_module,
+                is_active = EXCLUDED.is_active,
+                metadata = EXCLUDED.metadata,
+                updated_at = NOW()
+        """, (
+            module_id, name, display_name, description, version, author, category,
+            icon_url, 'ADDON_FREE', required_plan_type, 'FREE',
+            route_path, label, required_roles, remote_entry_url, scope,
+            exposed_module, False, True,  # is_local, is_active
+            metadata,
+        ))
+
+        # auto-install for the uploading tenant
+        tenant_id = g.get('tenant_id') or g.get('tenant', '')
+        username = g.get('email') or g.get('user', '')
+        if tenant_id:
+            cur.execute("""
+                INSERT INTO tenant_installed_modules (tenant_id, module_id, is_enabled, installed_by)
+                VALUES (%s, %s, true, %s)
+                ON CONFLICT (tenant_id, module_id) DO UPDATE SET
+                    is_enabled = true,
+                    installed_by = EXCLUDED.installed_by,
+                    updated_at = NOW()
+            """, (tenant_id, module_id, username))
+
+        conn.commit()
+        cur.close()
+
+        return jsonify({
+            'message': 'Module deployed successfully.',
+            'module_id': module_id,
+            'version': version,
+            'remote_entry_url': remote_entry_url,
+            'files_uploaded': uploaded,
+            'is_active': True,
+        }), 201
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"DB error deploying module {module_id}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'error': 'Internal server error while registering module.',
+            'details': str(e),
+        }), 500
+    finally:
+        if conn:
+            return_db_connection(conn)
 
 
 # =============================================================================

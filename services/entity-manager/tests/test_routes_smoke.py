@@ -8,6 +8,7 @@ import json
 import os
 import sys
 from functools import wraps
+from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
@@ -909,6 +910,7 @@ class TestModuleRoutes:
         ("GET", "/api/modules/test/validation-status"),
         ("POST", "/api/internal/modules/register-validated"),
         ("POST", "/api/modules/test/deploy"),
+        ("POST", "/api/modules/test/dist"),
         ("GET", "/api/modules/test/logs"),
         ("GET", "/api/modules/uploads"),
         ("GET", "/api/modules/test/health"),
@@ -1149,3 +1151,204 @@ class TestSyncRoutes:
         )
         assert r.status_code in (200, 500), f"POST sync vectorial got {r.status_code}"
         r.get_json()
+
+
+# =============================================================================
+# POST /api/modules/<module_id>/dist — auto-deploy dist to MinIO
+# =============================================================================
+
+_VALID_DIST_MANIFEST = {
+    "id": "test-module",
+    "name": "test-module",
+    "displayName": "Test Module",
+    "version": "1.0.0",
+    "hostApiVersion": "^2.0.0",
+    "description": "A test module.",
+    "author": "Test Author",
+    "route": "/test-module",
+    "requiredRoles": ["Farmer"],
+    "requiredPlan": "basic",
+}
+
+
+def _make_valid_dist_files(manifest=None):
+    """Helper: return a list of (data, filename) tuples simulating dist/."""
+    m = manifest if manifest is not None else _VALID_DIST_MANIFEST
+    return [
+        (json.dumps(m).encode(), "manifest.json"),
+        (b"// remote entry content", "remoteEntry.js"),
+        (b'{"name":"test-module","exposes":{}}', "mf-manifest.json"),
+        (b"// chunk", "assets/Module-abc123.js"),
+    ]
+
+
+class TestDeployModuleDist:
+
+    @patch("blueprints.modules._get_frontend_s3_client")
+    @patch("blueprints.modules.return_db_connection")
+    @patch("blueprints.modules.get_db_connection_simple")
+    def test_missing_manifest_json(self, mock_db, mock_return, mock_s3, client):
+        """No manifest.json → 400."""
+        mock_db.return_value = _make_db_conn()
+        mock_s3.return_value = MagicMock()
+
+        data = {"file": [(BytesIO(b"not-manifest"), "remoteEntry.js")]}
+        r = client.post(
+            "/api/modules/test-module/dist",
+            content_type="multipart/form-data",
+            data=data,
+        )
+        assert r.status_code == 400
+        body = r.get_json()
+        assert "manifest.json" in body["error"].lower()
+
+    @patch("blueprints.modules._get_frontend_s3_client")
+    @patch("blueprints.modules.return_db_connection")
+    @patch("blueprints.modules.get_db_connection_simple")
+    def test_invalid_json_manifest(self, mock_db, mock_return, mock_s3, client):
+        """manifest.json is garbage JSON → 400."""
+        mock_db.return_value = _make_db_conn()
+        mock_s3.return_value = MagicMock()
+
+        data = {"file": [(BytesIO(b"{not valid json"), "manifest.json")]}
+        r = client.post(
+            "/api/modules/test-module/dist",
+            content_type="multipart/form-data",
+            data=data,
+        )
+        assert r.status_code == 400
+        body = r.get_json()
+        assert "valid json" in body["error"].lower()
+
+    @patch("blueprints.modules._get_frontend_s3_client")
+    @patch("blueprints.modules.return_db_connection")
+    @patch("blueprints.modules.get_db_connection_simple")
+    def test_missing_required_field(self, mock_db, mock_return, mock_s3, client):
+        """manifest.json missing 'version' → 400."""
+        mock_db.return_value = _make_db_conn()
+        mock_s3.return_value = MagicMock()
+
+        bad = dict(_VALID_DIST_MANIFEST)
+        del bad["version"]
+        files = [(BytesIO(json.dumps(bad).encode()), "manifest.json")]
+        data = {"file": files}
+        r = client.post(
+            "/api/modules/test-module/dist",
+            content_type="multipart/form-data",
+            data=data,
+        )
+        assert r.status_code == 400
+        body = r.get_json()
+        assert "missing" in body["error"].lower()
+        assert "version" in body["error"]
+
+    @patch("blueprints.modules._get_frontend_s3_client")
+    @patch("blueprints.modules.return_db_connection")
+    @patch("blueprints.modules.get_db_connection_simple")
+    def test_module_id_mismatch(self, mock_db, mock_return, mock_s3, client):
+        """URL module_id != manifest.id → 400."""
+        mock_db.return_value = _make_db_conn()
+        mock_s3.return_value = MagicMock()
+
+        bad = dict(_VALID_DIST_MANIFEST)
+        bad["id"] = "other-module"
+        files = [(BytesIO(json.dumps(bad).encode()), "manifest.json")]
+        data = {"file": files}
+        r = client.post(
+            "/api/modules/test-module/dist",
+            content_type="multipart/form-data",
+            data=data,
+        )
+        assert r.status_code == 400
+        body = r.get_json()
+        assert "mismatch" in body["error"].lower()
+
+    @patch("blueprints.modules._get_frontend_s3_client")
+    @patch("blueprints.modules.return_db_connection")
+    @patch("blueprints.modules.get_db_connection_simple")
+    def test_path_traversal_rejected(self, mock_db, mock_return, mock_s3, client):
+        """Filename with .. in path → 400."""
+        mock_db.return_value = _make_db_conn()
+        mock_s3.return_value = MagicMock()
+
+        files = [
+            (BytesIO(json.dumps(_VALID_DIST_MANIFEST).encode()), "manifest.json"),
+            (BytesIO(b"malicious"), "../../etc/passwd"),
+        ]
+        data = {"file": files}
+        r = client.post(
+            "/api/modules/test-module/dist",
+            content_type="multipart/form-data",
+            data=data,
+        )
+        assert r.status_code == 400
+        assert "invalid" in r.get_json()["error"].lower()
+
+    @patch("blueprints.modules._get_frontend_s3_client")
+    @patch("blueprints.modules.return_db_connection")
+    @patch("blueprints.modules.get_db_connection_simple")
+    def test_no_files(self, mock_db, mock_return, mock_s3, client):
+        """Empty file list → 400."""
+        mock_db.return_value = _make_db_conn()
+        mock_s3.return_value = MagicMock()
+
+        r = client.post(
+            "/api/modules/test-module/dist",
+            content_type="multipart/form-data",
+            data={},
+        )
+        assert r.status_code == 400
+
+    @patch("blueprints.modules._get_frontend_s3_client")
+    @patch("blueprints.modules.return_db_connection")
+    @patch("blueprints.modules.get_db_connection_simple")
+    def test_s3_not_configured(self, mock_db, mock_return, mock_s3, client):
+        """S3 client unavailable → 503."""
+        mock_db.return_value = _make_db_conn()
+        mock_s3.return_value = None  # simulate missing creds
+
+        files = [(BytesIO(json.dumps(_VALID_DIST_MANIFEST).encode()), "manifest.json")]
+        data = {"file": files}
+        r = client.post(
+            "/api/modules/test-module/dist",
+            content_type="multipart/form-data",
+            data=data,
+        )
+        assert r.status_code == 503
+        assert "s3" in r.get_json()["error"].lower()
+
+    @patch("blueprints.modules._get_frontend_s3_client")
+    @patch("blueprints.modules.return_db_connection")
+    @patch("blueprints.modules.get_db_connection_simple")
+    def test_happy_path_returns_201(self, mock_db, mock_return, mock_s3, client):
+        """Valid manifest + dist files → 201 with correct response shape."""
+        conn = _make_db_conn()
+        mock_db.return_value = conn
+
+        s3_mock = MagicMock()
+        s3_mock.put_object.return_value = None
+        mock_s3.return_value = s3_mock
+
+        files = []
+        for content, name in _make_valid_dist_files():
+            files.append((BytesIO(content), name))
+        data = {"file": files}
+
+        r = client.post(
+            "/api/modules/test-module/dist",
+            content_type="multipart/form-data",
+            data=data,
+        )
+        assert r.status_code == 201, f"Expected 201, got {r.status_code}: {r.get_data(as_text=True)}"
+        body = r.get_json()
+        assert body["module_id"] == "test-module"
+        assert body["version"] == "1.0.0"
+        assert body["remote_entry_url"] == "/modules/test-module/mf-manifest.json"
+        assert body["files_uploaded"] == 3  # 4 files, minus manifest.json
+        assert body["is_active"] is True
+
+        # Verify S3 was called for non-manifest files
+        assert s3_mock.put_object.call_count == 3
+
+        # Verify DB commit was called
+        conn.commit.assert_called()
