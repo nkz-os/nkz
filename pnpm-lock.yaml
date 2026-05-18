@@ -125,6 +125,9 @@ importers:
       i18next:
         specifier: ^23.11.0
         version: 23.16.8
+      i18next-http-backend:
+        specifier: ^2.4.2
+        version: 2.7.3
       js-sha256:
         specifier: ^0.11.0
         version: 0.11.1
@@ -367,9 +370,6 @@ importers:
       i18next:
         specifier: ^23.11.0
         version: 23.16.8
-      i18next-http-backend:
-        specifier: ^2.4.2
-        version: 2.7.3
       react-i18next:
         specifier: ^15.1.0
         version: 15.7.4(i18next@23.16.8)(react@18.3.1)(typescript@5.9.3)

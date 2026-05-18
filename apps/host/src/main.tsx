@@ -4,6 +4,7 @@ import App from './App.tsx';
 import './index.css';
 // Cesium CSS is imported by Cesium-using components (CesiumMap, MobileViewer) via lazy chunks
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { initHostI18n } from './i18n/init';
 
 // =============================================================================
 // Global Error Handlers
@@ -32,10 +33,15 @@ if (!rootElement) {
 
 const root = ReactDOMClient.createRoot(rootElement);
 
-root.render(
-  <React.StrictMode>
-    <ErrorBoundary componentName="Application">
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>
-);
+// Initialize i18n BEFORE rendering so modules that call addResourceBundle()
+// at import time operate on an already-initialized i18next instance.
+// initHostI18n is idempotent (skips if already initialized).
+initHostI18n().finally(() => {
+  root.render(
+    <React.StrictMode>
+      <ErrorBoundary componentName="Application">
+        <App />
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
+});
