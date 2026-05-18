@@ -12,6 +12,6 @@
 //
 // This file remains as a convenience re-export barrel for hooks and utilities.
 
-export { useTranslation, Trans, Translation, I18nextProvider } from 'react-i18next';
+export { useTranslation, Trans, Translation } from 'react-i18next';
 export { changeLanguage, getCurrentLanguage, getSupportedLanguages } from './config';
 export type { SupportedLanguage } from './config';
