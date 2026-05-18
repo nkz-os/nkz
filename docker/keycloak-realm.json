@@ -45,6 +45,7 @@
       "description": "Frontend application for Nekazari platform",
       "enabled": true,
       "publicClient": true,
+      "directAccessGrantsEnabled": true,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
         "http://localhost:3000/*",
