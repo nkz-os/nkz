@@ -89,28 +89,11 @@ FROM
     ) AS day_ts;
 
 -- =============================================================================
--- 5. Marketplace modules
+-- 5. Activation code for demo tenant (pre-activated)
 -- =============================================================================
-INSERT INTO marketplace_modules (id, name, display_name, description, remote_entry_url, scope, exposed_module, version, author, category, is_active, metadata)
-VALUES
-    ('datahub', 'datahub', 'DataHub — Timeseries Canvas', 'Interactive timeseries visualization with multi-series support and Arrow IPC adapter', '/modules/datahub/nkz-module.js', 'datahub', './App', '1.0.0', 'Nekazari', 'analytics', true, '{"slots": ["bottom-panel", "dashboard-widget"]}'::jsonb),
-    ('vegetation-prime', 'vegetation-prime', 'Vegetation Health', 'NDVI and vegetation indices from satellite imagery', '/modules/vegetation-prime/nkz-module.js', 'vegetation-prime', './App', '1.0.0', 'Nekazari', 'remote-sensing', true, '{"slots": ["map-layer", "context-panel"]}'::jsonb),
-    ('lidar', 'lidar', 'LiDAR Processing', 'Point cloud analysis and terrain modeling with 3D tiles', '/modules/lidar/nkz-module.js', 'lidar', './App', '1.0.0', 'Nekazari', 'remote-sensing', true, '{"slots": ["map-layer", "context-panel"]}'::jsonb)
-ON CONFLICT (id) DO NOTHING;
-
--- =============================================================================
--- 6. Install modules for demo-farm tenant
--- =============================================================================
-INSERT INTO tenant_installed_modules (tenant_id, module_id, is_enabled)
-VALUES
-    ('demo-farm', 'datahub', true),
-    ('demo-farm', 'vegetation-prime', true),
-    ('demo-farm', 'lidar', true)
-ON CONFLICT (tenant_id, module_id) DO NOTHING;
-
--- =============================================================================
--- 7. Activation code for demo tenant (pre-activated)
--- =============================================================================
+-- Marketplace modules intentionally NOT seeded in docker-compose:
+-- the local stack ships empty and the developer publishes their own module
+-- following docs/development/MODULE_QUICKSTART.md.
 INSERT INTO activation_codes (code, email, plan, status, max_users, max_robots, max_sensors, activated_at, duration_days, notes)
 VALUES ('NEK-DEMO-FARM-0001', 'demo@nekazari.local', 'premium', 'active', 10, 5, 50, NOW(), 365, 'Demo farm activation code')
 ON CONFLICT (code) DO NOTHING;
