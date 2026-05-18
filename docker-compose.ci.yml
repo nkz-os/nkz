@@ -1,0 +1,75 @@
+# =============================================================================
+# Nekazari — docker-compose overrides for CI (E2E tests)
+# =============================================================================
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+#
+# Disables non-essential services to speed up startup and reduce resource usage
+# on GitHub Actions runners (2 vCPU, 7 GB RAM).
+
+services:
+
+  # --- disable non-essential services ---
+  risk-api:
+    profiles: []
+  risk-worker:
+    profiles: []
+  risk-orchestrator:
+    profiles: []
+  weather-worker:
+    profiles: []
+  sdm-integration:
+    profiles: []
+  timeseries-reader:
+    profiles: []
+  mosquitto:
+    profiles: []
+
+  # --- faster healthchecks ---
+  postgresql:
+    healthcheck:
+      interval: 3s
+      retries: 10
+
+  mongodb:
+    healthcheck:
+      interval: 3s
+      retries: 10
+
+  redis:
+    healthcheck:
+      interval: 3s
+      retries: 5
+
+  minio:
+    healthcheck:
+      interval: 3s
+      retries: 10
+
+  # --- CI needs password grant for Playwright global setup ---
+  # (directAccessGrantsEnabled is already true in keycloak-realm.json)
+  keycloak:
+    healthcheck:
+      interval: 5s
+      retries: 30
+      start_period: 30s
+
+  orion-ld:
+    healthcheck:
+      interval: 5s
+      retries: 15
+
+  api-gateway:
+    healthcheck:
+      interval: 5s
+      retries: 15
+
+  entity-manager:
+    healthcheck:
+      interval: 5s
+      retries: 15
+
+  frontend:
+    healthcheck:
+      interval: 5s
+      retries: 15
