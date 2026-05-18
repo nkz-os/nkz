@@ -1,67 +1,45 @@
 /**
- * Playwright global setup — authenticate once via Keycloak password grant
- * and persist the httpOnly cookie so every test starts authenticated.
+ * Playwright global setup — log in via Keycloak UI and persist the
+ * httpOnly session cookie so every test starts authenticated.
  */
-import { request } from '@playwright/test';
+import { chromium } from '@playwright/test';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE_URL = process.env['E2E_BASE_URL'] || 'http://localhost:3000';
 const AUTH_FILE = path.join(__dirname, '.auth', 'storageState.json');
 
 async function globalSetup() {
-  const context = await request.newContext({ baseURL: BASE_URL });
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
 
-  // 1. Obtain a Keycloak access token via Resource Owner Password Grant
-  const tokenRes = await context.post(
-    '/auth/realms/nekazari/protocol/openid-connect/token',
-    {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      data: new URLSearchParams({
-        client_id: 'nekazari-frontend',
-        grant_type: 'password',
-        username: 'demo@nekazari.local',
-        password: 'Demo1234!',
-      }),
-    },
-  );
+  // 1. Go directly to Keycloak login, then let it redirect back to the app.
+  //    This mirrors what the Keycloak JS adapter does internally.
+  const loginUrl =
+    `${BASE_URL}/auth/realms/nekazari/protocol/openid-connect/auth` +
+    `?client_id=nekazari-frontend` +
+    `&redirect_uri=${encodeURIComponent(BASE_URL + '/')}` +
+    `&response_type=code` +
+    `&scope=openid`;
 
-  if (!tokenRes.ok()) {
-    throw new Error(
-      `Keycloak token request failed [${tokenRes.status()}]: ${await tokenRes.text()}`,
-    );
-  }
+  await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
 
-  const { access_token } = await tokenRes.json();
+  // 2. Fill Keycloak login form
+  await page.waitForSelector('#username', { timeout: 10000 });
+  await page.fill('#username', 'demo@nekazari.local');
+  await page.fill('#password', 'Demo1234!');
+  await page.click('#kc-login');
 
-  // 2. Exchange the token for a httpOnly session cookie
-  const sessionRes = await context.post('/api/auth/session', {
-    headers: { 'Content-Type': 'application/json' },
-    data: { token: access_token },
-  });
+  // 3. Wait for redirect back to the app (URL no longer contains /auth/)
+  await page.waitForURL((url) => !url.toString().includes('/auth/'), { timeout: 15000 });
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(3000);
 
-  if (!sessionRes.ok()) {
-    throw new Error(
-      `Session creation failed [${sessionRes.status()}]: ${await sessionRes.text()}`,
-    );
-  }
+  // 4. Save browser state (cookies, localStorage) for reuse
+  await page.context().storageState({ path: AUTH_FILE });
 
-  // 3. Persist cookies (including httpOnly nkz_token) for reuse across tests
-  const cookies = [
-    ...(await context.storageState()).cookies,
-    // Ensure the auth cookie is captured even if already present via storageState
-  ];
-
-  const fs = await import('fs/promises');
-  await fs.mkdir(path.dirname(AUTH_FILE), { recursive: true });
-  await fs.writeFile(
-    AUTH_FILE,
-    JSON.stringify({ cookies, origins: [] }, null, 2),
-  );
-
-  await context.dispose();
+  await browser.close();
 }
 
 export default globalSetup;
