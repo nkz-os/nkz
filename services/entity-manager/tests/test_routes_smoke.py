@@ -914,6 +914,7 @@ class TestModuleRoutes:
         ("GET", "/api/modules/test/logs"),
         ("GET", "/api/modules/uploads"),
         ("GET", "/api/modules/test/health"),
+        ("GET", "/api/admin/modules/health"),
     ]
 
     @pytest.mark.parametrize("method,path", AUTH)
