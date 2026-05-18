@@ -1555,3 +1555,100 @@ def module_health_check(module_id):
             'error': str(e),
             'timestamp': datetime.utcnow().isoformat() + 'Z',
         }), 500
+
+
+# =============================================================================
+# Federation Runtime Health — verifies every module's mf-manifest.json is reachable
+# =============================================================================
+
+@modules_bp.route('/api/admin/modules/health', methods=['GET'])
+@require_auth(require_hmac=False)
+def federation_runtime_health():
+    """Check that every module's mf-manifest.json is reachable (HEAD + publicPath).
+
+    PlatformAdmin only. Returns a summary with per-module status so operators
+    can detect federation load failures before users report them.
+    """
+    user_roles = _get_user_roles()
+    if 'PlatformAdmin' not in user_roles:
+        return jsonify({'error': 'PlatformAdmin required.'}), 403
+
+    try:
+        conn = get_db_connection_simple()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+            SELECT id, display_name, remote_entry_url
+            FROM marketplace_modules
+            WHERE remote_entry_url IS NOT NULL AND is_active = true
+            ORDER BY id
+        """)
+        modules = cur.fetchall()
+        cur.close()
+        return_db_connection(conn)
+    except Exception as e:
+        logger.error(f"Failed to query marketplace_modules: {e}")
+        return jsonify({'error': 'Database error', 'details': str(e)}), 500
+
+    results = []
+    healthy = 0
+    unhealthy = 0
+
+    for mod in modules:
+        entry_url = mod['remote_entry_url']
+        module_id = mod['id']
+
+        # Resolve relative URLs against the production domain
+        if entry_url.startswith('/'):
+            domain = os.getenv('PRODUCTION_DOMAIN', 'localhost:3000')
+            scheme = 'https' if os.getenv('COOKIE_SECURE', 'true').lower() == 'true' else 'http'
+            url = f'{scheme}://{domain}{entry_url}'
+        else:
+            url = entry_url
+
+        status = 'healthy'
+        detail = None
+
+        try:
+            resp = requests.head(url, timeout=10, allow_redirects=True)
+            if resp.status_code != 200:
+                status = 'unhealthy'
+                detail = f'HEAD returned {resp.status_code}'
+        except requests.RequestException as e:
+            status = 'unhealthy'
+            detail = str(e)
+
+        # Optionally validate publicPath
+        if status == 'healthy':
+            try:
+                get_resp = requests.get(url, timeout=10)
+                if get_resp.status_code == 200:
+                    manifest = get_resp.json()
+                    public_path = (manifest.get('metaData') or {}).get('publicPath', '')
+                    expected = f'/modules/{module_id}/'
+                    if public_path and public_path != expected:
+                        status = 'unhealthy'
+                        detail = f'publicPath mismatch: got {public_path}, expected {expected}'
+            except Exception:
+                pass  # publicPath check is best-effort
+
+        results.append({
+            'module_id': module_id,
+            'display_name': mod['display_name'],
+            'url': url,
+            'status': status,
+            'detail': detail,
+        })
+
+        if status == 'healthy':
+            healthy += 1
+        else:
+            unhealthy += 1
+
+    return jsonify({
+        'total': len(results),
+        'healthy': healthy,
+        'unhealthy': unhealthy,
+        'modules': results,
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+    }), 200 if unhealthy == 0 else 207
