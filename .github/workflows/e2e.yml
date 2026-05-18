@@ -34,17 +34,23 @@ jobs:
 
       - name: Start stack
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d \
-            --wait --wait-timeout 300
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+          # Wait for the frontend to become healthy (--wait fails on run-once init containers)
+          echo "Waiting for frontend to become healthy..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/health > /dev/null 2>&1; then
+              echo "Frontend healthy after $((i * 3))s"
+              break
+            fi
+            sleep 3
+          done
 
       - name: Verify health
         run: |
           echo "--- Containers ---"
           docker compose ps
-          echo "--- Frontend health ---"
-          curl -sf --retry 10 --retry-delay 3 http://localhost:3000/health
           echo "--- API health ---"
-          curl -sf --retry 5 --retry-delay 2 http://localhost:5000/health
+          curl -sf http://localhost:5000/health
 
       - name: Setup Node
         uses: actions/setup-node@v4
