@@ -27,7 +27,8 @@ postgresql:
     tag: pg14-latest
   auth:
     username: postgres
-    password: nekazari-dev-password
+    # password: MUST be overridden at install time (--set postgresql.auth.password=...)
+    password: ""
     database: nekazari
   service:
     port: 5432
@@ -52,7 +53,8 @@ mongodb:
     tag: "4.4"
   auth:
     rootUser: admin
-    rootPassword: nekazari-mongo-dev
+    # rootPassword: MUST be overridden at install time
+    rootPassword: ""
   service:
     port: 27017
   persistence:
@@ -75,7 +77,8 @@ redis:
     repository: redis
     tag: 7-alpine
   auth:
-    password: nekazari-redis-dev
+    # password: MUST be overridden at install time
+    password: ""
   service:
     port: 6379
   resources:
@@ -96,7 +99,8 @@ minio:
     tag: latest
   auth:
     rootUser: minioadmin
-    rootPassword: minioadmin
+    # rootPassword: MUST be overridden at install time
+    rootPassword: ""
   service:
     apiPort: 9000
     consolePort: 9001
@@ -124,7 +128,8 @@ keycloak:
     tag: latest
   auth:
     adminUser: admin
-    adminPassword: admin
+    # adminPassword: MUST be overridden at install time (--set keycloak.auth.adminPassword=...)
+    adminPassword: ""
   ingress:
     host: auth.robotika.cloud
   realm: nekazari
@@ -195,7 +200,7 @@ entity-manager:
     orionUrl: http://orion-ld-service:1026
     keycloakUrl: http://keycloak-service:8080/auth
     s3EndpointUrl: http://minio-service:9000
-    redisUrl: redis://:nekazari-redis-dev@redis-service:6379
+    redisUrl: redis://:$(REDIS_PASSWORD)@redis-service:6379
     contextUrl: http://api-gateway-service:5000/ngsi-ld-context.json
     productionDomain: nekazari.robotika.cloud
   resources:
