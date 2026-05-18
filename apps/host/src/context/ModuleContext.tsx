@@ -6,8 +6,9 @@
 // available remotes (URLs from the backend), and RemoteModuleLoader calls
 // loadRemote('<id>/Module') on demand to retrieve the validated definition.
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { registerRemotes } from '@module-federation/runtime';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { registerRemotes, loadRemote } from '@module-federation/runtime';
+import { toNKZRegistration } from '@nekazari/module-kit';
 import { NekazariClient, type ModuleApiContract, type NKZModuleRegistration } from '@nekazari/sdk';
 import type { ModuleViewerSlots } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
@@ -309,6 +310,54 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   useEffect(() => {
     loadModules();
   }, [loadModules]);
+
+  // ===========================================================================
+  // Eager preload of remote modules so their viewerSlots are populated before
+  // the user visits the module's own route. Without this, federated modules
+  // do not appear in the Unified Viewer until they have been opened at least
+  // once — the SlotRegistry activation gate keys off `viewerSlots`, which is
+  // only filled in by RemoteModuleLoader's `loadRemote` call.
+  // ===========================================================================
+  const preloadedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    preloadedRef.current = new Set();
+  }, [tenantId]);
+
+  useEffect(() => {
+    const pending = modules.filter(
+      (m) =>
+        !m.isLocal &&
+        m.remoteEntry &&
+        !m.viewerSlots &&
+        !preloadedRef.current.has(m.id),
+    );
+    if (pending.length === 0) return;
+
+    pending.forEach((m) => preloadedRef.current.add(m.id));
+
+    pending.forEach(async (m) => {
+      try {
+        const alias = toFederationAlias(m.id);
+        const exposed = await loadRemote<{ default?: unknown }>(`${alias}/Module`);
+        if (!exposed) return;
+        const moduleDef = (exposed as { default?: unknown }).default ?? exposed;
+        if (!moduleDef || typeof moduleDef !== 'object') return;
+        const registration = toNKZRegistration(
+          moduleDef as Parameters<typeof toNKZRegistration>[0],
+        );
+        const slots = registration.viewerSlots;
+        if (!slots || Object.keys(slots).length === 0) return;
+        setModules((prev) =>
+          prev.map((mod) =>
+            mod.id === m.id ? { ...mod, viewerSlots: slots } : mod,
+          ),
+        );
+      } catch (err) {
+        console.warn(`[ModuleContext] Slot preload failed for module "${m.id}":`, err);
+      }
+    });
+  }, [modules]);
 
   const getModuleById = useCallback((id: string): ModuleDefinition | undefined => {
     return modules.find(m => m.id === id);
