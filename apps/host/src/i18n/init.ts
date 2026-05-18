@@ -11,7 +11,7 @@
  */
 import HttpBackend from 'i18next-http-backend';
 import { initReactI18next } from 'react-i18next';
-import { i18n, changeLanguage, type SupportedLanguage } from '@nekazari/sdk';
+import { i18n, type SupportedLanguage } from '@nekazari/sdk';
 import { hostI18nConfig } from '../config/hostI18nConfig';
 
 let initialized = false;
@@ -20,21 +20,22 @@ export async function initHostI18n(): Promise<void> {
   if (initialized || i18n.isInitialized) return;
   initialized = true;
 
+  const supportedLangs = hostI18nConfig.supportedLanguages ?? ['es', 'en'];
   const storedLang = localStorage.getItem('language') as SupportedLanguage | null;
   const browserLang = navigator.language.split('-')[0] as SupportedLanguage;
-  const detectedLang =
+  const detectedLang: string =
     storedLang ||
-    (hostI18nConfig.supportedLanguages.includes(browserLang)
+    (supportedLangs.includes(browserLang)
       ? browserLang
-      : hostI18nConfig.defaultLanguage);
+      : hostI18nConfig.defaultLanguage ?? 'es');
 
   await i18n
     .use(HttpBackend)
     .use(initReactI18next)
     .init({
       lng: detectedLang,
-      fallbackLng: hostI18nConfig.fallbackLanguage,
-      supportedLngs: hostI18nConfig.supportedLanguages,
+      fallbackLng: hostI18nConfig.fallbackLanguage ?? 'es',
+      supportedLngs: supportedLangs,
       ns: hostI18nConfig.namespaces,
       defaultNS: 'common',
 
