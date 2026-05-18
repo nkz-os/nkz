@@ -1,5 +1,6 @@
 // defineModule / schema (A.1)
 export { defineModule, toNKZRegistration } from './defineModule';
+export { withModuleProvider } from './withModuleProvider';
 export { ModuleDefinitionSchema } from './schema';
 export type { ModuleDefinition } from './schema';
 export type { ModuleAccent, ModuleI18n } from './types';
