@@ -4,104 +4,14 @@
  */
 
 // =============================================================================
-// i18n Provider - React Provider for i18next
+// i18n Re-exports
 // =============================================================================
-// Provides i18next context to React components and handles initialization.
+// NekazariI18nProvider was removed (2026-05-18) — the host now initializes
+// i18next directly in main.tsx (apps/host/src/i18n/init.ts) and wraps the
+// app in <I18nextProvider> from react-i18next.
+//
+// This file remains as a convenience re-export barrel for hooks and utilities.
 
-import React, { useEffect, useState, ReactNode } from 'react';
-import { I18nextProvider } from 'react-i18next';
-import { initI18n, I18nConfig, getCurrentLanguage, changeLanguage, getSupportedLanguages, SupportedLanguage } from './config';
-import { i18n } from './config';
-
-export interface NekazariI18nProviderProps {
-  children: ReactNode;
-  config?: I18nConfig;
-  onLanguageChange?: (language: SupportedLanguage) => void;
-}
-
-/**
- * Nekazari i18n Provider
- * 
- * Wraps the application with i18next context and handles initialization.
- * All modules (Host and remotes) should use this provider to share the same
- * i18next instance.
- */
-export const NekazariI18nProvider: React.FC<NekazariI18nProviderProps> = ({
-  children,
-  config,
-  onLanguageChange,
-}) => {
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [initError, setInitError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const handleLanguageChanged = (lng: string) => {
-      const lang = lng.split('-')[0] as SupportedLanguage;
-      onLanguageChange?.(lang);
-    };
-
-    const initialize = async () => {
-      try {
-        await initI18n(config);
-        if (isMounted) {
-          setIsInitialized(true);
-          // Register listener AFTER init so i18n instance is fully ready
-          if (typeof i18n.on === 'function') {
-            i18n.on('languageChanged', handleLanguageChanged);
-          }
-        }
-      } catch (error) {
-        console.error('[NekazariI18n] Failed to initialize i18n:', error);
-        if (isMounted) {
-          setInitError(error instanceof Error ? error : new Error('Unknown error'));
-          setIsInitialized(true);
-        }
-      }
-    };
-
-    initialize();
-
-    return () => {
-      isMounted = false;
-      if (typeof i18n.off === 'function') {
-        i18n.off('languageChanged', handleLanguageChanged);
-      }
-    };
-    // Run once per mount. Putting `config` here breaks when the host passes an inline object
-    // (new reference every render) and retriggers init — i18n.t can become invalid (minified: t.t is not a function).
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment above
-  }, []);
-
-  // Show loading state while initializing
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading translations...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error state if initialization failed
-  if (initError) {
-    console.warn('[NekazariI18n] Continuing with i18n despite initialization error');
-  }
-
-  return (
-    <I18nextProvider i18n={i18n}>
-      {children}
-    </I18nextProvider>
-  );
-};
-
-// Re-export hooks and components from react-i18next for convenience
-export { useTranslation, Trans, Translation } from 'react-i18next';
-
-// Export utility functions
-export { changeLanguage, getCurrentLanguage, getSupportedLanguages };
-export type { SupportedLanguage };
-
+export { useTranslation, Trans, Translation, I18nextProvider } from 'react-i18next';
+export { changeLanguage, getCurrentLanguage, getSupportedLanguages } from './config';
+export type { SupportedLanguage } from './config';
