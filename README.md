@@ -106,7 +106,7 @@ Each organization gets its own isolated tenant with role-based access, and can e
 | [n8n Workflows](https://github.com/nkz-os/n8n-module-nkz) | Automation and workflow orchestration | Active |
 | Carbon | Carbon footprint tracking | In development |
 
-Modules are independent repos that build to a single IIFE bundle. See the [Module Template](https://github.com/nkz-os/nkz-module-template) to create your own.
+Modules are independent repos that build to [Module Federation 2.0](https://module-federation.io/) bundles (`remoteEntry.js` + `mf-manifest.json`) loaded by the host at runtime via `loadRemote()`. See the [Module Template](https://github.com/nkz-os/nkz-module-template) to create your own.
 
 ## Architecture
 
@@ -140,17 +140,19 @@ Modules are independent repos that build to a single IIFE bundle. See the [Modul
 ```bash
 # Use the template
 git clone https://github.com/nkz-os/nkz-module-template.git my-module
-cd my-module && npm install
-npm run dev        # local development with hot reload
-npm run build      # produces dist/nkz-module.js (IIFE bundle)
+cd my-module && pnpm install
+pnpm run dev          # local development with hot reload (mock platform)
+pnpm run build:module # produces dist/{remoteEntry.js, mf-manifest.json, manifest.json, assets/}
 ```
 
-Modules self-register at runtime via `window.__NKZ__.register()` and receive shared dependencies (React, Router, SDK, UI Kit) from the host — no build-time coupling.
+Modules export a `defineModule({...})` from `src/Module.tsx` and the host loads them at runtime via Module Federation 2.0 (`loadRemote('<id>/Module')`). Singletons (React, Router, SDK, UI Kit) are shared across host and modules; no build-time coupling.
 
 - [External Developer Guide](docs/development/EXTERNAL_DEVELOPER_GUIDE.md) — full walkthrough
-- [Module Architecture](docs/architecture/MODULE_SYSTEM_ARCHITECTURE.md) — slot system, registration
-- [@nekazari/sdk](https://www.npmjs.com/package/@nekazari/sdk) (v1.0.3) — auth, i18n, API client
-- [@nekazari/ui-kit](https://www.npmjs.com/package/@nekazari/ui-kit) (v1.0.0) — shared components
+- [Module Architecture](docs/architecture/MODULE_SYSTEM_ARCHITECTURE.md) — slot system, federation runtime
+- [@nekazari/sdk](https://www.npmjs.com/package/@nekazari/sdk) — auth, i18n, NGSI-LD client
+- [@nekazari/ui-kit](https://www.npmjs.com/package/@nekazari/ui-kit) — shared components, design tokens
+- [@nekazari/module-kit](https://www.npmjs.com/package/@nekazari/module-kit) — `defineModule`, hooks, mock provider
+- [@nekazari/module-builder](https://www.npmjs.com/package/@nekazari/module-builder) — Vite preset for module repos
 
 ### API Integration
 

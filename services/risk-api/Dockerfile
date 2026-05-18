@@ -1,4 +1,4 @@
-FROM python:3.11-alpine
+FROM python:3.11-alpine3.20
 
 # Cache buster to force re-build after task-queue fix
 # Build ID: 2026-03-11-06-25
