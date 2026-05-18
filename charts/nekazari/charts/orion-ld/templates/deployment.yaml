@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-orion-ld
+  labels:
+    app: orion-ld
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orion-ld
+  template:
+    metadata:
+      labels:
+        app: orion-ld
+    spec:
+      containers:
+        - name: orion-ld
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          args:
+            - -dbhost
+            - mongodb-service
+            - -logLevel
+            - WARN
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          env:
+            - name: ORIONLD_MONGO_HOST
+              value: mongodb-service
+            - name: ORIONLD_MULTI_SERVICE
+              value: {{ .Values.multiService | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orion-ld-service
+  labels:
+    app: orion-ld
+spec:
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}
+  selector:
+    app: orion-ld
