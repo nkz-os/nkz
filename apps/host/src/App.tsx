@@ -16,7 +16,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/KeycloakAuthContext';
-import { NekazariI18nProvider } from '@nekazari/sdk';
+import { I18nextProvider } from 'react-i18next';
+import { i18n } from '@nekazari/sdk';
 import { I18nProvider } from '@/context/I18nContext';
 import { CookieConsentProvider } from '@/context/CookieConsentContext';
 import { AnalyticsConsentRoot } from '@/components/AnalyticsConsentRoot';
@@ -52,7 +53,7 @@ const RouteFallback = () => (
 );
 
 import { EntityEditorModal, initEntityEditorListener, type EditorEventDetail } from '@/components/EntityEditor';
-import { hostI18nConfig } from '@/config/hostI18nConfig';
+
 
 // Dynamic routes component that includes remote modules
 const DynamicRoutes = () => {
@@ -299,8 +300,8 @@ function App() {
         >
           <ErrorBoundary componentName="AuthProvider" fallback={renderFallback}>
             <AuthProvider>
-              <ErrorBoundary componentName="NekazariI18nProvider" fallback={renderFallback}>
-                <NekazariI18nProvider config={hostI18nConfig}>
+              <ErrorBoundary componentName="I18nextProvider" fallback={renderFallback}>
+                <I18nextProvider i18n={i18n}>
                   <ErrorBoundary componentName="I18nProvider" fallback={renderFallback}>
                     <I18nProvider>
                       <CookieConsentProvider>
@@ -319,7 +320,7 @@ function App() {
                       </CookieConsentProvider>
                     </I18nProvider>
                   </ErrorBoundary>
-                </NekazariI18nProvider>
+                </I18nextProvider>
               </ErrorBoundary>
             </AuthProvider>
           </ErrorBoundary>
