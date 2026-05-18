@@ -170,6 +170,7 @@ The weather worker uses [Open-Meteo](https://open-meteo.com/) (free, no API key 
 
 ## Next steps
 
+- **Build your first module** — follow the [Developer Quickstart](../QUICKSTART.md) (30 min end-to-end)
 - Explore the **map view** — the two demo parcels appear near Olite (Navarra)
 - Check **weather data** — 7 days of synthetic hourly observations
 - Try the **risk dashboard** — spray suitability, frost, wind spray, water stress

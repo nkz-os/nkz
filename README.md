@@ -147,6 +147,7 @@ pnpm run build:module # produces dist/{remoteEntry.js, mf-manifest.json, manifes
 
 Modules export a `defineModule({...})` from `src/Module.tsx` and the host loads them at runtime via Module Federation 2.0 (`loadRemote('<id>/Module')`). Singletons (React, Router, SDK, UI Kit) are shared across host and modules; no build-time coupling.
 
+- **[Developer Quickstart](QUICKSTART.md)** — end-to-end: clone, up, build, publish, see it live (30 min)
 - [External Developer Guide](docs/development/EXTERNAL_DEVELOPER_GUIDE.md) — full walkthrough
 - [Module Architecture](docs/architecture/MODULE_SYSTEM_ARCHITECTURE.md) — slot system, federation runtime
 - [@nekazari/sdk](https://www.npmjs.com/package/@nekazari/sdk) — auth, i18n, NGSI-LD client
