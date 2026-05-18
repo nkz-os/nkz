@@ -150,6 +150,7 @@ Modules export a `defineModule({...})` from `src/Module.tsx` and the host loads 
 - **[Developer Quickstart](QUICKSTART.md)** — end-to-end: clone, up, build, publish, see it live (30 min)
 - [External Developer Guide](docs/development/EXTERNAL_DEVELOPER_GUIDE.md) — full walkthrough
 - [Module Architecture](docs/architecture/MODULE_SYSTEM_ARCHITECTURE.md) — slot system, federation runtime
+- [Compatibility Matrix](COMPATIBILITY.md) — version contracts between host, packages, and modules
 - [@nekazari/sdk](https://www.npmjs.com/package/@nekazari/sdk) — auth, i18n, NGSI-LD client
 - [@nekazari/ui-kit](https://www.npmjs.com/package/@nekazari/ui-kit) — shared components, design tokens
 - [@nekazari/module-kit](https://www.npmjs.com/package/@nekazari/module-kit) — `defineModule`, hooks, mock provider
