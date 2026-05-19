@@ -28,9 +28,6 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        // The auth file may not exist when running no-auth tests; Playwright
-        // silently skips missing storageState.
-        storageState: 'e2e/.auth/storageState.json',
       },
     },
   ],
