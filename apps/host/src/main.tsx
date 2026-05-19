@@ -2,6 +2,10 @@ import React from 'react';
 import * as ReactDOMClient from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+
+// Expose React globally for SDK hooks (useViewer) that access window.React.
+// Required for backward compatibility with @nekazari/sdk pre-MF-native hooks.
+(window as any).React = React;
 // Cesium CSS is imported by Cesium-using components (CesiumMap, MobileViewer) via lazy chunks
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initHostI18n } from './i18n/init';
