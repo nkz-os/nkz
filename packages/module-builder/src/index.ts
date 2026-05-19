@@ -122,22 +122,13 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
     // package.json exists on disk under node_modules — bypassing exports map
     // strictness which would falsely reject @nekazari/* packages.
     //
-    // EXCEPTION: packages in ALWAYS_SHARE are included unconditionally even
-    // when not directly installed by the module. They are runtime singletons
-    // used indirectly (e.g. react-i18next via @nekazari/sdk's useTranslation).
-    // The host provides the concrete version; the remote just declares intent
-    // to share so the federation runtime negotiates a single instance.
-    const ALWAYS_SHARE = new Set(['react-i18next', 'i18next']);
+    // react-i18next and i18next are shared singletons listed in NKZ_SHARED.
+    // For modules that use i18n (indirectly via @nekazari/sdk), these MUST be
+    // installed as direct devDependencies so the filter below finds them.
     const sharedConfig: Record<string, unknown> = {};
-    const alwaysShareExternals: string[] = [];
     for (const [pkg, opts] of Object.entries({ ...NKZ_SHARED, ...additionalShared })) {
-        const installed = existsSync(join(root, 'node_modules', pkg, 'package.json'));
-        if (ALWAYS_SHARE.has(pkg) || installed) {
+        if (existsSync(join(root, 'node_modules', pkg, 'package.json'))) {
             sharedConfig[pkg] = opts;
-            if (!installed) {
-                // Mark as Rollup external — the host provides it at runtime
-                alwaysShareExternals.push(pkg);
-            }
         }
         // else: not installed in this module — skip. The host still shares it
         // and other modules that need it can still import from the host.
@@ -225,10 +216,6 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
                 // the federation plugin emits remoteEntry.js + chunks from the
                 // exposes map, and the source entry is enough for tree-shaking.
                 input: entry,
-                // ALWAYS_SHARE packages not installed locally must be marked
-                // external so Rollup does not try to resolve them. The host
-                // provides them at runtime via the federation shared scope.
-                external: alwaysShareExternals.length ? alwaysShareExternals : undefined,
             },
         },
 
