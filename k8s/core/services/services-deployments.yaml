@@ -140,7 +140,7 @@ spec:
             - name: ZULIP_HOST
               value: "messaging.robotika.cloud"
             - name: MODULE_GATEWAY_ENABLED
-              value: "vegetation-health,gis-routing,cue"
+              value: "vegetation-health,gis-routing,cue,nkz-module-eu-elevation"
           command: ["gunicorn"]
           args:
             [
