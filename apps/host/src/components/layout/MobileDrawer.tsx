@@ -167,7 +167,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
               <>
                 <div className="pt-4 pb-2 border-t border-gray-200 dark:border-gray-700">
                   <div className="px-4 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                    Addons
+                    {t('navigation.section_modules', { defaultValue: 'Módulos' })}
                   </div>
                 </div>
                 {modules.map((module) => {

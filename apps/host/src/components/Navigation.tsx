@@ -252,7 +252,7 @@ export const Navigation: React.FC = () => {
                     <div className="flex flex-col py-2 min-w-[140px]">
                       <div className="px-4 py-1">
                         <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                          Admin
+                          {t('navigation.section_admin', { defaultValue: 'Admin' })}
                         </span>
                       </div>
                       {adminItems.map((item) => {
@@ -334,3 +334,4 @@ export const Navigation: React.FC = () => {
     </>
   );
 };
+
