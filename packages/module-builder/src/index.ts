@@ -128,6 +128,34 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
         // and other modules that need it can still import from the host.
     }
 
+    const expectedPublicPath = `/modules/${moduleId}/`;
+
+    // After build, assert dist/mf-manifest.json#metaData.publicPath matches
+    // what the host expects. A wrong value (typically '/') means the
+    // federation runtime will fetch remoteEntry.js from the host root and
+    // 404 every module load. Catching it at build time prevents the regression
+    // that hit the platform when an old module-builder slipped into a lockfile.
+    const publicPathGuard: Plugin = {
+        name: 'nkz-module-builder:public-path-guard',
+        apply: 'build',
+        closeBundle() {
+            const manifestPath = join(root, 'dist/mf-manifest.json');
+            if (!existsSync(manifestPath)) return;
+            const raw = readFileSync(manifestPath, 'utf-8');
+            const parsed = JSON.parse(raw) as { metaData?: { publicPath?: string } };
+            const got = parsed.metaData?.publicPath;
+            if (got !== expectedPublicPath) {
+                throw new Error(
+                    `[module-builder] mf-manifest.json#metaData.publicPath = ${JSON.stringify(got)}, ` +
+                    `expected ${JSON.stringify(expectedPublicPath)}. ` +
+                    `The host concatenates publicPath + chunk-name to fetch federation entries — a wrong ` +
+                    `value will 404 every module load. Check that Vite \`base\` was not overridden to ` +
+                    `a different value in viteConfig.`,
+                );
+            }
+        },
+    };
+
     const plugins: Plugin[] = [
         ...(react({ jsxRuntime: 'classic' }) as Plugin[]),
         ...(federation({
@@ -149,6 +177,7 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
         }) as unknown as Plugin[]),
     ];
     if (manifestPlugin) plugins.push(manifestPlugin);
+    plugins.push(publicPathGuard);
 
     const config: UserConfig = {
         plugins,
