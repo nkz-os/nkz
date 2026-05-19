@@ -52,6 +52,8 @@ const NKZ_SHARED = {
     react: { singleton: true, requiredVersion: '^18.0.0' },
     'react-dom': { singleton: true, requiredVersion: '^18.0.0' },
     'react-router-dom': { singleton: true, requiredVersion: '^6.0.0' },
+    'react-i18next': { singleton: true },
+    i18next: { singleton: true },
     '@nekazari/sdk': { singleton: true },
     '@nekazari/module-kit': { singleton: true },
     '@nekazari/ui-kit': { singleton: true },

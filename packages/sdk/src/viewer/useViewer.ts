@@ -1,12 +1,14 @@
 /**
  * Copyright 2025 NKZ Platform (Nekazari)
  * Licensed under Apache-2.0
- * 
+ *
  * Viewer Context Hook for Remote Modules
- * 
+ *
  * This hook provides access to the ViewerContext from remote modules.
  * It uses window.__nekazariViewerContext which is exposed by the host application.
  */
+
+import { useContext } from 'react';
 
 // Type definitions for ViewerContext
 export interface ViewerContextValue {
@@ -76,12 +78,6 @@ export function useViewer(): ViewerContextValue {
     throw new Error('useViewer can only be used in a browser environment');
   }
 
-  // Import React from window (shared by host)
-  const React = (window as any).React;
-  if (!React || !React.useContext) {
-    throw new Error('React is not available. Make sure the host application has exposed React globally.');
-  }
-
   // Get the ViewerContext instance from the host
   const ViewerContext = (window as any).__nekazariViewerContextInstance;
   if (!ViewerContext) {
@@ -91,8 +87,7 @@ export function useViewer(): ViewerContextValue {
     );
   }
 
-  // Use React's useContext directly with the shared context
-  const context = React.useContext(ViewerContext);
+  const context = useContext(ViewerContext);
   if (context === undefined) {
     throw new Error('useViewer must be used within a ViewerProvider');
   }
@@ -109,20 +104,13 @@ export function useViewerOptional(): ViewerContextValue | null {
     return null;
   }
 
-  // Import React from window (shared by host)
-  const React = (window as any).React;
-  if (!React || !React.useContext) {
-    return null;
-  }
-
   // Get the ViewerContext instance from the host
   const ViewerContext = (window as any).__nekazariViewerContextInstance;
   if (!ViewerContext) {
     return null;
   }
 
-  // Use React's useContext directly with the shared context
-  const context = React.useContext(ViewerContext);
+  const context = useContext(ViewerContext);
   return (context ?? null) as ViewerContextValue | null;
 }
 
