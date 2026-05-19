@@ -15,6 +15,8 @@
   "risks": "Risks",
   "alerts": "Alerts",
   "modules": "Modules",
-  "manage_modules": "Manage modules"
+  "manage_modules": "Manage modules",
+  "section_core": "Core",
+  "section_modules": "Modules",
+  "section_admin": "Administration"
 }
-
