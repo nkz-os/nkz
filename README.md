@@ -138,7 +138,10 @@ Modules are independent repos that build to [Module Federation 2.0](https://modu
 ### Create a Module
 
 ```bash
-# Use the template
+# Recommended: interactive CLI (prompts for ID, slots, plan, i18n)
+pnpm create @nekazari/module my-module
+
+# Or clone the template manually
 git clone https://github.com/nkz-os/nkz-module-template.git my-module
 cd my-module && pnpm install
 pnpm run dev          # local development with hot reload (mock platform)
@@ -155,6 +158,7 @@ Modules export a `defineModule({...})` from `src/Module.tsx` and the host loads 
 - [@nekazari/ui-kit](https://www.npmjs.com/package/@nekazari/ui-kit) — shared components, design tokens
 - [@nekazari/module-kit](https://www.npmjs.com/package/@nekazari/module-kit) — `defineModule`, hooks, mock provider
 - [@nekazari/module-builder](https://www.npmjs.com/package/@nekazari/module-builder) — Vite preset for module repos
+- [@nekazari/create-module](https://www.npmjs.com/package/@nekazari/create-module) — `pnpm create @nekazari/module`
 
 ### API Integration
 
