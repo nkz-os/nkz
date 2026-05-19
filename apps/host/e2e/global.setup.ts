@@ -1,45 +1,71 @@
 /**
- * Playwright global setup — log in via Keycloak UI and persist the
- * httpOnly session cookie so every test starts authenticated.
+ * Playwright global setup — log in via the app's own Keycloak flow.
+ * The host app's Keycloak JS adapter generates PKCE params correctly;
+ * we just navigate to / and let it redirect us.
  */
 import { chromium } from '@playwright/test';
 import * as path from 'path';
+import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE_URL = process.env['E2E_BASE_URL'] || 'http://localhost:3000';
 const AUTH_FILE = path.join(__dirname, '.auth', 'storageState.json');
+const DEBUG_DIR = path.join(__dirname, '..', 'playwright-report', 'setup-debug');
 
 async function globalSetup() {
   const browser = await chromium.launch();
   const page = await browser.newPage();
 
-  // 1. Go directly to Keycloak login, then let it redirect back to the app.
-  //    This mirrors what the Keycloak JS adapter does internally.
-  const loginUrl =
-    `${BASE_URL}/auth/realms/nekazari/protocol/openid-connect/auth` +
-    `?client_id=nekazari-frontend` +
-    `&redirect_uri=${encodeURIComponent(BASE_URL + '/')}` +
-    `&response_type=code` +
-    `&scope=openid`;
+  // 1. Go to the app. The Keycloak JS adapter will auto-redirect to
+  //    Keycloak with correct PKCE params, or show a landing page with a
+  //    login link that leads there.
+  await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(3000);
 
-  await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+  // 2. If we're not already on the Keycloak login page, find and click a
+  //    login button/link.
+  if (!page.url().includes('/auth/')) {
+    const loginBtn = page.locator(
+      'a[href*="auth"], a:has-text("Login"), a:has-text("Iniciar"), a:has-text("Entrar"), button:has-text("Login")',
+    );
+    const count = await loginBtn.count();
+    if (count > 0) {
+      await loginBtn.first().click();
+    }
+    // Wait for the redirect to Keycloak
+    await page.waitForURL((url) => url.toString().includes('/auth/'), { timeout: 15000 });
+  }
 
-  // 2. Fill Keycloak login form
-  await page.waitForSelector('#username', { timeout: 10000 });
-  await page.fill('#username', 'demo@nekazari.local');
-  await page.fill('#password', 'Demo1234!');
-  await page.click('#kc-login');
+  // 3. Fill Keycloak login form
+  const usernameSelector = '#username, input[name="username"]';
+  try {
+    await page.waitForSelector(usernameSelector, { timeout: 20000 });
+  } catch (_err) {
+    await saveDebug(page, 'no-login-form');
+    throw new Error(`Login form not found at ${page.url()}`);
+  }
 
-  // 3. Wait for redirect back to the app (URL no longer contains /auth/)
-  await page.waitForURL((url) => !url.toString().includes('/auth/'), { timeout: 15000 });
+  await page.fill(usernameSelector, 'demo@nekazari.local');
+  await page.fill('#password, input[name="password"]', 'Demo1234!');
+  await page.click('#kc-login, input[type="submit"]');
+
+  // 4. Wait for redirect back to the app and session cookie
+  await page.waitForURL((url) => !url.toString().includes('/auth/'), { timeout: 20000 });
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(3000);
 
-  // 4. Save browser state (cookies, localStorage) for reuse
+  // 5. Save browser state
   await page.context().storageState({ path: AUTH_FILE });
-
   await browser.close();
+}
+
+async function saveDebug(page: any, reason: string) {
+  try {
+    fs.mkdirSync(DEBUG_DIR, { recursive: true });
+    await page.screenshot({ path: path.join(DEBUG_DIR, `${reason}.png`), fullPage: true });
+    fs.writeFileSync(path.join(DEBUG_DIR, `${reason}.html`), await page.content());
+  } catch (_ignored) { /* don't hide original error */ }
 }
 
 export default globalSetup;
