@@ -284,6 +284,10 @@ secrets.yaml
 .env
 .env.*
 !env.example
+# Plaintext API keys (must live in K8s Secrets only)
+apikey_*.txt
+*.apikey
+*_api_key.txt
 
 # Kubeconfig
 kubectl
