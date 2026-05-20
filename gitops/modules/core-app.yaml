@@ -9,6 +9,8 @@ spec:
     repoURL: https://github.com/nkz-os/nkz
     targetRevision: HEAD
     path: gitops/core
+    directory:
+      exclude: '{argocd-ingress.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
