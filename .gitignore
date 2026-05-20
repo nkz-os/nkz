@@ -351,3 +351,19 @@ test_*.js
 # Note: ../documents/ is outside this repo; these entries document what's excluded
 tests/fiware-compliance/
 charts/nekazari/charts/*.tgz
+
+# =============================================================================
+# Internal agent / AI artifacts — NEVER commit (public repo)
+# Workspace policy: plans, specs, handovers and any internal AI-agent comms
+# live OUTSIDE this repo (in /home/g/Documents/nekazari/documents/). These
+# entries are belt-and-suspenders against accidental drift.
+# =============================================================================
+.aider*
+.cody/
+internal-docs/
+documents/
+docs/superpowers/
+docs/handovers/
+*HANDOVER*.md
+*-handover*.md
+*HANDOVER*.txt
