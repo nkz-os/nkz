@@ -10,8 +10,9 @@
 
 import React, { Suspense, ComponentType, ErrorInfo } from 'react';
 import { loadRemote } from '@module-federation/runtime';
-import { toNKZRegistration } from '@nekazari/module-kit';
+import { toNKZRegistration, NKZProvider } from '@nekazari/module-kit';
 import { ModuleDefinition, useModules } from '@/context/ModuleContext';
+import { useAuth } from '@/context/KeycloakAuthContext';
 import { isLocalAddon, getLocalAddon } from '@/config/localAddons';
 
 interface RemoteModuleLoaderProps {
@@ -92,6 +93,7 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
   const [loadError, setLoadError] = React.useState<Error | null>(null);
   const [isLocal, setIsLocal] = React.useState<boolean>(false);
   const { aliasFor, applyModuleRegistration } = useModules();
+  const { tenantProfile } = useAuth();
 
   React.useEffect(() => {
     let isMounted = true;
@@ -215,7 +217,14 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
     >
       <RemoteModuleErrorBoundary fallback={errorFallback}>
         <Suspense fallback={fallback}>
-          <Component />
+          <NKZProvider
+            moduleId={module.id}
+            apiBasePath={module.api?.basePath}
+            queryClient={module.queryClient}
+            tenantPlan={tenantProfile?.plan_type as any}
+          >
+            <Component />
+          </NKZProvider>
         </Suspense>
       </RemoteModuleErrorBoundary>
     </div>
