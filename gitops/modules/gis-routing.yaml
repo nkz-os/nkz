@@ -13,7 +13,7 @@ spec:
     path: k8s
     directory:
       recurse: true
-      exclude: '{registration.sql}'
+      exclude: '{registration.sql,ingress.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: nekazari
