@@ -9,8 +9,9 @@
 
 import React, { Suspense, useMemo, useState, useEffect } from 'react';
 import { loadRemote } from '@module-federation/runtime';
-import { toNKZRegistration } from '@nekazari/module-kit';
+import { toNKZRegistration, NKZProvider } from '@nekazari/module-kit';
 import { useSlotRegistryOptional } from '@/context/SlotRegistry';
+import { useAuth } from '@/context/KeycloakAuthContext';
 import type { SlotType, SlotWidgetDefinition } from '@nekazari/sdk';
 import { useModules, ModuleDefinition } from '@/context/ModuleContext';
 import { Loader2 } from 'lucide-react';
@@ -231,6 +232,8 @@ export const SlotRenderer: React.FC<SlotRendererProps> = ({
 }) => {
     const slotRegistry = useSlotRegistryOptional();
     const { modules } = useModules();
+    const { tenantProfile } = useAuth();
+    const tenantPlan = tenantProfile?.plan_type as any;
 
     const widgets = slotRegistry ? slotRegistry.getVisibleWidgets(slot) : [];
 
@@ -282,23 +285,33 @@ export const SlotRenderer: React.FC<SlotRendererProps> = ({
             />
         ));
 
+        let contentToWrap = (
+            <React.Fragment key={`frag-${moduleId}`}>
+                {widgetsContent}
+            </React.Fragment>
+        );
+
         // If module has a provider (remote modules), wrap all widgets from that module
         // with a SINGLE instance of the provider to avoid state synchronization issues
         if (moduleProvider) {
             const ModuleProvider = moduleProvider;
-            return (
-                <ModuleProvider key={moduleId}>
+            contentToWrap = (
+                <ModuleProvider key={`prov-${moduleId}`}>
                     {widgetsContent}
                 </ModuleProvider>
             );
         }
 
-        // Local modules don't need providers (they're in the bundle)
-        // Render widgets directly
         return (
-            <React.Fragment key={moduleId}>
-                {widgetsContent}
-            </React.Fragment>
+            <NKZProvider
+                key={moduleId}
+                moduleId={moduleId}
+                apiBasePath={module?.api?.basePath}
+                queryClient={module?.queryClient}
+                tenantPlan={tenantPlan}
+            >
+                {contentToWrap}
+            </NKZProvider>
         );
     });
 

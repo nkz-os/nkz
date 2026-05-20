@@ -8,9 +8,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/nkz-os/nkz
+    repoURL: https://github.com/nkz-os/gitops-config
     targetRevision: HEAD
-    path: gitops/overlays/datahub
+    path: overlays/modules/datahub
   destination:
     server: https://kubernetes.default.svc
     namespace: nekazari

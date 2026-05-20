@@ -71,3 +71,53 @@ jobs:
 
       - name: Run pytest
         run: pytest tests/ -v --tb=short
+
+  production-domain-check:
+    name: Production Domain Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for new production domain references
+        run: |
+          set +e
+          BASE="${GITHUB_BASE_REF:-main}"
+          if ! git fetch origin "$BASE" --depth=1 2>/dev/null; then
+            if ! git fetch origin main --depth=1 2>/dev/null; then
+              echo "Could not fetch base branch; skipping check."
+              exit 0
+            fi
+            BASE="main"
+          fi
+          DIFF=$(git diff "origin/$BASE...HEAD" -- \
+            ':(exclude)*.md' \
+            ':(exclude)*.svg' \
+            ':(exclude)*.png' \
+            ':(exclude)*.jpg' \
+            ':(exclude)*.gif' \
+            ':(exclude)*.ico' \
+            ':(exclude)*.lock' \
+            ':(exclude)pnpm-lock.yaml' \
+            ':(exclude)package.json' \
+            ':(exclude).github/workflows/test.yml' \
+            ':(exclude)scripts/pre-commit-check.sh' \
+            2>/dev/null || true)
+          if [ -z "$DIFF" ]; then
+            echo "No diff to check — skipping."
+            exit 0
+          fi
+          RESULTS=$(echo "$DIFF" | grep -n '^+' | grep 'robotika\.cloud' | grep -v '^+[+][+]' || true)
+          if [ -n "$RESULTS" ]; then
+            COMMIT_MSG=$(git log -1 --format=%s%n%b 2>/dev/null || true)
+            if echo "$COMMIT_MSG" | grep -qF '[prod-refs-ack]'; then
+              echo "Acknowledged via [prod-refs-ack]:"
+              echo "$RESULTS"
+              exit 0
+            fi
+            echo "::error title=Production Domain Detected::New reference to robotika.cloud found in diff. Production URLs belong in the private gitops-config repo, not in public repos. If intentional, include [prod-refs-ack] in the commit message."
+            echo "=== Detected additions ==="
+            echo "$RESULTS"
+            exit 1
+          fi
+          echo "OK: No new production domain references."
