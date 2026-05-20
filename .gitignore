@@ -326,6 +326,9 @@ coverage/
 documentation/
 .npmrc
 
+# Private gitops-config repo (production config — never stage locally)
+gitops-config/
+
 # Agent / IDE context (keep repo clean)
 .antigravity/
 .ai/

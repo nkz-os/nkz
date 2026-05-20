@@ -31,5 +31,21 @@ if [ "${SKIP_SECRET_GREP:-0}" != "1" ]; then
   done
 fi
 
-echo "Pre-commit check OK (no .env staged; no obvious secrets in diff)."
+# Production domain check — block robotika.cloud in newly added/changed lines
+if [ "${SKIP_PROD_CHECK:-0}" != "1" ]; then
+  for f in $STAGED; do
+    [ -f "$f" ] || continue
+    case "$f" in
+      *.md|*.svg|*.png|*.jpg|*.gif|*.ico|scripts/pre-commit-check.sh|.github/workflows/test.yml) continue ;;
+    esac
+    if git diff --cached -- "$f" | grep '^+.*robotika\.cloud' | grep -v '^+++' >/dev/null 2>&1; then
+      echo "ERROR: Production domain reference (robotika.cloud) found in staged file: $f"
+      echo "Production URLs must live in the private gitops-config repo (nkz-os/gitops-config)."
+      echo "To override (for migration work): SKIP_PROD_CHECK=1 git commit"
+      exit 1
+    fi
+  done
+fi
+
+echo "Pre-commit check OK (no .env staged; no obvious secrets in diff; no prod domain refs)."
 exit 0
