@@ -1503,7 +1503,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     viewer.scene.requestRender();
   }, [isViewerReady, energyTrackers, enable3DTerrain]);
 
-  // Parcels effect (polygons with risk overlay and selection highlight)
+  // Parcels effect (border-only + optional fill on risk/selection)
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
@@ -1518,12 +1518,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       try {
         const coordinates = getEntityCoordinates(parcel);
         if (!coordinates) return;
-
         const type = getEntityGeometryType(parcel);
 
-        // Convert GeoJSON Polygon to Cesium positions
         const positions: any[] = [];
-
         if (type === 'Polygon' && Array.isArray(coordinates[0])) {
           coordinates[0].forEach((coord: any) => {
             if (Array.isArray(coord) && coord.length >= 2) {
@@ -1535,7 +1532,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             }
           });
         }
-
         if (positions.length < 3) {
           logger.warn(`[CesiumMap] Skipping parcel ${parcel.id}: Invalid geometry (less than 3 points)`);
           return;
@@ -1543,27 +1539,31 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
         const parcelName = parcel.name || parcel.id;
         const isSelected = isParcelSelected(parcel.id);
-
-        let fillColor: any;
-        let outlineColor: any;
-
-        // 1. Default colors
-        fillColor = Cesium.Color.fromCssColorString('#4ade80').withAlpha(0.4);
-        outlineColor = Cesium.Color.fromCssColorString('#4ade80');
-
-        // 2. Risk overlay (overrides default)
         const riskInfo = riskOverlay?.get(parcel.id);
+
+        // Defaults: green border, no fill
+        let borderColor: any = Cesium.Color.fromCssColorString('#4ade80');
+        let borderWidth = 3;
+        // Near-zero alpha keeps the polygon pickable by Cesium's GPU pick pass
+        // (TRANSPARENT/alpha=0 is silently excluded from the pick framebuffer).
+        let fillColor: any = Cesium.Color.WHITE.withAlpha(0.004);
+
+        // Risk takes precedence over default
         if (riskInfo) {
           const riskCss = RISK_SEVERITY_COLORS[riskInfo.severity];
-          fillColor = Cesium.Color.fromCssColorString(riskCss).withAlpha(0.55);
-          outlineColor = Cesium.Color.fromCssColorString(riskCss);
+          borderColor = Cesium.Color.fromCssColorString(riskCss);
+          fillColor = Cesium.Color.fromCssColorString(riskCss).withAlpha(0.25);
         }
 
-        // 3. Selection highlight (always wins)
+        // Selection wins (cyan border + faint cyan fill as a "find me" hint)
         if (isSelected) {
-          fillColor = Cesium.Color.CYAN.withAlpha(0.08);
-          outlineColor = Cesium.Color.CYAN;
+          borderColor = Cesium.Color.fromCssColorString('#06b6d4');
+          borderWidth = 4;
+          fillColor = Cesium.Color.CYAN.withAlpha(0.06);
         }
+
+        // Closed ring for the polyline
+        const ringPositions = [...positions, positions[0]];
 
         const entity = viewer.entities.add({
           id: `parcel-${parcel.id}`,
@@ -1571,9 +1571,20 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           polygon: {
             hierarchy: positions,
             material: fillColor,
-            outline: !enable3DTerrain,
-            outlineColor: outlineColor,
-            classificationType: enable3DTiles ? Cesium.ClassificationType.BOTH : Cesium.ClassificationType.TERRAIN,
+            classificationType: enable3DTiles
+              ? Cesium.ClassificationType.BOTH
+              : Cesium.ClassificationType.TERRAIN,
+            arcType: Cesium.ArcType.GEODESIC,
+          },
+          polyline: {
+            positions: ringPositions,
+            width: borderWidth,
+            material: new Cesium.PolylineOutlineMaterialProperty({
+              color: borderColor,
+              outlineColor: Cesium.Color.BLACK.withAlpha(0.6),
+              outlineWidth: 1,
+            }),
+            clampToGround: true,
             arcType: Cesium.ArcType.GEODESIC,
           },
           label: {

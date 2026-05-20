@@ -144,6 +144,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   const [error, setError] = useState<Error | null>(null);
   const [visibilityRules, setVisibilityRules] = useState<Record<string, { hiddenRoles: string[] }>>({});
   const [incompatibleModules, setIncompatibleModules] = useState<Map<string, string>>(new Map());
+  const registeredFingerprintRef = useRef<string>('');
 
   const loadModules = useCallback(async () => {
     if (!isAuthenticated || !tenantId) {
@@ -254,9 +255,9 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         if (!modDef.remoteEntry && modDef.isLocal) continue;
         const apiContract = modDef.apiContract;
         if (!apiContract) {
-          console.warn(
+          console.debug(
             `[ModuleContext] Module "${modId}" does not declare an API contract. ` +
-            'Consider adding api_contract to manifest.json for compatibility guarantees.'
+            'Consider adding api_contract to manifest.json for compatibility guarantees.',
           );
           continue;
         }
@@ -287,9 +288,16 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
           type: 'module' as const,
         }));
 
-      if (remotesToRegister.length > 0) {
+      // Avoid re-registering identical remotes — the federation runtime warns
+      // with "already registered" when force:true replaces unchanged entries.
+      const nextFingerprint = remotesToRegister
+        .map(r => `${r.name}:${r.entry}`)
+        .sort()
+        .join(',');
+      if (remotesToRegister.length > 0 && nextFingerprint !== registeredFingerprintRef.current) {
         try {
           registerRemotes(remotesToRegister, { force: true });
+          registeredFingerprintRef.current = nextFingerprint;
         } catch (regError) {
           console.error('[ModuleContext] Failed to register federated remotes:', regError);
         }
@@ -322,6 +330,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
 
   useEffect(() => {
     preloadedRef.current = new Set();
+    registeredFingerprintRef.current = '';
   }, [tenantId]);
 
   useEffect(() => {

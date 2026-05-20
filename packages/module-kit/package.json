@@ -1,6 +1,6 @@
 {
   "name": "@nekazari/module-kit",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Nekazari Module Development Kit \u2014 single entry point for building Nekazari modules",
   "license": "Apache-2.0",
   "repository": {
@@ -35,6 +35,7 @@
   },
   "peerDependencies": {
     "@nekazari/sdk": ">=1.1.0",
+    "@nekazari/viewer-kit": "*",
     "@tanstack/react-query": ">=5.0.0",
     "react": ">=18.0.0"
   },

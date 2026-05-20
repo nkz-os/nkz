@@ -38,3 +38,7 @@ export type { FilesTransport } from './hooks/types';
 // Time series hook (A.2.1c)
 export { useTimeseries } from './hooks/useTimeseries';
 export type { TimeseriesPoint, TimeseriesQuery, TimeseriesTransport } from './hooks/types';
+
+// Shared viewer components
+export { LayerMenuRow } from './components/LayerMenuRow';
+export type { LayerScope, LayerMenuRowProps } from './components/LayerMenuRow';

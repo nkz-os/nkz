@@ -32,9 +32,7 @@ import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, Weath
 import {
     ChevronDown,
     ChevronUp,
-    X,
     Loader2,
-    AlertTriangle,
 } from 'lucide-react';
 
 // Opaque surface styles for viewer overlays
@@ -115,12 +113,11 @@ const UnifiedViewerInner: React.FC = () => {
     const [energyTrackers, setEnergyTrackers] = useState<any[]>([]); // AgriEnergyTracker
 
     // Risk overlay
-    const { enabled: riskEnabled, setEnabled: setRiskEnabled, overlay: riskOverlay } = useRiskOverlay();
+    const { overlay: riskOverlay } = useRiskOverlay();
 
     // UI state
     const [_isLoading, setIsLoading] = useState(true);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
-    const [isLayerManagerOpen, setIsLayerManagerOpen] = useState(false);
 
     // Drawing state (for DRAW_PARCEL mode)
     const [drawnGeometry, setDrawnGeometry] = useState<GeoPolygon | null>(null);
@@ -398,7 +395,7 @@ const UnifiedViewerInner: React.FC = () => {
         <ThemeProvider profile={profile}>
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-100 dark:bg-slate-950">
             {/* Floating Header - Logo with dropdown menu + controls; right strip includes Layers + Theme + Language */}
-            <ViewerHeader onToggleLayerManager={() => setIsLayerManagerOpen(!isLayerManagerOpen)} />
+            <ViewerHeader />
 
             {/* Map Toolbar - Contextual toolbar for drawing/editing modes */}
             {mapMode === 'PICK_LOCATION' && (
@@ -480,41 +477,6 @@ const UnifiedViewerInner: React.FC = () => {
                     />
                 )}
             </div>
-
-            {/* Layer Manager Dropdown - below the header right strip */}
-            {isLayerManagerOpen && (
-                <div className={`absolute top-16 right-4 z-40 w-64 rounded-xl ${overlayPanel.base} overflow-hidden`}>
-                    <div className={`px-4 py-3 ${overlayPanel.header} border-b border-slate-200 dark:border-slate-700 flex items-center justify-between`}>
-                        <h3 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                            Capas
-                        </h3>
-                        <button onClick={() => setIsLayerManagerOpen(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                    <div className="p-2">
-                        {/* Risk overlay toggle */}
-                        <button
-                            type="button"
-                            onClick={() => setRiskEnabled(!riskEnabled)}
-                            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors mb-1 ${
-                                riskEnabled
-                                    ? 'bg-red-50 text-red-700 border border-red-200'
-                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                            }`}
-                        >
-                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                            <span>Overlay de Riesgos</span>
-                            <span className={`ml-auto text-xs px-1.5 py-0.5 rounded ${riskEnabled ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'}`}>
-                                {riskEnabled ? 'ON' : 'OFF'}
-                            </span>
-                        </button>
-                        <Suspense fallback={<PanelLoadingFallback />}>
-                            <SlotRenderer slot="layer-toggle" />
-                        </Suspense>
-                    </div>
-                </div>
-            )}
 
             {/* Left Panel — Entity Tree, floating over Cesium */}
             <div className="absolute top-14 left-0 bottom-4 z-nkz-rail pointer-events-none">

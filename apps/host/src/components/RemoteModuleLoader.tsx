@@ -139,7 +139,14 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
         }
 
         const main = registration.main as ComponentType<any> | undefined;
-        if (main && typeof main === 'function') {
+        // React components come in multiple forms:
+        //   typeof === 'function' — FunctionComponent, ClassComponent, ForwardRef, Memo
+        //   typeof === 'object' && $$typeof — Lazy, Context.Provider, Suspense, Fragment
+        const canRender =
+          main != null &&
+          (typeof main === 'function' ||
+            (typeof main === 'object' && '$$typeof' in (main as object)));
+        if (canRender) {
           setComponent(() => main);
         } else {
           // Module registered slots but has no main page component. Render a

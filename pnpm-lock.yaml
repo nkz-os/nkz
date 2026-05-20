@@ -301,6 +301,9 @@ importers:
 
   packages/module-kit:
     dependencies:
+      '@nekazari/viewer-kit':
+        specifier: '*'
+        version: 0.1.0-alpha(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       zod:
         specifier: ^3.23.0
         version: 3.25.76
@@ -1039,6 +1042,12 @@ packages:
 
   '@nekazari/ui-kit@1.0.2-alpha.3':
     resolution: {integrity: sha512-x471dDkQb4/Rl4itIFWvsvUcS/SsZz7LaC/QTHyuKVoXQhK0glXiRCTadAsU2pgPikZD+kh72DJ8iAiVYaFhfA==}
+    peerDependencies:
+      react: ^18.3.1
+      react-dom: ^18.3.1
+
+  '@nekazari/viewer-kit@0.1.0-alpha':
+    resolution: {integrity: sha512-HDXiK5eggScdKhfkKzSiGZ7057josjaQrZ+/vI4Y8cVr9a0UKvv+ITnCUeobLl0FYKKbJz8tSb45Vl4KXqGGpg==}
     peerDependencies:
       react: ^18.3.1
       react-dom: ^18.3.1
@@ -4850,6 +4859,14 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
       - '@types/react-dom'
+
+  '@nekazari/viewer-kit@0.1.0-alpha(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@nekazari/design-tokens': link:packages/design-tokens
+      '@nekazari/ui-kit': link:packages/ui-kit
+      clsx: 2.1.1
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
