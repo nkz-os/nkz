@@ -9,6 +9,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { registerRemotes, loadRemote } from '@module-federation/runtime';
 import { toNKZRegistration } from '@nekazari/module-kit';
+import { QueryClient } from '@tanstack/react-query';
 import { NekazariClient, type ModuleApiContract, type NKZModuleRegistration } from '@nekazari/sdk';
 import type { ModuleViewerSlots } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
@@ -53,6 +54,10 @@ export interface ModuleDefinition {
   viewerSlots?: ModuleViewerSlots;
   // API contract for host compatibility checking (progressive feature)
   apiContract?: ModuleApiContract;
+  // Module's backend api details
+  api?: { basePath?: string };
+  // Shared QueryClient for this module's components
+  queryClient?: QueryClient;
 }
 
 /**
@@ -94,6 +99,7 @@ const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
     tenantConfig: module.tenantConfig && typeof module.tenantConfig === 'object' ? module.tenantConfig : undefined,
     navigationItems: Array.isArray(module.navigationItems) ? module.navigationItems : undefined,
     viewerSlots: module.viewerSlots && typeof module.viewerSlots === 'object' ? module.viewerSlots : undefined,
+    api: module.api && typeof module.api === 'object' ? module.api : undefined,
     apiContract: (() => {
       const raw = module.apiContract ?? module.api_contract;
       return raw && typeof raw === 'object' ? raw : undefined;
@@ -235,11 +241,17 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         }
 
         const existing = moduleMap.get(m.id);
+        
+        m.queryClient = existing?.queryClient ?? new QueryClient({
+          defaultOptions: { queries: { staleTime: 30000, retry: 1, refetchOnWindowFocus: false } }
+        });
+
         if (existing?.isLocal && existing?.viewerSlots) {
           moduleMap.set(m.id, {
             ...existing,
             ...m,
             viewerSlots: existing.viewerSlots,
+            queryClient: m.queryClient
           });
         } else {
           moduleMap.set(m.id, m);
