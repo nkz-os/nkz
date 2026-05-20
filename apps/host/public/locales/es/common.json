@@ -1037,5 +1037,11 @@
     "error": "Error",
     "saving": "Guardando...",
     "save": "Guardar"
+  },
+  "viewer": {
+    "layersTitle": "Capas",
+    "layersRiskOverlay": "Overlay de Riesgos",
+    "layersExpand": "Mostrar capas",
+    "layersCollapse": "Ocultar capas"
   }
 }
