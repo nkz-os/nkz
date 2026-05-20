@@ -1544,7 +1544,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         // Defaults: green border, no fill
         let borderColor: any = Cesium.Color.fromCssColorString('#4ade80');
         let borderWidth = 3;
-        let fillColor: any = Cesium.Color.TRANSPARENT;
+        // Near-zero alpha keeps the polygon pickable by Cesium's GPU pick pass
+        // (TRANSPARENT/alpha=0 is silently excluded from the pick framebuffer).
+        let fillColor: any = Cesium.Color.WHITE.withAlpha(0.004);
 
         // Risk takes precedence over default
         if (riskInfo) {
