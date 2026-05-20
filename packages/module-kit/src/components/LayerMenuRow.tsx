@@ -28,6 +28,10 @@ export interface LayerMenuRowProps {
   /** Optional 0–100 opacity slider. Both opacity and onOpacityChange must be set to render. */
   opacity?: number;
   onOpacityChange?: (next: number) => void;
+  scopeLabel?: string;
+  selectedLabel?: string;
+  allLabel?: string;
+  opacityLabel?: string;
 }
 
 const ScopeButton: React.FC<{
@@ -62,6 +66,10 @@ export const LayerMenuRow: React.FC<LayerMenuRowProps> = ({
   mode,
   opacity,
   onOpacityChange,
+  scopeLabel = 'Scope',
+  selectedLabel = 'Selected',
+  allLabel = 'All',
+  opacityLabel = 'Opacity',
 }) => {
   const isDisabled = !!disabledReason;
   const showOpacity =
@@ -96,15 +104,15 @@ export const LayerMenuRow: React.FC<LayerMenuRowProps> = ({
 
         {/* Scope segmented control */}
         <div className="flex items-center gap-nkz-tight">
-          <span className="text-nkz-xs text-nkz-text-muted flex-shrink-0">Scope</span>
+          <span className="text-nkz-xs text-nkz-text-muted flex-shrink-0">{scopeLabel}</span>
           <ScopeButton
             active={scope === 'selected'}
             onClick={() => onScopeChange('selected')}
           >
-            Selected
+            {selectedLabel}
           </ScopeButton>
           <ScopeButton active={scope === 'all'} onClick={() => onScopeChange('all')}>
-            All
+            {allLabel}
           </ScopeButton>
         </div>
 
@@ -117,7 +125,7 @@ export const LayerMenuRow: React.FC<LayerMenuRowProps> = ({
         {showOpacity && (
           <div className="flex items-center gap-nkz-tight">
             <span className="text-nkz-xs text-nkz-text-muted flex-shrink-0">
-              Opacity
+              {opacityLabel}
             </span>
             <input
               type="range"
@@ -126,6 +134,7 @@ export const LayerMenuRow: React.FC<LayerMenuRowProps> = ({
               value={opacity}
               onChange={e => onOpacityChange!(Number(e.target.value))}
               className="flex-1 accent-nkz-accent-base"
+              aria-label={opacityLabel}
             />
             <span className="text-nkz-xs text-nkz-text-muted w-8 text-right">
               {opacity}%

@@ -68,4 +68,23 @@ describe('LayerMenuRow', () => {
     render(<LayerMenuRow {...baseProps} enabled={false} opacity={75} onOpacityChange={vi.fn()} />);
     expect(screen.queryByRole('slider')).not.toBeInTheDocument();
   });
+
+  it('uses custom labels when provided', () => {
+    render(
+      <LayerMenuRow
+        {...baseProps}
+        scopeLabel="Ámbito"
+        selectedLabel="Seleccionada"
+        allLabel="Todas"
+        opacityLabel="Opacidad"
+        enabled={true}
+        opacity={50}
+        onOpacityChange={vi.fn()}
+      />
+    );
+    expect(screen.getByText('Ámbito')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^seleccionada$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^todas$/i })).toBeInTheDocument();
+    expect(screen.getByRole('slider')).toHaveAttribute('aria-label', 'Opacidad');
+  });
 });

@@ -35,6 +35,7 @@
   },
   "peerDependencies": {
     "@nekazari/sdk": ">=1.1.0",
+    "@nekazari/viewer-kit": "*",
     "@tanstack/react-query": ">=5.0.0",
     "react": ">=18.0.0"
   },
