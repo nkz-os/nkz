@@ -6,6 +6,7 @@
 
 import React, { useEffect, useRef, useCallback } from 'react';
 import { useViewer } from '@/context/ViewerContext';
+import { useI18n } from '@/context/I18nContext';
 import type { Point } from 'geojson';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 
@@ -341,16 +342,18 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
         return cleanup;
     }, [cleanup]);
 
+    const { t } = useI18n();
+
     // Render instructions
     if (!enabled) return null;
 
     const getInstructions = () => {
         switch (drawingType) {
-            case 'Point': return 'Click to pick a location';
-            case 'Polygon': return 'Click to add points. Double-click or right-click to finish.';
-            case 'LineString': return 'Left click to add points. Right click to finish.';
-            case 'MultiLineString': return 'Left click to add points. Right click to finish current line.';
-            default: return 'Click map to draw';
+            case 'Point': return t('viewer.drawing.point_instruction');
+            case 'Polygon': return t('viewer.drawing.polygon_instruction');
+            case 'LineString': return t('viewer.drawing.linestring_instruction');
+            case 'MultiLineString': return t('viewer.drawing.multilinestring_instruction');
+            default: return t('viewer.drawing.default_instruction');
         }
     };
 
@@ -361,7 +364,7 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
                 {getInstructions()}
             </p>
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 text-center">
-                Drawing: {drawingType}
+                {t('viewer.drawing.type_label', { type: drawingType })}
             </p>
         </div>
     );

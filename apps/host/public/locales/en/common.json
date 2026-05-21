@@ -225,7 +225,109 @@
     "no_parcels": "No parcels registered",
     "add_parcel": "Add parcel",
     "crop_not_specified": "Crop not specified",
-    "environmental_sensors": "Environmental sensors"
+    "environmental_sensors": "Environmental sensors",
+    "machines": {
+      "title": "Agricultural Machinery",
+      "no_machines": "No machinery registered",
+      "add_machine": "Add Machinery",
+      "operation_type": "Operation"
+    },
+    "alerts": {
+      "title": "Alerts and Notifications",
+      "all_ok": "All OK",
+      "all_systems_ok": "All systems operating normally",
+      "charging": "Charging",
+      "robots_charging_one": "{count} robot charging",
+      "robots_charging_other": "{count} robots charging",
+      "online": "Online",
+      "mqtt_stable": "MQTT connection stable"
+    },
+    "sensors": {
+      "humidity_unit_label": "% humidity",
+      "view_all_count": "View all sensors ({count})"
+    },
+    "livestock": {
+      "title": "Livestock",
+      "no_animals": "No animals registered",
+      "add_animal": "Add Animal",
+      "species_label": "Animal"
+    },
+    "members": {
+      "loading": "Loading team members...",
+      "no_members": "No users on the team yet.",
+      "create_user": "Create user",
+      "col_user": "User",
+      "col_roles": "Roles",
+      "col_created": "Created",
+      "col_status": "Status",
+      "col_actions": "Actions",
+      "status_active": "Active",
+      "status_inactive": "Inactive",
+      "action_edit_roles": "Edit roles",
+      "action_reset_password": "Reset password"
+    },
+    "plan": {
+      "title": "Plan Summary",
+      "basic": "Basic Plan",
+      "advanced": "Advanced Plan",
+      "enterprise": "Enterprise Plan",
+      "no_expiration_data": "No expiration data",
+      "expired": "Plan expired",
+      "expires_one": "Expires in {days} day",
+      "expires_other": "Expires in {days} days",
+      "description": "Centralized management of tenant limits and usage",
+      "users": "Users",
+      "users_allowed": "Users allowed by plan",
+      "robots": "Robots",
+      "in_use_of_limit": "{count} in use {limit}",
+      "robots_usage": "Robot usage",
+      "sensors": "Sensors",
+      "sensors_usage": "Sensor usage",
+      "monitored_area": "Monitored area",
+      "area_in_use": "{value} ha {limit}",
+      "area_coverage": "Coverage",
+      "updated": "Data updated {time}",
+      "plan_label": "Plan: {plan}"
+    },
+    "progress": {
+      "default_label": "Progress"
+    },
+    "risks": {
+      "mildiu": "Mildew / Botrytis",
+      "spray": "Spraying (Delta T)",
+      "frost": "Frost",
+      "wind_spray": "Wind for Spraying",
+      "water_stress": "Water Stress",
+      "energy": "Energy Risk",
+      "robot_failure": "Robot Failure",
+      "prays_oleae": "Olive Moth (Prays)",
+      "lobesia_1st": "Lobesia 1st gen. (Grapevine)",
+      "lobesia_2nd": "Lobesia 2nd gen. (Grapevine)",
+      "severity": {
+        "critical": "Critical",
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      },
+      "alert_count_one": "{count} alert",
+      "alert_count_other": "{count} alerts",
+      "refresh_button": "Refresh",
+      "no_alerts": "No active alerts",
+      "next_eval": "Next automatic evaluation within the hour.",
+      "more_evaluations": "+{count} more evaluations",
+      "updated_time": "Updated {time}",
+      "view_panel": "View risk panel"
+    },
+    "tenant_info": {
+      "tenant_label": "Nekazari Tenant",
+      "role_label_user": "User",
+      "wind_unit": "km/h"
+    },
+    "weather": {
+      "title": "Weather Stations",
+      "no_stations": "No stations registered",
+      "add_station": "Add Station"
+    }
   },
   "landing": {
     "title": "NKZ",
@@ -985,6 +1087,96 @@
     "layersGroupCore": "Core",
     "layersGroupModules": "Modules",
     "layersSubmenuOpen": "Open layers submenu",
-    "layersSubmenuClose": "Close layers submenu"
+    "layersSubmenuClose": "Close layers submenu",
+    "header": {
+      "main_section": "Main",
+      "addons_section": "Addons",
+      "theme_light": "Light",
+      "theme_dark": "Dark"
+    },
+    "cadastral": {
+      "not_found": "No cadastral information found for this location.",
+      "error": "Cadastral service error: {errorMsg}"
+    },
+    "parcel": {
+      "new_parcel": "New Parcel",
+      "cadastral_data": "Cadastral data: {reference}",
+      "area": "Area: {area} ha"
+    },
+    "timeline": {
+      "button": "Timeline",
+      "label": "Timeline - Unified temporal control",
+      "current_date": "Current date: {date}"
+    },
+    "sensor": {
+      "iot_sensor": "IoT Sensor",
+      "generic_sensor": "Generic Sensor",
+      "location": "Location",
+      "properties": "Properties"
+    },
+    "context": {
+      "active_modules": "Active modules can add additional controls here",
+      "no_entity": "No entity selected",
+      "select_entity": "Select an entity from the map or the list to see its details and control options",
+      "yes": "Yes",
+      "no": "No",
+      "elements_count": "{count} element(s)",
+      "empty_list": "Empty",
+      "polygon_points": "Polygon ({count} points)",
+      "details": "Details",
+      "properties": "Properties",
+      "more_properties": "+{count} more properties",
+      "change_history": "Change History",
+      "change_history_unavailable": "Change history will be shown here when available",
+      "clear_selection": "Clear selection"
+    },
+    "telemetry": {
+      "realtime": "Real-time Telemetry",
+      "loading": "Loading telemetry...",
+      "no_data": "No telemetry data available",
+      "soil_moisture": "Soil Moisture",
+      "full_data": "View full data",
+      "tab_realtime": "Real-time",
+      "tab_historical": "Historical"
+    },
+    "layers": {
+      "parcels": "Parcels",
+      "robots": "Robots",
+      "sensors": "Sensors",
+      "machines": "Machinery",
+      "weather": "Stations",
+      "livestock": "Livestock",
+      "buildings": "Buildings",
+      "trees": "Trees",
+      "water": "Water",
+      "vegetation": "Vegetation",
+      "risk_on": "ON",
+      "risk_off": "OFF"
+    },
+    "mapmode": {
+      "draw_parcel": "Drawing Parcel",
+      "select_cadastral": "Cadastral Selection",
+      "edit_geometry": "Editing Geometry",
+      "zoning": "Creating Zones",
+      "active_badge": "Active Mode"
+    },
+    "drawing": {
+      "parcel_instructions": "Click on the map to add vertices. Right-click to finish.",
+      "cadastral_instructions": "Click on the map to look up the cadastral parcel at that location.",
+      "edit_instructions": "Drag the vertices to modify the geometry.",
+      "zoning_instructions": "Draw zones inside the selected parcel.",
+      "point_instruction": "Click to pick a location",
+      "polygon_instruction": "Click to add points. Double-click or right-click to finish.",
+      "linestring_instruction": "Left click to add points. Right click to finish.",
+      "multilinestring_instruction": "Left click to add points. Right click to finish current line.",
+      "default_instruction": "Click on the map to draw",
+      "type_label": "Drawing: {type}",
+      "pick_location": "Click on the map to select location"
+    },
+    "toolbar": {
+      "undo_title": "Undo last point",
+      "clear_title": "Clear drawing",
+      "accept": "Accept"
+    }
   }
 }

@@ -225,7 +225,109 @@
     "no_parcels": "Sem parcelas registadas",
     "add_parcel": "Adicionar parcela",
     "crop_not_specified": "Cultura não especificada",
-    "environmental_sensors": "Sensores ambientais"
+    "environmental_sensors": "Sensores ambientais",
+    "machines": {
+      "title": "Maquinaria Agrícola",
+      "no_machines": "Nenhuma maquinaria registada",
+      "add_machine": "Adicionar Maquinaria",
+      "operation_type": "Operação"
+    },
+    "alerts": {
+      "title": "Alertas e Notificações",
+      "all_ok": "Tudo OK",
+      "all_systems_ok": "Todos os sistemas funcionam normalmente",
+      "charging": "A carregar",
+      "robots_charging_one": "{count} robot a carregar",
+      "robots_charging_other": "{count} robots a carregar",
+      "online": "Online",
+      "mqtt_stable": "Ligação MQTT estável"
+    },
+    "sensors": {
+      "humidity_unit_label": "% humidade",
+      "view_all_count": "Ver todos os sensores ({count})"
+    },
+    "livestock": {
+      "title": "Gado",
+      "no_animals": "Nenhum animal registado",
+      "add_animal": "Adicionar Animal",
+      "species_label": "Animal"
+    },
+    "members": {
+      "loading": "A carregar membros da equipa...",
+      "no_members": "Ainda não há utilizadores na equipa.",
+      "create_user": "Criar utilizador",
+      "col_user": "Utilizador",
+      "col_roles": "Papéis",
+      "col_created": "Criado",
+      "col_status": "Estado",
+      "col_actions": "Ações",
+      "status_active": "Ativo",
+      "status_inactive": "Inativo",
+      "action_edit_roles": "Editar papéis",
+      "action_reset_password": "Repor password"
+    },
+    "plan": {
+      "title": "Resumo do Plano",
+      "basic": "Plano Básico",
+      "advanced": "Plano Avançado",
+      "enterprise": "Plano Enterprise",
+      "no_expiration_data": "Sem dados de expiração",
+      "expired": "Plano expirado",
+      "expires_one": "Expira em {days} dia",
+      "expires_other": "Expira em {days} dias",
+      "description": "Gestão centralizada de limites e utilização do tenant",
+      "users": "Utilizadores",
+      "users_allowed": "Utilizadores permitidos pelo plano",
+      "robots": "Robots",
+      "in_use_of_limit": "{count} em utilização {limit}",
+      "robots_usage": "Utilização de robots",
+      "sensors": "Sensores",
+      "sensors_usage": "Utilização de sensores",
+      "monitored_area": "Área monitorizada",
+      "area_in_use": "{value} ha {limit}",
+      "area_coverage": "Cobertura",
+      "updated": "Dados atualizados {time}",
+      "plan_label": "Plan: {plan}"
+    },
+    "progress": {
+      "default_label": "Progresso"
+    },
+    "risks": {
+      "mildiu": "Míldio / Botrytis",
+      "spray": "Pulverização (Delta T)",
+      "frost": "Geada",
+      "wind_spray": "Vento Pulverização",
+      "water_stress": "Stress Hídrico",
+      "energy": "Risco Energético",
+      "robot_failure": "Falha do Robot",
+      "prays_oleae": "Traça da Oliveira (Prays)",
+      "lobesia_1st": "Lobesia 1.ª gen. (Vinha)",
+      "lobesia_2nd": "Lobesia 2.ª gen. (Vinha)",
+      "severity": {
+        "critical": "Crítico",
+        "high": "Alto",
+        "medium": "Médio",
+        "low": "Baixo"
+      },
+      "alert_count_one": "{count} alerta",
+      "alert_count_other": "{count} alertas",
+      "refresh_button": "Atualizar",
+      "no_alerts": "Sem alertas ativas",
+      "next_eval": "Próxima avaliação automática dentro da hora.",
+      "more_evaluations": "+{count} mais avaliações",
+      "updated_time": "Atualizado {time}",
+      "view_panel": "Ver painel de riscos"
+    },
+    "tenant_info": {
+      "tenant_label": "Nekazari Tenant",
+      "role_label_user": "User",
+      "wind_unit": "km/h"
+    },
+    "weather": {
+      "title": "Estações Meteorológicas",
+      "no_stations": "Nenhuma estação registada",
+      "add_station": "Adicionar Estação"
+    }
   },
   "landing": {
     "title": "NKZ",
@@ -691,6 +793,98 @@
       "pro": "Pro",
       "premium": "Premium",
       "enterprise": "Enterprise"
+    }
+  },
+  "viewer": {
+    "header": {
+      "main_section": "Principal",
+      "addons_section": "Addons",
+      "theme_light": "Claro",
+      "theme_dark": "Escuro"
+    },
+    "cadastral": {
+      "not_found": "Nenhuma informação cadastral encontrada para esta localização.",
+      "error": "Erro do serviço cadastral: {errorMsg}"
+    },
+    "parcel": {
+      "new_parcel": "Nova Parcela",
+      "cadastral_data": "Dados cadastrais: {reference}",
+      "area": "Área: {area} ha"
+    },
+    "timeline": {
+      "button": "Timeline",
+      "label": "Timeline - Controlo temporal unificado",
+      "current_date": "Data atual: {date}"
+    },
+    "sensor": {
+      "iot_sensor": "Sensor IoT",
+      "generic_sensor": "Sensor Genérico",
+      "location": "Localização",
+      "properties": "Propriedades"
+    },
+    "context": {
+      "active_modules": "Os módulos ativos podem adicionar controlos adicionais aqui",
+      "no_entity": "Nenhuma entidade selecionada",
+      "select_entity": "Selecione uma entidade no mapa ou na lista para ver os seus detalhes e opções de controlo",
+      "yes": "Sim",
+      "no": "Não",
+      "elements_count": "{count} elemento(s)",
+      "empty_list": "Vazio",
+      "polygon_points": "Polígono ({count} pontos)",
+      "details": "Detalhes",
+      "properties": "Propriedades",
+      "more_properties": "+{count} mais propriedades",
+      "change_history": "Histórico de Alterações",
+      "change_history_unavailable": "O histórico de alterações será mostrado aqui quando estiver disponível",
+      "clear_selection": "Limpar seleção"
+    },
+    "telemetry": {
+      "realtime": "Telemetria em Tempo Real",
+      "loading": "A carregar telemetria...",
+      "no_data": "Nenhum dado de telemetria disponível",
+      "soil_moisture": "Humidade do Solo",
+      "full_data": "Ver dados completos",
+      "tab_realtime": "Tempo Real",
+      "tab_historical": "Histórico"
+    },
+    "layers": {
+      "parcels": "Parcelas",
+      "robots": "Robots",
+      "sensors": "Sensores",
+      "machines": "Maquinaria",
+      "weather": "Estações",
+      "livestock": "Gado",
+      "buildings": "Edifícios",
+      "trees": "Árvores",
+      "water": "Água",
+      "vegetation": "Vegetação",
+      "risk_on": "ON",
+      "risk_off": "OFF"
+    },
+    "mapmode": {
+      "draw_parcel": "A desenhar Parcela",
+      "select_cadastral": "Seleção Cadastral",
+      "edit_geometry": "A editar Geometria",
+      "zoning": "A criar Zonas",
+      "active_badge": "Modo Ativo"
+    },
+    "drawing": {
+      "parcel_instructions": "Clique no mapa para adicionar vértices. Clique com o botão direito para terminar.",
+      "cadastral_instructions": "Clique no mapa para procurar a parcela cadastral nessa localização.",
+      "edit_instructions": "Arraste os vértices para modificar a geometria.",
+      "zoning_instructions": "Desenhe zonas dentro da parcela selecionada.",
+      "point_instruction": "Clique para selecionar uma localização",
+      "polygon_instruction": "Clique para adicionar pontos. Clique duas vezes ou com o botão direito para terminar.",
+      "linestring_instruction": "Clique à esquerda para adicionar pontos. Clique à direita para terminar.",
+      "multilinestring_instruction": "Clique à esquerda para adicionar pontos. Clique à direita para terminar a linha atual.",
+      "default_instruction": "Clique no mapa para desenhar",
+      "type_label": "A desenhar: {type}",
+      "pick_location": "Clique no mapa para selecionar localização"
+    },
+    "toolbar": {
+      "undo_title": "Desfazer último ponto",
+      "clear_title": "Limpar desenho",
+      "accept": "Aceitar"
     }
   }
 }

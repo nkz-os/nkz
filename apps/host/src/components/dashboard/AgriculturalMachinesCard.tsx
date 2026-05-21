@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tractor, Plus } from 'lucide-react';
 import type { AgriculturalMachine } from '@/types';
+import { useI18n } from '@/context/I18nContext';
 
 interface AgriculturalMachinesCardProps {
   machines: AgriculturalMachine[];
@@ -9,12 +10,13 @@ interface AgriculturalMachinesCardProps {
 }
 
 export const AgriculturalMachinesCard: React.FC<AgriculturalMachinesCardProps> = ({ machines, canManageDevices, onOpenWizard }) => {
+  const { t } = useI18n();
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
       <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <Tractor className="w-6 h-6" />
-          Maquinaria Agrícola
+          {t('dashboard.machines.title')}
         </h2>
       </div>
 
@@ -22,14 +24,14 @@ export const AgriculturalMachinesCard: React.FC<AgriculturalMachinesCardProps> =
         {machines.length === 0 ? (
           <div className="text-center py-12">
             <Tractor className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">No hay maquinaria registrada</p>
+            <p className="text-gray-500 mb-4">{t('dashboard.machines.no_machines')}</p>
             {canManageDevices && (
               <button
                 onClick={() => onOpenWizard('ManufacturingMachine')}
                 className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />
-                Añadir Maquinaria
+                {t('dashboard.machines.add_machine')}
               </button>
             )}
           </div>
@@ -48,7 +50,7 @@ export const AgriculturalMachinesCard: React.FC<AgriculturalMachinesCardProps> =
                     <p className="text-sm font-semibold text-gray-900">
                       {typeof machine.operationType === 'string' ? machine.operationType : machine.operationType.value}
                     </p>
-                    <p className="text-xs text-gray-500">Operación</p>
+                    <p className="text-xs text-gray-500">{t('dashboard.machines.operation_type')}</p>
                   </div>
                 )}
               </div>

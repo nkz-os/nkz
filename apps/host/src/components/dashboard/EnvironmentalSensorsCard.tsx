@@ -54,14 +54,14 @@ export const EnvironmentalSensorsCard: React.FC<EnvironmentalSensorsCardProps> =
                     <p className="text-2xl font-bold text-gray-900">
                       {sensor.temperature.value}°C
                     </p>
-                    <p className="text-xs text-gray-500">Temperatura</p>
+                    <p className="text-xs text-gray-500">{t('weather.temperature')}</p>
                   </div>
                 )}
 
                 {sensor.moisture && (
                   <div className="flex items-center gap-2 text-sm">
                     <Droplets className="w-4 h-4 text-blue-600" />
-                    <span className="text-gray-700">{sensor.moisture.value}% humedad</span>
+                    <span className="text-gray-700">{sensor.moisture.value}{t('dashboard.sensors.humidity_unit_label')}</span>
                   </div>
                 )}
               </div>
@@ -74,7 +74,7 @@ export const EnvironmentalSensorsCard: React.FC<EnvironmentalSensorsCardProps> =
             onClick={() => navigate('/sensors')}
             className="w-full mt-4 py-3 text-green-600 hover:bg-green-50 rounded-xl transition font-medium"
           >
-            Ver todos los sensores ({sensors.length})
+            {t('dashboard.sensors.view_all_count', { count: sensors.length })}
           </button>
         )}
       </div>

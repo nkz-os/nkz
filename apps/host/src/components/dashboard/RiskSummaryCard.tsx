@@ -9,45 +9,29 @@ import { api } from '@/services/api';
 import type { RiskState } from '@/types';
 import { useTranslation } from '@nekazari/sdk';
 
-// Human-readable labels for known risk codes
-const RISK_LABELS: Record<string, string> = {
-  MILDIU:            'Mildiu / Botrytis',
-  SPRAY_SUITABILITY: 'Pulverización (Delta T)',
-  FROST:             'Helada',
-  WIND_SPRAY:        'Viento Pulverización',
-  WATER_STRESS:      'Estrés Hídrico',
-  ENERGY_RISK:       'Riesgo Energético',
-  ROBOT_FAILURE:     'Fallo Robot',
-  GDD_PRAYS_OLEAE:   'Polilla del Olivo (Prays)',
-  GDD_LOBESIA_1ST:   'Lobesia 1.ª gen. (Vid)',
-  GDD_LOBESIA_2ND:   'Lobesia 2.ª gen. (Vid)',
+type TFn = (key: string, opts?: Record<string, unknown>) => string;
+
+// Map risk codes to translation keys
+const RISK_KEY: Record<string, string> = {
+  MILDIU:            'dashboard.risks.mildiu',
+  SPRAY_SUITABILITY: 'dashboard.risks.spray',
+  FROST:             'dashboard.risks.frost',
+  WIND_SPRAY:        'dashboard.risks.wind_spray',
+  WATER_STRESS:      'dashboard.risks.water_stress',
+  ENERGY_RISK:       'dashboard.risks.energy',
+  ROBOT_FAILURE:     'dashboard.risks.robot_failure',
+  GDD_PRAYS_OLEAE:   'dashboard.risks.prays_oleae',
+  GDD_LOBESIA_1ST:   'dashboard.risks.lobesia_1st',
+  GDD_LOBESIA_2ND:   'dashboard.risks.lobesia_2nd',
 };
 
-const SEVERITY_CONFIG: Record<string, { badge: string; bar: string; dot: string; label: string }> = {
-  critical: {
-    badge: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-    bar:   'bg-red-500',
-    dot:   'bg-red-500',
-    label: 'Crítico',
-  },
-  high: {
-    badge: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
-    bar:   'bg-orange-500',
-    dot:   'bg-orange-500',
-    label: 'Alto',
-  },
-  medium: {
-    badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
-    bar:   'bg-yellow-500',
-    dot:   'bg-yellow-500',
-    label: 'Medio',
-  },
-  low: {
-    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-    bar:   'bg-blue-400',
-    dot:   'bg-blue-400',
-    label: 'Bajo',
-  },
+interface SeverityCfg { badge: string; bar: string; dot: string; key: string; }
+
+const SEVERITY_CONFIG: Record<string, SeverityCfg> = {
+  critical: { badge: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',         bar: 'bg-red-500',    dot: 'bg-red-500',    key: 'dashboard.risks.severity.critical' },
+  high:     { badge: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300', bar: 'bg-orange-500', dot: 'bg-orange-500', key: 'dashboard.risks.severity.high' },
+  medium:   { badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300', bar: 'bg-yellow-500', dot: 'bg-yellow-500', key: 'dashboard.risks.severity.medium' },
+  low:      { badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',     bar: 'bg-blue-400',   dot: 'bg-blue-400',   key: 'dashboard.risks.severity.low' },
 };
 
 function computeSeverity(score: number, severity: string | null | undefined): string {
@@ -67,8 +51,9 @@ function shortEntityName(entityId: string): string {
   return parts[parts.length - 1] || entityId;
 }
 
-function riskLabel(code: string): string {
-  return RISK_LABELS[code] ?? code.replace(/_/g, ' ');
+function riskLabel(t: TFn, code: string): string {
+  const k = RISK_KEY[code];
+  return k ? t(k) : code.replace(/_/g, ' ');
 }
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -119,19 +104,19 @@ export const RiskSummaryCard: React.FC = () => {
           {alertCount > 0
             ? <ShieldAlert className="w-6 h-6" />
             : <ShieldCheck className="w-6 h-6" />}
-          {t('dashboard.risk_summary') || 'Riesgos Activos'}
+          {t('dashboard.risk_summary')}
         </h2>
         <div className="flex items-center gap-2">
           {alertCount > 0 && (
             <span className="bg-white/20 text-white text-sm font-semibold px-3 py-0.5 rounded-full">
-              {alertCount} alerta{alertCount !== 1 ? 's' : ''}
+              {t(alertCount === 1 ? 'dashboard.risks.alert_count_one' : 'dashboard.risks.alert_count_other', { count: alertCount })}
             </span>
           )}
           <button
             onClick={load}
             disabled={loading}
             className="text-white/70 hover:text-white transition"
-            title="Actualizar"
+            title={t('refresh')}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -147,7 +132,7 @@ export const RiskSummaryCard: React.FC = () => {
             const cfg = SEVERITY_CONFIG[sev];
             return (
               <span key={sev} className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${cfg.badge}`}>
-                {n} {cfg.label}
+                {n} {t(cfg.key)}
               </span>
             );
           })}
@@ -164,10 +149,10 @@ export const RiskSummaryCard: React.FC = () => {
           <div className="flex-1 flex flex-col items-center justify-center text-center py-8 text-gray-500 dark:text-gray-400">
             <ShieldCheck className="w-12 h-12 text-emerald-400 mb-3" />
             <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
-              Sin alertas activas
+              {t('dashboard.risks.no_alerts')}
             </p>
             <p className="text-xs mt-1 opacity-60">
-              Próxima evaluación automática en la hora.
+              {t('dashboard.risks.next_eval')}
             </p>
           </div>
         ) : (
@@ -182,7 +167,7 @@ export const RiskSummaryCard: React.FC = () => {
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
                       <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {riskLabel(state.risk_code)}
+                        {riskLabel(t, state.risk_code)}
                       </span>
                     </div>
                     {/* Score + badge */}
@@ -191,7 +176,7 @@ export const RiskSummaryCard: React.FC = () => {
                         {Math.round(state.probability_score)}%
                       </span>
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.badge}`}>
-                        {cfg.label}
+                        {t(cfg.key)}
                       </span>
                     </div>
                   </div>
@@ -212,7 +197,7 @@ export const RiskSummaryCard: React.FC = () => {
 
             {states.length > 6 && (
               <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-1">
-                +{states.length - 6} evaluaciones más
+                {t('dashboard.risks.more_evaluations', { count: states.length - 6 })}
               </p>
             )}
           </div>
@@ -222,14 +207,14 @@ export const RiskSummaryCard: React.FC = () => {
         <div className="mt-4 space-y-2">
           {lastUpdated && (
             <p className="text-xs text-center text-gray-400 dark:text-gray-500">
-              Actualizado {lastUpdated.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+              {t('dashboard.risks.updated_time', { time: lastUpdated.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) })}
             </p>
           )}
           <button
             onClick={() => navigate('/risks')}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-xl transition"
           >
-            Ver panel de riesgos
+            {t('dashboard.risks.view_panel')}
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

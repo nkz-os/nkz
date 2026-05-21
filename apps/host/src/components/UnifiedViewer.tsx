@@ -17,6 +17,7 @@ import { useViewer } from '@/context/ViewerContext';
 import { SlotRegistryProvider } from '@/context/SlotRegistry';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useModules } from '@/context/ModuleContext';
+import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
 import { cadastralApi } from '@/services/cadastralApi';
@@ -52,6 +53,7 @@ const PanelLoadingFallback: React.FC = () => (
 const UnifiedViewerInner: React.FC = () => {
     const { hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
+    const { t } = useI18n();
 
     // Combined state logic for sidebar
     const {
@@ -110,7 +112,25 @@ const UnifiedViewerInner: React.FC = () => {
     const [crops, setCrops] = useState<any[]>([]);
     const [buildings, setBuildings] = useState<any[]>([]);
     const [trees, setTrees] = useState<any[]>([]); // OliveTree, AgriTree, FruitTree, Vine
-    const [energyTrackers, setEnergyTrackers] = useState<any[]>([]); // AgriEnergyTracker
+    const [energyTrackers, setEnergyTrackers] = useState<any[]>([]); // AgriEnergyTracker + PhotovoltaicInstallation
+
+    // Normalize NGSI-LD entities whose attributes use full URIs (from SDM @context)
+    // into short names expected by CesiumMap rendering code.
+    const NGSILD_ATTR_URI_MAP: Record<string, string> = {
+      'https://saref.etsi.org/saref4agri/Ref3DModel': 'ref3DModel',
+      'https://saref.etsi.org/saref4agri/ModelScale': 'modelScale',
+      'https://saref.etsi.org/saref4agri/ModelRotation': 'modelRotation',
+      'https://schema.org/name': 'name',
+    };
+    const normalizeNgsiEntity = (entity: any): any => {
+      const normalized = { ...entity };
+      for (const [uri, short] of Object.entries(NGSILD_ATTR_URI_MAP)) {
+        if (entity[uri] !== undefined && entity[short] === undefined) {
+          normalized[short] = entity[uri];
+        }
+      }
+      return normalized;
+    };
 
     // Risk overlay
     const { overlay: riskOverlay } = useRiskOverlay();
@@ -159,12 +179,13 @@ const UnifiedViewerInner: React.FC = () => {
                 api.getSDMEntityInstances('Vine').catch(() => []),
                 // Fetch sensors from NGSI-LD (created via EntityWizard)
                 api.getSDMEntityInstances('AgriSensor').catch(() => []),
-                // Energy trackers
+                // Energy trackers (both custom AgriEnergyTracker and SDM PhotovoltaicInstallation)
                 api.getSDMEntityInstances('AgriEnergyTracker').catch(() => []),
+                api.getSDMEntityInstances('https://saref.etsi.org/saref4agri/PhotovoltaicInstallation').catch(() => []),
             ]);
 
             const [robotsRes, sensorsRes, machinesRes, livestockRes, weatherRes, parcelsRes, cropsRes, buildingsRes,
-                oliveTreeRes, agriTreeRes, fruitTreeRes, vineRes, agriSensorRes, energyTrackersRes] = results;
+                oliveTreeRes, agriTreeRes, fruitTreeRes, vineRes, agriSensorRes, energyTrackersRes, pvInstallationsRes] = results;
 
             setRobots(robotsRes.status === 'fulfilled' ? robotsRes.value : []);
             // Combine sensors from PostgreSQL API and NGSI-LD (SDM)
@@ -191,7 +212,9 @@ const UnifiedViewerInner: React.FC = () => {
             setTrees(allTrees);
             logger.debug('[UnifiedViewer] Trees loaded:', allTrees.length);
 
-            setEnergyTrackers(energyTrackersRes.status === 'fulfilled' ? energyTrackersRes.value : []);
+            const agriEnergyTrackers = energyTrackersRes.status === 'fulfilled' ? energyTrackersRes.value : [];
+            const pvInstallations = (pvInstallationsRes.status === 'fulfilled' ? pvInstallationsRes.value : []).map(normalizeNgsiEntity);
+            setEnergyTrackers([...agriEnergyTrackers, ...pvInstallations]);
 
             logger.debug('[UnifiedViewer] Entities loaded for map');
         } catch (error) {
@@ -282,14 +305,14 @@ const UnifiedViewerInner: React.FC = () => {
                     setMapMode('DRAW_PARCEL');
                 }
             } else {
-                alert('No se encontró información catastral para esta ubicación.');
+                alert(t('viewer.cadastral.not_found'));
             }
         } catch (error: any) {
             logger.error('[UnifiedViewer] Error querying cadastral:', error);
             const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
-            alert(`Error al consultar el servicio catastral: ${errorMsg}`);
+            alert(t('viewer.cadastral.error', { errorMsg }));
         }
-    }, [mapMode, setMapMode]);
+    }, [mapMode, setMapMode, t]);
 
     // Handle map click for PICK_LOCATION mode
     const handleMapClickForPicking = useCallback((lat: number, lon: number) => {
@@ -401,12 +424,12 @@ const UnifiedViewerInner: React.FC = () => {
             {mapMode === 'PICK_LOCATION' && (
                 <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50">
                     <div className={`${overlayPanel.base} px-6 py-3 rounded-full flex items-center gap-4`}>
-                        <p className="text-slate-700 dark:text-slate-100 font-medium">Haga clic en el mapa para seleccionar ubicación</p>
+                        <p className="text-slate-700 dark:text-slate-100 font-medium">{t('viewer.drawing.pick_location')}</p>
                         <button
                             onClick={cancelPicking}
                             className="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-100 px-3 py-1 rounded-full text-sm font-medium transition-colors"
                         >
-                            Cancelar
+                            {t('cancel')}
                         </button>
                     </div>
                 </div>
@@ -508,15 +531,15 @@ const UnifiedViewerInner: React.FC = () => {
                 >
                     {mapMode === 'DRAW_PARCEL' && drawnGeometry ? (
                         <div className="flex-1 overflow-y-auto p-4">
-                            <h3 className="text-lg font-semibold text-slate-800 mb-2">Nueva Parcela</h3>
+                            <h3 className="text-lg font-semibold text-slate-800 mb-2">{t('viewer.parcel.new_parcel')}</h3>
                             {cadastralData && (
                                 <p className="text-sm text-slate-600 mb-2">
-                                    Datos catastrales: {cadastralData.reference}
+                                    {t('viewer.parcel.cadastral_data', { reference: cadastralData.reference })}
                                 </p>
                             )}
                             {drawnArea && (
                                 <p className="text-sm text-slate-600">
-                                    Área: {drawnArea.toFixed(2)} ha
+                                    {t('viewer.parcel.area', { area: drawnArea.toFixed(2) })}
                                 </p>
                             )}
                             <ParcelForm
@@ -565,7 +588,7 @@ const UnifiedViewerInner: React.FC = () => {
                     className={`absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full z-40 px-4 py-1 rounded-t-lg ${overlayPanel.base} hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1`}
                 >
                     {isBottomPanelOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-                    Timeline
+                    {t('viewer.timeline.button')}
                 </button>
 
                 {isBottomPanelOpen && (
@@ -575,9 +598,9 @@ const UnifiedViewerInner: React.FC = () => {
                         </Suspense>
                         {/* Fallback if no bottom panel widgets */}
                         <div className="text-center">
-                            <p className="text-sm text-slate-500">Timeline - Control temporal unificado</p>
+                            <p className="text-sm text-slate-500">{t('viewer.timeline.label')}</p>
                             <p className="text-xs text-slate-400 mt-1">
-                                Fecha actual: {currentDate.toLocaleDateString('es-ES')}
+                                {t('viewer.timeline.current_date', { date: currentDate.toLocaleDateString('es-ES') })}
                             </p>
                         </div>
                     </div>

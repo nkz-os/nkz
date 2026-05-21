@@ -1,6 +1,7 @@
 import React from 'react';
 import { Heart, Plus } from 'lucide-react';
 import type { LivestockAnimal } from '@/types';
+import { useI18n } from '@/context/I18nContext';
 
 interface LivestockCardProps {
   livestock: LivestockAnimal[];
@@ -9,12 +10,13 @@ interface LivestockCardProps {
 }
 
 export const LivestockCard: React.FC<LivestockCardProps> = ({ livestock, canManageDevices, onOpenWizard }) => {
+  const { t } = useI18n();
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
       <div className="bg-gradient-to-r from-purple-500 to-purple-600 px-6 py-4">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <Heart className="w-6 h-6" />
-          Ganado
+          {t('dashboard.livestock.title')}
         </h2>
       </div>
 
@@ -22,14 +24,14 @@ export const LivestockCard: React.FC<LivestockCardProps> = ({ livestock, canMana
         {livestock.length === 0 ? (
           <div className="text-center py-12">
             <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">No hay animales registrados</p>
+            <p className="text-gray-500 mb-4">{t('dashboard.livestock.no_animals')}</p>
             {canManageDevices && (
               <button
                 onClick={() => onOpenWizard('LivestockAnimal')}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />
-                Añadir Animal
+                {t('dashboard.livestock.add_animal')}
               </button>
             )}
           </div>
@@ -46,7 +48,7 @@ export const LivestockCard: React.FC<LivestockCardProps> = ({ livestock, canMana
                       {animal.name?.value || animal.id}
                     </h4>
                     <p className="text-sm text-gray-500">
-                      {typeof animal.species === 'string' ? animal.species : animal.species?.value || 'Animal'}
+                      {typeof animal.species === 'string' ? animal.species : animal.species?.value || t('dashboard.livestock.species_label')}
                     </p>
                   </div>
                 </div>

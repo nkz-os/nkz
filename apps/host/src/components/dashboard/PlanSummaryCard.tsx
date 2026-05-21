@@ -13,46 +13,40 @@ interface PlanSummaryCardProps {
   updatedAt?: string;
 }
 
-const formatPlanName = (planType?: string | null): string => {
-  if (!planType) return 'Plan Básico';
-  
-  // Normalize plan type names
+type TFn = (key: string, opts?: Record<string, unknown>) => string;
+
+const formatPlanName = (t: TFn, planType?: string | null): string => {
+  const basic = t('dashboard.plan.basic');
+  if (!planType) return basic;
   const normalized = planType.toLowerCase().replace(/[-_]+/g, ' ').trim();
-  
-  // Map common variations to standard names
   const planMap: Record<string, string> = {
-    'basic': 'Plan Básico',
-    'basico': 'Plan Básico',
-    'advance': 'Plan Avanzado',
-    'avanzado': 'Plan Avanzado',
-    'advanced': 'Plan Avanzado',
-    'enterprise': 'Plan Enterprise',
-    'empresarial': 'Plan Enterprise',
+    'basic': basic,
+    'basico': basic,
+    'advance': t('dashboard.plan.advanced'),
+    'avanzado': t('dashboard.plan.advanced'),
+    'advanced': t('dashboard.plan.advanced'),
+    'enterprise': t('dashboard.plan.enterprise'),
+    'empresarial': t('dashboard.plan.enterprise'),
   };
-  
-  // Check if normalized matches a known plan
-  if (planMap[normalized]) {
-    return planMap[normalized];
-  }
-  
-  // Fallback: capitalize first letter
+  if (planMap[normalized]) return planMap[normalized];
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 };
 
-const formatExpiration = (daysRemaining?: number | null): { label: string; tone: string } => {
+const formatExpiration = (t: TFn, daysRemaining?: number | null): { label: string; tone: string } => {
   if (typeof daysRemaining !== 'number') {
-    return { label: 'Sin datos de expiración', tone: 'text-gray-500' };
+    return { label: t('dashboard.plan.no_expiration_data'), tone: 'text-gray-500' };
   }
   if (daysRemaining <= 0) {
-    return { label: 'Plan expirado', tone: 'text-red-600 font-semibold' };
+    return { label: t('dashboard.plan.expired'), tone: 'text-red-600 font-semibold' };
   }
-  if (daysRemaining <= 3) {
-    return { label: `Expira en ${daysRemaining} día${daysRemaining === 1 ? '' : 's'}`, tone: 'text-red-500 font-semibold' };
-  }
-  if (daysRemaining <= 7) {
-    return { label: `Expira en ${daysRemaining} días`, tone: 'text-orange-500 font-semibold' };
-  }
-  return { label: `Expira en ${daysRemaining} días`, tone: 'text-emerald-600 font-semibold' };
+  const key = daysRemaining === 1 ? 'dashboard.plan.expires_one' : 'dashboard.plan.expires_other';
+  const label = t(key, { days: daysRemaining });
+  const tone = daysRemaining <= 3
+    ? 'text-red-500 font-semibold'
+    : daysRemaining <= 7
+      ? 'text-orange-500 font-semibold'
+      : 'text-emerald-600 font-semibold';
+  return { label, tone };
 };
 
 export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
@@ -63,12 +57,16 @@ export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
   usage,
   updatedAt,
 }) => {
-  const { t: _t } = useI18n();
-  const expiration = formatExpiration(daysRemaining);
-  const planName = formatPlanName(planType ?? limits?.planType ?? undefined);
+  const { t } = useI18n();
+  const expiration = formatExpiration(t, daysRemaining);
+  const planName = formatPlanName(t, planType ?? limits?.planType ?? undefined);
   const robotsInUse = usage?.robots ?? 0;
   const sensorsInUse = usage?.sensors ?? 0;
   const areaInUse = usage?.areaHectares ?? 0;
+
+  const robotsLimitFrag = limits?.maxRobots ? `de ${limits.maxRobots}` : '';
+  const sensorsLimitFrag = limits?.maxSensors ? `de ${limits.maxSensors}` : '';
+  const areaLimitFrag = limits?.maxAreaHectares ? `de ${limits.maxAreaHectares} ha` : '';
 
   return (
     <div className="mb-8 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
@@ -76,8 +74,8 @@ export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
         <div className="flex items-center gap-3">
           <ShieldCheck className="w-6 h-6" />
           <div>
-            <h2 className="text-xl font-semibold">Resumen del Plan</h2>
-            <p className="text-sm text-emerald-100">Gestión centralizada de límites y uso del tenant</p>
+            <h2 className="text-xl font-semibold">{t('dashboard.plan.title')}</h2>
+            <p className="text-sm text-emerald-100">{t('dashboard.plan.description')}</p>
           </div>
         </div>
         <div className="flex items-center gap-4 text-sm">
@@ -98,59 +96,59 @@ export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
       <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/50">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">Usuarios</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.plan.users')}</div>
             <Users className="w-4 h-4 text-gray-400" />
           </div>
             <div className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
             {limits?.maxUsers ?? '—'}
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Usuarios permitidos por plan</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('dashboard.plan.users_allowed')}</p>
         </div>
 
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/50">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">Robots</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.plan.robots')}</div>
             <Bot className="w-4 h-4 text-gray-400 dark:text-gray-500" />
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-            {robotsInUse} en uso {limits?.maxRobots ? `de ${limits.maxRobots}` : ''}
+            {t('dashboard.plan.in_use_of_limit', { count: robotsInUse, limit: robotsLimitFrag })}
           </div>
           <ProgressBar
             value={robotsInUse}
             max={limits?.maxRobots ?? undefined}
-            label="Uso de robots"
+            label={t('dashboard.plan.robots_usage')}
             barClassName="bg-gradient-to-r from-blue-500 to-blue-600"
           />
         </div>
 
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/50">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">Sensores</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.plan.sensors')}</div>
             <Gauge className="w-4 h-4 text-gray-400 dark:text-gray-500" />
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-            {sensorsInUse} en uso {limits?.maxSensors ? `de ${limits.maxSensors}` : ''}
+            {t('dashboard.plan.in_use_of_limit', { count: sensorsInUse, limit: sensorsLimitFrag })}
           </div>
           <ProgressBar
             value={sensorsInUse}
             max={limits?.maxSensors ?? undefined}
-            label="Uso de sensores"
+            label={t('dashboard.plan.sensors_usage')}
             barClassName="bg-gradient-to-r from-green-500 to-green-600"
           />
         </div>
 
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/50">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">Superficie monitorizada</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.plan.monitored_area')}</div>
             <MapPin className="w-4 h-4 text-gray-400 dark:text-gray-500" />
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-            {areaInUse.toFixed(2)} ha {limits?.maxAreaHectares ? `de ${limits.maxAreaHectares} ha` : ''}
+            {t('dashboard.plan.area_in_use', { value: areaInUse.toFixed(2), limit: areaLimitFrag })}
           </div>
           <ProgressBar
             value={areaInUse}
             max={limits?.maxAreaHectares ?? undefined}
-            label="Cobertura"
+            label={t('dashboard.plan.area_coverage')}
             barClassName="bg-gradient-to-r from-amber-500 to-amber-600"
           />
         </div>
@@ -160,10 +158,10 @@ export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
         <div className="flex items-center gap-2">
           <RefreshCw className="w-3 h-3" />
           <span>
-            Datos actualizados {updatedAt ? new Date(updatedAt).toLocaleString('es-ES') : 'recientemente'}
+            {t('dashboard.plan.updated', { time: updatedAt ? new Date(updatedAt).toLocaleString('es-ES') : 'recientemente' })}
           </span>
         </div>
-        <span>Plan: {planName}</span>
+        <span>{t('dashboard.plan.plan_label', { plan: planName })}</span>
       </div>
     </div>
   );

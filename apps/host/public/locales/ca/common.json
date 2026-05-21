@@ -225,7 +225,109 @@
     "no_parcels": "No hi ha parcel·les registrades",
     "add_parcel": "Afegir parcel·la",
     "crop_not_specified": "Cultiu no especificat",
-    "environmental_sensors": "Sensors ambientals"
+    "environmental_sensors": "Sensors ambientals",
+    "machines": {
+      "title": "Maquinària Agrícola",
+      "no_machines": "No hi ha maquinaria registrada",
+      "add_machine": "Afegir Maquinaria",
+      "operation_type": "Operació"
+    },
+    "alerts": {
+      "title": "Alertes i Notificacions",
+      "all_ok": "Tot correcte",
+      "all_systems_ok": "Tots els sistemes funcionant correctament",
+      "charging": "Carregant",
+      "robots_charging_one": "{count} robot carregant",
+      "robots_charging_other": "{count} robots carregant",
+      "online": "En Línia",
+      "mqtt_stable": "Connexió MQTT estable"
+    },
+    "sensors": {
+      "humidity_unit_label": "% humitat",
+      "view_all_count": "Veure tots els sensors ({count})"
+    },
+    "livestock": {
+      "title": "Bestiar",
+      "no_animals": "No hi ha animals registrats",
+      "add_animal": "Afegir Animal",
+      "species_label": "Animal"
+    },
+    "members": {
+      "loading": "Carregant membres de l'equip...",
+      "no_members": "Ainda no hi ha usuaris a l'equip.",
+      "create_user": "Crear usuari",
+      "col_user": "Usuari",
+      "col_roles": "Rols",
+      "col_created": "Creat",
+      "col_status": "Estat",
+      "col_actions": "Accions",
+      "status_active": "Actiu",
+      "status_inactive": "Inactiu",
+      "action_edit_roles": "Editar rols",
+      "action_reset_password": "Restablir contrasenya"
+    },
+    "plan": {
+      "title": "Resum del Pla",
+      "basic": "Pla Bàsic",
+      "advanced": "Pla Avançat",
+      "enterprise": "Pla Enterprise",
+      "no_expiration_data": "Sense dades de venciment",
+      "expired": "Pla vençut",
+      "expires_one": "Venceeix en {days} dia",
+      "expires_other": "Venceeix en {days} dies",
+      "description": "Gestió centralitzada de límits i ús del tenant",
+      "users": "Usuaris",
+      "users_allowed": "Usuaris permesos pel pla",
+      "robots": "Robots",
+      "in_use_of_limit": "{count} en ús {limit}",
+      "robots_usage": "Ús de robots",
+      "sensors": "Sensors",
+      "sensors_usage": "Ús de sensors",
+      "monitored_area": "Superfície monitoritzada",
+      "area_in_use": "{value} ha {limit}",
+      "area_coverage": "Cobertura",
+      "updated": "Dades actualitzades {time}",
+      "plan_label": "Pla: {plan}"
+    },
+    "progress": {
+      "default_label": "Progrés"
+    },
+    "risks": {
+      "mildiu": "Míldiu / Botrytis",
+      "spray": "Polvorització (Delta T)",
+      "frost": "Gelada",
+      "wind_spray": "Vent Polvorització",
+      "water_stress": "Estrès Hídric",
+      "energy": "Risc Energètic",
+      "robot_failure": "Fallo Robot",
+      "prays_oleae": "Papallona de l'Olivera (Prays)",
+      "lobesia_1st": "Lobesia 1.ª gen. (Vinya)",
+      "lobesia_2nd": "Lobesia 2.ª gen. (Vinya)",
+      "severity": {
+        "critical": "Crític",
+        "high": "Alt",
+        "medium": "Mig",
+        "low": "Baix"
+      },
+      "alert_count_one": "{count} alerta",
+      "alert_count_other": "{count} alertes",
+      "refresh_button": "Actualitzar",
+      "no_alerts": "Sense alertes actives",
+      "next_eval": "Propera avaluació automàtica dins de l'hora.",
+      "more_evaluations": "+{count} més avaluacions",
+      "updated_time": "Actualitzat {time}",
+      "view_panel": "Veure panell de riscos"
+    },
+    "tenant_info": {
+      "tenant_label": "Nekazari Tenant",
+      "role_label_user": "User",
+      "wind_unit": "km/h"
+    },
+    "weather": {
+      "title": "Estacions Meteorològiques",
+      "no_stations": "No hi ha estacions registrades",
+      "add_station": "Afegir Estació"
+    }
   },
   "landing": {
     "title": "NKZ",
@@ -691,6 +793,98 @@
       "pro": "Pro",
       "premium": "Premium",
       "enterprise": "Enterprise"
+    }
+  },
+  "viewer": {
+    "header": {
+      "main_section": "Principal",
+      "addons_section": "Addons",
+      "theme_light": "Clar",
+      "theme_dark": "Fosc"
+    },
+    "cadastral": {
+      "not_found": "No s'ha trobat informació cadastral per a aquesta ubicació.",
+      "error": "Error al consultar el servei cadastral: {errorMsg}"
+    },
+    "parcel": {
+      "new_parcel": "Nova Parcel·la",
+      "cadastral_data": "Dades cadastrals: {reference}",
+      "area": "Àrea: {area} ha"
+    },
+    "timeline": {
+      "button": "Timeline",
+      "label": "Timeline - Control temporal unificat",
+      "current_date": "Data actual: {date}"
+    },
+    "sensor": {
+      "iot_sensor": "Sensor IoT",
+      "generic_sensor": "Sensor Genèric",
+      "location": "Ubicació",
+      "properties": "Propietats"
+    },
+    "context": {
+      "active_modules": "Els mòduls actius poden afegir controls adicionals aquí",
+      "no_entity": "Cap entitat seleccionada",
+      "select_entity": "Selecciona una entitat del mapa o de la llista per veure els seus detalls i opcions de control",
+      "yes": "Sí",
+      "no": "No",
+      "elements_count": "{count} element(s)",
+      "empty_list": "Buit",
+      "polygon_points": "Polígon ({count} punts)",
+      "details": "Detalls",
+      "properties": "Propietats",
+      "more_properties": "+{count} més propietats",
+      "change_history": "Historial de Canvis",
+      "change_history_unavailable": "L'historial de canvis es mostrarà aquí quan estigui disponible",
+      "clear_selection": "Neteja la selecció"
+    },
+    "telemetry": {
+      "realtime": "Telemetria en Temps Real",
+      "loading": "Carregant telemetria...",
+      "no_data": "No hi ha dades de telemetria disponibles",
+      "soil_moisture": "Humitat del Sòl",
+      "full_data": "Veure dades completes",
+      "tab_realtime": "Temps Real",
+      "tab_historical": "Històric"
+    },
+    "layers": {
+      "parcels": "Parcel·les",
+      "robots": "Robots",
+      "sensors": "Sensors",
+      "machines": "Maquinaria",
+      "weather": "Estacions",
+      "livestock": "Bestiar",
+      "buildings": "Edificis",
+      "trees": "Arbres",
+      "water": "Aigua",
+      "vegetation": "Vegetació",
+      "risk_on": "ON",
+      "risk_off": "OFF"
+    },
+    "mapmode": {
+      "draw_parcel": "Dibuixant Parcel·la",
+      "select_cadastral": "Selecció Cadastral",
+      "edit_geometry": "Editant Geometria",
+      "zoning": "Creant Zones",
+      "active_badge": "Mode Actiu"
+    },
+    "drawing": {
+      "parcel_instructions": "Feu clic al mapa per afegir vèrtexs. Clic dret per acabar.",
+      "cadastral_instructions": "Feu clic al mapa per cercar la parcel·la cadastral en aquella ubicació.",
+      "edit_instructions": "Arrossegueu els vèrtexs per modificar la geometria.",
+      "zoning_instructions": "Dibuixeu zones dins de la parcel·la seleccionada.",
+      "point_instruction": "Feu clic per seleccionar una ubicació",
+      "polygon_instruction": "Feu clic per afegir punts. Doble clic o clic dret per acabar.",
+      "linestring_instruction": "Clic esquerre per afegir punts. Clic dret per acabar.",
+      "multilinestring_instruction": "Clic esquerre per afegir punts. Clic dret per acabar la línia actual.",
+      "default_instruction": "Feu clic al mapa per dibuixar",
+      "type_label": "Dibuixant: {type}",
+      "pick_location": "Feu clic al mapa per seleccionar ubicació"
+    },
+    "toolbar": {
+      "undo_title": "Desfer l'últim punt",
+      "clear_title": "Netejar el dibuix",
+      "accept": "Acceptar"
     }
   }
 }
