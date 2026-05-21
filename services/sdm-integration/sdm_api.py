@@ -406,7 +406,9 @@ def get_sdm_entities():
                 "location": {"type": "geo:json", "description": "Parcel boundaries"},
                 "area": {"type": "Number", "description": "Parcel area"},
                 "cropType": {"type": "Text", "description": "Type of crop"},
-                "soilType": {"type": "Text", "description": "Type of soil"}
+                "soilType": {"type": "Text", "description": "Type of soil"},
+                "slope": {"type": "Number", "description": "Average terrain slope in degrees"},
+                "aspect": {"type": "Number", "description": "Terrain aspect/orientation in degrees (180=South)"}
             }
         },
         "AgriOperation": {

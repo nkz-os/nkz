@@ -202,6 +202,8 @@
     "panelWidth": "nkz:panelWidth",
     "panelLength": "nkz:panelLength",
     "panelHeight": "nkz:panelHeight",
+    "slope": "nkz:slope",
+    "aspect": "nkz:aspect",
 
     "visualRepresentation": {
       "@id": "https://nekazari.io/vocab/visualRepresentation",

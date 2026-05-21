@@ -13,6 +13,8 @@ export const KNOWN_SCHEMAS: AttributeSchema[] = [
   { key: 'status', labelKey: 'editor.field.status', type: 'text', section: 'basic', entityTypes: ['AutonomousMobileRobot', 'ManufacturingMachine', 'Device'] },
   { key: 'notes', labelKey: 'editor.field.notes', type: 'text', section: 'basic', entityTypes: ['*'] },
   { key: 'elevation', labelKey: 'editor.field.elevation', type: 'number', section: 'basic', unitCode: MTR, entityTypes: ['AgriParcel', 'Vineyard', 'OliveGrove'] },
+  { key: 'slope', labelKey: 'editor.field.slope', type: 'number', section: 'basic', min: 0, max: 90, step: 0.5, entityTypes: ['AgriParcel'] },
+  { key: 'aspect', labelKey: 'editor.field.aspect', type: 'number', section: 'basic', min: 0, max: 360, step: 1, entityTypes: ['AgriParcel'] },
 
   // ── Geometry ──
   { key: 'location', labelKey: 'editor.field.location', type: 'geo', section: 'geometry', entityTypes: ['*'] },
