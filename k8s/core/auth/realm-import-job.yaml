@@ -74,7 +74,7 @@ spec:
               http://keycloak-service:8080/auth/admin/realms/nekazari)
             
             # Update frontendUrl and adminUrl in the realm configuration
-            UPDATED_REALM=$(echo "$CURRENT_REALM" | jq '.attributes.frontendUrl = "https://auth.robotika.cloud/auth" | .attributes.adminUrl = "https://auth.robotika.cloud/auth/admin"')
+            UPDATED_REALM=$(echo "$CURRENT_REALM" | jq '.attributes.frontendUrl = "https://YOUR_KEYCLOAK_DOMAIN/auth" | .attributes.adminUrl = "https://YOUR_KEYCLOAK_DOMAIN/auth/admin"')
             
             # Update realm with modified configuration
             curl -s -X PUT \
@@ -88,7 +88,7 @@ spec:
             
             # Check if admin user exists (search by email since registrationEmailAsUsername is true)
             ADMIN_EXISTS=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-              "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=nekazari@robotika.cloud" | \
+              "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=nekazari@example.com" | \
               jq -r 'if length > 0 then "exists" else "missing" end')
             
             if [ "$ADMIN_EXISTS" = "missing" ]; then
@@ -143,7 +143,7 @@ spec:
             -H "Content-Type: application/json" \
             -d "{
               \"username\": \"admin\",
-              \"email\": \"nekazari@robotika.cloud\",
+              \"email\": \"nekazari@example.com\",
               \"firstName\": \"Platform\",
               \"lastName\": \"Administrator\",
               \"enabled\": true,
@@ -161,7 +161,7 @@ spec:
           
           # Get the user ID (search by email since registrationEmailAsUsername is true)
           USER_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-            "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=nekazari@robotika.cloud" | \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=nekazari@example.com" | \
             jq -r '.[0].id')
           
           # Assign PlatformAdmin role
@@ -191,7 +191,7 @@ spec:
             -H "Content-Type: application/json" \
             -d "{
               \"username\": \"farmer1\",
-              \"email\": \"farmer1@robotika.cloud\",
+              \"email\": \"farmer1@example.com\",
               \"firstName\": \"Sample\",
               \"lastName\": \"Farmer\",
               \"enabled\": true,
@@ -209,7 +209,7 @@ spec:
           
           # Get farmer user ID and assign Farmer role (search by email since registrationEmailAsUsername is true)
           FARMER_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-            "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=farmer1@robotika.cloud" | \
+            "http://keycloak-service:8080/auth/admin/realms/nekazari/users?email=farmer1@example.com" | \
             jq -r '.[0].id')
           
           FARMER_ROLE_ID=$(curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
@@ -338,12 +338,12 @@ data:
           "publicClient": true,
           "clientAuthenticatorType": "client-secret",
           "redirectUris": [
-            "https://nekazari.robotika.cloud/*",
+            "https://YOUR_DOMAIN/*",
             "http://localhost:3000/*",
             "http://localhost:5173/*"
           ],
           "webOrigins": [
-            "https://nekazari.robotika.cloud",
+            "https://YOUR_DOMAIN",
             "http://localhost:3000",
             "http://localhost:5173"
           ],
@@ -455,12 +455,12 @@ data:
           "clientAuthenticatorType": "client-secret",
           "secret": "admin-secret-change-in-production",
           "redirectUris": [
-            "https://nekazari.robotika.cloud/admin/*",
+            "https://YOUR_DOMAIN/admin/*",
             "http://localhost:3000/admin/*",
             "http://localhost:5173/admin/*"
           ],
           "webOrigins": [
-            "https://nekazari.robotika.cloud",
+            "https://YOUR_DOMAIN",
             "http://localhost:3000",
             "http://localhost:5173"
           ],
@@ -716,7 +716,7 @@ data:
         "cibaInterval": "5",
         "cibaAuthRequestedUserHint": "login_hint",
         "parRequestUriLifespan": "60",
-        "frontendUrl": "https://auth.robotika.cloud/auth",
-        "adminUrl": "https://auth.robotika.cloud/auth/admin"
+        "frontendUrl": "https://YOUR_KEYCLOAK_DOMAIN/auth",
+        "adminUrl": "https://YOUR_KEYCLOAK_DOMAIN/auth/admin"
       }
     }

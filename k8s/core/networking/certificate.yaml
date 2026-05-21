@@ -14,8 +14,8 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: nekazari.robotika.cloud
+  commonName: nekazari.YOUR_DOMAIN
   dnsNames:
-    - nekazari.robotika.cloud
-    - nkz.robotika.cloud
+    - nekazari.YOUR_DOMAIN
+    - nkz.YOUR_DOMAIN
 

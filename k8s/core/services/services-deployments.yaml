@@ -29,8 +29,8 @@ spec:
         layer: core
         component: api
       annotations:
-        nekazari.robotika.cloud/last-deployed: "2026-03-13T19:55:00Z"
-        nekazari.robotika.cloud/change-reason: "Fix admin routing and auth cookie extraction"
+        platform.example.com/last-deployed: "2026-03-13T19:55:00Z"
+        platform.example.com/change-reason: "Fix admin routing and auth cookie extraction"
     spec:
       serviceAccountName: api-gateway-sa
       securityContext:
@@ -138,7 +138,10 @@ spec:
             - name: ZULIP_PROVISIONER_URL
               value: "http://zulip-provisioner-service:5000"
             - name: ZULIP_HOST
-              value: "messaging.robotika.cloud"
+              valueFrom:
+                configMapKeyRef:
+                  name: core-zulip-messaging-config
+                  key: external-host
             - name: MODULE_GATEWAY_ENABLED
               value: "vegetation-health,gis-routing,cue,nkz-module-eu-elevation"
           command: ["gunicorn"]
@@ -206,8 +209,8 @@ spec:
         layer: core
         component: api
       annotations:
-        nekazari.robotika.cloud/last-deployed: "2026-03-13T19:55:00Z"
-        nekazari.robotika.cloud/change-reason: "Fix admin routing and auth cookie extraction"
+        platform.example.com/last-deployed: "2026-03-13T19:55:00Z"
+        platform.example.com/change-reason: "Fix admin routing and auth cookie extraction"
     spec:
       serviceAccountName: entity-manager-sa
       securityContext:
@@ -330,7 +333,10 @@ spec:
             - name: ASSETS_BUCKET
               value: "assets-3d"
             - name: ASSETS_PUBLIC_URL
-              value: "https://nekazari.robotika.cloud/assets"
+              valueFrom:
+                configMapKeyRef:
+                  name: core-static-assets-config
+                  key: STATIC_ASSETS_URL
             - name: MODULE_LIFECYCLE_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:

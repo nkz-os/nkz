@@ -1,8 +1,8 @@
 # =============================================================================
-# TLS certificate for MinIO public S3 API (minio.robotika.cloud)
+# TLS certificate for MinIO public S3 API (minio.YOUR_DOMAIN)
 # =============================================================================
 # Preconditions:
-# - DNS A/AAAA record for minio.robotika.cloud points to the cluster ingress.
+# - DNS A/AAAA record for minio.YOUR_DOMAIN points to the cluster ingress.
 # - Apply after ClusterIssuer letsencrypt-prod exists.
 # =============================================================================
 
@@ -18,6 +18,6 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: minio.robotika.cloud
+  commonName: minio.YOUR_DOMAIN
   dnsNames:
-    - minio.robotika.cloud
+    - minio.YOUR_DOMAIN

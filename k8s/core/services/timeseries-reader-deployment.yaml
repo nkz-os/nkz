@@ -49,9 +49,15 @@ spec:
             - name: KEYCLOAK_URL
               value: "http://keycloak-service:8080"
             - name: KEYCLOAK_PUBLIC_URL
-              value: "https://auth.robotika.cloud"
+              valueFrom:
+                configMapKeyRef:
+                  name: core-timeseries-reader-config
+                  key: KEYCLOAK_URL
             - name: KEYCLOAK_HOSTNAME
-              value: "auth.robotika.cloud"
+              valueFrom:
+                configMapKeyRef:
+                  name: core-timeseries-reader-config
+                  key: KEYCLOAK_HOSTNAME
             - name: KEYCLOAK_REALM
               value: "nekazari"
             - name: ORION_URL

@@ -1,5 +1,5 @@
 # =============================================================================
-# Ingress para Keycloak - Subdominio dedicado auth.robotika.cloud
+# Ingress para Keycloak - Subdominio dedicado YOUR_KEYCLOAK_DOMAIN
 # =============================================================================
 
 apiVersion: networking.k8s.io/v1
@@ -17,10 +17,10 @@ spec:
   ingressClassName: traefik
   tls:
   - hosts:
-    - auth.robotika.cloud
+    - YOUR_KEYCLOAK_DOMAIN
     secretName: auth-tls
   rules:
-  - host: auth.robotika.cloud
+  - host: YOUR_KEYCLOAK_DOMAIN
     http:
       paths:
       # Keycloak root - redirects to /auth

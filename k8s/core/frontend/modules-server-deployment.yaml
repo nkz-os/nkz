@@ -7,7 +7,7 @@
 # Uso:
 #   1. kubectl apply -f k8s/core/frontend/modules-server-deployment.yaml
 #   2. Copiar módulos al PVC: kubectl cp ./<module-name>/dist nekazari/<pod>:/usr/share/nginx/html/<module-name>/
-#   3. Acceso: https://nekazari.robotika.cloud/modules/<module-name>/remoteEntry.js
+#   3. Acceso: https://nekazari.YOUR_DOMAIN/modules/<module-name>/remoteEntry.js
 # =============================================================================
 
 ---

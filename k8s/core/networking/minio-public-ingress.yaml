@@ -23,10 +23,10 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - minio.robotika.cloud
+        - minio.YOUR_DOMAIN
       secretName: minio-tls
   rules:
-    - host: minio.robotika.cloud
+    - host: minio.YOUR_DOMAIN
       http:
         paths:
           - path: /

@@ -62,8 +62,8 @@ spec:
                   redirects = client.get("redirectUris", [])
                   web_origins = client.get("webOrigins", [])
                   
-                  new_redirect = "https://nekazari.robotika.cloud/*"
-                  new_origin = "https://nekazari.robotika.cloud"
+                  new_redirect = "https://YOUR_DOMAIN/*"
+                  new_origin = "https://YOUR_DOMAIN"
                   
                   needs_update = False
                   if new_redirect not in redirects:
@@ -89,7 +89,7 @@ spec:
               # 3. Create Admin User if missing
               print("Checking Admin User...")
               users_url = f"{KEYCLOAK_URL}/admin/realms/{REALM}/users"
-              target_email = "nekazari@robotika.cloud"
+              target_email = "nekazari@example.com"
               resp = requests.get(users_url, params={"email": target_email}, headers=headers)
 
               if resp.status_code == 200 and len(resp.json()) == 0:
@@ -131,7 +131,7 @@ spec:
                   attributes = realm_data.get("attributes", {})
                   current_frontend = attributes.get("frontendUrl")
                   
-                  target_frontend = "https://auth.robotika.cloud/auth"
+                  target_frontend = "https://YOUR_KEYCLOAK_DOMAIN/auth"
                   if current_frontend != target_frontend:
                       print(f"Updating frontendUrl from {current_frontend} to {target_frontend}")
                       attributes["frontendUrl"] = target_frontend

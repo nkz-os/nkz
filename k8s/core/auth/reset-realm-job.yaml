@@ -182,7 +182,7 @@ spec:
           echo ""
           echo "Creating bootstrap platform admin user..."
           
-          BOOTSTRAP_EMAIL="${BOOTSTRAP_ADMIN_EMAIL:-nekazari@robotika.cloud}"
+          BOOTSTRAP_EMAIL="${BOOTSTRAP_ADMIN_EMAIL:-nekazari@example.com}"
           BOOTSTRAP_PASSWORD="${BOOTSTRAP_ADMIN_PASSWORD:-${ADMIN_PASS}}"
           
           # Check if user already exists
@@ -288,7 +288,7 @@ spec:
               name: keycloak-secret
               key: admin-password
         - name: BOOTSTRAP_ADMIN_EMAIL
-          value: "nekazari@robotika.cloud"
+          value: "nekazari@example.com"
         - name: BOOTSTRAP_ADMIN_PASSWORD
           valueFrom:
             secretKeyRef:

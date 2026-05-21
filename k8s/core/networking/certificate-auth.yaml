@@ -1,5 +1,5 @@
 # =============================================================================
-# Certificate Resource para auth.robotika.cloud
+# Certificate Resource para auth.YOUR_DOMAIN
 # =============================================================================
 
 apiVersion: cert-manager.io/v1
@@ -14,7 +14,7 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: auth.robotika.cloud
+  commonName: auth.YOUR_DOMAIN
   dnsNames:
-    - auth.robotika.cloud
+    - auth.YOUR_DOMAIN
 

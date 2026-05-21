@@ -22,7 +22,7 @@ spec:
       - "Fiware-ServicePath"
       - "*"
     accessControlAllowOriginList:
-      - "https://nekazari.robotika.cloud"
+      - "https://nekazari.YOUR_DOMAIN"
       - "http://localhost:5173"
       - "http://localhost:3000"
       - "https://*.vercel.app"

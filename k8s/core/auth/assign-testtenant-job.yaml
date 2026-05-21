@@ -52,7 +52,7 @@ spec:
           echo "Token obtenido"
           
           # Asignar tenant_id a usuarios
-          for EMAIL in "nekazari@robotika.cloud" "farmer1@robotika.cloud"; do
+          for EMAIL in "nekazari@example.com" "farmer1@example.com"; do
             echo "Asignando TESTTENANT a ${EMAIL}..."
             
             # Obtener ID del usuario

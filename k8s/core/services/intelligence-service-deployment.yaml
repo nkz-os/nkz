@@ -78,7 +78,10 @@ spec:
               value: "http://api-gateway-service:5000/ngsi-ld-context.json"
             # Keycloak Configuration (optional)
             - name: KEYCLOAK_URL
-              value: "https://auth.robotika.cloud/auth"
+              valueFrom:
+                configMapKeyRef:
+                  name: core-intelligence-config
+                  key: KEYCLOAK_URL
             - name: KEYCLOAK_REALM
               value: "nekazari"
             - name: JWT_AUDIENCE
@@ -88,7 +91,10 @@ spec:
               value: "http://timeseries-reader-service:5000"
             # CORS — explicit origin whitelist (never *)
             - name: CORS_ORIGINS
-              value: '["https://nekazari.robotika.cloud"]'
+              valueFrom:
+                configMapKeyRef:
+                  name: core-intelligence-config
+                  key: CORS_ORIGINS
           resources:
             requests:
               memory: "256Mi"

@@ -82,7 +82,7 @@ spec:
               name: n8n-oauth2-secret
               key: client-secret
         - name: OAUTH2_PROXY_REDIRECT_URL
-          value: "https://n8n.nekazari.robotika.cloud/oauth2/callback"
+          value: "https://n8n.example.com/oauth2/callback"
         
         # Upstream Configuration (n8n container)
         - name: OAUTH2_PROXY_UPSTREAM
@@ -124,7 +124,7 @@ spec:
               name: n8n-oauth2-secret
               key: cookie-secret
         - name: OAUTH2_PROXY_COOKIE_DOMAIN
-          value: ".nekazari.robotika.cloud"
+          value: ".YOUR_DOMAIN"
         - name: OAUTH2_PROXY_COOKIE_SECURE
           value: "true"
         - name: OAUTH2_PROXY_COOKIE_HTTPONLY
@@ -242,13 +242,13 @@ spec:
         
         # Host Configuration
         - name: N8N_HOST
-          value: "n8n.nekazari.robotika.cloud"
+          value: "n8n.YOUR_DOMAIN"
         - name: N8N_PROTOCOL
           value: "https"
         - name: N8N_PORT
           value: "5678"
         - name: WEBHOOK_URL
-          value: "https://n8n.nekazari.robotika.cloud/"
+          value: "https://n8n.example.com/"
         - name: GENERIC_TIMEZONE
           value: "Europe/Madrid"
         
@@ -361,10 +361,10 @@ spec:
   ingressClassName: traefik
   tls:
   - hosts:
-    - n8n.nekazari.robotika.cloud
+    - n8n.YOUR_DOMAIN
     secretName: n8n-tls
   rules:
-  - host: n8n.nekazari.robotika.cloud
+  - host: n8n.YOUR_DOMAIN
     http:
       paths:
       - path: /

@@ -31,7 +31,7 @@ spec:
           ADMIN_USER="${KEYCLOAK_ADMIN}"
           ADMIN_PASS="${KEYCLOAK_ADMIN_PASSWORD}"
           
-          KEYCLOAK_URL="https://auth.robotika.cloud/auth"
+          KEYCLOAK_URL="https://YOUR_KEYCLOAK_DOMAIN/auth"
           REALM="nekazari"
           TARGET_EMAIL="${TARGET_EMAIL:-}"
           
@@ -41,7 +41,7 @@ import sys
 import json
 import requests
 
-KEYCLOAK_URL = os.getenv('KEYCLOAK_URL', 'https://auth.robotika.cloud/auth')
+KEYCLOAK_URL = os.getenv('KEYCLOAK_URL', 'https://YOUR_KEYCLOAK_DOMAIN/auth')
 REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
 TARGET_EMAIL = os.getenv('TARGET_EMAIL')
 
@@ -213,7 +213,7 @@ PYTHON_SCRIPT
               name: keycloak-secret
               key: admin-password
         - name: KEYCLOAK_URL
-          value: "https://auth.robotika.cloud/auth"
+          value: "https://YOUR_KEYCLOAK_DOMAIN/auth"
         - name: KEYCLOAK_REALM
           value: "nekazari"
         - name: TARGET_EMAIL

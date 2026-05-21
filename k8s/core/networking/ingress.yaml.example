@@ -16,20 +16,20 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-    # Frontend (nekazari.robotika.cloud)
+    # Frontend (nekazari.YOUR_DOMAIN)
     - hosts:
-        - nekazari.robotika.cloud
+        - nekazari.YOUR_DOMAIN
       secretName: nekazari-tls
-    # Backend API (nkz.robotika.cloud)
+    # Backend API (nkz.YOUR_DOMAIN)
     - hosts:
-        - nkz.robotika.cloud
+        - nkz.YOUR_DOMAIN
       secretName: nkz-tls
     # Odoo UI (odoo.*) is served ONLY by odoo-direct-ingress (module repo).
     # Do NOT add odoo host here — causes routing collisions and cert-manager conflicts.
 
   rules:
-    # 1. BACKEND API (nkz.robotika.cloud)
-    - host: nkz.robotika.cloud
+    # 1. BACKEND API (nkz.YOUR_DOMAIN)
+    - host: nkz.YOUR_DOMAIN
       http:
         paths:
           # Module Federation API (must be before /api to take precedence)
@@ -267,7 +267,7 @@ spec:
                 name: api-gateway-service
                 port:
                   number: 5000
-    - host: nekazari.robotika.cloud
+    - host: nekazari.YOUR_DOMAIN
       http:
         paths:
           # =================================================================
@@ -298,7 +298,7 @@ spec:
                 name: api-gateway-service
                 port:
                   number: 5000
-          # DataHub Module BFF (same-origin /api/datahub from SPA; must match nkz.robotika.cloud routing)
+          # DataHub Module BFF (same-origin /api/datahub from SPA; must match nkz.YOUR_DOMAIN routing)
           - path: /api/datahub
             pathType: Prefix
             backend:

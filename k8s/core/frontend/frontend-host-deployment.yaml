@@ -22,15 +22,15 @@ spec:
         imagePullPolicy: Always
         env:
         - name: COMPANY_URL
-          value: "https://robotika.cloud"
+          value: "https://YOUR_DOMAIN"
         - name: COMPANY_NAME
-          value: "Robotika.cloud"
+          value: "Example Corp."
         - name: SUPPORT_EMAIL
-          value: "kate@robotika.cloud"
+          value: "kate@example.com"
         - name: SALES_EMAIL
-          value: "kate@robotika.cloud"
+          value: "kate@example.com"
         - name: PARTNERS_JSON
-          value: '[{"name":"Robotika.cloud","url":"https://robotika.cloud/","logo":"/modules/assets/logo-robotika.svg"},{"name":"Biosasun","url":"https://biosasun.eu/","logo":"/modules/assets/logo-biosasun.png"},{"name":"Allotarra","url":"https://allotarra.eu/","logo":"/modules/assets/logo-allotarra.webp"},{"name":"Artotxiki","url":"https://artotxiki.com/","logo":"/modules/assets/logo-artotxiki.png"}]'
+          value: '[{"name":"Example Corp.","url":"https://YOUR_DOMAIN/","logo":"/modules/assets/logo-robotika.svg"},{"name":"Biosasun","url":"https://biosasun.eu/","logo":"/modules/assets/logo-biosasun.png"},{"name":"Allotarra","url":"https://allotarra.eu/","logo":"/modules/assets/logo-allotarra.webp"},{"name":"Artotxiki","url":"https://artotxiki.com/","logo":"/modules/assets/logo-artotxiki.png"}]'
         ports:
         - containerPort: 80
           name: http

@@ -81,12 +81,12 @@ data:
       "publicClient": true,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "https://nekazari.robotika.cloud/*",
+        "https://YOUR_DOMAIN/*",
         "http://localhost:3000/*",
         "http://localhost:5173/*"
       ],
       "webOrigins": [
-        "https://nekazari.robotika.cloud",
+        "https://YOUR_DOMAIN",
         "http://localhost:3000",
         "http://localhost:5173"
       ],
@@ -198,12 +198,12 @@ data:
       "clientAuthenticatorType": "client-secret",
       "secret": "admin-secret-change-in-production",
       "redirectUris": [
-        "https://nekazari.robotika.cloud/admin/*",
+        "https://YOUR_DOMAIN/admin/*",
         "http://localhost:3000/admin/*",
         "http://localhost:5173/admin/*"
       ],
       "webOrigins": [
-        "https://nekazari.robotika.cloud",
+        "https://YOUR_DOMAIN",
         "http://localhost:3000",
         "http://localhost:5173"
       ],
@@ -472,8 +472,8 @@ data:
     "cibaInterval": "5",
     "cibaAuthRequestedUserHint": "login_hint",
     "parRequestUriLifespan": "60",
-    "frontendUrl": "https://auth.robotika.cloud/auth",
-    "adminUrl": "https://auth.robotika.cloud/auth/admin"
+    "frontendUrl": "https://YOUR_KEYCLOAK_DOMAIN/auth",
+    "adminUrl": "https://YOUR_KEYCLOAK_DOMAIN/auth/admin"
   },
   "users": [
     {
