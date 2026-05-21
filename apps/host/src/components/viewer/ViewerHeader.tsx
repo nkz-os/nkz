@@ -192,10 +192,10 @@ export const ViewerHeader: React.FC = () => {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
-                                    {user?.email || 'Usuario'}
+                                    {user?.email || t('layout.user')}
                                 </p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
-                                    {isPlatformAdmin ? 'Administrador' : userRoles[0] || 'Usuario'}
+                                    {isPlatformAdmin ? t('layout.administrator') : userRoles[0] || t('layout.user')}
                                 </p>
                             </div>
                         </div>
@@ -205,7 +205,7 @@ export const ViewerHeader: React.FC = () => {
                     <div className="py-2">
                         <div className="px-4 py-1">
                             <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                Principal
+                                {t('viewer.header.main_section')}
                             </span>
                         </div>
                         {coreItems.map((item) => {
@@ -279,7 +279,7 @@ export const ViewerHeader: React.FC = () => {
                         <div className="py-2 border-t border-slate-200 dark:border-slate-700">
                             <div className="px-4 py-1">
                                 <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                                    Addons
+                                    {t('viewer.header.addons_section')}
                                 </span>
                             </div>
                             <div className="max-h-64 overflow-y-auto px-1 pb-1">
@@ -362,7 +362,7 @@ export const ViewerHeader: React.FC = () => {
                             ) : (
                                 <Moon className="w-4 h-4" />
                             )}
-                            <span>{isLight ? 'Claro' : 'Oscuro'}</span>
+                            <span>{isLight ? t('viewer.header.theme_light') : t('viewer.header.theme_dark')}</span>
                         </button>
                         <LanguageSelector variant="compact" />
                     </div>

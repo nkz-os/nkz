@@ -116,7 +116,7 @@ export const LayersCascadeSubmenu: React.FC<LayersCascadeSubmenuProps> = ({
                   riskEnabled ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'
                 }`}
               >
-                {riskEnabled ? 'ON' : 'OFF'}
+                {riskEnabled ? t('viewer.layers.risk_on') : t('viewer.layers.risk_off')}
               </span>
             </button>
           </CollapsibleGroup>

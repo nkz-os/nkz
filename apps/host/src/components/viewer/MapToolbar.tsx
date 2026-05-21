@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { useViewer, MapMode } from '@/context/ViewerContext';
+import { useI18n } from '@/context/I18nContext';
 import { CheckCircle2, X, Undo2, Eraser } from 'lucide-react';
 
 interface MapToolbarProps {
@@ -29,6 +30,7 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
     customActions,
 }) => {
     const { mapMode, resetMapMode } = useViewer();
+    const { t } = useI18n();
 
     // Only show toolbar when not in VIEW mode
     if (mapMode === 'VIEW') {
@@ -45,28 +47,28 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
     const getModeLabel = (mode: MapMode): string => {
         switch (mode) {
             case 'DRAW_PARCEL':
-                return 'Dibujando Parcela';
+                return t('viewer.mapmode.draw_parcel');
             case 'SELECT_CADASTRAL':
-                return 'Selección Catastral';
+                return t('viewer.mapmode.select_cadastral');
             case 'EDIT_GEOMETRY':
-                return 'Editando Geometría';
+                return t('viewer.mapmode.edit_geometry');
             case 'ZONING':
-                return 'Creando Zonas';
+                return t('viewer.mapmode.zoning');
             default:
-                return 'Modo Activo';
+                return t('viewer.mapmode.active_badge');
         }
     };
 
     const getModeInstructions = (mode: MapMode): string => {
         switch (mode) {
             case 'DRAW_PARCEL':
-                return 'Haz clic en el mapa para añadir vértices. Click derecho para terminar.';
+                return t('viewer.drawing.parcel_instructions');
             case 'SELECT_CADASTRAL':
-                return 'Haz clic en el mapa para buscar la parcela catastral en esa ubicación.';
+                return t('viewer.drawing.cadastral_instructions');
             case 'EDIT_GEOMETRY':
-                return 'Arrastra los vértices para modificar la geometría.';
+                return t('viewer.drawing.edit_instructions');
             case 'ZONING':
-                return 'Dibuja zonas dentro de la parcela seleccionada.';
+                return t('viewer.drawing.zoning_instructions');
             default:
                 return '';
         }
@@ -92,7 +94,7 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
                         <button
                             onClick={onUndo}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100"
-                            title="Deshacer último punto"
+                            title={t('viewer.toolbar.undo_title')}
                         >
                             <Undo2 className="w-4 h-4" />
                         </button>
@@ -103,7 +105,7 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
                         <button
                             onClick={onClear}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100"
-                            title="Borrar dibujo"
+                            title={t('viewer.toolbar.clear_title')}
                         >
                             <Eraser className="w-4 h-4" />
                         </button>
@@ -117,10 +119,10 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
                         <button
                             onClick={onAccept}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 font-medium"
-                            title="Aceptar"
+                            title={t('viewer.toolbar.accept')}
                         >
                             <CheckCircle2 className="w-4 h-4" />
-                            Aceptar
+                            {t('viewer.toolbar.accept')}
                         </button>
                     )}
 
@@ -128,14 +130,13 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
                     <button
                         onClick={handleCancel}
                         className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors flex items-center gap-2 font-medium"
-                        title="Cancelar"
+                        title={t('cancel')}
                     >
                         <X className="w-4 h-4" />
-                        Cancelar
+                        {t('cancel')}
                     </button>
                 </div>
             </div>
         </div>
     );
 };
-

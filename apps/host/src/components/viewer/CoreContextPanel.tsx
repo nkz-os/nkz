@@ -7,6 +7,7 @@
 import React, { useMemo, useState } from 'react';
 import { useViewer } from '@/context/ViewerContext';
 import { useModules } from '@/context/ModuleContext';
+import { useI18n } from '@/context/I18nContext';
 import { ParcelDetailsPanel } from '@/components/parcels/ParcelDetailsPanel';
 import { TimelineView } from '@/components/Timeline/TimelineView';
 import { useTelemetry } from '@/hooks/useTelemetry';
@@ -38,6 +39,7 @@ interface CoreContextPanelProps {
 // =============================================================================
 
 const SensorDetailsPanel: React.FC<{ entityData: any }> = ({ entityData }) => {
+    const { t } = useI18n();
     // Filter out technical/internal fields
     const ignoredFields = [
         'id', 'type', '@context', '@id',
@@ -71,7 +73,7 @@ const SensorDetailsPanel: React.FC<{ entityData: any }> = ({ entityData }) => {
 
     // Extract sensor specific info
     const sensorType = entityData.controlledProperty?.value ||
-        (entityData['https://smartdatamodels.org/name']?.value ? 'Sensor IoT' : 'Sensor Genérico');
+        (entityData['https://smartdatamodels.org/name']?.value ? t('viewer.sensor.iot_sensor') : t('viewer.sensor.generic_sensor'));
 
     const sensorName = entityData.name?.value ||
         entityData['https://smartdatamodels.org/name']?.value ||
@@ -106,7 +108,7 @@ const SensorDetailsPanel: React.FC<{ entityData: any }> = ({ entityData }) => {
                     <div className="flex items-start gap-2">
                         <MapPin className="w-4 h-4 text-slate-500 mt-0.5" />
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-slate-700 mb-1">Ubicación</p>
+                            <p className="text-xs font-semibold text-slate-700 mb-1">{t('viewer.sensor.location')}</p>
                             {location.type === 'Point' && location.coordinates ? (
                                 <div className="text-xs font-mono text-slate-600">
                                     <div className="flex justify-between">
@@ -131,7 +133,7 @@ const SensorDetailsPanel: React.FC<{ entityData: any }> = ({ entityData }) => {
                 <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
                         <Info className="w-4 h-4" />
-                        Propiedades
+                        {t('viewer.sensor.properties')}
                     </div>
                     <div className="space-y-2 border border-slate-200 rounded-lg p-3 bg-white">
                         {attributes.map(attr => (
@@ -163,6 +165,7 @@ const SensorDetailsPanel: React.FC<{ entityData: any }> = ({ entityData }) => {
 };
 
 const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
+    const { t } = useI18n();
     const {
         selectedEntityId,
         selectedEntityType,
@@ -221,7 +224,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
             return (
                 <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-dashed border-slate-200">
                     <p className="text-xs text-slate-500 text-center">
-                        Los módulos activos pueden añadir controles adicionales aquí
+                        {t('viewer.context.active_modules')}
                     </p>
                 </div>
             );
@@ -276,9 +279,9 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                 <div className="p-4 rounded-full bg-slate-100 mb-4">
                     <MapPin className="w-8 h-8 text-slate-400" />
                 </div>
-                <h3 className="font-medium text-slate-700 mb-2">Ninguna entidad seleccionada</h3>
+                <h3 className="font-medium text-slate-700 mb-2">{t('viewer.context.no_entity')}</h3>
                 <p className="text-sm text-slate-500">
-                    Selecciona una entidad del mapa o de la lista para ver sus detalles y opciones de control
+                    {t('viewer.context.select_entity')}
                 </p>
             </div>
         );
@@ -313,7 +316,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
     // Format attribute value for display
     const formatAttributeValue = (value: any): string => {
         if (value === null || value === undefined) return '-';
-        if (typeof value === 'boolean') return value ? 'Sí' : 'No';
+        if (typeof value === 'boolean') return value ? t('viewer.context.yes') : t('viewer.context.no');
         if (typeof value === 'number') {
             // Format coordinates with more precision
             if (Math.abs(value) < 1 && Math.abs(value) > 0.0001) {
@@ -322,7 +325,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
             return value.toString();
         }
         if (Array.isArray(value)) {
-            return value.length > 0 ? `${value.length} elemento(s)` : 'Vacío';
+            return value.length > 0 ? t('viewer.context.elements_count', { count: value.length }) : t('viewer.context.empty_list');
         }
         if (typeof value === 'object') {
             // Handle GeoJSON coordinates
@@ -331,7 +334,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                 return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
             }
             if (value.type === 'Polygon' && value.coordinates) {
-                return `Polígono (${value.coordinates[0]?.length || 0} puntos)`;
+                return t('viewer.context.polygon_points', { count: value.coordinates[0]?.length || 0 });
             }
             return JSON.stringify(value).substring(0, 50) + '...';
         }
@@ -346,12 +349,12 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
             <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
                 <h2 className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     {getEntityIcon()}
-                    Detalles
+                    {t('viewer.context.details')}
                 </h2>
                 <button
                     onClick={clearSelection}
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
-                    title="Cerrar"
+                    title={t('close')}
                 >
                     <X className="w-4 h-4" />
                 </button>
@@ -412,7 +415,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                             <div className="space-y-3">
                                 <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
                                     <Info className="w-4 h-4" />
-                                    Propiedades
+                                    {t('viewer.context.properties')}
                                 </div>
                                 <div className="space-y-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-slate-50 dark:bg-slate-800">
                                     {getAllAttributes.slice(0, 10).map((attr) => (
@@ -432,7 +435,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                                     ))}
                                     {getAllAttributes.length > 10 && (
                                         <div className="text-xs text-slate-500 text-center pt-2 border-t border-slate-200">
-                                            +{getAllAttributes.length - 10} propiedades más
+                                            {t('viewer.context.more_properties', { count: getAllAttributes.length - 10 })}
                                         </div>
                                     )}
                                 </div>
@@ -452,11 +455,11 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                         <div className="space-y-2">
                             <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
                                 <Clock className="w-4 h-4" />
-                                Historial de Cambios
+                                {t('viewer.context.change_history')}
                             </div>
                             <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-800">
                                 <p className="text-xs text-slate-500 text-center">
-                                    El historial de cambios se mostrará aquí cuando esté disponible
+                                    {t('viewer.context.change_history_unavailable')}
                                 </p>
                                 {/* TODO: Implement change history from audit logs */}
                             </div>
@@ -475,7 +478,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                         onClick={clearSelection}
                         className="w-full py-2 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
                     >
-                        Limpiar selección
+                        {t('viewer.context.clear_selection')}
                     </button>
                 </div>
             )}
@@ -500,6 +503,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
     entityName: _entityName,
     entityData,
 }) => {
+    const { t } = useI18n();
     const {
         latestTelemetry,
         isLoadingLatest,
@@ -563,7 +567,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
                     <Activity className="w-4 h-4" />
-                    Telemetría en Tiempo Real
+                    {t('viewer.telemetry.realtime')}
                 </div>
                 <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${isConnected || hasEntityData ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
@@ -595,7 +599,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                 <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-800">
                     <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Cargando telemetría...
+                        {t('viewer.telemetry.loading')}
                     </div>
                 </div>
             ) : telemetryError && !entityData ? (
@@ -615,7 +619,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                                     <span className="text-xs text-slate-600">{getMeasurementUnit('temperature') || '°C'}</span>
                                 </div>
                                 <div className="text-lg font-bold text-red-700">{temperature.toFixed(1)}</div>
-                                <div className="text-xs text-slate-600 mt-0.5">Temperatura</div>
+                                <div className="text-xs text-slate-600 mt-0.5">{t('weather.temperature')}</div>
                             </div>
                         )}
 
@@ -626,7 +630,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                                     <span className="text-xs text-slate-600">{getMeasurementUnit('humidity') || '%'}</span>
                                 </div>
                                 <div className="text-lg font-bold text-blue-700">{humidity.toFixed(1)}</div>
-                                <div className="text-xs text-slate-600 mt-0.5">Humedad</div>
+                                <div className="text-xs text-slate-600 mt-0.5">{t('weather.humidity')}</div>
                             </div>
                         )}
 
@@ -637,7 +641,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                                     <span className="text-xs text-slate-600">{getMeasurementUnit('moisture') || '%'}</span>
                                 </div>
                                 <div className="text-lg font-bold text-green-700">{moisture.toFixed(1)}</div>
-                                <div className="text-xs text-slate-600 mt-0.5">Humedad Suelo</div>
+                                <div className="text-xs text-slate-600 mt-0.5">{t('viewer.telemetry.soil_moisture')}</div>
                             </div>
                         )}
 
@@ -648,7 +652,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                                     <span className="text-xs text-slate-600">{getMeasurementUnit('batteryLevel') || '%'}</span>
                                 </div>
                                 <div className="text-lg font-bold text-emerald-700">{battery.toFixed(1)}</div>
-                                <div className="text-xs text-slate-600 mt-0.5">Batería</div>
+                                <div className="text-xs text-slate-600 mt-0.5">{t('sensors.battery')}</div>
                             </div>
                         )}
 
@@ -659,14 +663,14 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                                     <span className="text-xs text-slate-600">{getMeasurementUnit('pressure') || 'hPa'}</span>
                                 </div>
                                 <div className="text-lg font-bold text-purple-700">{pressure.toFixed(1)}</div>
-                                <div className="text-xs text-slate-600 mt-0.5">Presión</div>
+                                <div className="text-xs text-slate-600 mt-0.5">{t('weather.pressure')}</div>
                             </div>
                         )}
 
                         {temperature === null && humidity === null && moisture === null &&
                             battery === null && pressure === null && (
                                 <div className="col-span-2 text-center py-4 text-sm text-slate-500">
-                                    No hay datos de telemetría disponibles
+                                    {t('viewer.telemetry.no_data')}
                                 </div>
                             )}
                     </div>
@@ -674,7 +678,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                     {latestTelemetry?.payload && Object.keys(latestTelemetry.payload).length > 0 && (
                         <details className="mt-3 pt-3 border-t border-slate-200">
                             <summary className="cursor-pointer text-xs text-slate-600 hover:text-slate-900">
-                                Ver datos completos
+                                {t('viewer.telemetry.full_data')}
                             </summary>
                             <pre className="mt-2 p-2 bg-slate-100 rounded text-xs overflow-auto max-h-32">
                                 {JSON.stringify(latestTelemetry?.payload, null, 2)}
@@ -685,7 +689,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
             ) : (
                 <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-800">
                     <p className="text-xs text-slate-500 text-center">
-                        No hay datos de telemetría disponibles
+                        {t('viewer.telemetry.no_data')}
                     </p>
                 </div>
             )}
@@ -710,6 +714,7 @@ const TelemetryTabsSection: React.FC<TelemetryTabsSectionProps> = ({
     entityName,
     entityData,
 }) => {
+    const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<'realtime' | 'historical'>('realtime');
 
     if (!entityId) {
@@ -727,7 +732,7 @@ const TelemetryTabsSection: React.FC<TelemetryTabsSectionProps> = ({
                         : 'text-slate-600 hover:text-slate-900'
                         }`}
                 >
-                    Tiempo Real
+                    {t('viewer.telemetry.tab_realtime')}
                 </button>
                 <button
                     onClick={() => setActiveTab('historical')}
@@ -736,7 +741,7 @@ const TelemetryTabsSection: React.FC<TelemetryTabsSectionProps> = ({
                         : 'text-slate-600 hover:text-slate-900'
                         }`}
                 >
-                    Histórico
+                    {t('viewer.telemetry.tab_historical')}
                 </button>
             </div>
 
