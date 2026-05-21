@@ -26,11 +26,197 @@
     if (!e.VITE_TITILER_URL) e.VITE_TITILER_URL = e.TITILER_URL || 'https://nkz.robotika.cloud/titiler';
     if (e.VITE_NKZ_EDITION === undefined && e.NKZ_EDITION) e.VITE_NKZ_EDITION = e.NKZ_EDITION;
   </script>
+  <style>
+    /* Pre-React splash. Pure CSS/SVG, no fonts, no JS.
+       Replaced by React on mount (#root is overwritten). */
+    .nkz-splash {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 18px;
+      background: #FAFAF7;
+      color: #2F2F2F;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    /* Lane: 240px window that clips the SVG as it slides in from the
+       right, holds centered while germinating, and slides off to the left.
+       Next loop iteration starts off-screen right, so the "reset" is hidden. */
+    .nkz-seed-lane {
+      width: 240px; height: 96px;
+      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nkz-seed {
+      width: 96px; height: 96px; display: block;
+      animation: nkz-seed-slide 4s ease-in-out infinite;
+    }
+
+    /* --- Slide track (4s cycle) --- */
+    @keyframes nkz-seed-slide {
+      0%   { transform: translateX(170px); }   /* fully off right */
+      20%  { transform: translateX(0); }       /* centered, settled */
+      80%  { transform: translateX(0); }       /* still centered (germination + hold) */
+      100% { transform: translateX(-170px); }  /* fully off left, intact */
+    }
+
+    /* --- Seed germination keyframes (timed within 20-80% window) --- */
+    @keyframes nkz-seed-wiggle {
+      0%, 26%, 100% { transform: rotate(0deg); }
+      30%           { transform: rotate(-3deg); }
+      34%           { transform: rotate(3deg); }
+      38%           { transform: rotate(0deg); }
+    }
+    @keyframes nkz-crack-grow {
+      0%, 28%       { stroke-dashoffset: 22; opacity: 0; }
+      32%           { opacity: 1; }
+      42%, 100%     { stroke-dashoffset: 0; opacity: 1; }
+    }
+    @keyframes nkz-radicle-grow {
+      0%, 32%       { stroke-dashoffset: 16; }
+      48%, 100%     { stroke-dashoffset: 0; }
+    }
+    @keyframes nkz-stem-grow {
+      0%, 36%       { stroke-dashoffset: 26; }
+      54%, 100%     { stroke-dashoffset: 0; }
+    }
+    @keyframes nkz-cotyledon-unfurl {
+      0%, 52%       { transform: scale(0); opacity: 0; }
+      64%           { transform: scale(1.08); opacity: 1; }
+      72%, 100%     { transform: scale(1); opacity: 1; }
+    }
+    .nkz-seed-shell  { animation: nkz-seed-wiggle 4s ease-in-out infinite; transform-origin: 70px 106px; }
+    .nkz-seed-crack  {
+      stroke-dasharray: 22; stroke-dashoffset: 22;
+      animation: nkz-crack-grow 4s ease-out infinite;
+    }
+    .nkz-radicle     {
+      stroke-dasharray: 16; stroke-dashoffset: 16;
+      animation: nkz-radicle-grow 4s ease-out infinite;
+    }
+    .nkz-stem        {
+      stroke-dasharray: 26; stroke-dashoffset: 26;
+      animation: nkz-stem-grow 4s ease-out infinite;
+    }
+    .nkz-cotyledon   {
+      transform-origin: 70px 64px;
+      animation: nkz-cotyledon-unfurl 4s ease-out infinite;
+    }
+
+    /* --- Wordmark contraction (NeKaZari -> NKZ) ---
+       Use max-width + overflow:hidden so collapsing the lowercase letters
+       actually removes their layout space, letting N K Z slide together. */
+    .nkz-wordmark {
+      font-size: 14px; font-weight: 500;
+      letter-spacing: 0;
+      display: inline-flex;
+      align-items: baseline;
+      min-height: 1.2em;
+    }
+    .nkz-wordmark .nkz-letter {
+      display: inline-block;
+      overflow: hidden;
+      white-space: pre;
+    }
+    /* Aligned to the 4s seed cycle:
+         0-15%   NKZ holds (covers plant exit + buffer into next seed entry)
+         15-25%  reveal NeKaZari (new seed has entered, ready to germinate)
+         25-55%  NeKaZari holds (germination starts and grows)
+         55-65%  contract to NKZ (cotyledons unfurl)
+         65-100% NKZ holds (plant centered + exits intact)                  */
+    @keyframes nkz-lowercase-collapse {
+      0%, 15%   { max-width: 0;    opacity: 0; }
+      25%, 55%  { max-width: 1em;  opacity: 1; }
+      65%, 100% { max-width: 0;    opacity: 0; }
+    }
+    @keyframes nkz-uppercase-tighten {
+      0%, 15%   { letter-spacing: 1.5px; font-weight: 600; }
+      25%, 55%  { letter-spacing: 0;     font-weight: 500; }
+      65%, 100% { letter-spacing: 1.5px; font-weight: 600; }
+    }
+    .nkz-wordmark .nkz-lowercase {
+      max-width: 1em;
+      animation: nkz-lowercase-collapse 4s ease-in-out infinite;
+    }
+    .nkz-wordmark.nkz-tighten {
+      animation: nkz-uppercase-tighten 4s ease-in-out infinite;
+    }
+
+    /* --- Pulse dots --- */
+    .nkz-dots { display: inline-flex; gap: 6px; }
+    .nkz-dot  {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: #4CAF50;
+      animation: nkz-dot-pulse 1.2s ease-in-out infinite;
+    }
+    .nkz-dot:nth-child(2) { animation-delay: 0.2s; }
+    .nkz-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes nkz-dot-pulse {
+      0%, 100% { opacity: 0.2; }
+      50%      { opacity: 1; }
+    }
+
+    /* --- Reduced motion: kill all animations, show stable final-ish state --- */
+    @media (prefers-reduced-motion: reduce) {
+      .nkz-seed, .nkz-seed-shell, .nkz-seed-crack, .nkz-radicle, .nkz-stem,
+      .nkz-cotyledon, .nkz-wordmark .nkz-lowercase,
+      .nkz-wordmark.nkz-tighten, .nkz-dot {
+        animation: none;
+      }
+      .nkz-seed { transform: translateX(0); }
+      .nkz-seed-crack, .nkz-radicle, .nkz-stem { stroke-dashoffset: 0; }
+      .nkz-cotyledon { transform: scale(1); opacity: 1; }
+      .nkz-wordmark .nkz-lowercase { max-width: 1em; opacity: 1; }
+      .nkz-dot { opacity: 0.7; }
+    }
+  </style>
 </head>
 <body>
   <div id="root">
-    <div style="padding: 20px; font-family: sans-serif; text-align: center;">
-      <h1>Cargando Nekazari...</h1>
+    <div class="nkz-splash" role="status" aria-label="Loading Nekazari">
+      <div class="nkz-seed-lane">
+        <svg class="nkz-seed" viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="nkzSeedGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#A0703E"/>
+              <stop offset="100%" stop-color="#6B4423"/>
+            </linearGradient>
+            <linearGradient id="nkzLeafGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#66BB6A"/>
+              <stop offset="100%" stop-color="#2E7D32"/>
+            </linearGradient>
+          </defs>
+          <ellipse cx="70" cy="120" rx="55" ry="10" fill="#5D4037"/>
+          <ellipse cx="70" cy="118" rx="48" ry="8" fill="#6D4C33" opacity="0.6"/>
+          <g class="nkz-seed-shell">
+            <ellipse cx="70" cy="106" rx="14" ry="9" fill="url(#nkzSeedGrad)"/>
+          </g>
+          <path class="nkz-seed-crack" d="M 60 100 Q 70 108 80 100"
+                stroke="#3A2418" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+          <path class="nkz-radicle" d="M 70 114 Q 68 122 66 130"
+                stroke="#8D6E55" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <path class="nkz-stem" d="M 70 97 C 71 88 71 78 70 70"
+                stroke="#558B2F" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+          <ellipse class="nkz-cotyledon" cx="58" cy="64" rx="11" ry="5"
+                   fill="url(#nkzLeafGrad)" transform="rotate(-25 58 64)"/>
+          <ellipse class="nkz-cotyledon" cx="82" cy="64" rx="11" ry="5"
+                   fill="url(#nkzLeafGrad)" transform="rotate(25 82 64)"/>
+        </svg>
+      </div>
+      <div class="nkz-wordmark nkz-tighten" aria-hidden="true">
+        <span class="nkz-letter">N</span>
+        <span class="nkz-letter nkz-lowercase">e</span>
+        <span class="nkz-letter">K</span>
+        <span class="nkz-letter nkz-lowercase">a</span>
+        <span class="nkz-letter">Z</span>
+        <span class="nkz-letter nkz-lowercase">a</span>
+        <span class="nkz-letter nkz-lowercase">r</span>
+        <span class="nkz-letter nkz-lowercase">i</span>
+      </div>
+      <div class="nkz-dots" aria-hidden="true">
+        <span class="nkz-dot"></span>
+        <span class="nkz-dot"></span>
+        <span class="nkz-dot"></span>
+      </div>
     </div>
   </div>
   <script type="module" src="/src/main.tsx"></script>
