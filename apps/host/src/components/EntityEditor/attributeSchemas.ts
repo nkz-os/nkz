@@ -59,9 +59,12 @@ export const KNOWN_SCHEMAS: AttributeSchema[] = [
 
   // ── Visual ──
   { key: 'icon2d', labelKey: 'editor.field.icon2d', type: 'text', section: 'visual', entityTypes: ['*'] },
-  { key: 'ref3DModel', labelKey: 'editor.field.ref3DModel', type: 'text', section: 'visual', entityTypes: ['AutonomousMobileRobot', 'ManufacturingMachine', 'AgriBuilding'] },
-  { key: 'modelScale', labelKey: 'editor.field.modelScale', type: 'number', section: 'visual', step: 0.1, entityTypes: ['AutonomousMobileRobot', 'ManufacturingMachine', 'AgriBuilding'] },
-  { key: 'modelRotation', labelKey: 'editor.field.modelRotation', type: 'number', section: 'visual', step: 1, entityTypes: ['AutonomousMobileRobot', 'ManufacturingMachine', 'AgriBuilding'] },
+  { key: 'ref3DModel', labelKey: 'editor.field.ref3DModel', type: 'text', section: 'visual', entityTypes: ['AutonomousMobileRobot', 'ManufacturingMachine', 'AgriBuilding', 'PhotovoltaicInstallation'] },
+  { key: 'modelScale', labelKey: 'editor.field.modelScale', type: 'number', section: 'visual', step: 0.1, entityTypes: ['AutonomousMobileRobot', 'ManufacturingMachine', 'AgriBuilding', 'PhotovoltaicInstallation'] },
+  { key: 'modelRotation', labelKey: 'editor.field.modelRotation', type: 'number', section: 'visual', step: 1, entityTypes: ['AutonomousMobileRobot', 'ManufacturingMachine', 'AgriBuilding', 'PhotovoltaicInstallation'] },
+  { key: 'panelWidth', labelKey: 'editor.field.panelWidth', type: 'number', section: 'visual', min: 0.1, max: 10, step: 0.1, entityTypes: ['PhotovoltaicInstallation'] },
+  { key: 'panelLength', labelKey: 'editor.field.panelLength', type: 'number', section: 'visual', min: 0.1, max: 10, step: 0.1, entityTypes: ['PhotovoltaicInstallation'] },
+  { key: 'panelHeight', labelKey: 'editor.field.panelHeight', type: 'number', section: 'visual', min: 0.5, max: 20, step: 0.1, entityTypes: ['PhotovoltaicInstallation'] },
 ];
 
 export function getSchemasForType(entityType: string): AttributeSchema[] {

@@ -587,7 +587,10 @@ def get_sdm_entities():
                 "name": {"type": "Text", "description": "Installation name"},
                 "location": {"type": "geo:json", "description": "Installation location"},
                 "capacity": {"type": "Number", "description": "Capacity in kW"},
-                "panelCount": {"type": "Number", "description": "Number of panels"}
+                "panelCount": {"type": "Number", "description": "Number of panels"},
+                "panelWidth": {"type": "Number", "description": "Individual panel width in meters"},
+                "panelLength": {"type": "Number", "description": "Individual panel length in meters"},
+                "panelHeight": {"type": "Number", "description": "Panel mounting height above ground in meters"}
             }
         },
         "EnergyStorageSystem": {

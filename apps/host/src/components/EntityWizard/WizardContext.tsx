@@ -29,6 +29,9 @@ function makeGeoAssetFormData(entityType: string): GeoAssetFormData {
     additionalAttributes: {},
     modelScale: 1.0,
     modelRotation: [0, 0, 0],
+    panelWidth: undefined,
+    panelLength: undefined,
+    panelHeight: undefined,
   };
 }
 

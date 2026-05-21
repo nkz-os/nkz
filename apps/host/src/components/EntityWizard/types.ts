@@ -56,6 +56,11 @@ export interface GeoAssetFormData extends BaseFormData {
   cadastralReference?: string;
   cropType?: string;
 
+  // Panel dimensions (PhotovoltaicInstallation)
+  panelWidth?: number;
+  panelLength?: number;
+  panelHeight?: number;
+
   // Dynamic attributes from SDM schema for all other asset types
   additionalAttributes: Record<string, string | number>;
 }

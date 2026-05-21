@@ -161,6 +161,48 @@ export function StepGeoAssetConfig() {
         </div>
       )}
 
+      {/* Panel dimensions (PhotovoltaicInstallation) */}
+      {entityType === 'PhotovoltaicInstallation' && (
+        <div className="pt-4 border-t space-y-3">
+          <h4 className="text-sm font-medium text-gray-700">Dimensiones del panel</h4>
+          <p className="text-xs text-gray-500">
+            Define las dimensiones físicas de cada panel individual de la instalación.
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Ancho (m)</label>
+              <input
+                type="number" min={0.1} max={10} step={0.1}
+                value={data.panelWidth ?? ''}
+                onChange={e => updateFormData({ panelWidth: e.target.value ? parseFloat(e.target.value) : undefined })}
+                placeholder="1.0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Largo (m)</label>
+              <input
+                type="number" min={0.1} max={10} step={0.1}
+                value={data.panelLength ?? ''}
+                onChange={e => updateFormData({ panelLength: e.target.value ? parseFloat(e.target.value) : undefined })}
+                placeholder="1.7"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Altura montaje (m)</label>
+              <input
+                type="number" min={0.5} max={20} step={0.1}
+                value={data.panelHeight ?? ''}
+                onChange={e => updateFormData({ panelHeight: e.target.value ? parseFloat(e.target.value) : undefined })}
+                placeholder="2.0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Subdivision / parent entity */}
       {canSubdivide && (
         <div className="pt-4 border-t">

@@ -88,6 +88,19 @@ export async function submitGeoAsset(
     }
   }
 
+  // PhotovoltaicInstallation: submit panel dimensions
+  if (entityType === 'PhotovoltaicInstallation') {
+    if (formData.panelWidth !== undefined) {
+      entity.panelWidth = { type: 'Property', value: formData.panelWidth };
+    }
+    if (formData.panelLength !== undefined) {
+      entity.panelLength = { type: 'Property', value: formData.panelLength };
+    }
+    if (formData.panelHeight !== undefined) {
+      entity.panelHeight = { type: 'Property', value: formData.panelHeight };
+    }
+  }
+
   // Dynamic SDM attributes
   for (const [k, v] of Object.entries(formData.additionalAttributes)) {
     if (v !== '' && v !== null && v !== undefined) {

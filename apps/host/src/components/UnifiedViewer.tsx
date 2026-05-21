@@ -120,6 +120,9 @@ const UnifiedViewerInner: React.FC = () => {
       'https://saref.etsi.org/saref4agri/Ref3DModel': 'ref3DModel',
       'https://saref.etsi.org/saref4agri/ModelScale': 'modelScale',
       'https://saref.etsi.org/saref4agri/ModelRotation': 'modelRotation',
+      'https://saref.etsi.org/saref4agri/panelWidth': 'panelWidth',
+      'https://saref.etsi.org/saref4agri/panelLength': 'panelLength',
+      'https://saref.etsi.org/saref4agri/panelHeight': 'panelHeight',
       'https://schema.org/name': 'name',
     };
     const normalizeNgsiEntity = (entity: any): any => {

@@ -199,6 +199,9 @@
     "ref3DModel": "nkz:ref3DModel",
     "modelScale": "nkz:modelScale",
     "modelRotation": "nkz:modelRotation",
+    "panelWidth": "nkz:panelWidth",
+    "panelLength": "nkz:panelLength",
+    "panelHeight": "nkz:panelHeight",
 
     "visualRepresentation": {
       "@id": "https://nekazari.io/vocab/visualRepresentation",
