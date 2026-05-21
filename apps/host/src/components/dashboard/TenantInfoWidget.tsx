@@ -82,10 +82,10 @@ export const TenantInfoWidget: React.FC = () => {
                     </h1>
                     <div className="flex items-center gap-4 text-gray-600 dark:text-gray-300">
                         <span className="flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
-                            {tenantName || user?.tenant || 'Nekazari Tenant'}
+                            {tenantName || user?.tenant || t('dashboard.tenant_info.tenant_label')}
                         </span>
                         <span className="flex items-center gap-1 bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
-                            {user?.roles?.[0] || 'User'}
+                            {user?.roles?.[0] || t('dashboard.tenant_info.role_label_user')}
                         </span>
                     </div>
                 </div>
@@ -125,7 +125,7 @@ export const TenantInfoWidget: React.FC = () => {
                                     </div>
                                         <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                         <span className="flex items-center gap-1">
-                                            <Wind className="w-3 h-3" /> {weather.windSpeed} km/h
+                                            <Wind className="w-3 h-3" /> {weather.windSpeed} {t('dashboard.tenant_info.wind_unit')}
                                         </span>
                                     </div>
                                 </div>
@@ -142,7 +142,7 @@ export const TenantInfoWidget: React.FC = () => {
             {/* Forecast Section */}
             {!loading && forecast.length > 0 && (
                 <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
-                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">{t('dashboard.five_day_forecast') || 'Previsión 5 días'}</h3>
+                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">{t('dashboard.five_day_forecast')}</h3>
                     <div className="grid grid-cols-5 gap-4">
                         {forecast.map((day) => (
                             <div key={day.date} className="text-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">

@@ -10,6 +10,7 @@ import {
   Trash2,
   UserPlus,
 } from 'lucide-react';
+import { useI18n } from '@/context/I18nContext';
 
 export interface MemberTableRow {
   id: string;
@@ -57,11 +58,12 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   onEmptyAction,
   className = '',
 }) => {
+  const { t } = useI18n();
   if (loading && members.length === 0) {
     return (
       <div className={`text-center py-12 ${className}`}>
         <div className="inline-block w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        <p className="mt-4 text-gray-600 dark:text-gray-400">Cargando miembros del equipo...</p>
+        <p className="mt-4 text-gray-600 dark:text-gray-400">{t('dashboard.members.loading')}</p>
       </div>
     );
   }
@@ -70,14 +72,14 @@ export const MemberTable: React.FC<MemberTableProps> = ({
     return (
       <div className={`text-center py-12 ${className}`}>
         <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-600 dark:text-gray-400 mb-4">Todavía no hay usuarios en el equipo.</p>
+        <p className="text-gray-600 dark:text-gray-400 mb-4">{t('dashboard.members.no_members')}</p>
         {onEmptyAction ? (
           <button
             onClick={onEmptyAction}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-200 mx-auto"
           >
             <UserPlus className="w-4 h-4" />
-            {emptyActionLabel ?? 'Crear usuario'}
+            {emptyActionLabel ?? t('dashboard.members.create_user')}
           </button>
         ) : null}
       </div>
@@ -90,20 +92,20 @@ export const MemberTable: React.FC<MemberTableProps> = ({
         <thead className="bg-gray-50 dark:bg-gray-800">
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Usuario
+              {t('dashboard.members.col_user')}
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Roles
+              {t('dashboard.members.col_roles')}
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Creado
+              {t('dashboard.members.col_created')}
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Estado
+              {t('dashboard.members.col_status')}
             </th>
             {(onEdit || onResetPassword || onDelete) && (
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Acciones
+                {t('dashboard.members.col_actions')}
               </th>
             )}
           </tr>
@@ -138,11 +140,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({
               <td className="px-6 py-4 whitespace-nowrap">
                 {member.enabled ? (
                   <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                    <CheckCircle className="w-3 h-3 mr-1" /> Activo
+                    <CheckCircle className="w-3 h-3 mr-1" /> {t('dashboard.members.status_active')}
                   </span>
                 ) : (
                   <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                    <AlertTriangle className="w-3 h-3 mr-1" /> Inactivo
+                    <AlertTriangle className="w-3 h-3 mr-1" /> {t('dashboard.members.status_inactive')}
                   </span>
                 )}
               </td>
@@ -153,7 +155,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                       <button
                         onClick={() => onEdit(member)}
                         className="text-blue-600 hover:text-blue-900"
-                        title="Editar roles"
+                        title={t('dashboard.members.action_edit_roles')}
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
@@ -162,7 +164,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                       <button
                         onClick={() => onResetPassword(member)}
                         className="text-orange-600 hover:text-orange-900"
-                        title="Resetear contraseña"
+                        title={t('dashboard.members.action_reset_password')}
                       >
                         <Lock className="w-4 h-4" />
                       </button>
@@ -171,7 +173,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                       <button
                         onClick={() => onDelete(member)}
                         className="text-red-600 hover:text-red-900"
-                        title="Eliminar usuario"
+                        title={t('admin.delete_user')}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

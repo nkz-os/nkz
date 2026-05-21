@@ -1,6 +1,7 @@
 import React from 'react';
 import { Cloud, Plus } from 'lucide-react';
 import type { WeatherStation } from '@/types';
+import { useI18n } from '@/context/I18nContext';
 
 interface WeatherStationsCardProps {
   weatherStations: WeatherStation[];
@@ -9,12 +10,13 @@ interface WeatherStationsCardProps {
 }
 
 export const WeatherStationsCard: React.FC<WeatherStationsCardProps> = ({ weatherStations, canManageDevices, onOpenWizard }) => {
+  const { t } = useI18n();
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden">
       <div className="bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-4">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <Cloud className="w-6 h-6" />
-          Estaciones Meteorológicas
+          {t('dashboard.weather.title')}
         </h2>
       </div>
 
@@ -22,14 +24,14 @@ export const WeatherStationsCard: React.FC<WeatherStationsCardProps> = ({ weathe
         {weatherStations.length === 0 ? (
           <div className="text-center py-12">
             <Cloud className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">No hay estaciones registradas</p>
+            <p className="text-gray-500 mb-4">{t('dashboard.weather.no_stations')}</p>
             {canManageDevices && (
               <button
                 onClick={() => onOpenWizard('WeatherObserved')}
                 className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />
-                Añadir Estación
+                {t('dashboard.weather.add_station')}
               </button>
             )}
           </div>

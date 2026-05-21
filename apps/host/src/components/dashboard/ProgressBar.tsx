@@ -1,4 +1,5 @@
 import React from 'react';
+import { useI18n } from '@/context/I18nContext';
 
 interface ProgressBarProps {
   value: number;
@@ -23,6 +24,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   labelClassName = 'text-gray-500 dark:text-gray-400',
   valueClassName = 'text-gray-700 dark:text-gray-300',
 }) => {
+  const { t } = useI18n();
   const computedPercentage = React.useMemo(() => {
     if (typeof percentage === 'number') {
       return Math.min(Math.max(percentage, 0), 100);
@@ -39,7 +41,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     <div className={`w-full ${className}`}>
       {showLabel && (
         <div className={`flex items-center justify-between text-xs mb-1 ${labelClassName}`}>
-          <span>{label ?? 'Progreso'}</span>
+          <span>{label ?? t('dashboard.progress.default_label')}</span>
           <span className={`font-medium ${valueClassName}`}>{formattedPercentage}</span>
         </div>
       )}

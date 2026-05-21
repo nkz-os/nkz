@@ -1,17 +1,19 @@
 import React from 'react';
 import { AlertCircle, Activity, Battery, Zap } from 'lucide-react';
+import { useI18n } from '@/context/I18nContext';
 
 interface AlertsCardProps {
   chargingRobots: number;
 }
 
 export const AlertsCard: React.FC<AlertsCardProps> = ({ chargingRobots }) => {
+  const { t } = useI18n();
   return (
     <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
         <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <AlertCircle className="w-6 h-6 text-orange-500" />
-          Alertas y Notificaciones
+          {t('dashboard.alerts.title')}
         </h2>
       </div>
 
@@ -22,10 +24,10 @@ export const AlertsCard: React.FC<AlertsCardProps> = ({ chargingRobots }) => {
               <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
                 <Activity className="w-4 h-4 text-white" />
               </div>
-              <span className="font-semibold text-green-900">Todo OK</span>
+              <span className="font-semibold text-green-900">{t('dashboard.alerts.all_ok')}</span>
             </div>
             <p className="text-sm text-green-700">
-              Todos los sistemas funcionando correctamente
+              {t('dashboard.alerts.all_systems_ok')}
             </p>
           </div>
 
@@ -35,10 +37,10 @@ export const AlertsCard: React.FC<AlertsCardProps> = ({ chargingRobots }) => {
                 <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
                   <Battery className="w-4 h-4 text-white" />
                 </div>
-                <span className="font-semibold text-yellow-900">Cargando</span>
+                <span className="font-semibold text-yellow-900">{t('dashboard.alerts.charging')}</span>
               </div>
               <p className="text-sm text-yellow-700">
-                {chargingRobots} robot{chargingRobots > 1 ? 's' : ''} en carga
+                {t('dashboard.alerts.robots_charging', { count: chargingRobots })}
               </p>
             </div>
           )}
@@ -48,10 +50,10 @@ export const AlertsCard: React.FC<AlertsCardProps> = ({ chargingRobots }) => {
               <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
                 <Zap className="w-4 h-4 text-white" />
               </div>
-              <span className="font-semibold text-blue-900">En Línea</span>
+              <span className="font-semibold text-blue-900">{t('dashboard.alerts.online')}</span>
             </div>
             <p className="text-sm text-blue-700">
-              Conexión MQTT estable
+              {t('dashboard.alerts.mqtt_stable')}
             </p>
           </div>
         </div>
