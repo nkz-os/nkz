@@ -1,5 +1,5 @@
 # =============================================================================
-# Certificate Resource para nkz.robotika.cloud (Backend subdomain)
+# Certificate Resource para nkz.YOUR_DOMAIN (Backend subdomain)
 # =============================================================================
 
 apiVersion: cert-manager.io/v1
@@ -14,7 +14,7 @@ spec:
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
-  commonName: nkz.robotika.cloud
+  commonName: nkz.YOUR_DOMAIN
   dnsNames:
-    - nkz.robotika.cloud
+    - nkz.YOUR_DOMAIN
 

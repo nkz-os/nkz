@@ -69,7 +69,10 @@ spec:
               name: nekazari-config
               key: KEYCLOAK_HOSTNAME
         - name: CORS_ORIGINS
-          value: "https://nekazari.robotika.cloud,https://nkz.robotika.cloud"
+          valueFrom:
+            configMapKeyRef:
+              name: core-tenant-user-api-config
+              key: CORS_ORIGINS
         - name: POSTGRES_URL
           valueFrom:
             secretKeyRef:

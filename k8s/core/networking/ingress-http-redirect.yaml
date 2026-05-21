@@ -11,7 +11,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: nekazari.robotika.cloud
+    - host: nekazari.YOUR_DOMAIN
       http:
         paths:
           - path: /
@@ -21,7 +21,7 @@ spec:
                 name: frontend-host-service
                 port:
                   number: 80
-    - host: nkz.robotika.cloud
+    - host: nkz.YOUR_DOMAIN
       http:
         paths:
           - path: /
@@ -31,7 +31,7 @@ spec:
                 name: api-gateway-service
                 port:
                   number: 5000
-    - host: minio.robotika.cloud
+    - host: minio.YOUR_DOMAIN
       http:
         paths:
           - path: /

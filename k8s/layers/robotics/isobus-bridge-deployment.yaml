@@ -45,7 +45,7 @@ spec:
         - name: ORION_URL
           value: "http://orion-ld-service:1026"
         - name: CONTEXT_URL
-          value: "https://nekazari.robotika.cloud/ngsi-ld"
+          value: "https://nekazari.YOUR_DOMAIN/ngsi-ld"
         - name: PORT
           value: "5000"
         livenessProbe:

@@ -20,8 +20,8 @@ data:
     [server]
     protocol = http
     http_port = 3000
-    domain = nekazari.robotika.cloud
-    root_url = https://nekazari.robotika.cloud/grafana
+    domain = nekazari.YOUR_DOMAIN
+    root_url = https://nekazari.YOUR_DOMAIN/grafana
     serve_from_sub_path = true
 
     [database]
@@ -56,9 +56,9 @@ data:
     client_id = nekazari-frontend
     # client_secret will be set via GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET env var
     scopes = openid profile email
-    auth_url = https://nekazari.robotika.cloud/auth/realms/nekazari/protocol/openid-connect/auth
-    token_url = https://nekazari.robotika.cloud/auth/realms/nekazari/protocol/openid-connect/token
-    api_url = https://nekazari.robotika.cloud/auth/realms/nekazari/protocol/openid-connect/userinfo
+    auth_url = https://nekazari.YOUR_DOMAIN/auth/realms/nekazari/protocol/openid-connect/auth
+    token_url = https://nekazari.YOUR_DOMAIN/auth/realms/nekazari/protocol/openid-connect/token
+    api_url = https://nekazari.YOUR_DOMAIN/auth/realms/nekazari/protocol/openid-connect/userinfo
     # Use email as username
     # PKCE enabled to match Keycloak's PKCE enforced setting
     use_pkce = true

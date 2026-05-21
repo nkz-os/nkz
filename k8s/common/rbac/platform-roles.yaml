@@ -39,7 +39,7 @@ metadata:
 subjects:
 # Añadir usuarios específicos aquí
 - kind: User
-  name: nekazari@robotika.cloud
+  name: nekazari@example.com
   apiGroup: rbac.authorization.k8s.io
 - kind: User
   name: ops@nekazari.com

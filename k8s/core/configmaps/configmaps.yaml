@@ -32,9 +32,9 @@ data:
   
   # Production domain (configured via PRODUCTION_DOMAIN env var or .env)
   # These values are placeholders - should be set from environment variables
-  PRODUCTION_DOMAIN: "nekazari.robotika.cloud"
-  KEYCLOAK_PUBLIC_URL: "https://auth.robotika.cloud/auth"
-  KEYCLOAK_HOSTNAME: "auth.robotika.cloud"  # Keycloak hostname (without protocol)
+  PRODUCTION_DOMAIN: "nekazari.YOUR_DOMAIN"
+  KEYCLOAK_PUBLIC_URL: "https://auth.YOUR_DOMAIN/auth"
+  KEYCLOAK_HOSTNAME: "auth.YOUR_DOMAIN"  # Keycloak hostname (without protocol)
   CONTEXT_URL: "http://api-gateway-service:5000/ngsi-ld-context.json"
 
   # MQTT external endpoint (shown to users/devices connecting from outside the cluster).
@@ -46,9 +46,9 @@ data:
   MQTT_EXTERNAL_PORT: "8883"
 
   # Frontend configuration
-  REACT_APP_API_BASE_URL: "https://nekazari.robotika.cloud"
-  REACT_APP_KEYCLOAK_URL: "https://nekazari.robotika.cloud"
-  REACT_APP_GRAFANA_URL: "https://nekazari.robotika.cloud/grafana"
+  REACT_APP_API_BASE_URL: "https://nekazari.YOUR_DOMAIN"
+  REACT_APP_KEYCLOAK_URL: "https://nekazari.YOUR_DOMAIN"
+  REACT_APP_GRAFANA_URL: "https://nekazari.YOUR_DOMAIN/grafana"
   
   # Bootstrap configuration (usuario admin de emergencia)
   # NOTE: Email should be set in bootstrap-secret for production
@@ -223,7 +223,7 @@ data:
     
     server {
         listen 80;
-        server_name nekazari.robotika.cloud;
+        server_name nekazari.YOUR_DOMAIN;
         
         # Security headers
         add_header X-Frame-Options "SAMEORIGIN" always;
@@ -321,8 +321,8 @@ metadata:
     app: nekazari
     layer: config
 data:
-  headscale_public_url: "https://vpn.robotika.cloud"
+  headscale_public_url: "https://vpn.YOUR_DOMAIN"
   keycloak_url: "http://keycloak-service:8080"
-  jwt_issuer: "https://auth.robotika.cloud/auth/realms/nekazari"
-  cors_origins: "https://nekazari.robotika.cloud"
+  jwt_issuer: "https://auth.YOUR_DOMAIN/auth/realms/nekazari"
+  cors_origins: "https://nekazari.YOUR_DOMAIN"
 
