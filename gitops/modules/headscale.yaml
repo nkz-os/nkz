@@ -9,6 +9,8 @@ spec:
     repoURL: https://github.com/nkz-os/nkz
     targetRevision: HEAD
     path: k8s/vpn
+    directory:
+      exclude: '{02-headscale-config.yaml,04-headscale-ingress.yaml,04-subnet-router.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: nekazari
