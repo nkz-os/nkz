@@ -342,10 +342,10 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
         return cleanup;
     }, [cleanup]);
 
+    const { t } = useI18n();
+
     // Render instructions
     if (!enabled) return null;
-
-    const { t } = useI18n();
 
     const getInstructions = () => {
         switch (drawingType) {
