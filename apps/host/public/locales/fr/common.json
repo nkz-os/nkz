@@ -225,7 +225,109 @@
     "no_parcels": "Aucune parcelle enregistrée",
     "add_parcel": "Ajouter une parcelle",
     "crop_not_specified": "Culture non précisée",
-    "environmental_sensors": "Capteurs environnementaux"
+    "environmental_sensors": "Capteurs environnementaux",
+    "machines": {
+      "title": "Machinerie Agricole",
+      "no_machines": "Aucune machinerie enregistrée",
+      "add_machine": "Ajouter une Machinerie",
+      "operation_type": "Opération"
+    },
+    "alerts": {
+      "title": "Alertes et Notifications",
+      "all_ok": "Tout OK",
+      "all_systems_ok": "Tous les systèmes fonctionnent correctement",
+      "charging": "En charge",
+      "robots_charging_one": "{count} robot en charge",
+      "robots_charging_other": "{count} robots en charge",
+      "online": "En ligne",
+      "mqtt_stable": "Connexion MQTT stable"
+    },
+    "sensors": {
+      "humidity_unit_label": "% humidité",
+      "view_all_count": "Voir tous les capteurs ({count})"
+    },
+    "livestock": {
+      "title": "Bétail",
+      "no_animals": "Aucun animal enregistré",
+      "add_animal": "Ajouter un Animal",
+      "species_label": "Animal"
+    },
+    "members": {
+      "loading": "Chargement des membres de l'équipe...",
+      "no_members": "Aucun utilisateur dans l'équipe pour le moment.",
+      "create_user": "Créer un utilisateur",
+      "col_user": "Utilisateur",
+      "col_roles": "Rôles",
+      "col_created": "Créé",
+      "col_status": "Statut",
+      "col_actions": "Actions",
+      "status_active": "Actif",
+      "status_inactive": "Inactif",
+      "action_edit_roles": "Modifier les rôles",
+      "action_reset_password": "Réinitialiser le mot de passe"
+    },
+    "plan": {
+      "title": "Résumé du Plan",
+      "basic": "Plan Basique",
+      "advanced": "Plan Avancé",
+      "enterprise": "Plan Enterprise",
+      "no_expiration_data": "Aucune donnée d'expiration",
+      "expired": "Plan expiré",
+      "expires_one": "Expire dans {days} jour",
+      "expires_other": "Expire dans {days} jours",
+      "description": "Gestion centralisée des limites et de l'utilisation du tenant",
+      "users": "Utilisateurs",
+      "users_allowed": "Utilisateurs autorisés par plan",
+      "robots": "Robots",
+      "in_use_of_limit": "{count} en utilisation {limit}",
+      "robots_usage": "Utilisation des robots",
+      "sensors": "Capteurs",
+      "sensors_usage": "Utilisation des capteurs",
+      "monitored_area": "Surface surveillée",
+      "area_in_use": "{value} ha {limit}",
+      "area_coverage": "Couverture",
+      "updated": "Données mises à jour {time}",
+      "plan_label": "Plan : {plan}"
+    },
+    "progress": {
+      "default_label": "Progression"
+    },
+    "risks": {
+      "mildiu": "Mildiou / Botrytis",
+      "spray": "Pulvérisation (Delta T)",
+      "frost": "Gelée",
+      "wind_spray": "Vent Pulvérisation",
+      "water_stress": "Stress hydrique",
+      "energy": "Risque Énergétique",
+      "robot_failure": "Défaillance Robot",
+      "prays_oleae": "Papillon de l'Olivier (Prays)",
+      "lobesia_1st": "Lobesia 1ère gén. (Vigne)",
+      "lobesia_2nd": "Lobesia 2e gén. (Vigne)",
+      "severity": {
+        "critical": "Critique",
+        "high": "Élevé",
+        "medium": "Moyen",
+        "low": "Faible"
+      },
+      "alert_count_one": "{count} alerte",
+      "alert_count_other": "{count} alertes",
+      "refresh_button": "Actualiser",
+      "no_alerts": "Aucune alerte active",
+      "next_eval": "Prochaine évaluation automatique dans l'heure.",
+      "more_evaluations": "+{count} évaluations supplémentaires",
+      "updated_time": "Mis à jour {time}",
+      "view_panel": "Voir le panneau des risques"
+    },
+    "tenant_info": {
+      "tenant_label": "Nekazari Tenant",
+      "role_label_user": "User",
+      "wind_unit": "km/h"
+    },
+    "weather": {
+      "title": "Stations Météorologiques",
+      "no_stations": "Aucune station enregistrée",
+      "add_station": "Ajouter une Station"
+    }
   },
   "landing": {
     "title": "NKZ",
@@ -691,6 +793,98 @@
       "pro": "Pro",
       "premium": "Premium",
       "enterprise": "Enterprise"
+    }
+  },
+  "viewer": {
+    "header": {
+      "main_section": "Principal",
+      "addons_section": "Addons",
+      "theme_light": "Clair",
+      "theme_dark": "Sombre"
+    },
+    "cadastral": {
+      "not_found": "Aucune information cadastrale trouvée pour cette localisation.",
+      "error": "Erreur du service cadastral : {errorMsg}"
+    },
+    "parcel": {
+      "new_parcel": "Nouvelle Parcelle",
+      "cadastral_data": "Données cadastrales : {reference}",
+      "area": "Surface : {area} ha"
+    },
+    "timeline": {
+      "button": "Timeline",
+      "label": "Timeline - Contrôle temporel unifié",
+      "current_date": "Date actuelle : {date}"
+    },
+    "sensor": {
+      "iot_sensor": "Capteur IoT",
+      "generic_sensor": "Capteur Générique",
+      "location": "Emplacement",
+      "properties": "Propriétés"
+    },
+    "context": {
+      "active_modules": "Les modules actifs peuvent ajouter des contrôles supplémentaires ici",
+      "no_entity": "Aucune entité sélectionnée",
+      "select_entity": "Sélectionnez une entité sur la carte ou dans la liste pour voir ses détails et les options de contrôle",
+      "yes": "Oui",
+      "no": "Non",
+      "elements_count": "{count} élément(s)",
+      "empty_list": "Vide",
+      "polygon_points": "Polygone ({count} points)",
+      "details": "Détails",
+      "properties": "Propriétés",
+      "more_properties": "+{count} propriétés supplémentaires",
+      "change_history": "Historique des Modifications",
+      "change_history_unavailable": "L'historique des modifications s'affichera ici lorsqu'il sera disponible",
+      "clear_selection": "Effacer la sélection"
+    },
+    "telemetry": {
+      "realtime": "Télémétrie en Temps Réel",
+      "loading": "Chargement de la télémétrie...",
+      "no_data": "Aucune donnée de télémétrie disponible",
+      "soil_moisture": "Humidité du Sol",
+      "full_data": "Voir les données complètes",
+      "tab_realtime": "Temps Réel",
+      "tab_historical": "Historique"
+    },
+    "layers": {
+      "parcels": "Parcelles",
+      "robots": "Robots",
+      "sensors": "Capteurs",
+      "machines": "Machinerie",
+      "weather": "Stations",
+      "livestock": "Bétail",
+      "buildings": "Bâtiments",
+      "trees": "Arbres",
+      "water": "Eau",
+      "vegetation": "Végétation",
+      "risk_on": "ON",
+      "risk_off": "OFF"
+    },
+    "mapmode": {
+      "draw_parcel": "Dessin de Parcelle",
+      "select_cadastral": "Sélection Cadastrale",
+      "edit_geometry": "Modification de la Géométrie",
+      "zoning": "Création de Zones",
+      "active_badge": "Mode Actif"
+    },
+    "drawing": {
+      "parcel_instructions": "Cliquez sur la carte pour ajouter des sommets. Clic droit pour terminer.",
+      "cadastral_instructions": "Cliquez sur la carte pour rechercher la parcelle cadastrale à cet endroit.",
+      "edit_instructions": "Faites glisser les sommets pour modifier la géométrie.",
+      "zoning_instructions": "Dessinez des zones à l'intérieur de la parcelle sélectionnée.",
+      "point_instruction": "Cliquez pour sélectionner un emplacement",
+      "polygon_instruction": "Cliquez pour ajouter des points. Double-cliquez ou clic droit pour terminer.",
+      "linestring_instruction": "Clic gauche pour ajouter des points. Clic droit pour terminer.",
+      "multilinestring_instruction": "Clic gauche pour ajouter des points. Clic droit pour terminer la ligne actuelle.",
+      "default_instruction": "Cliquez sur la carte pour dessiner",
+      "type_label": "Dessin : {type}",
+      "pick_location": "Cliquez sur la carte pour sélectionner l'emplacement"
+    },
+    "toolbar": {
+      "undo_title": "Annuler le dernier point",
+      "clear_title": "Effacer le dessin",
+      "accept": "Accepter"
     }
   }
 }

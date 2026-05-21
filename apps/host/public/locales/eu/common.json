@@ -225,7 +225,109 @@
     "no_parcels": "Ez dago parcelarik erregistratuta",
     "add_parcel": "Gehitu parcela",
     "crop_not_specified": "Laborantza zehaztu gabe",
-    "environmental_sensors": "Ingurumen-sentsoreak"
+    "environmental_sensors": "Ingurumen-sentsoreak",
+    "machines": {
+      "title": "Nekazal Makineria",
+      "no_machines": "Ez dago makineriarik erregistratuta",
+      "add_machine": "Makineria gehitu",
+      "operation_type": "Eragiketa"
+    },
+    "alerts": {
+      "title": "Alertak eta Jakinarazpenak",
+      "all_ok": "Dena ondo",
+      "all_systems_ok": "Sistema guztiak behar bezala funtzionatzen ari dira",
+      "charging": "Kargatzen",
+      "robots_charging_one": "{count} robota kargatzen",
+      "robots_charging_other": "{count} robotak kargatzen",
+      "online": "Linean",
+      "mqtt_stable": "MQTT konexioa egonkorra"
+    },
+    "sensors": {
+      "humidity_unit_label": "% hezetasuna",
+      "view_all_count": "Sensorea guztiak ikusi ({count})"
+    },
+    "livestock": {
+      "title": "Abereak",
+      "no_animals": "Ez dago abererik erregistratuta",
+      "add_animal": "Aberea gehitu",
+      "species_label": "Aberea"
+    },
+    "members": {
+      "loading": "Taldearen kideak kargatzen...",
+      "no_members": "Ez dago erabiltzailerik taldeari dagokionez oraindik.",
+      "create_user": "Erabiltzailea sortu",
+      "col_user": "Erabiltzailea",
+      "col_roles": "Rola",
+      "col_created": "Sortuta",
+      "col_status": "Egoera",
+      "col_actions": "Ekintzak",
+      "status_active": "Aktibo",
+      "status_inactive": "Ez aktibo",
+      "action_edit_roles": "Rolak editatu",
+      "action_reset_password": "Pasahitza berrezarri"
+    },
+    "plan": {
+      "title": "Planaren Laburpena",
+      "basic": "Plana Basikoa",
+      "advanced": "Plana Aurreratua",
+      "enterprise": "Plana Enpresa",
+      "no_expiration_data": "Ez dago iraungipen-daturik",
+      "expired": "Plana iraungia",
+      "expires_one": "{days} egunean iraungiko da",
+      "expires_other": "{days} egunetan iraungiko da",
+      "description": "Tenantaren mugak eta erabilera zentralizatuta kudeatzea",
+      "users": "Erabiltzaileak",
+      "users_allowed": "Planaren arabera baimendutako erabiltzaileak",
+      "robots": "Robotak",
+      "in_use_of_limit": "{count} erabilera {limit}",
+      "robots_usage": "Roboten erabilera",
+      "sensors": "Sensoreak",
+      "sensors_usage": "Sensoreen erabilera",
+      "monitored_area": "Monitorizatutako lursail-neurria",
+      "area_in_use": "{value} ha {limit}",
+      "area_coverage": "Estaldura",
+      "updated": "Datuak eguneratu {time}",
+      "plan_label": "Plana: {plan}"
+    },
+    "progress": {
+      "default_label": "Aurrerapena"
+    },
+    "risks": {
+      "mildiu": "Mildiu / Botrytis",
+      "spray": "Lainoztapena (Delta T)",
+      "frost": "Izotza",
+      "wind_spray": "Haizearen Lainoztapena",
+      "water_stress": "Ur-estresa",
+      "energy": "Energia Arriskua",
+      "robot_failure": "Robota Falta",
+      "prays_oleae": "Olivondoaren Tximeleta (Prays)",
+      "lobesia_1st": "Lobesia 1. belaunaldia (Mahastia)",
+      "lobesia_2nd": "Lobesia 2. belaunaldia (Mahastia)",
+      "severity": {
+        "critical": "Larria",
+        "high": "Altua",
+        "medium": "Erdikoa",
+        "low": "Baxua"
+      },
+      "alert_count_one": "{count} alerta",
+      "alert_count_other": "{count} alerta",
+      "refresh_button": "Eguneratu",
+      "no_alerts": "Ez dago alerta aktiboak",
+      "next_eval": "Hurrengo automatikoko ebaluazioa ordua barruan.",
+      "more_evaluations": "+{count} ebaluazio gehiago",
+      "updated_time": "Eguneratu {time}",
+      "view_panel": "Arrisku panela ikusi"
+    },
+    "tenant_info": {
+      "tenant_label": "Nekazari Tenant",
+      "role_label_user": "Erabiltzailea",
+      "wind_unit": "km/h"
+    },
+    "weather": {
+      "title": "Meteorologiako Estazioak",
+      "no_stations": "Ez dago estaziorik erregistratuta",
+      "add_station": "Estazioa gehitu"
+    }
   },
   "landing": {
     "title": "NKZ",
@@ -700,6 +802,98 @@
       "pro": "Pro",
       "premium": "Premium",
       "enterprise": "Enterprise"
+    }
+  },
+  "viewer": {
+    "header": {
+      "main_section": "Nagusia",
+      "addons_section": "Gehigarriak",
+      "theme_light": "Argia",
+      "theme_dark": "Iluna"
+    },
+    "cadastral": {
+      "not_found": "Ez da katastrala informatzioa aurkitu kokaleku honetan.",
+      "error": "Katastrala zerbitzuaren errorea: {errorMsg}"
+    },
+    "parcel": {
+      "new_parcel": "Lursail Berria",
+      "cadastral_data": "Katastrala datuak: {reference}",
+      "area": "Neurria: {area} ha"
+    },
+    "timeline": {
+      "button": "Denbora-lerroa",
+      "label": "Denbora-lerroa - Denborala batutako kontrola",
+      "current_date": "Egungo data: {date}"
+    },
+    "sensor": {
+      "iot_sensor": "IoT Sensorea",
+      "generic_sensor": "Sensorea Generikoa",
+      "location": "Kokapena",
+      "properties": "Propietateak"
+    },
+    "context": {
+      "active_modules": "Modulu aktiboak kontrol gehigarriak gehitu ditzakete hemen",
+      "no_entity": "Ez dago entitaterik hautatuta",
+      "select_entity": "Hautatu entitate bat mapatatik edo zerratatik bere xehetasunak eta kontrol aukera ikusteko",
+      "yes": "Bai",
+      "no": "Ez",
+      "elements_count": "{count} elementu(a)",
+      "empty_list": "Hutsik",
+      "polygon_points": "Poligonoa ({count} puntu)",
+      "details": "Xehetasunak",
+      "properties": "Propietateak",
+      "more_properties": "+{count} propietate gehiago",
+      "change_history": "Aldaketen Historia",
+      "change_history_unavailable": "Aldaketen historia hemen agertuko da disponible dagoenean",
+      "clear_selection": "Hautapena garbitu"
+    },
+    "telemetry": {
+      "realtime": "Denbora Errealeko Telemetria",
+      "loading": "Telemetria kargatzen...",
+      "no_data": "Ez dago telemetria daturarik disponible",
+      "soil_moisture": "Lurraren Hezetasuna",
+      "full_data": "Datu osoak ikusi",
+      "tab_realtime": "Denbora Erreala",
+      "tab_historical": "Historikoa"
+    },
+    "layers": {
+      "parcels": "Lursailak",
+      "robots": "Robotak",
+      "sensors": "Sensoreak",
+      "machines": "Makineria",
+      "weather": "Estazioak",
+      "livestock": "Abereak",
+      "buildings": "Etxeak",
+      "trees": "Zuhaitzak",
+      "water": "Ura",
+      "vegetation": "Landaredia",
+      "risk_on": "ON",
+      "risk_off": "OFF"
+    },
+    "mapmode": {
+      "draw_parcel": "Lursaila Marrazten",
+      "select_cadastral": "Katastrala Hautapena",
+      "edit_geometry": "Geometria Editatzen",
+      "zoning": "Zonaldeak Sortzen",
+      "active_badge": "Modu Aktiboa"
+    },
+    "drawing": {
+      "parcel_instructions": "Sakatu mapatan erpinab gehitzeko. Eskuineko klika amaitzeko.",
+      "cadastral_instructions": "Sakatu mapatan kokaleku horretan katastrala lursaila bilatzeko.",
+      "edit_instructions": "Arrastatu erpinab geometria aldatzeko.",
+      "zoning_instructions": "Marraztu zonaldeak hautatutako lursailuaren barruan.",
+      "point_instruction": "Sakatu kokapena hautatzeko",
+      "polygon_instruction": "Sakatu puntuak gehitzeko. Bikoitzez sakatu edo eskuineko klika amaitzeko.",
+      "linestring_instruction": "Ezkerreko klika puntuak gehitzeko. Eskuineko klika amaitzeko.",
+      "multilinestring_instruction": "Ezkerreko klika puntuak gehitzeko. Eskuineko klika lerroa amaitzeko.",
+      "default_instruction": "Sakatu mapatan marrazteko",
+      "type_label": "Marrazten: {type}",
+      "pick_location": "Sakatu mapatan kokapena hautatzeko"
+    },
+    "toolbar": {
+      "undo_title": "Desegin azken puntua",
+      "clear_title": "Marraztura garbitu",
+      "accept": "Onartu"
     }
   }
 }
