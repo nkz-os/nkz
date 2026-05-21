@@ -32,10 +32,10 @@ spec:
   ingressClassName: nginx
   tls:
   - hosts:
-    - nekazari.robotika.cloud
+    - YOUR_DOMAIN
     secretName: nekazari-tls
   rules:
-  - host: nekazari.robotika.cloud
+  - host: YOUR_DOMAIN
     http:
       paths:
       # Prometheus with path rewrite

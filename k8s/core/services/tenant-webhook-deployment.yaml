@@ -21,8 +21,8 @@ spec:
         app: tenant-webhook
         layer: apis
       annotations:
-        nekazari.robotika.cloud/last-deployed: "2026-05-05T20:15:00Z"
-        nekazari.robotika.cloud/change-reason: "Hardening PR1a: add INTERNAL_BILLING_SECRET, fail-closed webhooks, tenant_id regex, subprocess env=, rate limits"
+        platform.example.com/last-deployed: "2026-05-05T20:15:00Z"
+        platform.example.com/change-reason: "Hardening PR1a: add INTERNAL_BILLING_SECRET, fail-closed webhooks, tenant_id regex, subprocess env=, rate limits"
     spec:
       serviceAccountName: tenant-webhook-sa
       securityContext:

@@ -101,7 +101,7 @@ spec:
         - name: KC_HOSTNAME_STRICT_BACKCHANNEL
           value: "false"  # Allow internal backchannel connections without strict hostname
         - name: KC_HOSTNAME_URL
-          value: "https://auth.robotika.cloud/auth"
+          value: "https://YOUR_KEYCLOAK_DOMAIN/auth"
         # Removed KC_HOSTNAME_ADMIN_URL to prevent Keycloak from auto-redirecting admins to /auth/admin
         # The application will handle redirects based on user roles after login
         - name: KC_FEATURES

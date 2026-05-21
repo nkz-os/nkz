@@ -142,7 +142,7 @@ spec:
               name: grafana-secret
               key: admin-password
         - name: GF_SERVER_ROOT_URL
-          value: https://nekazari.robotika.cloud/grafana
+          value: https://YOUR_DOMAIN/grafana
         # OAuth configuration for Keycloak SSO
         - name: GF_AUTH_GENERIC_OAUTH_ENABLED
           value: "true"
@@ -164,7 +164,7 @@ spec:
         - name: GF_AUTH_GENERIC_OAUTH_SCOPES
           value: "openid profile email"
         - name: GF_AUTH_GENERIC_OAUTH_AUTH_URL
-          value: "https://nekazari.robotika.cloud/auth/realms/nekazari/protocol/openid-connect/auth"
+          value: "https://YOUR_DOMAIN/auth/realms/nekazari/protocol/openid-connect/auth"
         - name: GF_AUTH_GENERIC_OAUTH_TOKEN_URL
           value: "http://keycloak-service.nekazari.svc.cluster.local:8080/auth/realms/nekazari/protocol/openid-connect/token"
         - name: GF_AUTH_GENERIC_OAUTH_API_URL
@@ -178,7 +178,7 @@ spec:
         # Optional: Configure allowed domains for OAuth
         # Leave empty to allow all domains, or specify comma-separated list
         # - name: GF_AUTH_GENERIC_OAUTH_ALLOWED_DOMAINS
-        #   value: "nekazari.robotika.cloud,allotarra.eu"
+        #   value: "YOUR_DOMAIN,allotarra.eu"
         volumeMounts:
         - name: storage
           mountPath: /var/lib/grafana

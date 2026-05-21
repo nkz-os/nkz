@@ -85,7 +85,7 @@ spec:
             http://keycloak-service:8080/auth/admin/realms/nekazari)
           
           # Update frontendUrl in the config
-          UPDATED_CONFIG=$(echo "$REALM_CONFIG" | jq '.attributes.frontendUrl = "https://auth.robotika.cloud/auth" | .attributes.adminUrl = "https://auth.robotika.cloud/auth/admin"')
+          UPDATED_CONFIG=$(echo "$REALM_CONFIG" | jq '.attributes.frontendUrl = "https://YOUR_KEYCLOAK_DOMAIN/auth" | .attributes.adminUrl = "https://YOUR_KEYCLOAK_DOMAIN/auth/admin"')
           
           # Update the realm and capture HTTP status
           HTTP_CODE=$(curl -s -o /tmp/update_response.json -w "%{http_code}" -X PUT \

@@ -25,7 +25,7 @@ spec:
           args:
             - |
               echo "Waiting for Keycloak to be ready..."
-              until curl -f -s https://nekazari.robotika.cloud/auth/realms/master > /dev/null; do
+              until curl -f -s https://YOUR_DOMAIN/auth/realms/master > /dev/null; do
                 echo "Keycloak not ready yet, waiting..."
                 sleep 10
               done
@@ -57,10 +57,10 @@ spec:
               sleep 30
               
               # Configure kcadm.sh credentials
-              /opt/keycloak/bin/kcadm.sh config credentials --server https://nekazari.robotika.cloud/auth --realm master --user admin --password "${KEYCLOAK_ADMIN_PASSWORD}"
+              /opt/keycloak/bin/kcadm.sh config credentials --server https://YOUR_DOMAIN/auth --realm master --user admin --password "${KEYCLOAK_ADMIN_PASSWORD}"
               
               # Initialize admin user using kcadm.sh
-              /opt/keycloak/bin/kcadm.sh create users -r master -s username=admin -s enabled=true -s email=nekazari@robotika.cloud || echo "Admin user already exists"
+              /opt/keycloak/bin/kcadm.sh create users -r master -s username=admin -s enabled=true -s email=nekazari@example.com || echo "Admin user already exists"
               
               # Set admin password
               /opt/keycloak/bin/kcadm.sh set-password -r master --username admin --new-password "${ADMIN_PASSWORD}"
@@ -131,12 +131,12 @@ data:
           "clientAuthenticatorType": "client-secret",
           "secret": "frontend-secret",
           "redirectUris": [
-            "https://nekazari.robotika.cloud/*",
+            "https://YOUR_DOMAIN/*",
             "http://localhost:3000/*",
             "http://localhost:5173/*"
           ],
           "webOrigins": [
-            "https://nekazari.robotika.cloud",
+            "https://YOUR_DOMAIN",
             "http://localhost:3000",
             "http://localhost:5173"
           ],
@@ -257,7 +257,7 @@ data:
       "users": [
         {
           "username": "admin",
-          "email": "nekazari@robotika.cloud",
+          "email": "nekazari@example.com",
           "firstName": "Platform",
           "lastName": "Administrator",
           "enabled": true,

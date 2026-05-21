@@ -7,10 +7,10 @@
   "clientAuthenticatorType": "client-secret",
   "secret": "CHANGE_ME_GENERATE_SECURE_SECRET",
   "redirectUris": [
-    "https://n8n.nekazari.robotika.cloud/oauth2/callback"
+    "https://n8n.example.com/oauth2/callback"
   ],
   "webOrigins": [
-    "https://n8n.nekazari.robotika.cloud"
+    "https://n8n.YOUR_DOMAIN"
   ],
   "protocol": "openid-connect",
   "attributes": {

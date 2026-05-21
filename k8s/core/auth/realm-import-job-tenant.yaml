@@ -86,11 +86,11 @@ spec:
                 "directAccessGrantsEnabled": true,
                 "serviceAccountsEnabled": false,
                 "redirectUris": [
-                  "https://$TENANT_ID.nekazari.robotika.cloud/*",
+                  "https://$TENANT_ID.YOUR_DOMAIN/*",
                   "http://localhost:3000/*"
                 ],
                 "webOrigins": [
-                  "https://$TENANT_ID.nekazari.robotika.cloud",
+                  "https://$TENANT_ID.YOUR_DOMAIN",
                   "http://localhost:3000"
                 ]
               },

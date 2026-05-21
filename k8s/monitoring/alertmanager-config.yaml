@@ -14,7 +14,7 @@ stringData:
       
       # SMTP configuration (adjust for your email server)
       smtp_smarthost: 'smtp.example.com:587'
-      smtp_from: 'alerts@nekazari.robotika.cloud'
+      smtp_from: 'alerts@YOUR_DOMAIN'
       smtp_require_tls: false
     
     # Templates
@@ -82,14 +82,14 @@ stringData:
       # Default receiver (fallback)
       - name: 'default'
         email_configs:
-          - to: 'operations@nekazari.robotika.cloud'
+          - to: 'operations@YOUR_DOMAIN'
             headers:
               Subject: 'Nekazari Alert: {{ .GroupLabels.alertname }}'
       
       # On-call team (critical alerts)
       - name: 'oncall'
         email_configs:
-          - to: 'oncall@nekazari.robotika.cloud'
+          - to: 'oncall@YOUR_DOMAIN'
             headers:
               Subject: '[CRITICAL] Nekazari Alert: {{ .GroupLabels.alertname }}'
         webhook_configs:
@@ -102,21 +102,21 @@ stringData:
       # Tenant admins (receive alerts for their tenants)
       - name: 'tenant-admins'
         email_configs:
-          - to: '{{ .GroupLabels.tenant }}@nekazari.robotika.cloud'
+          - to: '{{ .GroupLabels.tenant }}@YOUR_DOMAIN'
             headers:
               Subject: 'Nekazari Alert: {{ .GroupLabels.alertname }}'
       
       # Device operators
       - name: 'device-operators'
         email_configs:
-          - to: 'devices@nekazari.robotika.cloud'
+          - to: 'devices@YOUR_DOMAIN'
             headers:
               Subject: 'Device Alert: {{ .GroupLabels.alertname }}'
       
       # Security team
       - name: 'security-team'
         email_configs:
-          - to: 'security@nekazari.robotika.cloud'
+          - to: 'security@YOUR_DOMAIN'
             headers:
               Subject: '[SECURITY] Nekazari Alert: {{ .GroupLabels.alertname }}'
         # Optional: Slack
@@ -127,14 +127,14 @@ stringData:
       # Data team
       - name: 'data-team'
         email_configs:
-          - to: 'data@nekazari.robotika.cloud'
+          - to: 'data@YOUR_DOMAIN'
             headers:
               Subject: 'Data Quality Alert: {{ .GroupLabels.alertname }}'
       
       # Operations
       - name: 'operations'
         email_configs:
-          - to: 'operations@nekazari.robotika.cloud'
+          - to: 'operations@YOUR_DOMAIN'
             headers:
               Subject: 'Operations Alert: {{ .GroupLabels.alertname }}'
     

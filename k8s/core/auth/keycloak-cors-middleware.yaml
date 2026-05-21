@@ -18,8 +18,8 @@ spec:
       - Origin
       - User-Agent
     accessControlAllowOriginList:
-      - "https://nekazari.robotika.cloud"
-      - "https://nkz.robotika.cloud"
+      - "https://YOUR_DOMAIN"
+      - "https://YOUR_API_DOMAIN"
       - "http://localhost:5173"
       - "http://localhost:3000"
     accessControlMaxAge: 100
