@@ -204,6 +204,7 @@
     "panelHeight": "nkz:panelHeight",
     "slope": "nkz:slope",
     "aspect": "nkz:aspect",
+    "refDevice": "nkz:refDevice",
 
     "visualRepresentation": {
       "@id": "https://nekazari.io/vocab/visualRepresentation",
