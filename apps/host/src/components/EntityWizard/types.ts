@@ -61,6 +61,9 @@ export interface GeoAssetFormData extends BaseFormData {
   panelLength?: number;
   panelHeight?: number;
 
+  // IoT provisioning (optional — PhotovoltaicInstallation, AgriEnergyTracker)
+  deviceProfileId?: string | null;
+
   // Dynamic attributes from SDM schema for all other asset types
   additionalAttributes: Record<string, string | number>;
 }

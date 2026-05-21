@@ -32,6 +32,7 @@ function makeGeoAssetFormData(entityType: string): GeoAssetFormData {
     panelWidth: undefined,
     panelLength: undefined,
     panelHeight: undefined,
+    deviceProfileId: null,
   };
 }
 

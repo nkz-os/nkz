@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Sprout } from 'lucide-react';
+import { Sprout, Cable } from 'lucide-react';
 import { useWizard } from '../WizardContext';
 import { ParentEntitySelector } from '../ParentEntitySelector';
 import api from '@/services/api';
+import { listDeviceProfiles, type DeviceProfile } from '@/services/deviceProfilesApi';
 import type { GeoAssetFormData } from '../types';
 
 // Types that support the subdivision (parent-child) workflow
@@ -15,6 +16,11 @@ const PARCEL_ASSOCIATION_TYPES = new Set([
   'AgriEnergyTracker', 'PhotovoltaicInstallation',
 ]);
 
+// Types that optionally support IoT provisioning (MQTT via DeviceProfile)
+const IOT_CAPABLE_ASSETS = new Set([
+  'AgriEnergyTracker', 'PhotovoltaicInstallation',
+]);
+
 // AgriParcel gets first-class cadastral fields instead of generic additionalAttributes
 const IS_AGRI_PARCEL = (type: string) => type === 'AgriParcel';
 
@@ -22,8 +28,10 @@ export function StepGeoAssetConfig() {
   const { entityType, formData, updateFormData } = useWizard();
 
   const needsParcel = PARCEL_ASSOCIATION_TYPES.has(entityType ?? '');
+  const needsIoT = IOT_CAPABLE_ASSETS.has(entityType ?? '');
   const [parcels, setParcels] = useState<{ id: string; name: string }[]>([]);
   const [parcelsLoading, setParcelsLoading] = useState(false);
+  const [deviceProfiles, setDeviceProfiles] = useState<DeviceProfile[]>([]);
 
   useEffect(() => {
     if (!needsParcel) return;
@@ -38,6 +46,13 @@ export function StepGeoAssetConfig() {
       .catch(() => setParcels([]))
       .finally(() => setParcelsLoading(false));
   }, [needsParcel]);
+
+  useEffect(() => {
+    if (!needsIoT || !entityType) return;
+    listDeviceProfiles({ sdm_entity_type: entityType })
+      .then(setDeviceProfiles)
+      .catch(() => setDeviceProfiles([]));
+  }, [needsIoT, entityType]);
 
   if (!formData || formData.macroCategory !== 'assets') return null;
   const data = formData as GeoAssetFormData;
@@ -200,6 +215,33 @@ export function StepGeoAssetConfig() {
               />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* IoT provisioning (AgriEnergyTracker, PhotovoltaicInstallation — optional) */}
+      {needsIoT && (
+        <div className="pt-4 border-t space-y-3">
+          <div className="flex items-center gap-2">
+            <Cable className="w-4 h-4 text-purple-600" />
+            <h4 className="text-sm font-medium text-gray-700">Control físico (opcional)</h4>
+          </div>
+          <p className="text-xs text-gray-500">
+            Selecciona un perfil de dispositivo para enviar comandos MQTT al tracker físico
+            y recibir telemetría. Si no lo necesitas, déjalo vacío.
+          </p>
+          <select
+            value={data.deviceProfileId ?? ''}
+            onChange={e => updateFormData({ deviceProfileId: e.target.value || null })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="">Sin control físico</option>
+            {deviceProfiles.filter(p => p.is_public).map(p => (
+              <option key={p.id} value={p.id}>{p.name} (público)</option>
+            ))}
+            {deviceProfiles.filter(p => !p.is_public).map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
         </div>
       )}
 

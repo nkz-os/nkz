@@ -166,9 +166,14 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
 
       switch (formData.macroCategory) {
         case 'assets': {
-          await submitGeoAsset(entityType, formData as GeoAssetFormData, placementState);
-          if (onSuccess) onSuccess();
-          onClose();
+          const result = await submitGeoAsset(entityType, formData as GeoAssetFormData, placementState);
+          if (result.mqttCredentials) {
+            setMqttCredentials(result.mqttCredentials);
+            // Don't close — wait for user to save MQTT credentials
+          } else {
+            if (onSuccess) onSuccess();
+            onClose();
+          }
           break;
         }
         case 'sensors': {
