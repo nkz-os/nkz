@@ -130,7 +130,11 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   // OR when on geometry step with array/stamp placement (always needs map access)
   const isGeometryWithPlacement = currentStep.id === 'geometry'
     && (placementState.mode === 'array' || placementState.mode === 'stamp');
+  // Stay in side-panel mode after user has chosen array/stamp so they can
+  // preview the 3D model against the terrain while configuring dimensions or visuals.
+  const hasArrayOrStampMode = placementState.mode === 'array' || placementState.mode === 'stamp';
   const isMapInteractMode = isGeometryWithPlacement
+    || (hasArrayOrStampMode && (currentStep.id === 'geo-config' || currentStep.id === 'visualization' || currentStep.id === 'summary'))
     || (mapMode as string) === 'STAMP_INSTANCES'
     || (mapMode as string) === 'PREVIEW_MODEL'
     || (mapMode as string) === 'DRAW_GEOMETRY'
