@@ -1042,6 +1042,10 @@
     "layersTitle": "Capas",
     "layersRiskOverlay": "Overlay de Riesgos",
     "layersExpand": "Mostrar capas",
-    "layersCollapse": "Ocultar capas"
+    "layersCollapse": "Ocultar capas",
+    "layersGroupCore": "Núcleo",
+    "layersGroupModules": "Módulos",
+    "layersSubmenuOpen": "Abrir submenú de capas",
+    "layersSubmenuClose": "Cerrar submenú de capas"
   }
 }
