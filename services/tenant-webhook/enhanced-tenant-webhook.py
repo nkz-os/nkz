@@ -3167,13 +3167,16 @@ def create_api_key():
 @app.route("/api/admin/tenants/<tenant_id>", methods=["PATCH"])
 @require_platform_admin
 def update_tenant_info(tenant_id):
-    """Update tenant basic info (name, metadata)"""
+    """Update tenant info (name, metadata, plan, status, expiration)"""
     try:
         data = request.get_json()
         tenant_name = data.get("tenant_name")
         metadata = data.get("metadata")
+        plan_type = data.get("plan_type")
+        status = data.get("status")
+        expires_at = data.get("expires_at")
 
-        if not tenant_name and metadata is None:
+        if not any([tenant_name, metadata is not None, plan_type, status, expires_at]):
             return jsonify({"error": "No data to update"}), 400
 
         conn = webhook_service.get_db_connection()
@@ -3181,32 +3184,48 @@ def update_tenant_info(tenant_id):
             return jsonify({"error": "Database connection error"}), 500
 
         cursor = conn.cursor()
-        
+
         updates = []
         params = []
-        
+
         if tenant_name:
             updates.append("tenant_name = %s")
             params.append(tenant_name)
-            
+
         if metadata is not None:
-            # Merge with existing metadata if possible, or just overwrite
             updates.append("metadata = metadata || %s::jsonb")
             params.append(json.dumps(metadata))
-            
+
+        if plan_type:
+            from common.tier_quotas import PLAN_LEVELS
+            if plan_type not in PLAN_LEVELS:
+                return jsonify({"error": f"Invalid plan: {plan_type}. Allowed: {list(PLAN_LEVELS)}"}), 400
+            updates.append("plan_type = %s")
+            params.append(plan_type)
+
+        if status:
+            if status not in ("active", "suspended", "inactive"):
+                return jsonify({"error": f"Invalid status: {status}. Allowed: active, suspended, inactive"}), 400
+            updates.append("status = %s")
+            params.append(status)
+
+        if expires_at:
+            updates.append("expires_at = %s")
+            params.append(expires_at)
+
         params.append(tenant_id)
-        
+
         query = (
             f"UPDATE tenants SET {', '.join(updates)}, "
             "updated_at = CURRENT_TIMESTAMP WHERE tenant_id = %s"
         )
-        
+
         cursor.execute(query, params)
         conn.commit()
-        
+
         cursor.close()
         conn.close()
-        
+
         return jsonify({"success": True, "message": "Tenant updated successfully"}), 200
 
     except Exception as e:
