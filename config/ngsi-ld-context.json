@@ -1,15 +1,18 @@
 {
-  "@context": {
-    "_comment": "Nekazari Platform NGSI-LD @context — canonical namespace mappings. Types prefixed 'nkz:' are platform extensions (no SDM/SAREF4AGRI equivalent per FIWARE Smart Data Models catalog audit 2026-05-03). Types prefixed 'saref4agri:' are legacy — retained for backward compatibility with existing Orion-LD entities; new entities SHOULD use 'nkz:' variants.",
+  "@context": [
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
+    "https://smart-data-models.github.io/dataModel.Agrifood/context.jsonld",
+    {
+      "_comment": "Nekazari Platform NGSI-LD @context — canonical namespace mappings. Types prefixed 'nkz:' are platform extensions (no SDM/SAREF4AGRI equivalent per FIWARE Smart Data Models catalog audit 2026-05-03). Types prefixed 'saref4agri:' are legacy — retained for backward compatibility with existing Orion-LD entities; new entities SHOULD use 'nkz:' variants.",
 
-    "schema": "https://schema.org/",
-    "ngsi-ld": "https://uri.etsi.org/ngsi-ld/",
-    "iot": "https://iot.schema.org/",
-    "saref": "https://saref.etsi.org/core/",
-    "saref4agri": "https://saref.etsi.org/saref4agri/",
-    "nkz": "https://nekazari.robotika.cloud/ngsi-ld/",
+      "schema": "https://schema.org/",
+      "ngsi-ld": "https://uri.etsi.org/ngsi-ld/",
+      "iot": "https://iot.schema.org/",
+      "saref": "https://saref.etsi.org/core/",
+      "saref4agri": "https://saref.etsi.org/saref4agri/",
+      "nkz": "https://nekazari.robotika.cloud/ngsi-ld/",
 
-    "AgriculturalRobot": {
+      "AgriculturalRobot": {
       "@id": "nkz:AgriculturalRobot",
       "@type": "@id",
       "_comment": "Platform extension — no equivalent in SAREF4AGRI or any SDM catalog. Alias: AgriRobot (robotics module) maps to same nkz:AgriculturalRobot URI. Legacy mapping: saref4agri:AgriculturalRobot."
@@ -145,6 +148,49 @@
       "_comment": "Alias for AgriculturalRobot — both resolve to nkz:AgriculturalRobot. Robotics module uses AgriRobot as entity type. Standardized 2026-05-08."
     },
 
+    "AgriSoilExtended": {
+      "@id": "https://nkz-os.org/sdm-proposals/AgriSoilExtended",
+      "@type": "@id",
+      "_comment": "SDM-001 Proposal: Extension of AgriSoil with soil horizon data and pedotransfer function properties (LUCAS/SoilGrids integration)"
+    },
+    "SoilSamplingPoint": {
+      "@id": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint",
+      "@type": "@id",
+      "_comment": "SDM-002 Proposal: Point sample location with laboratory analysis results and spatial reference"
+    },
+    "SoilSurvey": {
+      "@id": "https://nkz-os.org/sdm-proposals/SoilSurvey",
+      "@type": "@id",
+      "_comment": "SDM-003 Proposal: Survey campaign metadata (instrumentation, point count, spatial coverage)"
+    },
+    "SoilDerivedRaster": {
+      "@id": "https://nkz-os.org/sdm-proposals/SoilDerivedRaster",
+      "@type": "@id",
+      "_comment": "SDM-004 Proposal: Raster derived from point samples or gridded soil models (COG/NetCDF storage)"
+    },
+
+    "horizons": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#horizons",
+    "hydrologicGroup": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#hydrologicGroup",
+    "parcelVersionId": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#parcelVersionId",
+    "uncertainty": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#uncertainty",
+    "dataSource": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#dataSource",
+
+    "samplingDate": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#samplingDate",
+    "laboratoryReference": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#laboratoryReference",
+    "refSoilSurvey": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#refSoilSurvey",
+
+    "surveyType": "https://nkz-os.org/sdm-proposals/SoilSurvey#surveyType",
+    "instrumentation": "https://nkz-os.org/sdm-proposals/SoilSurvey#instrumentation",
+    "pointCount": "https://nkz-os.org/sdm-proposals/SoilSurvey#pointCount",
+
+    "soilProperty": "https://nkz-os.org/sdm-proposals/SoilDerivedRaster#soilProperty",
+    "storageUri": "https://nkz-os.org/sdm-proposals/SoilDerivedRaster#storageUri",
+
+    "providedBy": "https://uri.etsi.org/ngsi-ld/providedBy",
+    "license": "https://uri.etsi.org/ngsi-ld/license",
+    "confidenceInterval": "https://uri.etsi.org/ngsi-ld/confidenceInterval",
+    "derivedBy": "https://uri.etsi.org/ngsi-ld/derivedBy",
+
     "name": "schema:name",
     "description": "schema:description",
     "location": "schema:location",
@@ -258,7 +304,8 @@
     "pixelCount": "https://nekazari.io/vocab/pixelCount",
     "refAgriParcel": "https://nekazari.io/vocab/refAgriParcel",
 
-    "Point": "schema:GeoCoordinates",
-    "coordinates": "schema:geo"
-  }
+      "Point": "schema:GeoCoordinates",
+      "coordinates": "schema:geo"
+    }
+  ]
 }
