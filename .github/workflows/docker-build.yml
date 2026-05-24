@@ -135,7 +135,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Push Docker image
-        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/backend-security-standards') }}
+        if: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/backend-security-standards')) || github.event_name == 'workflow_dispatch' }}
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
