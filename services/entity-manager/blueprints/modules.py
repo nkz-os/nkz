@@ -3,6 +3,7 @@
 Modules Blueprint - Extracted from entity_management_api.py
 """
 import os
+import re
 import sys
 import json
 import uuid
@@ -1375,6 +1376,12 @@ def deploy_module_dist(module_id):
         if '..' in f.filename.split('/'):
             return jsonify({'error': f'Invalid filename path: {f.filename}'}), 400
 
+    # --- version hash for immutable deployments ---
+
+    version_hash = request.form.get('version_hash', '').strip()
+    if version_hash and not re.match(r'^[a-f0-9]{7,40}$', version_hash):
+        return jsonify({'error': 'Invalid version_hash format. Must be 7-40 hex characters.'}), 400
+
     # --- S3 upload ---
 
     s3_client = _get_frontend_s3_client()
@@ -1382,7 +1389,7 @@ def deploy_module_dist(module_id):
         return jsonify({'error': 'S3 storage not configured.'}), 503
 
     bucket = os.getenv('S3_BUCKET', 'nekazari-frontend')
-    prefix = f'modules/{module_id}/'
+    prefix = f'modules/{module_id}/{version_hash}/' if version_hash else f'modules/{module_id}/'
     uploaded = 0
 
     for f in files:
@@ -1427,7 +1434,7 @@ def deploy_module_dist(module_id):
     required_plan_type = manifest.get('requiredPlan', manifest.get('required_plan_type', 'basic'))
     scope = module_id.replace('-', '_')
     exposed_module = './Module'
-    remote_entry_url = f'/modules/{module_id}/mf-manifest.json'
+    remote_entry_url = f'/modules/{module_id}/{version_hash}/mf-manifest.json' if version_hash else f'/modules/{module_id}/mf-manifest.json'
 
     metadata = json.dumps({
         'hostApiVersion': manifest.get('hostApiVersion', ''),
@@ -1445,9 +1452,10 @@ def deploy_module_dist(module_id):
                 id, name, display_name, description, version, author, category,
                 icon_url, module_type, required_plan_type, pricing_tier,
                 route_path, label, required_roles, remote_entry_url, scope,
-                exposed_module, is_local, is_active, metadata, created_at, updated_at
+                exposed_module, is_local, is_active, metadata, deployed_version,
+                created_at, updated_at
             ) VALUES (
-                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,NOW(),NOW()
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,NOW(),NOW()
             )
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
@@ -1465,6 +1473,7 @@ def deploy_module_dist(module_id):
                 exposed_module = EXCLUDED.exposed_module,
                 is_active = EXCLUDED.is_active,
                 metadata = EXCLUDED.metadata,
+                deployed_version = EXCLUDED.deployed_version,
                 updated_at = NOW()
         """, (
             module_id, name, display_name, description, version, author, category,
@@ -1472,6 +1481,7 @@ def deploy_module_dist(module_id):
             route_path, label, required_roles, remote_entry_url, scope,
             exposed_module, False, True,  # is_local, is_active
             metadata,
+            version_hash if version_hash else None,
         ))
 
         # auto-install for the uploading tenant
@@ -1487,6 +1497,29 @@ def deploy_module_dist(module_id):
                     updated_at = NOW()
             """, (tenant_id, module_id, username))
 
+        # record deployment in history for versioned deploys
+        if version_hash:
+            deployed_by = g.get('email') or g.get('user', 'ci')
+            entry = json.dumps({
+                "version": version_hash,
+                "deployedAt": datetime.utcnow().isoformat() + 'Z',
+                "deployedBy": deployed_by,
+            })
+            cur.execute("""
+                UPDATE marketplace_modules
+                SET deployment_history = (
+                    SELECT jsonb_agg(item)
+                    FROM (
+                        SELECT item FROM jsonb_array_elements(
+                            COALESCE(deployment_history, '[]'::jsonb) || %s::jsonb
+                        ) AS item
+                        ORDER BY item->>'deployedAt' DESC
+                        LIMIT 10
+                    ) AS sorted
+                )
+                WHERE id = %s
+            """, (entry, module_id))
+
         conn.commit()
         cur.close()
 
@@ -1495,6 +1528,7 @@ def deploy_module_dist(module_id):
             'module_id': module_id,
             'version': version,
             'remote_entry_url': remote_entry_url,
+            'deployed_version': version_hash if version_hash else None,
             'files_uploaded': uploaded,
             'is_active': True,
         }), 201
@@ -1509,6 +1543,278 @@ def deploy_module_dist(module_id):
             'error': 'Internal server error while registering module.',
             'details': str(e),
         }), 500
+    finally:
+        if conn:
+            return_db_connection(conn)
+
+
+# =============================================================================
+# Immutable Deployment Endpoints (deploy, rollback, versions, resolve-url)
+# =============================================================================
+
+def _cleanup_old_versions(module_id: str, keep: int = 5):
+    """Remove old versions from MinIO, keeping the last N."""
+    s3_client = _get_frontend_s3_client()
+    if not s3_client:
+        return
+    bucket = os.getenv('S3_BUCKET', 'nekazari-frontend')
+    prefix = f'modules/{module_id}/'
+
+    try:
+        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix, Delimiter='/')
+        versions_in_s3 = []
+        for cp in response.get('CommonPrefixes', []):
+            ver = cp['Prefix'].replace(prefix, '').rstrip('/')
+            if re.match(r'^[a-f0-9]{7,40}$', ver):
+                versions_in_s3.append(ver)
+    except Exception as e:
+        logger.warning(f"cleanup: failed to list S3 versions for {module_id}: {e}")
+        return
+
+    if not versions_in_s3:
+        return
+
+    conn = get_db_connection_simple()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT deployment_history FROM marketplace_modules WHERE id = %s",
+            (module_id,)
+        )
+        row = cur.fetchone()
+        cur.close()
+
+        if not row or not row.get('deployment_history'):
+            return
+
+        history_sorted = sorted(
+            row['deployment_history'],
+            key=lambda x: x.get('deployedAt', ''),
+            reverse=True
+        )
+        keep_versions = {e['version'] for e in history_sorted[:keep]}
+
+        for ver in versions_in_s3:
+            if ver not in keep_versions:
+                try:
+                    resp = s3_client.list_objects_v2(
+                        Bucket=bucket, Prefix=f'{prefix}{ver}/'
+                    )
+                    if 'Contents' in resp:
+                        delete_keys = [{'Key': obj['Key']} for obj in resp['Contents']]
+                        s3_client.delete_objects(
+                            Bucket=bucket,
+                            Delete={'Objects': delete_keys, 'Quiet': True}
+                        )
+                        logger.info(f"cleanup: removed {len(delete_keys)} files for {module_id}/{ver}")
+                except Exception as e:
+                    logger.warning(f"cleanup: failed to delete {module_id}/{ver}: {e}")
+    finally:
+        return_db_connection(conn)
+
+
+@modules_bp.route('/api/modules/<module_id>/deploy', methods=['POST'])
+@require_auth(require_hmac=False)
+def deploy_module_version(module_id):
+    """Atomically switch the active version of a module.
+
+    Expects JSON: {"version": "<git-sha>"}
+    Files must already be in MinIO at /modules/<module_id>/<version>/.
+    """
+    user_roles = _get_user_roles()
+    if 'PlatformAdmin' not in user_roles and 'TenantAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions.'}), 403
+
+    data = request.get_json(silent=True) or {}
+    version = (data.get('version') or '').strip()
+    if not re.match(r'^[a-f0-9]{7,40}$', version):
+        return jsonify({'error': 'Invalid version hash. Must be 7-40 hex characters.'}), 400
+
+    # Verify files exist in MinIO
+    s3_client = _get_frontend_s3_client()
+    if not s3_client:
+        return jsonify({'error': 'S3 storage not configured.'}), 503
+
+    bucket = os.getenv('S3_BUCKET', 'nekazari-frontend')
+    key = f'modules/{module_id}/{version}/mf-manifest.json'
+    try:
+        s3_client.head_object(Bucket=bucket, Key=key)
+    except Exception:
+        return jsonify({'error': f'Version {version} not found in MinIO'}), 404
+
+    conn = get_db_connection_simple()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        remote_entry_url = f'/modules/{module_id}/{version}/mf-manifest.json'
+        deployed_by = g.get('email') or g.get('user', 'ci')
+
+        entry = json.dumps({
+            "version": version,
+            "deployedAt": datetime.utcnow().isoformat() + 'Z',
+            "deployedBy": deployed_by,
+        })
+
+        cur.execute("""
+            UPDATE marketplace_modules
+            SET remote_entry_url = %s,
+                deployed_version = %s,
+                deployment_history = (
+                    SELECT jsonb_agg(item)
+                    FROM (
+                        SELECT item FROM jsonb_array_elements(
+                            COALESCE(deployment_history, '[]'::jsonb) || %s::jsonb
+                        ) AS item
+                        ORDER BY item->>'deployedAt' DESC
+                        LIMIT 10
+                    ) AS sorted
+                ),
+                updated_at = NOW()
+            WHERE id = %s
+            RETURNING remote_entry_url, deployed_version
+        """, (remote_entry_url, version, entry, module_id))
+
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+
+        if not row:
+            return jsonify({'error': 'Module not found.'}), 404
+
+        # Cleanup old versions (keep last 5)
+        _cleanup_old_versions(module_id, keep=5)
+
+        return jsonify({
+            'remote_entry_url': row['remote_entry_url'],
+            'deployed_version': row['deployed_version'],
+        })
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"deploy error for {module_id}: {e}")
+        return jsonify({'error': 'Internal server error.', 'details': str(e)}), 500
+    finally:
+        if conn:
+            return_db_connection(conn)
+
+
+@modules_bp.route('/api/modules/<module_id>/rollback', methods=['POST'])
+@require_auth(require_hmac=False)
+def rollback_module_version(module_id):
+    """Rollback to a previously deployed version.
+
+    Expects JSON: {"version": "<git-sha>"}
+    The version must exist in deployment history.
+    """
+    user_roles = _get_user_roles()
+    if 'PlatformAdmin' not in user_roles and 'TenantAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions.'}), 403
+
+    data = request.get_json(silent=True) or {}
+    version = (data.get('version') or '').strip()
+    if not re.match(r'^[a-f0-9]{7,40}$', version):
+        return jsonify({'error': 'Invalid version hash.'}), 400
+
+    conn = get_db_connection_simple()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT deployment_history FROM marketplace_modules WHERE id = %s",
+            (module_id,)
+        )
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            return jsonify({'error': 'Module not found.'}), 404
+
+        history = row.get('deployment_history') or []
+        if not any(e.get('version') == version for e in history):
+            cur.close()
+            return jsonify({'error': f'Version {version} not in deployment history.'}), 404
+
+        remote_entry_url = f'/modules/{module_id}/{version}/mf-manifest.json'
+        cur.execute("""
+            UPDATE marketplace_modules
+            SET remote_entry_url = %s,
+                deployed_version = %s,
+                updated_at = NOW()
+            WHERE id = %s
+        """, (remote_entry_url, version, module_id))
+        conn.commit()
+        cur.close()
+
+        return jsonify({
+            'remote_entry_url': remote_entry_url,
+            'deployed_version': version,
+        })
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"rollback error for {module_id}: {e}")
+        return jsonify({'error': 'Internal server error.', 'details': str(e)}), 500
+    finally:
+        if conn:
+            return_db_connection(conn)
+
+
+@modules_bp.route('/api/modules/<module_id>/versions', methods=['GET'])
+@require_auth(require_hmac=False)
+def list_module_versions(module_id):
+    """List deployment history for a module."""
+    conn = get_db_connection_simple()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT deployed_version, deployment_history FROM marketplace_modules WHERE id = %s",
+            (module_id,)
+        )
+        row = cur.fetchone()
+        cur.close()
+
+        if not row:
+            return jsonify({'error': 'Module not found.'}), 404
+
+        return jsonify({
+            'active': row.get('deployed_version'),
+            'history': row.get('deployment_history') or [],
+        })
+    except Exception as e:
+        logger.error(f"versions error for {module_id}: {e}")
+        return jsonify({'error': 'Internal server error.', 'details': str(e)}), 500
+    finally:
+        if conn:
+            return_db_connection(conn)
+
+
+@modules_bp.route('/api/internal/modules/<module_id>/resolve-url', methods=['GET'])
+def resolve_module_manifest_url(module_id):
+    """Return the correct manifest.json URL for CSP validation (internal)."""
+    conn = get_db_connection_simple()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT deployed_version FROM marketplace_modules WHERE id = %s",
+            (module_id,)
+        )
+        row = cur.fetchone()
+        cur.close()
+
+        manifest_base = os.getenv(
+            'MODULE_MANIFEST_BASE_URL',
+            'http://frontend-static-service:80/modules'
+        )
+
+        if row and row.get('deployed_version'):
+            manifest_url = f"{manifest_base}/{module_id}/{row['deployed_version']}/manifest.json"
+            version = row['deployed_version']
+        else:
+            manifest_url = f"{manifest_base}/{module_id}/manifest.json"
+            version = None
+
+        return jsonify({'manifestUrl': manifest_url, 'version': version})
+    except Exception as e:
+        logger.error(f"resolve-url error for {module_id}: {e}")
+        return jsonify({'error': 'Internal server error.', 'details': str(e)}), 500
     finally:
         if conn:
             return_db_connection(conn)

@@ -68,6 +68,10 @@ export interface NKZModulePresetOptions {
      * derived from package.json#nkz.moduleId unless explicitly passed.
      */
     moduleId?: string;
+    /** Git SHA for immutable deployments. When set, paths become
+     *  /modules/<moduleId>/<versionHash>/ instead of /modules/<moduleId>/.
+     *  Also read from NKZ_VERSION_HASH env var (option takes precedence). */
+    versionHash?: string;
     /** Entry point file (legacy mode only; default: 'src/moduleEntry.ts'). */
     entry?: string;
     /** Additional Vite config to merge. */
@@ -135,7 +139,9 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
         // and other modules that need it can still import from the host.
     }
 
-    const expectedPublicPath = `/modules/${moduleId}/`;
+    const versionHash = options.versionHash || process.env.NKZ_VERSION_HASH || '';
+    const versionSegment = versionHash ? `/${versionHash}` : '';
+    const expectedPublicPath = `/modules/${moduleId}${versionSegment}/`;
 
     // After build, assert dist/mf-manifest.json#metaData.publicPath matches
     // what the host expects. A wrong value (typically '/') means the
@@ -194,7 +200,7 @@ export function nkzModulePreset(options: NKZModulePresetOptions = {}): UserConfi
         // `metaData.publicPath`; without it the runtime fetches chunks (incl.
         // `remoteEntry.js`) from the host root and 404s. Modules can override
         // by passing `viteConfig.base` if served from a different prefix.
-        base: `/modules/${moduleId}/`,
+        base: `/modules/${moduleId}${versionSegment}/`,
 
         define: {
             'process.env.NODE_ENV': JSON.stringify('production'),
