@@ -1,0 +1,134 @@
+# NetworkPolicies Phase 3 — services with restricted access patterns.
+# Only policies that are MORE restrictive than allow-same-namespace.
+# Applied incrementally, verified between each.
+# Uses existing "app" labels.
+
+---
+# MongoDB: only Orion-LD needs it
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mongodb-restricted
+  namespace: nekazari
+  labels:
+    app: nekazari
+    policy-type: service
+spec:
+  podSelector:
+    matchLabels:
+      app: mongodb
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    ports:
+    - protocol: TCP
+      port: 27017
+
+---
+# Mosquitto: only Orion-LD (notifications) + IoT Agent (device comms)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mosquitto-restricted
+  namespace: nekazari
+  labels:
+    app: nekazari
+    policy-type: service
+spec:
+  podSelector:
+    matchLabels:
+      app: mosquitto
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    - podSelector:
+        matchLabels:
+          app: iot-agent-json
+    ports:
+    - protocol: TCP
+      port: 1883
+    - protocol: TCP
+      port: 8883
+
+---
+# MinIO: only services that use S3 object storage
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: minio-restricted
+  namespace: nekazari
+  labels:
+    app: nekazari
+    policy-type: service
+spec:
+  podSelector:
+    matchLabels:
+      app: minio
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: entity-manager
+    - podSelector:
+        matchLabels:
+          app: frontend-static
+    - podSelector:
+        matchLabels:
+          app: elevation-api
+    - podSelector:
+        matchLabels:
+          app: elevation-worker
+    - podSelector:
+        matchLabels:
+          app: lidar-api
+    - podSelector:
+        matchLabels:
+          app: lidar-worker
+    - podSelector:
+        matchLabels:
+          app: vegetation-prime-api
+    - podSelector:
+        matchLabels:
+          app: vegetation-prime-worker
+    - podSelector:
+        matchLabels:
+          app: vegetation-prime-beat
+    - podSelector:
+        matchLabels:
+          app: pmtiles-packager
+    - podSelector:
+        matchLabels:
+          app: soil-module-api
+    - podSelector:
+        matchLabels:
+          app: soil-module-worker
+    ports:
+    - protocol: TCP
+      port: 9000
+    - protocol: TCP
+      port: 9001
+
+---
+# Redis: cache + job queue, used by many services
+# Keep permissive for now (same-ns already allows)
+# TODO: tighten after monitoring traffic patterns
+
+---
+# Keycloak: auth for all services + admin API
+# Keep permissive for now (same-ns already allows)
+# TODO: separate admin vs token-validation access
+
+---
+# PostgreSQL + TimescaleDB: used by 40+ services
+# Keep permissive for now (same-ns already allows)
+# TODO: read-replica for analytics queries
