@@ -38,6 +38,8 @@ spec:
       port: 8000
     - protocol: TCP
       port: 8080
+    - protocol: TCP
+      port: 8420  # bioorchestrator-api-service
   
   # Allow egress to DNS (explicit and specific)
   egress:
