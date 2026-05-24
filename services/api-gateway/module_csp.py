@@ -32,6 +32,10 @@ MANIFEST_BASE_URL = os.getenv(
     "http://frontend-static-service:80/modules",
 )
 MANIFEST_TTL_SECONDS = int(os.getenv("MODULE_MANIFEST_TTL_SECONDS", "60"))
+ENTITY_MANAGER_URL = os.getenv(
+    "ENTITY_MANAGER_URL",
+    "http://entity-manager-service:5000",
+)
 
 # In-process cache: module_id -> (fetched_at, parsed_dict_or_None)
 # None means we tried and the manifest is unavailable; we still cache the
@@ -43,8 +47,23 @@ def _now() -> float:
     return time.time()
 
 
+def _resolve_manifest_url(module_id: str) -> str:
+    """Resolve manifest URL via entity-manager, with flat-path fallback."""
+    try:
+        url = f"{ENTITY_MANAGER_URL}/api/internal/modules/{module_id}/resolve-url"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                if data.get("manifestUrl"):
+                    return data["manifestUrl"]
+    except Exception:
+        pass
+    return f"{MANIFEST_BASE_URL}/{module_id}/manifest.json"
+
+
 def _fetch_manifest_remote(module_id: str) -> Optional[dict]:
-    url = f"{MANIFEST_BASE_URL}/{module_id}/manifest.json"
+    url = _resolve_manifest_url(module_id)
     try:
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=2) as resp:

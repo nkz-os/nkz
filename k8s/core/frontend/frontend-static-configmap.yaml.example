@@ -95,6 +95,37 @@ data:
             }
 
             # =================================================================
+            # Versioned Module Federation assets (immutable — cache 1 year)
+            # =================================================================
+            # Regex location takes precedence over the /modules/ prefix location.
+            # Git SHAs are 7-40 hex characters.
+            location ~ ^/modules/([^/]+)/([a-f0-9]{7,40})/ {
+                set $module_id $1;
+                set $version_hash $2;
+
+                proxy_pass http://minio-service:9000/nekazari-frontend/modules/$module_id/$version_hash/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+
+                add_header Access-Control-Allow-Origin "*" always;
+                add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range" always;
+
+                if ($request_method = 'OPTIONS') {
+                    add_header Access-Control-Allow-Origin "*" always;
+                    add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                    add_header Access-Control-Max-Age 1728000;
+                    add_header Content-Type "text/plain; charset=utf-8";
+                    add_header Content-Length 0;
+                    return 204;
+                }
+
+                # Versioned content is immutable — content hash baked into path
+                add_header Cache-Control "public, max-age=31536000, immutable";
+            }
+
+            # =================================================================
             # IIFE module bundles from MinIO (nkz-module.js per module)
             # =================================================================
             # Serves module bundles. Use must-revalidate so cached wrong responses (e.g. index.html)
