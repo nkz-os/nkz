@@ -1,0 +1,35 @@
+# Baseline policy — allow all intra-namespace communication + DNS.
+# Required before applying default-deny-all.
+# Phase 2 will replace this with per-service policies once all deployments
+# have proper app/layer labels assigned.
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+  namespace: nekazari
+  labels:
+    app: nekazari
+    policy-type: baseline
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector: {}
+  egress:
+  - to:
+    - podSelector: {}
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
