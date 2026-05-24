@@ -1,10 +1,9 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Users, Building2, Ticket, Search, Plus,
-  Trash2, ShieldCheck, AlertTriangle, RefreshCcw,
+  Users, Ticket, Search, Plus,
+  Trash2, ShieldCheck, RefreshCcw,
   Settings2, Shield, Key, ScrollText,
-  FileText, Activity, Box, Puzzle, Monitor
+  FileText, Activity, Box, Monitor, Puzzle, UserPlus, UserCheck,
 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import client from '@/services/api';
@@ -14,8 +13,13 @@ import { SlotRenderer } from '@/components/SlotRenderer';
 import { UserTable, type UserRow } from '@/components/admin/UserTable';
 import { UserEditModal } from '@/components/admin/UserEditModal';
 import { useUserActions } from '@/components/admin/useUserActions';
+import { TenantSidebar } from '@/components/admin/TenantSidebar';
+import { TenantCreateModal } from '@/components/admin/TenantCreateModal';
+import { TenantConfigForm } from '@/components/admin/TenantConfigForm';
+import { UserCreateModal } from '@/components/admin/UserCreateModal';
+import { UserAssignModal } from '@/components/admin/UserAssignModal';
 
-// Missing Admin Components
+// Legacy imports
 import { LimitsManagement } from '@/components/LimitsManagement';
 import { TermsManagement } from '@/components/TermsManagement';
 import { PlatformApiCredentials } from '@/components/PlatformApiCredentials';
@@ -92,97 +96,157 @@ interface ActivationCode {
   expires_at: string;
 }
 
+const PLATFORM_ADMIN_ROLES = [
+  { value: 'PlatformAdmin', label: 'Platform Admin', description: 'Full platform access' },
+  { value: 'TenantAdmin', label: 'Tenant Admin', description: 'Tenant-level management' },
+  { value: 'GestorCUE', label: 'Gestor CUE', description: 'CUE cross-tenant field notebook manager' },
+  { value: 'TechnicalConsultant', label: 'Technical Consultant', description: 'Technical data and modules access' },
+  { value: 'Farmer', label: 'Farmer', description: 'Basic dashboard access' },
+];
+
 export const AdminManagement: React.FC = () => {
   const { t } = useI18n();
   const { modules } = useModules();
-  const [activeTab, setActiveTab] = useState<string>('users');
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  /** Debounced search sent to Keycloak (users tab only). */
+
+  // Global tab state: null = master-detail (sidebar + tenant/user panels)
+  const [globalTab, setGlobalTab] = useState<string | null>(null);
+
+  // Tenant data
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenantsLoading, setTenantsLoading] = useState(false);
+  const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
+  const [tenantTab, setTenantTab] = useState<'users' | 'config'>('users');
+
+  // Platform users (Keycloak directory)
+  const [users, setUsers] = useState<User[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [usersSearch, setUsersSearch] = useState('');
   const [usersSearchDebounced, setUsersSearchDebounced] = useState('');
   const [userHasMore, setUserHasMore] = useState(false);
-  const [usersLoadError, setUsersLoadError] = useState<string | null>(null);
   const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
   const [usersRefreshNonce, setUsersRefreshNonce] = useState(0);
   const usersNextFirstRef = React.useRef(0);
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  // Modal visibility
+  const [showCreateTenant, setShowCreateTenant] = useState(false);
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [showAssignUser, setShowAssignUser] = useState(false);
+
+  // Role editing
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  // Activation codes
   const [activations, setActivations] = useState<ActivationCode[]>([]);
+  const [activationsLoading, setActivationsLoading] = useState(false);
+  const [showCodeModal, setShowCodeModal] = useState(false);
+  const [codeForm, setCodeForm] = useState({ email: '', plan: 'premium' });
+
+  // Landing mode
   const [landingMode, setLandingMode] = useState<'standard' | 'commercial'>('standard');
   const [landingModeLoading, setLandingModeLoading] = useState(false);
   const [landingModeSaving, setLandingModeSaving] = useState(false);
   const [landingMessage, setLandingMessage] = useState<string>('');
-  const [showCodeModal, setShowCodeModal] = useState(false);
-  const [codeForm, setCodeForm] = useState({ email: '', plan: 'premium' });
-
-  // Role editing state (PlatformAdmin)
-  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
 
   const userActions = useUserActions({ apiBase: 'admin' });
-
-  // All roles assignable by PlatformAdmin
-  const platformAdminRoles = [
-    { value: 'PlatformAdmin', label: 'Platform Admin', description: 'Full platform access' },
-    { value: 'TenantAdmin', label: 'Tenant Admin', description: 'Tenant-level management' },
-    { value: 'GestorCUE', label: 'Gestor CUE', description: 'CUE cross-tenant field notebook manager' },
-    { value: 'TechnicalConsultant', label: 'Technical Consultant', description: 'Technical data and modules access' },
-    { value: 'Farmer', label: 'Farmer', description: 'Basic dashboard access' },
-  ];
 
   // Find modules that provide admin-tab slots
   const adminTabModules = Array.isArray(modules)
     ? modules.filter(m => m.viewerSlots?.['admin-tab'] && m.viewerSlots['admin-tab'].length > 0)
     : [];
 
-  const loadTenantsOrActivations = React.useCallback(async () => {
-    setLoading(true);
+  // --- Data loading ---
+
+  const loadTenants = useCallback(async () => {
+    setTenantsLoading(true);
     try {
-      if (activeTab === 'tenants') {
-        const response = await client.get('/api/admin/tenants');
-        const data = response.data;
-        const raw = Array.isArray(data) ? data : (data.tenants || []);
-        setTenants(
-          raw.map((t: Record<string, unknown>) => ({
-            tenant_id: String(t.tenant_id ?? t.id ?? ''),
-            tenant_name: String(t.tenant_name ?? t.name ?? t.tenant_id ?? t.id ?? ''),
-            plan_type: String(t.plan_type ?? t.plan ?? 'basic'),
-            plan_level: typeof t.plan_level === 'number' ? t.plan_level : 0,
-            status: String(t.status ?? 'active'),
-            created_at:
-              typeof t.created_at === 'string'
-                ? t.created_at
-                : t.created_at
-                  ? String(t.created_at)
-                  : '',
-          }))
-        );
-      } else if (activeTab === 'activations') {
-        const response = await client.get('/api/admin/activations');
-        const data = response.data;
-        setActivations(Array.isArray(data) ? data : (data.activations || data.codes || []));
-      }
+      const response = await client.get('/api/admin/tenants');
+      const data = response.data;
+      const raw = Array.isArray(data) ? data : (data.tenants || []);
+      setTenants(
+        raw.map((t: Record<string, unknown>) => ({
+          tenant_id: String(t.tenant_id ?? t.id ?? ''),
+          tenant_name: String(t.tenant_name ?? t.name ?? t.tenant_id ?? t.id ?? ''),
+          plan_type: String(t.plan_type ?? t.plan ?? 'basic'),
+          plan_level: typeof t.plan_level === 'number' ? t.plan_level : 0,
+          status: String(t.status ?? 'active'),
+          created_at:
+            typeof t.created_at === 'string'
+              ? t.created_at
+              : t.created_at
+                ? String(t.created_at)
+                : '',
+        }))
+      );
     } catch (error) {
-      console.error('Error loading admin data:', error);
+      console.error('Error loading tenants:', error);
     } finally {
-      setLoading(false);
+      setTenantsLoading(false);
     }
-  }, [activeTab]);
+  }, []);
 
-  /** Platform-wide user directory (Keycloak), not tenant-scoped /api/tenant/users. */
-  useEffect(() => {
-    if (activeTab !== 'users') return;
-    const t = window.setTimeout(() => setUsersSearchDebounced(searchTerm.trim()), 400);
-    return () => window.clearTimeout(t);
-  }, [searchTerm, activeTab]);
+  const loadActivations = useCallback(async () => {
+    setActivationsLoading(true);
+    try {
+      const response = await client.get('/api/admin/activations');
+      const data = response.data;
+      setActivations(Array.isArray(data) ? data : (data.activations || data.codes || []));
+    } catch (error) {
+      console.error('Error loading activations:', error);
+    } finally {
+      setActivationsLoading(false);
+    }
+  }, []);
 
+  const loadLandingMode = useCallback(async () => {
+    setLandingModeLoading(true);
+    try {
+      const response = await client.get('/api/public/platform-settings');
+      const mode = String(response?.data?.landing_mode || '').toLowerCase() === 'commercial' ? 'commercial' : 'standard';
+      setLandingMode(mode);
+      setLandingMessage('');
+    } catch (error) {
+      setLandingMessage('Could not read current landing mode. Using standard as fallback.');
+      setLandingMode('standard');
+    } finally {
+      setLandingModeLoading(false);
+    }
+  }, []);
+
+  // Load tenants on mount
   useEffect(() => {
-    if (activeTab !== 'users') return;
+    void loadTenants();
+  }, [loadTenants]);
+
+  // Load activations when switching to activations tab
+  useEffect(() => {
+    if (globalTab === 'activations') {
+      void loadActivations();
+    }
+  }, [globalTab, loadActivations]);
+
+  // Load landing mode when switching to platform tab
+  useEffect(() => {
+    if (globalTab === 'platform') {
+      loadLandingMode();
+    }
+  }, [globalTab, loadLandingMode]);
+
+  // Debounce user search (only in master-detail mode)
+  useEffect(() => {
+    if (globalTab !== null) return;
+    const timer = window.setTimeout(() => setUsersSearchDebounced(usersSearch.trim()), 400);
+    return () => window.clearTimeout(timer);
+  }, [usersSearch, globalTab]);
+
+  // Load platform users (only in master-detail mode)
+  useEffect(() => {
+    if (globalTab !== null) return;
     let cancelled = false;
     (async () => {
-      setLoading(true);
-      setUsersLoadError(null);
+      setUsersLoading(true);
+      setUsersError(null);
       try {
         const params = new URLSearchParams({
           first: '0',
@@ -206,30 +270,32 @@ export const AdminManagement: React.FC = () => {
       } catch (err: unknown) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : String(err);
-          setUsersLoadError(msg);
+          setUsersError(msg);
           setUsers([]);
           setUserHasMore(false);
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setUsersLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [activeTab, usersSearchDebounced, usersRefreshNonce]);
+  }, [globalTab, usersSearchDebounced, usersRefreshNonce]);
+
+  // --- User actions ---
 
   const handleLoadMoreUsers = async () => {
-    if (!userHasMore || loadingMoreUsers || activeTab !== 'users') return;
+    if (!userHasMore || loadingMoreUsers || globalTab !== null) return;
     setLoadingMoreUsers(true);
-    setUsersLoadError(null);
+    setUsersError(null);
     try {
       const first = usersNextFirstRef.current;
       const params = new URLSearchParams({
         first: String(first),
         max: String(PLATFORM_USERS_PAGE_SIZE),
       });
-  
+
       if (usersSearchDebounced) {
         params.set('search', usersSearchDebounced);
       }
@@ -246,116 +312,9 @@ export const AdminManagement: React.FC = () => {
       setUserHasMore(Boolean(pag?.has_more));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      setUsersLoadError(msg);
+      setUsersError(msg);
     } finally {
       setLoadingMoreUsers(false);
-    }
-  };
-
-  const refreshCurrentTab = () => {
-    if (activeTab === 'users') {
-      setUsersRefreshNonce((n) => n + 1);
-    } else if (activeTab === 'tenants' || activeTab === 'activations') {
-      void loadTenantsOrActivations();
-    }
-  };
-
-  const loadLandingMode = async () => {
-    setLandingModeLoading(true);
-    try {
-      const response = await client.get('/api/public/platform-settings');
-      const mode = String(response?.data?.landing_mode || '').toLowerCase() === 'commercial' ? 'commercial' : 'standard';
-      setLandingMode(mode);
-      setLandingMessage('');
-    } catch (error) {
-      setLandingMessage('Could not read current landing mode. Using standard as fallback.');
-      setLandingMode('standard');
-    } finally {
-      setLandingModeLoading(false);
-    }
-  };
-
-  const handleLandingModeToggle = async () => {
-    setLandingModeSaving(true);
-    setLandingMessage('');
-    const nextMode = landingMode === 'standard' ? 'commercial' : 'standard';
-    try {
-      await client.put('/api/admin/platform-settings/landing-mode', { landing_mode: nextMode });
-      setLandingMode(nextMode);
-      setLandingMessage(`Landing mode updated to "${nextMode}". This affects new visits to "/".`);
-    } catch (error: any) {
-      const detail = error?.response?.data?.error || 'Failed to update landing mode.';
-      setLandingMessage(String(detail));
-    } finally {
-      setLandingModeSaving(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'tenants' || activeTab === 'activations') {
-      void loadTenantsOrActivations();
-    }
-  }, [activeTab, loadTenantsOrActivations]);
-
-  useEffect(() => {
-    if (activeTab === 'platform') {
-      loadLandingMode();
-    }
-  }, [activeTab]);
-
-  const handleDeleteTenant = async (tenantId: string) => {
-    if (!window.confirm(`${t('admin.confirm_delete_tenant', { tenantId })}`)) {
-      return;
-    }
-    try {
-      await client.delete(`/api/admin/tenants/${tenantId}/purge`);
-      setTenants(tenants.filter(tn => tn.tenant_id !== tenantId));
-      alert(t('admin.tenant_purged'));
-    } catch (error: any) {
-      const detail = error?.response?.data?.error || error?.message || '';
-      alert(`${t('admin.tenant_purge_error')}${detail ? ': ' + detail : ''}`);
-    }
-  };
-
-  const handleGenerateCode = async () => {
-    if (!codeForm.email) return;
-    try {
-      setLoading(true);
-      await client.createActivationCode({
-        email: codeForm.email,
-        plan: codeForm.plan,
-      });
-      setShowCodeModal(false);
-      setCodeForm({ email: '', plan: 'premium' });
-      alert(t('admin.code_generated'));
-      if (activeTab === 'activations') void loadTenantsOrActivations();
-    } catch (error: any) {
-      const detail = error?.response?.data?.error || error?.message || '';
-      alert(`${t('admin.code_generate_error')}${detail ? ': ' + detail : ''}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleConfigTenant = async (tenant: Tenant) => {
-    const newName = window.prompt(t('admin.new_farm_name_prompt'), tenant.tenant_name);
-    if (!newName) return;
-
-    const contactEmail = window.prompt(t('admin.contact_email_prompt'), '');
-    if (contactEmail === null) return;
-
-    try {
-      setLoading(true);
-      await client.updateTenant(tenant.tenant_id, {
-        tenant_name: newName,
-        metadata: { contact_email: contactEmail }
-      });
-      alert(t('admin.tenant_updated'));
-      void loadTenantsOrActivations();
-    } catch (error) {
-      alert(t('admin.tenant_update_error'));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -384,6 +343,47 @@ export const AdminManagement: React.FC = () => {
     }
   };
 
+  // --- Tenant actions ---
+
+  const handleDeleteTenant = async (tenantId: string) => {
+    if (!window.confirm(`${t('admin.confirm_delete_tenant', { tenantId })}`)) {
+      return;
+    }
+    try {
+      await client.delete(`/api/admin/tenants/${tenantId}/purge`);
+      setTenants(tenants.filter(tn => tn.tenant_id !== tenantId));
+      if (selectedTenantId === tenantId) {
+        setSelectedTenantId(null);
+      }
+      alert(t('admin.tenant_purged'));
+    } catch (error: any) {
+      const detail = error?.response?.data?.error || error?.message || '';
+      alert(`${t('admin.tenant_purge_error')}${detail ? ': ' + detail : ''}`);
+    }
+  };
+
+  // --- Activation code actions ---
+
+  const handleGenerateCode = async () => {
+    if (!codeForm.email) return;
+    try {
+      setActivationsLoading(true);
+      await client.createActivationCode({
+        email: codeForm.email,
+        plan: codeForm.plan,
+      });
+      setShowCodeModal(false);
+      setCodeForm({ email: '', plan: 'premium' });
+      alert(t('admin.code_generated'));
+      void loadActivations();
+    } catch (error: any) {
+      const detail = error?.response?.data?.error || error?.message || '';
+      alert(`${t('admin.code_generate_error')}${detail ? ': ' + detail : ''}`);
+    } finally {
+      setActivationsLoading(false);
+    }
+  };
+
   const handleRevokeCode = async (codeId: number) => {
     if (!window.confirm(t('admin.confirm_revoke_code'))) {
       return;
@@ -398,47 +398,99 @@ export const AdminManagement: React.FC = () => {
     }
   };
 
+  // --- Landing mode actions ---
+
+  const handleLandingModeToggle = async () => {
+    setLandingModeSaving(true);
+    setLandingMessage('');
+    const nextMode = landingMode === 'standard' ? 'commercial' : 'standard';
+    try {
+      await client.put('/api/admin/platform-settings/landing-mode', { landing_mode: nextMode });
+      setLandingMode(nextMode);
+      setLandingMessage(`Landing mode updated to "${nextMode}". This affects new visits to "/".`);
+    } catch (error: any) {
+      const detail = error?.response?.data?.error || 'Failed to update landing mode.';
+      setLandingMessage(String(detail));
+    } finally {
+      setLandingModeSaving(false);
+    }
+  };
+
+  // --- Refresh ---
+
+  const handleRefresh = () => {
+    if (globalTab === null) {
+      void loadTenants();
+      setUsersRefreshNonce((n) => n + 1);
+    } else if (globalTab === 'activations') {
+      void loadActivations();
+    } else if (globalTab === 'platform') {
+      loadLandingMode();
+    }
+  };
+
+  // --- Filtered users (when a tenant is selected) ---
+
+  const displayUsers = selectedTenantId
+    ? users.filter(u => u.tenant === selectedTenantId)
+    : users;
+
+  const selectedTenant = selectedTenantId
+    ? tenants.find(t => t.tenant_id === selectedTenantId) ?? null
+    : null;
+
+  // --- Global tab config ---
+
+  const globalTabs = [
+    { id: null, label: 'Gestión Tenants', icon: Shield },
+    { id: 'activations', label: 'Códigos NEK', icon: Ticket },
+    { id: 'limits', label: 'Límites', icon: Activity },
+    { id: 'terms', label: 'Términos', icon: FileText },
+    { id: 'apis', label: 'APIs Plataforma', icon: Key },
+    { id: 'platform', label: 'Plataforma', icon: Monitor },
+    { id: 'logs', label: 'Logs', icon: ScrollText },
+    { id: 'assets', label: 'Assets', icon: Box },
+  ];
+
+  const showLoading = globalTab === null
+    ? (usersLoading && users.length === 0)
+    : (globalTab === 'activations' && activationsLoading && activations.length === 0);
+
+  // ========================
+  // RENDER
+  // ========================
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-8 flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <Shield className="text-green-600 h-8 w-8" />
-            Nekazari Control Center
-          </h1>
-          <p className="text-gray-500 mt-1">Gestión avanzada de usuarios, infraestructuras y planes SOTA.</p>
-        </div>
-        
-        <div className="flex gap-2">
-          <button 
-            onClick={() => refreshCurrentTab()}
-            className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-            title="Refrescar datos"
-          >
-            <RefreshCcw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+    <div className="h-[calc(100vh-64px)] flex flex-col">
+      {/* -- Top bar -- */}
+      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-white shrink-0">
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <Shield className="text-green-600 h-6 w-6" />
+          Nekazari Control Center
+        </h1>
+        <button
+          onClick={handleRefresh}
+          className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Refrescar datos"
+        >
+          <RefreshCcw className={`h-5 w-5 ${showLoading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-6 overflow-x-auto no-scrollbar">
-        {[
-          { id: 'users', label: 'Usuarios', icon: Users },
-          { id: 'tenants', label: 'Tenants', icon: Building2 },
-          { id: 'activations', label: 'Códigos NEK', icon: Ticket },
-          { id: 'limits', label: 'Límites', icon: Activity },
-          { id: 'terms', label: 'Términos', icon: FileText },
-          { id: 'apis', label: 'APIs Plataforma', icon: Key },
-          { id: 'platform', label: 'Plataforma', icon: Monitor },
-          { id: 'logs', label: 'Logs', icon: ScrollText },
-          { id: 'assets', label: 'Assets', icon: Box },
-        ].map((tab) => (
+      {/* -- Global tabs -- */}
+      <div className="flex border-b border-gray-200 overflow-x-auto no-scrollbar bg-white shrink-0">
+        {globalTabs.map((tab) => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            key={String(tab.id)}
+            onClick={() => {
+              setGlobalTab(tab.id);
+              if (tab.id !== null) {
+                setSelectedTenantId(null);
+              }
+            }}
             className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${
-              activeTab === tab.id 
-                ? 'border-green-600 text-green-600' 
+              globalTab === tab.id
+                ? 'border-green-600 text-green-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -450,9 +502,9 @@ export const AdminManagement: React.FC = () => {
         {adminTabModules.map((module) => (
           <button
             key={`module-tab-${module.id}`}
-            onClick={() => setActiveTab(`module-${module.id}`)}
+            onClick={() => setGlobalTab(`module-${module.id}`)}
             className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${
-              activeTab === `module-${module.id}`
+              globalTab === `module-${module.id}`
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
@@ -463,243 +515,439 @@ export const AdminManagement: React.FC = () => {
         ))}
       </div>
 
-      {/* Search & Actions Bar (only for users/tenants/activations) */}
-      {activeTab === 'users' && (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center justify-between">
-          <div className="relative flex-1 min-w-[300px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder={`Buscar en ${activeTab}...`}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+      {/* -- Body -- */}
+      <div className="flex flex-1 overflow-hidden">
+        {globalTab === null ? (
+          /* ----- Master-Detail Layout ----- */
+          <>
+            {/* Left: TenantSidebar */}
+            <TenantSidebar
+              tenants={tenants}
+              selectedTenantId={selectedTenantId}
+              loading={tenantsLoading}
+              onSelect={(id) => setSelectedTenantId(id)}
+              onCreateNew={() => setShowCreateTenant(true)}
             />
-          </div>
-        </div>
-      )}
-      {activeTab === 'activations' && (
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center justify-between">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowCodeModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Plus className="h-5 w-5" />
-              {t('admin.generate_code')}
-            </button>
-          </div>
-        </div>
-      )}
 
-      {/* Content Area */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        {loading && ['users', 'tenants', 'activations'].includes(activeTab) ? (
-          <div className="p-12 text-center">
-            <RefreshCcw className="h-10 w-10 text-green-600 animate-spin mx-auto mb-4" />
-            <p className="text-gray-500">Cargando datos maestros...</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            {activeTab === 'users' && usersLoadError && (
-              <div className="px-6 py-4 bg-red-50 border-b border-red-100 text-red-800 text-sm">
-                {usersLoadError}
-              </div>
-            )}
-            {activeTab === 'users' && (
-              <UserTable
-                users={users}
-                loading={loading}
-                actions={{
-                  editRoles: true,
-                  resetPassword: true,
-                  deleteUser: true,
-                }}
-                onEditRoles={handleEditRoles}
-                onResetPassword={handleResetPassword}
-                onDeleteUser={handleDeleteUser}
-              />
-            )}
-            {activeTab === 'users' && userHasMore && (
-              <div className="p-4 border-t border-gray-100 flex justify-center bg-gray-50">
-                <button
-                  type="button"
-                  onClick={() => void handleLoadMoreUsers()}
-                  disabled={loadingMoreUsers}
-                  className="px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
-                >
-                  {loadingMoreUsers ? 'Cargando…' : 'Cargar más usuarios'}
-                </button>
-              </div>
-            )}
-
-            {activeTab === 'tenants' && (
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Explotación / Granja</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">ID Interno</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Plan / Nivel</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">Infra K8s</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {tenants.map(tenant => (
-                    <tr key={tenant.tenant_id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-gray-900">{tenant.tenant_name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500 font-mono">{tenant.tenant_id}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
-                          <span className={`text-xs font-bold uppercase tracking-wider ${
-                            tenant.plan_type === 'enterprise' ? 'text-purple-600' : 'text-green-600'
-                          }`}>
-                            {tenant.plan_type}
-                          </span>
-                          <span className="text-[10px] text-gray-400">Nivel {tenant.plan_level}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <ShieldCheck className="h-4 w-4 text-green-500" />
-                          <span className="text-xs text-gray-600">Namespace OK</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button 
-                            onClick={() => handleConfigTenant(tenant)}
-                            className="p-2 text-gray-400 hover:text-blue-600 transition-colors" 
-                            title="Configurar Explotación"
-                          >
-                            <Settings2 className="h-5 w-5" />
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteTenant(tenant.tenant_id)}
-                            className="p-2 text-gray-400 hover:text-red-600 transition-colors" 
-                            title="BORRADO NUCLEAR"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {activeTab === 'activations' && (
-              <table className="w-full text-left">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.nek_code')}</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.dest_email')}</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.plan_type')}</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.status')}</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.expiration')}</th>
-                    <th className="px-6 py-4 font-semibold text-gray-700 text-sm text-right">{t('admin.actions')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {activations.map(activation => (
-                    <tr key={activation.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-mono font-bold text-gray-900">{activation.code}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{activation.email}</td>
-                      <td className="px-6 py-4">
-                        <span className="text-xs font-bold uppercase text-blue-600">{activation.plan}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`text-xs font-medium px-2 py-1 rounded ${activation.status === 'active' ? 'bg-green-100 text-green-800' : activation.status === 'revoked' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-700'}`}>
-                          {activation.status === 'active' ? t('admin.status_used') : activation.status === 'revoked' ? t('admin.status_revoked') : t('admin.status_pending')}
+            {/* Right: Detail panel */}
+            <div className="flex-1 overflow-y-auto bg-gray-50">
+              {selectedTenant ? (
+                /* ---- Tenant-scoped view ---- */
+                <div>
+                  {/* Tenant header */}
+                  <div className="bg-white border-b border-gray-200 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                          <ShieldCheck className="text-green-600 h-5 w-5" />
+                          {selectedTenant.tenant_name}
+                        </h2>
+                        <p className="text-sm text-gray-500 font-mono mt-0.5">
+                          ID: {selectedTenant.tenant_id}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
+                          selectedTenant.plan_type === 'enterprise' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {selectedTenant.plan_type}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {format(new Date(activation.expires_at), 'dd/MM/yyyy')}
-                      </td>
-                      <td className="px-6 py-4 text-right">
                         <button
-                          onClick={() => handleRevokeCode(activation.id)}
+                          onClick={() => handleDeleteTenant(selectedTenant.tenant_id)}
                           className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                          title={t('admin.revoke_code')}
+                          title={t('admin.delete_tenant')}
                         >
                           <Trash2 className="h-5 w-5" />
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {/* Special Administrative Components */}
-            <div className="p-0">
-              {activeTab === 'limits' && <div className="p-6"><LimitsManagement /></div>}
-              {activeTab === 'terms' && <div className="p-6"><TermsManagement /></div>}
-              {activeTab === 'apis' && <div className="p-6"><PlatformApiCredentials /></div>}
-              {activeTab === 'platform' && (
-                <div className="p-6">
-                  <div className="max-w-2xl rounded-xl border border-gray-200 bg-gray-50 p-5">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Landing page mode</h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Switch between the standard OSS landing and the commercial landing. This is a global platform setting and only affects new visits to the public home route.
-                    </p>
-                    <div className="flex items-center justify-between gap-4 rounded-lg bg-white border border-gray-200 p-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          Current mode: <span className="uppercase">{landingModeLoading ? 'loading...' : landingMode}</span>
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          standard = OSS landing, commercial = branded/commercial landing
-                        </p>
                       </div>
-                      <button
-                        onClick={handleLandingModeToggle}
-                        disabled={landingModeLoading || landingModeSaving}
-                        className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60"
-                      >
-                        {landingModeSaving ? 'Saving...' : `Switch to ${landingMode === 'standard' ? 'commercial' : 'standard'}`}
-                      </button>
                     </div>
-                    {landingMessage && (
-                      <p className="mt-3 text-sm text-gray-700">{landingMessage}</p>
+                  </div>
+
+                  {/* Tenant tabs */}
+                  <div className="flex border-b border-gray-200 bg-white px-6">
+                    <button
+                      onClick={() => setTenantTab('users')}
+                      className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 -mb-[2px] ${
+                        tenantTab === 'users'
+                          ? 'border-green-600 text-green-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <Users className="h-4 w-4" />
+                      {t('admin.users_tab', { defaultValue: 'Usuarios' })}
+                    </button>
+                    <button
+                      onClick={() => setTenantTab('config')}
+                      className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 -mb-[2px] ${
+                        tenantTab === 'config'
+                          ? 'border-green-600 text-green-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      {t('admin.config_tab', { defaultValue: 'Config' })}
+                    </button>
+                  </div>
+
+                  {/* Tenant tab content */}
+                  <div className="p-6">
+                    {tenantTab === 'users' && (
+                      <div>
+                        {/* Create / Assign buttons */}
+                        <div className="flex gap-3 mb-4">
+                          <button
+                            onClick={() => setShowCreateUser(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                            {t('admin.create_user_button', { defaultValue: 'Create User' })}
+                          </button>
+                          <button
+                            onClick={() => setShowAssignUser(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                          >
+                            <UserCheck className="h-4 w-4" />
+                            {t('admin.assign_user_button', { defaultValue: 'Assign User' })}
+                          </button>
+                        </div>
+
+                        {/* Users table */}
+                        {usersError && (
+                          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-lg text-red-800 text-sm">
+                            {usersError}
+                          </div>
+                        )}
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                          {usersLoading && displayUsers.length === 0 ? (
+                            <div className="p-12 text-center">
+                              <RefreshCcw className="h-10 w-10 text-green-600 animate-spin mx-auto mb-4" />
+                              <p className="text-gray-500">{t('common.loading')}</p>
+                            </div>
+                          ) : (
+                            <>
+                              <UserTable
+                                users={displayUsers}
+                                loading={usersLoading}
+                                actions={{
+                                  editRoles: true,
+                                  resetPassword: true,
+                                  deleteUser: true,
+                                }}
+                                onEditRoles={handleEditRoles}
+                                onResetPassword={handleResetPassword}
+                                onDeleteUser={handleDeleteUser}
+                              />
+                              {userHasMore && (
+                                <div className="p-4 border-t border-gray-100 flex justify-center bg-gray-50">
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleLoadMoreUsers()}
+                                    disabled={loadingMoreUsers}
+                                    className="px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
+                                  >
+                                    {loadingMoreUsers ? 'Cargando...' : 'Cargar mas usuarios'}
+                                  </button>
+                                </div>
+                              )}
+                              {displayUsers.length === 0 && !usersLoading && (
+                                <div className="p-12 text-center bg-gray-50">
+                                  <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                                  <p className="text-gray-500 font-medium">
+                                    {t('admin.no_users', { defaultValue: 'No users found for this tenant.' })}
+                                  </p>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {tenantTab === 'config' && (
+                      <TenantConfigForm tenantId={selectedTenant.tenant_id} />
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* ---- All Platform Users (no tenant selected) ---- */
+                <div className="p-6">
+                  <div className="mb-6">
+                    <h2 className="text-xl font-bold text-gray-900">
+                      {t('admin.all_platform_users', { defaultValue: 'All Platform Users' })}
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {t('admin.all_platform_users_desc', { defaultValue: 'Global user directory across all tenants.' })}
+                    </p>
+                  </div>
+
+                  {/* Search */}
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder={t('admin.search_users', { defaultValue: 'Search users...' })}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                        value={usersSearch}
+                        onChange={(e) => setUsersSearch(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Users table */}
+                  {usersError && (
+                    <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-lg text-red-800 text-sm">
+                      {usersError}
+                    </div>
+                  )}
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    {usersLoading && users.length === 0 ? (
+                      <div className="p-12 text-center">
+                        <RefreshCcw className="h-10 w-10 text-green-600 animate-spin mx-auto mb-4" />
+                        <p className="text-gray-500">{t('common.loading')}</p>
+                      </div>
+                    ) : (
+                      <>
+                        <UserTable
+                          users={displayUsers}
+                          loading={usersLoading}
+                          actions={{
+                            editRoles: true,
+                            resetPassword: true,
+                            deleteUser: true,
+                          }}
+                          onEditRoles={handleEditRoles}
+                          onResetPassword={handleResetPassword}
+                          onDeleteUser={handleDeleteUser}
+                        />
+                        {userHasMore && (
+                          <div className="p-4 border-t border-gray-100 flex justify-center bg-gray-50">
+                            <button
+                              type="button"
+                              onClick={() => void handleLoadMoreUsers()}
+                              disabled={loadingMoreUsers}
+                              className="px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
+                            >
+                              {loadingMoreUsers ? 'Cargando...' : 'Cargar mas usuarios'}
+                            </button>
+                          </div>
+                        )}
+                        {displayUsers.length === 0 && !usersLoading && (
+                          <div className="p-12 text-center bg-gray-50">
+                            <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                            <p className="text-gray-500 font-medium">
+                              {t('admin.no_users_global', { defaultValue: 'No users found.' })}
+                            </p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
               )}
-              {activeTab === 'logs' && <div className="p-0"><AuditLogsPanel /></div>}
-              {activeTab === 'assets' && <div className="p-6"><GlobalAssetManager /></div>}
             </div>
+          </>
+        ) : (
+          /* ----- Global Tab Content (no sidebar) ----- */
+          <div className="flex-1 overflow-y-auto bg-gray-50">
+            {globalTab === 'activations' && (
+              <div className="p-6">
+                {/* Actions bar */}
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center justify-between">
+                  <h2 className="text-lg font-bold text-gray-900">
+                    {t('admin.activation_codes', { defaultValue: 'Activation Codes' })}
+                  </h2>
+                  <button
+                    onClick={() => setShowCodeModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Plus className="h-5 w-5" />
+                    {t('admin.generate_code')}
+                  </button>
+                </div>
 
-            {/* Module-contributed dynamic admin tabs */}
+                {/* Activations table */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  {activationsLoading && activations.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <RefreshCcw className="h-10 w-10 text-green-600 animate-spin mx-auto mb-4" />
+                      <p className="text-gray-500">{t('common.loading')}</p>
+                    </div>
+                  ) : (
+                    <table className="w-full text-left">
+                      <thead className="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.nek_code')}</th>
+                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.dest_email')}</th>
+                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.plan_type')}</th>
+                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.status')}</th>
+                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.expiration')}</th>
+                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm text-right">{t('admin.actions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {activations.map(activation => (
+                          <tr key={activation.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 font-mono font-bold text-gray-900">{activation.code}</td>
+                            <td className="px-6 py-4 text-sm text-gray-500">{activation.email}</td>
+                            <td className="px-6 py-4">
+                              <span className="text-xs font-bold uppercase text-blue-600">{activation.plan}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`text-xs font-medium px-2 py-1 rounded ${
+                                activation.status === 'active' ? 'bg-green-100 text-green-800' :
+                                activation.status === 'revoked' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {activation.status === 'active' ? t('admin.status_used') :
+                                 activation.status === 'revoked' ? t('admin.status_revoked') :
+                                 t('admin.status_pending')}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-500">
+                              {format(new Date(activation.expires_at), 'dd/MM/yyyy')}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button
+                                onClick={() => handleRevokeCode(activation.id)}
+                                className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                                title={t('admin.revoke_code')}
+                              >
+                                <Trash2 className="h-5 w-5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {!activationsLoading && activations.length === 0 && (
+                    <div className="p-12 text-center bg-gray-50">
+                      <Ticket className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500 font-medium">
+                        {t('admin.no_activations', { defaultValue: 'No activation codes found.' })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {globalTab === 'limits' && (
+              <div className="p-6">
+                <LimitsManagement />
+              </div>
+            )}
+
+            {globalTab === 'terms' && (
+              <div className="p-6">
+                <TermsManagement />
+              </div>
+            )}
+
+            {globalTab === 'apis' && (
+              <div className="p-6">
+                <PlatformApiCredentials />
+              </div>
+            )}
+
+            {globalTab === 'platform' && (
+              <div className="p-6">
+                <div className="max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Landing page mode</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Switch between the standard OSS landing and the commercial landing. This is a global platform setting and only affects new visits to the public home route.
+                  </p>
+                  <div className="flex items-center justify-between gap-4 rounded-lg bg-gray-50 border border-gray-200 p-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Current mode: <span className="uppercase">{landingModeLoading ? 'loading...' : landingMode}</span>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        standard = OSS landing, commercial = branded/commercial landing
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleLandingModeToggle}
+                      disabled={landingModeLoading || landingModeSaving}
+                      className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60"
+                    >
+                      {landingModeSaving ? 'Saving...' : `Switch to ${landingMode === 'standard' ? 'commercial' : 'standard'}`}
+                    </button>
+                  </div>
+                  {landingMessage && (
+                    <p className="mt-3 text-sm text-gray-700">{landingMessage}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {globalTab === 'logs' && (
+              <AuditLogsPanel />
+            )}
+
+            {globalTab === 'assets' && (
+              <div className="p-6">
+                <GlobalAssetManager />
+              </div>
+            )}
+
+            {/* Module-contributed admin tabs */}
             {adminTabModules.map((module) => (
-              activeTab === `module-${module.id}` && (
+              globalTab === `module-${module.id}` && (
                 <div key={`module-content-${module.id}`} className="p-6">
-                  <SlotRenderer 
-                    slot="admin-tab" 
+                  <SlotRenderer
+                    slot="admin-tab"
                   />
                 </div>
               )
             ))}
-            
-            {((activeTab === 'users' && users.length === 0) || 
-               (activeTab === 'tenants' && tenants.length === 0) || 
-               (activeTab === 'activations' && activations.length === 0)) && 
-               ['users', 'tenants', 'activations'].includes(activeTab) && (
-              <div className="p-12 text-center bg-gray-50">
-                <AlertTriangle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 font-medium">No se encontraron datos para mostrar.</p>
-                <p className="text-sm text-gray-400 mt-1">Verifica la conexión con el clúster central.</p>
-              </div>
-            )}
           </div>
         )}
       </div>
-      {/* Edit User Roles Modal (PlatformAdmin) */}
+
+      {/* ===== Modals ===== */}
+
+      {/* Create Tenant Modal */}
+      {showCreateTenant && (
+        <TenantCreateModal
+          onClose={() => setShowCreateTenant(false)}
+          onCreated={() => {
+            setShowCreateTenant(false);
+            void loadTenants();
+          }}
+        />
+      )}
+
+      {/* Create User Modal */}
+      {showCreateUser && selectedTenantId && (
+        <UserCreateModal
+          tenantId={selectedTenantId}
+          onClose={() => setShowCreateUser(false)}
+          onCreated={() => {
+            setShowCreateUser(false);
+            setUsersRefreshNonce((n) => n + 1);
+          }}
+        />
+      )}
+
+      {/* Assign User Modal */}
+      {showAssignUser && selectedTenantId && (
+        <UserAssignModal
+          tenantId={selectedTenantId}
+          onClose={() => setShowAssignUser(false)}
+          onAssigned={() => {
+            setShowAssignUser(false);
+            setUsersRefreshNonce((n) => n + 1);
+          }}
+        />
+      )}
+
+      {/* Edit User Roles Modal */}
       {showEditModal && editingUser && (
         <UserEditModal
           user={editingUser}
-          availableRoles={platformAdminRoles}
+          availableRoles={PLATFORM_ADMIN_ROLES}
           isPlatformContext={true}
           loading={userActions.loading}
           onSave={handleSaveRoles}
@@ -748,10 +996,10 @@ export const AdminManagement: React.FC = () => {
               </button>
               <button
                 onClick={handleGenerateCode}
-                disabled={!codeForm.email || loading}
+                disabled={!codeForm.email || activationsLoading}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? t('common.loading') : t('admin.generate_code')}
+                {activationsLoading ? t('common.loading') : t('admin.generate_code')}
               </button>
             </div>
           </div>
