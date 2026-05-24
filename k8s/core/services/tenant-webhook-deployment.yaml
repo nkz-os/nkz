@@ -36,6 +36,7 @@ spec:
       - name: tenant-webhook
         image: ghcr.io/nkz-os/nkz/tenant-webhook@sha256:42c1ec4cff92a22886a4fb99ff35c9adcb254408942b8687e49d7efa153418c0
         imagePullPolicy: IfNotPresent
+        args: ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "300", "enhanced-tenant-webhook:app"]
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
