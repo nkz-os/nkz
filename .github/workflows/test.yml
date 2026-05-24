@@ -109,7 +109,10 @@ jobs:
           fi
           RESULTS=$(echo "$DIFF" | grep -n '^+' | grep 'robotika\.cloud' | grep -v '^+[+][+]' || true)
           if [ -n "$RESULTS" ]; then
-            COMMIT_MSG=$(git log -1 --format=%s%n%b 2>/dev/null || true)
+            # Scan ALL commits in the PR range (not just HEAD — on PR events HEAD is the
+            # auto-generated merge commit which never carries our ack tag). For push
+            # events the range collapses to the single new commit, so this still works.
+            COMMIT_MSG=$(git log "origin/$BASE..HEAD" --format=%s%n%b 2>/dev/null || true)
             if echo "$COMMIT_MSG" | grep -qF '[prod-refs-ack]'; then
               echo "Acknowledged via [prod-refs-ack]:"
               echo "$RESULTS"

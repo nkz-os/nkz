@@ -32,3 +32,8 @@ export type {
   SparklineTrack,
   ForecastTrack,
 } from './timeline/Track';
+
+export { CapabilityValue } from './components/CapabilityValue';
+export type { CapabilityValueProps } from './components/CapabilityValue';
+export { EntitlementGuard } from './components/EntitlementGuard';
+export type { EntitlementGuardProps } from './components/EntitlementGuard';
