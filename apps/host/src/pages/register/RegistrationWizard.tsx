@@ -79,7 +79,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
     setStep(2);
   }, []);
 
-  const handleStep2Next = useCallback(() => {
+  const handleStep2Next = () => {
     if (verificationMethod === 'code') {
       // Activation code path: submit immediately
       handleActivationSubmit();
@@ -87,11 +87,11 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
       // OTP path: go to security step
       setStep(3);
     }
-  }, [verificationMethod, formData]);
+  };
 
-  const handleStep3Submit = useCallback(async () => {
+  const handleStep3Submit = async () => {
     await handleOtpSubmit();
-  }, [formData]);
+  };
 
   const handleActivationSubmit = async () => {
     setLoading(true);
@@ -131,10 +131,11 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
         setStep(4);
         setTimeout(() => login(), 3000);
       }
-    } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || t('activation.error_activating');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string; reason?: string } }; message?: string };
+      const msg = error.response?.data?.error || error.message || t('activation.error_activating');
       setError(msg);
-      setErrorDetail(err.response?.data?.reason || '');
+      setErrorDetail(error.response?.data?.reason || '');
       if (msg.includes('Invalid or expired')) {
         setError(t('activation.invalid_code'));
       }
@@ -175,12 +176,13 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
           });
         }, 3000);
       }
-    } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || 'Registration failed';
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string }; status?: number }; message?: string };
+      const msg = error.response?.data?.error || error.message || 'Registration failed';
       setError(msg);
-      if (err.response?.status === 409) {
+      if (error.response?.status === 409) {
         setError(t('registration.email_exists') || 'El email ya está registrado');
-      } else if (err.response?.status === 401) {
+      } else if (error.response?.status === 401) {
         setError(t('registration.otp_invalid') || 'Código de verificación inválido o expirado.');
       }
     } finally {

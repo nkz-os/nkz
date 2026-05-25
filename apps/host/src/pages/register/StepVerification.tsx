@@ -25,7 +25,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
   setVerificationMethod,
   onNext,
   onBack,
-  error,
+  error: _error,
   setError,
   loading,
   setLoading,
@@ -72,8 +72,9 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
         setOtpMessage(resp.data.message || (t('registration.send_otp_success') || 'Code sent'));
         setResendCountdown(60);
       }
-    } catch (err: any) {
-      if (err.response?.status === 429) {
+    } catch (err: unknown) {
+      const error = err as { response?: { status?: number } };
+      if (error.response?.status === 429) {
         setError(t('registration.rate_limit') || 'Too many attempts. Please try again later.');
       } else {
         setError(t('registration.otp_send_error') || 'Error sending verification code.');

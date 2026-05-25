@@ -20,7 +20,7 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
   formData,
   updateField,
   onNext,
-  error,
+  error: _error,
   setError,
   loading,
 }) => {

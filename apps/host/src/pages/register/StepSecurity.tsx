@@ -41,7 +41,7 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
     hasDigit: /\d/.test(formData.password),
     hasLowercase: /[a-z]/.test(formData.password),
     hasUppercase: /[A-Z]/.test(formData.password),
-    hasSpecialChar: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(formData.password),
+    hasSpecialChar: /[\]!@#$%^&*()_+\-=[{};':"\\|,.<>/?]/.test(formData.password),
   }), [formData.password]);
 
   const isPasswordValid = Object.values(requirements).every(Boolean);
