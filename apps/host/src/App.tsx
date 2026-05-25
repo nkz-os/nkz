@@ -35,7 +35,7 @@ const UnifiedViewer = React.lazy(() => import('@/components/UnifiedViewer').then
 const Landing = React.lazy(() => import('@/pages/Landing').then(m => ({ default: m.Landing })));
 const ForgotPassword = React.lazy(() => import('@/pages/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
 const KeycloakLogin = React.lazy(() => import('@/pages/KeycloakLogin'));
-const Activation = React.lazy(() => import('@/pages/Activation').then(m => ({ default: m.Activation })));
+const RegistrationWizard = React.lazy(() => import('@/pages/register/RegistrationWizard').then(m => ({ default: m.RegistrationWizard })));
 const DashboardImproved = React.lazy(() => import('@/pages/DashboardImproved').then(m => ({ default: m.DashboardImproved })));
 const Settings = React.lazy(() => import('@/pages/Settings').then(m => ({ default: m.Settings })));
 const Modules = React.lazy(() => import('@/pages/admin/Modules').then(m => ({ default: m.Modules })));
@@ -69,8 +69,8 @@ const DynamicRoutes = () => {
         <Route path="/" element={<Landing />} />
         <Route path="/mobile-viewer" element={<MobileViewer />} />
         <Route path="/login" element={<KeycloakLogin />} />
-        <Route path="/activate" element={<Activation />} />
-        <Route path="/register" element={<Activation isRegister={true} />} />
+        <Route path="/activate" element={<RegistrationWizard defaultMethod="code" />} />
+        <Route path="/register" element={<RegistrationWizard defaultMethod="otp" />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* ============================================

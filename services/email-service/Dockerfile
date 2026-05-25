@@ -18,6 +18,9 @@ COPY services/email-service/email_service.py .
 # Copiar módulo common (necesario para config_manager)
 COPY services/common /app/common
 
+# Copiar plantillas de email
+COPY services/email-service/templates /app/templates
+
 # Crear usuario no-root
 RUN useradd -m -u 1000 emailuser && chown -R emailuser:emailuser /app
 USER emailuser

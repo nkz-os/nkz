@@ -420,6 +420,7 @@ class EmailService:
     def __init__(self, config: EmailConfig):
         self.config = config
         self.templates = EmailTemplates()
+        self.templates_dir = os.path.join(os.path.dirname(__file__), 'templates')
     
     def send_email(self, to_email: str, subject: str, html_content: str, text_content: str = None) -> bool:
         """Envía un email usando SMTP"""
