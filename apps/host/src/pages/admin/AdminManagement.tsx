@@ -463,14 +463,14 @@ export const AdminManagement: React.FC = () => {
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
       {/* -- Top bar -- */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-white shrink-0">
-        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <Shield className="text-green-600 h-6 w-6" />
+      <div className="flex items-center justify-between px-6 py-3 border-b border-nkz-border bg-nkz-surface shrink-0">
+        <h1 className="text-nkz-xl font-bold text-nkz-text-primary flex items-center gap-2">
+          <Shield className="text-nkz-accent-base h-6 w-6" />
           Nekazari Control Center
         </h1>
         <button
           onClick={handleRefresh}
-          className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 text-nkz-text-secondary hover:bg-nkz-surface-sunken rounded-nkz-lg transition-colors"
           title="Refrescar datos"
         >
           <RefreshCcw className={`h-5 w-5 ${showLoading ? 'animate-spin' : ''}`} />
@@ -478,7 +478,7 @@ export const AdminManagement: React.FC = () => {
       </div>
 
       {/* -- Global tabs -- */}
-      <div className="flex border-b border-gray-200 overflow-x-auto no-scrollbar bg-white shrink-0">
+      <div className="flex border-b border-nkz-border overflow-x-auto no-scrollbar bg-nkz-surface shrink-0">
         {globalTabs.map((tab) => (
           <button
             key={String(tab.id)}
@@ -490,8 +490,8 @@ export const AdminManagement: React.FC = () => {
             }}
             className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${
               globalTab === tab.id
-                ? 'border-green-600 text-green-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-nkz-accent-base text-nkz-accent-base'
+                : 'border-transparent text-nkz-text-secondary hover:text-nkz-text-primary'
             }`}
           >
             <tab.icon className="h-5 w-5" />
@@ -505,8 +505,8 @@ export const AdminManagement: React.FC = () => {
             onClick={() => setGlobalTab(`module-${module.id}`)}
             className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${
               globalTab === `module-${module.id}`
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-nkz-info text-nkz-info'
+                : 'border-transparent text-nkz-text-secondary hover:text-nkz-text-primary'
             }`}
           >
             <Puzzle className="h-5 w-5" />
@@ -516,7 +516,7 @@ export const AdminManagement: React.FC = () => {
       </div>
 
       {/* -- Body -- */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
         {globalTab === null ? (
           /* ----- Master-Detail Layout ----- */
           <>
@@ -530,31 +530,31 @@ export const AdminManagement: React.FC = () => {
             />
 
             {/* Right: Detail panel */}
-            <div className="flex-1 overflow-y-auto bg-gray-50">
+            <div className="flex-1 overflow-auto bg-nkz-canvas">
               {selectedTenant ? (
                 /* ---- Tenant-scoped view ---- */
                 <div>
                   {/* Tenant header */}
-                  <div className="bg-white border-b border-gray-200 px-6 py-4">
+                  <div className="bg-nkz-surface border-b border-nkz-border px-6 py-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                          <ShieldCheck className="text-green-600 h-5 w-5" />
+                        <h2 className="text-nkz-xl font-bold text-nkz-text-primary flex items-center gap-2">
+                          <ShieldCheck className="text-nkz-accent-base h-5 w-5" />
                           {selectedTenant.tenant_name}
                         </h2>
-                        <p className="text-sm text-gray-500 font-mono mt-0.5">
+                        <p className="text-nkz-sm text-nkz-text-secondary font-mono mt-0.5">
                           ID: {selectedTenant.tenant_id}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
-                          selectedTenant.plan_type === 'enterprise' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
+                          selectedTenant.plan_type === 'enterprise' ? 'bg-nkz-warning-soft text-nkz-warning-strong' : 'bg-nkz-accent-soft text-nkz-accent-strong'
                         }`}>
                           {selectedTenant.plan_type}
                         </span>
                         <button
                           onClick={() => handleDeleteTenant(selectedTenant.tenant_id)}
-                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                          className="p-2 text-nkz-text-muted hover:text-nkz-danger transition-colors"
                           title={t('admin.delete_tenant')}
                         >
                           <Trash2 className="h-5 w-5" />
@@ -564,13 +564,13 @@ export const AdminManagement: React.FC = () => {
                   </div>
 
                   {/* Tenant tabs */}
-                  <div className="flex border-b border-gray-200 bg-white px-6">
+                  <div className="flex border-b border-nkz-border bg-nkz-surface px-6">
                     <button
                       onClick={() => setTenantTab('users')}
-                      className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 -mb-[2px] ${
+                      className={`flex items-center gap-2 px-4 py-3 font-medium text-nkz-sm transition-colors border-b-2 -mb-[2px] ${
                         tenantTab === 'users'
-                          ? 'border-green-600 text-green-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                          ? 'border-nkz-accent-base text-nkz-accent-base'
+                          : 'border-transparent text-nkz-text-secondary hover:text-nkz-text-primary'
                       }`}
                     >
                       <Users className="h-4 w-4" />
@@ -578,10 +578,10 @@ export const AdminManagement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setTenantTab('config')}
-                      className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 -mb-[2px] ${
+                      className={`flex items-center gap-2 px-4 py-3 font-medium text-nkz-sm transition-colors border-b-2 -mb-[2px] ${
                         tenantTab === 'config'
-                          ? 'border-green-600 text-green-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                          ? 'border-nkz-accent-base text-nkz-accent-base'
+                          : 'border-transparent text-nkz-text-secondary hover:text-nkz-text-primary'
                       }`}
                     >
                       <Settings2 className="h-4 w-4" />
@@ -597,14 +597,14 @@ export const AdminManagement: React.FC = () => {
                         <div className="flex gap-3 mb-4">
                           <button
                             onClick={() => setShowCreateUser(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm"
+                            className="flex items-center gap-2 px-4 py-2 bg-nkz-accent-base text-nkz-text-on-accent font-semibold rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors text-sm"
                           >
                             <UserPlus className="h-4 w-4" />
                             {t('admin.create_user_button', { defaultValue: 'Create User' })}
                           </button>
                           <button
                             onClick={() => setShowAssignUser(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                            className="flex items-center gap-2 px-4 py-2 bg-nkz-info text-nkz-text-on-accent font-semibold rounded-nkz-lg hover:bg-nkz-info-strong transition-colors text-sm"
                           >
                             <UserCheck className="h-4 w-4" />
                             {t('admin.assign_user_button', { defaultValue: 'Assign User' })}
@@ -613,15 +613,15 @@ export const AdminManagement: React.FC = () => {
 
                         {/* Users table */}
                         {usersError && (
-                          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-lg text-red-800 text-sm">
+                          <div className="mb-4 px-4 py-3 bg-nkz-danger-soft border border-nkz-danger-soft rounded-nkz-lg text-nkz-danger-strong text-sm">
                             {usersError}
                           </div>
                         )}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-nkz-surface rounded-nkz-xl shadow-nkz-sm border border-nkz-border overflow-x-auto">
                           {usersLoading && displayUsers.length === 0 ? (
                             <div className="p-12 text-center">
-                              <RefreshCcw className="h-10 w-10 text-green-600 animate-spin mx-auto mb-4" />
-                              <p className="text-gray-500">{t('common.loading')}</p>
+                              <RefreshCcw className="h-10 w-10 text-nkz-accent-base animate-spin mx-auto mb-4" />
+                              <p className="text-nkz-text-secondary">{t('common.loading')}</p>
                             </div>
                           ) : (
                             <>
@@ -638,21 +638,21 @@ export const AdminManagement: React.FC = () => {
                                 onDeleteUser={handleDeleteUser}
                               />
                               {userHasMore && (
-                                <div className="p-4 border-t border-gray-100 flex justify-center bg-gray-50">
+                                <div className="p-4 border-t border-nkz-border flex justify-center bg-nkz-surface-sunken">
                                   <button
                                     type="button"
                                     onClick={() => void handleLoadMoreUsers()}
                                     disabled={loadingMoreUsers}
-                                    className="px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
+                                    className="px-4 py-2 text-sm font-medium rounded-nkz-lg bg-nkz-surface border border-nkz-border text-nkz-text-primary hover:bg-nkz-surface-sunken disabled:opacity-50"
                                   >
                                     {loadingMoreUsers ? 'Cargando...' : 'Cargar mas usuarios'}
                                   </button>
                                 </div>
                               )}
                               {displayUsers.length === 0 && !usersLoading && (
-                                <div className="p-12 text-center bg-gray-50">
-                                  <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                                  <p className="text-gray-500 font-medium">
+                                <div className="p-12 text-center bg-nkz-surface-sunken">
+                                  <Users className="h-12 w-12 text-nkz-text-muted mx-auto mb-4" />
+                                  <p className="text-nkz-text-secondary font-medium">
                                     {t('admin.no_users', { defaultValue: 'No users found for this tenant.' })}
                                   </p>
                                 </div>
@@ -672,22 +672,22 @@ export const AdminManagement: React.FC = () => {
                 /* ---- All Platform Users (no tenant selected) ---- */
                 <div className="p-6">
                   <div className="mb-6">
-                    <h2 className="text-xl font-bold text-gray-900">
+                    <h2 className="text-xl font-bold text-nkz-text-primary">
                       {t('admin.all_platform_users', { defaultValue: 'All Platform Users' })}
                     </h2>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="text-sm text-nkz-text-secondary mt-1">
                       {t('admin.all_platform_users_desc', { defaultValue: 'Global user directory across all tenants.' })}
                     </p>
                   </div>
 
                   {/* Search */}
-                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
+                  <div className="bg-nkz-surface p-4 rounded-nkz-xl shadow-nkz-sm border border-nkz-border mb-6">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-nkz-text-muted" />
                       <input
                         type="text"
                         placeholder={t('admin.search_users', { defaultValue: 'Search users...' })}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                        className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none"
                         value={usersSearch}
                         onChange={(e) => setUsersSearch(e.target.value)}
                       />
@@ -696,15 +696,15 @@ export const AdminManagement: React.FC = () => {
 
                   {/* Users table */}
                   {usersError && (
-                    <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-lg text-red-800 text-sm">
+                    <div className="mb-4 px-4 py-3 bg-nkz-danger-soft border border-nkz-danger-soft rounded-nkz-lg text-nkz-danger-strong text-sm">
                       {usersError}
                     </div>
                   )}
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="bg-nkz-surface rounded-nkz-xl shadow-nkz-sm border border-nkz-border overflow-x-auto">
                     {usersLoading && users.length === 0 ? (
                       <div className="p-12 text-center">
-                        <RefreshCcw className="h-10 w-10 text-green-600 animate-spin mx-auto mb-4" />
-                        <p className="text-gray-500">{t('common.loading')}</p>
+                        <RefreshCcw className="h-10 w-10 text-nkz-accent-base animate-spin mx-auto mb-4" />
+                        <p className="text-nkz-text-secondary">{t('common.loading')}</p>
                       </div>
                     ) : (
                       <>
@@ -721,21 +721,21 @@ export const AdminManagement: React.FC = () => {
                           onDeleteUser={handleDeleteUser}
                         />
                         {userHasMore && (
-                          <div className="p-4 border-t border-gray-100 flex justify-center bg-gray-50">
+                          <div className="p-4 border-t border-nkz-border flex justify-center bg-nkz-surface-sunken">
                             <button
                               type="button"
                               onClick={() => void handleLoadMoreUsers()}
                               disabled={loadingMoreUsers}
-                              className="px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-800 hover:bg-gray-100 disabled:opacity-50"
+                              className="px-4 py-2 text-sm font-medium rounded-nkz-lg bg-nkz-surface border border-nkz-border text-nkz-text-primary hover:bg-nkz-surface-sunken disabled:opacity-50"
                             >
                               {loadingMoreUsers ? 'Cargando...' : 'Cargar mas usuarios'}
                             </button>
                           </div>
                         )}
                         {displayUsers.length === 0 && !usersLoading && (
-                          <div className="p-12 text-center bg-gray-50">
-                            <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                            <p className="text-gray-500 font-medium">
+                          <div className="p-12 text-center bg-nkz-surface-sunken">
+                            <Users className="h-12 w-12 text-nkz-text-muted mx-auto mb-4" />
+                            <p className="text-nkz-text-secondary font-medium">
                               {t('admin.no_users_global', { defaultValue: 'No users found.' })}
                             </p>
                           </div>
@@ -749,17 +749,17 @@ export const AdminManagement: React.FC = () => {
           </>
         ) : (
           /* ----- Global Tab Content (no sidebar) ----- */
-          <div className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="flex-1 overflow-auto bg-nkz-canvas">
             {globalTab === 'activations' && (
               <div className="p-6">
                 {/* Actions bar */}
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-wrap gap-4 items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-900">
+                <div className="bg-nkz-surface p-4 rounded-nkz-xl shadow-nkz-sm border border-nkz-border mb-6 flex flex-wrap gap-4 items-center justify-between">
+                  <h2 className="text-lg font-bold text-nkz-text-primary">
                     {t('admin.activation_codes', { defaultValue: 'Activation Codes' })}
                   </h2>
                   <button
                     onClick={() => setShowCodeModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-nkz-accent-base text-nkz-text-on-accent font-semibold rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors"
                   >
                     <Plus className="h-5 w-5" />
                     {t('admin.generate_code')}
@@ -767,50 +767,50 @@ export const AdminManagement: React.FC = () => {
                 </div>
 
                 {/* Activations table */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="bg-nkz-surface rounded-nkz-xl shadow-nkz-sm border border-nkz-border overflow-x-auto">
                   {activationsLoading && activations.length === 0 ? (
                     <div className="p-12 text-center">
-                      <RefreshCcw className="h-10 w-10 text-green-600 animate-spin mx-auto mb-4" />
-                      <p className="text-gray-500">{t('common.loading')}</p>
+                      <RefreshCcw className="h-10 w-10 text-nkz-accent-base animate-spin mx-auto mb-4" />
+                      <p className="text-nkz-text-secondary">{t('common.loading')}</p>
                     </div>
                   ) : (
                     <table className="w-full text-left">
-                      <thead className="bg-gray-50 border-b border-gray-100">
+                      <thead className="bg-nkz-surface-sunken border-b border-nkz-border">
                         <tr>
-                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.nek_code')}</th>
-                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.dest_email')}</th>
-                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.plan_type')}</th>
-                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.status')}</th>
-                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm">{t('admin.expiration')}</th>
-                          <th className="px-6 py-4 font-semibold text-gray-700 text-sm text-right">{t('admin.actions')}</th>
+                          <th className="px-6 py-4 font-semibold text-nkz-text-primary text-sm">{t('admin.nek_code')}</th>
+                          <th className="px-6 py-4 font-semibold text-nkz-text-primary text-sm">{t('admin.dest_email')}</th>
+                          <th className="px-6 py-4 font-semibold text-nkz-text-primary text-sm">{t('admin.plan_type')}</th>
+                          <th className="px-6 py-4 font-semibold text-nkz-text-primary text-sm">{t('admin.status')}</th>
+                          <th className="px-6 py-4 font-semibold text-nkz-text-primary text-sm">{t('admin.expiration')}</th>
+                          <th className="px-6 py-4 font-semibold text-nkz-text-primary text-sm text-right">{t('admin.actions')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {activations.map(activation => (
-                          <tr key={activation.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 font-mono font-bold text-gray-900">{activation.code}</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{activation.email}</td>
+                          <tr key={activation.id} className="hover:bg-nkz-surface-sunken transition-colors">
+                            <td className="px-6 py-4 font-mono font-bold text-nkz-text-primary">{activation.code}</td>
+                            <td className="px-6 py-4 text-sm text-nkz-text-secondary">{activation.email}</td>
                             <td className="px-6 py-4">
-                              <span className="text-xs font-bold uppercase text-blue-600">{activation.plan}</span>
+                              <span className="text-xs font-bold uppercase text-nkz-info">{activation.plan}</span>
                             </td>
                             <td className="px-6 py-4">
                               <span className={`text-xs font-medium px-2 py-1 rounded ${
-                                activation.status === 'active' ? 'bg-green-100 text-green-800' :
-                                activation.status === 'revoked' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-700'
+                                activation.status === 'active' ? 'bg-nkz-accent-soft text-nkz-accent-strong' :
+                                activation.status === 'revoked' ? 'bg-nkz-danger-soft text-nkz-danger-strong' :
+                                'bg-nkz-surface-sunken text-nkz-text-primary'
                               }`}>
                                 {activation.status === 'active' ? t('admin.status_used') :
                                  activation.status === 'revoked' ? t('admin.status_revoked') :
                                  t('admin.status_pending')}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-500">
+                            <td className="px-6 py-4 text-sm text-nkz-text-secondary">
                               {format(new Date(activation.expires_at), 'dd/MM/yyyy')}
                             </td>
                             <td className="px-6 py-4 text-right">
                               <button
                                 onClick={() => handleRevokeCode(activation.id)}
-                                className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                                className="p-2 text-nkz-text-muted hover:text-nkz-danger transition-colors"
                                 title={t('admin.revoke_code')}
                               >
                                 <Trash2 className="h-5 w-5" />
@@ -822,9 +822,9 @@ export const AdminManagement: React.FC = () => {
                     </table>
                   )}
                   {!activationsLoading && activations.length === 0 && (
-                    <div className="p-12 text-center bg-gray-50">
-                      <Ticket className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500 font-medium">
+                    <div className="p-12 text-center bg-nkz-surface-sunken">
+                      <Ticket className="h-12 w-12 text-nkz-text-muted mx-auto mb-4" />
+                      <p className="text-nkz-text-secondary font-medium">
                         {t('admin.no_activations', { defaultValue: 'No activation codes found.' })}
                       </p>
                     </div>
@@ -853,30 +853,30 @@ export const AdminManagement: React.FC = () => {
 
             {globalTab === 'platform' && (
               <div className="p-6">
-                <div className="max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Landing page mode</h3>
-                  <p className="text-sm text-gray-600 mb-4">
+                <div className="max-w-2xl rounded-nkz-xl border border-nkz-border bg-nkz-surface p-5 shadow-nkz-sm">
+                  <h3 className="text-lg font-semibold text-nkz-text-primary mb-2">Landing page mode</h3>
+                  <p className="text-sm text-nkz-text-secondary mb-4">
                     Switch between the standard OSS landing and the commercial landing. This is a global platform setting and only affects new visits to the public home route.
                   </p>
-                  <div className="flex items-center justify-between gap-4 rounded-lg bg-gray-50 border border-gray-200 p-4">
+                  <div className="flex items-center justify-between gap-4 rounded-nkz-lg bg-nkz-surface-sunken border border-nkz-border p-4">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-nkz-text-primary">
                         Current mode: <span className="uppercase">{landingModeLoading ? 'loading...' : landingMode}</span>
                       </p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-nkz-text-secondary">
                         standard = OSS landing, commercial = branded/commercial landing
                       </p>
                     </div>
                     <button
                       onClick={handleLandingModeToggle}
                       disabled={landingModeLoading || landingModeSaving}
-                      className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60"
+                      className="px-4 py-2 rounded-nkz-lg bg-nkz-accent-base text-nkz-text-on-accent text-sm font-semibold hover:bg-nkz-accent-strong disabled:opacity-60"
                     >
                       {landingModeSaving ? 'Saving...' : `Switch to ${landingMode === 'standard' ? 'commercial' : 'standard'}`}
                     </button>
                   </div>
                   {landingMessage && (
-                    <p className="mt-3 text-sm text-gray-700">{landingMessage}</p>
+                    <p className="mt-3 text-sm text-nkz-text-primary">{landingMessage}</p>
                   )}
                 </div>
               </div>
@@ -962,25 +962,25 @@ export const AdminManagement: React.FC = () => {
       {/* Generate Code Modal */}
       {showCodeModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCodeModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 mb-4">{t('admin.generate_code')}</h3>
+          <div className="bg-nkz-surface-raised rounded-nkz-xl shadow-nkz-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-nkz-text-primary mb-4">{t('admin.generate_code')}</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.email_prompt')}</label>
+                <label className="block text-sm font-medium text-nkz-text-primary mb-1">{t('admin.email_prompt')}</label>
                 <input
                   type="email"
                   value={codeForm.email}
                   onChange={e => setCodeForm(f => ({ ...f, email: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                  className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none"
                   placeholder="user@example.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.plan_type')}</label>
+                <label className="block text-sm font-medium text-nkz-text-primary mb-1">{t('admin.plan_type')}</label>
                 <select
                   value={codeForm.plan}
                   onChange={e => setCodeForm(f => ({ ...f, plan: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none bg-white"
+                  className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
                 >
                   <option value="premium">Premium</option>
                   <option value="enterprise">Enterprise</option>
@@ -990,14 +990,14 @@ export const AdminManagement: React.FC = () => {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowCodeModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 text-nkz-text-primary bg-nkz-surface-sunken rounded-nkz-lg hover:bg-nkz-border transition-colors"
               >
                 {t('common.cancel')}
               </button>
               <button
                 onClick={handleGenerateCode}
                 disabled={!codeForm.email || activationsLoading}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-nkz-accent-base text-nkz-text-on-accent rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {activationsLoading ? t('common.loading') : t('admin.generate_code')}
               </button>

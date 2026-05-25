@@ -63,7 +63,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
     setLoading(true);
     setError(null);
     try {
-      // Fetch tenant details from the tenants list endpoint (reuse sidebar data)
       const resp = await client.get('/api/admin/tenants');
       const all: Record<string, unknown>[] = Array.isArray(resp.data) ? resp.data : (resp.data?.tenants || []);
       const tdata = all.find((t: any) => (t.tenant_id || t.id) === tenantId);
@@ -85,7 +84,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
         setContactPhone(String((c.metadata as any)?.phone || ''));
       }
 
-      // Fetch limits
       const lr = await client.get(`/api/admin/tenant-limits?tenant_id=${tenantId}`);
       const ld = lr.data || {};
       setLimits(ld);
@@ -105,7 +103,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
     setError(null);
     setSuccess(null);
     try {
-      // Save tenant info
       const metadata: Record<string, string> = {};
       if (contactEmail) metadata.contact_email = contactEmail;
       if (contactPhone) metadata.phone = contactPhone;
@@ -118,7 +115,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       });
 
-      // Save limits
       await client.patch('/api/admin/tenant-limits', {
         tenant_id: tenantId,
         maxUsers,
@@ -139,7 +135,7 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
 
   if (loading) {
     return (
-      <div className="p-8 text-center text-gray-500">
+      <div className="p-8 text-center text-nkz-text-secondary">
         {t('common.loading')}
       </div>
     );
@@ -155,7 +151,7 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
     key: string
   ) => (
     <div key={key}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">{label}</label>
       <input
         type="number"
         value={value ?? ''}
@@ -164,46 +160,46 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
           setter(v === '' ? null : parseInt(v, 10));
         }}
         placeholder={defaultVal != null ? String(defaultVal) : t('common.unlimited')}
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none text-sm"
+        className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
       />
     </div>
   );
 
   return (
     <div className="p-6 max-w-2xl">
-      <h3 className="text-lg font-bold text-gray-900 mb-4">
+      <h3 className="text-nkz-lg font-semibold text-nkz-text-primary mb-4">
         {t('admin.tenant_config', { defaultValue: 'Tenant Configuration' })}
       </h3>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">{error}</div>
+        <div className="mb-4 p-3 bg-nkz-danger-soft border border-nkz-danger-soft rounded-nkz-lg text-nkz-sm text-nkz-danger-strong">{error}</div>
       )}
       {success && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">{success}</div>
+        <div className="mb-4 p-3 bg-nkz-accent-soft border border-nkz-accent-soft rounded-nkz-lg text-nkz-sm text-nkz-accent-strong">{success}</div>
       )}
 
       <div className="space-y-5">
         {/* Basic info */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">
               {t('admin.tenant_name', { defaultValue: 'Tenant Name' })}
             </label>
             <input
               type="text"
               value={tenantName}
               onChange={(e) => setTenantName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none text-sm"
+              className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">
               {t('admin.plan', { defaultValue: 'Plan' })}
             </label>
             <select
               value={planType}
               onChange={(e) => setPlanType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none text-sm bg-white"
+              className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             >
               <option value="basic">{t('common.basic')}</option>
               <option value="premium">{t('common.premium')}</option>
@@ -212,13 +208,13 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">
               {t('admin.status', { defaultValue: 'Status' })}
             </label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none text-sm bg-white"
+              className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             >
               <option value="active">{t('common.active')}</option>
               <option value="suspended">
@@ -228,55 +224,55 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">
               {t('admin.expiration_date', { defaultValue: 'Expiration Date' })}
             </label>
             <input
               type="date"
               value={expiresAt}
               onChange={(e) => setExpiresAt(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none text-sm"
+              className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             />
           </div>
         </div>
 
         {/* Metadata */}
-        <div className="border-t border-gray-200 pt-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3">
+        <div className="border-t border-nkz-border pt-4">
+          <h4 className="text-nkz-sm font-semibold text-nkz-text-primary mb-3">
             {t('admin.contact_info', { defaultValue: 'Contact Info' })}
           </h4>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">
                 {t('admin.contact_email', { defaultValue: 'Contact Email' })}
               </label>
               <input
                 type="email"
                 value={contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none text-sm"
+                className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">
                 {t('admin.contact_phone', { defaultValue: 'Phone' })}
               </label>
               <input
                 type="text"
                 value={contactPhone}
                 onChange={(e) => setContactPhone(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none text-sm"
+                className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
               />
             </div>
           </div>
         </div>
 
         {/* Limits */}
-        <div className="border-t border-gray-200 pt-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3">
+        <div className="border-t border-nkz-border pt-4">
+          <h4 className="text-nkz-sm font-semibold text-nkz-text-primary mb-3">
             {t('admin.resource_limits', { defaultValue: 'Resource Limits' })}
           </h4>
-          <p className="text-xs text-gray-500 mb-3">
+          <p className="text-nkz-xs text-nkz-text-secondary mb-3">
             {t('admin.limits_hint', { defaultValue: 'Leave empty to use plan defaults (shown as placeholder).' })}
           </p>
           <div className="grid grid-cols-2 gap-4">
@@ -293,11 +289,11 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
           </div>
         </div>
 
-        <div className="flex justify-end pt-4 border-t border-gray-200">
+        <div className="flex justify-end pt-4 border-t border-nkz-border">
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-6 py-2 bg-nkz-accent-base text-nkz-text-on-accent font-semibold rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {saving ? t('common.saving') : t('common.save_changes')}
           </button>

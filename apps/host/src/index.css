@@ -14,6 +14,20 @@
     scroll-behavior: smooth;
   }
 
+  /* Dark mode — overrides page-profile CSS variables when .dark is on <html> */
+  .dark {
+    --nkz-color-canvas: #18181B;
+    --nkz-color-surface: #27272A;
+    --nkz-color-surface-raised: #3F3F46;
+    --nkz-color-surface-sunken: #18181B;
+    --nkz-color-border: #3F3F46;
+    --nkz-color-border-strong: #52525B;
+    --nkz-color-text-primary: #FAFAFA;
+    --nkz-color-text-secondary: #A1A1AA;
+    --nkz-color-text-muted: #71717A;
+    --nkz-color-text-on-accent: #18181B;
+  }
+
   /* Custom scrollbar styling */
   ::-webkit-scrollbar {
     width: 8px;
