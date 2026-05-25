@@ -46,7 +46,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep }) => 
                 {isCompleted ? <Check className="w-4 h-4" /> : s.step}
               </span>
               <span className={labelClasses}>
-                {t(s.labelKey, s.defaultLabel)}
+                {t(s.labelKey, { defaultValue: s.defaultLabel })}
               </span>
             </div>
             {idx < steps.length - 1 && (
