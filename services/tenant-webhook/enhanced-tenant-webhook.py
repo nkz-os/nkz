@@ -5262,8 +5262,50 @@ def delete_tenant_user(user_id: str):
 
 
 
-# Existing imports should be here, we'll just inject the new endpoint before register_tenant
-# Wait, let's locate the exact spot
+@app.route("/webhook/register/check-tenant", methods=["POST"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+@limiter.limit("30 per minute")
+def check_tenant_availability():
+    """Check if a tenant name is available (async validation for registration wizard)."""
+    try:
+        data = request.get_json()
+        name = (data.get("name") or "").strip()
+
+        if not name:
+            return jsonify({"available": False, "error": "Name is required"}), 400
+
+        normalized = webhook_service._normalize_tenant_slug(name)
+        if not normalized or normalized == "tenant":
+            return jsonify({"available": False, "error": "Invalid tenant name"}), 400
+
+        tenant_id = f"tenant-{normalized}"
+
+        conn = webhook_service.get_db_connection()
+        exists = False
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT tenant_id FROM tenants WHERE tenant_id = %s",
+                    (tenant_id,),
+                )
+                exists = cursor.fetchone() is not None
+                cursor.close()
+            except Exception as e:
+                logger.error(f"Error checking tenant existence: {e}")
+            finally:
+                conn.close()
+
+        return jsonify({
+            "available": not exists,
+            "normalized": normalized,
+            "tenant_id": tenant_id,
+        })
+    except Exception as e:
+        logger.error(f"Error in check_tenant_availability: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
 @app.route("/webhook/register/request-otp", methods=["POST"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 @limiter.limit("5 per hour")
@@ -5316,7 +5358,7 @@ def request_registration_otp():
         redis_client.setex(redis_key, 900, otp)  # 900 seconds = 15 minutes
         
         # 4. Call email-service to send the OTP
-        email_service_url = os.getenv("EMAIL_SERVICE_URL", "http://email-service.nekazari.svc.cluster.local:8080")
+        email_service_url = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
         email_payload = {
             "email": email,
             "otp": otp
@@ -5488,6 +5530,55 @@ def register_tenant():
                     logger.info(f"API key generated for tenant: {tenant_id}")
             except Exception as api_key_err:
                 logger.warning(f"API key generation failed for {tenant_id}: {api_key_err}")
+
+            # 8. Send welcome email to user (best-effort, don't block registration)
+            if api_key:
+                try:
+                    EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
+                    welcome_response = requests.post(
+                        f"{EMAIL_SERVICE_URL}/send/welcome",
+                        json={
+                            "email": email.lower(),
+                            "farmer_name": (
+                                data.get("first_name")
+                                or data.get("firstName")
+                                or email.split("@")[0]
+                            ),
+                            "farm_name": organization_name,
+                            "tenant_id": tenant_id,
+                            "api_key": api_key,
+                        },
+                        timeout=10,
+                    )
+                    if welcome_response.status_code == 200:
+                        logger.info(f"Welcome email sent to {email}")
+                    else:
+                        logger.warning(
+                            f"Failed to send welcome email: {welcome_response.status_code}"
+                        )
+                except Exception as email_err:
+                    logger.error(f"Error sending welcome email: {email_err}")
+
+            # 9. Send admin notification about new registration (best-effort)
+            try:
+                EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
+                requests.post(
+                    f"{EMAIL_SERVICE_URL}/email/activation-success",
+                    json={
+                        "user_email": email.lower(),
+                        "tenant_id": tenant_id,
+                        "tenant_name": organization_name,
+                        "plan": plan_lower,
+                        "activation_code": plan_info.get(
+                            "code", f"TRIAL-{secrets.token_hex(4).upper()}"
+                        ),
+                        "platform_email": PLATFORM_EMAIL,
+                        "tenant_admin_email": email.lower(),
+                    },
+                    timeout=10,
+                )
+            except Exception as notify_err:
+                logger.error(f"Error sending activation success notification: {notify_err}")
 
             logger.info(f"Onboarding successful: Tenant {tenant_id} created for {email}")
 

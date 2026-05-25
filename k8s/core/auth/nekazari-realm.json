@@ -62,6 +62,22 @@
   "webAuthnPolicyPasswordlessCreateTimeout": 0,
   "webAuthnPolicyPasswordlessAvoidSameAuthenticatorRegister": false,
   "webAuthnPolicyPasswordlessAcceptableAaguids": [],
+  "userProfile": {
+    "attributes": [
+      {"name": "tenant_id", "displayName": "Tenant ID", "permissions": {"view": ["admin", "user"], "edit": ["admin"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "tenant", "displayName": "Tenant (legacy)", "permissions": {"view": ["admin", "user"], "edit": ["admin"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "plan", "displayName": "Plan", "permissions": {"view": ["admin", "user"], "edit": ["admin"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "max_users", "displayName": "Max Users", "permissions": {"view": ["admin"], "edit": ["admin"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "max_robots", "displayName": "Max Robots", "permissions": {"view": ["admin"], "edit": ["admin"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "max_sensors", "displayName": "Max Sensors", "permissions": {"view": ["admin"], "edit": ["admin"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "activation_code", "displayName": "Activation Code", "permissions": {"view": ["admin"], "edit": ["admin"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "created_by", "displayName": "Created By", "permissions": {"view": ["admin"], "edit": ["admin"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "is_owner", "displayName": "Is Owner", "permissions": {"view": ["admin", "user"], "edit": ["admin"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "nif", "displayName": "NIF/CIF (Tax ID)", "permissions": {"view": ["admin", "user"], "edit": ["admin", "user"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "cif", "displayName": "CIF Entidad Habilitada", "permissions": {"view": ["admin"], "edit": ["admin"]}, "validations": {"multivalued": {"max": "1"}}},
+      {"name": "regepa", "displayName": "REGEPA", "permissions": {"view": ["admin", "user"], "edit": ["admin", "user"]}, "validations": {"multivalued": {"max": "1"}}}
+    ]
+  },
   "clients": [
     {
       "clientId": "nekazari-frontend",
