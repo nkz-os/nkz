@@ -4,7 +4,7 @@
   "displayNameHtml": "<span class=\"nkz-kc-wordmark\">Nekazari</span>",
   "enabled": true,
   "sslRequired": "external",
-  "registrationAllowed": true,
+  "registrationAllowed": false,
   "registrationEmailAsUsername": true,
   "rememberMe": true,
   "verifyEmail": false,
