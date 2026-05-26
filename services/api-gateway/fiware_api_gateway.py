@@ -217,6 +217,36 @@ def _scope_hint_for_path(path: str) -> str:
     return "unknown"
 
 
+_suspended_tenant_cache: dict[str, tuple[bool, float]] = {}
+_SUSPENDED_CACHE_TTL = 300  # 5 minutes
+
+
+def _is_tenant_suspended(tenant_id: str) -> bool:
+    """Check if a tenant is suspended, with a 5-minute cache. Fail-open on DB errors."""
+    now = time.time()
+    cached = _suspended_tenant_cache.get(tenant_id)
+    if cached and (now - cached[1]) < _SUSPENDED_CACHE_TTL:
+        return cached[0]
+
+    try:
+        conn = psycopg2.connect(
+            os.getenv("POSTGRES_URL", "postgresql://postgres:postgres@postgresql-service:5432/nekazari"),
+            connect_timeout=3,
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT deleted_at FROM tenants WHERE tenant_id = %s", (tenant_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        is_suspended = row is not None and row[0] is not None
+    except Exception as e:
+        logger.warning(f"Failed to check tenant suspension for {tenant_id}: {e}")
+        is_suspended = False  # Fail-open
+
+    _suspended_tenant_cache[tenant_id] = (is_suspended, now)
+    return is_suspended
+
+
 @app.before_request
 def enforce_pat_scopes():
     """Validate PAT tokens: check scope covers (method, path)."""
@@ -572,6 +602,17 @@ def health_check():
             "service": "fiware-api-gateway",
         }
     )
+
+
+@app.route("/internal/cache/invalidate", methods=["POST"])
+def internal_cache_invalidate():
+    """Invalidate cache entries. Called internally by backend services after state changes."""
+    data = request.get_json(silent=True) or {}
+    key = data.get("key", "")
+    if key.startswith("suspended:"):
+        tenant_id = key.split(":", 1)[1]
+        _suspended_tenant_cache.pop(tenant_id, None)
+    return jsonify({"ok": True}), 200
 
 
 @app.route(
@@ -2262,6 +2303,14 @@ def proxy_tenant_requests(subpath):
         logger.warning(f"Token validation failed for /api/tenant/{subpath}")
         return jsonify({"error": "Invalid or expired token"}), 401
 
+    # Suspension check: block requests from suspended tenants
+    tenant = extract_tenant_id(payload)
+    if tenant and tenant != 'platform' and _is_tenant_suspended(tenant):
+        return jsonify({
+            "error": "TENANT_SUSPENDED",
+            "message": "Tu cuenta ha sido suspendida. Contacta con el administrador de la plataforma."
+        }), 403
+
     # Route logic:
     # 1. tenant/users -> tenant-user-api-service
     # 2. Everything else -> tenant-webhook-service
@@ -2395,11 +2444,25 @@ def proxy_admin_requests(subpath):
     path_parts = subpath.split("/")
     route_key = path_parts[0]
 
-    # Special case: nuclear purge (tenants/ID/purge)
-    if route_key == "tenants" and len(path_parts) > 2 and path_parts[2] == "purge":
-        target_base_url = ENTITY_MANAGER_URL
+    # Special cases: sub-resource routing within tenants/*
+    if route_key == "tenants" and len(path_parts) > 2:
+        sub_resource = path_parts[2]
+        if sub_resource == "purge":
+            target_base_url = TENANT_WEBHOOK_URL  # Moved from entity-manager (was broken)
+        elif sub_resource == "inventory":
+            target_base_url = ENTITY_MANAGER_URL   # Read-only aggregation
+        elif sub_resource == "suspend":
+            target_base_url = TENANT_WEBHOOK_URL
+        elif sub_resource == "restore":
+            target_base_url = TENANT_WEBHOOK_URL
+        else:
+            target_base_url = TENANT_WEBHOOK_URL  # Default for tenants/* sub-routes
     else:
         target_base_url = ADMIN_ROUTE_MAP.get(route_key)
+
+    # Special case: user tenant reassignment
+    if route_key == "users" and len(path_parts) > 2 and path_parts[2] == "tenant":
+        target_base_url = TENANT_WEBHOOK_URL
 
     if not target_base_url:
         logger.error(f"Unmapped admin route: /api/admin/{subpath}")
