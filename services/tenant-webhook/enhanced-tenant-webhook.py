@@ -3457,133 +3457,416 @@ def create_tenant_directly():
         return _internal_error(e, "create_tenant_directly", user_message="Failed to create tenant")
 
 
-@app.route("/api/admin/tenants/<tenant_id>", methods=["DELETE"])
-@require_platform_admin
-def delete_tenant_directly(tenant_id: str):  # noqa: C901
-    """Delete a tenant and all its resources (PlatformAdmin only)"""
+# === Purge System Configuration ===
+PURGE_PHASES = [
+    "precheck",
+    "cut_access",
+    "subscriptions",
+    "ngsi_ld_data",
+    "relational_data",
+    "storage",
+    "infrastructure",
+    "close",
+]
+PURGE_SYSTEM_TIMEOUT = 30
+
+
+def _purge_phase_precheck(tenant_id: str) -> dict:
+    """Phase 0: Verify tenant exists, is suspended, caller is PlatformAdmin."""
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return {"ok": False, "error": "Database connection failed"}
     try:
-        logger.info(f"Deleting tenant {tenant_id} by admin")
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute("SELECT tenant_id, deleted_at FROM tenants WHERE tenant_id = %s", (tenant_id,))
+        row = cursor.fetchone()
+        cursor.close()
+        if not row:
+            return {"ok": False, "error": "Tenant not found"}
+        if not row.get('deleted_at'):
+            return {"ok": False, "error": "Tenant must be suspended before hard purge. Use /suspend first."}
+        return {"ok": True}
+    finally:
+        conn.close()
 
-        # Get tenant namespace
-        namespace = get_tenant_namespace(tenant_id)
-        errors = []
 
-        # Delete from Keycloak FIRST (delete users and group)
+def _purge_phase_cut_access(tenant_id: str) -> dict:
+    """Phase 1: Delete Keycloak users + group, force logout."""
+    token = webhook_service.get_keycloak_token()
+    if not token:
+        return {"ok": False, "error": "Cannot get Keycloak token"}
+    headers = {"Authorization": f"Bearer {token}"}
+    keycloak_url = webhook_service._get_keycloak_base_url()
+    users_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
+    deleted_users = 0
+
+    resp = requests.get(users_url, headers=headers, params={"max": 1000}, timeout=10)
+    if resp.status_code == 200:
+        for user in resp.json():
+            user_tid = (user.get("attributes") or {}).get("tenant_id", [])
+            if isinstance(user_tid, list) and tenant_id in user_tid:
+                r = requests.delete(f"{users_url}/{user['id']}", headers=headers, timeout=10)
+                if r.status_code in [200, 204]:
+                    deleted_users += 1
+
+    groups_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/groups"
+    resp = requests.get(groups_url, headers=headers, params={"search": tenant_id}, timeout=10)
+    if resp.status_code == 200:
+        for group in resp.json():
+            if group.get("name") == tenant_id:
+                requests.delete(f"{groups_url}/{group['id']}", headers=headers, timeout=10)
+
+    return {"ok": True, "deleted_users": deleted_users}
+
+
+def _purge_phase_subscriptions(tenant_id: str) -> dict:
+    """Phase 2: Cancel Stripe subscription, deprovision n8n."""
+    messages = []
+    try:
+        import stripe
+        stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+        if stripe.api_key:
+            subs = stripe.Subscription.list(limit=10, metadata={"tenant_id": tenant_id})
+            for sub in subs.auto_paging_iter():
+                stripe.Subscription.cancel(sub.id)
+                messages.append(f"Stripe sub {sub.id} cancelled")
+    except Exception as e:
+        messages.append(f"Stripe: {str(e)}")
+
+    n8n_url = os.getenv("N8N_PROVISIONER_URL", "")
+    if n8n_url:
         try:
-            token = webhook_service.get_keycloak_token()
-            if token:
-                keycloak_url = webhook_service._get_keycloak_base_url()
-                headers = {"Authorization": f"Bearer {token}"}
+            r = requests.delete(f"{n8n_url}/api/instances/{tenant_id}", timeout=PURGE_SYSTEM_TIMEOUT)
+            messages.append(f"n8n: status={r.status_code}")
+        except Exception as e:
+            messages.append(f"n8n: {str(e)}")
 
-                # Find and delete users with this tenant_id
-                users_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
-                users_response = requests.get(
-                    users_url, headers=headers, params={"max": 1000}, timeout=10
-                )  # noqa: E501
-                if users_response.status_code == 200:
-                    users = users_response.json()
-                    for user in users:
-                        user_tenant_id = user.get("attributes", {}).get("tenant_id", [])
-                        if isinstance(user_tenant_id, list) and tenant_id in user_tenant_id:
-                            user_id = user.get("id")
-                            delete_user_response = requests.delete(
-                                f"{users_url}/{user_id}", headers=headers, timeout=10
-                            )
-                            if delete_user_response.status_code in [200, 204]:
-                                logger.info(f"Deleted user {user.get('email')} from Keycloak")
-                            else:
-                                errors.append(
-                                    f"Failed to delete user {user.get('email')}: "
-                                    f"{delete_user_response.status_code}"
-                                )
+    return {"ok": True, "messages": messages}
 
-                # Find and delete tenant group
-                groups_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/groups"
-                groups_response = requests.get(
-                    groups_url, headers=headers, params={"search": tenant_id}, timeout=10
-                )  # noqa: E501
-                if groups_response.status_code == 200:
-                    groups = groups_response.json()
-                    for group in groups:
-                        if group.get("name") == tenant_id:
-                            group_id = group.get("id")
-                            delete_response = requests.delete(
-                                f"{groups_url}/{group_id}", headers=headers, timeout=10
-                            )
-                            if delete_response.status_code in [200, 204]:
-                                logger.info(f"Deleted tenant group {tenant_id} from Keycloak")
-                            else:
-                                errors.append(
-                                    f"Failed to delete group: {delete_response.status_code}"
-                                )  # noqa: E501
-        except Exception as kc_err:
-            error_msg = f"Failed to delete from Keycloak: {str(kc_err)}"
-            logger.warning(error_msg)
-            errors.append(error_msg)
 
-        # Delete Kubernetes namespace (this will cascade delete all resources)
-        try:
-            from kubernetes import client, config
+def _purge_phase_ngsi_ld(tenant_id: str) -> dict:
+    """Phase 3: Delete all Orion-LD entities using DYNAMIC type discovery, then subscriptions, then drop MongoDB database."""
+    orion_url = os.getenv("ORION_URL", "http://orion-ld-service:1026")
+    base = f"{orion_url}/ngsi-ld/v1"
+    svc_headers = {"Fiware-Service": tenant_id, "Fiware-ServicePath": "/"}
+    deleted_entities = 0
+    deleted_subs = 0
 
-            # Try to load kubeconfig
+    # Dynamic type discovery — fixes the old bug where only 'AgriParcel'/'AgriSensor'/'Device' were checked
+    r = requests.get(f"{base}/types", headers=svc_headers, timeout=PURGE_SYSTEM_TIMEOUT)
+    types = []
+    if r.status_code == 200:
+        data = r.json()
+        types = data.get("typeList", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+
+    for etype in types:
+        r = requests.get(f"{base}/entities", headers=svc_headers,
+                        params={"type": etype, "limit": 1000}, timeout=PURGE_SYSTEM_TIMEOUT)
+        if r.status_code == 200:
+            for entity in r.json():
+                eid = entity.get("id", "")
+                if eid:
+                    requests.delete(f"{base}/entities/{eid}", headers=svc_headers, timeout=10)
+                    deleted_entities += 1
+
+    r = requests.get(f"{base}/subscriptions", headers=svc_headers, timeout=PURGE_SYSTEM_TIMEOUT)
+    if r.status_code == 200:
+        for sub in r.json():
+            sid = sub.get("id", "")
+            if sid:
+                requests.delete(f"{base}/subscriptions/{sid}", headers=svc_headers, timeout=10)
+                deleted_subs += 1
+
+    # Drop MongoDB database for this tenant
+    try:
+        mongo_uri = os.getenv("ORION_MONGO_URI", "mongodb://mongodb-service:27017")
+        from pymongo import MongoClient
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=10000)
+        db_name = f"orion-{tenant_id.lower().replace('_', '-')}"
+        if db_name in client.list_database_names():
+            client.drop_database(db_name)
+    except Exception as e:
+        logger.warning(f"MongoDB drop failed for {tenant_id}: {e}")
+
+    return {"ok": True, "deleted_entities": deleted_entities, "deleted_subscriptions": deleted_subs}
+
+
+def _purge_phase_relational(tenant_id: str) -> dict:
+    """Phase 4: DELETE from ALL PostgreSQL tables with tenant_id column (dynamic discovery) + tenant record."""
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return {"ok": False, "error": "Database connection failed"}
+    tables_cleaned = 0
+    try:
+        cursor = conn.cursor()
+        webhook_service._apply_admin_context(conn)
+
+        # Dynamic discovery of all tables with a tenant_id column — fixes old hardcoded 6-table approach
+        cursor.execute("""
+            SELECT table_schema, table_name
+            FROM information_schema.columns
+            WHERE column_name = 'tenant_id' AND table_schema = 'public'
+            ORDER BY table_name
+        """)
+        for schema, table in cursor.fetchall():
             try:
-                config.load_incluster_config()
-            except:  # noqa: E722
-                config.load_kube_config()
+                cursor.execute('DELETE FROM "%s"."%s" WHERE tenant_id = %%s' % (schema, table), (tenant_id,))
+                tables_cleaned += 1
+            except Exception:
+                pass
 
-            v1 = client.CoreV1Api()
-            v1.delete_namespace(name=namespace, body=client.V1DeleteOptions())
-            logger.info(f"Deleted namespace {namespace}")
-        except Exception as k8s_err:
-            error_msg = f"Failed to delete namespace {namespace}: {str(k8s_err)}"
-            logger.warning(error_msg)
-            errors.append(error_msg)
+        cursor.execute("DELETE FROM tenants WHERE tenant_id = %s", (tenant_id,))
+        conn.commit()
+        cursor.close()
+    finally:
+        conn.close()
 
-        # Delete tenant record from database
+    return {"ok": True, "tables_cleaned": tables_cleaned}
+
+
+def _purge_phase_storage(tenant_id: str) -> dict:
+    """Phase 5: MinIO buckets and Neo4j subgraph."""
+    messages = []
+    # MinIO
+    try:
+        from minio import Minio
+        minio_client = Minio(
+            os.getenv("MINIO_ENDPOINT", "minio-service:9000"),
+            access_key=os.getenv("MINIO_ACCESS_KEY", ""),
+            secret_key=os.getenv("MINIO_SECRET_KEY", ""),
+            secure=False,
+        )
+        buckets = minio_client.list_buckets()
+        for bucket in buckets:
+            if tenant_id in bucket.name:
+                objects = minio_client.list_objects(bucket.name, recursive=True)
+                for obj in objects:
+                    minio_client.remove_object(bucket.name, obj.object_name)
+                minio_client.remove_bucket(bucket.name)
+                messages.append(f"MinIO bucket {bucket.name} removed")
+    except Exception as e:
+        messages.append(f"MinIO: {str(e)}")
+
+    # Neo4j
+    neo4j_url = os.getenv("NEO4J_URL", "")
+    if neo4j_url:
+        try:
+            requests.delete(
+                f"{neo4j_url}/db/neo4j/tx/commit",
+                json={"statements": [{"statement": f"MATCH (n) WHERE n.tenant_id = '{tenant_id}' DETACH DELETE n"}]},
+                auth=(os.getenv("NEO4J_USER", ""), os.getenv("NEO4J_PASSWORD", "")),
+                timeout=PURGE_SYSTEM_TIMEOUT,
+            )
+            messages.append("Neo4j subgraph deleted")
+        except Exception as e:
+            messages.append(f"Neo4j: {str(e)}")
+
+    return {"ok": True, "messages": messages}
+
+
+def _purge_phase_infrastructure(tenant_id: str) -> dict:
+    """Phase 6: IoT, DataHub, Odoo, VPN, K8s namespace cascading delete."""
+    namespace = get_tenant_namespace(tenant_id)
+    messages = []
+
+    # Helper to clean tenant-scoped tables
+    def _clean_tables(table_names):
         conn = webhook_service.get_db_connection()
         if conn:
             try:
-                webhook_service._apply_admin_context(conn)
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM tenants WHERE tenant_id = %s", (tenant_id,))
+                webhook_service._apply_admin_context(conn)
+                for t in table_names:
+                    try:
+                        cursor.execute(f'DELETE FROM "{t}" WHERE tenant_id = %s', (tenant_id,))
+                    except Exception:
+                        pass
                 conn.commit()
                 cursor.close()
-                logger.info(f"Deleted tenant record {tenant_id} from database")
-            except Exception as db_err:
-                error_msg = f"Failed to delete tenant from database: {str(db_err)}"
-                logger.error(error_msg)
-                errors.append(error_msg)
             finally:
                 conn.close()
 
-        audit_log(
-            action='admin.tenant.delete',
-            resource_type='tenant',
-            resource_id=tenant_id,
-            metadata={'warnings': errors} if errors else {},
-        )
+    _clean_tables(["api_keys", "provisioned_devices", "sensor_profiles"])
+    messages.append("IoT: API keys and devices revoked")
 
-        if errors:
-            return jsonify(
-                {
-                    "success": True,
-                    "message": f"Tenant {tenant_id} deleted with some warnings",
-                    "warnings": errors,
-                }
-            ), 200
+    _clean_tables(["external_api_credentials", "oauth_access_tokens", "webhook_entity"])
+    messages.append("DataHub: PAT tokens and connections removed")
 
-        return jsonify(
-            {"success": True, "message": f"Tenant {tenant_id} deleted successfully"}
-        ), 200
+    _clean_tables(["odoo_entity_mappings", "odoo_sync_status", "odoo_tenant_info"])
+    messages.append("Odoo: mappings and sync state removed")
 
+    # VPN (Headscale)
+    headscale_url = os.getenv("HEADSCALE_URL", "")
+    headscale_key = os.getenv("HEADSCALE_API_KEY", "")
+    if headscale_url and headscale_key:
+        try:
+            headers = {"Authorization": f"Bearer {headscale_key}"}
+            r = requests.get(f"{headscale_url}/api/v1/node", headers=headers, timeout=10)
+            if r.status_code == 200:
+                for node in r.json().get("nodes", []):
+                    if node.get("givenName", "").startswith(tenant_id):
+                        requests.delete(f"{headscale_url}/api/v1/node/{node['id']}", headers=headers, timeout=10)
+            messages.append("VPN: nodes removed")
+        except Exception as e:
+            messages.append(f"Headscale: {str(e)}")
+
+    # K8s namespace (cascading)
+    try:
+        from kubernetes import client, config
+        try:
+            config.load_incluster_config()
+        except Exception:
+            config.load_kube_config()
+        v1 = client.CoreV1Api()
+        v1.delete_namespace(name=namespace, body=client.V1DeleteOptions())
+        messages.append(f"K8s namespace {namespace} deleted")
     except Exception as e:
-        logger.error(f"Error deleting tenant: {e}")
-        import traceback
+        if "NotFound" in str(e) or "not found" in str(e):
+            messages.append(f"K8s namespace {namespace} already gone")
+        else:
+            messages.append(f"K8s: {str(e)}")
 
-        logger.error(traceback.format_exc())
-        audit_log(action='admin.tenant.delete', resource_type='tenant',
-                  resource_id=tenant_id, success=False, error=str(e))
-        return _internal_error(e, "delete_tenant_admin", user_message="Failed to delete tenant")
+    return {"ok": True, "messages": messages}
+
+
+def _purge_phase_close(tenant_id: str) -> dict:
+    """Phase 7: Final audit log and email confirmation to the admin."""
+    audit_log(
+        action='admin.tenant.purge',
+        resource_type='tenant',
+        resource_id=tenant_id,
+        metadata={'timestamp': datetime.utcnow().isoformat()},
+    )
+
+    # Attempt to send email confirmation to the admin
+    try:
+        email_service_url = os.getenv("EMAIL_SERVICE_URL", "")
+        if email_service_url:
+            current_user = g.get('current_user', {})
+            admin_email = current_user.get('email', '') if isinstance(current_user, dict) else ''
+            if admin_email:
+                requests.post(
+                    f"{email_service_url}/send",
+                    json={
+                        "to": admin_email,
+                        "subject": f"Tenant {tenant_id} purged",
+                        "body": f"Hard purge of tenant '{tenant_id}' completed at {datetime.utcnow().isoformat()}Z.\n\nAll data has been permanently deleted.",
+                    },
+                    timeout=10,
+                )
+    except Exception:
+        pass  # Non-critical
+
+    return {"ok": True}
+
+
+@app.route("/api/admin/tenants/<tenant_id>/purge", methods=["DELETE"])
+@require_platform_admin
+def admin_hard_purge_tenant(tenant_id: str):
+    """7-phase hard purge. Tenant should be suspended first. Each phase is idempotent."""
+    if tenant_id == 'platform':
+        return jsonify({'error': 'The platform tenant cannot be purged.'}), 400
+
+    logger.info(f"HARD PURGE (7-phase) initiated for tenant: {tenant_id}")
+
+    phase_results = []
+    phase_funcs = [
+        ("precheck", _purge_phase_precheck),
+        ("cut_access", _purge_phase_cut_access),
+        ("subscriptions", _purge_phase_subscriptions),
+        ("ngsi_ld_data", _purge_phase_ngsi_ld),
+        ("relational_data", _purge_phase_relational),
+        ("storage", _purge_phase_storage),
+        ("infrastructure", _purge_phase_infrastructure),
+        ("close", _purge_phase_close),
+    ]
+
+    for phase_name, phase_func in phase_funcs:
+        try:
+            result = phase_func(tenant_id)
+            phase_results.append({"phase": phase_name, **result})
+            if not result.get("ok"):
+                logger.error(f"Purge phase {phase_name} failed for {tenant_id}: {result.get('error')}")
+                break
+        except Exception as e:
+            phase_results.append({"phase": phase_name, "ok": False, "error": str(e)})
+            logger.exception(f"Purge phase {phase_name} exception for {tenant_id}")
+            break
+
+    all_ok = all(p.get("ok") for p in phase_results)
+
+    return jsonify({
+        "status": "completed" if all_ok else "partial",
+        "message": f"Tenant {tenant_id} purge {'completed' if all_ok else 'incomplete -- some phases failed'}",
+        "phases": phase_results,
+    }), 200 if all_ok else 207
+
+
+# =============================================================================
+# Internal Inventory Endpoints
+# =============================================================================
+
+
+@app.route("/internal/inventory/keycloak/<tenant_id>", methods=["GET"])
+def internal_inventory_keycloak(tenant_id: str):
+    """Internal: count Keycloak users and check group for a tenant."""
+    token = webhook_service.get_keycloak_token()
+    if not token:
+        return jsonify({"status": "error", "error": "Cannot get Keycloak token"}), 500
+
+    keycloak_url = webhook_service._get_keycloak_base_url()
+    headers = {"Authorization": f"Bearer {token}"}
+    users_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
+
+    user_count = 0
+    resp = requests.get(users_url, headers=headers, params={"max": 1000}, timeout=10)
+    if resp.status_code == 200:
+        for user in resp.json():
+            user_tid = (user.get("attributes") or {}).get("tenant_id", [])
+            if isinstance(user_tid, list) and tenant_id in user_tid:
+                user_count += 1
+
+    group_exists = False
+    groups_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/groups"
+    resp = requests.get(groups_url, headers=headers, params={"search": tenant_id}, timeout=10)
+    if resp.status_code == 200:
+        group_exists = any(g.get("name") == tenant_id for g in resp.json())
+
+    return jsonify({
+        "status": "found" if user_count > 0 or group_exists else "not_found",
+        "summary": {"users": user_count, "group": tenant_id if group_exists else None},
+    })
+
+
+@app.route("/internal/inventory/kubernetes/<tenant_id>", methods=["GET"])
+def internal_inventory_kubernetes(tenant_id: str):
+    """Internal: check K8s namespace and count resources."""
+    namespace = get_tenant_namespace(tenant_id)
+    try:
+        from kubernetes import client, config
+        try:
+            config.load_incluster_config()
+        except Exception:
+            config.load_kube_config()
+        v1 = client.CoreV1Api()
+        apps_v1 = client.AppsV1Api()
+
+        v1.read_namespace(name=namespace)
+        deployments = apps_v1.list_namespaced_deployment(namespace=namespace).items
+        statefulsets = apps_v1.list_namespaced_stateful_set(namespace=namespace).items
+
+        return jsonify({
+            "status": "found",
+            "summary": {
+                "namespace": namespace,
+                "deployments": len(deployments),
+                "statefulsets": len(statefulsets),
+            },
+        })
+    except Exception as e:
+        if "NotFound" in str(e) or "not found" in str(e):
+            return jsonify({"status": "not_found", "summary": {}})
+        return jsonify({"status": "error", "error": str(e)}), 500
 
 
 @app.route("/api/admin/tenants/<tenant_id>/users", methods=["POST"])
@@ -3641,6 +3924,154 @@ def assign_user_to_tenant(tenant_id: str):
     except Exception as e:
         logger.error(f"Error assigning user to tenant: {e}")
         return _internal_error(e, "assign_user_to_tenant", user_message="Failed to assign user")
+
+
+@app.route("/api/admin/tenants/<tenant_id>/suspend", methods=["POST"])
+@require_platform_admin
+def suspend_tenant(tenant_id: str):
+    """Soft-delete: mark tenant as suspended, force logout all users."""
+    if tenant_id == 'platform':
+        return jsonify({'error': 'The platform tenant cannot be suspended.'}), 400
+
+    try:
+        data = request.get_json(silent=True) or {}
+        deleted_by = data.get('deleted_by') or g.get('current_user', {}).get('preferred_username', 'unknown')
+        deletion_notes = data.get('deletion_notes', '')
+
+        conn = webhook_service.get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        try:
+            webhook_service._apply_admin_context(conn)
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT tenant_id, deleted_at FROM tenants WHERE tenant_id = %s", (tenant_id,))
+            tenant = cursor.fetchone()
+            if not tenant:
+                return jsonify({'error': 'Tenant not found'}), 404
+            if tenant.get('deleted_at'):
+                return jsonify({'error': 'Tenant is already suspended'}), 409
+
+            # Prevent PlatformAdmin from suspending their own tenant
+            current_user = g.get('current_user', {})
+            current_attrs = current_user.get('attributes', {}) if isinstance(current_user, dict) else {}
+            current_user_tenant = (current_attrs.get('tenant_id', [''])[0] if isinstance(current_attrs.get('tenant_id'), list) else '')
+            if current_user_tenant == tenant_id:
+                return jsonify({
+                    'error': 'Cannot suspend your own tenant. Reassign yourself to another tenant first.'
+                }), 403
+
+            cursor.execute(
+                """UPDATE tenants SET deleted_at = NOW(), deleted_by = %s, deletion_notes = %s, updated_at = NOW()
+                   WHERE tenant_id = %s""",
+                (deleted_by, deletion_notes, tenant_id)
+            )
+            conn.commit()
+            cursor.close()
+        finally:
+            conn.close()
+
+        # Invalidate api-gateway suspension cache
+        try:
+            gateway_url = os.getenv("API_GATEWAY_URL", "http://api-gateway-service:5000")
+            requests.post(
+                f"{gateway_url}/internal/cache/invalidate",
+                json={"key": f"suspended:{tenant_id}"},
+                timeout=5,
+            )
+        except Exception:
+            pass
+
+        # Force logout all users with this tenant_id
+        token = webhook_service.get_keycloak_token()
+        if token:
+            keycloak_url = webhook_service._get_keycloak_base_url()
+            headers = {"Authorization": f"Bearer {token}"}
+            users_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
+            resp = requests.get(users_url, headers=headers, params={"max": 1000}, timeout=10)
+            if resp.status_code == 200:
+                for user in resp.json():
+                    user_tid = user.get("attributes", {}).get("tenant_id", [])
+                    if isinstance(user_tid, list) and tenant_id in user_tid:
+                        requests.post(
+                            f"{users_url}/{user['id']}/logout",
+                            headers=headers, timeout=10
+                        )
+
+        audit_log(
+            action='admin.tenant.suspend',
+            resource_type='tenant',
+            resource_id=tenant_id,
+            metadata={'deleted_by': deleted_by, 'notes': deletion_notes},
+        )
+
+        return jsonify({
+            'success': True,
+            'message': f'Tenant {tenant_id} suspended. Users cannot log in.'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error suspending tenant {tenant_id}: {e}")
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
+
+@app.route("/api/admin/tenants/<tenant_id>/restore", methods=["POST"])
+@require_platform_admin
+def restore_tenant(tenant_id: str):
+    """Reverse soft-delete: reactivate a suspended tenant."""
+    try:
+        conn = webhook_service.get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        try:
+            webhook_service._apply_admin_context(conn)
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT tenant_id, deleted_at FROM tenants WHERE tenant_id = %s", (tenant_id,))
+            tenant = cursor.fetchone()
+            if not tenant:
+                return jsonify({'error': 'Tenant not found'}), 404
+            if not tenant.get('deleted_at'):
+                return jsonify({'error': 'Tenant is not suspended'}), 409
+
+            cursor.execute(
+                """UPDATE tenants SET deleted_at = NULL, deleted_by = NULL,
+                   purge_scheduled = NULL, deletion_notes = NULL, updated_at = NOW()
+                   WHERE tenant_id = %s""",
+                (tenant_id,)
+            )
+            conn.commit()
+            cursor.close()
+        finally:
+            conn.close()
+
+        # Invalidate api-gateway suspension cache
+        try:
+            gateway_url = os.getenv("API_GATEWAY_URL", "http://api-gateway-service:5000")
+            requests.post(
+                f"{gateway_url}/internal/cache/invalidate",
+                json={"key": f"suspended:{tenant_id}"},
+                timeout=5,
+            )
+        except Exception:
+            pass
+
+        audit_log(
+            action='admin.tenant.restore',
+            resource_type='tenant',
+            resource_id=tenant_id,
+        )
+
+        return jsonify({
+            'success': True,
+            'message': f'Tenant {tenant_id} restored. Users can log in again.'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error restoring tenant {tenant_id}: {e}")
+        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
 
 
 def _tenant_attr(attributes, key):
@@ -3762,6 +4193,27 @@ def list_all_users():  # noqa: C901
                 continue
 
         has_more = len(all_users) == max_users
+
+        # After building the users list, detect orphans
+        conn = webhook_service.get_db_connection()
+        valid_tenant_ids = set()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT tenant_id FROM tenants")
+                valid_tenant_ids = {r[0] for r in cursor.fetchall()}
+                cursor.close()
+            finally:
+                conn.close()
+
+        for user_entry in users:
+            tid = user_entry.get("tenant_id", "")
+            if tid and tid not in valid_tenant_ids:
+                user_entry["orphan"] = True
+                user_entry["orphan_reason"] = f"Tenant '{tid}' no longer exists"
+            else:
+                user_entry["orphan"] = False
+
         return jsonify(
             {
                 "success": True,
@@ -3820,6 +4272,28 @@ def delete_user_directly(user_id: str):
                     logger.warning(f"Failed to delete user from database: {db_err}")
                 finally:
                     conn.close()
+
+        # After successful Keycloak deletion, clean up related PostgreSQL data
+        conn = webhook_service.get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                webhook_service._apply_admin_context(conn)
+                cleanup_tables = [
+                    "user_favorites", "user_api_keys", "user_push_tokens",
+                    "oauth_access_tokens", "oauth_refresh_tokens", "oauth_user_consents",
+                ]
+                for table in cleanup_tables:
+                    try:
+                        cursor.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))
+                    except Exception:
+                        pass
+                conn.commit()
+                cursor.close()
+            except Exception as e:
+                logger.warning(f"Failed to clean up user data for {user_id}: {e}")
+            finally:
+                conn.close()
 
         logger.info(f"User {user_email} deleted by admin")
         audit_log(
@@ -3954,6 +4428,120 @@ def update_user_roles(user_id: str):
         audit_log(action='admin.user.roles_update', resource_type='user',
                   resource_id=user_id, success=False, error=str(e))
         return _internal_error(e, "update_user_roles", user_message="Failed to update roles")
+
+
+@app.route("/api/admin/users/<user_id>/tenant", methods=["PUT"])
+@require_platform_admin
+def reassign_user_tenant(user_id: str):
+    """Reassign a user to a different tenant (PlatformAdmin only)."""
+    data = request.get_json(silent=True) or {}
+    new_tenant_id = (data.get("tenant_id") or "").strip()
+
+    if not new_tenant_id:
+        return jsonify({"error": "tenant_id is required"}), 400
+
+    # Verify destination tenant exists and is active
+    conn = webhook_service.get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            cursor.execute(
+                "SELECT tenant_id, deleted_at FROM tenants WHERE tenant_id = %s",
+                (new_tenant_id,)
+            )
+            dest = cursor.fetchone()
+            cursor.close()
+            if not dest:
+                return jsonify({"error": "Destination tenant not found"}), 404
+            if dest.get("deleted_at"):
+                return jsonify({"error": "Destination tenant is suspended. Restore it first."}), 400
+        finally:
+            conn.close()
+    else:
+        return jsonify({"error": "Database connection failed"}), 500
+
+    token = webhook_service.get_keycloak_token()
+    if not token:
+        return jsonify({"error": "Cannot get Keycloak token"}), 500
+
+    keycloak_url = webhook_service._get_keycloak_base_url()
+    headers = {"Authorization": f"Bearer {token}"}
+    users_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
+
+    # Get current user attributes
+    resp = requests.get(f"{users_url}/{user_id}", headers=headers, timeout=10)
+    if resp.status_code != 200:
+        return jsonify({"error": "User not found in Keycloak"}), 404
+
+    user = resp.json()
+    attributes = user.get("attributes", {}) or {}
+    old_tenant = (attributes.get("tenant_id", []) or [""])[0]
+    attributes["tenant_id"] = [new_tenant_id]
+
+    update_resp = requests.put(
+        f"{users_url}/{user_id}",
+        headers={**headers, "Content-Type": "application/json"},
+        json={"attributes": attributes},
+        timeout=10,
+    )
+
+    if update_resp.status_code not in [200, 204]:
+        return jsonify({"error": f"Failed to update user: {update_resp.status_code}"}), 500
+
+    audit_log(
+        action='admin.user.reassign_tenant',
+        resource_type='user',
+        resource_id=user_id,
+        metadata={'previous_tenant': old_tenant, 'new_tenant': new_tenant_id},
+    )
+
+    return jsonify({
+        "success": True,
+        "message": f"User reassigned to tenant {new_tenant_id}",
+    }), 200
+
+
+@app.route("/api/admin/users/orphans", methods=["GET"])
+@require_platform_admin
+def list_orphan_users():
+    """List users whose tenant_id points to a non-existent tenant."""
+    token = webhook_service.get_keycloak_token()
+    if not token:
+        return jsonify({"error": "Cannot get Keycloak token"}), 500
+
+    keycloak_url = webhook_service._get_keycloak_base_url()
+    headers = {"Authorization": f"Bearer {token}"}
+    users_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
+
+    resp = requests.get(users_url, headers=headers, params={"max": 1000}, timeout=10)
+    if resp.status_code != 200:
+        return jsonify({"error": "Failed to fetch users"}), 500
+
+    conn = webhook_service.get_db_connection()
+    valid_tenant_ids = set()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT tenant_id FROM tenants")
+            valid_tenant_ids = {r[0] for r in cursor.fetchall()}
+            cursor.close()
+        finally:
+            conn.close()
+
+    orphans = []
+    for user in resp.json():
+        tid_list = (user.get("attributes") or {}).get("tenant_id", [])
+        tid = tid_list[0] if isinstance(tid_list, list) and tid_list else ""
+        if tid and tid not in valid_tenant_ids:
+            orphans.append({
+                "user_id": user.get("id"),
+                "username": user.get("username"),
+                "email": user.get("email"),
+                "tenant_id": tid,
+                "enabled": user.get("enabled", True),
+            })
+
+    return jsonify({"orphans": orphans, "count": len(orphans)}), 200
 
 
 @app.route("/forgot-password", methods=["POST"])

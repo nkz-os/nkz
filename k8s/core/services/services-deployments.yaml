@@ -42,7 +42,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api-gateway
-          image: ghcr.io/nkz-os/nkz/api-gateway:sha-548550f6e5c4475ce1bb659191cc713d898f5ce1
+          image: ghcr.io/nkz-os/nkz/api-gateway@sha256:d53082620e56c28e39f21295dfdc38d43bdc6eeeddc8140bad1290e2422e9feb
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -222,7 +222,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: entity-manager
-          image: ghcr.io/nkz-os/nkz/entity-manager:sha-548550f6e5c4475ce1bb659191cc713d898f5ce1
+          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:2db238bb13393ba0a9ab9640fbffe3630365eb37d7810ea700a95fc0e1906546
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false

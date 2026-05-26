@@ -10,6 +10,8 @@ interface Tenant {
   status: string;
   created_at: string;
   user_count?: number;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 interface TenantSidebarProps {
@@ -118,6 +120,26 @@ export const TenantSidebar: React.FC<TenantSidebarProps> = ({
                   >
                     {tenant.plan_type}
                   </span>
+                  {tenant.deleted_at && (
+                    <>
+                      {(() => {
+                        const daysAgo = Math.floor((Date.now() - new Date(tenant.deleted_at!).getTime()) / (1000 * 60 * 60 * 24));
+                        const isPurgable = daysAgo > 45;
+                        return (
+                          <span
+                            className={`text-xs font-bold px-2 py-1 rounded ${
+                              isPurgable
+                                ? 'bg-nkz-danger-soft text-nkz-danger'
+                                : 'bg-nkz-warning-soft text-nkz-warning-strong'
+                            }`}
+                            title={isPurgable ? t('admin.purgable_tooltip') : t('admin.suspended_since', { days: daysAgo, admin: tenant.deleted_by || '?' })}
+                          >
+                            {isPurgable ? t('admin.purgable') : t('admin.suspended')}
+                          </span>
+                        );
+                      })()}
+                    </>
+                  )}
                   <div
                     className={`h-2 w-2 rounded-full ${
                       STATUS_COLORS[tenant.status] || STATUS_COLORS.inactive

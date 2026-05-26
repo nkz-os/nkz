@@ -18,6 +18,9 @@ import { TenantCreateModal } from '@/components/admin/TenantCreateModal';
 import { TenantConfigForm } from '@/components/admin/TenantConfigForm';
 import { UserCreateModal } from '@/components/admin/UserCreateModal';
 import { UserAssignModal } from '@/components/admin/UserAssignModal';
+import { SuspendTenantDialog } from '@/components/admin/SuspendTenantDialog';
+import { RestoreTenantButton } from '@/components/admin/RestoreTenantButton';
+import { PurgeTenantDialog } from '@/components/admin/PurgeTenantDialog';
 
 // Legacy imports
 import { LimitsManagement } from '@/components/LimitsManagement';
@@ -33,6 +36,8 @@ interface Tenant {
   plan_level: number;
   status: string;
   created_at: string;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 interface User {
@@ -132,6 +137,10 @@ export const AdminManagement: React.FC = () => {
   const [showCreateTenant, setShowCreateTenant] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [showAssignUser, setShowAssignUser] = useState(false);
+
+  // Tenant lifecycle dialogs
+  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
+  const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
 
   // Role editing
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
@@ -343,25 +352,6 @@ export const AdminManagement: React.FC = () => {
     }
   };
 
-  // --- Tenant actions ---
-
-  const handleDeleteTenant = async (tenantId: string) => {
-    if (!window.confirm(`${t('admin.confirm_delete_tenant', { tenantId })}`)) {
-      return;
-    }
-    try {
-      await client.delete(`/api/admin/tenants/${tenantId}/purge`);
-      setTenants(tenants.filter(tn => tn.tenant_id !== tenantId));
-      if (selectedTenantId === tenantId) {
-        setSelectedTenantId(null);
-      }
-      alert(t('admin.tenant_purged'));
-    } catch (error: any) {
-      const detail = error?.response?.data?.error || error?.message || '';
-      alert(`${t('admin.tenant_purge_error')}${detail ? ': ' + detail : ''}`);
-    }
-  };
-
   // --- Activation code actions ---
 
   const handleGenerateCode = async () => {
@@ -552,13 +542,28 @@ export const AdminManagement: React.FC = () => {
                         }`}>
                           {selectedTenant.plan_type}
                         </span>
-                        <button
-                          onClick={() => handleDeleteTenant(selectedTenant.tenant_id)}
-                          className="p-2 text-nkz-text-muted hover:text-nkz-danger transition-colors"
-                          title={t('admin.delete_tenant')}
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </button>
+                        {selectedTenant.deleted_at ? (
+                          <div className="flex items-center gap-2">
+                            <RestoreTenantButton
+                              tenantId={selectedTenant.tenant_id}
+                              onRestored={() => { loadTenants(); }}
+                            />
+                            <button
+                              onClick={() => setPurgeDialogOpen(true)}
+                              className="text-xs px-3 py-1 bg-nkz-danger text-white rounded hover:bg-nkz-danger-strong"
+                            >
+                              {t('admin.purge_tenant_button')}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setSuspendDialogOpen(true)}
+                            className="p-2 text-nkz-text-muted hover:text-nkz-warning-strong transition-colors"
+                            title={t('admin.suspend_tenant_button')}
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1004,6 +1009,31 @@ export const AdminManagement: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {/* Tenant lifecycle dialogs */}
+      {suspendDialogOpen && selectedTenantId && (
+        <SuspendTenantDialog
+          tenantId={selectedTenantId}
+          tenantName={selectedTenant?.tenant_name || selectedTenantId}
+          onClose={() => setSuspendDialogOpen(false)}
+          onSuspended={() => {
+            setSuspendDialogOpen(false);
+            loadTenants();
+          }}
+        />
+      )}
+
+      {purgeDialogOpen && selectedTenantId && (
+        <PurgeTenantDialog
+          tenantId={selectedTenantId}
+          tenantName={selectedTenant?.tenant_name || selectedTenantId}
+          onClose={() => setPurgeDialogOpen(false)}
+          onPurged={() => {
+            setPurgeDialogOpen(false);
+            loadTenants();
+            setSelectedTenantId(null);
+          }}
+        />
       )}
     </div>
   );
