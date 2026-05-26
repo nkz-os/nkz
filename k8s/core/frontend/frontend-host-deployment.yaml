@@ -18,8 +18,11 @@ spec:
     spec:
       containers:
       - name: host
-        image: ghcr.io/nkz-os/nkz/host:latest
-        imagePullPolicy: Always
+        # WARNING: Pin by SHA in production overlays, never :latest.
+        # Rolling update with hashed assets causes 404s when old/new pods coexist.
+        # See incident 2026-05-26: :latest caused complete landing page outage.
+        image: ghcr.io/nkz-os/nkz/host:latest  # DEV ONLY — override in production
+        imagePullPolicy: IfNotPresent
         env:
         - name: COMPANY_URL
           value: "https://YOUR_DOMAIN"
