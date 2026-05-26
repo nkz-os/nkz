@@ -3483,6 +3483,8 @@ def _purge_phase_precheck(tenant_id: str) -> dict:
         cursor.close()
         if not row:
             return {"ok": False, "error": "Tenant not found"}
+        if not row.get('deleted_at'):
+            return {"ok": False, "error": "Tenant must be suspended before hard purge. Use /suspend first."}
         return {"ok": True}
     finally:
         conn.close()
@@ -3543,7 +3545,7 @@ def _purge_phase_subscriptions(tenant_id: str) -> dict:
 
 
 def _purge_phase_ngsi_ld(tenant_id: str) -> dict:
-    """Phase 3: Delete all Orion-LD entities using DYNAMIC type discovery, then subscriptions."""
+    """Phase 3: Delete all Orion-LD entities using DYNAMIC type discovery, then subscriptions, then drop MongoDB database."""
     orion_url = os.getenv("ORION_URL", "http://orion-ld-service:1026")
     base = f"{orion_url}/ngsi-ld/v1"
     svc_headers = {"Fiware-Service": tenant_id, "Fiware-ServicePath": "/"}
@@ -3574,6 +3576,17 @@ def _purge_phase_ngsi_ld(tenant_id: str) -> dict:
             if sid:
                 requests.delete(f"{base}/subscriptions/{sid}", headers=svc_headers, timeout=10)
                 deleted_subs += 1
+
+    # Drop MongoDB database for this tenant
+    try:
+        mongo_uri = os.getenv("ORION_MONGO_URI", "mongodb://mongodb-service:27017")
+        from pymongo import MongoClient
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=10000)
+        db_name = f"orion-{tenant_id.lower().replace('_', '-')}"
+        if db_name in client.list_database_names():
+            client.drop_database(db_name)
+    except Exception as e:
+        logger.warning(f"MongoDB drop failed for {tenant_id}: {e}")
 
     return {"ok": True, "deleted_entities": deleted_entities, "deleted_subscriptions": deleted_subs}
 
@@ -3717,13 +3730,33 @@ def _purge_phase_infrastructure(tenant_id: str) -> dict:
 
 
 def _purge_phase_close(tenant_id: str) -> dict:
-    """Phase 7: Final audit log."""
+    """Phase 7: Final audit log and email confirmation to the admin."""
     audit_log(
         action='admin.tenant.purge',
         resource_type='tenant',
         resource_id=tenant_id,
         metadata={'timestamp': datetime.utcnow().isoformat()},
     )
+
+    # Attempt to send email confirmation to the admin
+    try:
+        email_service_url = os.getenv("EMAIL_SERVICE_URL", "")
+        if email_service_url:
+            current_user = g.get('current_user', {})
+            admin_email = current_user.get('email', '') if isinstance(current_user, dict) else ''
+            if admin_email:
+                requests.post(
+                    f"{email_service_url}/send",
+                    json={
+                        "to": admin_email,
+                        "subject": f"Tenant {tenant_id} purged",
+                        "body": f"Hard purge of tenant '{tenant_id}' completed at {datetime.utcnow().isoformat()}Z.\n\nAll data has been permanently deleted.",
+                    },
+                    timeout=10,
+                )
+    except Exception:
+        pass  # Non-critical
+
     return {"ok": True}
 
 
