@@ -3972,6 +3972,17 @@ def suspend_tenant(tenant_id: str):
         finally:
             conn.close()
 
+        # Invalidate api-gateway suspension cache
+        try:
+            gateway_url = os.getenv("API_GATEWAY_URL", "http://api-gateway-service:5000")
+            requests.post(
+                f"{gateway_url}/internal/cache/invalidate",
+                json={"key": f"suspended:{tenant_id}"},
+                timeout=5,
+            )
+        except Exception:
+            pass
+
         # Force logout all users with this tenant_id
         token = webhook_service.get_keycloak_token()
         if token:
@@ -4035,6 +4046,17 @@ def restore_tenant(tenant_id: str):
             cursor.close()
         finally:
             conn.close()
+
+        # Invalidate api-gateway suspension cache
+        try:
+            gateway_url = os.getenv("API_GATEWAY_URL", "http://api-gateway-service:5000")
+            requests.post(
+                f"{gateway_url}/internal/cache/invalidate",
+                json={"key": f"suspended:{tenant_id}"},
+                timeout=5,
+            )
+        except Exception:
+            pass
 
         audit_log(
             action='admin.tenant.restore',

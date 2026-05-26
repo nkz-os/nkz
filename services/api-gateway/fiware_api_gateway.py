@@ -566,6 +566,15 @@ def create_session():
         logger.warning("Session creation failed: Invalid or expired token")
         return jsonify({"error": "Invalid or expired token"}), 401
 
+    # Block login for suspended tenants
+    tenant = extract_tenant_id(payload)
+    if tenant and tenant != 'platform' and _is_tenant_suspended(tenant):
+        logger.warning(f"Blocked login for suspended tenant: {tenant}")
+        return jsonify({
+            "error": "TENANT_SUSPENDED",
+            "message": "Tu cuenta ha sido suspendida. Contacta con el administrador de la plataforma."
+        }), 403
+
     # Extract expiration for cookie max_age
     exp = payload.get("exp")
     max_age = max(int(exp - time.time()), 0) if exp else 3600
