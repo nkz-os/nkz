@@ -4201,7 +4201,7 @@ def list_all_users():  # noqa: C901
             try:
                 cursor = conn.cursor()
                 cursor.execute("SELECT tenant_id FROM tenants")
-                valid_tenant_ids = {r[0] for r in cursor.fetchall()}
+                valid_tenant_ids = {r['tenant_id'] for r in cursor.fetchall()}
                 cursor.close()
             finally:
                 conn.close()
@@ -4523,7 +4523,7 @@ def list_orphan_users():
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT tenant_id FROM tenants")
-            valid_tenant_ids = {r[0] for r in cursor.fetchall()}
+            valid_tenant_ids = {r['tenant_id'] for r in cursor.fetchall()}
             cursor.close()
         finally:
             conn.close()
