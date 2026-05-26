@@ -36,6 +36,8 @@ interface Tenant {
   plan_level: number;
   status: string;
   created_at: string;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 interface User {
@@ -347,25 +349,6 @@ export const AdminManagement: React.FC = () => {
       setUsers(users.map(u => u.id === userId ? { ...u, roles: data.roles } : u));
       setShowEditModal(false);
       setEditingUser(null);
-    }
-  };
-
-  // --- Tenant actions ---
-
-  const handleDeleteTenant = async (tenantId: string) => {
-    if (!window.confirm(`${t('admin.confirm_delete_tenant', { tenantId })}`)) {
-      return;
-    }
-    try {
-      await client.delete(`/api/admin/tenants/${tenantId}/purge`);
-      setTenants(tenants.filter(tn => tn.tenant_id !== tenantId));
-      if (selectedTenantId === tenantId) {
-        setSelectedTenantId(null);
-      }
-      alert(t('admin.tenant_purged'));
-    } catch (error: any) {
-      const detail = error?.response?.data?.error || error?.message || '';
-      alert(`${t('admin.tenant_purge_error')}${detail ? ': ' + detail : ''}`);
     }
   };
 
