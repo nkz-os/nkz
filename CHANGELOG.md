@@ -1,6 +1,47 @@
 # Changelog
 
-## v1.0.0 (unreleased)
+## v1.1.0
+
+### Features
+
+- **Admin panel master-detail layout** — full tenant/user management with
+  create/edit/delete operations (#344)
+- **Admin panel design tokens + dark mode** — migrated admin panel to
+  `@nekazari/design-tokens`, added dark mode support, fixed horizontal overflow (#346)
+- **User registration wizard** — repaired user registration flow with new
+  multi-step wizard UI (#345)
+- **NetworkPolicies phase 2** — applied restrictive network policies across
+  core services, moved to gitops-config for declarative management
+
+### Fixes
+
+- **Image SHA pinning** — all core NKZ images pinned by SHA256 digest or
+  `:sha-<commit>` tag in Helm chart and production manifests. Never `:latest`.
+  Incident 2026-05-26: `:latest` on frontend-host caused complete landing page
+  outage due to cross-pod hashed asset 404s during rolling update.
+- **api-gateway OOM** — raised memory limit from 256Mi to 1Gi to stop gunicorn
+  worker OOM kills under load (#342)
+- **Keycloak native registration disabled** — removed native Keycloak
+  registration form, added register link redirecting to platform wizard
+- **CI workflow_dispatch** — allowed manual trigger for Docker image pushes
+
+### Helm Chart
+
+- All NKZ images pinned: api-gateway (`:sha-548550f`), entity-manager
+  (`:sha-548550f`), frontend-host (`@sha256:54c80401`), keycloak
+  (`@sha256:18f442d6`)
+- MinIO pinned to `RELEASE.2025-09-07T16-13-09Z`
+- Templates support both `:tag` and `@sha256:` digest formats
+- Default `imagePullPolicy: IfNotPresent` on all deployments
+- `UPGRADE.md` added with v1.0.0 → v1.1.0 migration steps
+
+### Documentation
+
+- Base manifest `frontend-host-deployment.yaml` now warns against `:latest`
+- CLAUDE.md image pinning rule strengthened with incident reference
+- Helm chart README documents image pinning policy
+
+## v1.0.0
 
 ### Developer Experience
 
