@@ -93,7 +93,8 @@ minio:
   enabled: true
   image:
     repository: minio/minio
-    tag: latest
+    tag: RELEASE.2025-09-07T16-13-09Z
+    pullPolicy: IfNotPresent
   auth:
     rootUser: minioadmin
     rootPassword: ""  # MUST override at install time
@@ -121,7 +122,9 @@ keycloak:
   enabled: true
   image:
     repository: ghcr.io/nkz-os/nkz/keycloak
-    tag: latest
+    tag: ""
+    digest: sha256:18f442d6474e1b02cc1d830f485efd1410444d12ef4bc5d65da62a980b43df9c
+    pullPolicy: IfNotPresent
   auth:
     adminUser: admin
     adminPassword: ""  # MUST override at install time
@@ -164,7 +167,8 @@ api-gateway:
   enabled: true
   image:
     repository: ghcr.io/nkz-os/nkz/api-gateway
-    tag: latest
+    tag: sha-548550f6e5c4475ce1bb659191cc713d898f5ce1
+    pullPolicy: IfNotPresent
   service:
     port: 5000
   env:
@@ -188,7 +192,8 @@ entity-manager:
   enabled: true
   image:
     repository: ghcr.io/nkz-os/nkz/entity-manager
-    tag: latest
+    tag: sha-548550f6e5c4475ce1bb659191cc713d898f5ce1
+    pullPolicy: IfNotPresent
   service:
     port: 5000
   env:
@@ -213,7 +218,9 @@ frontend:
   enabled: true
   image:
     repository: ghcr.io/nkz-os/nkz/host
-    tag: latest
+    tag: ""
+    digest: sha256:54c804018bd2b8a35bbaaa8f0e715933992e19729657198033a4a8e6e0ac9bd2
+    pullPolicy: IfNotPresent
   service:
     port: 80
     targetPort: 80
