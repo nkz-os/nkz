@@ -32,6 +32,9 @@ export function ThemeProvider({
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', profile);
+    return () => {
+      document.documentElement.removeAttribute('data-theme');
+    };
   }, [profile]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
