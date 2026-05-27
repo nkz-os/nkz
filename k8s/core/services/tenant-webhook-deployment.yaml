@@ -34,7 +34,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: tenant-webhook
-        image: ghcr.io/nkz-os/nkz/tenant-webhook@sha256:b5b911c898387ad61b199fed78084607b6bde9eb0f9987f0afd1ea1025f6d276
+        image: ghcr.io/nkz-os/nkz/tenant-webhook@sha256:a5dd8f4edf57427803e2fe2f05c73eae11f2026113188dd8610adaea7db3357c
         imagePullPolicy: IfNotPresent
         args: ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "300", "enhanced-tenant-webhook:app"]
         securityContext:
