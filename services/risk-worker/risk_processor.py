@@ -45,6 +45,7 @@ except Exception as e:
     raise
 
 from db_helper import set_tenant_context
+from tenant_utils import normalize_tenant_id
 
 # Import risk models
 from risk_models.factory import RiskModelFactory
@@ -69,9 +70,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis-service:6379")
 
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers with normalized tenant ID."""
-    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
-    n = re.sub(r'[^a-z0-9_]', '', n)
-    n = n.strip('_') or tenant_id
+    n = normalize_tenant_id(tenant_id)
     headers = {
         "NGSILD-Tenant": n,
         "Fiware-Service": n,

@@ -227,11 +227,13 @@ class TestExtractTenantId:
         assert "farm" in result.lower()
 
     def test_tenant_from_tenant_underscore_id(self, mock_keycloak_config):
+        # Legacy input with underscores must still be accepted, but the
+        # canonical form is hyphen-based (see services/common/tenant_utils.py).
         _, mod = _make_app()
         payload = {"tenant_id": "my_farm"}
         result = mod.extract_tenant_id(payload)
         assert result is not None
-        assert "my_farm" in result.lower()
+        assert result == "my-farm"
 
     def test_tenant_claim_not_supported(self, mock_keycloak_config):
         """The bare 'tenant' claim is no longer supported (canonical is tenant_id)."""

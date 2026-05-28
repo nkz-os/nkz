@@ -8,7 +8,6 @@
 import hashlib
 import hmac
 import os
-import re
 import sys
 import logging
 import json
@@ -47,12 +46,12 @@ except Exception as e:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from tenant_utils import normalize_tenant_id
+
 
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers with normalized tenant ID."""
-    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
-    n = re.sub(r'[^a-z0-9_]', '', n)
-    n = n.strip('_') or tenant_id
+    n = normalize_tenant_id(tenant_id)
     headers = {
         "NGSILD-Tenant": n,
         "Fiware-Service": n,

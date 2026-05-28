@@ -94,6 +94,11 @@
   "basic": "Basic",
   "premium": "Premium",
   "admin": {
+    "create_tenant_invalid_name": "Tenant name must produce a valid id (lowercase letters, digits, hyphens; 3-47 chars).",
+    "tenant_id_preview": "ID will be:",
+    "tenant_id_rule": "Lowercase letters, digits and hyphens, {{min}}-{{max}} chars.",
+    "error_request_id": "Reference",
+    "error_code": "code",
     "all_languages": "All languages",
     "current_content": "Current content",
     "edit_terms": "Edit Terms and Conditions",
@@ -811,7 +816,7 @@
     "tenant_name_empty": "The farm or organization name cannot be empty.",
     "tenant_name_too_short": "The name must be at least {{min}} characters after normalization (currently {{current}}).",
     "tenant_name_too_long": "The name must be at most {{max}} characters after normalization (currently {{current}}).",
-    "tenant_name_invalid_chars": "The name contains invalid characters. Only lowercase letters, numbers, and underscores are allowed.",
+    "tenant_name_invalid_chars": "The name contains invalid characters. Only lowercase letters, numbers, and hyphens (-) are allowed.",
     "tenant_name_normalize_hint": "The name will be normalized to \"{{normalized}}\". Special characters, spaces, and uppercase letters are adjusted automatically.",
     "tenant_name_invalid": "Invalid farm or organization name.",
     "password_requirements_hint": "Password must contain:"

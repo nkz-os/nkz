@@ -13,12 +13,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy common modules
 COPY services/task-queue /app/task-queue
+COPY services/common /app/common
 
 # Copy application code
 COPY services/risk-orchestrator/*.py /app/
 
 # Create compatibility symlinks
-RUN ln -sf /app/task-queue /task-queue
+RUN ln -sf /app/task-queue /task-queue && ln -sf /app/common /common
 
 # Create non-root user
 RUN adduser -D -u 1000 orchestrator && chown -R orchestrator:orchestrator /app

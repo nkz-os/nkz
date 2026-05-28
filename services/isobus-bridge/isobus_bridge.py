@@ -30,6 +30,8 @@ from psycopg2.extras import RealDictCursor
 # Add common directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common'))
 
+from tenant_utils import normalize_tenant_id
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -53,9 +55,7 @@ API_KEYS_CACHE: Dict[str, str] = {}
 
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers with normalized tenant ID."""
-    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
-    n = re.sub(r'[^a-z0-9_]', '', n)
-    n = n.strip('_') or tenant_id
+    n = normalize_tenant_id(tenant_id)
     headers = {
         "NGSILD-Tenant": n,
         "Fiware-Service": n,

@@ -1,129 +1,130 @@
-#!/usr/bin/env python3
-# =============================================================================
-# Tenant Utilities - Common Functions for Tenant ID Normalization
-# =============================================================================
-# Provides consistent tenant ID normalization across all services
-# Ensures compatibility with PostgreSQL, MongoDB, and other services
+# services/common/tenant_utils.py
+"""Canonical tenant ID normalization.
 
-import re
+This module is the single source of truth for tenant ID format across the
+entire Nekazari platform. Every service that handles tenant_id values
+(api-gateway, tenant-webhook, entity-manager, risk-worker, etc.) MUST use
+`normalize_tenant_id()` from here and MUST NOT implement its own variant.
+
+Format (K8s-native, MongoDB-safe, Keycloak-compatible):
+  - canonical regex: ^[a-z0-9]+(?:-[a-z0-9]+)*$ (see TENANT_ID_PATTERN)
+  - lowercase letters, digits, hyphens only — no leading/trailing/consecutive hyphens
+  - NFD-transliterated for accents (á->a, ñ->n, ç->c, ...)
+  - whitespace and any non-alphanumeric collapse to a single '-'
+  - 3..47 chars (K8s ns max 63 minus 'nekazari-tenant-' prefix)
+  - idempotent
+"""
+from __future__ import annotations
+
 import logging
+import re
+import unicodedata
 
 logger = logging.getLogger(__name__)
 
-# Tenant ID constraints
+# K8s namespace RFC 1123 max length is 63. We reserve `nekazari-tenant-` (16 chars)
+# so the bare tenant_id can be up to 47 chars.
 MIN_TENANT_ID_LENGTH = 3
-MAX_TENANT_ID_LENGTH = 63  # MongoDB database name limit
-ALLOWED_CHARS_PATTERN = re.compile(r'^[a-z0-9_]+$')
+MAX_TENANT_ID_LENGTH = 47
+
+TENANT_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def normalize_tenant_id(tenant_id: str) -> str:
+    """Normalize an arbitrary string into a canonical tenant ID.
+
+    Raises ValueError when the input is empty or normalizes to something
+    outside the canonical bounds. Callers must be ready to surface the
+    ValueError as a 400 to the client.
     """
-    Normalize tenant ID to ensure consistency across all services.
-    
-    Rules:
-    - Convert to lowercase
-    - Replace hyphens with underscores (MongoDB compatibility)
-    - Remove any characters that are not alphanumeric or underscore
-    - Ensure minimum and maximum length
-    
-    Args:
-        tenant_id: Raw tenant ID string
-        
-    Returns:
-        Normalized tenant ID string
-        
-    Examples:
-        >>> normalize_tenant_id("TESTTENANT")
-        'testtenant'
-        >>> normalize_tenant_id("Test-Tenant-1")
-        'test_tenant_1'
-        >>> normalize_tenant_id("My Tenant@123")
-        'my_tenant123'
-    """
-    if not tenant_id:
+    if tenant_id is None or not isinstance(tenant_id, str):
         raise ValueError("Tenant ID cannot be empty")
-    
-    # Convert to lowercase
-    normalized = tenant_id.lower().strip()
-    
-    # Replace hyphens with underscores (MongoDB database names don't support hyphens)
-    normalized = normalized.replace('-', '_')
-    
-    # Remove any characters that are not alphanumeric or underscore
-    normalized = re.sub(r'[^a-z0-9_]', '', normalized)
-    
-    # Remove leading/trailing underscores
-    normalized = normalized.strip('_')
-    
-    # Validate length
+
+    raw = tenant_id.strip()
+    if not raw:
+        raise ValueError("Tenant ID cannot be empty")
+
+    # Decompose unicode and drop combining marks (accents).
+    nfd = unicodedata.normalize("NFD", raw)
+    ascii_only = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+    ascii_only = ascii_only.lower()
+
+    # Collapse anything that is not [a-z0-9] into a hyphen.
+    collapsed = re.sub(r"[^a-z0-9]+", "-", ascii_only)
+
+    # Strip leading/trailing hyphens (consecutive ones already collapsed).
+    normalized = collapsed.strip("-")
+
+    if not normalized:
+        raise ValueError(
+            f"Tenant ID is empty after normalization (from {tenant_id!r})"
+        )
+
     if len(normalized) < MIN_TENANT_ID_LENGTH:
         raise ValueError(
-            f"Tenant ID must be at least {MIN_TENANT_ID_LENGTH} characters after normalization. "
-            f"Got: '{normalized}' (from '{tenant_id}')"
+            f"Tenant ID must be at least {MIN_TENANT_ID_LENGTH} characters "
+            f"after normalization. Got: {normalized!r} (from {tenant_id!r})"
         )
-    
+
     if len(normalized) > MAX_TENANT_ID_LENGTH:
         raise ValueError(
-            f"Tenant ID must be at most {MAX_TENANT_ID_LENGTH} characters after normalization. "
-            f"Got: '{normalized}' (from '{tenant_id}')"
+            f"Tenant ID must be at most {MAX_TENANT_ID_LENGTH} characters "
+            f"after normalization. Got: {normalized!r} (from {tenant_id!r})"
         )
-    
-    # Final validation: should only contain allowed characters
-    if not ALLOWED_CHARS_PATTERN.match(normalized):
+
+    if not TENANT_ID_PATTERN.match(normalized):
+        # Defensive: should be unreachable because of the collapse above.
         raise ValueError(
             f"Tenant ID contains invalid characters after normalization. "
-            f"Only lowercase letters, numbers, and underscores are allowed. "
-            f"Got: '{normalized}' (from '{tenant_id}')"
+            f"Got: {normalized!r} (from {tenant_id!r})"
         )
-    
+
     return normalized
 
 
 def validate_tenant_id(tenant_id: str) -> tuple[bool, str]:
+    """Validate a tenant ID without modifying it.
+
+    Returns (is_valid, error_message). Error messages are in English and
+    use stable keywords ("empty", "length", "character", "leading",
+    "trailing", "consecutive") so they can be mapped to i18n keys on the
+    frontend.
     """
-    Validate tenant ID format without normalizing it.
-    
-    Args:
-        tenant_id: Tenant ID string to validate
-        
-    Returns:
-        Tuple of (is_valid, error_message)
-        If valid, error_message is empty string
-    """
-    if not tenant_id:
-        return False, "El ID del tenant no puede estar vacío"
-    
-    if len(tenant_id) < MIN_TENANT_ID_LENGTH:
-        return False, f"El ID del tenant debe tener al menos {MIN_TENANT_ID_LENGTH} caracteres"
-    
-    if len(tenant_id) > MAX_TENANT_ID_LENGTH:
-        return False, f"El ID del tenant debe tener como máximo {MAX_TENANT_ID_LENGTH} caracteres"
-    
-    # Check for characters that would be removed during normalization
-    if re.search(r'[^a-z0-9_-]', tenant_id.lower()):
+    if not tenant_id or not isinstance(tenant_id, str):
+        return False, "Tenant ID cannot be empty"
+
+    if len(tenant_id) < MIN_TENANT_ID_LENGTH or len(tenant_id) > MAX_TENANT_ID_LENGTH:
         return False, (
-            "El ID del tenant solo puede contener letras minúsculas, números, guiones y guiones bajos. "
-            "Los caracteres especiales y espacios no están permitidos."
+            f"Tenant ID length must be between {MIN_TENANT_ID_LENGTH} and "
+            f"{MAX_TENANT_ID_LENGTH} characters."
         )
-    
+
+    if tenant_id.startswith("-"):
+        return False, "Tenant ID must not have a leading hyphen."
+    if tenant_id.endswith("-"):
+        return False, "Tenant ID must not have a trailing hyphen."
+    if "--" in tenant_id:
+        return False, "Tenant ID must not contain consecutive hyphens."
+    if not TENANT_ID_PATTERN.match(tenant_id):
+        return False, (
+            "Tenant ID may only contain lowercase letters, digits and hyphens "
+            "(no spaces, underscores, accents or other characters)."
+        )
+
     return True, ""
 
 
 def get_tenant_id_validation_rules() -> dict:
-    """
-    Get tenant ID validation rules for frontend display.
-    
-    Returns:
-        Dictionary with validation rules
-    """
+    """Return a JSON-serializable description of the rules for frontend display."""
     return {
-        'min_length': MIN_TENANT_ID_LENGTH,
-        'max_length': MAX_TENANT_ID_LENGTH,
-        'allowed_chars': 'letras minúsculas, números, guiones (-) y guiones bajos (_)',
-        'description': (
-            f'El ID del tenant debe tener entre {MIN_TENANT_ID_LENGTH} y {MAX_TENANT_ID_LENGTH} caracteres. '
-            'Solo se permiten letras minúsculas, números, guiones y guiones bajos. '
-            'Los guiones se convertirán automáticamente en guiones bajos.'
-        )
+        "min_length": MIN_TENANT_ID_LENGTH,
+        "max_length": MAX_TENANT_ID_LENGTH,
+        "pattern": TENANT_ID_PATTERN.pattern,
+        "allowed_chars": "lowercase letters (a-z), digits (0-9), hyphen (-)",
+        "description": (
+            f"Tenant ID must be {MIN_TENANT_ID_LENGTH}-{MAX_TENANT_ID_LENGTH} "
+            "characters. Only lowercase letters, digits and hyphens are allowed. "
+            "It must not start or end with a hyphen and must not contain "
+            "consecutive hyphens."
+        ),
     }
-

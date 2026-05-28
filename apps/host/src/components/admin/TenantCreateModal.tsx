@@ -1,11 +1,23 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import client from '@/services/api';
+import {
+  normalizeTenantId,
+  validateTenantId,
+  MIN_TENANT_ID_LENGTH,
+  MAX_TENANT_ID_LENGTH,
+} from '@/utils/tenantValidation';
 
 interface TenantCreateModalProps {
   onClose: () => void;
   onCreated: () => void;
+}
+
+interface BackendError {
+  message: string;
+  errorCode?: string;
+  requestId?: string;
 }
 
 export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
@@ -14,7 +26,7 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
 }) => {
   const { t } = useI18n();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<BackendError | null>(null);
   const [form, setForm] = useState({
     tenant_name: '',
     email: '',
@@ -22,13 +34,38 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
     password: '',
   });
 
+  const preview = useMemo(() => {
+    if (!form.tenant_name) return '';
+    return normalizeTenantId(form.tenant_name);
+  }, [form.tenant_name]);
+
+  const previewValidation = useMemo(
+    () => (form.tenant_name ? validateTenantId(form.tenant_name) : null),
+    [form.tenant_name],
+  );
+  const previewValid = previewValidation?.isValid ?? false;
+
   const handleSubmit = async () => {
+    setError(null);
     if (!form.tenant_name || !form.email) {
-      setError(t('admin.create_tenant_required', { defaultValue: 'Name and email are required.' }));
+      setError({
+        message: t('admin.create_tenant_required', {
+          defaultValue: 'Name and email are required.',
+        }),
+      });
+      return;
+    }
+    if (!previewValid) {
+      setError({
+        message: t('admin.create_tenant_invalid_name', {
+          defaultValue:
+            'Tenant name must produce a valid id (lowercase letters, digits, hyphens; 3-47 chars).',
+        }),
+        errorCode: 'INVALID_TENANT_NAME',
+      });
       return;
     }
     setLoading(true);
-    setError(null);
     try {
       await client.post('/api/admin/tenants', {
         tenant_name: form.tenant_name,
@@ -38,29 +75,55 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
       });
       onCreated();
     } catch (err: any) {
-      setError(
-        err?.response?.data?.error || err.message || t('admin.create_tenant_error', { defaultValue: 'Failed to create tenant.' })
-      );
+      const data = err?.response?.data ?? {};
+      setError({
+        message:
+          data.error ||
+          err.message ||
+          t('admin.create_tenant_error', { defaultValue: 'Failed to create tenant.' }),
+        errorCode: data.error_code,
+        requestId: data.request_id,
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-nkz-modal" onClick={onClose}>
-      <div className="bg-nkz-surface-raised rounded-nkz-xl shadow-nkz-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-nkz-modal"
+      onClick={onClose}
+    >
+      <div
+        className="bg-nkz-surface-raised rounded-nkz-xl shadow-nkz-xl p-6 w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-nkz-lg font-semibold text-nkz-text-primary">
             {t('admin.create_tenant_title', { defaultValue: 'Create Tenant' })}
           </h3>
-          <button onClick={onClose} className="text-nkz-text-muted hover:text-nkz-text-secondary">
+          <button
+            onClick={onClose}
+            className="text-nkz-text-muted hover:text-nkz-text-secondary"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {error && (
           <div className="mb-4 p-3 bg-nkz-danger-soft border border-nkz-danger-soft rounded-nkz-lg text-nkz-sm text-nkz-danger-strong">
-            {error}
+            <div>{error.message}</div>
+            {error.errorCode && (
+              <div className="text-nkz-xs opacity-75 mt-1">
+                {t('admin.error_code', { defaultValue: 'code' })}: {error.errorCode}
+              </div>
+            )}
+            {error.requestId && (
+              <div className="text-nkz-xs opacity-75">
+                {t('admin.error_request_id', { defaultValue: 'Reference' })}:{' '}
+                {error.requestId}
+              </div>
+            )}
           </div>
         )}
 
@@ -75,7 +138,29 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
               onChange={(e) => setForm({ ...form, tenant_name: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               placeholder="My Farm"
+              maxLength={64}
             />
+            {form.tenant_name && (
+              <p className="mt-1 text-nkz-xs text-nkz-text-muted">
+                {t('admin.tenant_id_preview', { defaultValue: 'ID will be:' })}{' '}
+                <code
+                  className={
+                    previewValid
+                      ? 'text-nkz-text-secondary'
+                      : 'text-nkz-danger-strong'
+                  }
+                >
+                  {preview || '—'}
+                </code>
+              </p>
+            )}
+            <p className="mt-1 text-nkz-xs text-nkz-text-muted">
+              {t('admin.tenant_id_rule', {
+                defaultValue: `Lowercase letters, digits and hyphens, ${MIN_TENANT_ID_LENGTH}-${MAX_TENANT_ID_LENGTH} chars.`,
+                min: MIN_TENANT_ID_LENGTH,
+                max: MAX_TENANT_ID_LENGTH,
+              })}
+            </p>
           </div>
           <div>
             <label className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
@@ -106,7 +191,9 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
           </div>
           <div>
             <label className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
-              {t('admin.owner_password', { defaultValue: 'Owner Password (optional, auto-generated if empty)' })}
+              {t('admin.owner_password', {
+                defaultValue: 'Owner Password (optional, auto-generated if empty)',
+              })}
             </label>
             <input
               type="password"
@@ -127,7 +214,7 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || !form.tenant_name || !form.email}
+            disabled={loading || !form.tenant_name || !form.email || !previewValid}
             className="px-4 py-2 bg-nkz-accent-base text-nkz-text-on-accent rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}

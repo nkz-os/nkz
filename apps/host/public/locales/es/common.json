@@ -94,6 +94,11 @@
   "basic": "Basic",
   "premium": "Premium",
   "admin": {
+    "create_tenant_invalid_name": "El nombre del tenant debe producir un id válido (minúsculas, dígitos, guiones; 3-47 caracteres).",
+    "tenant_id_preview": "El id será:",
+    "tenant_id_rule": "Minúsculas, dígitos y guiones, {{min}}-{{max}} caracteres.",
+    "error_request_id": "Referencia",
+    "error_code": "código",
     "panel_title": "Panel de Administración",
     "panel_subtitle": "Nekazari Platform Management",
     "access_denied": "Acceso Denegado",
@@ -872,7 +877,7 @@
     "tenant_name_empty": "El nombre de la explotación u organización no puede estar vacío.",
     "tenant_name_too_short": "El nombre debe tener al menos {{min}} caracteres tras la normalización (ahora: {{current}}).",
     "tenant_name_too_long": "El nombre debe tener como máximo {{max}} caracteres tras la normalización (ahora: {{current}}).",
-    "tenant_name_invalid_chars": "El nombre contiene caracteres no permitidos. Solo letras minúsculas, números y guiones bajos.",
+    "tenant_name_invalid_chars": "El nombre contiene caracteres no permitidos. Solo letras minúsculas, números y guiones (-).",
     "tenant_name_normalize_hint": "El nombre se normalizará a «{{normalized}}». Los caracteres especiales, espacios y mayúsculas se ajustan automáticamente.",
     "tenant_name_invalid": "Nombre de explotación u organización no válido.",
     "password_requirements_hint": "La contraseña debe contener:"

@@ -305,24 +305,20 @@ def extract_tenant_id(payload: Dict[str, Any]) -> Optional[str]:
         logger.debug(f"No tenant_id found in payload claims: {list(payload.keys())}")
         return None
     
-    # Normalize tenant_id to ensure consistency across all services
+    # Normalize tenant_id via the canonical module. If the canonical module
+    # is unavailable we fail loudly (None) rather than falling back to a
+    # divergent format — the previous fallback was the root cause of the
+    # underscore/hyphen contradiction that broke tenant creation.
+    from tenant_utils import normalize_tenant_id
     try:
-        # Try importing from tenant_utils (works when /common is in sys.path)
-        from tenant_utils import normalize_tenant_id
         normalized_tenant_id = normalize_tenant_id(tenant_id)
-        logger.debug("Normalized Tenant ID: %s (from %s)", normalized_tenant_id, tenant_id)
-        return normalized_tenant_id
-    except (ImportError, ValueError) as e:
-        # Fallback: basic normalization if import fails
-        logger.warning(f"Failed to normalize tenant_id '{tenant_id}': {e}. Using basic normalization.")
-        # Basic normalization: lowercase, replace hyphens with underscores
-        normalized = tenant_id.lower().replace('-', '_').replace(' ', '_')
-        # Remove any remaining invalid characters
-        import re
-        normalized = re.sub(r'[^a-z0-9_]', '', normalized)
-        normalized = normalized.strip('_')
-        logger.debug("Basic normalized Tenant ID: %s (from %s)", normalized, tenant_id)
-        return normalized if normalized else tenant_id
+    except ValueError as e:
+        logger.warning(
+            "Tenant ID %r failed canonical validation: %s", tenant_id, e
+        )
+        return None
+    logger.debug("Normalized Tenant ID: %s (from %s)", normalized_tenant_id, tenant_id)
+    return normalized_tenant_id
 
 
 def has_system_gateway_role(payload: Dict[str, Any]) -> bool:
