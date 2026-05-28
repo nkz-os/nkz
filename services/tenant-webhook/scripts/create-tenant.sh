@@ -165,30 +165,15 @@ spec:
           name: nekazari
 EOF
 
-# Create tenant-specific secrets (secure)
-log_info "Creating tenant-specific secrets"
-TENANT_DB_PASSWORD=$(openssl rand -base64 16)
-TENANT_DB_URL="postgresql://${TENANT_ID}:${TENANT_DB_PASSWORD}@timescaledb:5432/${TENANT_ID}"
-
-kubectl create secret generic "${TENANT_ID}-secrets" \
-    --namespace="${NAMESPACE}" \
-    --from-literal=tenant-id="${TENANT_ID}" \
-    --from-literal=database-url="${TENANT_DB_URL}" \
-    --from-literal=database-password="${TENANT_DB_PASSWORD}" \
-    --dry-run=client -o yaml | kubectl apply -f -
-
-# Copy postgresql-secret to tenant namespace (needed for DB provisioning job)
-log_info "Copying postgresql-secret to tenant namespace"
-POSTGRES_PASSWORD=$(kubectl get secret postgresql-secret -n nekazari -o jsonpath='{.data.password}' | base64 -d 2>/dev/null || echo "")
-if [ -n "${POSTGRES_PASSWORD}" ]; then
-    kubectl create secret generic postgresql-secret \
-        --namespace="${NAMESPACE}" \
-        --from-literal=password="${POSTGRES_PASSWORD}" \
-        --dry-run=client -o yaml | kubectl apply -f -
-    log_success "PostgreSQL secret copied to tenant namespace"
-else
-    log_warning "Could not read postgresql-secret from nekazari namespace, job may fail"
-fi
+# Per-tenant Postgres DB + user used to be provisioned here via a
+# `tenant-db-provision-<id>` Job and a `<id>-secrets` Secret carrying
+# `database-url`/`database-password`. Nothing in the platform reads them:
+# n8n and odoo create their own per-tenant DBs (`n8n_<id>` and
+# `nkz_odoo_<id>`) at module-activation time, not at tenant-creation
+# time, and neither uses these credentials. The Job also failed on every
+# creation because the tenant namespace cannot egress to postgres
+# (NetworkPolicy mismatch). Removed 2026-05-28 to drop ~3 min from every
+# tenant creation and to delete a dead component.
 
 # Create tenant-specific service account
 log_info "Creating service account for tenant: ${TENANT_ID}"
@@ -253,88 +238,7 @@ spec:
               number: 80
 EOF
 
-# Create database provisioning job
-log_info "Creating database provisioning job for tenant: ${TENANT_ID}"
-cat <<EOF | kubectl apply -f -
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: tenant-db-provision-${TENANT_ID}
-  namespace: ${NAMESPACE}
-  labels:
-    tenant-id: ${TENANT_ID}
-    app: tenant-db-provision
-spec:
-  backoffLimit: 3
-  template:
-    metadata:
-      labels:
-        tenant-id: ${TENANT_ID}
-        app: tenant-db-provision
-    spec:
-      restartPolicy: OnFailure
-      containers:
-      - name: db-provision
-        image: postgres:15-alpine
-        env:
-        - name: PGHOST
-          value: "postgresql-service.nekazari.svc.cluster.local"
-        - name: PGPORT
-          value: "5432"
-        - name: PGUSER
-          value: "postgres"
-        - name: PGPASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: postgresql-secret
-              key: password
-        - name: TENANT_ID
-          value: "${TENANT_ID}"
-        - name: TENANT_DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: "${TENANT_ID}-secrets"
-              key: database-password
-        command:
-        - /bin/sh
-        - -c
-        - |
-          set -euo pipefail
-          
-          echo "Creating database and user for tenant: \$TENANT_ID"
-          
-          # Create database
-          psql -c "CREATE DATABASE \"\$TENANT_ID\";" || echo "Database \$TENANT_ID may already exist"
-          
-          # Create user
-          psql -c "CREATE USER \"\$TENANT_ID\" WITH PASSWORD '\$TENANT_DB_PASSWORD';" || echo "User \$TENANT_ID may already exist"
-          
-          # Grant privileges
-          psql -c "GRANT ALL PRIVILEGES ON DATABASE \"\$TENANT_ID\" TO \"\$TENANT_ID\";"
-          
-          echo "Database provisioning completed for tenant: \$TENANT_ID"
-EOF
-
-# Wait for database provisioning to complete (with error handling and reduced timeout)
-log_info "Waiting for database provisioning to complete..."
-# Check if job exists first
-if kubectl get job tenant-db-provision-${TENANT_ID} -n ${NAMESPACE} &>/dev/null; then
-    # Use shorter timeout and check both complete and failed conditions
-    if kubectl wait --for=condition=complete job/tenant-db-provision-${TENANT_ID} -n ${NAMESPACE} --timeout=120s 2>/dev/null; then
-        log_success "Database provisioning completed successfully"
-    elif kubectl wait --for=condition=failed job/tenant-db-provision-${TENANT_ID} -n ${NAMESPACE} --timeout=5s 2>/dev/null; then
-        log_warning "Database provisioning job failed, checking logs..."
-        kubectl logs -n ${NAMESPACE} -l app=tenant-db-provision --tail=50 || true
-        log_warning "Continuing tenant creation despite DB provisioning failure (tenant can use shared database)"
-    else
-        log_warning "Database provisioning job is taking longer than expected or may be stuck"
-        kubectl get job tenant-db-provision-${TENANT_ID} -n ${NAMESPACE} -o wide
-        # Don't wait forever - continue after 2 minutes
-        log_warning "Continuing tenant creation (DB provisioning can complete asynchronously)"
-    fi
-else
-    log_warning "Database provisioning job not found - tenant will use shared database"
-fi
+# (DB provisioning Job removed — see comment above the secrets block.)
 
 # Create tenant-specific deployment template
 log_info "Creating deployment template for tenant: ${TENANT_ID}"
