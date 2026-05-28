@@ -13,6 +13,8 @@ from typing import Any
 
 import requests
 
+from tenant_utils import normalize_tenant_id
+
 logger = logging.getLogger(__name__)
 
 ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
@@ -23,9 +25,7 @@ CONTEXT_URL = os.getenv(
 
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers with normalized tenant ID."""
-    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
-    n = re.sub(r'[^a-z0-9_]', '', n)
-    n = n.strip('_') or tenant_id
+    n = normalize_tenant_id(tenant_id)
     headers = {
         "NGSILD-Tenant": n,
         "Fiware-Service": n,
