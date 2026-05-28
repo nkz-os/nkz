@@ -8,7 +8,6 @@
 import hashlib
 import hmac
 import os
-import re
 import sys
 import logging
 import json
