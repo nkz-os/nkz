@@ -36,7 +36,10 @@ spec:
       - name: tenant-webhook
         image: ghcr.io/nkz-os/nkz/tenant-webhook@sha256:1f0f46873ea3d53bad2336b3d7309daa70d5646605c2090ab2b1a599794c359e
         imagePullPolicy: IfNotPresent
-        args: ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "300", "enhanced-tenant-webhook:app"]
+        # 2 sync workers: while one handles a long create_tenant_directly
+        # (60-180 s of kubectl apply), the other can still serve /health
+        # so the liveness/readiness probes do not SIGTERM the pod mid-script.
+        args: ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--timeout", "300", "enhanced-tenant-webhook:app"]
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
