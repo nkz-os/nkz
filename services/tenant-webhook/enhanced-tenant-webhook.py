@@ -520,41 +520,6 @@ class EnhancedTenantWebhookService:
     # -------------------------------------------------------------------------
     # Tenant helpers
     # -------------------------------------------------------------------------
-    def _normalize_tenant_slug(self, value: str) -> str:
-        """Normalize a raw identifier into a safe tenant_id slug.
-
-        Uses common normalization function to ensure consistency across all services.
-        Valid for PostgreSQL, MongoDB, Kubernetes, and other services.
-        """
-        if not value:
-            return "tenant"
-
-        try:
-            # Use common normalization function for consistency
-            from tenant_utils import normalize_tenant_id
-
-            return normalize_tenant_id(value)
-        except (ImportError, ValueError) as e:
-            # Fallback to old behavior if import fails
-            logger.warning(f"Failed to use common normalization function: {e}. Using fallback.")
-            import unicodedata
-
-            # Normalize unicode (NFD) and remove combining characters (accents)
-            value_nfd = unicodedata.normalize("NFD", value.lower())
-            value_ascii = "".join(c for c in value_nfd if unicodedata.category(c) != "Mn")
-            # Keep only alphanumeric and hyphens, replace other chars with hyphens
-            slug = re.sub(r"[^a-z0-9-]+", "-", value_ascii)
-            # Remove multiple consecutive hyphens
-            slug = re.sub(r"-+", "-", slug)
-            # Remove leading/trailing hyphens
-            slug = slug.strip("-")
-            # Replace hyphens with underscores for MongoDB compatibility
-            slug = slug.replace("-", "_")
-            # Ensure it starts with a letter or number (Kubernetes requirement)
-            if slug and not slug[0].isalnum():
-                slug = "t" + slug
-            return slug or "tenant"
-
     def _humanize_tenant_name(self, value: str) -> str:
         """Generate a readable tenant name from a slug or email local part."""
         if not value:
@@ -583,7 +548,13 @@ class EnhancedTenantWebhookService:
 
         email_lower = email.lower()
         desired_name = tenant_name or email_lower.split("@")[0]
-        desired_slug = self._normalize_tenant_slug(desired_name)
+        try:
+            desired_slug = normalize_tenant_id(desired_name)
+        except ValueError:
+            # Fall back to the email local part if the supplied name has no
+            # canonical form (e.g. all-symbols).
+            fallback = email_lower.split("@")[0].split(".")[0]
+            desired_slug = normalize_tenant_id(fallback)
 
         # Map plan names to numeric levels if not explicitly provided
         if plan_level is None:
@@ -626,17 +597,9 @@ class EnhancedTenantWebhookService:
                 tenant_id = existing["tenant_id"]
                 tenant_seen = True  # noqa: F841
             else:
-                # Normalize tenant_id using common function to ensure consistency
-                try:
-                    from tenant_utils import normalize_tenant_id
-
-                    tenant_id = normalize_tenant_id(desired_slug)
-                except (ImportError, ValueError) as e:
-                    # Fallback: use already normalized slug from _normalize_tenant_slug
-                    logger.warning(
-                        f"Failed to normalize tenant_id '{desired_slug}': {e}. Using slug as-is."
-                    )  # noqa: E501
-                    tenant_id = desired_slug
+                # desired_slug is already the canonical form (computed above
+                # via normalize_tenant_id). No further normalization needed.
+                tenant_id = desired_slug
 
                 # Check for uniqueness and add suffix if needed
                 suffix = 1
@@ -4739,12 +4702,14 @@ def activate_tenant():  # noqa: C901
         if not plan_info:
             return jsonify({"error": "Invalid or expired activation code"}), 400
 
-        # Generate tenant ID (slugify tenant name) - use the improved normalization method
-        normalized_name = webhook_service._normalize_tenant_slug(tenant_name)
-        if not normalized_name or normalized_name == "tenant":
-            fallback = email.split("@")[0].split(".")[0]
-            normalized_name = webhook_service._normalize_tenant_slug(fallback) or "tenant"
-        tenant_id = f"tenant-{normalized_name}"
+        # Generate canonical tenant ID (lowercase, hyphens, NFD-transliterated).
+        # Falls back to the email local part if the user-supplied name has no
+        # canonical form (e.g. all symbols, too short after normalization).
+        try:
+            tenant_id = normalize_tenant_id(tenant_name)
+        except ValueError:
+            fallback = email.split("@")[0].split(".")[0] or "tenant"
+            tenant_id = normalize_tenant_id(fallback)
 
         # Create tenant resources (CRITICAL - must succeed)
         logger.info(f"Creating complete tenant infrastructure for: {tenant_id}")
@@ -5945,11 +5910,10 @@ def check_tenant_availability():
         if not name:
             return jsonify({"available": False, "error": "Name is required"}), 400
 
-        normalized = webhook_service._normalize_tenant_slug(name)
-        if not normalized or normalized == "tenant":
-            return jsonify({"available": False, "error": "Invalid tenant name"}), 400
-
-        tenant_id = f"tenant-{normalized}"
+        try:
+            tenant_id = normalize_tenant_id(name)
+        except ValueError as e:
+            return jsonify({"available": False, "error": str(e)}), 400
 
         conn = webhook_service.get_db_connection()
         exists = False
@@ -6102,9 +6066,8 @@ def register_tenant():
                 )
             }), 400
 
-        # 1. Normalize and check existence
-        tenant_slug = webhook_service._normalize_tenant_slug(organization_name)  # noqa: F841
-
+        # 1. Check existence (normalization is performed inside
+        # ensure_tenant_record via the canonical normalize_tenant_id).
         conn = webhook_service.get_db_connection()
         if not conn:
             return jsonify({"error": "Database unavailable"}), 500
