@@ -240,7 +240,10 @@ def _is_tenant_suspended(tenant_id: str) -> bool:
 
     try:
         conn = psycopg2.connect(
-            os.getenv("POSTGRES_URL", "postgresql://postgres:postgres@postgresql-service:5432/nekazari"),
+            os.getenv(
+                "POSTGRES_URL",
+                "postgresql://postgres:postgres@postgresql-service:5432/nekazari",
+            ),
             connect_timeout=3,
         )
         cur = conn.cursor()
@@ -578,12 +581,14 @@ def create_session():
 
     # Block login for suspended tenants
     tenant = extract_tenant_id(payload)
-    if tenant and tenant != 'platform' and _is_tenant_suspended(tenant):
+    if tenant and tenant != "platform" and _is_tenant_suspended(tenant):
         logger.warning(f"Blocked login for suspended tenant: {tenant}")
-        return jsonify({
-            "error": "TENANT_SUSPENDED",
-            "message": "Tu cuenta ha sido suspendida. Contacta con el administrador de la plataforma."
-        }), 403
+        return jsonify(
+            {
+                "error": "TENANT_SUSPENDED",
+                "message": "Tu cuenta ha sido suspendida. Contacta con el administrador de la plataforma.",
+            }
+        ), 403
 
     # Extract expiration for cookie max_age
     exp = payload.get("exp")
@@ -2324,11 +2329,13 @@ def proxy_tenant_requests(subpath):
 
     # Suspension check: block requests from suspended tenants
     tenant = extract_tenant_id(payload)
-    if tenant and tenant != 'platform' and _is_tenant_suspended(tenant):
-        return jsonify({
-            "error": "TENANT_SUSPENDED",
-            "message": "Tu cuenta ha sido suspendida. Contacta con el administrador de la plataforma."
-        }), 403
+    if tenant and tenant != "platform" and _is_tenant_suspended(tenant):
+        return jsonify(
+            {
+                "error": "TENANT_SUSPENDED",
+                "message": "Tu cuenta ha sido suspendida. Contacta con el administrador de la plataforma.",
+            }
+        ), 403
 
     # Route logic:
     # 1. tenant/users -> tenant-user-api-service
@@ -2467,9 +2474,11 @@ def proxy_admin_requests(subpath):
     if route_key == "tenants" and len(path_parts) > 2:
         sub_resource = path_parts[2]
         if sub_resource == "purge":
-            target_base_url = TENANT_WEBHOOK_URL  # Moved from entity-manager (was broken)
+            target_base_url = (
+                TENANT_WEBHOOK_URL  # Moved from entity-manager (was broken)
+            )
         elif sub_resource == "inventory":
-            target_base_url = ENTITY_MANAGER_URL   # Read-only aggregation
+            target_base_url = ENTITY_MANAGER_URL  # Read-only aggregation
         elif sub_resource == "suspend":
             target_base_url = TENANT_WEBHOOK_URL
         elif sub_resource == "restore":
@@ -2510,13 +2519,31 @@ def proxy_admin_requests(subpath):
             else None
         )
 
+        # Long-running admin operations need a generous timeout because they
+        # orchestrate Kubernetes script execution (create-tenant.sh: kubectl
+        # apply + namespace + RBAC + ResourceQuota + NetworkPolicy + waits)
+        # which routinely takes 60-180 s. Default stays 30 s for fast ops
+        # like listing/updating.
+        SLOW_ADMIN_OPS = {
+            ("tenants", "POST"),  # create_tenant_directly
+            ("tenants", "DELETE"),  # legacy delete (now goes through suspend+purge)
+        }
+        if (route_key, method) in SLOW_ADMIN_OPS or (
+            route_key == "tenants"
+            and len(path_parts) > 2
+            and path_parts[2] in {"purge", "suspend", "restore"}
+        ):
+            proxy_timeout = 300
+        else:
+            proxy_timeout = 30
+
         response = requests.request(
             method=method,
             url=target_url,
             headers=headers,
             params=params,
             json=json_data,
-            timeout=30,
+            timeout=proxy_timeout,
         )
 
         return (response.content, response.status_code, response.headers.items())
