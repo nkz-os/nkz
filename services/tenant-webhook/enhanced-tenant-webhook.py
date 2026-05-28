@@ -32,6 +32,8 @@ from flask_limiter.util import get_remote_address
 from psycopg2 import errors as psycopg2_errors
 from psycopg2.extras import RealDictCursor
 
+from tenant_utils import normalize_tenant_id
+
 # Configure logging first
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -1437,7 +1439,7 @@ class EnhancedTenantWebhookService:
         """
         try:
             client = pymongo.MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
-            db = client.get_database(f"orion-{tenant_id}")
+            db = client.get_database(f"orion-{normalize_tenant_id(tenant_id)}")
             if "entities" not in db.list_collection_names():
                 db.create_collection("entities")
             logger.info(f"Orion-LD database ensured for tenant: {tenant_id}")
@@ -3582,7 +3584,7 @@ def _purge_phase_ngsi_ld(tenant_id: str) -> dict:
         mongo_uri = os.getenv("ORION_MONGO_URI", "mongodb://mongodb-service:27017")
         from pymongo import MongoClient
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=10000)
-        db_name = f"orion-{tenant_id.lower().replace('_', '-')}"
+        db_name = f"orion-{normalize_tenant_id(tenant_id)}"
         if db_name in client.list_database_names():
             client.drop_database(db_name)
     except Exception as e:

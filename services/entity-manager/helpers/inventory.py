@@ -5,6 +5,8 @@ import concurrent.futures
 import requests
 from typing import Any
 
+from tenant_utils import normalize_tenant_id
+
 logger = logging.getLogger(__name__)
 
 INVENTORY_TIMEOUT = 30
@@ -88,7 +90,7 @@ def _check_mongodb(tenant_id: str) -> dict:
         mongo_uri = os.getenv("ORION_MONGO_URI", "mongodb://mongodb-service:27017")
         from pymongo import MongoClient
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
-        db_name = f"orion-{tenant_id.lower().replace('_', '-')}"
+        db_name = f"orion-{normalize_tenant_id(tenant_id)}"
         db_names = client.list_database_names()
         client.close()
         if db_name in db_names:
@@ -260,7 +262,7 @@ def _check_minio(tenant_id: str) -> dict:
         tenant_buckets = []
         total_objects = 0
         for bucket in buckets:
-            if tenant_id.lower().replace("_", "-") in bucket.name.lower():
+            if normalize_tenant_id(tenant_id) in bucket.name.lower():
                 tenant_buckets.append(bucket.name)
                 try:
                     objects = client.list_objects(bucket.name, recursive=True)
