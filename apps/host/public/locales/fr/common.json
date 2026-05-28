@@ -750,7 +750,7 @@
     "tenant_name_empty": "Le nom de l'exploitation ou de l'organisation ne peut pas être vide.",
     "tenant_name_too_short": "Le nom doit comporter au moins {{min}} caractères après normalisation (actuellement {{current}}).",
     "tenant_name_too_long": "Le nom doit comporter au plus {{max}} caractères après normalisation (actuellement {{current}}).",
-    "tenant_name_invalid_chars": "Le nom contient des caractères non autorisés. Lettres minuscules, chiffres et tirets bas uniquement.",
+    "tenant_name_invalid_chars": "Le nom contient des caractères non autorisés. Lettres minuscules, chiffres et tirets (-) uniquement.",
     "tenant_name_normalize_hint": "Le nom sera normalisé en « {{normalized}} ». Caractères spéciaux, espaces et majuscules sont ajustés automatiquement.",
     "tenant_name_invalid": "Nom d'exploitation ou d'organisation invalide.",
     "password_requirements_hint": "Le mot de passe doit contenir:"

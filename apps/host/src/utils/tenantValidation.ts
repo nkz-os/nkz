@@ -1,11 +1,21 @@
 // =============================================================================
-// Tenant ID Validation Utilities - Frontend
+// Tenant ID Validation Utilities — Frontend (canonical, hyphen-based)
 // =============================================================================
-// Provides client-side validation for tenant IDs to match backend normalization
+// Mirrors services/common/tenant_utils.py. Format rules (SOTA, K8s-native):
+//   - canonical regex: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+//   - lowercase letters, digits, hyphens only
+//   - NFD-transliterated for accents (á→a, ñ→n, ç→c, ...)
+//   - whitespace and any non-alphanumeric collapse to a single '-'
+//   - no leading/trailing '-', no consecutive '-'
+//   - 3..47 chars (K8s namespace max 63 minus 'nekazari-tenant-' prefix)
+//   - idempotent
+//
+// Keep this file in sync with the backend module — they MUST agree on the
+// output for every input.
 
-const MIN_TENANT_ID_LENGTH = 3;
-const MAX_TENANT_ID_LENGTH = 63; // MongoDB database name limit
-const ALLOWED_CHARS_PATTERN = /^[a-z0-9_]+$/;
+export const MIN_TENANT_ID_LENGTH = 3;
+export const MAX_TENANT_ID_LENGTH = 47;
+export const TENANT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export interface TenantValidationResult {
   isValid: boolean;
@@ -19,29 +29,37 @@ export interface TenantValidationResult {
 }
 
 /**
- * Normalize tenant ID to match backend normalization
- * This ensures consistency between frontend and backend
+ * Normalize an arbitrary string into a canonical tenant ID.
+ *
+ * Returns an empty string if the input is null/whitespace/all-symbols —
+ * callers should treat empty as a validation failure. Length bounds are
+ * NOT enforced here (use `validateTenantId` for the full contract); this
+ * function only performs the character-set normalization.
  */
 export function normalizeTenantId(input: string): string {
   if (!input) return '';
-  
-  // Convert to lowercase
-  let normalized = input.toLowerCase().trim();
-  
-  // Replace hyphens with underscores (MongoDB compatibility)
-  normalized = normalized.replace(/-/g, '_');
-  
-  // Remove any characters that are not alphanumeric or underscore
-  normalized = normalized.replace(/[^a-z0-9_]/g, '');
-  
-  // Remove leading/trailing underscores
-  normalized = normalized.trim().replace(/^_+|_+$/g, '');
-  
-  return normalized;
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+
+  // Decompose unicode (NFD) and drop combining marks (accents). The Unicode
+  // property escape \p{M} requires the `u` flag and matches all marks
+  // (categories Mn, Mc, Me); we only need Mn for Latin accents but \p{M}
+  // is the cleanest single regex and is also what unicodedata.category(c)
+  // == 'Mn' approximates in the backend.
+  const nfd = trimmed.normalize('NFD').replace(/\p{M}+/gu, '');
+  const ascii = nfd.toLowerCase();
+
+  // Collapse anything that is not [a-z0-9] into a single hyphen.
+  const collapsed = ascii.replace(/[^a-z0-9]+/g, '-');
+
+  // Strip leading/trailing hyphens (consecutive ones already collapsed).
+  return collapsed.replace(/^-+|-+$/g, '');
 }
 
 /**
- * Validate tenant ID format and return detailed result
+ * Validate a tenant ID candidate and return a structured result the UI can
+ * render. The `normalized` field is always populated when the input is
+ * non-empty so the UI can show a live preview even on failure.
  */
 export function validateTenantId(input: string): TenantValidationResult {
   if (!input || !input.trim()) {
@@ -55,13 +73,20 @@ export function validateTenantId(input: string): TenantValidationResult {
   let warningKey: string | undefined;
   let warningParams: Record<string, string> | undefined;
 
-  // Hint when normalization changes the visible identity (for UX only)
   if (input.toLowerCase().trim() !== normalized && normalized) {
     warningKey = 'activation.tenant_name_normalize_hint';
     warningParams = { normalized };
   }
 
-  // Validate length
+  if (!normalized) {
+    return {
+      isValid: false,
+      errorKey: 'activation.tenant_name_invalid_chars',
+      warningKey,
+      warningParams,
+    };
+  }
+
   if (normalized.length < MIN_TENANT_ID_LENGTH) {
     return {
       isValid: false,
@@ -90,8 +115,8 @@ export function validateTenantId(input: string): TenantValidationResult {
     };
   }
 
-  // Validate characters
-  if (!ALLOWED_CHARS_PATTERN.test(normalized)) {
+  if (!TENANT_ID_PATTERN.test(normalized)) {
+    // Defensive: unreachable given the collapse + strip above.
     return {
       isValid: false,
       normalized,
@@ -110,7 +135,8 @@ export function validateTenantId(input: string): TenantValidationResult {
 }
 
 /**
- * Get validation rules for display to user
+ * Human-readable rule summary for inline UI hints. The wording matches the
+ * backend's get_tenant_id_validation_rules().
  */
 export function getTenantIdRules(): {
   minLength: number;
@@ -121,21 +147,19 @@ export function getTenantIdRules(): {
   return {
     minLength: MIN_TENANT_ID_LENGTH,
     maxLength: MAX_TENANT_ID_LENGTH,
-    allowedChars: 'letras minúsculas, números y guiones bajos (_)',
-    description: `El nombre de la explotación debe tener entre ${MIN_TENANT_ID_LENGTH} y ${MAX_TENANT_ID_LENGTH} caracteres. ` +
-                 'Solo se permiten letras minúsculas, números y guiones bajos. ' +
-                 'Los guiones (-) se convertirán automáticamente en guiones bajos (_). ' +
-                 'Los espacios y caracteres especiales se eliminarán automáticamente.'
+    allowedChars: 'letras minúsculas, números y guiones (-)',
+    description:
+      `El identificador debe tener entre ${MIN_TENANT_ID_LENGTH} y ${MAX_TENANT_ID_LENGTH} caracteres. ` +
+      'Solo se permiten letras minúsculas, números y guiones (-). ' +
+      'Los espacios, acentos y caracteres especiales se convertirán automáticamente en guiones.',
   };
 }
 
 /**
- * Check if tenant ID would be unique (client-side check only)
- * This is a helper for UI feedback, actual uniqueness is checked on backend
+ * Client-side uniqueness check stub. Actual uniqueness is enforced by the
+ * backend (409 TENANT_EXISTS on POST /api/admin/tenants); this is kept so
+ * existing UI code that wires up an async check has something to call.
  */
 export function checkTenantIdUniqueness(): Promise<boolean> {
-  // This would typically call an API endpoint to check uniqueness
-  // For now, we'll return true and let the backend handle the actual check
   return Promise.resolve(true);
 }
-

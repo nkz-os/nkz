@@ -3,111 +3,136 @@ import {
   normalizeTenantId,
   validateTenantId,
   getTenantIdRules,
+  TENANT_ID_PATTERN,
+  MIN_TENANT_ID_LENGTH,
+  MAX_TENANT_ID_LENGTH,
 } from '../tenantValidation'
 
 describe('normalizeTenantId', () => {
-  it('converts to lowercase', () => {
-    expect(normalizeTenantId('MyFarm')).toBe('myfarm')
+  it.each([
+    ['abregoandres', 'abregoandres'],
+    ['AbregoAndres', 'abregoandres'],
+    ['Test Tenant 1', 'test-tenant-1'],
+    ['test_tenant_1', 'test-tenant-1'],
+    ['test-tenant-1', 'test-tenant-1'],
+    ['Asociación Allotarra', 'asociacion-allotarra'],
+    ['Ipa7-laik', 'ipa7-laik'],
+    ['  spaces  ', 'spaces'],
+    ['multi   spaces', 'multi-spaces'],
+    ['multi---hyphens', 'multi-hyphens'],
+    ['multi___underscores', 'multi-underscores'],
+    ['Mixed_-_separators', 'mixed-separators'],
+    ['@@@special!!', 'special'],
+    ['café', 'cafe'],
+    ['Niño', 'nino'],
+    ['Ç-Bezirk', 'c-bezirk'],
+  ])('normalizes %s -> %s', (input, expected) => {
+    expect(normalizeTenantId(input)).toBe(expected)
   })
 
-  it('replaces hyphens with underscores', () => {
-    expect(normalizeTenantId('my-farm-name')).toBe('my_farm_name')
-  })
-
-  it('removes special characters', () => {
-    expect(normalizeTenantId('farm@#$%!')).toBe('farm')
-  })
-
-  it('removes spaces', () => {
-    expect(normalizeTenantId('my farm')).toBe('myfarm')
-  })
-
-  it('trims leading/trailing underscores', () => {
-    expect(normalizeTenantId('__farm__')).toBe('farm')
-  })
-
-  it('handles empty string', () => {
+  it('returns empty for empty / whitespace / all-symbols input', () => {
     expect(normalizeTenantId('')).toBe('')
+    expect(normalizeTenantId('   ')).toBe('')
+    expect(normalizeTenantId('@@@')).toBe('')
+    expect(normalizeTenantId('---')).toBe('')
+    expect(normalizeTenantId('___')).toBe('')
   })
 
-  it('handles mixed input', () => {
-    expect(normalizeTenantId('  Mi-Granja 123! ')).toBe('mi_granja123')
+  it('is idempotent', () => {
+    for (const s of ['Test Tenant 1', 'test_tenant_1', 'Asociación', 'ABC', 'a-b-c-1-2']) {
+      const once = normalizeTenantId(s)
+      const twice = normalizeTenantId(once)
+      expect(twice).toBe(once)
+    }
   })
 
-  it('preserves numbers', () => {
-    expect(normalizeTenantId('farm42')).toBe('farm42')
+  it('does not add a tenant- prefix', () => {
+    expect(normalizeTenantId('allotarra').startsWith('tenant-')).toBe(false)
+    expect(normalizeTenantId('baratze').startsWith('tenant-')).toBe(false)
   })
 
-  it('handles unicode characters', () => {
-    // ñ is not in [a-z0-9_], so it gets stripped
-    expect(normalizeTenantId('grañja')).toBe('graja')
+  it('output (when non-empty) matches TENANT_ID_PATTERN', () => {
+    for (const s of ['Test Tenant', 'Asociación Allotarra', 'My-Org 2', 'café']) {
+      const out = normalizeTenantId(s)
+      if (out) expect(TENANT_ID_PATTERN.test(out)).toBe(true)
+    }
   })
 })
 
 describe('validateTenantId', () => {
-  it('accepts valid tenant ID', () => {
-    const result = validateTenantId('myfarm')
-    expect(result.isValid).toBe(true)
-    expect(result.normalized).toBe('myfarm')
-    expect(result.errorKey).toBeUndefined()
+  it('accepts a canonical id', () => {
+    const r = validateTenantId('myfarm')
+    expect(r.isValid).toBe(true)
+    expect(r.normalized).toBe('myfarm')
+    expect(r.errorKey).toBeUndefined()
   })
 
-  it('rejects empty string', () => {
-    const result = validateTenantId('')
-    expect(result.isValid).toBe(false)
-    expect(result.errorKey).toBe('activation.tenant_name_empty')
+  it('rejects empty / whitespace', () => {
+    expect(validateTenantId('').errorKey).toBe('activation.tenant_name_empty')
+    expect(validateTenantId('   ').isValid).toBe(false)
   })
 
-  it('rejects whitespace-only string', () => {
-    const result = validateTenantId('   ')
-    expect(result.isValid).toBe(false)
+  it('rejects all-symbols (normalizes to empty)', () => {
+    const r = validateTenantId('!!!')
+    expect(r.isValid).toBe(false)
+    expect(r.errorKey).toBe('activation.tenant_name_invalid_chars')
   })
 
-  it('rejects too-short tenant ID after normalization', () => {
-    const result = validateTenantId('ab')
-    expect(result.isValid).toBe(false)
-    expect(result.errorKey).toBe('activation.tenant_name_too_short')
-    expect(result.errorParams?.min).toBe(3)
+  it('rejects too short', () => {
+    const r = validateTenantId('ab')
+    expect(r.isValid).toBe(false)
+    expect(r.errorKey).toBe('activation.tenant_name_too_short')
+    expect(r.errorParams?.min).toBe(MIN_TENANT_ID_LENGTH)
   })
 
-  it('rejects too-long tenant ID', () => {
-    const longId = 'a'.repeat(64)
-    const result = validateTenantId(longId)
-    expect(result.isValid).toBe(false)
-    expect(result.errorKey).toBe('activation.tenant_name_too_long')
-    expect(result.errorParams?.max).toBe(63)
+  it('rejects too long', () => {
+    const longId = 'a'.repeat(MAX_TENANT_ID_LENGTH + 1)
+    const r = validateTenantId(longId)
+    expect(r.isValid).toBe(false)
+    expect(r.errorKey).toBe('activation.tenant_name_too_long')
+    expect(r.errorParams?.max).toBe(MAX_TENANT_ID_LENGTH)
   })
 
-  it('accepts maximum length tenant ID', () => {
-    const maxId = 'a'.repeat(63)
-    const result = validateTenantId(maxId)
-    expect(result.isValid).toBe(true)
+  it('accepts maximum length', () => {
+    const maxId = 'a'.repeat(MAX_TENANT_ID_LENGTH)
+    expect(validateTenantId(maxId).isValid).toBe(true)
   })
 
-  it('adds warning when normalization changes input', () => {
-    const result = validateTenantId('My-Farm')
-    expect(result.isValid).toBe(true)
-    expect(result.warningKey).toBe('activation.tenant_name_normalize_hint')
-    expect(result.warningParams?.normalized).toBe('my_farm')
+  it('emits the normalize-hint warning when the input differs from canonical', () => {
+    // Spaces collapse to hyphens — input differs from canonical even
+    // after toLowerCase().trim(), so the hint fires.
+    const r = validateTenantId('Test Tenant')
+    expect(r.isValid).toBe(true)
+    expect(r.warningKey).toBe('activation.tenant_name_normalize_hint')
+    expect(r.warningParams?.normalized).toBe('test-tenant')
   })
 
-  it('no warnings when input is already normalized', () => {
-    const result = validateTenantId('myfarm')
-    expect(result.warningKey).toBeUndefined()
+  it('does not emit the warning when input is already canonical', () => {
+    expect(validateTenantId('myfarm').warningKey).toBeUndefined()
+    // Plain case-only difference is also "already canonical" once
+    // lowercased — the hint exists for character-set transforms.
+    expect(validateTenantId('MyFarm').warningKey).toBeUndefined()
   })
 
-  it('handles input that normalizes to empty string', () => {
-    const result = validateTenantId('!!!')
-    expect(result.isValid).toBe(false)
+  it('hyphen-canonical "test-allotarra" round-trips clean from "Test Allotarra"', () => {
+    const r = validateTenantId('Test Allotarra')
+    expect(r.isValid).toBe(true)
+    expect(r.normalized).toBe('test-allotarra')
+  })
+
+  it('regression: does NOT produce underscores', () => {
+    const r = validateTenantId('test_tenant_1')
+    expect(r.normalized).toBe('test-tenant-1')
+    expect(r.normalized?.includes('_')).toBe(false)
   })
 })
 
 describe('getTenantIdRules', () => {
-  it('returns valid rule structure', () => {
+  it('reports the canonical rule shape', () => {
     const rules = getTenantIdRules()
-    expect(rules.minLength).toBe(3)
-    expect(rules.maxLength).toBe(63)
+    expect(rules.minLength).toBe(MIN_TENANT_ID_LENGTH)
+    expect(rules.maxLength).toBe(MAX_TENANT_ID_LENGTH)
     expect(rules.allowedChars).toBeDefined()
-    expect(rules.description).toBeDefined()
+    expect(rules.description).toMatch(/guiones/)
   })
 })
