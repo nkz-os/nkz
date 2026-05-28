@@ -192,9 +192,13 @@ class TestNormalizationContract:
         assert captured["k8s_tenant_id"] == "test-allotarra"
         assert captured["mongo_tenant_id"] == "test-allotarra"
 
-        # Response: tenant_id is the canonical id, no double prefix.
+        # Response: tenant_id is the canonical id, no 'tenant-' prefix at all.
+        # The strict equality above already pins the form; the prefix check is
+        # belt-and-braces against a future change that loosens that assertion
+        # (e.g. switching to a parametrized test) while reintroducing the
+        # legacy f"tenant-{...}" bug.
         assert body["tenant_id"] == "test-allotarra"
-        assert not body["tenant_id"].startswith("tenant-tenant")
+        assert not body["tenant_id"].startswith("tenant-")
         # tenant_name in the response mirrors the canonical id under
         # the new contract — humanization is a read-time concern.
         assert body["tenant_name"] == "test-allotarra"
