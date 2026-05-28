@@ -5935,7 +5935,7 @@ def check_tenant_availability():
 
         return jsonify({
             "available": not exists,
-            "normalized": normalized,
+            "normalized": tenant_id,
             "tenant_id": tenant_id,
         })
     except Exception as e:
