@@ -32,8 +32,6 @@ from flask_limiter.util import get_remote_address
 from psycopg2 import errors as psycopg2_errors
 from psycopg2.extras import RealDictCursor
 
-from tenant_utils import normalize_tenant_id
-
 # Configure logging first
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -59,6 +57,10 @@ for common_path in common_paths:
 
 if not common_path_found:
     logger.warning(f"Common directory not found in any of these paths: {common_paths}")
+
+# Canonical tenant_id normalizer (services/common/tenant_utils.py).
+# Imported AFTER sys.path is augmented so it works in both container and dev.
+from tenant_utils import normalize_tenant_id  # noqa: E402
 
 try:
     from keycloak_auth import (
@@ -5933,7 +5935,7 @@ def check_tenant_availability():
 
         return jsonify({
             "available": not exists,
-            "normalized": normalized,
+            "normalized": tenant_id,
             "tenant_id": tenant_id,
         })
     except Exception as e:
