@@ -3455,28 +3455,36 @@ def create_tenant_directly():
         finally:
             dup_conn.close()
 
-    # --- 4. K8s provisioning (FAILS FIRST if anything is wrong) ---------
+    # --- 4. K8s + Orion-LD Mongo provisioning ---------------------------
+    # create_tenant_resources both ensures the Mongo DB and runs the K8s
+    # script (the Mongo call lives inside create_tenant_resources so that
+    # the activation-code, billing-driven and admin flows all stay in
+    # sync). If the script fails AFTER the internal Mongo creation we
+    # still need to drop Mongo to avoid orphans.
     logger.info(f"Creating tenant {tenant_id} directly by admin")
     try:
         webhook_service.create_tenant_resources(tenant_id, plan_info)
     except Exception as e:
+        webhook_service._drop_orion_tenant_db(tenant_id)
         return _internal_error(
             e, "create_tenant_directly.k8s",
             user_message="Failed to provision Kubernetes resources",
             error_code="K8S_PROVISION_FAILED",
         )
 
-    # --- 5. Orion-LD MongoDB --------------------------------------------
-    if not webhook_service._ensure_orion_tenant_db(tenant_id):
-        # Roll back K8s
+    # --- 5. API key (K8s Secret + Postgres api_keys row) ----------------
+    try:
+        api_key = webhook_service.generate_api_key(tenant_id)
+    except Exception as e:
+        webhook_service._drop_orion_tenant_db(tenant_id)
         webhook_service._delete_tenant_namespace(tenant_id)
-        return jsonify({
-            "error": "Failed to provision Orion-LD database",
-            "error_code": "MONGO_PROVISION_FAILED",
-        }), 500
+        return _internal_error(
+            e, "create_tenant_directly.api_key",
+            user_message="Failed to generate API key",
+            error_code="API_KEY_FAILED",
+        )
 
-    # --- 6. Postgres tenant record + API key ----------------------------
-    api_key = webhook_service.generate_api_key(tenant_id)
+    # --- 6. Postgres tenant record --------------------------------------
     conn = webhook_service.get_db_connection()
     tenant_record_id = None
     if conn:
@@ -3492,10 +3500,6 @@ def create_tenant_directly():
         except Exception as e:
             webhook_service._drop_orion_tenant_db(tenant_id)
             webhook_service._delete_tenant_namespace(tenant_id)
-            try:
-                conn.close()
-            except Exception:
-                pass
             return _internal_error(
                 e, "create_tenant_directly.db",
                 user_message="Failed to persist tenant record",

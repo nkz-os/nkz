@@ -158,19 +158,17 @@ class TestNormalizationContract:
         captured = {}
 
         def capture_resources(tenant_id, plan_info):
-            captured["k8s_tenant_id"] = tenant_id
-            return True
-
-        def capture_mongo(tenant_id):
-            captured["mongo_tenant_id"] = tenant_id
+            # create_tenant_resources is the boundary that wraps both the
+            # K8s shell script and the internal _ensure_orion_tenant_db
+            # call. Capturing here pins the canonical id at the single
+            # external integration point.
+            captured["resources_tenant_id"] = tenant_id
             return True
 
         kc_result = {"success": True, "user_id": "u-1"}
 
         with patch.object(svc, "create_tenant_resources",
-                          side_effect=capture_resources) as k8s, \
-             patch.object(svc, "_ensure_orion_tenant_db",
-                          side_effect=capture_mongo) as mongo, \
+                          side_effect=capture_resources) as resources, \
              patch.object(svc, "generate_api_key",
                           return_value="api-key-xyz"), \
              patch.object(svc, "get_db_connection", return_value=None), \
@@ -188,9 +186,8 @@ class TestNormalizationContract:
         assert resp.status_code == 201, resp.data
         body = resp.get_json()
 
-        # Boundary: the canonical id was passed to K8s and Mongo.
-        assert captured["k8s_tenant_id"] == "test-allotarra"
-        assert captured["mongo_tenant_id"] == "test-allotarra"
+        # Boundary: the canonical id was passed to create_tenant_resources.
+        assert captured["resources_tenant_id"] == "test-allotarra"
 
         # Response: tenant_id is the canonical id, no 'tenant-' prefix at all.
         # The strict equality above already pins the form; the prefix check is
@@ -203,9 +200,8 @@ class TestNormalizationContract:
         # the new contract — humanization is a read-time concern.
         assert body["tenant_name"] == "test-allotarra"
 
-        # Sanity: K8s and Mongo were exercised exactly once.
-        assert k8s.call_count == 1
-        assert mongo.call_count == 1
+        # Sanity: resources provisioning was exercised exactly once.
+        assert resources.call_count == 1
 
 
 class TestRollback:
@@ -236,8 +232,6 @@ class TestRollback:
             return True
 
         with patch.object(svc, "create_tenant_resources",
-                          return_value=True), \
-             patch.object(svc, "_ensure_orion_tenant_db",
                           return_value=True), \
              patch.object(svc, "generate_api_key",
                           return_value="api-key-xyz"), \
@@ -270,30 +264,26 @@ class TestRollback:
         # Keycloak must NOT be touched once we have decided to fail.
         kc.assert_not_called()
 
-    def test_mongo_failure_rolls_back_k8s_only(
+    def test_k8s_failure_rolls_back_mongo(
         self, client, admin_headers, patched_admin, webhook_module
     ):
-        """If Mongo provisioning fails, K8s namespace must be torn down
-        and no DB / Keycloak side effects should happen."""
+        """If create_tenant_resources raises, its internal Mongo creation
+        may have already succeeded; the handler must drop Mongo to avoid
+        an orphaned database."""
         svc = webhook_module.webhook_service
 
         with patch.object(svc, "create_tenant_resources",
-                          return_value=True), \
-             patch.object(svc, "_ensure_orion_tenant_db",
-                          return_value=False), \
-             patch.object(svc, "_delete_tenant_namespace",
-                          return_value=True) as del_ns, \
-             patch.object(svc, "_drop_orion_tenant_db") as drop_mongo, \
-             patch.object(svc, "get_db_connection") as get_conn, \
-             patch.object(svc, "ensure_tenant_record") as ensure, \
+                          side_effect=RuntimeError("kubectl exit 1")), \
+             patch.object(svc, "_drop_orion_tenant_db",
+                          return_value=True) as drop_mongo, \
+             patch.object(svc, "_delete_tenant_namespace") as del_ns, \
+             patch.object(svc, "generate_api_key") as gen_key, \
+             patch.object(svc, "get_db_connection", return_value=None), \
              patch.object(svc, "create_keycloak_user") as kc, \
              patch.object(webhook_module, "audit_log"):
-            # No duplicate check during this scenario — make the dup-conn
-            # path silent.
-            get_conn.return_value = None
             resp = client.post(
                 "/api/admin/tenants",
-                data=json.dumps({"tenant_name": "Mongo Fail",
+                data=json.dumps({"tenant_name": "K8s Fail",
                                  "email": "owner@example.test",
                                  "plan": "basic"}),
                 headers=admin_headers,
@@ -301,9 +291,46 @@ class TestRollback:
 
         assert resp.status_code == 500, resp.data
         body = resp.get_json()
-        assert body["error_code"] == "MONGO_PROVISION_FAILED"
-        del_ns.assert_called_once_with("mongo-fail")
-        drop_mongo.assert_not_called()
+        assert body["error_code"] == "K8S_PROVISION_FAILED"
+        drop_mongo.assert_called_once_with("k8s-fail")
+        # K8s itself was never created (the script failed) so namespace
+        # delete must NOT be called.
+        del_ns.assert_not_called()
+        gen_key.assert_not_called()
+        kc.assert_not_called()
+
+    def test_api_key_failure_rolls_back_mongo_and_k8s(
+        self, client, admin_headers, patched_admin, webhook_module
+    ):
+        """generate_api_key writes a K8s Secret + Postgres api_keys row;
+        if it raises after step 4, both Mongo and K8s must be torn down."""
+        svc = webhook_module.webhook_service
+
+        with patch.object(svc, "create_tenant_resources",
+                          return_value=True), \
+             patch.object(svc, "generate_api_key",
+                          side_effect=RuntimeError("k8s secret API down")), \
+             patch.object(svc, "_drop_orion_tenant_db",
+                          return_value=True) as drop_mongo, \
+             patch.object(svc, "_delete_tenant_namespace",
+                          return_value=True) as del_ns, \
+             patch.object(svc, "get_db_connection", return_value=None), \
+             patch.object(svc, "ensure_tenant_record") as ensure, \
+             patch.object(svc, "create_keycloak_user") as kc, \
+             patch.object(webhook_module, "audit_log"):
+            resp = client.post(
+                "/api/admin/tenants",
+                data=json.dumps({"tenant_name": "ApiKey Fail",
+                                 "email": "owner@example.test",
+                                 "plan": "basic"}),
+                headers=admin_headers,
+            )
+
+        assert resp.status_code == 500, resp.data
+        body = resp.get_json()
+        assert body["error_code"] == "API_KEY_FAILED"
+        drop_mongo.assert_called_once_with("apikey-fail")
+        del_ns.assert_called_once_with("apikey-fail")
         ensure.assert_not_called()
         kc.assert_not_called()
 
