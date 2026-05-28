@@ -217,6 +217,16 @@ def _scope_hint_for_path(path: str) -> str:
     return "unknown"
 
 
+def _tenant_zulip_stream_prefix(tenant: str) -> str:
+    """Canonical Zulip stream prefix for a tenant.
+
+    Centralized so callers cannot drift. Matches the on-disk DB tenant_id
+    exactly — tenant_id values are already canonical (see
+    services/common/tenant_utils.py), so no extra normalization is done here.
+    """
+    return f"tenant-{tenant}-"
+
+
 _suspended_tenant_cache: dict[str, tuple[bool, float]] = {}
 _SUSPENDED_CACHE_TTL = 300  # 5 minutes
 
@@ -3960,7 +3970,7 @@ def zulip_streams():
         )
         resp.raise_for_status()
         data = resp.json()
-        tenant_prefix = f"tenant-{tenant}-"
+        tenant_prefix = _tenant_zulip_stream_prefix(tenant)
         filtered = [
             s
             for s in data.get("streams", [])
@@ -3998,7 +4008,7 @@ def zulip_get_messages():
             for clause in narrow_list:
                 if clause.get("operator") == "stream":
                     stream_name = clause.get("operand", "")
-                    tenant_prefix = f"tenant-{tenant}-"
+                    tenant_prefix = _tenant_zulip_stream_prefix(tenant)
                     if (
                         not stream_name.startswith(tenant_prefix)
                         and stream_name != "platform-announcements"
@@ -4019,7 +4029,7 @@ def zulip_send_message():
     msg_type = data.get("type", "")
     if msg_type == "stream":
         stream_name = data.get("to", "")
-        tenant_prefix = f"tenant-{tenant}-"
+        tenant_prefix = _tenant_zulip_stream_prefix(tenant)
         if not stream_name.startswith(tenant_prefix):
             return jsonify({"error": "Cannot send to streams outside your tenant"}), 403
     return _zulip_proxy_request(email, api_key, "messages", tenant)
