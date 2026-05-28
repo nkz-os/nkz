@@ -397,6 +397,7 @@ def _internal_error(
     *,
     status: int = 500,
     user_message: str = "Internal server error",
+    error_code: str | None = None,
     extra: dict | None = None,
 ) -> tuple:
     """Sanitized error response that logs the real exception internally.
@@ -417,7 +418,12 @@ def _internal_error(
         f"[{context}] request_id={request_id}: {type(exc).__name__}: {exc}",
         exc_info=True,
     )
-    body: dict[str, Any] = {"error": user_message, "request_id": request_id}
+    body: dict[str, Any] = {
+        "error": user_message,
+        "request_id": request_id,
+    }
+    if error_code:
+        body["error_code"] = error_code
     if extra:
         body.update(extra)
     return jsonify(body), status
@@ -1446,6 +1452,42 @@ class EnhancedTenantWebhookService:
             return True
         except Exception as e:
             logger.error(f"Failed to ensure Orion-LD DB for tenant {tenant_id}: {e}")
+            return False
+
+    def _drop_orion_tenant_db(self, tenant_id: str) -> bool:
+        """Drop the Orion-LD MongoDB database for tenant_id.
+
+        Used by the atomic rollback path in create_tenant_directly. Idempotent
+        — dropping a non-existent DB is a no-op.
+        """
+        try:
+            client = pymongo.MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+            db_name = f"orion-{normalize_tenant_id(tenant_id)}"
+            client.drop_database(db_name)
+            logger.info(f"Dropped Orion-LD DB {db_name} during rollback")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to drop Orion-LD DB for tenant {tenant_id}: {e}")
+            return False
+
+    def _delete_tenant_namespace(self, tenant_id: str) -> bool:
+        """Best-effort deletion of the K8s namespace for tenant_id.
+
+        Used during rollback of partial provisioning. Idempotent.
+        """
+        namespace = get_tenant_namespace(tenant_id)
+        try:
+            result = subprocess.run(
+                ["kubectl", "delete", "namespace", namespace,
+                 "--ignore-not-found=true", "--wait=false"],
+                capture_output=True, text=True, timeout=30,
+            )
+            logger.info(
+                f"Rollback delete namespace {namespace}: rc={result.returncode}"
+            )
+            return result.returncode == 0
+        except Exception as e:
+            logger.error(f"Failed to delete namespace {namespace}: {e}")
             return False
 
     def create_tenant_resources(self, tenant_id: str, plan_info: dict[str, Any]) -> bool:
@@ -3348,115 +3390,150 @@ def list_tenants():
 @app.route("/api/admin/tenants", methods=["POST"])
 @require_platform_admin
 def create_tenant_directly():
-    """Create a tenant directly without activation code (PlatformAdmin only)"""
+    """Create a tenant directly without activation code (PlatformAdmin only).
+
+    Atomic creation order:
+      1. Validate input.
+      2. Normalize tenant_id (canonical).
+      3. Reject duplicates (DB lookup).
+      4. Create K8s resources (most likely to fail — runs first so we don't
+         leave half-baked state).
+      5. Create Orion-LD MongoDB DB.
+      6. Create Postgres tenant record + tier_quotas row.
+      7. Create Keycloak owner user.
+    On any failure after step 4 we roll back in reverse order.
+    """
+    data = request.get_json(silent=True) or {}
+    tenant_name_raw = (data.get("tenant_name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    plan = (data.get("plan") or "basic").lower()
+    password = data.get("password")
+
+    if not tenant_name_raw:
+        return jsonify({"error": "tenant_name is required",
+                        "error_code": "MISSING_TENANT_NAME"}), 400
+    if not email:
+        return jsonify({"error": "email is required",
+                        "error_code": "MISSING_EMAIL"}), 400
+
+    # --- 2. Normalize ----------------------------------------------------
     try:
-        data = request.get_json()
-        tenant_name = data.get("tenant_name")
-        email = data.get("email")  # Owner email
-        plan = data.get("plan", "basic")
-        password = data.get("password")  # Optional, will generate if not provided
+        tenant_id = normalize_tenant_id(tenant_name_raw)
+    except ValueError as e:
+        return jsonify({"error": str(e),
+                        "error_code": "INVALID_TENANT_NAME"}), 400
 
-        if not tenant_name:
-            return jsonify({"error": "tenant_name is required"}), 400
+    # --- 3. Validate plan against canonical SSOT -------------------------
+    from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
+    if plan not in PLAN_LEVELS:
+        return jsonify({
+            "error": f"Invalid plan: {plan}. Allowed: {sorted(PLAN_LEVELS)}",
+            "error_code": "INVALID_PLAN",
+        }), 400
+    q = quotas_for_tier(plan)
+    plan_info = {
+        "plan": plan,
+        "max_users": q["max_users"],
+        "max_robots": q["max_robots"],
+        "max_sensors": q["max_sensors"],
+        "code": "ADMIN_CREATED",
+    }
 
-        if not email:
-            return jsonify({"error": "email is required"}), 400
+    # --- 3b. Duplicate check --------------------------------------------
+    dup_conn = webhook_service.get_db_connection()
+    if dup_conn:
+        try:
+            cur = dup_conn.cursor()
+            cur.execute("SELECT 1 FROM tenants WHERE tenant_id = %s", (tenant_id,))
+            if cur.fetchone():
+                cur.close()
+                return jsonify({
+                    "error": f"Tenant {tenant_id!r} already exists",
+                    "error_code": "TENANT_EXISTS",
+                }), 409
+            cur.close()
+        finally:
+            dup_conn.close()
 
-        # Normalize tenant ID
-        normalized_name = webhook_service._normalize_tenant_slug(tenant_name)
-        if not normalized_name or normalized_name == "tenant":
-            fallback = email.split("@")[0].split(".")[0]
-            normalized_name = webhook_service._normalize_tenant_slug(fallback) or "tenant"
-        tenant_id = f"tenant-{normalized_name}"
-
-        # Validate plan against the canonical SSOT
-        # (services/common/tier_quotas.py). Reject unknown plans rather
-        # than silently downgrading to basic so PlatformAdmin actions are
-        # explicit; this also unblocks creating "pro" tenants which the
-        # previous hardcoded mapping did not support.
-        from common.tier_quotas import PLAN_LEVELS, quotas_for_tier
-
-        plan_lower = plan.lower() if plan else "basic"
-        if plan_lower not in PLAN_LEVELS:
-            return jsonify(
-                {"error": f"Invalid plan: {plan}. Allowed: {list(PLAN_LEVELS)}"}
-            ), 400
-        plan = plan_lower
-        q = quotas_for_tier(plan_lower)
-        plan_info = {
-            "plan": plan_lower,
-            "max_users": q["max_users"],
-            "max_robots": q["max_robots"],
-            "max_sensors": q["max_sensors"],
-            "code": "ADMIN_CREATED",
-        }
-
-        # Create tenant resources
-        logger.info(f"Creating tenant {tenant_id} directly by admin")
-        tenant_resources_success = webhook_service.create_tenant_resources(tenant_id, plan_info)
-        if not tenant_resources_success:
-            return jsonify({"error": "Failed to create tenant Kubernetes resources"}), 500
-
-        # Generate API key
-        api_key = webhook_service.generate_api_key(tenant_id)
-
-        # Create tenant record in database
-        conn = webhook_service.get_db_connection()
-        tenant_record_id = None
-        if conn:
-            try:
-                tenant_record_id = webhook_service.ensure_tenant_record(  # noqa: F841
-                    conn,
-                    email,
-                    plan,
-                    {
-                        "max_users": plan_info["max_users"],
-                        "max_robots": plan_info["max_robots"],
-                        "max_sensors": plan_info["max_sensors"],
-                    },
-                    tenant_name,
-                    "admin",
-                )
-            finally:
-                conn.close()
-
-        # Create Keycloak user if email provided
-        user_result = None
-        if email:
-            user_result = webhook_service.create_keycloak_user(
-                email, tenant_id, plan_info, password, is_owner=True
-            )
-            if not user_result.get("success"):
-                logger.warning(f"Failed to create Keycloak user: {user_result.get('error')}")
-
-        audit_log(
-            action='admin.tenant.create',
-            resource_type='tenant',
-            resource_id=tenant_id,
-            metadata={
-                'plan': plan,
-                'email': email,
-                'user_created': bool(user_result and user_result.get("success")),
-            },
+    # --- 4. K8s provisioning (FAILS FIRST if anything is wrong) ---------
+    logger.info(f"Creating tenant {tenant_id} directly by admin")
+    try:
+        webhook_service.create_tenant_resources(tenant_id, plan_info)
+    except Exception as e:
+        return _internal_error(
+            e, "create_tenant_directly.k8s",
+            user_message="Failed to provision Kubernetes resources",
+            error_code="K8S_PROVISION_FAILED",
         )
 
-        return jsonify(
-            {
-                "success": True,
-                "tenant_id": tenant_id,
-                "tenant_name": tenant_name,
-                "namespace": get_tenant_namespace(tenant_id),
-                "api_key": api_key,
-                "user_created": user_result.get("success") if user_result else False,
-                "user_id": user_result.get("user_id") if user_result else None,
-            }
-        ), 201
+    # --- 5. Orion-LD MongoDB --------------------------------------------
+    if not webhook_service._ensure_orion_tenant_db(tenant_id):
+        # Roll back K8s
+        webhook_service._delete_tenant_namespace(tenant_id)
+        return jsonify({
+            "error": "Failed to provision Orion-LD database",
+            "error_code": "MONGO_PROVISION_FAILED",
+        }), 500
 
-    except Exception as e:
-        logger.error(f"Error creating tenant directly: {e}")
-        audit_log(action='admin.tenant.create', resource_type='tenant',
-                  success=False, error=str(e))
-        return _internal_error(e, "create_tenant_directly", user_message="Failed to create tenant")
+    # --- 6. Postgres tenant record + API key ----------------------------
+    api_key = webhook_service.generate_api_key(tenant_id)
+    conn = webhook_service.get_db_connection()
+    tenant_record_id = None
+    if conn:
+        try:
+            tenant_record_id = webhook_service.ensure_tenant_record(
+                conn, email, plan,
+                {"max_users": plan_info["max_users"],
+                 "max_robots": plan_info["max_robots"],
+                 "max_sensors": plan_info["max_sensors"]},
+                tenant_id,  # tenant_name is the canonical id; humanize on read
+                "admin",
+            )
+        except Exception as e:
+            webhook_service._drop_orion_tenant_db(tenant_id)
+            webhook_service._delete_tenant_namespace(tenant_id)
+            try:
+                conn.close()
+            except Exception:
+                pass
+            return _internal_error(
+                e, "create_tenant_directly.db",
+                user_message="Failed to persist tenant record",
+                error_code="DB_PROVISION_FAILED",
+            )
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    # --- 7. Keycloak owner user (best-effort; logged as warning) --------
+    user_result = webhook_service.create_keycloak_user(
+        email, tenant_id, plan_info, password, is_owner=True
+    )
+    if not user_result.get("success"):
+        logger.warning(
+            f"Tenant {tenant_id} created but Keycloak user failed: "
+            f"{user_result.get('error')}"
+        )
+
+    audit_log(
+        action="admin.tenant.create",
+        resource_type="tenant",
+        resource_id=tenant_id,
+        metadata={"plan": plan, "email": email,
+                  "user_created": bool(user_result and user_result.get("success"))},
+    )
+
+    return jsonify({
+        "success": True,
+        "tenant_id": tenant_id,
+        "tenant_name": tenant_id,
+        "namespace": get_tenant_namespace(tenant_id),
+        "api_key": api_key,
+        "user_created": user_result.get("success") if user_result else False,
+        "user_id": user_result.get("user_id") if user_result else None,
+    }), 201
 
 
 # === Purge System Configuration ===
