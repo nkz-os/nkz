@@ -94,6 +94,11 @@
   "basic": "Basic",
   "premium": "Premium",
   "admin": {
+    "create_tenant_invalid_name": "El nombre del tenant debe producir un id válido (minúsculas, dígitos, guiones; 3-47 caracteres).",
+    "tenant_id_preview": "El id será:",
+    "tenant_id_rule": "Minúsculas, dígitos y guiones, {{min}}-{{max}} caracteres.",
+    "error_request_id": "Referencia",
+    "error_code": "código",
     "panel_title": "Panel de Administración",
     "panel_subtitle": "Nekazari Platform Management",
     "access_denied": "Acceso Denegado",

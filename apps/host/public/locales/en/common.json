@@ -94,6 +94,11 @@
   "basic": "Basic",
   "premium": "Premium",
   "admin": {
+    "create_tenant_invalid_name": "Tenant name must produce a valid id (lowercase letters, digits, hyphens; 3-47 chars).",
+    "tenant_id_preview": "ID will be:",
+    "tenant_id_rule": "Lowercase letters, digits and hyphens, {{min}}-{{max}} chars.",
+    "error_request_id": "Reference",
+    "error_code": "code",
     "all_languages": "All languages",
     "current_content": "Current content",
     "edit_terms": "Edit Terms and Conditions",
