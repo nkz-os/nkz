@@ -67,12 +67,23 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
     }
     setLoading(true);
     try {
-      await client.post('/api/admin/tenants', {
-        tenant_name: form.tenant_name,
-        email: form.email,
-        plan: form.plan,
-        password: form.password || undefined,
-      });
+      // Tenant creation runs an 11-step K8s provisioning script
+      // (create-tenant.sh: namespace, NetworkPolicy, ResourceQuota, RBAC,
+      // ServiceAccount, secrets, optional DB provision job, kubectl
+      // waits) which routinely takes 60-180 s and can spike to ~5 min
+      // when the per-tenant DB provision job hits its backoff limit.
+      // Override the 30s default so the UI follows the backend.
+      // Matches the api-gateway proxy timeout for the same endpoint.
+      await client.post(
+        '/api/admin/tenants',
+        {
+          tenant_name: form.tenant_name,
+          email: form.email,
+          plan: form.plan,
+          password: form.password || undefined,
+        },
+        { timeout: 300000 },
+      );
       onCreated();
     } catch (err: any) {
       const data = err?.response?.data ?? {};
