@@ -93,15 +93,8 @@ data:
           port: 53
     EOF
 
-    # Secrets (placeholder example)
-    log_info "Creating tenant-specific secrets"
-    TENANT_DB_PASSWORD=$(openssl rand -base64 16)
-    TENANT_DB_URL="postgresql://${TENANT_ID}:${TENANT_DB_PASSWORD}@timescaledb:5432/${TENANT_ID}"
-    kubectl create secret generic "${TENANT_ID}-secrets" --namespace="${NAMESPACE}" \
-      --from-literal=tenant-id="${TENANT_ID}" \
-      --from-literal=database-url="${TENANT_DB_URL}" \
-      --from-literal=database-password="${TENANT_DB_PASSWORD}" \
-      --dry-run=client -o yaml | kubectl apply -f -
+    # (Per-tenant DB secret removed 2026-05-28 — see create-tenant.sh
+    # commit chore/remove-dead-tenant-db-job. Nothing consumed it.)
 
     # Service Account and RBAC
     kubectl create serviceaccount "${TENANT_ID}-sa" --namespace="${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
