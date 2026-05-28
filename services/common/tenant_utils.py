@@ -7,10 +7,10 @@ entire Nekazari platform. Every service that handles tenant_id values
 `normalize_tenant_id()` from here and MUST NOT implement its own variant.
 
 Format (K8s-native, MongoDB-safe, Keycloak-compatible):
-  - lowercase letters, digits, hyphens only: ^[a-z0-9-]+$
+  - canonical regex: ^[a-z0-9]+(?:-[a-z0-9]+)*$ (see TENANT_ID_PATTERN)
+  - lowercase letters, digits, hyphens only — no leading/trailing/consecutive hyphens
   - NFD-transliterated for accents (á->a, ñ->n, ç->c, ...)
   - whitespace and any non-alphanumeric collapse to a single '-'
-  - no leading/trailing '-', no consecutive '-'
   - 3..47 chars (K8s ns max 63 minus 'nekazari-tenant-' prefix)
   - idempotent
 """
