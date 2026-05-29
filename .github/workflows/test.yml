@@ -72,6 +72,20 @@ jobs:
       - name: Run pytest
         run: pytest tests/ -v --tb=short
 
+      - name: tenant_utils.py byte-equality
+        # tenant-user-api ships its own copy of services/common/tenant_utils.py
+        # because the Dockerfile only COPYs services/tenant-user-api/. The two
+        # MUST stay byte-identical so the canonical tenant_id contract is the
+        # same on both sides of the API gateway. Sync any change to
+        # services/common/tenant_utils.py into the tenant-user-api copy.
+        run: |
+          if ! diff -q common/tenant_utils.py tenant-user-api/common/tenant_utils.py; then
+            echo "ERROR: services/common/tenant_utils.py and services/tenant-user-api/common/tenant_utils.py have drifted."
+            echo "       Run: cp services/common/tenant_utils.py services/tenant-user-api/common/tenant_utils.py"
+            diff common/tenant_utils.py tenant-user-api/common/tenant_utils.py || true
+            exit 1
+          fi
+
   production-domain-check:
     name: Production Domain Check
     runs-on: ubuntu-latest
