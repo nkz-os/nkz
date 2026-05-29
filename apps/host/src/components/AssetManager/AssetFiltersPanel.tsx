@@ -9,6 +9,7 @@ import {
   AssetStatus,
   ASSET_TYPE_REGISTRY,
 } from '@/types/assets';
+import { useI18n } from '@/context/I18nContext';
 
 // =============================================================================
 // Props
@@ -33,6 +34,8 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
   onReset,
   onClose,
 }) => {
+  const { t } = useI18n();
+
   // Group types by category
   const typesByCategory = useMemo(() => {
     const groups: Record<string, { type: string; label: string; count: number }[]> = {};
@@ -87,11 +90,11 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
   
   // Status options
   const statusOptions: { value: AssetStatus; label: string; color: string }[] = [
-    { value: 'active', label: 'Activo', color: 'bg-green-500' },
-    { value: 'inactive', label: 'Inactivo', color: 'bg-slate-400' },
-    { value: 'maintenance', label: 'Mantenimiento', color: 'bg-amber-500' },
-    { value: 'error', label: 'Error', color: 'bg-red-500' },
-    { value: 'offline', label: 'Offline', color: 'bg-slate-300' },
+    { value: 'active', label: t('entities.status.active'), color: 'bg-green-500' },
+    { value: 'inactive', label: t('entities.status.inactive'), color: 'bg-slate-400' },
+    { value: 'maintenance', label: t('entities.status.maintenance'), color: 'bg-amber-500' },
+    { value: 'error', label: t('entities.status.error'), color: 'bg-red-500' },
+    { value: 'offline', label: t('entities.status.offline'), color: 'bg-slate-300' },
   ];
   
   return (
@@ -99,7 +102,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-700">Filtros</span>
+          <span className="text-sm font-medium text-slate-700">{t('entities.filters.title')}</span>
           {activeFilterCount > 0 && (
             <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
               {activeFilterCount}
@@ -114,7 +117,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
               className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded"
             >
               <RotateCcw className="w-3 h-3" />
-              Limpiar
+              {t('entities.filters.clear')}
             </button>
           )}
           <button
@@ -131,7 +134,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
         {/* Status Filter */}
         <div>
           <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
-            Estado
+            {t('entities.filters.status')}
           </h4>
           <div className="flex flex-wrap gap-2">
             {statusOptions.map(({ value, label, color }) => {
@@ -158,7 +161,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
         {/* Location Filter */}
         <div>
           <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
-            Ubicación
+            {t('entities.filters.location')}
           </h4>
           <div className="flex gap-2">
             <button
@@ -171,7 +174,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Con ubicación
+              {t('entities.filters.with_location')}
               {filters.hasLocation === true && <Check className="w-3 h-3" />}
             </button>
             <button
@@ -184,7 +187,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Sin ubicación
+              {t('entities.filters.without_location')}
               {filters.hasLocation === false && <Check className="w-3 h-3" />}
             </button>
           </div>
@@ -193,7 +196,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
         {/* Type Filter by Category */}
         <div>
           <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
-            Tipos de Asset
+            {t('entities.filters.asset_types')}
           </h4>
           
           <div className="space-y-3">

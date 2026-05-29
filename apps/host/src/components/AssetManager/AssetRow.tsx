@@ -24,6 +24,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { UnifiedAsset, ASSET_TYPE_REGISTRY } from '@/types/assets';
+import { useI18n } from '@/context/I18nContext';
 
 // =============================================================================
 // Icon Map
@@ -81,6 +82,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
   onContextMenu,
   compact = false,
 }) => {
+  const { t } = useI18n();
   const typeInfo = ASSET_TYPE_REGISTRY[asset.type];
 
   // Get icon component
@@ -173,12 +175,12 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
         <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full ${statusStyle.bg} ${statusStyle.text}`} title={asset.statusLabel || asset.status}>
           <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
           <span className="capitalize truncate">
-            {asset.status === 'active' ? 'Activo' :
-             asset.status === 'inactive' ? 'Inactivo' :
-             asset.status === 'maintenance' ? 'Mant.' :
-             asset.status === 'error' ? 'Error' :
-             asset.status === 'offline' ? 'Offline' :
-             'Desc.'}
+            {asset.status === 'active' ? t('entities.status.active') :
+             asset.status === 'inactive' ? t('entities.status.inactive') :
+             asset.status === 'maintenance' ? t('entities.status.maintenance') :
+             asset.status === 'error' ? t('entities.status.error') :
+             asset.status === 'offline' ? t('entities.status.offline') :
+             t('entities.status.unknown')}
           </span>
         </span>
       </div>
@@ -186,8 +188,8 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
       {/* Location (only on medium+ screens and non-compact) */}
       {!compact && (
         <div className="w-32 flex-shrink-0 hidden md:block">
-          <span className="text-xs text-white/50 truncate block" title={asset.municipality || (asset.hasLocation ? 'Con ubicación' : '—')}>
-            {asset.municipality || (asset.hasLocation ? 'Con ubicación' : '—')}
+          <span className="text-xs text-white/50 truncate block" title={asset.municipality || (asset.hasLocation ? t('entities.filters.with_location') : '—')}>
+            {asset.municipality || (asset.hasLocation ? t('entities.filters.with_location') : '—')}
           </span>
         </div>
       )}

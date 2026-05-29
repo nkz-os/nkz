@@ -505,8 +505,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             >
               <Sprout className="w-4 h-4" />
               {effectiveParcelId
-                ? t('weather.change_parcel') || 'Cambiar parcela'
-                : t('weather.select_parcel') || 'Seleccionar parcela'}
+                ? t('weather.change_parcel')
+                : t('weather.select_parcel')}
             </button>
             <button
               onClick={() => {
@@ -538,7 +538,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               type="text"
               value={parcelSearchTerm}
               onChange={(e) => setParcelSearchTerm(e.target.value)}
-              placeholder={t('weather.search_parcel_placeholder') || 'Buscar parcela...'}
+              placeholder={t('weather.search_parcel_placeholder')}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {loadingParcels && (
@@ -548,7 +548,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           {loadingParcels ? (
             <div className="mt-2 p-4 text-center text-gray-500">
               <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-              <p className="text-sm">{t('weather.loading_parcels') || 'Cargando parcelas...'}</p>
+              <p className="text-sm">{t('weather.loading_parcels')}</p>
             </div>
           ) : parcels.length > 0 ? (
             <div className="mt-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg bg-white shadow-lg">
@@ -568,13 +568,13 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 ))}
               {parcels.filter(p => !parcelSearchTerm || p.name.toLowerCase().includes(parcelSearchTerm.toLowerCase())).length === 0 && (
                 <div className="p-3 text-sm text-gray-500 text-center">
-                  {t('weather.no_parcels_found') || 'No se encontraron parcelas'}
+                  {t('weather.no_parcels_found')}
                 </div>
               )}
             </div>
           ) : (
             <div className="mt-2 p-3 text-sm text-gray-500 text-center bg-gray-50 rounded-lg">
-              {t('weather.no_parcels') || 'No hay parcelas disponibles'}
+              {t('weather.no_parcels')}
             </div>
           )}
         </div>
@@ -716,7 +716,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             {/* Forecast */}
             {forecast.length > 0 ? (
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('weather.forecast_5_days') || 'Previsión 5 días'}</h3>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('weather.forecast_5_days')}</h3>
                 <div className="grid grid-cols-5 gap-2">
                   {forecast.slice(0, 5).map((day, idx) => (
                     <div key={idx} className="bg-gray-50 rounded-lg p-3 text-center">
@@ -751,7 +751,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               onClick={() => setShowParcelSearch(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
             >
-              {t('weather.select_parcel_button') || 'Seleccionar parcela'}
+              {t('weather.select_parcel')}
             </button>
           </div>
         )}

@@ -214,7 +214,6 @@
     "type_tenant_name_confirm": "Type \"{{name}}\" to confirm",
     "inventory_loading": "Analyzing systems...",
     "system": "System",
-    "status": "Status",
     "details": "Details",
     "purge_tenant_title": "Purge {{name}} — IRREVERSIBLE",
     "purge_irreversible_warning": "This action is IRREVERSIBLE. All tenant data will be permanently deleted.",
@@ -640,7 +639,50 @@
     "et0_desc": "Evapotranspiration",
     "downscaling_active": "Corrected data for this parcel (altitude/aspect/slope)",
     "select_parcel": "Select parcel",
-    "clear_parcel": "Clear selection"
+    "clear_parcel": "Clear selection",
+    "agro_panel": {
+      "title": "Agronomic Panel",
+      "select_municipality": "Select municipality",
+      "change": "Change",
+      "search": "Search",
+      "search_municipality_placeholder": "Search municipality...",
+      "no_municipalities_found": "No municipalities found",
+      "error": "Error",
+      "loading_agro_data": "Loading agronomic data...",
+      "spraying": "Spraying",
+      "workability": "Workability",
+      "irrigation": "Irrigation",
+      "wind": "Wind:",
+      "delta_t": "Delta T:",
+      "rain_prob": "Rain Prob.:",
+      "soil_moisture": "Soil Moisture:",
+      "real_sensor_data": "Real sensor data",
+      "platform_data": "Platform data",
+      "balance_3_days": "Balance (3 days):",
+      "precip_eto_accumulated": "Precip. - ET₀ accumulated",
+      "no_data_available": "No data available",
+      "select_municipality_button": "Select municipality",
+      "conditions": {
+        "spraying_optimal": "Optimal conditions for spraying",
+        "spraying_caution": "Caution - Marginal conditions",
+        "spraying_not_suitable": "Do not treat - Unfavorable conditions",
+        "workability_optimal": "Soil suitable for work",
+        "workability_too_wet": "Compaction risk - Very wet soil",
+        "workability_too_dry": "Very dry soil - Consider irrigation",
+        "workability_caution": "Caution - Marginal conditions",
+        "irrigation_satisfied": "Soil with sufficient water",
+        "irrigation_alert": "Alert - Moderate water deficit",
+        "irrigation_deficit": "Needs urgent irrigation",
+        "unknown": "No data",
+        "evaluating": "Evaluate conditions"
+      }
+    },
+    "change_parcel": "Change parcel",
+    "search_parcel_placeholder": "Search parcel...",
+    "loading_parcels": "Loading parcels...",
+    "no_parcels_found": "No parcels found",
+    "no_parcels": "No parcels available",
+    "loading": "Loading..."
   },
   "wizard": {
     "array": {
@@ -1246,6 +1288,51 @@
       "undo_title": "Undo last point",
       "clear_title": "Clear drawing",
       "accept": "Accept"
+    }
+  },
+  "entities": {
+    "assets": {
+      "title": "Assets",
+      "search_placeholder": "Search by name, type or location...",
+      "selected_count": "{{count}} selected",
+      "deselect": "Deselect",
+      "export_csv": "CSV",
+      "export_json": "JSON",
+      "delete": "Delete",
+      "loading": "Loading assets...",
+      "no_assets_filtered": "No assets found with these filters",
+      "no_assets": "No registered assets",
+      "clear_filters": "Clear filters",
+      "create_first": "Create first asset",
+      "refresh": "Refresh",
+      "filters": "Filters",
+      "view_list": "List view",
+      "view_tree": "Tree view",
+      "view_grid": "Grid view",
+      "add": "Add",
+      "retry": "Retry",
+      "delete_success": "{{count}} entity(ies) deleted successfully",
+      "delete_error": "Error deleting entities"
+    },
+    "filters": {
+      "title": "Filters",
+      "clear": "Clear",
+      "status": "Status",
+      "location": "Location",
+      "with_location": "With location",
+      "without_location": "Without location",
+      "asset_types": "Asset Types"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "maintenance": "Maintenance",
+      "error": "Error",
+      "offline": "Offline",
+      "unknown": "Unk."
+    },
+    "categories": {
+      "all": "All"
     }
   }
 }

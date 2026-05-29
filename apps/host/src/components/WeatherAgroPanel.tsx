@@ -92,7 +92,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   parcelId,
   onMunicipalitySelect,
 }) => {
-  const { t: _t } = useI18n();
+  const { t } = useI18n();
 
   const { municipality: tenantMunicipality, loading: _loadingTenantMunicipality } = useTenantMunicipality();
   
@@ -201,26 +201,26 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   const semaphoreLabel = (type: string, value: string): string => {
     const labels: Record<string, Record<string, string>> = {
       spraying: {
-        optimal: 'Condiciones óptimas para pulverización',
-        caution: 'Precaución - Condiciones marginales',
-        not_suitable: 'No tratar - Condiciones desfavorables',
-        unknown: 'Sin datos',
+        optimal: t('weather.agro_panel.conditions.spraying_optimal'),
+        caution: t('weather.agro_panel.conditions.spraying_caution'),
+        not_suitable: t('weather.agro_panel.conditions.spraying_not_suitable'),
+        unknown: t('weather.agro_panel.conditions.unknown'),
       },
       workability: {
-        optimal: 'Suelo apto para labor',
-        too_wet: 'Riesgo de compactación - Suelo muy húmedo',
-        too_dry: 'Suelo muy seco - Considerar riego',
-        caution: 'Precaución - Condiciones marginales',
-        unknown: 'Sin datos',
+        optimal: t('weather.agro_panel.conditions.workability_optimal'),
+        too_wet: t('weather.agro_panel.conditions.workability_too_wet'),
+        too_dry: t('weather.agro_panel.conditions.workability_too_dry'),
+        caution: t('weather.agro_panel.conditions.workability_caution'),
+        unknown: t('weather.agro_panel.conditions.unknown'),
       },
       irrigation: {
-        satisfied: 'Suelo con agua suficiente',
-        alert: 'Alerta - Déficit hídrico moderado',
-        deficit: 'Necesita riego urgente',
-        unknown: 'Sin datos de balance hídrico',
+        satisfied: t('weather.agro_panel.conditions.irrigation_satisfied'),
+        alert: t('weather.agro_panel.conditions.irrigation_alert'),
+        deficit: t('weather.agro_panel.conditions.irrigation_deficit'),
+        unknown: t('weather.agro_panel.conditions.unknown'),
       },
     };
-    return labels[type]?.[value] || 'Sin datos';
+    return labels[type]?.[value] || t('weather.agro_panel.conditions.unknown');
   };
 
   const loadWeatherData = async () => {
@@ -291,7 +291,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
       }
     } catch (err: any) {
       logger.error('Error loading weather data:', err);
-      const errorMessage = err.response?.data?.detail || err.message || 'Error cargando datos meteorológicos';
+      const errorMessage = err.response?.data?.detail || err.message || t('weather.agro_panel.error');
       setError(errorMessage);
       // Clear data on error
       setCurrentWeather(null);
@@ -346,7 +346,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
       });
       setMunicipalities([]);
       // Show error to user
-      setError(`Error buscando municipios: ${err.message || 'Error desconocido'}`);
+      setError(`${t('weather.agro_panel.error')}: ${err.message}`);
     } finally {
       setSearchingMunicipalities(false);
     }
@@ -364,7 +364,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   // Calculate spraying condition
   const getSprayingCondition = (): { condition: SprayingCondition; message: string; color: string } => {
     if (!currentWeather) {
-      return { condition: 'unknown', message: 'Sin datos', color: 'gray' };
+      return { condition: 'unknown', message: t('weather.agro_panel.conditions.unknown'), color: 'gray' };
     }
 
     const windKmh = currentWeather.wind_speed_ms ? currentWeather.wind_speed_ms * 3.6 : 0;
@@ -375,7 +375,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     if (windKmh < 15 && deltaT >= 2 && deltaT <= 8) {
       return {
         condition: 'optimal',
-        message: 'Condiciones óptimas para pulverización',
+        message: t('weather.agro_panel.conditions.spraying_optimal'),
         color: 'green',
       };
     }
@@ -384,7 +384,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     if (windKmh > 20 || deltaT > 10 || precipProb > 50) {
       return {
         condition: 'not_suitable',
-        message: 'No tratar - Condiciones desfavorables',
+        message: t('weather.agro_panel.conditions.spraying_not_suitable'),
         color: 'red',
       };
     }
@@ -393,12 +393,12 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     if ((windKmh >= 15 && windKmh <= 20) || (deltaT >= 8 && deltaT <= 10) || deltaT < 2) {
       return {
         condition: 'caution',
-        message: 'Precaución - Condiciones marginales',
+        message: t('weather.agro_panel.conditions.spraying_caution'),
         color: 'yellow',
       };
     }
 
-    return { condition: 'unknown', message: 'Evaluar condiciones', color: 'gray' };
+    return { condition: 'unknown', message: t('weather.agro_panel.conditions.evaluating'), color: 'gray' };
   };
 
   // Calculate workability condition (tempero)
@@ -417,7 +417,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     if (soilMoisture === null) {
       return {
         condition: 'unknown',
-        message: 'Sin datos de humedad de suelo',
+        message: t('weather.agro_panel.conditions.unknown'),
         color: 'gray',
         soilMoisture: null,
       };
@@ -427,7 +427,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     if (soilMoisture >= 15 && soilMoisture <= 25) {
       return {
         condition: 'optimal',
-        message: 'Suelo apto para labor',
+        message: t('weather.agro_panel.conditions.workability_optimal'),
         color: 'green',
         soilMoisture,
       };
@@ -437,7 +437,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     if (soilMoisture > 25) {
       return {
         condition: 'too_wet',
-        message: 'Riesgo de compactación - Suelo muy húmedo',
+        message: t('weather.agro_panel.conditions.workability_too_wet'),
         color: 'red',
         soilMoisture,
       };
@@ -447,7 +447,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     if (soilMoisture < 10) {
       return {
         condition: 'too_dry',
-        message: 'Suelo muy seco - Considerar riego',
+        message: t('weather.agro_panel.conditions.workability_too_dry'),
         color: 'yellow',
         soilMoisture,
       };
@@ -456,7 +456,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     // Between 10-15% or 25-30%: caution zone
     return {
       condition: soilMoisture < 15 ? 'too_dry' : 'too_wet',
-      message: 'Condiciones marginales',
+      message: t('weather.agro_panel.conditions.workability_caution'),
       color: 'yellow',
       soilMoisture,
     };
@@ -467,7 +467,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     if (historicalWeather.length === 0) {
       return {
         condition: 'unknown',
-        message: 'Sin datos históricos',
+        message: t('weather.agro_panel.conditions.unknown'),
         color: 'gray',
         balance: 0,
       };
@@ -491,7 +491,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     if (balance > 0) {
       return {
         condition: 'satisfied',
-        message: 'Suelo con agua suficiente',
+        message: t('weather.agro_panel.conditions.irrigation_satisfied'),
         color: 'green',
         balance: Math.round(balance * 10) / 10,
       };
@@ -501,7 +501,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     if (balance < -5) {
       return {
         condition: 'deficit',
-        message: 'Necesita riego urgente',
+        message: t('weather.agro_panel.conditions.irrigation_deficit'),
         color: 'red',
         balance: Math.round(balance * 10) / 10,
       };
@@ -510,7 +510,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     // 🟡 Amarillo (Alerta): Balance entre 0 y -5mm
     return {
       condition: 'alert',
-      message: 'Alerta - Déficit hídrico moderado',
+      message: t('weather.agro_panel.conditions.irrigation_alert'),
       color: 'yellow',
       balance: Math.round(balance * 10) / 10,
     };
@@ -562,9 +562,9 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
           <div className="flex items-center gap-3">
             <Sprout className="w-6 h-6 text-white" />
             <div>
-              <h2 className="text-xl font-bold text-white">Panel Agronómico</h2>
+              <h2 className="text-xl font-bold text-white">{t('weather.agro_panel.title')}</h2>
               <p className="text-sm text-green-100">
-                {selectedMunicipalityName || municipalityName || 'Selecciona municipio'}
+                {selectedMunicipalityName || municipalityName || t('weather.agro_panel.select_municipality')}
               </p>
             </div>
           </div>
@@ -574,7 +574,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
               className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white text-sm flex items-center gap-2"
             >
               <Search className="w-4 h-4" />
-              {municipalityName ? 'Cambiar' : 'Buscar'}
+              {municipalityName ? t('weather.agro_panel.change') : t('weather.agro_panel.search')}
             </button>
             <button
               onClick={loadWeatherData}
@@ -596,7 +596,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar municipio..."
+              placeholder={t('weather.agro_panel.search_municipality_placeholder')}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
             {searchingMunicipalities && (
@@ -639,7 +639,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
             </div>
           ) : searchTerm.length >= 2 ? (
             <div className="mt-2 p-4 text-center text-gray-500">
-              <p className="text-sm">No se encontraron municipios</p>
+              <p className="text-sm">{t('weather.agro_panel.no_municipalities_found')}</p>
             </div>
           ) : null}
         </div>
@@ -651,7 +651,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-red-800 text-sm font-medium">Error</p>
+              <p className="text-red-800 text-sm font-medium">{t('weather.agro_panel.error')}</p>
               <p className="text-red-700 text-sm">{error}</p>
             </div>
           </div>
@@ -660,7 +660,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
         {loading && !currentWeather ? (
           <div className="text-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-green-600 mx-auto mb-4" />
-            <p className="text-gray-600">Cargando datos agronómicos...</p>
+            <p className="text-gray-600">{t('weather.agro_panel.loading_agro_data')}</p>
           </div>
         ) : currentWeather ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -669,14 +669,14 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Wind className="w-5 h-5 text-gray-700" />
-                  <h3 className="font-semibold text-gray-900">Pulverización</h3>
+                  <h3 className="font-semibold text-gray-900">{t('weather.agro_panel.spraying')}</h3>
                 </div>
                 {getStatusIcon(spraying.color)}
               </div>
               <p className="text-sm text-gray-700 mb-3">{spraying.message}</p>
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Viento:</span>
+                  <span className="text-gray-600">{t('weather.agro_panel.wind')}</span>
                   <span className="font-medium">
                     {currentWeather.wind_speed_ms 
                       ? `${Math.round(currentWeather.wind_speed_ms * 3.6)} km/h`
@@ -684,7 +684,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Delta T:</span>
+                  <span className="text-gray-600">{t('weather.agro_panel.delta_t')}</span>
                   <span className="font-medium">
                     {currentWeather.delta_t !== undefined 
                       ? `${currentWeather.delta_t.toFixed(1)}°C`
@@ -693,7 +693,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                 </div>
                 {currentWeather.metadata?.precipitation_probability !== undefined && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Prob. Lluvia:</span>
+                    <span className="text-gray-600">{t('weather.agro_panel.rain_prob')}</span>
                     <span className="font-medium">
                       {currentWeather.metadata.precipitation_probability}%
                     </span>
@@ -707,14 +707,14 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Droplets className="w-5 h-5 text-gray-700" />
-                  <h3 className="font-semibold text-gray-900">Tempero</h3>
+                  <h3 className="font-semibold text-gray-900">{t('weather.agro_panel.workability')}</h3>
                 </div>
                 {getStatusIcon(workability.color)}
               </div>
               <p className="text-sm text-gray-700 mb-3">{workability.message}</p>
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Humedad suelo:</span>
+                  <span className="text-gray-600">{t('weather.agro_panel.soil_moisture')}</span>
                   <span className="font-medium">
                     {workability.soilMoisture !== null
                       ? `${workability.soilMoisture.toFixed(1)}%`
@@ -725,12 +725,12 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                   {parcelSensors.length > 0 ? (
                     <>
                       <CheckCircle2 className="w-3 h-3 text-green-600" />
-                      <span className="text-xs text-gray-600">Datos de sensor real</span>
+                      <span className="text-xs text-gray-600">{t('weather.agro_panel.real_sensor_data')}</span>
                     </>
                   ) : (
                     <>
                       <Cloud className="w-3 h-3 text-blue-600" />
-                      <span className="text-xs text-gray-600">Datos de la plataforma</span>
+                      <span className="text-xs text-gray-600">{t('weather.agro_panel.platform_data')}</span>
                     </>
                   )}
                 </div>
@@ -742,20 +742,20 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Thermometer className="w-5 h-5 text-gray-700" />
-                  <h3 className="font-semibold text-gray-900">Riego</h3>
+                  <h3 className="font-semibold text-gray-900">{t('weather.agro_panel.irrigation')}</h3>
                 </div>
                 {getStatusIcon(irrigation.color)}
               </div>
               <p className="text-sm text-gray-700 mb-3">{irrigation.message}</p>
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Balance (3 días):</span>
+                  <span className="text-gray-600">{t('weather.agro_panel.balance_3_days')}</span>
                   <span className={`font-medium ${irrigation.balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
                     {irrigation.balance > 0 ? '+' : ''}{irrigation.balance.toFixed(1)} mm
                   </span>
                 </div>
                 <div className="text-xs text-gray-500 mt-2">
-                  Precip. - ET₀ acumulada
+                  {t('weather.agro_panel.precip_eto_accumulated')}
                 </div>
               </div>
             </div>
@@ -763,12 +763,12 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
         ) : (
           <div className="text-center py-12">
             <Sprout className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 mb-4">No hay datos disponibles</p>
+            <p className="text-gray-600 mb-4">{t('weather.agro_panel.no_data_available')}</p>
             <button
               onClick={() => setShowMunicipalitySearch(true)}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
             >
-              Seleccionar municipio
+              {t('weather.agro_panel.select_municipality_button')}
             </button>
           </div>
         )}

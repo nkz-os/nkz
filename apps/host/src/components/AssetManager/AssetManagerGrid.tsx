@@ -47,7 +47,7 @@ import { AssetRelationshipModal } from './AssetRelationshipModal';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { useEntityDependencies } from '@/hooks/useEntityDependencies';
 import { useToastContext } from '@/context/ToastContext';
-
+import { useI18n } from '@/context/I18nContext';
 // =============================================================================
 // Types
 // =============================================================================
@@ -78,6 +78,8 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
   compact = false,
   className = '',
 }) => {
+  const { t } = useI18n();
+
   // Hooks
   const {
     assets,
@@ -203,11 +205,11 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
     try {
       await deleteAssets(ids);
-      toastSuccess(`${deleteModal.entities.length} entidad(es) eliminada(s) correctamente`);
+      toastSuccess(t('entities.assets.delete_success', { count: deleteModal.entities.length }));
       setDeleteModal(null);
       deselectAll();
     } catch (err: any) {
-      toastError(err.message || 'Error al eliminar entidades');
+      toastError(err.message || t('entities.assets.delete_error'));
       // Don't close modal on error so user can retry
     }
   }, [deleteModal, deleteAssets, toastSuccess, toastError, deselectAll]);
@@ -279,7 +281,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
         <div className="flex items-center justify-between gap-3">
           {/* Title & Count */}
           <div className="flex items-center gap-2">
-            <h2 className="font-semibold text-white">Assets</h2>
+            <h2 className="font-semibold text-white">{t('entities.assets.title')}</h2>
             <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/70">
               {filteredCount === totalCount
                 ? totalCount
@@ -293,7 +295,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               onClick={() => refresh()}
               disabled={isRefreshing}
               className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-              title="Actualizar"
+              title={t('entities.assets.refresh')}
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
@@ -306,7 +308,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                 ? 'bg-blue-100 text-blue-600'
                 : 'hover:bg-white/10 text-white/60 hover:text-white'
                 }`}
-              title="Filtros"
+              title={t('entities.assets.filters')}
             >
               <SlidersHorizontal className="w-4 h-4" />
             </button>
@@ -320,7 +322,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                 ? 'bg-white/15 text-white'
                 : 'hover:bg-white/10 text-white/60 hover:text-white'
                 }`}
-              title="Vista lista"
+              title={t('entities.assets.view_list')}
             >
               <List className="w-4 h-4" />
             </button>
@@ -331,7 +333,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                 ? 'bg-emerald-100 text-emerald-700'
                 : 'hover:bg-white/10 text-white/60 hover:text-white'
                 }`}
-              title="Vista jerárquica"
+              title={t('entities.assets.view_tree')}
             >
               <FolderTree className="w-4 h-4" />
             </button>
@@ -342,7 +344,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                 ? 'bg-white/15 text-white'
                 : 'hover:bg-white/10 text-white/60 hover:text-white'
                 }`}
-              title="Vista cuadrícula"
+              title={t('entities.assets.view_grid')}
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
@@ -355,7 +357,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                   className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors text-sm font-medium"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Añadir</span>
+                  <span className="hidden sm:inline">{t('entities.assets.add')}</span>
                 </button>
               </>
             )}
@@ -367,7 +369,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
           <input
             type="text"
-            placeholder="Buscar por nombre, tipo o ubicación..."
+            placeholder={t('entities.assets.search_placeholder')}
             value={filters.search}
             onChange={handleSearch}
             className="w-full pl-9 pr-8 py-2 text-sm border border-white/10 rounded-lg bg-white/5 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30"
@@ -409,12 +411,12 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
         <div className="flex-shrink-0 px-4 py-2 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-blue-800">
             <CheckSquare className="w-4 h-4" />
-            <span className="font-medium">{selectedAssets.size} seleccionado(s)</span>
+            <span className="font-medium">{t('entities.assets.selected_count', { count: selectedAssets.size })}</span>
             <button
               onClick={deselectAll}
               className="text-blue-600 hover:text-blue-800 hover:underline"
             >
-              Deseleccionar
+              {t('entities.assets.deselect')}
             </button>
           </div>
 
@@ -424,21 +426,21 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 bg-white rounded border border-slate-200 hover:bg-slate-50"
             >
               <Download className="w-3 h-3" />
-              CSV
+              {t('entities.assets.export_csv')}
             </button>
             <button
               onClick={() => handleBulkExport('json')}
               className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 bg-white rounded border border-slate-200 hover:bg-slate-50"
             >
               <Download className="w-3 h-3" />
-              JSON
+              {t('entities.assets.export_json')}
             </button>
             <button
               onClick={handleBulkDelete}
               className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 bg-white rounded border border-red-200 hover:bg-red-50"
             >
               <Trash2 className="w-3 h-3" />
-              Eliminar
+              {t('entities.assets.delete')}
             </button>
           </div>
         </div>
@@ -451,7 +453,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
           <div className="flex items-center justify-center h-full">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-              <p className="text-sm text-white/60">Cargando assets...</p>
+              <p className="text-sm text-white/60">{t('entities.assets.loading')}</p>
             </div>
           </div>
         )}
@@ -466,7 +468,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                 onClick={() => refresh()}
                 className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
               >
-                Reintentar
+                {t('entities.assets.retry')}
               </button>
             </div>
           </div>
@@ -481,15 +483,15 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               </div>
               <p className="text-sm text-white/60">
                 {filters.search || filters.categories.length > 0
-                  ? 'No se encontraron assets con estos filtros'
-                  : 'No hay assets registrados'}
+                  ? t('entities.assets.no_assets_filtered')
+                  : t('entities.assets.no_assets')}
               </p>
               {(filters.search || filters.categories.length > 0) && (
                 <button
                   onClick={resetFilters}
                   className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
                 >
-                  Limpiar filtros
+                  {t('entities.assets.clear_filters')}
                 </button>
               )}
               {onAddEntity && !filters.search && filters.categories.length === 0 && (
@@ -498,7 +500,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                   className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
                 >
                   <Plus className="w-4 h-4" />
-                  Crear primer asset
+                  {t('entities.assets.create_first')}
                 </button>
               )}
             </div>

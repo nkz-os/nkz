@@ -564,7 +564,7 @@
     "search_placeholder": "Bilatu udalerria...",
     "search_municipality_button": "Buscar",
     "no_data": "Sin datos disponibles",
-    "loading": "Cargando...",
+    "loading": "Kargatzen...",
     "forecast_5_days": "Previsión 5 días",
     "elevation": "Elevación (m)",
     "elevation_placeholder": "Ej: 450.5",
@@ -583,7 +583,49 @@
     "save": "Guardar Estación",
     "save_error": "Error al guardar la estación meteorológica",
     "saving": "Guardando...",
-    "title": "Registrar Estación Meteorológica"
+    "title": "Registrar Estación Meteorológica",
+    "agro_panel": {
+      "title": "Panel Agronomikoa",
+      "select_municipality": "Hautatu udalerria",
+      "change": "Aldatu",
+      "search": "Bilatu",
+      "search_municipality_placeholder": "Bilatu udalerria...",
+      "no_municipalities_found": "Ez da udaleririk aurkitu",
+      "error": "Errorea",
+      "loading_agro_data": "Datu agronomikoak kargatzen...",
+      "spraying": "Ihinztadura",
+      "workability": "Tenperoa",
+      "irrigation": "Ureztatzea",
+      "wind": "Haizea:",
+      "delta_t": "Delta T:",
+      "rain_prob": "Euri prob.:",
+      "soil_moisture": "Lurzoruaren hezetasuna:",
+      "real_sensor_data": "Sentsore errealaren datuak",
+      "platform_data": "Plataformaren datuak",
+      "balance_3_days": "Balantzea (3 egun):",
+      "precip_eto_accumulated": "Prezip. - ET₀ metatua",
+      "no_data_available": "Ez dago daturik eskuragarri",
+      "select_municipality_button": "Udalerria hautatu",
+      "conditions": {
+        "spraying_optimal": "Ihinztatzeko baldintza optimoak",
+        "spraying_caution": "Kontuz - Baldintza marjinalak",
+        "spraying_not_suitable": "Ez tratatu - Baldintza desegokiak",
+        "workability_optimal": "Lurzoru egokia lanerako",
+        "workability_too_wet": "Konpaktazio arriskua - Lurzoru oso hezea",
+        "workability_too_dry": "Lurzoru oso lehorra - Ureztatzea kontuan hartu",
+        "workability_caution": "Kontuz - Baldintza marjinalak",
+        "irrigation_satisfied": "Ura duen lurzorua",
+        "irrigation_alert": "Alerta - Ur defizit moderatua",
+        "irrigation_deficit": "Premiazko ureztatzea behar du",
+        "unknown": "Daturik ez",
+        "evaluating": "Baldintzak ebaluatzen"
+      }
+    },
+    "change_parcel": "Aldatu partzela",
+    "search_parcel_placeholder": "Bilatu partzela...",
+    "loading_parcels": "Partzelak kargatzen...",
+    "no_parcels_found": "Ez da partzelarik aurkitu",
+    "no_parcels": "Ez dago partzelarik eskuragarri"
   },
   "wizard": {
     "array": {
@@ -894,6 +936,51 @@
       "undo_title": "Desegin azken puntua",
       "clear_title": "Marraztura garbitu",
       "accept": "Onartu"
+    }
+  },
+  "entities": {
+    "assets": {
+      "title": "Aktiboak",
+      "search_placeholder": "Bilatu izena, mota edo kokapenaren arabera...",
+      "selected_count": "{{count}} hautatuta",
+      "deselect": "Desautatu",
+      "export_csv": "CSV",
+      "export_json": "JSON",
+      "delete": "Ezabatu",
+      "loading": "Aktiboak kargatzen...",
+      "no_assets_filtered": "Ez da aktiborik aurkitu iragazki hauekin",
+      "no_assets": "Ez dago aktiborik erregistratuta",
+      "clear_filters": "Iragazkiak garbitu",
+      "create_first": "Sortu lehen aktiboa",
+      "refresh": "Eguneratu",
+      "filters": "Iragazkiak",
+      "view_list": "Zerrenda bista",
+      "view_tree": "Zuhaitz bista",
+      "view_grid": "Sareta bista",
+      "add": "Gehitu",
+      "retry": "Saiatu berriro",
+      "delete_success": "{{count}} entitate ondo ezabatu d(ir)a",
+      "delete_error": "Errorea entitateak ezabatzean"
+    },
+    "filters": {
+      "title": "Iragazkiak",
+      "clear": "Garbitu",
+      "status": "Egoera",
+      "location": "Kokapena",
+      "with_location": "Kokapenarekin",
+      "without_location": "Kokapenik gabe",
+      "asset_types": "Aktibo motak"
+    },
+    "status": {
+      "active": "Aktiboa",
+      "inactive": "Inaktiboa",
+      "maintenance": "Mantenua",
+      "error": "Errorea",
+      "offline": "Lineaz kanpo",
+      "unknown": "Ezezag."
+    },
+    "categories": {
+      "all": "Guztiak"
     }
   }
 }
