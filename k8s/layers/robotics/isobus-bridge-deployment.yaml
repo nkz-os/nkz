@@ -30,7 +30,7 @@ spec:
       serviceAccountName: default
       containers:
       - name: isobus-bridge
-        image: ghcr.io/nkz-os/nkz/isobus-bridge:latest
+        image: ghcr.io/nkz-os/nkz/isobus-bridge@sha256:21fb9fc1d3c7de76f4be0b6a66a961c7196bfeff445284ce3e92e0175492faf6
         imagePullPolicy: Always
         ports:
         - name: http
