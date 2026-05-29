@@ -574,7 +574,50 @@
     "save": "Guardar Estación",
     "save_error": "Error al guardar la estación meteorológica",
     "saving": "Guardando...",
-    "title": "Registrar Estación Meteorológica"
+    "title": "Registrar Estación Meteorológica",
+    "agro_panel": {
+      "title": "Panneau Agronomique",
+      "select_municipality": "Sélectionner la municipalité",
+      "change": "Changer",
+      "search": "Rechercher",
+      "search_municipality_placeholder": "Rechercher une municipalité...",
+      "no_municipalities_found": "Aucune municipalité trouvée",
+      "error": "Erreur",
+      "loading_agro_data": "Chargement des données agronomiques...",
+      "spraying": "Pulvérisation",
+      "workability": "Praticabilité",
+      "irrigation": "Irrigation",
+      "wind": "Vent :",
+      "delta_t": "Delta T :",
+      "rain_prob": "Prob. de pluie :",
+      "soil_moisture": "Humidité du sol :",
+      "real_sensor_data": "Données de capteur réel",
+      "platform_data": "Données de la plateforme",
+      "balance_3_days": "Bilan (3 jours) :",
+      "precip_eto_accumulated": "Précip. - ET₀ accumulées",
+      "no_data_available": "Aucune donnée disponible",
+      "select_municipality_button": "Sélectionner la municipalité",
+      "conditions": {
+        "spraying_optimal": "Conditions optimales pour la pulvérisation",
+        "spraying_caution": "Attention - Conditions marginales",
+        "spraying_not_suitable": "Ne pas traiter - Conditions défavorables",
+        "workability_optimal": "Sol adapté pour le travail",
+        "workability_too_wet": "Risque de compactage - Sol très humide",
+        "workability_too_dry": "Sol très sec - Envisager l'irrigation",
+        "workability_caution": "Attention - Conditions marginales",
+        "irrigation_satisfied": "Sol avec suffisamment d'eau",
+        "irrigation_alert": "Alerte - Déficit hydrique modéré",
+        "irrigation_deficit": "Nécessite une irrigation urgente",
+        "unknown": "Aucune donnée",
+        "evaluating": "Évaluation des conditions"
+      }
+    },
+    "change_parcel": "Changer de parcelle",
+    "search_parcel_placeholder": "Rechercher une parcelle...",
+    "loading_parcels": "Chargement des parcelles...",
+    "no_parcels_found": "Aucune parcelle trouvée",
+    "no_parcels": "Aucune parcelle disponible",
+    "loading": "Chargement..."
   },
   "wizard": {
     "array": {
@@ -885,6 +928,51 @@
       "undo_title": "Annuler le dernier point",
       "clear_title": "Effacer le dessin",
       "accept": "Accepter"
+    }
+  },
+  "entities": {
+    "assets": {
+      "title": "Actifs",
+      "search_placeholder": "Rechercher par nom, type ou emplacement...",
+      "selected_count": "{{count}} sélectionné(s)",
+      "deselect": "Désélectionner",
+      "export_csv": "CSV",
+      "export_json": "JSON",
+      "delete": "Supprimer",
+      "loading": "Chargement des actifs...",
+      "no_assets_filtered": "Aucun actif trouvé avec ces filtres",
+      "no_assets": "Aucun actif enregistré",
+      "clear_filters": "Effacer les filtres",
+      "create_first": "Créer le premier actif",
+      "refresh": "Actualiser",
+      "filters": "Filtres",
+      "view_list": "Vue liste",
+      "view_tree": "Vue hiérarchique",
+      "view_grid": "Vue grille",
+      "add": "Ajouter",
+      "retry": "Réessayer",
+      "delete_success": "{{count}} entité(s) supprimée(s) avec succès",
+      "delete_error": "Erreur lors de la suppression des entités"
+    },
+    "filters": {
+      "title": "Filtres",
+      "clear": "Effacer",
+      "status": "Statut",
+      "location": "Emplacement",
+      "with_location": "Avec emplacement",
+      "without_location": "Sans emplacement",
+      "asset_types": "Types d'actifs"
+    },
+    "status": {
+      "active": "Actif",
+      "inactive": "Inactif",
+      "maintenance": "Maintenance",
+      "error": "Erreur",
+      "offline": "Hors ligne",
+      "unknown": "Inconnu"
+    },
+    "categories": {
+      "all": "Tous"
     }
   }
 }

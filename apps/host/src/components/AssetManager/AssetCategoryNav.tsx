@@ -15,6 +15,7 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { AssetCategory, CATEGORY_REGISTRY } from '@/types/assets';
+import { useI18n } from '@/context/I18nContext';
 
 // =============================================================================
 // Icon Map
@@ -53,6 +54,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
   onCategoryChange,
   compact = false,
 }) => {
+  const { t } = useI18n();
   const totalCount = Object.values(countsByCategory).reduce((a, b) => a + b, 0);
   
   const categories: (AssetCategory | 'all')[] = [
@@ -135,7 +137,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
               <Icon className="w-3.5 h-3.5" />
               {!compact && (
                 <span>
-                  {isAll ? 'Todos' : info?.label || cat}
+                  {isAll ? t('entities.categories.all') : info?.label || cat}
                 </span>
               )}
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${

@@ -574,7 +574,50 @@
     "save": "Guardar Estación",
     "save_error": "Error al guardar la estación meteorológica",
     "saving": "Guardando...",
-    "title": "Registrar Estación Meteorológica"
+    "title": "Registrar Estación Meteorológica",
+    "agro_panel": {
+      "title": "Panell Agronòmic",
+      "select_municipality": "Selecciona municipi",
+      "change": "Canviar",
+      "search": "Cercar",
+      "search_municipality_placeholder": "Cercar municipi...",
+      "no_municipalities_found": "No s'han trobat municipis",
+      "error": "Error",
+      "loading_agro_data": "Carregant dades agronòmiques...",
+      "spraying": "Pulverització",
+      "workability": "Temper",
+      "irrigation": "Reg",
+      "wind": "Vent:",
+      "delta_t": "Delta T:",
+      "rain_prob": "Prob. Pluja:",
+      "soil_moisture": "Humitat sòl:",
+      "real_sensor_data": "Dades de sensor real",
+      "platform_data": "Dades de la plataforma",
+      "balance_3_days": "Balanç (3 dies):",
+      "precip_eto_accumulated": "Precip. - ET₀ acumulada",
+      "no_data_available": "No hi ha dades disponibles",
+      "select_municipality_button": "Seleccionar municipi",
+      "conditions": {
+        "spraying_optimal": "Condicions òptimes per a pulverització",
+        "spraying_caution": "Precaució - Condicions marginals",
+        "spraying_not_suitable": "No tractar - Condicions desfavorables",
+        "workability_optimal": "Sòl apte per a labor",
+        "workability_too_wet": "Risc de compactació - Sòl molt humit",
+        "workability_too_dry": "Sòl molt sec - Considerar reg",
+        "workability_caution": "Precaució - Condicions marginals",
+        "irrigation_satisfied": "Sòl amb aigua suficient",
+        "irrigation_alert": "Alerta - Dèficit hídric moderat",
+        "irrigation_deficit": "Necessita reg urgent",
+        "unknown": "Sense dades",
+        "evaluating": "Avaluar condicions"
+      }
+    },
+    "change_parcel": "Canviar parcel·la",
+    "search_parcel_placeholder": "Cercar parcel·la...",
+    "loading_parcels": "Carregant parcel·les...",
+    "no_parcels_found": "No s'han trobat parcel·les",
+    "no_parcels": "No hi ha parcel·les disponibles",
+    "loading": "Carregant..."
   },
   "wizard": {
     "array": {
@@ -885,6 +928,51 @@
       "undo_title": "Desfer l'últim punt",
       "clear_title": "Netejar el dibuix",
       "accept": "Acceptar"
+    }
+  },
+  "entities": {
+    "assets": {
+      "title": "Actius",
+      "search_placeholder": "Cerca per nom, tipus o ubicació...",
+      "selected_count": "{{count}} seleccionat(s)",
+      "deselect": "Deseleccionar",
+      "export_csv": "CSV",
+      "export_json": "JSON",
+      "delete": "Eliminar",
+      "loading": "Carregant actius...",
+      "no_assets_filtered": "No s'han trobat actius amb aquests filtres",
+      "no_assets": "No hi ha actius registrats",
+      "clear_filters": "Netejar filtres",
+      "create_first": "Crear primer actiu",
+      "refresh": "Actualitzar",
+      "filters": "Filtres",
+      "view_list": "Vista llista",
+      "view_tree": "Vista jeràrquica",
+      "view_grid": "Vista quadrícula",
+      "add": "Afegir",
+      "retry": "Reintentar",
+      "delete_success": "{{count}} entitat(s) eliminada(es) correctament",
+      "delete_error": "Error en eliminar entitats"
+    },
+    "filters": {
+      "title": "Filtres",
+      "clear": "Netejar",
+      "status": "Estat",
+      "location": "Ubicació",
+      "with_location": "Amb ubicació",
+      "without_location": "Sense ubicació",
+      "asset_types": "Tipus d'Actiu"
+    },
+    "status": {
+      "active": "Actiu",
+      "inactive": "Inactiu",
+      "maintenance": "Manteniment",
+      "error": "Error",
+      "offline": "Fora de línia",
+      "unknown": "Desc."
+    },
+    "categories": {
+      "all": "Tots"
     }
   }
 }

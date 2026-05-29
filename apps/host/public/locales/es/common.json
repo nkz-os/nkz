@@ -214,7 +214,6 @@
     "type_tenant_name_confirm": "Escribe \"{{name}}\" para confirmar",
     "inventory_loading": "Analizando sistemas...",
     "system": "Sistema",
-    "status": "Estado",
     "details": "Detalles",
     "purge_tenant_title": "Purgar {{name}} — IRREVERSIBLE",
     "purge_irreversible_warning": "Esta acción es IRREVERSIBLE. Todos los datos del tenant serán eliminados permanentemente.",
@@ -650,7 +649,7 @@
     "search_municipality": "Buscar municipio",
     "change_municipality": "Cambiar",
     "refresh": "Actualizar",
-    "loading": "Cargando datos meteorológicos...",
+    "loading": "Cargando...",
     "no_data": "No hay datos meteorológicos disponibles",
     "search_municipality_button": "Buscar Municipio",
     "search_placeholder": "Buscar municipio...",
@@ -686,7 +685,49 @@
     "et0_desc": "Evapotranspiración",
     "downscaling_active": "Datos corregidos para esta parcela (altitud/orientación/pendiente)",
     "select_parcel": "Seleccionar parcela",
-    "clear_parcel": "Limpiar selección"
+    "clear_parcel": "Limpiar selección",
+    "agro_panel": {
+      "title": "Panel Agronómico",
+      "select_municipality": "Selecciona municipio",
+      "change": "Cambiar",
+      "search": "Buscar",
+      "search_municipality_placeholder": "Buscar municipio...",
+      "no_municipalities_found": "No se encontraron municipios",
+      "error": "Error",
+      "loading_agro_data": "Cargando datos agronómicos...",
+      "spraying": "Pulverización",
+      "workability": "Tempero",
+      "irrigation": "Riego",
+      "wind": "Viento:",
+      "delta_t": "Delta T:",
+      "rain_prob": "Prob. Lluvia:",
+      "soil_moisture": "Humedad suelo:",
+      "real_sensor_data": "Datos de sensor real",
+      "platform_data": "Datos de la plataforma",
+      "balance_3_days": "Balance (3 días):",
+      "precip_eto_accumulated": "Precip. - ET₀ acumulada",
+      "no_data_available": "No hay datos disponibles",
+      "select_municipality_button": "Seleccionar municipio",
+      "conditions": {
+        "spraying_optimal": "Condiciones óptimas para pulverización",
+        "spraying_caution": "Precaución - Condiciones marginales",
+        "spraying_not_suitable": "No tratar - Condiciones desfavorables",
+        "workability_optimal": "Suelo apto para labor",
+        "workability_too_wet": "Riesgo de compactación - Suelo muy húmedo",
+        "workability_too_dry": "Suelo muy seco - Considerar riego",
+        "workability_caution": "Precaución - Condiciones marginales",
+        "irrigation_satisfied": "Suelo con agua suficiente",
+        "irrigation_alert": "Alerta - Déficit hídrico moderado",
+        "irrigation_deficit": "Necesita riego urgente",
+        "unknown": "Sin datos",
+        "evaluating": "Evaluar condiciones"
+      }
+    },
+    "change_parcel": "Cambiar parcela",
+    "search_parcel_placeholder": "Buscar parcela...",
+    "loading_parcels": "Cargando parcelas...",
+    "no_parcels_found": "No se encontraron parcelas",
+    "no_parcels": "No hay parcelas disponibles"
   },
   "wizard": {
     "array": {
@@ -1307,6 +1348,51 @@
       "undo_title": "Deshacer último punto",
       "clear_title": "Borrar dibujo",
       "accept": "Aceptar"
+    }
+  },
+  "entities": {
+    "assets": {
+      "title": "Assets",
+      "search_placeholder": "Buscar por nombre, tipo o ubicación...",
+      "selected_count": "{{count}} seleccionado(s)",
+      "deselect": "Deseleccionar",
+      "export_csv": "CSV",
+      "export_json": "JSON",
+      "delete": "Eliminar",
+      "loading": "Cargando assets...",
+      "no_assets_filtered": "No se encontraron assets con estos filtros",
+      "no_assets": "No hay assets registrados",
+      "clear_filters": "Limpiar filtros",
+      "create_first": "Crear primer asset",
+      "refresh": "Actualizar",
+      "filters": "Filtros",
+      "view_list": "Vista lista",
+      "view_tree": "Vista jerárquica",
+      "view_grid": "Vista cuadrícula",
+      "add": "Añadir",
+      "retry": "Reintentar",
+      "delete_success": "{{count}} entidad(es) eliminada(s) correctamente",
+      "delete_error": "Error al eliminar entidades"
+    },
+    "filters": {
+      "title": "Filtros",
+      "clear": "Limpiar",
+      "status": "Estado",
+      "location": "Ubicación",
+      "with_location": "Con ubicación",
+      "without_location": "Sin ubicación",
+      "asset_types": "Tipos de Asset"
+    },
+    "status": {
+      "active": "Activo",
+      "inactive": "Inactivo",
+      "maintenance": "Mantenimiento",
+      "error": "Error",
+      "offline": "Offline",
+      "unknown": "Desc."
+    },
+    "categories": {
+      "all": "Todos"
     }
   }
 }

@@ -574,7 +574,50 @@
     "save": "Guardar Estación",
     "save_error": "Error al guardar la estación meteorológica",
     "saving": "Guardando...",
-    "title": "Registrar Estación Meteorológica"
+    "title": "Registrar Estación Meteorológica",
+    "agro_panel": {
+      "title": "Painel Agronômico",
+      "select_municipality": "Selecionar município",
+      "change": "Mudar",
+      "search": "Pesquisar",
+      "search_municipality_placeholder": "Pesquisar município...",
+      "no_municipalities_found": "Nenhum município encontrado",
+      "error": "Erro",
+      "loading_agro_data": "Carregando dados agronômicos...",
+      "spraying": "Pulverização",
+      "workability": "Trabalhabilidade",
+      "irrigation": "Irrigação",
+      "wind": "Vento:",
+      "delta_t": "Delta T:",
+      "rain_prob": "Prob. de chuva:",
+      "soil_moisture": "Umidade do solo:",
+      "real_sensor_data": "Dados de sensor real",
+      "platform_data": "Dados da plataforma",
+      "balance_3_days": "Balanço (3 dias):",
+      "precip_eto_accumulated": "Precip. - ET₀ acumulada",
+      "no_data_available": "Nenhum dado disponível",
+      "select_municipality_button": "Selecionar município",
+      "conditions": {
+        "spraying_optimal": "Condições ideais para pulverização",
+        "spraying_caution": "Cuidado - Condições marginais",
+        "spraying_not_suitable": "Não tratar - Condições desfavoráveis",
+        "workability_optimal": "Solo adequado para trabalho",
+        "workability_too_wet": "Risco de compactação - Solo muito úmido",
+        "workability_too_dry": "Solo muito seco - Considere irrigação",
+        "workability_caution": "Cuidado - Condições marginais",
+        "irrigation_satisfied": "Solo com água suficiente",
+        "irrigation_alert": "Alerta - Déficit hídrico moderado",
+        "irrigation_deficit": "Necessita de irrigação urgente",
+        "unknown": "Sem dados",
+        "evaluating": "Avaliando condições"
+      }
+    },
+    "change_parcel": "Mudar parcela",
+    "search_parcel_placeholder": "Pesquisar parcela...",
+    "loading_parcels": "Carregando parcelas...",
+    "no_parcels_found": "Nenhuma parcela encontrada",
+    "no_parcels": "Nenhuma parcela disponível",
+    "loading": "Carregando..."
   },
   "wizard": {
     "array": {
@@ -885,6 +928,51 @@
       "undo_title": "Desfazer último ponto",
       "clear_title": "Limpar desenho",
       "accept": "Aceitar"
+    }
+  },
+  "entities": {
+    "assets": {
+      "title": "Ativos",
+      "search_placeholder": "Pesquisar por nome, tipo ou localização...",
+      "selected_count": "{{count}} selecionado(s)",
+      "deselect": "Desmarcar",
+      "export_csv": "CSV",
+      "export_json": "JSON",
+      "delete": "Excluir",
+      "loading": "Carregando ativos...",
+      "no_assets_filtered": "Nenhum ativo encontrado com esses filtros",
+      "no_assets": "Nenhum ativo registrado",
+      "clear_filters": "Limpar filtros",
+      "create_first": "Criar primeiro ativo",
+      "refresh": "Atualizar",
+      "filters": "Filtros",
+      "view_list": "Exibição em lista",
+      "view_tree": "Exibição hierárquica",
+      "view_grid": "Exibição em grade",
+      "add": "Adicionar",
+      "retry": "Tentar novamente",
+      "delete_success": "{{count}} entidade(s) excluída(s) com sucesso",
+      "delete_error": "Erro ao excluir entidades"
+    },
+    "filters": {
+      "title": "Filtros",
+      "clear": "Limpar",
+      "status": "Status",
+      "location": "Localização",
+      "with_location": "Com localização",
+      "without_location": "Sem localização",
+      "asset_types": "Tipos de Ativos"
+    },
+    "status": {
+      "active": "Ativo",
+      "inactive": "Inativo",
+      "maintenance": "Manutenção",
+      "error": "Erro",
+      "offline": "Offline",
+      "unknown": "Desc."
+    },
+    "categories": {
+      "all": "Todos"
     }
   }
 }
