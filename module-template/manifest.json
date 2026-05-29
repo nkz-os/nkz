@@ -4,6 +4,14 @@
   "display_name": "MODULE_DISPLAY_NAME",
   "version": "1.0.0",
   "description": "MODULE_DISPLAY_NAME — description of what this module does",
+  "description_i18n": {
+    "es": "DESCRIPCIÓN_EN_ESPAÑOL",
+    "en": "DESCRIPTION_IN_ENGLISH",
+    "eu": "DESKRIBAPENA_EUSKARAZ",
+    "fr": "DESCRIPTION_EN_FRANÇAIS",
+    "pt": "DESCRIÇÃO_EM_PORTUGUÊS",
+    "ca": "DESCRIPCIÓ_EN_CATALÀ"
+  },
   "short_description": "Short description for marketplace listing",
   "icon": "puzzle",
   "author": { "name": "YOUR_NAME", "email": "", "organization": "YOUR_ORG" },

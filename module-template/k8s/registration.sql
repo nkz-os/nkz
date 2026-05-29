@@ -40,7 +40,7 @@ INSERT INTO marketplace_modules (
     false,
     true,
     ARRAY['Farmer', 'TenantAdmin', 'PlatformAdmin'],
-    '{"icon": "🔧", "color": "#3B82F6"}'::jsonb
+    '{"icon": "🔧", "color": "#3B82F6", "description_i18n": {"es": "DESCRIPCIÓN_EN_ESPAÑOL", "en": "DESCRIPTION_IN_ENGLISH", "eu": "DESKRIBAPENA_EUSKARAZ", "fr": "DESCRIPTION_EN_FRANÇAIS", "pt": "DESCRIÇÃO_EM_PORTUGUÊS", "ca": "DESCRIPCIÓ_EN_CATALÀ"}}'::jsonb
 ) ON CONFLICT (id) DO UPDATE SET
     display_name   = EXCLUDED.display_name,
     description    = EXCLUDED.description,

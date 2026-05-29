@@ -97,6 +97,53 @@ def _guess_dist_content_type(filename):
 
 VisibilityRules = Mapping[str, Dict[str, List[str]]]
 
+# ---------------------------------------------------------------------------
+# i18n description resolver
+# ---------------------------------------------------------------------------
+
+def _resolve_description(module_row, lang=None):
+    """Resolve description with i18n support.
+
+    Checks metadata.description_i18n for a translation matching the requested
+    language. Falls back to the row's plain `description` column if no
+    translation exists.
+    """
+    metadata = module_row.get('metadata') or {}
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+
+    description_i18n = metadata.get('description_i18n', {})
+    if not isinstance(description_i18n, dict):
+        description_i18n = {}
+
+    fallback = module_row.get('description') or ''
+
+    if not lang or not description_i18n:
+        return fallback
+
+    # Exact match first
+    if lang in description_i18n and description_i18n[lang]:
+        return description_i18n[lang]
+
+    # Try primary language tag (e.g. 'es' from 'es-ES')
+    primary = lang.split('-')[0] if '-' in lang else lang
+    if primary in description_i18n and description_i18n[primary]:
+        return description_i18n[primary]
+
+    return fallback
+
+
+SUPPORTED_LANGUAGES = ['es', 'en', 'eu', 'fr', 'pt', 'ca']
+
+
+def _get_user_lang():
+    """Extract best language from Accept-Language header."""
+    return request.accept_languages.best_match(SUPPORTED_LANGUAGES) or 'es'
+
+
 modules_bp = Blueprint('modules', __name__)
 
 
@@ -133,6 +180,7 @@ def get_tenant_modules():
                         mm.id,
                         mm.name,
                         mm.display_name,
+                        mm.description,
                         mm.remote_entry_url as "remoteEntry",
                         mm.scope,
                         mm.exposed_module as "module",
@@ -159,6 +207,7 @@ def get_tenant_modules():
                         mm.id,
                         mm.name,
                         mm.display_name,
+                        mm.description,
                         mm.remote_entry_url as "remoteEntry",
                         mm.scope,
                         mm.exposed_module as "module",
@@ -185,21 +234,36 @@ def get_tenant_modules():
                 cur.execute(query, (tenant_id, user_roles))
             rows = cur.fetchall()
 
+            # Resolve user language once for this request
+            user_lang = _get_user_lang()
+
             # Transform to expected format
             modules = []
             for row in rows:
                 metadata = row.get('metadata') or {}
+                if isinstance(metadata, str):
+                    try:
+                        metadata = json.loads(metadata)
+                    except (json.JSONDecodeError, TypeError):
+                        metadata = {}
                 tenant_config = row.get('tenant_config') or {}
+                if isinstance(tenant_config, str):
+                    try:
+                        tenant_config = json.loads(tenant_config)
+                    except (json.JSONDecodeError, TypeError):
+                        tenant_config = {}
 
                 # Use explicit columns with fallback to metadata for backwards compatibility
                 route_path = row.get('route_path') or metadata.get('routePath') or tenant_config.get('routePath') or f"/{row['name']}"
                 label = row.get('label') or metadata.get('label') or row['display_name']
                 icon = metadata.get('icon') or row.get('icon_url')
+                icon_url = row.get('icon_url') or None
 
                 module_data = {
                     'id': row['id'],
                     'name': row['name'],
                     'displayName': row['display_name'],
+                    'description': _resolve_description(row, user_lang),
                     'isLocal': row.get('is_local', False),
                     'remoteEntry': row.get('remoteEntry') or None,
                     'scope': row.get('scope') or None,
@@ -208,6 +272,7 @@ def get_tenant_modules():
                     'routePath': route_path,
                     'label': label,
                     'icon': icon,
+                    'icon_url': icon_url,
                     'moduleType': row.get('module_type', 'ADDON_FREE'),
                     'metadata': metadata,
                     'tenantConfig': tenant_config
@@ -461,11 +526,19 @@ def get_marketplace_modules():
         query += " ORDER BY display_name"
         cur.execute(query)
 
-        modules = cur.fetchall()
+        modules_raw = cur.fetchall()
         cur.close()
         return_db_connection(conn)
 
-        return jsonify([dict(m) for m in modules]), 200
+        # Resolve descriptions with i18n support
+        user_lang = _get_user_lang()
+        modules = []
+        for m in modules_raw:
+            m_dict = dict(m)
+            m_dict['description'] = _resolve_description(m, user_lang)
+            modules.append(m_dict)
+
+        return jsonify(modules), 200
 
     except Exception as e:
         logger.error(f"Error fetching marketplace modules: {e}")
@@ -1436,10 +1509,12 @@ def deploy_module_dist(module_id):
     exposed_module = './Module'
     remote_entry_url = f'/modules/{module_id}/{version_hash}/mf-manifest.json' if version_hash else f'/modules/{module_id}/mf-manifest.json'
 
+    description_i18n = manifest.get('description_i18n', None)
     metadata = json.dumps({
         'hostApiVersion': manifest.get('hostApiVersion', ''),
         'deploy_method': 'dist_endpoint',
         'slots': manifest.get('slots', {}),
+        'description_i18n': description_i18n if isinstance(description_i18n, dict) else {},
     })
 
     conn = None
