@@ -3242,6 +3242,44 @@ def update_tenant_info(tenant_id):
         return _internal_error(e, "update_tenant_info", user_message="Failed to update tenant info")
 
 
+def _resolve_tenant_expires(
+    tenant_id: str | None,
+    row: dict,
+    activation_expires,
+) -> tuple[str | None, int | None]:
+    """Compute (expires_at_iso, days_remaining) for the admin tenant listing.
+
+    Precedence:
+      1. The 'platform' tenant is internal administration with no consumer
+         plan lifecycle — always returns (None, None) regardless of
+         row/activation values.
+      2. If row['expires_at'] is set (canonical, written by the Stripe
+         billing webhook into tenants.expires_at), use it. Activation
+         expiry is ignored — see CLAUDE.md "tenants.expires_at is the
+         canonical license window".
+      3. Otherwise fall back to the activation code's expires_at.
+      4. If both are null, returns (None, None).
+
+    When the resolved value is a datetime, days_remaining is clamped to
+    a non-negative integer. When it is a bare string (legacy/serialized
+    data), days_remaining is None — we don't try to parse it here.
+    """
+    if (tenant_id or "").lower() == "platform":
+        return None, None
+
+    if "expires_at" in row and row["expires_at"] is not None:
+        tenant_expires = row["expires_at"]
+    else:
+        tenant_expires = activation_expires
+
+    if isinstance(tenant_expires, datetime):
+        delta = tenant_expires - datetime.utcnow()
+        return tenant_expires.isoformat(), max(delta.days, 0)
+    if tenant_expires:
+        return str(tenant_expires), None
+    return None, None
+
+
 @app.route("/api/admin/tenants", methods=["GET"])
 @app.route("/tenants", methods=["GET"])  # For ingress prefix removal
 @require_platform_admin
@@ -3289,35 +3327,10 @@ def list_tenants():
                     activation.get("email") if activation else row.get("tenant_email")
                 )  # noqa: E501
                 activation_expires = activation.get("expires_at") if activation else None
-                
-                # If tenants table has an explicit expires_at, use it.
-                # If it's null but the tenant is active, it might be an
-                # unlimited/stripe-managed active plan. However, to avoid
-                # falling back to an old activation code that triggers an
-                # expiration alert, we prioritize the tenants table explicitly.
-                if "expires_at" in row and row["expires_at"] is not None:
-                    tenant_expires = row["expires_at"]
-                else:
-                    tenant_expires = activation_expires
 
-                # Platform tenant is internal administration; it never has a
-                # consumer-facing plan lifecycle, so we never emit a
-                # days_remaining countdown for it even if the DB has stale data.
-                is_platform_tenant = (tenant_id or "").lower() == "platform"
-
-                if is_platform_tenant:
-                    expires_at_iso = None
-                    days_remaining = None
-                elif isinstance(tenant_expires, datetime):
-                    delta = tenant_expires - datetime.utcnow()
-                    days_remaining = max(delta.days, 0)
-                    expires_at_iso = tenant_expires.isoformat()
-                elif tenant_expires:
-                    expires_at_iso = str(tenant_expires)
-                    days_remaining = None
-                else:
-                    expires_at_iso = None
-                    days_remaining = None
+                expires_at_iso, days_remaining = _resolve_tenant_expires(
+                    tenant_id, row, activation_expires
+                )
 
                 tenants.append(
                     {
