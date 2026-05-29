@@ -299,15 +299,21 @@ export const Modules: React.FC = () => {
                 <div className="flex items-start gap-3 mb-4">
                   {/* Module Icon */}
                   <div className="flex-shrink-0">
-                    {module.icon ? (
-                      <img
-                        src={module.icon}
-                        alt={module.displayName}
-                        className="w-12 h-12 rounded-lg object-cover border border-gray-200"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
+                    {(module.icon_url || module.icon) ? (
+                      module.icon_url ? (
+                        <img
+                          src={module.icon_url}
+                          alt={module.displayName}
+                          className="w-12 h-12 rounded-lg object-cover border border-gray-200"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-xl">
+                          {module.icon}
+                        </div>
+                      )
                     ) : (
                       <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
                         <Package className="w-6 h-6 text-gray-400" />
@@ -346,7 +352,7 @@ export const Modules: React.FC = () => {
                 {/* Description - Clear spacing */}
                 <div className="mb-4">
                   <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
-                    {module.metadata?.description || 'No hay descripción disponible para este módulo.'}
+                    {module.description || t('no_description_available', 'No hay descripción disponible para este módulo.')}
                   </p>
                 </div>
 
@@ -400,6 +406,7 @@ export const Modules: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {marketplaceModules.filter(m => m && m.id).map((module) => {
               const installed = isModuleInstalled(module.id);
+              if (installed) return null;
               const enabled = isModuleEnabled(module.id);
               const isToggling = toggling.has(module.id);
               const isActivating = activating.has(module.id);

@@ -24,6 +24,7 @@ export interface ModuleDefinition {
   id: string;
   name: string;
   displayName: string;
+  description?: string;
   version: string;
   routePath: string;
   label: string;
@@ -38,6 +39,7 @@ export interface ModuleDefinition {
   moduleType?: 'CORE' | 'ADDON_FREE' | 'ADDON_PAID' | 'ADDON_ENTERPRISE';
   // Optional metadata
   icon?: string;
+  icon_url?: string;
   metadata?: Record<string, any>;
   tenantConfig?: Record<string, any>;
   navigationItems?: Array<{
@@ -94,7 +96,9 @@ const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
     remoteEntry: typeof module.remoteEntry === 'string' ? module.remoteEntry : undefined,
     scope: typeof module.scope === 'string' ? module.scope : undefined,
     module: typeof module.module === 'string' ? module.module : undefined,
+    description: typeof module.description === 'string' ? module.description : undefined,
     icon: typeof module.icon === 'string' ? module.icon : undefined,
+    icon_url: typeof module.icon_url === 'string' ? module.icon_url : undefined,
     metadata: module.metadata && typeof module.metadata === 'object' ? module.metadata : undefined,
     tenantConfig: module.tenantConfig && typeof module.tenantConfig === 'object' ? module.tenantConfig : undefined,
     navigationItems: Array.isArray(module.navigationItems) ? module.navigationItems : undefined,
