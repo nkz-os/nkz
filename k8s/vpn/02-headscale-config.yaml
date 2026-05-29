@@ -60,12 +60,15 @@ data:
     # DERP: servidores de relay para NAT traversal
     # Usamos los servidores públicos de Tailscale como fallback.
     # El tráfico directo (UDP 51820) es preferido siempre.
+    # DERP map: usar paths con archivo estático (zero egress).
+    # El ConfigMap headscale-derp-map debe contener el JSON de DERP relays.
     derp:
       server:
         enabled: false
-      urls:
-        - https://controlplane.tailscale.com/derpmap/default
-      auto_update_enabled: true
+      paths:
+        - /etc/headscale/derp/derpmap.json
+      urls: []
+      auto_update_enabled: false
       update_frequency: 24h
 
     # Política ACL: archivo separado montado en /etc/headscale/acls.hujson
