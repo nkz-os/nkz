@@ -3955,10 +3955,38 @@ def assign_user_to_tenant(tenant_id: str):
         # Assign role
         webhook_service._assign_role_to_user(headers, user_id, role)
 
-        # Update user attributes with tenant_id
+        # Update user attributes with tenant_id.
+        # Keycloak 26 PUT /users/{id} validates the whole UserRepresentation
+        # against the realm User Profile — if we send only {"attributes": ...}
+        # it rejects with 400 error-user-attribute-required (email missing).
+        # Fix: GET the user, merge tenant_id into existing attributes, PUT the
+        # full object back. ALSO check the status code — the previous
+        # fire-and-forget swallowed the 400 silently and the UI reported
+        # success while the attribute stayed stale.
         update_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
-        user_data = {"attributes": {"tenant_id": [tenant_id]}}
-        requests.put(update_url, json=user_data, headers=headers, timeout=10)
+        get_resp = requests.get(update_url, headers=headers, timeout=10)
+        if get_resp.status_code != 200:
+            logger.error(
+                f"Failed to GET user {user_id} from Keycloak: "
+                f"{get_resp.status_code} {get_resp.text[:200]}"
+            )
+            return jsonify({"error": "Failed to read user from Keycloak",
+                            "kc_status": get_resp.status_code}), 502
+        user_obj = get_resp.json()
+        attrs = dict(user_obj.get("attributes") or {})
+        attrs["tenant_id"] = [tenant_id]
+        user_obj["attributes"] = attrs
+        put_resp = requests.put(update_url, json=user_obj, headers=headers, timeout=10)
+        if put_resp.status_code not in (200, 204):
+            logger.error(
+                f"Failed to PUT tenant_id attribute on user {user_id}: "
+                f"{put_resp.status_code} {put_resp.text[:200]}"
+            )
+            return jsonify({
+                "error": "Failed to update user tenant_id attribute",
+                "kc_status": put_resp.status_code,
+                "kc_body": put_resp.text[:200] if put_resp.text else None,
+            }), 502
 
         return jsonify(
             {
@@ -4521,15 +4549,21 @@ def reassign_user_tenant(user_id: str):
     if resp.status_code != 200:
         return jsonify({"error": "User not found in Keycloak"}), 404
 
+    # Mutate attributes in-place on the FULL user object, then PUT the
+    # whole object back. Keycloak 26 validates the UserRepresentation
+    # against the realm User Profile and rejects PUTs that don't carry
+    # the required top-level fields (email) — sending only
+    # {"attributes": ...} returns 400 error-user-attribute-required.
     user = resp.json()
-    attributes = user.get("attributes", {}) or {}
+    attributes = dict(user.get("attributes") or {})
     old_tenant = (attributes.get("tenant_id", []) or [""])[0]
     attributes["tenant_id"] = [new_tenant_id]
+    user["attributes"] = attributes
 
     update_resp = requests.put(
         f"{users_url}/{user_id}",
         headers={**headers, "Content-Type": "application/json"},
-        json={"attributes": attributes},
+        json=user,
         timeout=10,
     )
 
