@@ -124,6 +124,22 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
   };
 
   const login = async (forcePrompt: boolean = false) => {
+    // Inside the mobile WebView (nkz-mobile) there is no Keycloak SSO session and
+    // redirecting to Keycloak would break the embedded module. The native shell
+    // owns authentication and injects the JWT via postMessage; ask it to
+    // (re)authenticate instead of redirecting here.
+    if (typeof window !== 'undefined' && (window as any).ReactNativeWebView) {
+      logger.debug('[Auth] login() suppressed inside ReactNativeWebView — requesting native re-auth');
+      try {
+        (window as any).ReactNativeWebView.postMessage(
+          JSON.stringify({ type: 'NKZ_AUTH_REQUIRED' }),
+        );
+      } catch {
+        /* best-effort */
+      }
+      return;
+    }
+
     // CRÍTICO: Detectar error=login_required ANTES de cualquier otra lógica
     // Si hay error, limpiar hash e ir a Keycloak INMEDIATAMENTE (solo una vez para evitar bucles)
     if (typeof window !== 'undefined') {
@@ -659,6 +675,89 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
     logger.debug('[Auth] 🔄 AuthProvider mounted');
 
     if (typeof window !== 'undefined') {
+      // -----------------------------------------------------------------------
+      // React Native WebView auth bridge (nkz-mobile shell)
+      // -----------------------------------------------------------------------
+      // The mobile app authenticates via PKCE in the SYSTEM browser and injects
+      // the resulting JWT into this WebView via postMessage (NKZ_AUTH_INJECTION).
+      // There is no Keycloak SSO session inside the WebView, so running
+      // check-sso/login() here would redirect to Keycloak and break the embedded
+      // module. Instead we trust the injected token: set the BFF httpOnly cookie
+      // (api.setSession) and populate auth state directly.
+      //
+      // SECURITY: this path is gated strictly to window.ReactNativeWebView, which
+      // is only defined inside react-native-webview. A normal web browser can
+      // never reach it, so it cannot be abused as a token-injection auth bypass.
+      if ((window as any).ReactNativeWebView) {
+        logger.debug('[Auth] ReactNativeWebView detected — using injected-token auth bridge');
+
+        const applyInjectedToken = (token: string) => {
+          try {
+            const decoded: any = JSON.parse(atob(token.split('.')[1]));
+            const roles: string[] = decoded.realm_access?.roles ?? decoded.roles ?? [];
+            const tokenTenant = decoded.tenant_id || decoded['tenant-id'] || '';
+            setUser({
+              id: decoded.sub || '',
+              username: decoded.preferred_username || '',
+              email: decoded.email || '',
+              firstName: decoded.given_name || '',
+              lastName: decoded.family_name || '',
+              name: `${decoded.given_name || ''} ${decoded.family_name || ''}`.trim(),
+              tenant: tokenTenant,
+              roles,
+            });
+            // Set the httpOnly BFF cookie so SDK calls (credentials: 'include') work.
+            api.setSession(token)
+              .then(() => setSessionReady(true))
+              .catch(() => setSessionReady(true));
+            setIsAuthenticated(true);
+            setIsLoading(false);
+          } catch (e) {
+            logger.error('[Auth] Failed to apply injected mobile token:', e);
+            setIsLoading(false);
+          }
+        };
+
+        const handleNativeMessage = (event: MessageEvent) => {
+          let data: any = event.data;
+          if (typeof data === 'string') {
+            try {
+              data = JSON.parse(data);
+            } catch {
+              return;
+            }
+          }
+          if (data?.type === 'NKZ_AUTH_INJECTION' && typeof data.token === 'string') {
+            logger.debug('[Auth] NKZ_AUTH_INJECTION received');
+            applyInjectedToken(data.token);
+          }
+        };
+
+        // react-native-webview delivers postMessage on both window and document.
+        window.addEventListener('message', handleNativeMessage);
+        document.addEventListener('message', handleNativeMessage as any);
+
+        // Handshake: now that the listener is registered, ask the native shell to
+        // (re)send the token. This avoids a race where the app injects before the
+        // listener exists (which would leave us stuck on the loading spinner).
+        try {
+          (window as any).ReactNativeWebView.postMessage(
+            JSON.stringify({ type: 'NKZ_AUTH_REQUIRED' }),
+          );
+        } catch {
+          /* best-effort */
+        }
+
+        // Stay in loading state until the token arrives so ProtectedRoute shows a
+        // spinner instead of redirecting to Keycloak.
+        setIsLoading(true);
+
+        return () => {
+          window.removeEventListener('message', handleNativeMessage);
+          document.removeEventListener('message', handleNativeMessage as any);
+        };
+      }
+
       // Detectar callback con código OAuth
       const hasCallback = window.location.hash.includes('code=') ||
         window.location.search.includes('code=');
