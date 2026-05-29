@@ -154,7 +154,7 @@ spec:
   - to:
     - namespaceSelector:
         matchLabels:
-          name: nekazari
+          kubernetes.io/metadata.name: nekazari
     ports:
     - protocol: TCP
       port: 5432
@@ -162,7 +162,7 @@ spec:
   - to:
     - namespaceSelector:
         matchLabels:
-          name: nekazari
+          kubernetes.io/metadata.name: nekazari
 EOF
 
 # Per-tenant Postgres DB + user used to be provisioned here via a
