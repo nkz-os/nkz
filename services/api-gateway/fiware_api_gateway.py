@@ -2185,6 +2185,52 @@ def proxy_routing_tiles(subpath):
         return jsonify({"error": "Internal service connection error"}), 502
 
 
+# Field-image parcel resolution constants (generous buffer by design — see spec).
+PARCEL_BUFFER_K = 3.0
+PARCEL_BUFFER_FLOOR_M = 50
+
+
+def resolve_parcel_for_point(tenant, lng, lat, accuracy):
+    """Best-effort resolution of the AgriParcel a field photo belongs to.
+
+    Two-step NGSI-LD geo-query against Orion-LD, tenant-scoped:
+      1. georel=intersects  -> parcel strictly containing the point.
+      2. georel=near;maxDistance==<margin> -> nearest parcel within buffer.
+    Margin = max(accuracy * K, FLOOR_M). Never raises; returns parcel id or None.
+    """
+    from ngsi_headers import inject_fiware_headers as _inject_headers
+
+    orion = os.getenv("ORION_URL", "http://orion-service:1026")
+    headers = _inject_headers({"Accept": "application/json"}, tenant)
+    coords = f"[{lng},{lat}]"
+    base = {
+        "type": "AgriParcel",
+        "geometry": "Point",
+        "coordinates": coords,
+        "limit": "1",
+    }
+    try:
+        intersects = dict(base, georel="intersects")
+        r = requests.get(
+            f"{orion}/ngsi-ld/v1/entities",
+            params=intersects,
+            headers=headers,
+            timeout=8,
+        )
+        if r.status_code == 200 and r.json():
+            return r.json()[0].get("id")
+        margin = int(max((accuracy or 0) * PARCEL_BUFFER_K, PARCEL_BUFFER_FLOOR_M))
+        near = dict(base, georel=f"near;maxDistance=={margin}")
+        r = requests.get(
+            f"{orion}/ngsi-ld/v1/entities", params=near, headers=headers, timeout=8
+        )
+        if r.status_code == 200 and r.json():
+            return r.json()[0].get("id")
+    except Exception as e:
+        logger.warning("Parcel resolution failed (non-fatal): %s", e)
+    return None
+
+
 @app.route("/api/field-images/upload", methods=["POST", "OPTIONS"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 def field_image_upload():
