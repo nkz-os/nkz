@@ -145,6 +145,8 @@ INTELLIGENCE_API_URL = os.getenv(
 AGRIENERGY_API_URL = os.getenv(
     "AGRIENERGY_API_URL", "http://agrienergy-api-service:8000"
 )
+RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
+N8N_NKZ_API_URL = os.getenv("N8N_NKZ_API_URL", "http://n8n-nkz-api-service:8000")
 LIDAR_API_URL = os.getenv("LIDAR_API_URL", "http://lidar-api-service:80")
 BIOORCHESTRATOR_API_URL = os.getenv(
     "BIOORCHESTRATOR_API_URL", "http://bioorchestrator-api-service:8420"
@@ -3726,6 +3728,14 @@ def robotics_proxy(path):
 )
 def risk_proxy(path):
     return generic_proxy(RISK_API_URL, f"api/risks/{path}")
+
+
+@app.route(
+    "/api/n8n-nkz/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def n8n_nkz_proxy(path):
+    return generic_proxy(N8N_NKZ_API_URL, f"api/n8n-nkz/{path}")
 
 
 @app.route(
