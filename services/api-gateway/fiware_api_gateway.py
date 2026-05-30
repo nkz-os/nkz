@@ -2289,12 +2289,16 @@ def field_image_upload():
     except Exception as e:
         logger.error(f"MinIO upload failed: {e}")
         return jsonify({"error": "Image storage unavailable"}), 502
-    image_url = f"https://nekazari.robotika.cloud/modules/field-images/{tenant}/{ts}_{uuid_str}.{ext}"
+    # Relative URL: consumers (web viewer, mobile) prepend their own API base
+    # (VITE_API_URL / EXPO_PUBLIC_API_URL), per platform convention. Avoids
+    # hardcoding the production domain in source.
+    image_url = f"/api/field-images/{minio_key}"
     entity_id = None
+    parcel_id = resolve_parcel_for_point(tenant, lng, lat, accuracy)
     try:
         ngsi_entity = {
-            "id": f"urn:ngsi-ld:AgriCropObservation:photo-{ts}-{uuid_str}",
-            "type": "AgriCropObservation",
+            "id": f"urn:ngsi-ld:AgriParcelRecord:photo-{ts}-{uuid_str}",
+            "type": "AgriParcelRecord",
             "imageUrl": {"type": "Property", "value": image_url},
             "location": {
                 "type": "GeoProperty",
@@ -2306,6 +2310,8 @@ def field_image_upload():
                 "object": f"urn:ngsi-ld:Tenant:{tenant}",
             },
         }
+        if parcel_id:
+            ngsi_entity["refAgriParcel"] = {"type": "Relationship", "object": parcel_id}
         if note:
             ngsi_entity["note"] = {"type": "Property", "value": note}
         if accuracy is not None:
@@ -2315,10 +2321,13 @@ def field_image_upload():
         )
         ORION_LD_URL = os.getenv("ORION_URL", "http://orion-service:1026")
         ngsi_entity["@context"] = [ctx_url]
+        ngsi_headers = inject_fiware_headers(
+            {"Content-Type": "application/ld+json"}, tenant
+        )
         ngsi_resp = requests.post(
             f"{ORION_LD_URL}/ngsi-ld/v1/entities",
             json=ngsi_entity,
-            headers={"Content-Type": "application/ld+json"},
+            headers=ngsi_headers,
             timeout=10,
         )
         if ngsi_resp.status_code in (200, 201):

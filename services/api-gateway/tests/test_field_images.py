@@ -1,4 +1,6 @@
+import io
 from unittest.mock import MagicMock, patch
+
 import fiware_api_gateway as gw
 
 
@@ -47,3 +49,106 @@ def test_resolve_parcel_none_when_no_match():
 def test_resolve_parcel_swallows_errors():
     with patch.object(gw.requests, "get", side_effect=Exception("orion down")):
         assert gw.resolve_parcel_for_point("acme", -1.0, 43.0, 5.0) is None
+
+
+def _img_bytes():
+    return (io.BytesIO(b"\xff\xd8\xff\xe0fakejpeg"), "shot.jpg")
+
+
+def test_upload_creates_agriparcelrecord_with_parcel(client, app):
+    captured = {}
+
+    def fake_put(**kwargs):
+        captured["key"] = kwargs.get("Key")
+
+    def fake_post(url, json=None, headers=None, timeout=None, **kw):
+        captured["entity"] = json
+        captured["post_headers"] = headers
+        r = MagicMock()
+        r.status_code = 201
+        return r
+
+    fake_s3 = MagicMock()
+    fake_s3.put_object.side_effect = fake_put
+    with (
+        patch.object(app, "validate_jwt_token", return_value={"sub": "u1"}),
+        patch.object(app, "extract_tenant_id", return_value="acme"),
+        patch.object(app, "get_request_token", return_value="tok"),
+        patch.object(
+            app, "resolve_parcel_for_point", return_value="urn:ngsi-ld:AgriParcel:P9"
+        ),
+        patch.object(app.boto3, "client", return_value=fake_s3),
+        patch.object(app.requests, "post", side_effect=fake_post),
+    ):
+        buf, name = _img_bytes()
+        resp = client.post(
+            "/api/field-images/upload",
+            data={
+                "image": (buf, name),
+                "lat": "43.31",
+                "lng": "-1.98",
+                "accuracy": "4.0",
+                "note": "leaf spot",
+            },
+            content_type="multipart/form-data",
+        )
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["success"] is True
+    assert body["image_url"].endswith(captured["key"])
+    assert "/modules/" not in body["image_url"]
+    assert body["image_url"].startswith("/api/field-images/")
+    ent = captured["entity"]
+    assert ent["type"] == "AgriParcelRecord"
+    assert ent["refAgriParcel"]["object"] == "urn:ngsi-ld:AgriParcel:P9"
+    assert ent["note"]["value"] == "leaf spot"
+    # Orion POST must carry tenant header
+    assert captured["post_headers"]["NGSILD-Tenant"] == "acme"
+    # MinIO key must NOT be under the public modules/ prefix
+    assert captured["key"].startswith("field-images/acme/")
+
+
+def test_upload_omits_parcel_when_none(client, app):
+    fake_s3 = MagicMock()
+    sent = {}
+
+    def fake_post(url, json=None, headers=None, timeout=None, **kw):
+        sent["entity"] = json
+        r = MagicMock()
+        r.status_code = 201
+        return r
+
+    with (
+        patch.object(app, "validate_jwt_token", return_value={"sub": "u1"}),
+        patch.object(app, "extract_tenant_id", return_value="acme"),
+        patch.object(app, "get_request_token", return_value="tok"),
+        patch.object(app, "resolve_parcel_for_point", return_value=None),
+        patch.object(app.boto3, "client", return_value=fake_s3),
+        patch.object(app.requests, "post", side_effect=fake_post),
+    ):
+        buf, name = _img_bytes()
+        resp = client.post(
+            "/api/field-images/upload",
+            data={"image": (buf, name), "lat": "43.31", "lng": "-1.98"},
+            content_type="multipart/form-data",
+        )
+    assert resp.status_code == 200
+    assert "refAgriParcel" not in sent["entity"]
+
+
+def test_upload_502_when_minio_fails(client, app):
+    fake_s3 = MagicMock()
+    fake_s3.put_object.side_effect = Exception("denied")
+    with (
+        patch.object(app, "validate_jwt_token", return_value={"sub": "u1"}),
+        patch.object(app, "extract_tenant_id", return_value="acme"),
+        patch.object(app, "get_request_token", return_value="tok"),
+        patch.object(app.boto3, "client", return_value=fake_s3),
+    ):
+        buf, name = _img_bytes()
+        resp = client.post(
+            "/api/field-images/upload",
+            data={"image": (buf, name), "lat": "43.31", "lng": "-1.98"},
+            content_type="multipart/form-data",
+        )
+    assert resp.status_code == 502
