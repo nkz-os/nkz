@@ -2198,18 +2198,18 @@ def resolve_parcel_for_point(tenant, lng, lat, accuracy):
       2. georel=near;maxDistance==<margin> -> nearest parcel within buffer.
     Margin = max(accuracy * K, FLOOR_M). Never raises; returns parcel id or None.
     """
-    from ngsi_headers import inject_fiware_headers as _inject_headers
-
-    orion = os.getenv("ORION_URL", "http://orion-service:1026")
-    headers = _inject_headers({"Accept": "application/json"}, tenant)
-    coords = f"[{lng},{lat}]"
-    base = {
-        "type": "AgriParcel",
-        "geometry": "Point",
-        "coordinates": coords,
-        "limit": "1",
-    }
     try:
+        from ngsi_headers import inject_fiware_headers as _inject_headers
+
+        orion = os.getenv("ORION_URL", "http://orion-service:1026")
+        headers = _inject_headers({"Accept": "application/json"}, tenant)
+        coords = f"[{lng},{lat}]"
+        base = {
+            "type": "AgriParcel",
+            "geometry": "Point",
+            "coordinates": coords,
+            "limit": "1",
+        }
         intersects = dict(base, georel="intersects")
         r = requests.get(
             f"{orion}/ngsi-ld/v1/entities",

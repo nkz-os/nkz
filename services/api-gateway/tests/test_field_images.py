@@ -1,14 +1,3 @@
-import os
-
-os.environ.setdefault("KEYCLOAK_URL", "http://keycloak-test:8080/auth")
-os.environ.setdefault("JWT_ALGORITHM", "HS256")
-os.environ.setdefault("MINIO_ENDPOINT", "minio-test:9000")
-os.environ.setdefault("MINIO_ACCESS_KEY", "testkey")
-os.environ.setdefault("MINIO_SECRET_KEY", "testsecret")
-os.environ.setdefault("ORION_URL", "http://orion-test:1026")
-os.environ.setdefault("CONTEXT_URL", "http://ctx-test/context.json")
-os.environ.setdefault("CORS_ORIGINS", "http://localhost:3000")
-
 from unittest.mock import MagicMock, patch
 import fiware_api_gateway as gw
 

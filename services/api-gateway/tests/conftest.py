@@ -7,6 +7,8 @@ SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, SERVICE_DIR)
 sys.path.insert(0, os.path.join(SERVICE_DIR, "..", "common"))
 
+os.environ.setdefault("KEYCLOAK_URL", "http://keycloak-test:8080/auth")
+os.environ.setdefault("JWT_ALGORITHM", "HS256")
 os.environ.setdefault("MINIO_ENDPOINT", "minio-test:9000")
 os.environ.setdefault("MINIO_ACCESS_KEY", "testkey")
 os.environ.setdefault("MINIO_SECRET_KEY", "testsecret")
