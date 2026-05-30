@@ -152,3 +152,31 @@ def test_upload_502_when_minio_fails(client, app):
             content_type="multipart/form-data",
         )
     assert resp.status_code == 502
+
+
+def test_field_image_read_streams_for_owner(client, app):
+    body = b"\xff\xd8jpegdata"
+    obj = {"Body": io.BytesIO(body), "ContentType": "image/jpeg"}
+    fake_s3 = MagicMock(); fake_s3.get_object.return_value = obj
+    with patch.object(app, "validate_jwt_token", return_value={"sub": "u1"}), \
+         patch.object(app, "extract_tenant_id", return_value="acme"), \
+         patch.object(app, "get_request_token", return_value="tok"), \
+         patch.object(app.boto3, "client", return_value=fake_s3):
+        resp = client.get("/api/field-images/field-images/acme/20260530T100000_abcd1234.jpg")
+    assert resp.status_code == 200
+    assert resp.data == body
+    assert resp.headers["Content-Type"] == "image/jpeg"
+
+
+def test_field_image_read_rejects_cross_tenant(client, app):
+    with patch.object(app, "validate_jwt_token", return_value={"sub": "u1"}), \
+         patch.object(app, "extract_tenant_id", return_value="acme"), \
+         patch.object(app, "get_request_token", return_value="tok"):
+        resp = client.get("/api/field-images/field-images/other/x.jpg")
+    assert resp.status_code == 403
+
+
+def test_field_image_read_requires_auth(client, app):
+    with patch.object(app, "get_request_token", return_value=None):
+        resp = client.get("/api/field-images/field-images/acme/x.jpg")
+    assert resp.status_code == 401

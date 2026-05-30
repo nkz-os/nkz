@@ -2339,6 +2339,47 @@ def field_image_upload():
     ), 200
 
 
+@app.route("/api/field-images/<path:key>", methods=["GET", "OPTIONS"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def field_image_read(key):
+    """Authenticated, tenant-scoped read proxy for field images in MinIO."""
+    if request.method == "OPTIONS":
+        return "", 204
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid token"}), 401
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+    # Keys are field-images/<tenant>/<file>; enforce ownership.
+    parts = key.split("/")
+    if len(parts) < 3 or parts[0] != "field-images" or parts[1] != tenant:
+        return jsonify({"error": "Forbidden"}), 403
+    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio-service:9000")
+    try:
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=f"http://{MINIO_ENDPOINT}",
+            aws_access_key_id=os.getenv("MINIO_ACCESS_KEY", ""),
+            aws_secret_access_key=os.getenv("MINIO_SECRET_KEY", ""),
+            config=boto3.session.Config(signature_version="s3v4"),
+            region_name="us-east-1",
+        )
+        obj = s3.get_object(Bucket="nekazari-frontend", Key=key)
+    except Exception as e:
+        logger.warning("Field image read failed: %s", e)
+        return jsonify({"error": "Image not found"}), 404
+    content_type = obj.get("ContentType", "image/jpeg")
+    data = obj["Body"].read()
+    resp = make_response(data)
+    resp.headers["Content-Type"] = content_type
+    resp.headers["Cache-Control"] = "private, max-age=86400"
+    return resp
+
+
 @app.route("/api/push/register", methods=["POST", "OPTIONS"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 def proxy_push_register():
