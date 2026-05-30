@@ -2185,6 +2185,52 @@ def proxy_routing_tiles(subpath):
         return jsonify({"error": "Internal service connection error"}), 502
 
 
+# Field-image parcel resolution constants (generous buffer by design — see spec).
+PARCEL_BUFFER_K = 3.0
+PARCEL_BUFFER_FLOOR_M = 50
+
+
+def resolve_parcel_for_point(tenant, lng, lat, accuracy):
+    """Best-effort resolution of the AgriParcel a field photo belongs to.
+
+    Two-step NGSI-LD geo-query against Orion-LD, tenant-scoped:
+      1. georel=intersects  -> parcel strictly containing the point.
+      2. georel=near;maxDistance==<margin> -> nearest parcel within buffer.
+    Margin = max(accuracy * K, FLOOR_M). Never raises; returns parcel id or None.
+    """
+    try:
+        from ngsi_headers import inject_fiware_headers as _inject_headers
+
+        orion = os.getenv("ORION_URL", "http://orion-service:1026")
+        headers = _inject_headers({"Accept": "application/json"}, tenant)
+        coords = f"[{lng},{lat}]"
+        base = {
+            "type": "AgriParcel",
+            "geometry": "Point",
+            "coordinates": coords,
+            "limit": "1",
+        }
+        intersects = dict(base, georel="intersects")
+        r = requests.get(
+            f"{orion}/ngsi-ld/v1/entities",
+            params=intersects,
+            headers=headers,
+            timeout=8,
+        )
+        if r.status_code == 200 and r.json():
+            return r.json()[0].get("id")
+        margin = int(max((accuracy or 0) * PARCEL_BUFFER_K, PARCEL_BUFFER_FLOOR_M))
+        near = dict(base, georel=f"near;maxDistance=={margin}")
+        r = requests.get(
+            f"{orion}/ngsi-ld/v1/entities", params=near, headers=headers, timeout=8
+        )
+        if r.status_code == 200 and r.json():
+            return r.json()[0].get("id")
+    except Exception as e:
+        logger.warning("Parcel resolution failed (non-fatal): %s", e)
+    return None
+
+
 @app.route("/api/field-images/upload", methods=["POST", "OPTIONS"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 def field_image_upload():
@@ -2243,12 +2289,16 @@ def field_image_upload():
     except Exception as e:
         logger.error(f"MinIO upload failed: {e}")
         return jsonify({"error": "Image storage unavailable"}), 502
-    image_url = f"https://nekazari.robotika.cloud/modules/field-images/{tenant}/{ts}_{uuid_str}.{ext}"
+    # Relative URL: consumers (web viewer, mobile) prepend their own API base
+    # (VITE_API_URL / EXPO_PUBLIC_API_URL), per platform convention. Avoids
+    # hardcoding the production domain in source.
+    image_url = f"/api/field-images/{minio_key}"
     entity_id = None
+    parcel_id = resolve_parcel_for_point(tenant, lng, lat, accuracy)
     try:
         ngsi_entity = {
-            "id": f"urn:ngsi-ld:AgriCropObservation:photo-{ts}-{uuid_str}",
-            "type": "AgriCropObservation",
+            "id": f"urn:ngsi-ld:AgriParcelRecord:photo-{ts}-{uuid_str}",
+            "type": "AgriParcelRecord",
             "imageUrl": {"type": "Property", "value": image_url},
             "location": {
                 "type": "GeoProperty",
@@ -2260,6 +2310,8 @@ def field_image_upload():
                 "object": f"urn:ngsi-ld:Tenant:{tenant}",
             },
         }
+        if parcel_id:
+            ngsi_entity["refAgriParcel"] = {"type": "Relationship", "object": parcel_id}
         if note:
             ngsi_entity["note"] = {"type": "Property", "value": note}
         if accuracy is not None:
@@ -2269,10 +2321,18 @@ def field_image_upload():
         )
         ORION_LD_URL = os.getenv("ORION_URL", "http://orion-service:1026")
         ngsi_entity["@context"] = [ctx_url]
+        # Use the canonical header builder with has_context_in_body=True. The
+        # request-aware gateway wrapper would mis-detect this multipart upload
+        # request as non-JSON and force Content-Type application/json + Link,
+        # which combined with the body @context makes Orion-LD reject the
+        # entity (400) — silently dropping the observation.
+        from ngsi_headers import inject_fiware_headers as _canonical_headers
+
+        ngsi_headers = _canonical_headers({}, tenant=tenant, has_context_in_body=True)
         ngsi_resp = requests.post(
             f"{ORION_LD_URL}/ngsi-ld/v1/entities",
             json=ngsi_entity,
-            headers={"Content-Type": "application/ld+json"},
+            headers=ngsi_headers,
             timeout=10,
         )
         if ngsi_resp.status_code in (200, 201):
@@ -2282,6 +2342,47 @@ def field_image_upload():
     return jsonify(
         {"success": True, "image_url": image_url, "entity_id": entity_id}
     ), 200
+
+
+@app.route("/api/field-images/<path:key>", methods=["GET", "OPTIONS"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def field_image_read(key):
+    """Authenticated, tenant-scoped read proxy for field images in MinIO."""
+    if request.method == "OPTIONS":
+        return "", 204
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid token"}), 401
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+    # Keys are field-images/<tenant>/<file>; enforce ownership.
+    parts = key.split("/")
+    if len(parts) < 3 or parts[0] != "field-images" or parts[1] != tenant:
+        return jsonify({"error": "Forbidden"}), 403
+    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio-service:9000")
+    try:
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=f"http://{MINIO_ENDPOINT}",
+            aws_access_key_id=os.getenv("MINIO_ACCESS_KEY", ""),
+            aws_secret_access_key=os.getenv("MINIO_SECRET_KEY", ""),
+            config=boto3.session.Config(signature_version="s3v4"),
+            region_name="us-east-1",
+        )
+        obj = s3.get_object(Bucket="nekazari-frontend", Key=key)
+    except Exception as e:
+        logger.warning("Field image read failed: %s", e)
+        return jsonify({"error": "Image not found"}), 404
+    content_type = obj.get("ContentType", "image/jpeg")
+    data = obj["Body"].read()
+    resp = make_response(data)
+    resp.headers["Content-Type"] = content_type
+    resp.headers["Cache-Control"] = "private, max-age=86400"
+    return resp
 
 
 @app.route("/api/push/register", methods=["POST", "OPTIONS"])

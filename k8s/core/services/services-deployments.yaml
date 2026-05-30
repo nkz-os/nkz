@@ -105,6 +105,18 @@ spec:
                   name: redis-secret
                   key: password
                   optional: true
+            - name: MINIO_ENDPOINT
+              value: "minio-service:9000"
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: root-user
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: root-password
             - name: GATEWAY_KEYCLOAK_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -142,6 +154,8 @@ spec:
                 configMapKeyRef:
                   name: core-zulip-messaging-config
                   key: external-host
+            - name: REQUESTS_PER_MINUTE
+              value: "600"
             - name: MODULE_GATEWAY_ENABLED
               value: "vegetation-health,gis-routing,cue,nkz-module-eu-elevation"
           command: ["gunicorn"]
