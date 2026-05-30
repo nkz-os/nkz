@@ -42,7 +42,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api-gateway
-          image: ghcr.io/nkz-os/nkz/api-gateway@sha256:669864ddb6eee534dad99f154c8a888984709d581a1b3675370c2e6dab4dc4f1
+          image: ghcr.io/nkz-os/nkz/api-gateway@sha256:1769458fab817a5bba9fcd1fc5ed23faeec126b31d33ec5759b418298ccd03a8
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
