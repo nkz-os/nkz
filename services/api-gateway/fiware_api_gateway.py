@@ -3609,7 +3609,23 @@ def generic_proxy(target_url, path):
         return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
 
     url = f"{target_url}/{path}"
-    headers = {"X-Tenant-ID": tenant, "Authorization": f"Bearer {token}"}
+
+    # Extract user_id from JWT sub claim
+    user_id = payload.get("sub", "")
+    # Collect all roles from realm_access + resource_access
+    realm_roles = payload.get("realm_access", {}).get("roles", []) or []
+    resource_roles = []
+    for resource in payload.get("resource_access", {}).values():
+        if isinstance(resource, dict) and "roles" in resource:
+            resource_roles.extend(resource["roles"])
+    all_roles = list(set(realm_roles + resource_roles + payload.get("roles", [])))
+
+    headers = {
+        "X-Tenant-ID": tenant,
+        "X-User-ID": user_id,
+        "X-User-Roles": ",".join(all_roles),
+        "Authorization": f"Bearer {token}",
+    }
     if request.headers.get("Content-Type"):
         headers["Content-Type"] = request.headers.get("Content-Type")
     # Forward per-user DAD-IS credentials (FAO prohibits commercial use —
