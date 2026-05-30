@@ -2321,9 +2321,14 @@ def field_image_upload():
         )
         ORION_LD_URL = os.getenv("ORION_URL", "http://orion-service:1026")
         ngsi_entity["@context"] = [ctx_url]
-        ngsi_headers = inject_fiware_headers(
-            {"Content-Type": "application/ld+json"}, tenant
-        )
+        # Use the canonical header builder with has_context_in_body=True. The
+        # request-aware gateway wrapper would mis-detect this multipart upload
+        # request as non-JSON and force Content-Type application/json + Link,
+        # which combined with the body @context makes Orion-LD reject the
+        # entity (400) — silently dropping the observation.
+        from ngsi_headers import inject_fiware_headers as _canonical_headers
+
+        ngsi_headers = _canonical_headers({}, tenant=tenant, has_context_in_body=True)
         ngsi_resp = requests.post(
             f"{ORION_LD_URL}/ngsi-ld/v1/entities",
             json=ngsi_entity,

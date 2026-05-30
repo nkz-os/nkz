@@ -104,6 +104,11 @@ def test_upload_creates_agriparcelrecord_with_parcel(client, app):
     assert ent["note"]["value"] == "leaf spot"
     # Orion POST must carry tenant header
     assert captured["post_headers"]["NGSILD-Tenant"] == "acme"
+    # NGSI-LD mutual exclusivity: body has @context -> ld+json and NO Link header,
+    # otherwise Orion-LD rejects the entity (400) and the observation is lost.
+    assert ent["@context"]
+    assert captured["post_headers"]["Content-Type"] == "application/ld+json"
+    assert "Link" not in captured["post_headers"]
     # MinIO key must NOT be under the public modules/ prefix
     assert captured["key"].startswith("field-images/acme/")
 
