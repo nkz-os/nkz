@@ -3857,11 +3857,12 @@ def n8n_nkz_proxy(path):
 
 
 @app.route(
-    "/n8n/<tenant_id>/<path:subpath>",
+    "/n8n/<tenant_id>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+    strict_slashes=False,
 )
 @app.route(
-    "/n8n/<tenant_id>",
+    "/n8n/<tenant_id>/<path:subpath>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
 )
 def n8n_tenant_proxy(tenant_id, subpath=""):
