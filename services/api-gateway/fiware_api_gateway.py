@@ -147,6 +147,7 @@ AGRIENERGY_API_URL = os.getenv(
 )
 RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
 N8N_NKZ_API_URL = os.getenv("N8N_NKZ_API_URL", "http://n8n-nkz-api-service:8000")
+N8N_PUBLIC_HOST = os.getenv("N8N_PUBLIC_HOST", "nekazari.robotika.cloud")
 LIDAR_API_URL = os.getenv("LIDAR_API_URL", "http://lidar-api-service:80")
 BIOORCHESTRATOR_API_URL = os.getenv(
     "BIOORCHESTRATOR_API_URL", "http://bioorchestrator-api-service:8420"
@@ -3853,6 +3854,49 @@ def risk_proxy(path):
 )
 def n8n_nkz_proxy(path):
     return generic_proxy(N8N_NKZ_API_URL, f"api/n8n-nkz/{path}")
+
+
+@app.route(
+    "/n8n/<tenant_id>/<path:subpath>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+)
+@app.route(
+    "/n8n/<tenant_id>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+)
+def n8n_tenant_proxy(tenant_id, subpath=""):
+    """Proxy per-tenant n8n instances via path-based routing.
+
+    n8n.robotika.cloud/<tenant_id>/  ->  http://n8n-<tenant_id>-service:5678/
+
+    n8n uses its own basic auth, so this route is PUBLIC (no JWT required).
+    """
+    import re
+
+    safe_tenant = re.sub(r"[^a-z0-9-]", "-", tenant_id.lower()).strip("-")[:63]
+    service = f"n8n-{safe_tenant}-service"
+    target = f"http://{service}:5678/{subpath}"
+
+    headers = {}
+    for hdr in ("Content-Type", "Accept", "X-N8N-API-KEY"):
+        if request.headers.get(hdr):
+            headers[hdr] = request.headers[hdr]
+
+    try:
+        resp = requests.request(
+            method=request.method,
+            url=target,
+            headers=headers,
+            params=request.args,
+            data=request.get_data(),
+            cookies=request.cookies,
+            allow_redirects=True,
+            timeout=60,
+        )
+        return make_response(resp.content, resp.status_code, dict(resp.headers))
+    except Exception as e:
+        logger.error(f"n8n tenant proxy error to {target}: {e}")
+        return jsonify({"error": "n8n instance unavailable", "details": str(e)}), 502
 
 
 @app.route(
