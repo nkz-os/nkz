@@ -7,7 +7,6 @@ spraying, workability, and irrigation semaphores. No direct Open-Meteo dependenc
 """
 
 import logging
-import math
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -15,16 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 def _calc_delta_t(temp_celsius: float, humidity_percent: float) -> Optional[float]:
-    """Calculate Delta-T (wet-bulb depression) using Magnus formula."""
+    """Calculate Delta-T (wet-bulb depression) — delegates to unified psychrometrics."""
     try:
-        a = 17.27
-        b = 237.7
-        alpha = ((a * temp_celsius) / (b + temp_celsius)) + math.log(
-            humidity_percent / 100.0
-        )
-        dew_point = (b * alpha) / (a - alpha)
-        wet_bulb = temp_celsius - (temp_celsius - dew_point) * 0.4
-        return round(temp_celsius - wet_bulb, 2)
+        from common.weather_utils.psychrometrics import calculate_delta_t
+
+        return calculate_delta_t(temp_celsius, humidity_percent) or None
     except Exception:
         return None
 
@@ -248,6 +242,7 @@ def calculate_agro_status(
     station_altitude_m: float = 0.0,
     parcel_aspect_deg: float = 0.0,
     parcel_slope_deg: float = 0.0,
+    nearby_stations: Optional[list] = None,
 ) -> dict:
     """
     Calculate agronomic status with semaphores for a parcel.
@@ -266,24 +261,39 @@ def calculate_agro_status(
     raw_humidity = weather_observation.get("humidity_avg")
 
     # 1.5 — Apply spatial downscaling for parcel-specific microclimate
+    # Uses the unified downscale_for_parcel() from common module — same as
+    # GET /parcel/{id} endpoint, ensuring consistent temperature/radiation/delta-T
+    # across all per-parcel weather endpoints.
     downscaling_applied = False
-    if raw_temperature is not None and (
+    need_downscaling = (
         abs(parcel_altitude_m - station_altitude_m) > 10 or parcel_slope_deg >= 1.0
-    ):
+    )
+    if need_downscaling or nearby_stations:
         try:
-            from common.weather_utils.spatial_downscaler import (
-                correct_temperature_altitude,
-                recalculate_delta_t,
+            from common.weather_utils.spatial_downscaler import downscale_for_parcel
+
+            obs_dt = weather_observation.get("observed_at")
+            doy = obs_dt.timetuple().tm_yday if hasattr(obs_dt, "timetuple") else None
+
+            corrected = downscale_for_parcel(
+                weather_data=weather_observation,
+                parcel_lat=lat,
+                parcel_lon=lon,
+                parcel_altitude_m=parcel_altitude_m,
+                station_altitude_m=station_altitude_m,
+                parcel_aspect_deg=parcel_aspect_deg,
+                parcel_slope_deg=parcel_slope_deg,
+                doy=doy,
+                nearby_stations=nearby_stations,
             )
-
-            if abs(parcel_altitude_m - station_altitude_m) > 10:
-                raw_temperature = correct_temperature_altitude(
-                    raw_temperature, station_altitude_m, parcel_altitude_m
-                )
-                downscaling_applied = True
-
-            if raw_humidity is not None:
-                _ = recalculate_delta_t(raw_temperature, raw_humidity)
+            # Apply corrected values back to the extracted variables
+            raw_temperature = corrected.get("temp_avg", raw_temperature)
+            raw_humidity = corrected.get("humidity_avg", raw_humidity)
+            # Also update the weather_observation dict so downstream uses corrected values
+            weather_observation.update(
+                {k: v for k, v in corrected.items() if k in weather_observation}
+            )
+            downscaling_applied = True
 
         except ImportError:
             logger.debug("Spatial downscaler not available for agro-status")

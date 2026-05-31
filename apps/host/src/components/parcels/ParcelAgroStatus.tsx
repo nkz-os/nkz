@@ -18,7 +18,7 @@ interface AgroStatus {
     workability: 'optimal' | 'too_wet' | 'too_dry' | 'caution' | 'unknown';
     irrigation: 'satisfied' | 'alert' | 'deficit' | 'unknown';
   };
-  source_confidence: 'SENSOR_REAL' | 'OPEN-METEO';
+  source_confidence: string;
   metrics?: {
     temperature?: number;
     humidity?: number;

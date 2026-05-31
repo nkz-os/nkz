@@ -23,7 +23,7 @@ interface AgroStatus {
     workability: Semaphore;
     irrigation: Semaphore;
   };
-  source_confidence: 'SENSOR_REAL' | 'OPEN-METEO';
+  source_confidence: string;
   metrics?: {
     temperature?: number;
     humidity?: number;

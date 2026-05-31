@@ -30,16 +30,17 @@ DRY_LAPSE_RATE_C_PER_M = 0.0098  # 9.8 C per 1000m
 EARTH_TILT_RAD = math.radians(23.45)
 
 
-def _haversine_distance_km(
-    lat1: float, lon1: float, lat2: float, lon2: float
-) -> float:
+def _haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Haversine distance in kilometers between two lat/lon points."""
     R = 6371.0
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(
-        math.radians(lat2)
-    ) * math.sin(dlon / 2) ** 2
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(dlon / 2) ** 2
+    )
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
@@ -55,7 +56,9 @@ def _sunset_hour_angle(lat_rad: float, decl_rad: float) -> float:
     return math.acos(cos_omega)
 
 
-def _extraterrestrial_radiation(lat_rad: float, decl_rad: float, omega_s: float) -> float:
+def _extraterrestrial_radiation(
+    lat_rad: float, decl_rad: float, omega_s: float
+) -> float:
     """Extraterrestrial daily radiation (MJ/m2/day)."""
     G_sc = 0.0820  # solar constant in MJ/m2/min
     d_r = 1 + 0.033 * math.cos(2 * math.pi * 1 / 365.0)  # inverse relative distance
@@ -63,8 +66,10 @@ def _extraterrestrial_radiation(lat_rad: float, decl_rad: float, omega_s: float)
         (24 * 60 / math.pi)
         * G_sc
         * d_r
-        * (omega_s * math.sin(lat_rad) * math.sin(decl_rad)
-           + math.cos(lat_rad) * math.cos(decl_rad) * math.sin(omega_s))
+        * (
+            omega_s * math.sin(lat_rad) * math.sin(decl_rad)
+            + math.cos(lat_rad) * math.cos(decl_rad) * math.sin(omega_s)
+        )
     )
 
 
@@ -185,10 +190,11 @@ def interpolate_idw(
 
     weights = []
     for s in stations:
-        d = _haversine_distance_km(parcel_lat, parcel_lon,
-                                   s.get('latitude', 0), s.get('longitude', 0))
+        d = _haversine_distance_km(
+            parcel_lat, parcel_lon, s.get("latitude", 0), s.get("longitude", 0)
+        )
         d = max(d, 0.1)  # avoid division by zero for co-located station
-        weights.append(1.0 / (d ** power))
+        weights.append(1.0 / (d**power))
 
     total_weight = sum(weights)
     if total_weight <= 0:
@@ -196,10 +202,19 @@ def interpolate_idw(
 
     # Fields to interpolate
     fields = [
-        'temp_avg', 'temp_min', 'temp_max', 'humidity_avg', 'precip_mm',
-        'wind_speed_ms', 'pressure_hpa', 'eto_mm',
-        'solar_rad_w_m2', 'solar_rad_ghi_w_m2', 'solar_rad_dni_w_m2',
-        'soil_moisture_0_10cm', 'soil_moisture_10_40cm',
+        "temp_avg",
+        "temp_min",
+        "temp_max",
+        "humidity_avg",
+        "precip_mm",
+        "wind_speed_ms",
+        "pressure_hpa",
+        "eto_mm",
+        "solar_rad_w_m2",
+        "solar_rad_ghi_w_m2",
+        "solar_rad_dni_w_m2",
+        "soil_moisture_0_10cm",
+        "soil_moisture_10_40cm",
     ]
 
     result = {}
@@ -213,7 +228,9 @@ def interpolate_idw(
         if values:
             weighted_sum = sum(v * w for v, w in values)
             weight_sum = sum(w for _, w in values)
-            result[field] = round(weighted_sum / weight_sum, 4) if weight_sum > 0 else None
+            result[field] = (
+                round(weighted_sum / weight_sum, 4) if weight_sum > 0 else None
+            )
 
     return result
 
@@ -222,23 +239,15 @@ def recalculate_delta_t(temp_celsius: float, relative_humidity_percent: float) -
     """
     Recalculate Delta-T from corrected temperature and humidity.
 
-    Uses the Magnus psychrometric formula (same as MetricsCalculator).
+    Delegates to unified psychrometrics module — single source of truth.
     """
     try:
-        if relative_humidity_percent < 0 or relative_humidity_percent > 100:
-            return 0.0
+        from common.weather_utils.psychrometrics import calculate_delta_t
 
-        # Saturation vapor pressure
-        e_sat = 6.112 * math.exp((17.67 * temp_celsius) / (temp_celsius + 243.5))
-        # Actual vapor pressure
-        e_act = e_sat * (relative_humidity_percent / 100.0)
-        # Dew point
-        vapor_ratio = max(e_act / 6.112, 0.01)
-        dew_point = (243.5 * math.log(vapor_ratio)) / (17.67 - math.log(vapor_ratio))
-        # Wet bulb approximation
-        wet_bulb = temp_celsius - (temp_celsius - dew_point) * 0.4
-        # Delta-T
-        return round(temp_celsius - wet_bulb, 2)
+        return calculate_delta_t(temp_celsius, relative_humidity_percent)
+    except ImportError:
+        # Fallback: return 0.0 if psychrometrics not available
+        return 0.0
     except (ValueError, OverflowError, ZeroDivisionError):
         return 0.0
 
@@ -299,11 +308,14 @@ def downscale_for_parcel(
     # Step 2: Altitude correction on temperatures
     alt_delta = parcel_altitude_m - station_altitude_m
     if abs(alt_delta) > 10:  # only correct if meaningful difference (>10m)
-        for temp_field in ['temp_avg', 'temp_min', 'temp_max']:
+        for temp_field in ["temp_avg", "temp_min", "temp_max"]:
             val = result.get(temp_field)
             if val is not None:
                 result[temp_field] = round(
-                    correct_temperature_altitude(val, station_altitude_m, parcel_altitude_m), 2
+                    correct_temperature_altitude(
+                        val, station_altitude_m, parcel_altitude_m
+                    ),
+                    2,
                 )
 
         if abs(alt_delta) > 50:
@@ -315,27 +327,30 @@ def downscale_for_parcel(
     # Step 3: Solar radiation correction for aspect/slope
     if parcel_slope_deg >= 1.0:
         corrected_rad = correct_solar_radiation_aspect(
-            result.get('solar_rad_w_m2'),
-            parcel_lat, parcel_aspect_deg, parcel_slope_deg, doy,
+            result.get("solar_rad_w_m2"),
+            parcel_lat,
+            parcel_aspect_deg,
+            parcel_slope_deg,
+            doy,
         )
         if corrected_rad is not None:
-            result['solar_rad_w_m2'] = corrected_rad
+            result["solar_rad_w_m2"] = corrected_rad
             # Also correct GHI and DNI if present
-            if result.get('solar_rad_ghi_w_m2') is not None:
-                ratio = corrected_rad / max(weather_data.get('solar_rad_w_m2', 1), 1)
-                result['solar_rad_ghi_w_m2'] = round(
-                    result['solar_rad_ghi_w_m2'] * ratio, 1
+            if result.get("solar_rad_ghi_w_m2") is not None:
+                ratio = corrected_rad / max(weather_data.get("solar_rad_w_m2", 1), 1)
+                result["solar_rad_ghi_w_m2"] = round(
+                    result["solar_rad_ghi_w_m2"] * ratio, 1
                 )
-            if result.get('solar_rad_dni_w_m2') is not None:
-                result['solar_rad_dni_w_m2'] = round(
-                    result['solar_rad_dni_w_m2'] * ratio, 1
+            if result.get("solar_rad_dni_w_m2") is not None:
+                result["solar_rad_dni_w_m2"] = round(
+                    result["solar_rad_dni_w_m2"] * ratio, 1
                 )
 
     # Step 4: Recalculate Delta-T from corrected T and RH
-    temp_avg = result.get('temp_avg')
-    humidity = result.get('humidity_avg')
+    temp_avg = result.get("temp_avg")
+    humidity = result.get("humidity_avg")
     if temp_avg is not None and humidity is not None:
-        result['delta_t'] = recalculate_delta_t(temp_avg, humidity)
+        result["delta_t"] = recalculate_delta_t(temp_avg, humidity)
 
     return result
 
@@ -352,18 +367,18 @@ def extract_parcel_terrain(parcel_entity: Dict[str, Any]) -> Tuple[float, float,
     slope = 0.0
 
     # Check for elevation property (from EU Elevation module or survey)
-    elev = parcel_entity.get('elevation', {})
+    elev = parcel_entity.get("elevation", {})
     if isinstance(elev, dict):
-        altitude = float(elev.get('value', 0) or 0)
+        altitude = float(elev.get("value", 0) or 0)
 
     # Check for terrain aspect
-    terrain_aspect = parcel_entity.get('terrainAspect', {})
+    terrain_aspect = parcel_entity.get("terrainAspect", {})
     if isinstance(terrain_aspect, dict):
-        aspect = float(terrain_aspect.get('value', 0) or 0)
+        aspect = float(terrain_aspect.get("value", 0) or 0)
 
     # Check for terrain slope
-    terrain_slope = parcel_entity.get('terrainSlope', {})
+    terrain_slope = parcel_entity.get("terrainSlope", {})
     if isinstance(terrain_slope, dict):
-        slope = float(terrain_slope.get('value', 0) or 0)
+        slope = float(terrain_slope.get("value", 0) or 0)
 
     return altitude, aspect, slope

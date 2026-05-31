@@ -17,9 +17,22 @@ from app.config import settings
 from app.deps import get_db_connection
 from app.services.agro_status import (
     calculate_agro_status,
-    _usda_texture_class,
     _extract_float,
 )
+
+# Try to import pedotransfer functions from soil module (preferred).
+# Fall back to local implementations in agro_status.py if soil module unavailable.
+try:
+    from nkz_soil.pedotransfer.saxton_rawls import saxton_rawls_2006
+    from nkz_soil.pedotransfer.usda_texture import usda_texture_class
+    from nkz_soil.pedotransfer.scs_groups import scs_hydrologic_group
+
+    _SOIL_MODULE_AVAILABLE = True
+except ImportError:
+    _SOIL_MODULE_AVAILABLE = False
+    saxton_rawls_2006 = None  # type: ignore
+    usda_texture_class = None  # type: ignore
+    scs_hydrologic_group = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +262,269 @@ def _resolve_parcel_location(parcel_entity: dict) -> Optional[tuple]:
     return None
 
 
+def _fetch_nearby_stations_weather(
+    tenant_id: str,
+    lon: float,
+    lat: float,
+    source: str = "OPEN-METEO",
+    data_type: str = "HISTORY",
+    limit: int = 1,
+    max_stations: int = 5,
+    max_distance_km: float = 75.0,
+) -> dict:
+    """
+    Fetch weather observations from up to N nearest municipalities.
+
+    Performs KNN search on weather_observations.location, fetches the
+    latest observation(s) from each station, and returns them structured
+    for IDW interpolation via downscale_for_parcel().
+
+    Returns dict with:
+      - stations: full list of station dicts (nearest first)
+      - primary: nearest station's data (backward compat)
+      - nearby_stations: list of additional stations for IDW (may be empty)
+      - station_count: total stations found
+      - max_distance_km: configured search radius
+    """
+    result = {
+        "stations": [],
+        "primary": None,
+        "nearby_stations": [],
+        "station_count": 0,
+        "max_distance_km": max_distance_km,
+    }
+
+    try:
+        conn = get_db_connection(tenant_id)
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Step 1: Find up to N nearest municipalities with weather data
+            cur.execute(
+                """
+                WITH ranked AS (
+                    SELECT DISTINCT ON (wo.municipality_code)
+                        wo.municipality_code,
+                        cm.name as municipality_name,
+                        ST_Y(wo.location) as station_lat,
+                        ST_X(wo.location) as station_lon,
+                        ST_Distance(
+                            wo.location::geography,
+                            ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
+                        ) as distance_m
+                    FROM weather_observations wo
+                    LEFT JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
+                    WHERE wo.tenant_id = %s
+                      AND wo.location IS NOT NULL
+                      AND ST_Distance(
+                            wo.location::geography,
+                            ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
+                          ) <= %s
+                    ORDER BY wo.municipality_code, distance_m
+                )
+                SELECT * FROM ranked
+                ORDER BY distance_m ASC
+                LIMIT %s
+                """,
+                (lon, lat, tenant_id, lon, lat, max_distance_km * 1000, max_stations),
+            )
+            station_rows = cur.fetchall()
+
+            if not station_rows:
+                return result
+
+            # Step 2: For each station, fetch the latest observation(s)
+            stations = []
+            for sr in station_rows:
+                cur.execute(
+                    """
+                    SELECT observed_at, temp_avg, temp_min, temp_max,
+                           humidity_avg, precip_mm, precip_probability,
+                           wind_speed_ms, wind_gusts_ms, wind_direction_deg,
+                           pressure_hpa,
+                           solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
+                           eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
+                           gdd_accumulated, delta_t,
+                           source, data_type, metadata
+                    FROM weather_observations
+                    WHERE tenant_id = %s
+                      AND municipality_code = %s
+                      AND source = %s
+                      AND data_type = %s
+                    ORDER BY observed_at DESC
+                    LIMIT %s
+                    """,
+                    (
+                        tenant_id,
+                        sr["municipality_code"],
+                        source,
+                        data_type,
+                        limit,
+                    ),
+                )
+                obs_rows = [dict(r) for r in cur.fetchall()]
+
+                # Extract station altitude from metadata
+                station_altitude = 0.0
+                if obs_rows:
+                    meta = obs_rows[0].get("metadata") or {}
+                    if isinstance(meta, dict):
+                        station_altitude = float(
+                            meta.get("station_elevation_m", 0) or 0
+                        )
+
+                stations.append(
+                    {
+                        "municipality_code": sr["municipality_code"],
+                        "municipality_name": sr.get("municipality_name"),
+                        "latitude": float(sr["station_lat"])
+                        if sr.get("station_lat")
+                        else 0.0,
+                        "longitude": float(sr["station_lon"])
+                        if sr.get("station_lon")
+                        else 0.0,
+                        "distance_m": float(sr["distance_m"])
+                        if sr.get("distance_m")
+                        else 0.0,
+                        "station_altitude_m": station_altitude,
+                        "observations": obs_rows,
+                    }
+                )
+
+            result["stations"] = stations
+            result["station_count"] = len(stations)
+            result["primary"] = stations[0] if stations else None
+            if len(stations) > 1:
+                result["nearby_stations"] = stations[1:]
+
+        finally:
+            cur.close()
+            conn.close()
+
+    except Exception as e:
+        logger.warning(
+            f"Multi-station fetch failed, will use single-station fallback: {e}"
+        )
+
+    return result
+
+
+def _resolve_soil_texture(
+    tenant_id: str,
+    parcel_id: str,
+    lon: float,
+    lat: float,
+) -> Optional[dict]:
+    """
+    Resolve soil texture for a parcel using a cascading provider chain.
+
+    Priority:
+      1. LUCAS 2018 topsoil (KNN IDW from soil_module.lucas_topsoil_2018)
+      2. AgriSoil entity linked to parcel in Orion-LD
+      3. None (generic thresholds used)
+
+    Returns dict with: sand, clay, silt, organic_carbon, texture_class,
+    plus Saxton-Rawls derived: field_capacity, wilting_point, ksat,
+    hydrologic_group. Or None if no soil data available.
+    """
+    # --- Priority 1: Soil module API (on-the-fly provider chain) ---
+    try:
+        soil_url = (
+            f"{settings.soil_api_url}/v1/soil/point/texture"
+            f"?lat={lat}&lon={lon}&depth=0-30"
+        )
+        soil_resp = requests.get(soil_url, timeout=5.0)
+        if soil_resp.status_code == 200:
+            data = soil_resp.json()
+            texture = {
+                "sand": data["texture"]["sand"],
+                "clay": data["texture"]["clay"],
+                "silt": data["texture"]["silt"],
+                "organic_carbon": data["texture"]["organicCarbon"],
+                "texture_class": data["texture"]["usdaTextureClass"],
+                "source": f"soil-module:{data['source']['provider']}",
+                "field_capacity": data["hydraulic"]["fieldCapacity"],
+                "wilting_point": data["hydraulic"]["wiltingPoint"],
+                "ksat": data["hydraulic"]["saturatedHydraulicConductivity"],
+                "hydrologic_group": data["hydraulic"]["hydrologicGroup"],
+            }
+            logger.debug(
+                f"Soil texture via module for parcel {parcel_id}: "
+                f"{texture['texture_class']} (source={texture['source']})"
+            )
+            return texture
+    except Exception as e:
+        logger.debug(f"Soil module API unavailable, trying fallbacks: {e}")
+
+    # --- Priority 2: AgriSoil entity in Orion-LD ---
+    try:
+        soil_headers = _orion_headers(tenant_id)
+        soil_response = requests.get(
+            f"{settings.orion_url}/ngsi-ld/v1/entities",
+            params={
+                "type": "AgriSoil",
+                "q": f"refAgriParcel=={parcel_id}",
+                "limit": 1,
+            },
+            headers=soil_headers,
+            timeout=5,
+        )
+        if soil_response.status_code == 200:
+            soil_entities = soil_response.json()
+            if isinstance(soil_entities, list) and soil_entities:
+                soil = soil_entities[0]
+                horizons = soil.get("horizons", {}).get("value", [])
+                if isinstance(horizons, list) and horizons:
+                    h = horizons[0]
+                    sand = _extract_float(h.get("sand"))
+                    clay = _extract_float(h.get("clay"))
+                    oc = _extract_float(h.get("organicCarbon"), 0.5)
+                    silt_val = max(0.0, 100.0 - sand - clay)
+
+                    if _SOIL_MODULE_AVAILABLE and usda_texture_class:
+                        tc = usda_texture_class(sand, silt_val, clay)
+                    else:
+                        from app.services.agro_status import _usda_texture_class
+
+                        tc = _usda_texture_class(sand, clay)
+
+                    texture = {
+                        "sand": sand,
+                        "clay": clay,
+                        "silt": silt_val,
+                        "organic_carbon": oc,
+                        "texture_class": tc,
+                        "source": "AgriSoil",
+                    }
+
+                    # Saxton-Rawls
+                    if _SOIL_MODULE_AVAILABLE and saxton_rawls_2006:
+                        ptf = saxton_rawls_2006(sand, clay, oc)
+                    else:
+                        from app.services.agro_status import _saxton_rawls_2006
+
+                        ptf = _saxton_rawls_2006(sand, clay, oc)
+
+                    texture["field_capacity"] = ptf["field_capacity"]
+                    texture["wilting_point"] = ptf["wilting_point"]
+                    texture["ksat"] = ptf["ksat"]
+
+                    if _SOIL_MODULE_AVAILABLE and scs_hydrologic_group:
+                        texture["hydrologic_group"] = scs_hydrologic_group(ptf["ksat"])
+                    else:
+                        from app.services.agro_status import _scs_hydrologic_group
+
+                        texture["hydrologic_group"] = _scs_hydrologic_group(ptf["ksat"])
+
+                    logger.debug(f"AgriSoil texture for parcel {parcel_id}: {tc}")
+                    return texture
+    except Exception as e:
+        logger.debug(f"AgriSoil query failed for parcel {parcel_id}: {e}")
+
+    # --- Priority 3: No soil data ---
+    return None
+
+
 @router.get("/parcel/{parcel_id}")
 def get_parcel_weather(
     parcel_id: str,
@@ -307,88 +583,69 @@ def get_parcel_weather(
         if isinstance(ts, dict):
             parcel_slope = float(ts.get("value", 0) or 0)
 
-        # Step 4: Find nearest municipality with weather data
-        conn = get_db_connection(tenant_id)
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT
-                    wo.municipality_code,
-                    cm.name as municipality_name,
-                    ST_Y(wo.location) as station_lat,
-                    ST_X(wo.location) as station_lon,
-                    ST_Distance(
-                        wo.location,
-                        ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                    ) as distance_m
-                FROM weather_observations wo
-                LEFT JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
-                WHERE wo.tenant_id = %s
-                  AND wo.location IS NOT NULL
-                ORDER BY wo.location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                LIMIT 1
-                """,
-                (parcel_lon, parcel_lat, tenant_id, parcel_lon, parcel_lat),
+        # Step 4: Fetch weather from multiple nearby stations (IDW interpolation)
+        multi = _fetch_nearby_stations_weather(
+            tenant_id=tenant_id,
+            lon=parcel_lon,
+            lat=parcel_lat,
+            source=source,
+            data_type=data_type,
+            limit=limit,
+            max_stations=5,
+            max_distance_km=75.0,
+        )
+
+        if not multi["primary"]:
+            return JSONResponse(
+                {
+                    "error": "No municipality with weather data found near parcel",
+                    "stations_searched": multi["station_count"],
+                    "max_distance_km": multi["max_distance_km"],
+                },
+                status_code=404,
             )
-            municipality = cur.fetchone()
-            if not municipality:
-                return JSONResponse(
-                    {"error": "No municipality with weather data found near parcel"},
-                    status_code=404,
-                )
 
-            muni_code = municipality["municipality_code"]
+        primary = multi["primary"]
+        nearby = multi["nearby_stations"]
+        station_count = multi["station_count"]
 
-            # Step 5: Get weather observations for this municipality
-            cur.execute(
-                """
-                SELECT
-                    observed_at, temp_avg, temp_min, temp_max,
-                    humidity_avg, precip_mm,
-                    solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
-                    eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
-                    wind_speed_ms, wind_direction_deg, pressure_hpa,
-                    gdd_accumulated, delta_t,
-                    source, data_type, metadata
-                FROM weather_observations
-                WHERE tenant_id = %s
-                  AND municipality_code = %s
-                  AND source = %s
-                  AND data_type = %s
-                ORDER BY observed_at DESC
-                LIMIT %s
-                """,
-                (tenant_id, muni_code, source, data_type, limit),
-            )
-            observations = [dict(row) for row in cur.fetchall()]
-        finally:
-            cur.close()
-            conn.close()
-
+        observations = primary["observations"]
         if not observations:
             return JSONResponse(
                 {
                     "parcel_id": parcel_id,
-                    "municipality_code": muni_code,
-                    "municipality_name": municipality.get("municipality_name"),
+                    "municipality_code": primary["municipality_code"],
+                    "municipality_name": primary.get("municipality_name"),
                     "downscaling": "unavailable",
+                    "station_count": station_count,
                     "observations": [],
                 }
             )
 
-        # Step 6: Extract station elevation from observation metadata
-        station_altitude = 0.0
-        meta = observations[0].get("metadata") or {}
-        if isinstance(meta, dict):
-            station_altitude = float(meta.get("station_elevation_m", 0) or 0)
+        station_altitude = primary["station_altitude_m"]
 
-        # Step 7: Apply spatial downscaling
+        # Step 5: Apply spatial downscaling with IDW from all nearby stations
         downscaling_applied = False
+        interpolation_method = "nearest" if station_count <= 1 else "idw"
+
         try:
             from common.weather_utils.spatial_downscaler import (
                 downscale_for_parcel,
             )
+
+            # Build nearby station data for IDW (only stations with observations
+            # at matching timestamps contribute)
+            nearby_station_data = []
+            for ns in nearby:
+                if ns["observations"]:
+                    obs = ns["observations"][0]  # Latest observation
+                    nearby_station_data.append(
+                        {
+                            "latitude": ns["latitude"],
+                            "longitude": ns["longitude"],
+                            **obs,
+                        }
+                    )
 
             corrected_observations = []
             for obs in observations:
@@ -406,8 +663,16 @@ def get_parcel_weather(
                     parcel_aspect_deg=parcel_aspect,
                     parcel_slope_deg=parcel_slope,
                     doy=doy,
+                    nearby_stations=nearby_station_data
+                    if nearby_station_data
+                    else None,
                 )
-                for key in ("observed_at", "source", "data_type", "municipality_code"):
+                for key in (
+                    "observed_at",
+                    "source",
+                    "data_type",
+                    "municipality_code",
+                ):
                     if key in obs:
                         corrected[key] = obs[key]
                 corrected_observations.append(corrected)
@@ -422,15 +687,30 @@ def get_parcel_weather(
         except Exception as exc:
             logger.warning(f"Downscaling error (returning raw data): {exc}")
 
+        # Build contributing stations summary
+        contributing_stations = []
+        for s in multi["stations"]:
+            contributing_stations.append(
+                {
+                    "municipality_code": s["municipality_code"],
+                    "municipality_name": s.get("municipality_name"),
+                    "distance_km": round(s["distance_m"] / 1000.0, 2),
+                    "station_altitude_m": s["station_altitude_m"],
+                }
+            )
+
         return {
             "parcel_id": parcel_id,
-            "municipality_code": muni_code,
-            "municipality_name": municipality.get("municipality_name"),
+            "municipality_code": primary["municipality_code"],
+            "municipality_name": primary.get("municipality_name"),
             "parcel_altitude_m": parcel_altitude,
             "station_altitude_m": station_altitude,
             "parcel_aspect_deg": parcel_aspect,
             "parcel_slope_deg": parcel_slope,
             "downscaling": "applied" if downscaling_applied else "unavailable",
+            "interpolation": interpolation_method,
+            "station_count": station_count,
+            "contributing_stations": contributing_stations,
             "observations": observations,
         }
 
@@ -573,104 +853,57 @@ def get_parcel_agro_status(
         if isinstance(ts, dict):
             parcel_slope = float(ts.get("value", 0) or 0)
 
-        # 4.5. Try to get soil texture from AgriSoil entity linked to this parcel
-        soil_texture = None
-        try:
-            soil_headers = _orion_headers(tenant_id)
-            soil_response = requests.get(
-                f"{settings.orion_url}/ngsi-ld/v1/entities",
-                params={
-                    "type": "AgriSoil",
-                    "q": f"refAgriParcel=={parcel_id}",
-                    "limit": 1,
-                },
-                headers=soil_headers,
-                timeout=5,
-            )
-            if soil_response.status_code == 200:
-                soil_entities = soil_response.json()
-                if isinstance(soil_entities, list) and soil_entities:
-                    soil = soil_entities[0]
-                    horizons = soil.get("horizons", {}).get("value", [])
-                    if isinstance(horizons, list) and horizons:
-                        # Use top horizon (0-30cm)
-                        h = horizons[0]
-                        soil_texture = {
-                            "sand": _extract_float(h.get("sand")),
-                            "clay": _extract_float(h.get("clay")),
-                            "organic_carbon": _extract_float(
-                                h.get("organicCarbon"), 0.5
-                            ),
-                        }
-                        # Determine USDA texture class
-                        silt = 100.0 - soil_texture["sand"] - soil_texture["clay"]
-                        soil_texture["silt"] = max(0.0, silt)
-                        soil_texture["texture_class"] = _usda_texture_class(
-                            soil_texture["sand"], soil_texture["clay"]
-                        )
-                        logger.debug(
-                            f"Soil texture found for parcel {parcel_id}: {soil_texture['texture_class']}"
-                        )
-        except Exception as e:
-            logger.debug(f"Could not fetch AgriSoil for parcel {parcel_id}: {e}")
+        # 4.5. Resolve soil texture via cascading chain: LUCAS → AgriSoil → None
+        soil_texture = _resolve_soil_texture(tenant_id, parcel_id, lon, lat)
 
-        # 5. Query weather_observations: nearest municipality, latest obs, and 3-day history
+        # 5. Query weather_observations: multi-station for latest obs,
+        #    single-station 3-day history from nearest municipality
         weather_observation = {}
         weather_3d = []
         station_altitude = 0.0
+        nearby_stations_for_agro = None
 
         try:
-            conn = get_db_connection(tenant_id)
-            try:
-                cur = conn.cursor(cursor_factory=RealDictCursor)
+            # 5a. Multi-station fetch for latest observation (IDW interpolation)
+            multi = _fetch_nearby_stations_weather(
+                tenant_id=tenant_id,
+                lon=lon,
+                lat=lat,
+                source="OPEN-METEO",
+                data_type="HISTORY",
+                limit=1,
+                max_stations=5,
+                max_distance_km=75.0,
+            )
 
-                # 5a. Find nearest municipality with weather data
-                cur.execute(
-                    """
-                    SELECT municipality_code,
-                           metadata->>'station_elevation_m' as station_elevation_m
-                    FROM weather_observations
-                    WHERE tenant_id = %s AND location IS NOT NULL
-                    ORDER BY location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                    LIMIT 1
-                    """,
-                    (tenant_id, lon, lat),
-                )
-                nearest = cur.fetchone()
+            if multi["primary"] and multi["primary"]["observations"]:
+                primary = multi["primary"]
+                weather_observation = primary["observations"][0]
+                station_altitude = primary["station_altitude_m"]
+                muni_code = primary["municipality_code"]
 
-                if nearest:
-                    muni_code = nearest["municipality_code"]
-                    if nearest.get("station_elevation_m"):
-                        station_altitude = float(nearest["station_elevation_m"])
+                # Build nearby station data for IDW in calculate_agro_status()
+                if multi["nearby_stations"]:
+                    nearby_stations_for_agro = []
+                    for ns in multi["nearby_stations"]:
+                        if ns["observations"]:
+                            obs = ns["observations"][0]
+                            nearby_stations_for_agro.append(
+                                {
+                                    "latitude": ns["latitude"],
+                                    "longitude": ns["longitude"],
+                                    "station_altitude_m": ns["station_altitude_m"],
+                                    **obs,
+                                }
+                            )
 
-                    # 5b. Latest observation for current conditions
+                # 5c. Last 3 days from primary station for water balance
+                conn = get_db_connection(tenant_id)
+                try:
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
                     cur.execute(
                         """
-                        SELECT observed_at, temp_avg, temp_min, temp_max,
-                               humidity_avg, precip_mm, precip_probability,
-                               wind_speed_ms, wind_gusts_ms, wind_direction_deg,
-                               pressure_hpa,
-                               solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
-                               eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
-                               gdd_accumulated, delta_t,
-                               source, data_type, metadata
-                        FROM weather_observations
-                        WHERE tenant_id = %s
-                          AND municipality_code = %s
-                          AND source = 'OPEN-METEO'
-                        ORDER BY observed_at DESC
-                        LIMIT 1
-                        """,
-                        (tenant_id, muni_code),
-                    )
-                    row = cur.fetchone()
-                    if row:
-                        weather_observation = dict(row)
-
-                    # 5c. Last 3 days for water balance aggregation
-                    cur.execute(
-                        """
-                        SELECT precip_mm, eto_mm, observed_at
+                        SELECT precip_mm, eto_mm, precip_probability, observed_at
                         FROM weather_observations
                         WHERE tenant_id = %s
                           AND municipality_code = %s
@@ -682,9 +915,71 @@ def get_parcel_agro_status(
                         (tenant_id, muni_code),
                     )
                     weather_3d = [dict(r) for r in cur.fetchall()]
-            finally:
-                cur.close()
-                conn.close()
+                finally:
+                    cur.close()
+                    conn.close()
+
+            else:
+                # Fallback: single-station query (backward compat)
+                conn = get_db_connection(tenant_id)
+                try:
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
+                    cur.execute(
+                        """
+                        SELECT municipality_code,
+                               metadata->>'station_elevation_m' as station_elevation_m
+                        FROM weather_observations
+                        WHERE tenant_id = %s AND location IS NOT NULL
+                        ORDER BY location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                        LIMIT 1
+                        """,
+                        (tenant_id, lon, lat),
+                    )
+                    nearest = cur.fetchone()
+                    if nearest:
+                        muni_code = nearest["municipality_code"]
+                        if nearest.get("station_elevation_m"):
+                            station_altitude = float(nearest["station_elevation_m"])
+                        cur.execute(
+                            """
+                            SELECT observed_at, temp_avg, temp_min, temp_max,
+                                   humidity_avg, precip_mm, precip_probability,
+                                   wind_speed_ms, wind_gusts_ms, wind_direction_deg,
+                                   pressure_hpa,
+                                   solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
+                                   eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
+                                   gdd_accumulated, delta_t,
+                                   source, data_type, metadata
+                            FROM weather_observations
+                            WHERE tenant_id = %s
+                              AND municipality_code = %s
+                              AND source = 'OPEN-METEO'
+                            ORDER BY observed_at DESC
+                            LIMIT 1
+                            """,
+                            (tenant_id, muni_code),
+                        )
+                        row = cur.fetchone()
+                        if row:
+                            weather_observation = dict(row)
+                        cur.execute(
+                            """
+                            SELECT precip_mm, eto_mm, precip_probability, observed_at
+                            FROM weather_observations
+                            WHERE tenant_id = %s
+                              AND municipality_code = %s
+                              AND source = 'OPEN-METEO'
+                              AND data_type = 'HISTORY'
+                              AND observed_at >= NOW() - INTERVAL '3 days'
+                            ORDER BY observed_at DESC
+                            """,
+                            (tenant_id, muni_code),
+                        )
+                        weather_3d = [dict(r) for r in cur.fetchall()]
+                finally:
+                    cur.close()
+                    conn.close()
+
         except Exception as e:
             logger.warning(f"Could not fetch weather observations: {e}")
 
@@ -697,7 +992,7 @@ def get_parcel_agro_status(
                 status_code=503,
             )
 
-        # 6. Calculate agronomic status
+        # 6. Calculate agronomic status with multi-station IDW support
         result = calculate_agro_status(
             lat=lat,
             lon=lon,
@@ -710,6 +1005,7 @@ def get_parcel_agro_status(
             station_altitude_m=station_altitude,
             parcel_aspect_deg=parcel_aspect,
             parcel_slope_deg=parcel_slope,
+            nearby_stations=nearby_stations_for_agro,
         )
 
         # Persist agroStatus to Orion-LD and PostgreSQL (non-blocking, best-effort)

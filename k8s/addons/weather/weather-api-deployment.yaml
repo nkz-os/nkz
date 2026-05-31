@@ -9,6 +9,7 @@ metadata:
 data:
   CORS_ORIGINS: "https://YOUR_DOMAIN,https://YOUR_API_DOMAIN"
   LOG_LEVEL: "INFO"
+  SOIL_API_URL: "http://nkz-module-soil-service:8000"
 ---
 apiVersion: apps/v1
 kind: Deployment

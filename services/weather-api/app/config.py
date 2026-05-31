@@ -19,6 +19,9 @@ class Settings:
             "OPENMETEO_API_URL", "https://api.open-meteo.com/v1/forecast"
         )
         self.aemet_api_key = os.getenv("AEMET_API_KEY", "")
+        self.soil_api_url = os.getenv(
+            "SOIL_API_URL", "http://nkz-module-soil-service:8000"
+        )
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
 
         # Auth — not used directly by this service (api-gateway validates),
