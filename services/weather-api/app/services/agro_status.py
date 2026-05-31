@@ -464,7 +464,11 @@ def calculate_agro_status(
     ksat = None  # saturated hydraulic conductivity
     texture_applied = False
 
-    if soil_texture and soil_texture.get("sand") and soil_texture.get("clay"):
+    if (
+        soil_texture
+        and soil_texture.get("sand") is not None
+        and soil_texture.get("clay") is not None
+    ):
         try:
             # Use pre-computed PTF values if available (from _resolve_soil_texture via soil module API).
             # Avoids redundant Saxton-Rawls calculation — single source of truth.
@@ -568,6 +572,7 @@ def calculate_agro_status(
             "texture_class": soil_texture.get("texture_class")
             if soil_texture
             else None,
+            "source": soil_texture.get("source") if soil_texture else None,
         }
         if soil_texture
         else None,
