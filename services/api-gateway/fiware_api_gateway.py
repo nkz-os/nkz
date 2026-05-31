@@ -506,9 +506,11 @@ def add_security_headers(response):
     response.headers["Strict-Transport-Security"] = (
         "max-age=31536000; includeSubDomains"
     )
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; frame-ancestors 'none'"
-    )
+    # Skip CSP for n8n tenant proxy — n8n sets its own CSP
+    if not getattr(g, "skip_csp", False):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; frame-ancestors 'none'"
+        )
     response.headers.pop("Server", None)
     return response
 
@@ -3868,6 +3870,7 @@ def n8n_tenant_proxy(tenant_id, subpath=""):
     """
     import re
 
+    g.skip_csp = True  # n8n sets its own CSP
     safe_tenant = re.sub(r"[^a-z0-9-]", "-", tenant_id.lower()).strip("-")[:63]
     service = f"n8n-{safe_tenant}-service"
     target = f"http://{service}:5678/{subpath}"
