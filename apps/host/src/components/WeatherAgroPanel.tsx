@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Cloud, 
+  Database,
   Droplets, 
   Wind, 
   Thermometer, 
@@ -750,6 +751,15 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                     </>
                   )}
                 </div>
+                {agroStatus?.soil?.texture_applied && agroStatus.soil.texture_class && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <Database className="w-3 h-3 text-amber-600" />
+                    <span className="text-xs text-gray-500">
+                      {agroStatus.soil.texture_class}
+                      {agroStatus.soil.source && ` · ${agroStatus.soil.source}`}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
