@@ -3894,6 +3894,8 @@ def n8n_tenant_proxy(tenant_id, subpath=""):
         resp_headers.pop("Transfer-Encoding", None)
         # Use actual (decompressed) body size
         resp_headers["Content-Length"] = str(len(resp.content))
+        # Strip CSP added by add_security_headers — n8n sets its own
+        resp_headers.pop("Content-Security-Policy", None)
         return make_response(resp.content, resp.status_code, resp_headers)
     except Exception as e:
         logger.error(f"n8n tenant proxy error to {target}: {e}")
