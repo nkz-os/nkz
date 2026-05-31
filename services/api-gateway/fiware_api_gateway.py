@@ -160,7 +160,7 @@ RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
 ROUTING_API_URL = os.getenv(
     "ROUTING_API_URL", "http://nkz-module-gis-routing-service:8000"
 )
-SOIL_API_URL = os.getenv("SOIL_API_URL", "http://nkz-module-soil-service:8000")
+SOIL_API_URL = os.getenv("SOIL_API_URL", "http://soil-module-service:8000")
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
 ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
