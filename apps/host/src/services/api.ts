@@ -1322,9 +1322,18 @@ class ApiService {
     municipality_code: string;
     municipality_name: string;
     downscaling: string;
+    interpolation: string;
+    station_count: number;
     parcel_altitude_m: number;
+    station_altitude_m: number;
     parcel_aspect_deg: number;
     parcel_slope_deg: number;
+    contributing_stations: Array<{
+      municipality_code: string;
+      municipality_name?: string;
+      distance_km: number;
+      station_altitude_m: number;
+    }>;
     observations: Array<{
       observed_at: string;
       temp_avg?: number;
@@ -1332,15 +1341,22 @@ class ApiService {
       temp_max?: number;
       humidity_avg?: number;
       precip_mm?: number;
+      precip_probability?: number;
       solar_rad_w_m2?: number;
+      solar_rad_ghi_w_m2?: number;
+      solar_rad_dni_w_m2?: number;
       eto_mm?: number;
       wind_speed_ms?: number;
+      wind_gusts_ms?: number;
       wind_direction_deg?: number;
       pressure_hpa?: number;
       gdd_accumulated?: number;
       delta_t?: number;
       soil_moisture_0_10cm?: number;
       soil_moisture_10_40cm?: number;
+      source?: string;
+      data_type?: string;
+      municipality_code?: string;
     }>;
   }> {
     try {
@@ -1356,32 +1372,67 @@ class ApiService {
   }
 
   async getParcelAgroStatus(parcelId: string): Promise<{
+    parcel_id: string;
+    parcel_name: string;
+    centroid: { latitude: number; longitude: number };
     semaphores: {
       spraying: 'optimal' | 'caution' | 'not_suitable' | 'unknown';
       workability: 'optimal' | 'too_wet' | 'too_dry' | 'caution' | 'unknown';
       irrigation: 'satisfied' | 'alert' | 'deficit' | 'unknown';
     };
-    source_confidence: 'SENSOR_REAL' | 'OPEN-METEO';
+    weather: {
+      temperature?: number;
+      humidity?: number;
+      wind_speed?: number;
+      wind_direction?: number;
+      pressure?: number;
+      precipitation: number;
+      precipitation_3d: number;
+      eto_today?: number;
+      eto_3d?: number;
+      wind_gusts?: number;
+      water_balance?: number;
+      observed_at?: string;
+      sources: Record<string, string>;
+      source_confidence: string;
+      sensor?: {
+        external_id: string;
+        name: string;
+        distance_m: number;
+        last_observation: string;
+      };
+    };
     metrics?: {
       temperature?: number;
       humidity?: number;
       delta_t?: number;
       water_balance?: number;
+      wind_speed?: number;
+      wind_gusts?: number;
+      precip_probability?: number;
+      spraying_reason?: string;
     };
-    timestamp?: string;
+    soil?: {
+      texture_applied: boolean;
+      texture_class?: string;
+      field_capacity?: number;
+      wilting_point?: number;
+      ksat?: number;
+      hydrologic_group?: string;
+      source?: string;
+    };
+    crop?: {
+      stage?: string;
+      spraying_sensitivity?: string;
+    };
+    inversion_risk: boolean;
+    source_confidence: string;
+    downscaling: string;
+    timestamp: string;
   }> {
     try {
       const response = await this.client.get(`/api/weather/parcel/${parcelId}/agro-status`);
-      return {
-        semaphores: response.data.semaphores || {
-          spraying: 'unknown',
-          workability: 'unknown',
-          irrigation: 'unknown'
-        },
-        source_confidence: response.data.source_confidence || 'OPEN-METEO',
-        metrics: response.data.metrics,
-        timestamp: response.data.timestamp
-      };
+      return response.data;
     } catch (error) {
       logger.error('Agro-status endpoint failed:', error);
       throw error;

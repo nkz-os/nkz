@@ -62,7 +62,7 @@ interface AgroStatusSemaphore {
     workability: WorkabilityCondition;
     irrigation: IrrigationCondition;
   };
-  source_confidence: 'SENSOR_REAL' | 'WEATHER-OBS' | 'OPEN-METEO';
+  source_confidence: string;
   metrics?: {
     temperature?: number;
     humidity?: number;
@@ -70,8 +70,24 @@ interface AgroStatusSemaphore {
     water_balance?: number;
     wind_speed?: number;
     wind_gusts?: number;
+    precip_probability?: number;
+    spraying_reason?: string;
   };
   downscaling?: string;
+  soil?: {
+    texture_applied: boolean;
+    texture_class?: string;
+    field_capacity?: number;
+    wilting_point?: number;
+    ksat?: number;
+    hydrologic_group?: string;
+    source?: string;
+  };
+  crop?: {
+    stage?: string;
+    spraying_sensitivity?: string;
+  };
+  inversion_risk?: boolean;
   timestamp?: string;
 }
 

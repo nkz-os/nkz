@@ -160,6 +160,7 @@ RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
 ROUTING_API_URL = os.getenv(
     "ROUTING_API_URL", "http://nkz-module-gis-routing-service:8000"
 )
+SOIL_API_URL = os.getenv("SOIL_API_URL", "http://nkz-module-soil-service:8000")
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
 ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
@@ -3786,13 +3787,6 @@ def vegetation_proxy(path):
 
 
 @app.route(
-    "/api/weather/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
-)
-def weather_proxy(path):
-    return generic_proxy(WEATHER_API_URL, f"api/weather/{path}")
-
-
-@app.route(
     "/api/intelligence/<path:path>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
 )
@@ -3906,6 +3900,15 @@ def n8n_tenant_proxy(tenant_id, subpath=""):
 )
 def routing_proxy(path):
     return generic_proxy(ROUTING_API_URL, f"api/routing/{path}")
+
+
+@app.route(
+    "/api/soil/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def soil_proxy(path):
+    """Proxy soil module requests — /api/soil/* → /v1/soil/*"""
+    return generic_proxy(SOIL_API_URL, f"v1/soil/{path}")
 
 
 # =============================================================================
