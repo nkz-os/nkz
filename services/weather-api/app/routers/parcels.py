@@ -431,7 +431,7 @@ def _resolve_soil_texture(
     try:
         soil_url = (
             f"{settings.soil_api_url}/v1/soil/point/texture"
-            f"?lat={lat}&lon={lon}&depth=0-30"
+            f"?lat={lat}&lon={lon}&depth=0-5"
         )
         soil_headers = {"X-Tenant-ID": tenant_id or "default"}
         soil_resp = requests.get(soil_url, headers=soil_headers, timeout=5.0)
