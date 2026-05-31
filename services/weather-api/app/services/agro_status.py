@@ -466,16 +466,29 @@ def calculate_agro_status(
 
     if soil_texture and soil_texture.get("sand") and soil_texture.get("clay"):
         try:
-            oc = soil_texture.get("organic_carbon", 0.5) or 0.5
-            ptf = _saxton_rawls_2006(
-                float(soil_texture["sand"]),
-                float(soil_texture["clay"]),
-                float(oc),
-            )
-            fc = ptf["field_capacity"]
-            wp = ptf["wilting_point"]
-            ksat = ptf["ksat"]
-            texture_applied = True
+            # Use pre-computed PTF values if available (from _resolve_soil_texture via soil module API).
+            # Avoids redundant Saxton-Rawls calculation — single source of truth.
+            if (
+                soil_texture.get("field_capacity") is not None
+                and soil_texture.get("wilting_point") is not None
+            ):
+                fc = soil_texture["field_capacity"]
+                wp = soil_texture["wilting_point"]
+                ksat = soil_texture.get("ksat")
+                texture_applied = True
+            else:
+                # Fallback: compute PTF on-the-fly (backward compat for callers
+                # that pass raw sand/clay/oc without pre-computed hydraulics)
+                oc = soil_texture.get("organic_carbon", 0.5) or 0.5
+                ptf = _saxton_rawls_2006(
+                    float(soil_texture["sand"]),
+                    float(soil_texture["clay"]),
+                    float(oc),
+                )
+                fc = ptf["field_capacity"]
+                wp = ptf["wilting_point"]
+                ksat = ptf["ksat"]
+                texture_applied = True
         except Exception as exc:
             logger.warning(f"Saxton-Rawls PTF failed, using generic thresholds: {exc}")
 
@@ -518,7 +531,9 @@ def calculate_agro_status(
     recovery_hours = None
     hydrologic_group = None
     if texture_applied and ksat is not None:
-        hydrologic_group = _scs_hydrologic_group(ksat)
+        hydrologic_group = soil_texture.get(
+            "hydrologic_group"
+        ) or _scs_hydrologic_group(ksat)
         if semaphores["workability"] == "too_wet" and recent_precip > 0:
             recovery_hours = _estimate_recovery_hours(hydrologic_group, recent_precip)
 
