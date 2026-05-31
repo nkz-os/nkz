@@ -3888,7 +3888,13 @@ def n8n_tenant_proxy(tenant_id, subpath=""):
             allow_redirects=True,
             timeout=60,
         )
-        return make_response(resp.content, resp.status_code, dict(resp.headers))
+        # requests auto-decompresses gzip; strip Content-Encoding to avoid mismatch
+        resp_headers = dict(resp.headers)
+        resp_headers.pop("Content-Encoding", None)
+        resp_headers.pop("Transfer-Encoding", None)
+        # Use actual (decompressed) body size
+        resp_headers["Content-Length"] = str(len(resp.content))
+        return make_response(resp.content, resp.status_code, resp_headers)
     except Exception as e:
         logger.error(f"n8n tenant proxy error to {target}: {e}")
         return jsonify({"error": "n8n instance unavailable", "details": str(e)}), 502
