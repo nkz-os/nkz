@@ -882,7 +882,8 @@ def get_parcel_agro_status(
         nearby_stations_for_agro = None
 
         try:
-            # 5a. Multi-station fetch for latest observation (IDW interpolation)
+            # 5a. Multi-station fetch for latest observation (IDW interpolation).
+            # Try the user's tenant first; fall back to 'platform' if no data.
             multi = _fetch_nearby_stations_weather(
                 tenant_id=tenant_id,
                 lon=lon,
@@ -892,6 +893,32 @@ def get_parcel_agro_status(
                 limit=1,
                 max_stations=5,
                 max_distance_km=75.0,
+            )
+            if not multi["primary"] or not multi["primary"]["observations"]:
+                # Tenant has no weather data — fall back to shared platform pool
+                logger.info(
+                    f"No weather data for tenant {tenant_id}, falling back to platform"
+                )
+                multi = _fetch_nearby_stations_weather(
+                    tenant_id="platform",
+                    lon=lon,
+                    lat=lat,
+                    source="OPEN-METEO",
+                    data_type="HISTORY",
+                    limit=1,
+                    max_stations=5,
+                    max_distance_km=75.0,
+                )
+                if multi["primary"]:
+                    multi["primary"]["_fallback_tenant"] = True
+
+            # Determine which tenant's weather pool to use for subsequent queries.
+            # If the multi-station fetch succeeded via platform fallback, use
+            # 'platform' for the 3-day history query too.
+            weather_tenant = (
+                "platform"
+                if (multi["primary"] and multi["primary"].get("_fallback_tenant"))
+                else tenant_id
             )
 
             if multi["primary"] and multi["primary"]["observations"]:
@@ -916,7 +943,7 @@ def get_parcel_agro_status(
                             )
 
                 # 5c. Last 3 days from primary station for water balance
-                conn = get_db_connection(tenant_id)
+                conn = get_db_connection(weather_tenant)
                 try:
                     cur = conn.cursor(cursor_factory=RealDictCursor)
                     cur.execute(
@@ -930,7 +957,7 @@ def get_parcel_agro_status(
                           AND observed_at >= NOW() - INTERVAL '3 days'
                         ORDER BY observed_at DESC
                         """,
-                        (tenant_id, muni_code),
+                        (weather_tenant, muni_code),
                     )
                     weather_3d = [dict(r) for r in cur.fetchall()]
                 finally:
@@ -939,7 +966,7 @@ def get_parcel_agro_status(
 
             else:
                 # Fallback: single-station query (backward compat)
-                conn = get_db_connection(tenant_id)
+                conn = get_db_connection(weather_tenant)
                 try:
                     cur = conn.cursor(cursor_factory=RealDictCursor)
                     cur.execute(
@@ -951,7 +978,7 @@ def get_parcel_agro_status(
                         ORDER BY location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
                         LIMIT 1
                         """,
-                        (tenant_id, lon, lat),
+                        (weather_tenant, lon, lat),
                     )
                     nearest = cur.fetchone()
                     if nearest:
@@ -975,7 +1002,7 @@ def get_parcel_agro_status(
                             ORDER BY observed_at DESC
                             LIMIT 1
                             """,
-                            (tenant_id, muni_code),
+                            (weather_tenant, muni_code),
                         )
                         row = cur.fetchone()
                         if row:
@@ -991,7 +1018,7 @@ def get_parcel_agro_status(
                               AND observed_at >= NOW() - INTERVAL '3 days'
                             ORDER BY observed_at DESC
                             """,
-                            (tenant_id, muni_code),
+                            (weather_tenant, muni_code),
                         )
                         weather_3d = [dict(r) for r in cur.fetchall()]
                 finally:
