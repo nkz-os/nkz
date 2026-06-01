@@ -3861,14 +3861,29 @@ def n8n_nkz_proxy(path):
     "/n8n/<tenant_id>/<path:subpath>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
 )
+@app.route(
+    "/<tenant_id>/<path:subpath>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+)
+@app.route(
+    "/<tenant_id>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+    strict_slashes=False,
+)
 def n8n_tenant_proxy(tenant_id, subpath=""):
     """Proxy per-tenant n8n instances via path-based routing.
 
     n8n.robotika.cloud/<tenant_id>/  ->  http://n8n-<tenant_id>-service:5678/
 
     n8n uses its own basic auth, so this route is PUBLIC (no JWT required).
+    Rewrites /static/base-path.js to inject correct BASE_PATH for the tenant.
     """
     import re
+
+    # Only serve this for n8n.robotika.cloud host
+    host = request.headers.get("Host", "").split(":")[0]
+    if host != "n8n.robotika.cloud" and not host.endswith(".n8n.robotika.cloud"):
+        return jsonify({"error": "Not Found"}), 404
 
     g.skip_csp = True  # n8n sets its own CSP
     safe_tenant = re.sub(r"[^a-z0-9-]", "-", tenant_id.lower()).strip("-")[:63]
@@ -3891,18 +3906,47 @@ def n8n_tenant_proxy(tenant_id, subpath=""):
             allow_redirects=True,
             timeout=60,
         )
-        # requests auto-decompresses gzip; strip Content-Encoding to avoid mismatch
+        body = resp.content
         resp_headers = dict(resp.headers)
         resp_headers.pop("Content-Encoding", None)
         resp_headers.pop("Transfer-Encoding", None)
-        # Use actual (decompressed) body size
-        resp_headers["Content-Length"] = str(len(resp.content))
-        # Strip CSP added by add_security_headers — n8n sets its own
         resp_headers.pop("Content-Security-Policy", None)
-        return make_response(resp.content, resp.status_code, resp_headers)
+
+        # Rewrite base-path.js to inject correct tenant prefix
+        if "/static/base-path.js" in target and resp.status_code == 200:
+            body = f"window.BASE_PATH = '/{tenant_id}/';\n".encode()
+            resp_headers["Content-Type"] = "application/javascript"
+            resp_headers["Content-Length"] = str(len(body))
+        elif "text/html" in resp_headers.get("Content-Type", ""):
+            # Rewrite absolute asset URLs in HTML to include tenant prefix
+            html = body.decode("utf-8", errors="replace")
+            prefix = f"/{tenant_id}"
+            html = html.replace('src="/static/', f'src="{prefix}/static/')
+            html = html.replace('src="/assets/', f'src="{prefix}/assets/')
+            html = html.replace('href="/static/', f'href="{prefix}/static/')
+            html = html.replace('href="/assets/', f'href="{prefix}/assets/')
+            html = html.replace('href="/favicon.ico"', f'href="{prefix}/favicon.ico"')
+            body = html.encode("utf-8")
+            resp_headers["Content-Length"] = str(len(body))
+        else:
+            resp_headers["Content-Length"] = str(len(body))
+
+        return make_response(body, resp.status_code, resp_headers)
     except Exception as e:
         logger.error(f"n8n tenant proxy error to {target}: {e}")
         return jsonify({"error": "n8n instance unavailable", "details": str(e)}), 502
+
+
+@app.route("/", methods=["GET"])
+def n8n_landing():
+    """Simple landing page for n8n.robotika.cloud root."""
+    return jsonify(
+        {
+            "service": "n8n tenant proxy",
+            "usage": "Access your n8n instance at /<tenant-id>/",
+            "example": "/montiko/",
+        }
+    )
 
 
 @app.route(
