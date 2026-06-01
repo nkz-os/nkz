@@ -21,6 +21,7 @@ import {
   Search
 } from 'lucide-react';
 import api from '@/services/api';
+import { parcelApi } from '@/services/parcelApi';
 import { useI18n } from '@/context/I18nContext';
 import { useTenantMunicipality } from '@/hooks/useTenantMunicipality';
 import { logger } from '@/utils/logger';
@@ -135,6 +136,36 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   const [selectedMunicipalityName, setSelectedMunicipalityName] = useState<string | undefined>(
     municipalityName || savedMunicipality.name || tenantMunicipality?.name
   );
+
+  // Parcel state — preferred over municipality for per-parcel virtual weather stations
+  const [parcels, setParcels] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedParcelId, setSelectedParcelId] = useState<string | undefined>(parcelId);
+  const [selectedParcelName, setSelectedParcelName] = useState<string>('');
+  const [showParcelSearch, setShowParcelSearch] = useState(false);
+
+  // Load tenant parcels on mount — auto-select first as fallback
+  useEffect(() => {
+    const loadParcels = async () => {
+      try {
+        const result = await parcelApi.getParcels();
+        if (result && result.length > 0) {
+          const list = result.map((p: any) => ({
+            id: p.id || p.parcelId || '',
+            name: p.name?.value || p.name || p.parcelName || 'Sin nombre',
+          }));
+          setParcels(list);
+          if (!parcelId && !selectedParcelId && list.length > 0) {
+            setSelectedParcelId(list[0].id);
+            setSelectedParcelName(list[0].name);
+          }
+        }
+      } catch (err) {
+        logger.warn('[WeatherAgroPanel] Error loading parcels:', err);
+      }
+    };
+    loadParcels();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [currentWeather, setCurrentWeather] = useState<WeatherObservation | null>(null);
   const [historicalWeather, setHistoricalWeather] = useState<WeatherObservation[]>([]);
   const [parcelSensors, setParcelSensors] = useState<ParcelSensor[]>([]);
@@ -179,25 +210,28 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
 
   // Load weather data
   useEffect(() => {
-    if (selectedMunicipalityCode) {
+    const effectiveParcelId = selectedParcelId || parcelId;
+    if (selectedMunicipalityCode || effectiveParcelId) {
       loadWeatherData();
     }
-  }, [selectedMunicipalityCode, parcelId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedMunicipalityCode, selectedParcelId, parcelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load parcel sensors if parcelId provided
+  // Load parcel sensors and agro-status when parcel is selected
   useEffect(() => {
-    if (parcelId) {
+    const effectiveParcelId = selectedParcelId || parcelId;
+    if (effectiveParcelId) {
       loadParcelSensors();
       loadAgroStatus();
     } else {
       setAgroStatus(null);
     }
-  }, [parcelId]);
+  }, [selectedParcelId, parcelId]);
 
   const loadAgroStatus = async () => {
-    if (!parcelId) return;
+    const effectiveParcelId = selectedParcelId || parcelId;
+    if (!effectiveParcelId) return;
     try {
-      const resp = await api.getParcelAgroStatus(parcelId);
+      const resp = await api.getParcelAgroStatus(effectiveParcelId);
       setAgroStatus(resp);
     } catch (err) {
       logger.warn('Agro-status API failed, falling back to local calculation:', err);
@@ -241,21 +275,22 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   };
 
   const loadWeatherData = async () => {
+    const effectiveParcelId = selectedParcelId || parcelId;
     const codeToUse = selectedMunicipalityCode || municipalityCode;
-    if (!codeToUse) return;
+    if (!codeToUse && !effectiveParcelId) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const useParcelApi = !!(parcelId && parcelId.length > 0);
+      const useParcelApi = !!(effectiveParcelId && effectiveParcelId.length > 0);
       let latest: any[] = [];
       let historicalObs: any[] = [];
 
       // When a parcel is selected, use the corrected parcel weather API
       if (useParcelApi) {
         try {
-          const parcelWeather = await api.getParcelWeather(parcelId!, {
+          const parcelWeather = await api.getParcelWeather(effectiveParcelId!, {
             source: 'OPEN-METEO',
             data_type: 'HISTORY',
             limit: 72,
@@ -581,21 +616,52 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
             <div>
               <h2 className="text-xl font-bold text-white">{t('weather.agro_panel.title')}</h2>
               <p className="text-sm text-green-100">
-                {selectedMunicipalityName || municipalityName || t('weather.agro_panel.select_municipality')}
+                {selectedParcelName || selectedMunicipalityName || municipalityName || t('weather.agro_panel.select_municipality')}
               </p>
             </div>
           </div>
           <div className="flex gap-2">
+            {/* Parcel selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowParcelSearch(!showParcelSearch)}
+                className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white text-sm flex items-center gap-2"
+              >
+                <MapPin className="w-4 h-4" />
+                {selectedParcelName ? selectedParcelName.substring(0, 20) : t('weather.agro_panel.select_parcel')}
+              </button>
+              {showParcelSearch && parcels.length > 0 && (
+                <div className="absolute right-0 mt-1 w-64 max-h-64 overflow-y-auto bg-white rounded-lg shadow-lg z-50 border border-gray-200">
+                  {parcels.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        setSelectedParcelId(p.id);
+                        setSelectedParcelName(p.name);
+                        setShowParcelSearch(false);
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-green-50 transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
+                        p.id === selectedParcelId ? 'bg-green-100' : ''
+                      }`}
+                    >
+                      <MapPin className="w-3 h-3 text-green-500 flex-shrink-0" />
+                      <span className="truncate">{p.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Municipality search toggle */}
             <button
               onClick={() => setShowMunicipalitySearch(!showMunicipalitySearch)}
               className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white text-sm flex items-center gap-2"
+              title={t('weather.agro_panel.search')}
             >
               <Search className="w-4 h-4" />
-              {municipalityName ? t('weather.agro_panel.change') : t('weather.agro_panel.search')}
             </button>
             <button
               onClick={loadWeatherData}
-              disabled={loading || !selectedMunicipalityCode}
+              disabled={loading || (!selectedMunicipalityCode && !selectedParcelId)}
               className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />

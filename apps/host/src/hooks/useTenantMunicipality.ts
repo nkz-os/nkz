@@ -10,6 +10,7 @@
 import { useState, useEffect } from 'react';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
+import { useAuth } from '@/context/KeycloakAuthContext';
 interface Municipality {
   code: string;
   name: string;
@@ -20,6 +21,7 @@ export const useTenantMunicipality = () => {
   const [municipality, setMunicipality] = useState<Municipality | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { tenantId } = useAuth();
 
   useEffect(() => {
     const loadTenantMunicipality = async () => {
@@ -114,6 +116,7 @@ export const useTenantMunicipality = () => {
                     const token = (window as any).keycloak?.token || '';
                     const headers: HeadersInit = {
                       'Content-Type': 'application/json',
+                      'X-Tenant-ID': tenantId,
                     };
                     if (token) {
                       headers['Authorization'] = `Bearer ${token}`;
