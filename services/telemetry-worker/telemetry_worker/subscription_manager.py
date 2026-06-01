@@ -89,14 +89,28 @@ SUBSCRIPTIONS = [
         "throttling": 5,
         "isActive": True,
     },
+    {
+        "description": "Telemetry Worker - WeatherObserved virtual stations",
+        "type": "Subscription",
+        "entities": [{"type": "WeatherObserved"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 30,
+        "isActive": True,
+    },
 ]
 
 
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers with normalized tenant ID."""
-    n = tenant_id.lower().strip().replace('-', '_').replace(' ', '_')
-    n = re.sub(r'[^a-z0-9_]', '', n)
-    n = n.strip('_') or tenant_id
+    n = tenant_id.lower().strip().replace("-", "_").replace(" ", "_")
+    n = re.sub(r"[^a-z0-9_]", "", n)
+    n = n.strip("_") or tenant_id
     headers = {
         "NGSILD-Tenant": n,
         "Fiware-Service": n,
@@ -105,7 +119,9 @@ def _make_headers(tenant_id: str) -> dict:
     }
     ctx = os.getenv("CONTEXT_URL", "")
     if ctx:
-        headers["Link"] = f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+        headers["Link"] = (
+            f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+        )
     return headers
 
 
