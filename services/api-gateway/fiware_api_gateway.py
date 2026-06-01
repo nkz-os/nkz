@@ -3870,7 +3870,15 @@ def n8n_nkz_proxy(path):
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
     strict_slashes=False,
 )
-def n8n_tenant_proxy(tenant_id, subpath=""):
+@app.route(
+    "/assets/<path:subpath>",
+    methods=["GET", "HEAD", "OPTIONS"],
+)
+@app.route(
+    "/static/<path:subpath>",
+    methods=["GET", "HEAD", "OPTIONS"],
+)
+def n8n_tenant_proxy(tenant_id=None, subpath=""):
     """Proxy per-tenant n8n instances via path-based routing.
 
     n8n.robotika.cloud/<tenant_id>/  ->  http://n8n-<tenant_id>-service:5678/
@@ -3886,9 +3894,27 @@ def n8n_tenant_proxy(tenant_id, subpath=""):
         return jsonify({"error": "Not Found"}), 404
 
     g.skip_csp = True  # n8n sets its own CSP
+
+    # If this is a root-level /assets/ or /static/ request (from hardcoded JS imports),
+    # extract the tenant from the Referer header
+    if not tenant_id or tenant_id in ("assets", "static"):
+        referer = request.headers.get("Referer", "")
+        m = re.search(r"/n8n\.robotika\.cloud/([a-z0-9-]+)/", referer)
+        if not m:
+            # Fallback: use the only tenant currently provisioned
+            tenant_id = "montiko"
+        else:
+            tenant_id = m.group(1)
+
     safe_tenant = re.sub(r"[^a-z0-9-]", "-", tenant_id.lower()).strip("-")[:63]
     service = f"n8n-{safe_tenant}-service"
-    target = f"http://{service}:5678/{subpath}"
+    # Reconstruct the full path that n8n expects
+    if request.path.startswith("/assets/"):
+        target = f"http://{service}:5678/assets/{subpath}"
+    elif request.path.startswith("/static/"):
+        target = f"http://{service}:5678/static/{subpath}"
+    else:
+        target = f"http://{service}:5678/{subpath}"
 
     headers = {}
     for hdr in ("Content-Type", "Accept", "X-N8N-API-KEY"):
