@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { FieldPhotoRecord } from '@/utils/fieldPhotos';
@@ -17,6 +17,9 @@ export const FieldPhotoCarousel: React.FC<FieldPhotoCarouselProps> = ({
 }) => {
   const { t } = useTranslation();
   const photo = photos[index];
+  const [errored, setErrored] = useState(false);
+
+  useEffect(() => { setErrored(false); }, [photo?.id]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -50,10 +53,17 @@ export const FieldPhotoCarousel: React.FC<FieldPhotoCarouselProps> = ({
           <ChevronLeft className="w-6 h-6" />
         </button>
 
-        <img
-          src={src} alt={photo.note || photo.id}
-          className="max-h-[70vh] max-w-[80vw] rounded-nkz-md object-contain"
-        />
+        {errored ? (
+          <div className="max-h-[70vh] max-w-[80vw] rounded-nkz-md flex items-center justify-center bg-nkz-surface-sunken/60 w-64 h-48">
+            <p className="text-nkz-sm text-white opacity-80 text-center px-4">{t('viewer.fieldPhotos.imageError')}</p>
+          </div>
+        ) : (
+          <img
+            src={src} alt={photo.note || photo.id}
+            className="max-h-[70vh] max-w-[80vw] rounded-nkz-md object-contain"
+            onError={() => setErrored(true)}
+          />
+        )}
 
         <button
           type="button" aria-label={t('viewer.fieldPhotos.next')}

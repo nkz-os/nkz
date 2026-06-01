@@ -38,4 +38,15 @@ describe('FieldPhotoCarousel', () => {
     fireEvent.click(getByLabelText('viewer.fieldPhotos.close'));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it('shows the image-error fallback when the image fails to load', () => {
+    const { container, queryByText, getByText } = render(
+      <FieldPhotoCarousel photos={photos} index={0} onIndexChange={() => {}} onClose={() => {}} />,
+    );
+    expect(queryByText('viewer.fieldPhotos.imageError')).toBeNull();
+    const img = container.querySelector('img');
+    expect(img).toBeTruthy();
+    fireEvent.error(img!);
+    expect(getByText('viewer.fieldPhotos.imageError')).toBeTruthy();
+  });
 });
