@@ -243,7 +243,7 @@ def _orion_headers(tenant_id: str) -> dict:
     so that the Fiware-Service / NGSILD-Tenant headers match the Orion-LD
     database name where entities were created.
     """
-    from tenant_utils import normalize_tenant_id as _norm
+    from common.tenant_utils import normalize_tenant_id as _norm
 
     h = {"Accept": "application/ld+json"}
     if tenant_id:
