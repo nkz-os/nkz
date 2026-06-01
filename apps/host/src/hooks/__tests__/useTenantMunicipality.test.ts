@@ -17,6 +17,22 @@ vi.mock('@/services/parcelApi', () => ({
     getParcels: vi.fn(),
   },
 }))
+vi.mock('@/context/KeycloakAuthContext', () => ({
+  useAuth: () => ({
+    user: null,
+    isAuthenticated: true,
+    isLoading: false,
+    login: vi.fn(),
+    logout: vi.fn(),
+    hasRole: vi.fn(),
+    hasAnyRole: vi.fn(),
+    getToken: vi.fn(),
+    tenantId: 'test-tenant',
+    tenantName: 'test-tenant',
+    tenantProfile: null,
+    refreshTenantProfile: vi.fn(),
+  }),
+}))
 
 import api from '@/services/api'
 import { parcelApi } from '@/services/parcelApi'
