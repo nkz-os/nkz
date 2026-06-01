@@ -33,3 +33,25 @@ export function parseFieldPhotos(raw: unknown): FieldPhotoRecord[] {
   }
   return out;
 }
+
+/**
+ * Filter photos to those whose dateObserved is within `windowDays` of `currentDate`
+ * (inclusive, symmetric). `windowDays === null` disables the window (all dated photos).
+ * Undated photos are always excluded. Result is sorted ascending by date.
+ */
+export function photosInWindow(
+  photos: FieldPhotoRecord[],
+  currentDate: Date,
+  windowDays: number | null,
+): FieldPhotoRecord[] {
+  const center = currentDate.getTime();
+  const span = windowDays === null ? Infinity : windowDays * 24 * 60 * 60 * 1000;
+  return photos
+    .filter(p => {
+      if (!p.dateObserved) return false;
+      const t = new Date(p.dateObserved).getTime();
+      if (Number.isNaN(t)) return false;
+      return Math.abs(t - center) <= span;
+    })
+    .sort((a, b) => a.dateObserved.localeCompare(b.dateObserved));
+}
