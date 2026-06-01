@@ -23,6 +23,7 @@ import { parcelApi } from '@/services/parcelApi';
 import { cadastralApi } from '@/services/cadastralApi';
 import { parseFieldPhotos, photosInWindow, FieldPhotoRecord } from '@/utils/fieldPhotos';
 import { FieldPhotoCarousel } from '@/components/viewer/FieldPhotoCarousel';
+import { CoreTimelineControls } from '@/components/viewer/CoreTimelineControls';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { logger } from '@/utils/logger';
 import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay';
@@ -619,13 +620,7 @@ const UnifiedViewerInner: React.FC = () => {
                         <Suspense fallback={<PanelLoadingFallback />}>
                             <SlotRenderer slot="bottom-panel" />
                         </Suspense>
-                        {/* Fallback if no bottom panel widgets */}
-                        <div className="text-center">
-                            <p className="text-sm text-slate-500">{t('viewer.timeline.label')}</p>
-                            <p className="text-xs text-slate-400 mt-1">
-                                {t('viewer.timeline.current_date', { date: currentDate.toLocaleDateString('es-ES') })}
-                            </p>
-                        </div>
+                        <CoreTimelineControls photos={fieldPhotos} />
                     </div>
                 )}
             </div>
