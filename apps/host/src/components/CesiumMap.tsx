@@ -879,7 +879,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     entityRefs.current.fieldPhoto.forEach(e => viewer.entities.remove(e));
     entityRefs.current.fieldPhoto.clear();
 
-    const cameraIcon = getIconDataUri('camera');
+    const cameraIcon = getIconDataUri('icon:camera');
     fieldPhotos.forEach((photo) => {
       try {
         if (photo.lng == null || photo.lat == null) return;
