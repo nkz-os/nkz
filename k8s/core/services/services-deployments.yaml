@@ -42,7 +42,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api-gateway
-          image: ghcr.io/nkz-os/nkz/api-gateway@sha256:0a1c28a99b8c53527466c85f003bdde49c340683bd39915e07cd2f310437f47d  # soil proxy + duplicate route fix + NGSI-LD context
+          image: ghcr.io/nkz-os/nkz/api-gateway@sha256:fa13121eb224ad04f6c26ad6cf78d4d463fdb720a3e6487dd5ecbf2a800d37fe  # unified tenant normalization + ngsi_headers fix
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
