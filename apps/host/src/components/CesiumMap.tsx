@@ -11,6 +11,7 @@ import {
   Mountain
 } from 'lucide-react';
 import { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, AgriCrop, AgriBuilding, Device } from '@/types';
+import { FieldPhotoRecord } from '@/utils/fieldPhotos';
 import { useViewerOptional } from '@/context/ViewerContext';
 import { SlotRenderer } from '@/components/SlotRenderer';
 import { CesiumStampRenderer } from '@/components/CesiumStampRenderer';
@@ -64,6 +65,7 @@ interface CesiumMapProps {
   onEntitySelect?: (entity: { id: string; type: string }) => void; // Callback when an entity is clicked
   riskOverlay?: Map<string, RiskOverlayInfo>; // Optional: risk severity colors keyed by entity ID
   renderMapLayerSlot?: boolean; // Whether to render map-layer slot inside this component
+  fieldPhotos?: FieldPhotoRecord[];
   // Module layer configurations (extensible for future modules)
   // Removed vegetationLayerConfig - modules should register layers via slot system
 }
@@ -258,6 +260,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   onEntitySelect,
   riskOverlay,
   renderMapLayerSlot = true,
+  fieldPhotos = [],
   // vegetationLayerConfig removed - modules use slot system
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -281,17 +284,18 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   // eliminating the full-scene rebuild (removeAll + re-add) that previously
   // caused visible flicker and frame drops on every data update.
   const entityRefs = useRef({
-    robot:    new Map<string, any>(),
-    sensor:   new Map<string, any>(),
-    machine:  new Map<string, any>(),
-    livestock:new Map<string, any>(),
-    weather:  new Map<string, any>(),
-    crop:     new Map<string, any>(),
-    building: new Map<string, any>(),
-    device:   new Map<string, any>(),
-    tree:     new Map<string, any>(),
-    tracker:  new Map<string, any>(),
-    parcel:   new Map<string, any>(),
+    robot:      new Map<string, any>(),
+    sensor:     new Map<string, any>(),
+    machine:    new Map<string, any>(),
+    livestock:  new Map<string, any>(),
+    weather:    new Map<string, any>(),
+    crop:       new Map<string, any>(),
+    building:   new Map<string, any>(),
+    device:     new Map<string, any>(),
+    tree:       new Map<string, any>(),
+    tracker:    new Map<string, any>(),
+    parcel:     new Map<string, any>(),
+    fieldPhoto: new Map<string, any>(),
   });
 
   const parcelsIdentityKey = useMemo(
@@ -861,6 +865,56 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     viewer.scene.requestRender();
   }, [isViewerReady, sensors, riskOverlay, enable3DTerrain]);
+
+  // Field photos effect — camera billboards with capture date label
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
+
+    entityRefs.current.fieldPhoto.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.fieldPhoto.clear();
+
+    const cameraIcon = getIconDataUri('icon:camera');
+    fieldPhotos.forEach((photo) => {
+      try {
+        if (photo.lng == null || photo.lat == null) return;
+        const label = photo.dateObserved
+          ? new Date(photo.dateObserved).toLocaleDateString()
+          : '';
+        const entity = viewer.entities.add({
+          id: `fieldphoto-${photo.id}`,
+          position: Cesium.Cartesian3.fromDegrees(photo.lng, photo.lat, 0),
+          billboard: {
+            image: cameraIcon,
+            width: 32,
+            height: 32,
+            heightReference: hr,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          },
+          label: {
+            text: label,
+            font: '11px sans-serif',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            pixelOffset: new Cesium.Cartesian2(0, -34),
+            heightReference: hr,
+          },
+        });
+        entityRefs.current.fieldPhoto.set(photo.id, entity);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding field photo:', photo, e);
+      }
+    });
+
+    viewer.scene.requestRender();
+  }, [isViewerReady, fieldPhotos, enable3DTerrain]);
 
   // Machines effect
   useEffect(() => {

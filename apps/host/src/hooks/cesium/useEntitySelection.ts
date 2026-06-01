@@ -34,6 +34,8 @@ export function useEntitySelection(
           onEntitySelect({ id: entityId.replace('robot-', ''), type: 'AutonomousMobileRobot' });
         } else if (entityId.startsWith('machine-')) {
           onEntitySelect({ id: entityId.replace('machine-', ''), type: 'ManufacturingMachine' });
+        } else if (entityId.startsWith('fieldphoto-')) {
+          onEntitySelect({ id: entityId.replace('fieldphoto-', ''), type: 'AgriParcelRecord' });
         } else {
           onEntitySelect({ id: entityId, type: 'Unknown' });
         }
