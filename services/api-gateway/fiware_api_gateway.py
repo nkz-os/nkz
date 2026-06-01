@@ -3917,6 +3917,17 @@ def n8n_tenant_proxy(tenant_id, subpath=""):
             body = f"window.BASE_PATH = '/{tenant_id}/';\n".encode()
             resp_headers["Content-Type"] = "application/javascript"
             resp_headers["Content-Length"] = str(len(body))
+        elif "text/html" in resp_headers.get("Content-Type", ""):
+            # Rewrite absolute asset URLs in HTML to include tenant prefix
+            html = body.decode("utf-8", errors="replace")
+            prefix = f"/{tenant_id}"
+            html = html.replace('src="/static/', f'src="{prefix}/static/')
+            html = html.replace('src="/assets/', f'src="{prefix}/assets/')
+            html = html.replace('href="/static/', f'href="{prefix}/static/')
+            html = html.replace('href="/assets/', f'href="{prefix}/assets/')
+            html = html.replace('href="/favicon.ico"', f'href="{prefix}/favicon.ico"')
+            body = html.encode("utf-8")
+            resp_headers["Content-Length"] = str(len(body))
         else:
             resp_headers["Content-Length"] = str(len(body))
 
