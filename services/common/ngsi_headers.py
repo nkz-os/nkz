@@ -7,9 +7,35 @@ ETSI NGSI-LD spec rule (mutual exclusivity):
 NEVER set both Content-Type: application/ld+json AND a Link header simultaneously.
 """
 
+import logging
 import os
 import re
+import sys
 from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+# Import the canonical tenant-id normalizer (single source of truth).
+# When running inside a container, /common is on PYTHONPATH.
+try:
+    from tenant_utils import normalize_tenant_id as _canonical_normalize
+except ImportError:
+    # Fallback: try relative path (local dev)
+    _common_dir = os.path.join(os.path.dirname(__file__), "..", "common")
+    if _common_dir not in sys.path:
+        sys.path.insert(0, os.path.abspath(_common_dir))
+    try:
+        from tenant_utils import normalize_tenant_id as _canonical_normalize
+    except ImportError:
+        logger.warning(
+            "tenant_utils not available — ngsi_headers will fall back to basic normalization"
+        )
+
+        def _canonical_normalize(t: str) -> str:
+            """Minimal fallback when tenant_utils is unavailable."""
+            n = t.lower().strip().replace(" ", "-")
+            n = re.sub(r"[^a-z0-9-]", "", n)
+            return n.strip("-") or t
 
 
 def inject_fiware_headers(
@@ -53,7 +79,24 @@ def inject_fiware_headers(
 
 
 def _normalize_tenant(tenant: str) -> str:
-    """Normalize tenant ID: lowercase, hyphens→underscores, alphanum+underscore only."""
-    normalized = tenant.lower().replace("-", "_").replace(" ", "_")
-    normalized = re.sub(r"[^a-z0-9_]", "", normalized)
-    return normalized.strip("_") or tenant
+    """Normalize tenant ID for FIWARE headers using the canonical platform normalizer.
+
+    Delegates to tenant_utils.normalize_tenant_id() — the single source of truth
+    across the entire platform. This ensures the tenant ID used as Fiware-Service /
+    NGSILD-Tenant matches the value stored in PostgreSQL and embedded in JWTs.
+
+    Falls back to basic cleaning if tenant_utils is unavailable (should never happen
+    in production).
+    """
+    try:
+        return _canonical_normalize(tenant)
+    except ValueError:
+        # If the canonical normalizer rejects the input (e.g. empty, too long),
+        # fall back to basic cleaning so the request still reaches Orion-LD.
+        logger.warning(
+            "Canonical tenant normalization rejected %r, using basic fallback",
+            tenant,
+        )
+        n = tenant.lower().strip().replace(" ", "-")
+        n = re.sub(r"[^a-z0-9-]", "", n)
+        return n.strip("-")[:47] or tenant

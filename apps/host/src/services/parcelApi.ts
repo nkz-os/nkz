@@ -8,6 +8,7 @@ import axios, { AxiosInstance } from 'axios';
 import type { Parcel } from '@/types';
 import { getConfig } from '@/config/environment';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
+import { api } from '@/services/api';
 
 const config = getConfig();
 
@@ -83,9 +84,10 @@ class ParcelApiService {
                                 const refreshed = await keycloakInstance.updateToken(30); // Refresh if expires in 30s
                                 if (refreshed) {
                                     console.log('[ParcelAPI] Token refreshed, retrying request');
-                                    // Update token in request
+                                    // Update token in request and httpOnly cookie
                                     const newToken = keycloakInstance.token;
                                     originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                                    api.setSession(newToken).catch(() => {});
                                     return this.client(originalRequest);
                                 }
                             }

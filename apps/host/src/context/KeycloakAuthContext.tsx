@@ -661,12 +661,16 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
   const tenantName = tenantProfile?.tenant_name || user?.tenant || '';
 
   // Share Keycloak ref with api.ts for token refresh / cookie update.
-  // NOT exposed via window — modules cannot access it.
+  // Also expose on window.keycloak for legacy services (parcelApi, etc.) that
+  // create their own axios instances and need access to the KC instance for
+  // Bearer token injection and 401 token refresh handling.
   React.useEffect(() => {
     if (keycloak) {
       setKeycloakRef(keycloak as any);
+      (window as any).keycloak = keycloak;
     } else {
       setKeycloakRef(null);
+      delete (window as any).keycloak;
     }
   }, [keycloak]);
 

@@ -237,11 +237,23 @@ def _persist_agro_status_to_db(
 
 
 def _orion_headers(tenant_id: str) -> dict:
+    """Build Orion-LD request headers with canonical tenant-id normalization.
+
+    Uses the same normalizer as api-gateway (tenant_utils.normalize_tenant_id)
+    so that the Fiware-Service / NGSILD-Tenant headers match the Orion-LD
+    database name where entities were created.
+    """
+    from tenant_utils import normalize_tenant_id as _norm
+
     h = {"Accept": "application/ld+json"}
     if tenant_id:
-        h["Fiware-Service"] = tenant_id
+        try:
+            nid = _norm(tenant_id)
+        except ValueError:
+            nid = tenant_id.lower().strip().replace(" ", "-")
+        h["Fiware-Service"] = nid
         h["Fiware-ServicePath"] = "/"
-        h["NGSILD-Tenant"] = tenant_id
+        h["NGSILD-Tenant"] = nid
     if settings.context_url:
         h["Link"] = (
             f'<{settings.context_url}>; rel="http://www.w3.org/ns/json-ld#context";'
