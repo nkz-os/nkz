@@ -21,6 +21,8 @@ import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
 import { cadastralApi } from '@/services/cadastralApi';
+import { parseFieldPhotos, photosInWindow, FieldPhotoRecord } from '@/utils/fieldPhotos';
+import { FieldPhotoCarousel } from '@/components/viewer/FieldPhotoCarousel';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { logger } from '@/utils/logger';
 import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay';
@@ -75,6 +77,7 @@ const UnifiedViewerInner: React.FC = () => {
         drawingType,
         drawingCallback,
         selectEntity,
+        photoWindowDays,
     } = useViewer();
 
     // Local expanded state for left panel
@@ -113,6 +116,8 @@ const UnifiedViewerInner: React.FC = () => {
     const [buildings, setBuildings] = useState<any[]>([]);
     const [trees, setTrees] = useState<any[]>([]); // OliveTree, AgriTree, FruitTree, Vine
     const [energyTrackers, setEnergyTrackers] = useState<any[]>([]); // AgriEnergyTracker + PhotovoltaicInstallation
+    const [fieldPhotos, setFieldPhotos] = useState<FieldPhotoRecord[]>([]);
+    const [carouselIndex, setCarouselIndex] = useState<number | null>(null);
 
     // Normalize NGSI-LD entities whose attributes use full URIs (from SDM @context)
     // into short names expected by CesiumMap rendering code.
@@ -182,10 +187,13 @@ const UnifiedViewerInner: React.FC = () => {
                 // Energy trackers (both custom AgriEnergyTracker and SDM PhotovoltaicInstallation)
                 api.getSDMEntityInstances('AgriEnergyTracker').catch(() => []),
                 api.getSDMEntityInstances('https://saref.etsi.org/saref4agri/PhotovoltaicInstallation').catch(() => []),
+                // Field photos (AgriParcelRecord with imageUrl)
+                api.getSDMEntityInstances('AgriParcelRecord').catch(() => []),
             ]);
 
             const [robotsRes, sensorsRes, machinesRes, livestockRes, weatherRes, parcelsRes, cropsRes, buildingsRes,
-                oliveTreeRes, agriTreeRes, fruitTreeRes, vineRes, agriSensorRes, energyTrackersRes, pvInstallationsRes] = results;
+                oliveTreeRes, agriTreeRes, fruitTreeRes, vineRes, agriSensorRes, energyTrackersRes, pvInstallationsRes,
+                agriParcelRecordRes] = results;
 
             setRobots(robotsRes.status === 'fulfilled' ? robotsRes.value : []);
             // Combine sensors from PostgreSQL API and NGSI-LD (SDM)
@@ -216,6 +224,10 @@ const UnifiedViewerInner: React.FC = () => {
             const pvInstallations = (pvInstallationsRes.status === 'fulfilled' ? pvInstallationsRes.value : []).map(normalizeNgsiEntity);
             setEnergyTrackers([...agriEnergyTrackers, ...pvInstallations]);
 
+            const rawAgriParcelRecords = agriParcelRecordRes.status === 'fulfilled' ? agriParcelRecordRes.value : [];
+            setFieldPhotos(parseFieldPhotos(rawAgriParcelRecords));
+            logger.debug('[UnifiedViewer] Field photos loaded:', rawAgriParcelRecords.length);
+
             logger.debug('[UnifiedViewer] Entities loaded for map');
         } catch (error) {
             logger.error('[UnifiedViewer] Error loading entities:', error);
@@ -241,6 +253,11 @@ const UnifiedViewerInner: React.FC = () => {
         ];
         return allEntities.find(e => e.id === selectedEntityId);
     }, [selectedEntityId, parcels, robots, sensors, machines, weatherStations, livestock]);
+
+    const windowedPhotos = useMemo(
+      () => photosInWindow(fieldPhotos, currentDate, photoWindowDays),
+      [fieldPhotos, currentDate, photoWindowDays],
+    );
 
     // Handle drawing completion (for DRAW_PARCEL mode)
     const handleDrawingComplete = useCallback((geometry: GeoPolygon, area: number | null) => {
@@ -408,8 +425,13 @@ const UnifiedViewerInner: React.FC = () => {
     // Handle map entity selection
     const handleEntityMapSelect = useCallback((entity: { id: string; type: string }) => {
         logger.debug('[UnifiedViewer] Map entity selected:', entity);
+        if (entity.type === 'AgriParcelRecord') {
+            const i = windowedPhotos.findIndex(p => p.id === entity.id);
+            if (i >= 0) setCarouselIndex(i);
+            return;
+        }
         selectEntity(entity.id, entity.type);
-    }, [selectEntity]);
+    }, [selectEntity, windowedPhotos]);
 
     // ThemeProvider for the viewer only — does NOT affect other routes
     const { profile } = useViewerProfile();
@@ -471,6 +493,7 @@ const UnifiedViewerInner: React.FC = () => {
                     // interference with drawing overlays (MapDrawingOverlay).
                     mode={mapMode === 'VIEW' ? 'view' : 'picker'}
                     onMapClick={mapMode === 'SELECT_CADASTRAL' ? handleMapClickForCadastral : mapMode === 'PICK_LOCATION' ? handleMapClickForPicking : undefined}
+                    fieldPhotos={isLayerActive('fieldPhotos') ? windowedPhotos : []}
                     onEntitySelect={handleEntityMapSelect}
                     riskOverlay={riskOverlay}
                 />
@@ -606,6 +629,16 @@ const UnifiedViewerInner: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Field Photo Carousel Overlay */}
+                {carouselIndex !== null && (
+                    <FieldPhotoCarousel
+                        photos={windowedPhotos}
+                        index={carouselIndex}
+                        onIndexChange={setCarouselIndex}
+                        onClose={() => setCarouselIndex(null)}
+                    />
+                )}
 
             {/* Entity Wizard Modal */}
             <EntityWizard
