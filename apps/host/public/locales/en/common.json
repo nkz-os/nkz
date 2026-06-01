@@ -1261,8 +1261,24 @@
       "trees": "Trees",
       "water": "Water",
       "vegetation": "Vegetation",
+      "fieldPhotos": "Field photos",
       "risk_on": "ON",
       "risk_off": "OFF"
+    },
+    "fieldPhotos": {
+      "imageError": "Could not load image",
+      "noGps": "No GPS",
+      "close": "Close",
+      "prev": "Previous",
+      "next": "Next",
+      "counter": "{{i}} of {{n}}",
+      "window": "Window",
+      "window7": "7 d",
+      "window30": "30 d",
+      "window90": "90 d",
+      "windowAll": "All",
+      "currentDate": "Date",
+      "empty": "No photos in this range"
     },
     "mapmode": {
       "draw_parcel": "Drawing Parcel",

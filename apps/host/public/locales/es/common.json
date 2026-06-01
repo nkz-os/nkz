@@ -1321,8 +1321,24 @@
       "trees": "Árboles",
       "water": "Agua",
       "vegetation": "Vegetación",
+      "fieldPhotos": "Fotos de campo",
       "risk_on": "ON",
       "risk_off": "OFF"
+    },
+    "fieldPhotos": {
+      "imageError": "No se pudo cargar la imagen",
+      "noGps": "Sin GPS",
+      "close": "Cerrar",
+      "prev": "Anterior",
+      "next": "Siguiente",
+      "counter": "{{i}} de {{n}}",
+      "window": "Ventana",
+      "window7": "7 d",
+      "window30": "30 d",
+      "window90": "90 d",
+      "windowAll": "Todo",
+      "currentDate": "Fecha",
+      "empty": "No hay fotos en este rango"
     },
     "mapmode": {
       "draw_parcel": "Dibujando Parcela",
