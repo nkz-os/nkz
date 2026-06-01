@@ -2,7 +2,7 @@
 # Keycloak with PostgreSQL Driver and Script Mappers - Quarkus Build Method
 # =============================================================================
 
-FROM quay.io/keycloak/keycloak:26.4.7
+FROM quay.io/keycloak/keycloak@sha256:9409c59bdfb65dbffa20b11e6f18b8abb9281d480c7ca402f51ed3d5977e6007
 
 # Copy PostgreSQL driver to providers directory
 COPY services/keycloak/postgresql-42.7.1.jar /opt/keycloak/providers/

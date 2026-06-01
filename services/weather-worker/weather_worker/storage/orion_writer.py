@@ -212,6 +212,9 @@ def get_parcels_by_location(
             if response.status_code == 200:
                 entities = response.json()
                 if isinstance(entities, list) and len(entities) > 0:
+                    # Tag each parcel with its tenant for correct scoping
+                    for e in entities:
+                        e["_tenant"] = tid
                     all_parcels.extend(entities)
                     logger.info(
                         f"Found {len(entities)} parcels near ({latitude}, {longitude})"
@@ -662,10 +665,14 @@ def sync_weather_to_orion(
             if isinstance(parcel_name_attr, dict):
                 parcel_display_name = parcel_name_attr.get("value", "")
 
+            # Resolve the tenant the parcel belongs to (tagged during fetch).
+            # Falls back to the ingesting tenant for backward compatibility.
+            parcel_tenant = parcel.get("_tenant", tenant_id)
+
             # Create/update WeatherObserved entity with corrected weather
             entity_id = create_weather_observed_entity(
                 parcel_id=parcel_id,
-                tenant_id=tenant_id,
+                tenant_id=parcel_tenant,
                 location=parcel_location,
                 weather_data=parcel_weather,
                 observed_at=observed_at,

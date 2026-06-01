@@ -382,6 +382,27 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                             />
                         </div>
                     </div>
+                ) : selectedEntityType === 'WeatherObserved' && entityData ? (
+                    <div className="p-4 space-y-4">
+                        {/* Entity Header for WeatherObserved */}
+                        <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg bg-sky-50">
+                                {getEntityIcon()}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-slate-800 truncate">{getEntityName()}</h3>
+                                <p className="text-sm text-slate-500">{selectedEntityType}</p>
+                                <p className="text-xs text-slate-400 font-mono truncate mt-1">{selectedEntityId}</p>
+                            </div>
+                        </div>
+                        {/* Telemetry Section for Virtual Weather Station */}
+                        <TelemetryTabsSection
+                            entityId={selectedEntityId}
+                            entityType={selectedEntityType}
+                            entityName={entityData?.name}
+                            entityData={entityData}
+                        />
+                    </div>
                 ) : (
                     <div className="p-4 space-y-4">
                         {/* Entity Header */}
