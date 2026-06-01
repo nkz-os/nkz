@@ -5,6 +5,7 @@ GET /api/weather/parcel/{parcel_id}/agro-status — agronomic semaphores.
 
 import json
 import logging
+import time
 from typing import Optional
 
 import requests
@@ -19,6 +20,14 @@ from app.services.agro_status import (
     calculate_agro_status,
     _extract_float,
 )
+
+# ---------------------------------------------------------------------------
+# Agro-status TTL cache — avoids redundant Orion/soil/DB calls on repeated
+# requests for the same parcel (dashboard polling, auto-refresh, etc.).
+# Keyed by (tenant_id, parcel_id), evicted after 30 seconds.
+# ---------------------------------------------------------------------------
+_AGRO_CACHE: dict = {}
+_AGRO_CACHE_TTL_S = 30
 
 # Try to import pedotransfer functions from soil module (preferred).
 # Fall back to local implementations in agro_status.py if soil module unavailable.
@@ -736,6 +745,14 @@ def get_parcel_agro_status(
     Fuses sensor data when available within 5km radius.
     Applies spatial downscaling for parcel-specific microclimate.
     """
+    # 0. Check TTL cache before hitting Orion/soil/DB
+    cache_key = f"{tenant_id}:{parcel_id}"
+    now_s = time.time()
+    if cache_key in _AGRO_CACHE:
+        entry = _AGRO_CACHE[cache_key]
+        if now_s - entry["ts"] < _AGRO_CACHE_TTL_S:
+            return entry["data"]
+
     try:
         # 1. Get parcel from Orion-LD
         headers = _orion_headers(tenant_id)
@@ -1012,6 +1029,9 @@ def get_parcel_agro_status(
         # Persist agroStatus to Orion-LD and PostgreSQL (non-blocking, best-effort)
         _persist_agro_status_to_orion(tenant_id, parcel_id, result)
         _persist_agro_status_to_db(tenant_id, parcel_id, result, sensor_data)
+
+        # Cache result for subsequent requests
+        _AGRO_CACHE[cache_key] = {"ts": now_s, "data": result}
 
         return result
 
