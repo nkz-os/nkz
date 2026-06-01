@@ -20,7 +20,8 @@ export type LayerType =
     | 'trees'        // Individual trees (olives, vines, fruit trees)
     | 'waterSources' // Wells, irrigation outlets, springs, ponds
     | 'vegetation'   // Generic vegetation layer type (modules can register via slot system)
-    | 'zoning';      // VRA Management Zones layer (used by vegetation module for round-trip navigation)
+    | 'zoning'       // VRA Management Zones layer (used by vegetation module for round-trip navigation)
+    | 'fieldPhotos'; // Field photo markers captured during farming operations
 
 // Map interaction modes - mutually exclusive states
 export type MapMode =
@@ -75,6 +76,7 @@ export interface ViewerState {
     // Temporal state
     currentDate: Date;
     isTimelinePlaying: boolean;
+    photoWindowDays: number | null;
 
     // Layer visibility
     activeLayers: Set<LayerType>;
@@ -102,6 +104,7 @@ interface ViewerContextType extends ViewerState {
     // Temporal control
     setCurrentDate: (date: Date) => void;
     toggleTimelinePlayback: () => void;
+    setPhotoWindowDays: (days: number | null) => void;
 
     // Layer control
     toggleLayer: (layer: LayerType) => void;
@@ -193,6 +196,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         return date;
     });
     const [isTimelinePlaying, setIsTimelinePlaying] = useState(false);
+    const [photoWindowDays, setPhotoWindowDays] = useState<number | null>(30);
 
     // Layer visibility
     const [activeLayers, setActiveLayers] = useState<Set<LayerType>>(DEFAULT_LAYERS);
@@ -245,8 +249,8 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
                 const next = new Set(prev);
                 layersToActivate.forEach(layer => {
                     // Validate layer type
-                    const validLayers: LayerType[] = ['parcels', 'robots', 'sensors', 'machines', 'livestock', 
-                        'weather', 'ndvi', 'crops', 'buildings', 'trees', 'waterSources', 'vegetation', 'zoning'];
+                    const validLayers: LayerType[] = ['parcels', 'robots', 'sensors', 'machines', 'livestock',
+                        'weather', 'ndvi', 'crops', 'buildings', 'trees', 'waterSources', 'vegetation', 'zoning', 'fieldPhotos'];
                     if (validLayers.includes(layer)) {
                         next.add(layer);
                     }
@@ -500,6 +504,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         entityListCameraNonce,
         currentDate,
         isTimelinePlaying,
+        photoWindowDays,
         activeLayers,
         isLeftPanelOpen,
         isRightPanelOpen,
@@ -523,6 +528,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         clearSelection,
         setCurrentDate,
         toggleTimelinePlayback,
+        setPhotoWindowDays,
         toggleLayer,
         setLayerActive,
         isLayerActive,
@@ -559,6 +565,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         entityListCameraNonce,
         currentDate,
         isTimelinePlaying,
+        photoWindowDays,
         activeLayers,
         isLeftPanelOpen,
         isRightPanelOpen,
@@ -574,6 +581,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         clearSelection,
         setCurrentDate,
         toggleTimelinePlayback,
+        setPhotoWindowDays,
         toggleLayer,
         setLayerActive,
         isLayerActive,
