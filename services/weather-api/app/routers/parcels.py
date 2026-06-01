@@ -308,7 +308,8 @@ def _fetch_nearby_stations_weather(
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Step 1: Find up to N nearest municipalities with weather data
+            # Step 1: Find up to N nearest municipalities with weather data.
+            # Weather data is shared infrastructure — not scoped by tenant.
             cur.execute(
                 """
                 WITH ranked AS (
@@ -323,8 +324,7 @@ def _fetch_nearby_stations_weather(
                         ) as distance_m
                     FROM weather_observations wo
                     LEFT JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
-                    WHERE wo.tenant_id = %s
-                      AND wo.location IS NOT NULL
+                    WHERE wo.location IS NOT NULL
                       AND ST_Distance(
                             wo.location::geography,
                             ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
@@ -335,7 +335,7 @@ def _fetch_nearby_stations_weather(
                 ORDER BY distance_m ASC
                 LIMIT %s
                 """,
-                (lon, lat, tenant_id, lon, lat, max_distance_km * 1000, max_stations),
+                (lon, lat, lon, lat, max_distance_km * 1000, max_stations),
             )
             station_rows = cur.fetchall()
 
@@ -356,15 +356,13 @@ def _fetch_nearby_stations_weather(
                            gdd_accumulated, delta_t,
                            source, data_type, metadata
                     FROM weather_observations
-                    WHERE tenant_id = %s
-                      AND municipality_code = %s
+                    WHERE municipality_code = %s
                       AND source = %s
                       AND data_type = %s
                     ORDER BY observed_at DESC
                     LIMIT %s
                     """,
                     (
-                        tenant_id,
                         sr["municipality_code"],
                         source,
                         data_type,
@@ -894,32 +892,6 @@ def get_parcel_agro_status(
                 max_stations=5,
                 max_distance_km=75.0,
             )
-            if not multi["primary"] or not multi["primary"]["observations"]:
-                # Tenant has no weather data — fall back to shared platform pool
-                logger.info(
-                    f"No weather data for tenant {tenant_id}, falling back to platform"
-                )
-                multi = _fetch_nearby_stations_weather(
-                    tenant_id="platform",
-                    lon=lon,
-                    lat=lat,
-                    source="OPEN-METEO",
-                    data_type="HISTORY",
-                    limit=1,
-                    max_stations=5,
-                    max_distance_km=75.0,
-                )
-                if multi["primary"]:
-                    multi["primary"]["_fallback_tenant"] = True
-
-            # Determine which tenant's weather pool to use for subsequent queries.
-            # If the multi-station fetch succeeded via platform fallback, use
-            # 'platform' for the 3-day history query too.
-            weather_tenant = (
-                "platform"
-                if (multi["primary"] and multi["primary"].get("_fallback_tenant"))
-                else tenant_id
-            )
 
             if multi["primary"] and multi["primary"]["observations"]:
                 primary = multi["primary"]
@@ -942,22 +914,22 @@ def get_parcel_agro_status(
                                 }
                             )
 
-                # 5c. Last 3 days from primary station for water balance
-                conn = get_db_connection(weather_tenant)
+                # 5c. Last 3 days from primary station for water balance.
+                # Weather data is shared infrastructure — not scoped by tenant.
+                conn = get_db_connection(tenant_id)
                 try:
                     cur = conn.cursor(cursor_factory=RealDictCursor)
                     cur.execute(
                         """
                         SELECT precip_mm, eto_mm, precip_probability, observed_at
                         FROM weather_observations
-                        WHERE tenant_id = %s
-                          AND municipality_code = %s
+                        WHERE municipality_code = %s
                           AND source = 'OPEN-METEO'
                           AND data_type = 'HISTORY'
                           AND observed_at >= NOW() - INTERVAL '3 days'
                         ORDER BY observed_at DESC
                         """,
-                        (weather_tenant, muni_code),
+                        (muni_code,),
                     )
                     weather_3d = [dict(r) for r in cur.fetchall()]
                 finally:
@@ -965,8 +937,9 @@ def get_parcel_agro_status(
                     conn.close()
 
             else:
-                # Fallback: single-station query (backward compat)
-                conn = get_db_connection(weather_tenant)
+                # Fallback: single-station query (backward compat).
+                # Weather data is shared infrastructure — not scoped by tenant.
+                conn = get_db_connection(tenant_id)
                 try:
                     cur = conn.cursor(cursor_factory=RealDictCursor)
                     cur.execute(
@@ -974,11 +947,11 @@ def get_parcel_agro_status(
                         SELECT municipality_code,
                                metadata->>'station_elevation_m' as station_elevation_m
                         FROM weather_observations
-                        WHERE tenant_id = %s AND location IS NOT NULL
+                        WHERE location IS NOT NULL
                         ORDER BY location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
                         LIMIT 1
                         """,
-                        (weather_tenant, lon, lat),
+                        (lon, lat),
                     )
                     nearest = cur.fetchone()
                     if nearest:
@@ -996,13 +969,12 @@ def get_parcel_agro_status(
                                    gdd_accumulated, delta_t,
                                    source, data_type, metadata
                             FROM weather_observations
-                            WHERE tenant_id = %s
-                              AND municipality_code = %s
+                            WHERE municipality_code = %s
                               AND source = 'OPEN-METEO'
                             ORDER BY observed_at DESC
                             LIMIT 1
                             """,
-                            (weather_tenant, muni_code),
+                            (muni_code,),
                         )
                         row = cur.fetchone()
                         if row:
@@ -1011,14 +983,13 @@ def get_parcel_agro_status(
                             """
                             SELECT precip_mm, eto_mm, precip_probability, observed_at
                             FROM weather_observations
-                            WHERE tenant_id = %s
-                              AND municipality_code = %s
+                            WHERE municipality_code = %s
                               AND source = 'OPEN-METEO'
                               AND data_type = 'HISTORY'
                               AND observed_at >= NOW() - INTERVAL '3 days'
                             ORDER BY observed_at DESC
                             """,
-                            (weather_tenant, muni_code),
+                            (muni_code,),
                         )
                         weather_3d = [dict(r) for r in cur.fetchall()]
                 finally:
