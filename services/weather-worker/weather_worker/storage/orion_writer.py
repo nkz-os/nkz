@@ -109,68 +109,130 @@ def find_existing_weather_observed(
 
 
 def get_parcels_by_location(
-    tenant_id: str, latitude: float, longitude: float, radius_km: float = 10.0
+    tenant_id: str,
+    latitude: float,
+    longitude: float,
+    radius_km: float = 10.0,
 ) -> List[Dict[str, Any]]:
     """
     Query Orion-LD for AgriParcel entities near a location.
 
+    Searches across ALL tenants because weather is shared infrastructure —
+    a weather station near a parcel should feed that parcel regardless of
+    which tenant owns it.
+
     Args:
-        tenant_id: Tenant ID
+        tenant_id: Tenant ID (used as fallback if tenant list query fails)
         latitude: Latitude
         longitude: Longitude
         radius_km: Search radius in kilometers (default: 10km)
 
     Returns:
-        List of parcel entities from Orion-LD
+        List of parcel entities from Orion-LD (may span multiple tenants)
     """
-    try:
-        # Build query to find parcels near location
-        # Using NGSI-LD geo-query with nearPoint
-        query_params = {
-            "type": "AgriParcel",
-            "georel": "near;maxDistance=={}".format(
-                int(radius_km * 1000)
-            ),  # Convert to meters
-            "geometry": "Point",
-            "coordinates": f"[{longitude},{latitude}]",
-            "options": "count",
-        }
+    all_parcels = []
 
-        headers = _make_headers(tenant_id)
-        if CONTEXT_URL:
-            headers["Link"] = (
-                f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+    # Discover tenants that have parcels. We query ALL tenants (not just those
+    # with weather locations) because a weather station should create virtual
+    # stations for any parcel within range, regardless of tenant.
+    try:
+        import psycopg2
+
+        # Build connection URL from components (worker doesn't have POSTGRES_URL env)
+        pg_url = os.environ.get("POSTGRES_URL") or (
+            f"postgresql://{os.environ.get('POSTGRES_USER', 'postgres')}:"
+            f"{os.environ.get('POSTGRES_PASSWORD', '')}@"
+            f"{os.environ.get('POSTGRES_HOST', 'postgresql-service')}:"
+            f"{os.environ.get('POSTGRES_PORT', '5432')}/"
+            f"{os.environ.get('POSTGRES_DB', 'nekazari')}"
+        )
+        conn = psycopg2.connect(pg_url)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT tenant_id FROM public.tenants WHERE status = 'active'"
+                )
+                rows = cur.fetchall()
+                if rows:
+                    tenant_ids = [r[0] for r in rows]
+                else:
+                    tenant_ids = [tenant_id]
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning(
+            f"Could not query public.tenants: {e}, trying tenant_weather_locations"
+        )
+        try:
+            import psycopg2
+
+            pg_url = os.environ.get("POSTGRES_URL") or (
+                f"postgresql://{os.environ.get('POSTGRES_USER', 'postgres')}:"
+                f"{os.environ.get('POSTGRES_PASSWORD', '')}@"
+                f"{os.environ.get('POSTGRES_HOST', 'postgresql-service')}:"
+                f"{os.environ.get('POSTGRES_PORT', '5432')}/"
+                f"{os.environ.get('POSTGRES_DB', 'nekazari')}"
+            )
+            conn = psycopg2.connect(pg_url)
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT DISTINCT tenant_id FROM tenant_weather_locations"
+                    )
+                    rows = cur.fetchall()
+                    tenant_ids = [r[0] for r in rows] if rows else [tenant_id]
+            finally:
+                conn.close()
+        except Exception as e2:
+            logger.warning(f"Could not query tenant_weather_locations: {e2}")
+            tenant_ids = [tenant_id]
+
+    for tid in tenant_ids:
+        try:
+            query_params = {
+                "type": "AgriParcel",
+                "georel": "near;maxDistance=={}".format(int(radius_km * 1000)),
+                "geometry": "Point",
+                "coordinates": f"[{longitude},{latitude}]",
+                "options": "count",
+            }
+
+            headers = _make_headers(tid)
+            if CONTEXT_URL:
+                headers["Link"] = (
+                    f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context";'
+                    f' type="application/ld+json"'
+                )
+
+            url = f"{ORION_URL}/ngsi-ld/v1/entities"
+            response = requests.get(
+                url, params=query_params, headers=headers, timeout=10
             )
 
-        url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        response = requests.get(url, params=query_params, headers=headers, timeout=10)
-
-        if response.status_code == 200:
-            entities = response.json()
-            if isinstance(entities, list):
-                logger.info(
-                    f"Found {len(entities)} parcels near ({latitude}, {longitude}) for tenant {tenant_id}"
+            if response.status_code == 200:
+                entities = response.json()
+                if isinstance(entities, list) and len(entities) > 0:
+                    all_parcels.extend(entities)
+                    logger.info(
+                        f"Found {len(entities)} parcels near ({latitude}, {longitude})"
+                        f" for tenant {tid}"
+                    )
+            elif response.status_code == 404:
+                logger.debug(
+                    f"No parcels near ({latitude}, {longitude}) for tenant {tid}"
                 )
-                return entities
             else:
                 logger.warning(
-                    f"Unexpected response format from Orion-LD: {type(entities)}"
+                    f"Error querying parcels for tenant {tid}: {response.status_code}"
                 )
-                return []
-        elif response.status_code == 404:
-            logger.debug(
-                f"No parcels found near ({latitude}, {longitude}) for tenant {tenant_id}"
-            )
-            return []
-        else:
-            logger.error(
-                f"Error querying Orion-LD for parcels: {response.status_code} - {response.text}"
-            )
-            return []
+        except Exception as e:
+            logger.warning(f"Error querying parcels for tenant {tid}: {e}")
 
-    except Exception as e:
-        logger.error(f"Error querying parcels from Orion-LD: {e}", exc_info=True)
-        return []
+    logger.info(
+        f"Total parcels found near ({latitude}, {longitude}):"
+        f" {len(all_parcels)} across {len(tenant_ids)} tenant(s)"
+    )
+    return all_parcels
 
 
 def create_weather_observed_entity(
@@ -180,6 +242,7 @@ def create_weather_observed_entity(
     weather_data: Dict[str, Any],
     observed_at: Optional[datetime] = None,
     municipality_code: Optional[str] = None,
+    parcel_name: Optional[str] = None,
 ) -> Optional[str]:
     """
     Create or update a WeatherObserved entity in Orion-LD for a parcel.
@@ -190,7 +253,8 @@ def create_weather_observed_entity(
         location: Tuple of (longitude, latitude)
         weather_data: Weather data dict with keys like temp_avg, humidity_avg, etc.
         observed_at: Observation timestamp (defaults to now)
-        municipality_code: Optional INE/AEMET municipality code for direct timeseries resolution
+        municipality_code: Optional INE/AEMET municipality code
+        parcel_name: Optional parcel name (used as "virtual {name}")
 
     Returns:
         Entity ID if successful, None otherwise
@@ -208,11 +272,19 @@ def create_weather_observed_entity(
             f"urn:ngsi-ld:WeatherObserved:{tenant_id}:parcel-{parcel_identifier}"
         )
 
+        # Entity name: "virtual {parcel_name}" for discoverability in UI
+        display_name = parcel_name or parcel_identifier
+        entity_name = f"virtual {display_name}"
+
         # Build WeatherObserved entity
         entity = {
             "@context": [CONTEXT_URL],
             "id": entity_id,
             "type": "WeatherObserved",
+            "name": {
+                "type": "Property",
+                "value": entity_name,
+            },
             "location": {
                 "type": "GeoProperty",
                 "value": {"type": "Point", "coordinates": [lon, lat]},
@@ -584,6 +656,12 @@ def sync_weather_to_orion(
                     f"Spatial downscaling skipped for parcel {parcel_id}: {exc}"
                 )
 
+            # Extract parcel name for virtual station naming
+            parcel_name_attr = parcel.get("name", {})
+            parcel_display_name = None
+            if isinstance(parcel_name_attr, dict):
+                parcel_display_name = parcel_name_attr.get("value", "")
+
             # Create/update WeatherObserved entity with corrected weather
             entity_id = create_weather_observed_entity(
                 parcel_id=parcel_id,
@@ -592,6 +670,7 @@ def sync_weather_to_orion(
                 weather_data=parcel_weather,
                 observed_at=observed_at,
                 municipality_code=municipality_code,
+                parcel_name=parcel_display_name,
             )
 
             if entity_id:

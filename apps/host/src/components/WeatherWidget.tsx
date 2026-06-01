@@ -175,7 +175,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     try {
       const [historyRes, forecastRes] = await Promise.all([
         api.getParcelWeather(pid, { source: 'OPEN-METEO', data_type: 'HISTORY', limit: 1 }),
-        api.getParcelWeather(pid, { source: 'OPEN-METEO', data_type: 'FORECAST', limit: 96 }),
+        api.getParcelWeather(pid, { source: 'OPEN-METEO', data_type: 'FORECAST', limit: 72 }),
       ]);
 
       const observations = historyRes?.observations || [];
