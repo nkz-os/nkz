@@ -18,6 +18,7 @@ import {
     TreePine,
     Droplets,
     Sprout,
+    Camera,
 } from 'lucide-react';
 
 interface CoreLayerTogglesProps {
@@ -42,6 +43,7 @@ const LAYER_DEFINITIONS: LayerDefinition[] = [
     { id: 'trees', labelKey: 'viewer.layers.trees', icon: <TreePine className="w-4 h-4" />, color: 'text-lime-600' },
     { id: 'waterSources', labelKey: 'viewer.layers.water', icon: <Droplets className="w-4 h-4" />, color: 'text-cyan-600' },
     { id: 'vegetation', labelKey: 'viewer.layers.vegetation', icon: <Sprout className="w-4 h-4" />, color: 'text-green-700' },
+    { id: 'fieldPhotos', labelKey: 'viewer.layers.fieldPhotos', icon: <Camera className="w-4 h-4" />, color: 'text-rose-600' },
 ];
 
 const CoreLayerToggles: React.FC<CoreLayerTogglesProps> = ({ compact = false }) => {
