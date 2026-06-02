@@ -20,6 +20,7 @@ export const KNOWN_SCHEMAS: AttributeSchema[] = [
   // ── Kinematic (ManufacturingMachine) ──
   { key: 'trackWidth', labelKey: 'editor.field.trackWidth', type: 'number', section: 'kinematic', unitCode: MTR, min: 0, step: 0.01, entityTypes: ['ManufacturingMachine'] },
   { key: 'wheelbase', labelKey: 'editor.field.wheelbase', type: 'number', section: 'kinematic', unitCode: MTR, min: 0, step: 0.01, entityTypes: ['ManufacturingMachine'] },
+  { key: 'minTurningRadius', labelKey: 'editor.field.minTurningRadius', type: 'number', section: 'kinematic', unitCode: MTR, min: 0, step: 0.01, entityTypes: ['ManufacturingMachine'] },
   { key: 'gpsOffsetX', labelKey: 'editor.field.gpsOffsetX', type: 'number', section: 'kinematic', unitCode: MTR, step: 0.01, entityTypes: ['ManufacturingMachine'] },
   { key: 'gpsOffsetY', labelKey: 'editor.field.gpsOffsetY', type: 'number', section: 'kinematic', unitCode: MTR, step: 0.01, entityTypes: ['ManufacturingMachine'] },
   { key: 'gpsOffsetZ', labelKey: 'editor.field.gpsOffsetZ', type: 'number', section: 'kinematic', unitCode: MTR, step: 0.01, entityTypes: ['ManufacturingMachine'] },
