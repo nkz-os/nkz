@@ -1200,11 +1200,11 @@ def register_validated_module():
         }), 500
 
 
-@modules_bp.route('/api/modules/<module_id>/deploy', methods=['POST'])
+@modules_bp.route('/api/modules/<module_id>/deploy-upload', methods=['POST'])
 @require_auth(require_hmac=False)  # Frontend endpoint, no HMAC required
 def deploy_module(module_id):
     """
-    Deploy module assets to modules-server.
+    Deploy module assets to modules-server (legacy upload-based deploy).
 
     Only PlatformAdmin can deploy modules.
     """
