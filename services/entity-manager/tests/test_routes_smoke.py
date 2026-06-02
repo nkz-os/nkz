@@ -718,7 +718,14 @@ class TestSensorRoutes:
     @patch("blueprints.sensors.get_db_connection_simple")
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
-    def test_register_sensor_ok(self, mock_db_simple, mock_db_tenant, mock_bp_db_simple, mock_bp_db_tenant, client):
+    def test_register_sensor_ok(
+        self,
+        mock_db_simple,
+        mock_db_tenant,
+        mock_bp_db_simple,
+        mock_bp_db_tenant,
+        client,
+    ):
         conn = _make_db_conn()
         mock_db_tenant.return_value = conn
         mock_db_simple.return_value = conn
@@ -970,7 +977,15 @@ class TestModuleRoutes:
     @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
     @patch("entity_management_api.get_db_connection_with_tenant")
     @patch("entity_management_api.get_db_connection_simple")
-    def test_toggle_module_ok(self, mock_db_simple, mock_db_tenant, mock_req, mock_bp_db_simple, mock_bp_db_tenant, client):
+    def test_toggle_module_ok(
+        self,
+        mock_db_simple,
+        mock_db_tenant,
+        mock_req,
+        mock_bp_db_simple,
+        mock_bp_db_tenant,
+        client,
+    ):
         conn = _make_db_conn()
         mock_db_tenant.return_value = conn
         mock_db_simple.return_value = conn
@@ -1033,7 +1048,9 @@ class TestModuleRoutes:
     @patch("blueprints.modules.ModuleUploadService")
     @patch("blueprints.modules.get_db_connection_simple")
     @patch("blueprints.modules.return_db_connection")
-    def test_register_validated_ok(self, mock_bp_return_db, mock_bp_db, mock_svc, client):
+    def test_register_validated_ok(
+        self, mock_bp_return_db, mock_bp_db, mock_svc, client
+    ):
         mock_bp_db.return_value = _make_db_conn()
         instance = MagicMock()
         instance.register_module_in_database.return_value = True
@@ -1057,7 +1074,7 @@ class TestModuleRoutes:
         instance.deploy_module_assets_to_server.return_value = (True, "Deployed")
         mock_svc.return_value = instance
         r = client.post(
-            "/api/modules/test/deploy",
+            "/api/modules/test/deploy-upload",
             content_type="application/json",
             data=json.dumps({"upload_id": "test-upload"}),
         )
@@ -1184,7 +1201,6 @@ def _make_valid_dist_files(manifest=None):
 
 
 class TestDeployModuleDist:
-
     @patch("blueprints.modules._get_frontend_s3_client")
     @patch("blueprints.modules.return_db_connection")
     @patch("blueprints.modules.get_db_connection_simple")
@@ -1340,7 +1356,9 @@ class TestDeployModuleDist:
             content_type="multipart/form-data",
             data=data,
         )
-        assert r.status_code == 201, f"Expected 201, got {r.status_code}: {r.get_data(as_text=True)}"
+        assert r.status_code == 201, (
+            f"Expected 201, got {r.status_code}: {r.get_data(as_text=True)}"
+        )
         body = r.get_json()
         assert body["module_id"] == "test-module"
         assert body["version"] == "1.0.0"

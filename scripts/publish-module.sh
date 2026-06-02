@@ -30,5 +30,5 @@ code=$(cd "$DIST" && curl -sS -o /tmp/pub.json -w '%{http_code}' \
        -H "X-Internal-Service-Secret: $SECRET" -F "version_hash=$SHA" $args \
        "$EM/api/internal/modules/$MODULE_ID/publish")
 echo "publish HTTP $code"; cat /tmp/pub.json; echo
-[ "$code" = "200" ] || { echo "publish failed"; exit 1; }
+case "$code" in 200|201) ;; *) echo "publish failed (HTTP $code)"; exit 1;; esac
 echo "OK — $MODULE_ID @ $SHA published + activated."
