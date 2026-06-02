@@ -1388,34 +1388,12 @@ def get_module_uploads():
 # Module Dist Deployment (compose / K8s-free)
 # =============================================================================
 
-@modules_bp.route('/api/modules/<module_id>/dist', methods=['POST'])
-@require_auth(require_hmac=False)
-def deploy_module_dist(module_id):
-    """Deploy a built module's dist/ to MinIO and register in marketplace.
+def _read_manifest_from_files(files) -> tuple:
+    """Locate, parse, and validate manifest.json from a list of uploaded FileStorage objects.
 
-    Accepts multipart/form-data with one 'file' field per dist/ file.
-    Validates manifest.json, uploads all files to the nekazari-frontend bucket,
-    and upserts the module row in marketplace_modules.
-
-    Auth: PlatformAdmin or TenantAdmin (not Farmer).
+    Returns (manifest_dict, None) on success or (None, error_message) on failure.
+    Does NOT check module-id match (caller must do that using manifest['id']).
     """
-    user_roles = _get_user_roles()
-    if 'PlatformAdmin' not in user_roles and 'TenantAdmin' not in user_roles:
-        return jsonify({
-            'error': 'Insufficient permissions. PlatformAdmin or TenantAdmin required.'
-        }), 403
-
-    # --- input validation ---
-
-    if 'file' not in request.files:
-        return jsonify({'error': 'No files provided. Send dist/ files with field name "file".'}), 400
-
-    files = request.files.getlist('file')
-    if not files or all(not f.filename for f in files):
-        return jsonify({'error': 'No files provided.'}), 400
-
-    # --- locate and validate manifest.json ---
-
     manifest_raw = None
     for f in files:
         if f.filename == 'manifest.json':
@@ -1423,23 +1401,35 @@ def deploy_module_dist(module_id):
             break
 
     if not manifest_raw:
-        return jsonify({'error': 'manifest.json is required in the uploaded files.'}), 400
+        return None, 'manifest.json is required in the uploaded files.'
 
     try:
         manifest = json.loads(manifest_raw.decode('utf-8'))
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        return jsonify({'error': f'manifest.json is not valid JSON: {str(e)}'}), 400
+        return None, f'manifest.json is not valid JSON: {str(e)}'
 
     for field in ('id', 'version', 'hostApiVersion'):
         if field not in manifest:
-            return jsonify({
-                'error': f'manifest.json is missing required field: {field}'
-            }), 400
+            return None, f'manifest.json is missing required field: {field}'
+
+    return manifest, None
+
+
+def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple:
+    """Upload dist files to MinIO and upsert marketplace_modules + tenant install.
+
+    Preconditions (caller must verify before calling):
+      - manifest has been validated by _read_manifest_from_files
+      - version_hash format already validated (or empty string)
+
+    Returns (http_status_int, payload_dict).
+    """
+    # --- module-id vs manifest mismatch check ---
 
     if manifest['id'] != module_id:
-        return jsonify({
+        return 400, {
             'error': f"Module ID mismatch. URL has '{module_id}', manifest has '{manifest['id']}'."
-        }), 400
+        }
 
     # --- path traversal guard ---
 
@@ -1447,19 +1437,13 @@ def deploy_module_dist(module_id):
         if not f.filename:
             continue
         if '..' in f.filename.split('/'):
-            return jsonify({'error': f'Invalid filename path: {f.filename}'}), 400
-
-    # --- version hash for immutable deployments ---
-
-    version_hash = request.form.get('version_hash', '').strip()
-    if version_hash and not re.match(r'^[a-f0-9]{7,40}$', version_hash):
-        return jsonify({'error': 'Invalid version_hash format. Must be 7-40 hex characters.'}), 400
+            return 400, {'error': f'Invalid filename path: {f.filename}'}
 
     # --- S3 upload ---
 
     s3_client = _get_frontend_s3_client()
     if not s3_client:
-        return jsonify({'error': 'S3 storage not configured.'}), 503
+        return 503, {'error': 'S3 storage not configured.'}
 
     bucket = os.getenv('S3_BUCKET', 'nekazari-frontend')
     prefix = f'modules/{module_id}/{version_hash}/' if version_hash else f'modules/{module_id}/'
@@ -1483,10 +1467,10 @@ def deploy_module_dist(module_id):
             uploaded += 1
         except ClientError as e:
             logger.error(f"S3 upload failed for {s3_key}: {e}")
-            return jsonify({
+            return 500, {
                 'error': f'Failed to upload {f.filename} to storage.',
                 'details': str(e),
-            }), 500
+            }
 
     logger.info(f"Deployed {module_id} v{manifest['version']}: {uploaded} files to {bucket}/{prefix}")
 
@@ -1598,7 +1582,7 @@ def deploy_module_dist(module_id):
         conn.commit()
         cur.close()
 
-        return jsonify({
+        return 201, {
             'message': 'Module deployed successfully.',
             'module_id': module_id,
             'version': version,
@@ -1606,7 +1590,7 @@ def deploy_module_dist(module_id):
             'deployed_version': version_hash if version_hash else None,
             'files_uploaded': uploaded,
             'is_active': True,
-        }), 201
+        }
 
     except Exception as e:
         if conn:
@@ -1614,13 +1598,47 @@ def deploy_module_dist(module_id):
         logger.error(f"DB error deploying module {module_id}: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        return jsonify({
+        return 500, {
             'error': 'Internal server error while registering module.',
             'details': str(e),
-        }), 500
+        }
     finally:
         if conn:
             return_db_connection(conn)
+
+
+@modules_bp.route('/api/modules/<module_id>/dist', methods=['POST'])
+@require_auth(require_hmac=False)
+def deploy_module_dist(module_id):
+    """Deploy a built module's dist/ to MinIO and register in marketplace.
+
+    Accepts multipart/form-data with one 'file' field per dist/ file.
+    Validates manifest.json, uploads all files to the nekazari-frontend bucket,
+    and upserts the module row in marketplace_modules.
+
+    Auth: PlatformAdmin or TenantAdmin (not Farmer).
+    """
+    user_roles = _get_user_roles()
+    if 'PlatformAdmin' not in user_roles and 'TenantAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions. PlatformAdmin or TenantAdmin required.'}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No files provided. Send dist/ files with field name "file".'}), 400
+
+    files = request.files.getlist('file')
+    if not files or all(not f.filename for f in files):
+        return jsonify({'error': 'No files provided.'}), 400
+
+    manifest, err = _read_manifest_from_files(files)
+    if err:
+        return jsonify({'error': err}), 400
+
+    version_hash = request.form.get('version_hash', '').strip()
+    if version_hash and not re.match(r'^[a-f0-9]{7,40}$', version_hash):
+        return jsonify({'error': 'Invalid version_hash format. Must be 7-40 hex characters.'}), 400
+
+    status, payload = _upload_dist_and_activate(module_id, files, manifest, version_hash)
+    return jsonify(payload), status
 
 
 # =============================================================================
