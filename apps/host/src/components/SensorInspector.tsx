@@ -15,7 +15,9 @@ import {
     MapPin,
     Cpu,
     Cable,
-    Pencil
+    Pencil,
+    Wind,
+    CloudRain,
 } from 'lucide-react';
 import {
     Chart as ChartJS,
@@ -135,6 +137,22 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, color, unit, label, icon })
 // Main Component
 // =============================================================================
 
+/** Extract numeric value from an NGSI-LD entity attribute (Property, Relationship, or raw). */
+function getEntityAttrValue(entityData: any, key: string): number | null {
+    if (!entityData) return null;
+    const attr = entityData[key];
+    if (attr === null || attr === undefined) return null;
+    if (typeof attr === 'number') return attr;
+    if (typeof attr === 'object' && 'value' in attr) {
+        const v = attr.value;
+        if (typeof v === 'number') return v;
+        if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? null : n; }
+    }
+    return null;
+}
+
+const WEATHER_ENTITY_TYPES = new Set(['WeatherObserved', 'WeatherStation']);
+
 export const SensorInspector: React.FC<SensorInspectorProps> = ({
     entity,
     onClose,
@@ -145,12 +163,13 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
         humidity: [],
         battery: []
     });
+    const [weatherCharts, setWeatherCharts] = useState<Record<string, TelemetryDataPoint[]>>({});
     const [loading, setLoading] = useState(false);
-    const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h'>('1h');
+    const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h'>('24h');
     const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
     const [activeTab, setActiveTab] = useState<'telemetry' | 'connectivity' | 'management'>('telemetry');
 
-
+    const isWeatherEntity = WEATHER_ENTITY_TYPES.has(entity?.type || '');
 
     // Load telemetry data
     const loadTelemetry = useCallback(async () => {
@@ -159,54 +178,114 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
         setLoading(true);
         try {
             const endTime = new Date().toISOString();
-            const startTime = new Date(
-                Date.now() - (timeRange === '1h' ? 3600000 : timeRange === '6h' ? 21600000 : 86400000)
-            ).toISOString();
+            const hours = timeRange === '1h' ? 1 : timeRange === '6h' ? 6 : 24;
+            const startTime = new Date(Date.now() - hours * 3600000).toISOString();
 
-            const response = await api.getDeviceTelemetry(entity.id, {
-                start_time: startTime,
-                end_time: endTime,
-                limit: 100
-            });
+            if (isWeatherEntity) {
+                // WeatherObserved / WeatherStation: use timeseries-reader v2 which resolves
+                // the URN to a weather key (municipality_code) via plan_timeseries_read.
+                // v1 does NOT support URN resolution — it would query with the raw entity_id
+                // which never matches station_id or municipality_code.
+                const weatherAttrs = ['temperature', 'humidity', 'pressure', 'windSpeed', 'precipitation'];
+                const chartData: Record<string, TelemetryDataPoint[]> = {};
 
-            if (response?.events) {
-                const tempData: TelemetryDataPoint[] = [];
-                const humData: TelemetryDataPoint[] = [];
-                const batData: TelemetryDataPoint[] = [];
-
-                response.events.forEach((event: any) => {
-                    const ts = new Date(event.observed_at).toLocaleTimeString('es', {
-                        hour: '2-digit',
-                        minute: '2-digit'
+                // Single v2 call with all attributes (columnar format), then split per attr
+                try {
+                    const v2url = `/api/timeseries/v2/entities/${encodeURIComponent(entity.id)}/data`;
+                    const v2res = await api.get(v2url, {
+                        params: {
+                            time_from: startTime,
+                            time_to: endTime,
+                            attrs: weatherAttrs.join(','),
+                            limit: 200,
+                        },
                     });
+                    const body = v2res.data;
+                    // v2 columnar format: { timestamps: string[], attributes: { temp_avg: number[], ... } }
+                    if (body?.timestamps && body?.attributes) {
+                        for (const ngsiAttr of weatherAttrs) {
+                            const points: TelemetryDataPoint[] = [];
+                            for (const [dbCol, values] of Object.entries(body.attributes)) {
+                                const isTemp = dbCol === 'temp_avg' && ngsiAttr === 'temperature';
+                                const isHum = dbCol === 'humidity_avg' && ngsiAttr === 'humidity';
+                                const isPress = dbCol === 'pressure_hpa' && ngsiAttr === 'pressure';
+                                const isWind = dbCol === 'wind_speed_ms' && ngsiAttr === 'windSpeed';
+                                const isPrecip = dbCol === 'precip_mm' && ngsiAttr === 'precipitation';
+                                if (!(isTemp || isHum || isPress || isWind || isPrecip)) continue;
+                                const vals = values as (number | null)[];
+                                for (let i = 0; i < Math.min(body.timestamps.length, vals.length); i++) {
+                                    const v = vals[i];
+                                    if (v !== null && v !== undefined) {
+                                        points.push({
+                                            timestamp: new Date(body.timestamps[i]).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
+                                            value: Number(v),
+                                        });
+                                    }
+                                }
+                                break;
+                            }
+                            if (points.length > 0) chartData[ngsiAttr] = points;
+                        }
+                    }
+                } catch { /* non-fatal */ }
 
-                    if (event.payload?.temperature !== undefined) {
-                        tempData.push({ timestamp: ts, value: event.payload.temperature });
-                    }
-                    if (event.payload?.humidity !== undefined) {
-                        humData.push({ timestamp: ts, value: event.payload.humidity });
-                    }
-                    if (event.payload?.battery !== undefined || event.payload?.batteryLevel !== undefined) {
-                        batData.push({
-                            timestamp: ts,
-                            value: event.payload.battery || event.payload.batteryLevel
-                        });
-                    }
-                });
-
+                setWeatherCharts(chartData);
                 setTelemetry({
-                    temperature: tempData,
-                    humidity: humData,
-                    battery: batData
+                    temperature: chartData.temperature || [],
+                    humidity: chartData.humidity || [],
+                    battery: [
+                        ...(chartData.pressure || []),
+                        ...(chartData.windSpeed || []),
+                    ],
                 });
                 setLastUpdate(new Date());
+            } else {
+                // IoT sensors: use device telemetry API
+                const response = await api.getDeviceTelemetry(entity.id, {
+                    start_time: startTime,
+                    end_time: endTime,
+                    limit: 100
+                });
+
+                if (response?.events) {
+                    const tempData: TelemetryDataPoint[] = [];
+                    const humData: TelemetryDataPoint[] = [];
+                    const batData: TelemetryDataPoint[] = [];
+
+                    response.events.forEach((event: any) => {
+                        const ts = new Date(event.observed_at).toLocaleTimeString('es', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+
+                        if (event.payload?.temperature !== undefined) {
+                            tempData.push({ timestamp: ts, value: event.payload.temperature });
+                        }
+                        if (event.payload?.humidity !== undefined) {
+                            humData.push({ timestamp: ts, value: event.payload.humidity });
+                        }
+                        if (event.payload?.battery !== undefined || event.payload?.batteryLevel !== undefined) {
+                            batData.push({
+                                timestamp: ts,
+                                value: event.payload.battery || event.payload.batteryLevel
+                            });
+                        }
+                    });
+
+                    setTelemetry({
+                        temperature: tempData,
+                        humidity: humData,
+                        battery: batData
+                    });
+                    setLastUpdate(new Date());
+                }
             }
         } catch (error) {
             console.error('Error loading telemetry:', error);
         } finally {
             setLoading(false);
         }
-    }, [entity?.id, timeRange]);
+    }, [entity?.id, entity?.type, timeRange, isWeatherEntity]);
 
     // Load on entity change or time range change
     useEffect(() => {
@@ -228,19 +307,30 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
     const entityType = entity.type || 'Device';
     const entityName = entity.name || entity.id;
 
-    // Main temperature chart config
-    const mainChartData = {
-        labels: telemetry.temperature.map(d => d.timestamp),
+    // Latest reading from entity.data (fallback for weather entities when timeseries is empty)
+    const ed = entity?.data;
+    const latestTemp = getEntityAttrValue(ed, 'temperature');
+    const latestHumidity = getEntityAttrValue(ed, 'relativeHumidity') ?? getEntityAttrValue(ed, 'humidity');
+    const latestPressure = getEntityAttrValue(ed, 'atmosphericPressure') ?? getEntityAttrValue(ed, 'pressure');
+    const latestWind = getEntityAttrValue(ed, 'windSpeed');
+    const latestPrecip = getEntityAttrValue(ed, 'precipitation');
+    const hasWeatherAttrs = latestTemp !== null || latestHumidity !== null || latestPressure !== null;
+
+    // Build Chart.js config for a given dataset
+    const buildChartData = (data: TelemetryDataPoint[], color: string) => ({
+        labels: data.map(d => d.timestamp),
         datasets: [{
-            data: telemetry.temperature.map(d => d.value),
-            borderColor: '#f97316',
+            data: data.map(d => d.value),
+            borderColor: color,
             borderWidth: 2,
             pointRadius: 0,
             pointHoverRadius: 4,
-            pointHoverBackgroundColor: '#f97316',
+            pointHoverBackgroundColor: color,
             tension: 0.4,
         }],
-    };
+    });
+
+    const mainChartData = buildChartData(telemetry.temperature, '#f97316');
 
     const mainChartOptions = {
         responsive: true,
@@ -369,57 +459,171 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                 {activeTab === 'telemetry' ? (
                     /* Telemetry Tab */
                     <>
-                        {/* Mini Charts */}
-                        {telemetry.temperature.length > 0 && (
-                            <MiniChart
-                                data={telemetry.temperature}
-                                color="#f97316"
-                                unit="°C"
-                                label="Temperatura"
-                                icon={<Thermometer className="w-4 h-4 text-orange-400" />}
-                            />
-                        )}
-
-                        {telemetry.humidity.length > 0 && (
-                            <MiniChart
-                                data={telemetry.humidity}
-                                color="#3b82f6"
-                                unit="%"
-                                label="Humedad"
-                                icon={<Droplets className="w-4 h-4 text-blue-400" />}
-                            />
-                        )}
-
-                        {telemetry.battery.length > 0 && (
-                            <MiniChart
-                                data={telemetry.battery}
-                                color="#22c55e"
-                                unit="%"
-                                label="Batería"
-                                icon={<Battery className="w-4 h-4 text-green-400" />}
-                            />
-                        )}
-
-                        {/* Main Chart (if has data) */}
-                        {telemetry.temperature.length > 0 && (
-                            <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50">
-                                <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-                                    <Activity className="w-4 h-4" />
-                                    Tendencia de Temperatura
-                                </h4>
-                                <div className="h-48">
-                                    <Line data={mainChartData} options={mainChartOptions} />
+                        {/* --- Weather entity: show latest readings + charts from timeseries --- */}
+                        {isWeatherEntity && (hasWeatherAttrs || Object.keys(weatherCharts).length > 0) ? (
+                            <>
+                                {/* Latest reading cards */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    {latestTemp !== null && (
+                                        <div className="bg-gradient-to-br from-red-900/30 to-orange-900/30 p-3 rounded-lg border border-red-800/30">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Thermometer className="w-4 h-4 text-red-400" />
+                                                <span className="text-xs text-slate-400">Temperatura</span>
+                                            </div>
+                                            <div className="text-xl font-bold text-red-300">{latestTemp.toFixed(1)}°C</div>
+                                        </div>
+                                    )}
+                                    {latestHumidity !== null && (
+                                        <div className="bg-gradient-to-br from-blue-900/30 to-cyan-900/30 p-3 rounded-lg border border-blue-800/30">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Droplets className="w-4 h-4 text-blue-400" />
+                                                <span className="text-xs text-slate-400">Humedad</span>
+                                            </div>
+                                            <div className="text-xl font-bold text-blue-300">{latestHumidity.toFixed(1)}%</div>
+                                        </div>
+                                    )}
+                                    {latestPressure !== null && (
+                                        <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 p-3 rounded-lg border border-purple-800/30">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Gauge className="w-4 h-4 text-purple-400" />
+                                                <span className="text-xs text-slate-400">Presión</span>
+                                            </div>
+                                            <div className="text-xl font-bold text-purple-300">{latestPressure.toFixed(1)} hPa</div>
+                                        </div>
+                                    )}
+                                    {latestWind !== null && (
+                                        <div className="bg-gradient-to-br from-teal-900/30 to-emerald-900/30 p-3 rounded-lg border border-teal-800/30">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Wind className="w-4 h-4 text-teal-400" />
+                                                <span className="text-xs text-slate-400">Viento</span>
+                                            </div>
+                                            <div className="text-xl font-bold text-teal-300">{latestWind.toFixed(1)} m/s</div>
+                                        </div>
+                                    )}
+                                    {latestPrecip !== null && (
+                                        <div className="bg-gradient-to-br from-sky-900/30 to-blue-900/30 p-3 rounded-lg border border-sky-800/30 col-span-2">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <CloudRain className="w-4 h-4 text-sky-400" />
+                                                <span className="text-xs text-slate-400">Precipitación</span>
+                                            </div>
+                                            <div className="text-xl font-bold text-sky-300">{latestPrecip.toFixed(1)} mm</div>
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        )}
 
-                        {/* No data message */}
-                        {Object.values(telemetry).every(arr => arr.length === 0) && !loading && (
+                                {/* Timeseries charts */}
+                                {weatherCharts.temperature && weatherCharts.temperature.length > 0 && (
+                                    <MiniChart
+                                        data={weatherCharts.temperature}
+                                        color="#f97316"
+                                        unit="°C"
+                                        label="Temperatura"
+                                        icon={<Thermometer className="w-4 h-4 text-orange-400" />}
+                                    />
+                                )}
+                                {weatherCharts.humidity && weatherCharts.humidity.length > 0 && (
+                                    <MiniChart
+                                        data={weatherCharts.humidity}
+                                        color="#3b82f6"
+                                        unit="%"
+                                        label="Humedad"
+                                        icon={<Droplets className="w-4 h-4 text-blue-400" />}
+                                    />
+                                )}
+                                {weatherCharts.pressure && weatherCharts.pressure.length > 0 && (
+                                    <MiniChart
+                                        data={weatherCharts.pressure}
+                                        color="#a855f7"
+                                        unit="hPa"
+                                        label="Presión"
+                                        icon={<Gauge className="w-4 h-4 text-purple-400" />}
+                                    />
+                                )}
+                                {weatherCharts.windSpeed && weatherCharts.windSpeed.length > 0 && (
+                                    <MiniChart
+                                        data={weatherCharts.windSpeed}
+                                        color="#14b8a6"
+                                        unit="m/s"
+                                        label="Viento"
+                                        icon={<Wind className="w-4 h-4 text-teal-400" />}
+                                    />
+                                )}
+
+                                {/* Temperature trend chart */}
+                                {weatherCharts.temperature && weatherCharts.temperature.length > 0 && (
+                                    <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50">
+                                        <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                                            <Activity className="w-4 h-4" />
+                                            Tendencia de Temperatura
+                                        </h4>
+                                        <div className="h-48">
+                                            <Line data={buildChartData(weatherCharts.temperature, '#f97316')} options={mainChartOptions} />
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        ) : isWeatherEntity ? (
+                            /* Weather entity but no data at all */
                             <div className="text-center py-12 text-gray-500">
-                                <Gauge className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                                <p>Sin datos de telemetría</p>
-                                <p className="text-xs mt-1">Esperando datos del dispositivo...</p>
+                                <CloudRain className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                <p>Sin datos meteorológicos</p>
+                                <p className="text-xs mt-1">La estación no tiene observaciones recientes.</p>
                             </div>
+                        ) : (
+                            /* --- IoT Sensor (original behavior) --- */
+                            <>
+                                {telemetry.temperature.length > 0 && (
+                                    <MiniChart
+                                        data={telemetry.temperature}
+                                        color="#f97316"
+                                        unit="°C"
+                                        label="Temperatura"
+                                        icon={<Thermometer className="w-4 h-4 text-orange-400" />}
+                                    />
+                                )}
+
+                                {telemetry.humidity.length > 0 && (
+                                    <MiniChart
+                                        data={telemetry.humidity}
+                                        color="#3b82f6"
+                                        unit="%"
+                                        label="Humedad"
+                                        icon={<Droplets className="w-4 h-4 text-blue-400" />}
+                                    />
+                                )}
+
+                                {telemetry.battery.length > 0 && (
+                                    <MiniChart
+                                        data={telemetry.battery}
+                                        color="#22c55e"
+                                        unit="%"
+                                        label="Batería"
+                                        icon={<Battery className="w-4 h-4 text-green-400" />}
+                                    />
+                                )}
+
+                                {/* Main Chart (if has data) */}
+                                {telemetry.temperature.length > 0 && (
+                                    <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50">
+                                        <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                                            <Activity className="w-4 h-4" />
+                                            Tendencia de Temperatura
+                                        </h4>
+                                        <div className="h-48">
+                                            <Line data={mainChartData} options={mainChartOptions} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* No data message */}
+                                {Object.values(telemetry).every(arr => arr.length === 0) && !loading && (
+                                    <div className="text-center py-12 text-gray-500">
+                                        <Gauge className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                        <p>Sin datos de telemetría</p>
+                                        <p className="text-xs mt-1">Esperando datos del dispositivo...</p>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {/* Entity Details */}
