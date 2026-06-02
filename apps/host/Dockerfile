@@ -31,6 +31,8 @@ COPY --from=builder /app/node_modules/cesium/Build/Cesium /usr/share/nginx/html/
 COPY apps/host/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 COPY apps/host/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/host/readyz.sh /readyz.sh
+RUN chmod +x /readyz.sh && mkdir -p /runtime
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost/health || exit 1
