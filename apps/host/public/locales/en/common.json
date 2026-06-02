@@ -1146,6 +1146,7 @@
       "location": "Location",
       "trackWidth": "Track width",
       "wheelbase": "Wheelbase",
+      "minTurningRadius": "Minimum turning radius",
       "gpsOffsetX": "GPS offset X",
       "gpsOffsetY": "GPS offset Y",
       "gpsOffsetZ": "GPS offset Z",

@@ -1206,6 +1206,7 @@
       "location": "Ubicación",
       "trackWidth": "Ancho de vía",
       "wheelbase": "Batalla",
+      "minTurningRadius": "Radio de giro mínimo",
       "gpsOffsetX": "Offset GPS X",
       "gpsOffsetY": "Offset GPS Y",
       "gpsOffsetZ": "Offset GPS Z",
