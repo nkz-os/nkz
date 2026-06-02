@@ -115,3 +115,45 @@ def test_legacy_upload_deploy_moved(client):
     )
     assert r.status_code == 400
     assert "upload_id" in r.get_json()["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Internal publish endpoint tests
+# ---------------------------------------------------------------------------
+
+from io import BytesIO  # noqa: E402
+
+_MANIFEST = (b'{"id":"demo","version":"1.0.0","hostApiVersion":"1.0",'
+             b'"name":"demo","display_name":"Demo"}')
+
+
+def _dist_form():
+    return {
+        "version_hash": "abc1234",
+        "file": [(BytesIO(_MANIFEST), "manifest.json"),
+                 (BytesIO(b"{}"), "mf-manifest.json")],
+    }
+
+
+def test_publish_rejected_without_secret(client):
+    r = client.post("/api/internal/modules/demo/publish",
+                    data=_dist_form(), content_type="multipart/form-data")
+    assert r.status_code == 401
+
+
+def test_publish_rejected_wrong_secret(client):
+    r = client.post("/api/internal/modules/demo/publish",
+                    headers={"X-Internal-Service-Secret": "nope"},
+                    data=_dist_form(), content_type="multipart/form-data")
+    assert r.status_code == 401
+
+
+def test_publish_ok_with_secret(client, monkeypatch):
+    import blueprints.modules as m
+    monkeypatch.setattr(m, "_upload_dist_and_activate",
+                        lambda mid, files, manifest, vh: (200, {"success": True, "version_hash": vh}))
+    r = client.post("/api/internal/modules/demo/publish",
+                    headers={"X-Internal-Service-Secret": "test-secret"},
+                    data=_dist_form(), content_type="multipart/form-data")
+    assert r.status_code == 200
+    assert r.get_json()["version_hash"] == "abc1234"

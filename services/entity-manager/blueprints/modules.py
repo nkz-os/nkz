@@ -2052,3 +2052,38 @@ def federation_runtime_health():
         'timestamp': datetime.utcnow().isoformat() + 'Z',
     }), 200 if unhealthy == 0 else 207
 
+
+@modules_bp.route('/api/internal/modules/<module_id>/publish', methods=['POST'])
+def publish_module_internal(module_id):
+    """CI publish: upload dist/ to modules/<id>/<version_hash>/ + activate pointer.
+
+    Auth: X-Internal-Service-Secret shared secret (no interactive JWT).
+    """
+    expected = os.getenv('INTERNAL_SERVICE_SECRET', '')
+    if not expected or request.headers.get('X-Internal-Service-Secret') != expected:
+        logger.warning(
+            "publish_module_internal: bad/missing internal secret from %s",
+            request.remote_addr,
+        )
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    files = request.files.getlist('file')
+    if not files:
+        return jsonify({'error': "No files provided (multipart 'file' fields)."}), 400
+
+    manifest, err = _read_manifest_from_files(files)
+    if err:
+        return jsonify({'error': err}), 400
+
+    version_hash = request.form.get('version_hash', '').strip()
+    if not re.match(r'^[a-f0-9]{7,40}$', version_hash):
+        return jsonify({'error': 'version_hash required (7-40 hex chars).'}), 400
+
+    if manifest.get('id') and manifest['id'] != module_id:
+        return jsonify({
+            'error': f"Module ID mismatch: url={module_id} manifest={manifest['id']}"
+        }), 400
+
+    status, payload = _upload_dist_and_activate(module_id, files, manifest, version_hash)
+    return jsonify(payload), status
+
