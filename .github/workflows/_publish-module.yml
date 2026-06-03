@@ -25,7 +25,14 @@ jobs:
     env:
       # Fixed internal DNS — entity-manager is cluster-internal (api-gateway does not
       # proxy /api/internal/* externally). Not a secret.
-      EM: http://entity-manager-service:5000
+      # FQDN is REQUIRED: the runner pod lives in the `arc-system` namespace, so the
+      # short name `entity-manager-service` resolves only against arc-system search
+      # domains (NXDOMAIN). Core services live in `nekazari`; use their FQDN.
+      EM: http://entity-manager-service.nekazari.svc.cluster.local:5000
+      # frontend-static serves /modules/<id>/<sha>/ in-cluster. Same cross-namespace
+      # DNS rule — FQDN required (resolve-url returns a short host that won't resolve
+      # from arc-system, so we build the verify URL ourselves from this base).
+      STATIC: http://frontend-static-service.nekazari.svc.cluster.local:80
       MODULE: ${{ inputs.module_id }}
     steps:
       - uses: actions/checkout@v4
@@ -63,9 +70,11 @@ jobs:
                "$EM/api/internal/modules/$MODULE/resolve-url"
           cat /tmp/resolve.json; echo
           active=$(node -e "console.log(require('/tmp/resolve.json').version||'')")
-          murl=$(node -e "console.log(require('/tmp/resolve.json').manifestUrl||'')")
           [ "$active" = "$SHA" ] || { echo "::error::pointer not flipped (active=$active, expected=$SHA)"; exit 1; }
-          # 2) Bytes actually served from the immutable <sha>/ path (frontend-static/MinIO).
+          # 2) Bytes actually served from the immutable <sha>/ path. resolve-url returns a
+          #    short-name host (only resolvable inside nekazari), so build the URL from the
+          #    frontend-static FQDN instead of using its manifestUrl verbatim.
+          murl="$STATIC/modules/$MODULE/$SHA/mf-manifest.json"
           code=$(curl -sS -o /tmp/mf.json -w '%{http_code}' "$murl")
           bytes=$(wc -c < /tmp/mf.json)
           echo "served manifest $murl -> HTTP $code, $bytes bytes"
