@@ -6,12 +6,22 @@ on:
       build_cmd:   { required: false, type: string, default: "pnpm run build:module" }
       dist_dir:    { required: false, type: string, default: "dist" }
     secrets:
-      ENTITY_MANAGER_URL:      { required: true }
+      # Defense-in-depth header. The primary boundary is the network: this job runs on
+      # the in-cluster ARC runner and entity-manager's NetworkPolicy only admits the
+      # runner namespace. No ENTITY_MANAGER_URL secret — the endpoint is an internal DNS
+      # name, never a public URL.
       INTERNAL_SERVICE_SECRET: { required: true }
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    # In-cluster ARC runner scale set (see gitops-config arc-config). Targeted by the
+    # scale-set installation name, NOT the classic [self-hosted, <label>] tuple.
+    runs-on: nkz-publish
+    env:
+      # Fixed internal DNS — entity-manager is cluster-internal (api-gateway does not
+      # proxy /api/internal/* externally). Not a secret.
+      EM: http://entity-manager-service:5000
+      MODULE: ${{ inputs.module_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,9 +35,7 @@ jobs:
           NKZ_VERSION_HASH: ${{ github.sha }}
       - name: Publish to entity-manager (immutable <sha>/ + activate)
         env:
-          EM: ${{ secrets.ENTITY_MANAGER_URL }}
           SECRET: ${{ secrets.INTERNAL_SERVICE_SECRET }}
-          MODULE: ${{ inputs.module_id }}
           DIST: ${{ inputs.dist_dir }}
         run: |
           set -euo pipefail
@@ -40,15 +48,20 @@ jobs:
                  "$EM/api/internal/modules/$MODULE/publish")
           echo "publish HTTP $code"; cat /tmp/pub.json; echo
           case "$code" in 200|201) ;; *) echo "::error::publish failed (HTTP $code)"; exit 1;; esac
-      - name: Verify served manifest
-        env:
-          EM: ${{ secrets.ENTITY_MANAGER_URL }}
-          MODULE: ${{ inputs.module_id }}
+      - name: Verify pointer flipped + manifest served (in-cluster)
         run: |
           set -euo pipefail
           SHA=$(echo "${{ github.sha }}" | cut -c1-40)
-          url="$EM/modules/$MODULE/$SHA/mf-manifest.json"
-          code=$(curl -sS -o /tmp/mf.json -w '%{http_code}' "$url")
+          # 1) Pointer flip: resolve-url is internal + unauthenticated; it returns the
+          #    active deployed_version and the in-cluster URL it is served from.
+          curl -sS -o /tmp/resolve.json -w 'resolve HTTP %{http_code}\n' \
+               "$EM/api/internal/modules/$MODULE/resolve-url"
+          cat /tmp/resolve.json; echo
+          active=$(node -e "console.log(require('/tmp/resolve.json').version||'')")
+          murl=$(node -e "console.log(require('/tmp/resolve.json').manifestUrl||'')")
+          [ "$active" = "$SHA" ] || { echo "::error::pointer not flipped (active=$active, expected=$SHA)"; exit 1; }
+          # 2) Bytes actually served from the immutable <sha>/ path (frontend-static/MinIO).
+          code=$(curl -sS -o /tmp/mf.json -w '%{http_code}' "$murl")
           bytes=$(wc -c < /tmp/mf.json)
-          echo "manifest $url -> HTTP $code, $bytes bytes"
+          echo "served manifest $murl -> HTTP $code, $bytes bytes"
           [ "$code" = "200" ] && [ "$bytes" -gt 0 ] || { echo "::error::manifest not served"; exit 1; }
