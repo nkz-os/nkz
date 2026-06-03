@@ -4620,10 +4620,24 @@ def proxy_datahub_align():
 
 
 # ---------------------------------------------------------------------------
-# Internal CI-only endpoints — IP-gated to GitHub Actions
+# Internal CI-only endpoints — OIDC-gated, rate-limited
 # ---------------------------------------------------------------------------
 
 _INTERNAL_CI_ACTIONS = {"publish", "resolve-url"}
+_PUBLISH_RATE_LIMIT = 10  # max publish requests per minute (global, not per-IP)
+_publish_requests = deque()
+
+
+def _check_publish_rate_limit():
+    """Simple sliding-window rate limiter for the publish endpoint."""
+    now = time.time()
+    window = now - 60
+    while _publish_requests and _publish_requests[0] < window:
+        _publish_requests.popleft()
+    if len(_publish_requests) >= _PUBLISH_RATE_LIMIT:
+        return False
+    _publish_requests.append(now)
+    return True
 
 
 @app.route("/api/internal/modules/<module_id>/<action>", methods=["GET", "POST"])
@@ -4637,11 +4651,14 @@ def internal_module_ci(module_id, action):
     if action not in _INTERNAL_CI_ACTIONS:
         return jsonify({"error": "Not found"}), 404
 
-    # POST publish requires GitHub OIDC JWT
+    # POST publish requires GitHub OIDC JWT + rate limiting
     if request.method == "POST" and action == "publish":
         oidc_token = request.headers.get("X-OIDC-Token", "")
         if not _validate_oidc_token(oidc_token, module_id):
             return jsonify({"error": "Forbidden"}), 403
+        if not _check_publish_rate_limit():
+            logger.warning(f"Rate limit exceeded for publish/{module_id}")
+            return jsonify({"error": "Too many requests"}), 429
 
     # Forward to entity-manager — pass through the internal secret header
     target = f"{ENTITY_MANAGER_URL}/api/internal/modules/{module_id}/{action}"

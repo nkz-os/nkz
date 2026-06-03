@@ -2065,12 +2065,14 @@ def federation_runtime_health():
 def publish_module_internal(module_id):
     """CI publish: upload dist/ to modules/<id>/<version_hash>/ + activate pointer.
 
-    Auth: X-Internal-Service-Secret shared secret (no interactive JWT).
+    Auth: NKZ_PUBLISH_SECRET (dedicated) or INTERNAL_SERVICE_SECRET (legacy).
     """
-    expected = os.getenv('INTERNAL_SERVICE_SECRET', '')
-    if not expected or request.headers.get('X-Internal-Service-Secret') != expected:
+    expected_publish = os.getenv('NKZ_PUBLISH_SECRET', '')
+    expected_legacy = os.getenv('INTERNAL_SERVICE_SECRET', '')
+    provided = request.headers.get('X-Internal-Service-Secret', '')
+    if not provided or (provided != expected_publish and provided != expected_legacy):
         logger.warning(
-            "publish_module_internal: bad/missing internal secret from %s",
+            "publish_module_internal: bad/missing secret from %s",
             request.remote_addr,
         )
         return jsonify({'error': 'Unauthorized'}), 401
