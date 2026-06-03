@@ -1,0 +1,56 @@
+# =============================================================================
+# Entity Manager <- ARC publish runner (in-cluster module publish)
+# =============================================================================
+# Canonical module publish runs on a self-hosted ARC runner in the `arc-system`
+# namespace and calls the INTERNAL endpoint
+#   POST http://entity-manager-service:5000/api/internal/modules/<id>/publish
+# directly (api-gateway does NOT proxy /api/internal/* externally).
+#
+# The namespace `nekazari` is default-deny (see default-deny-all.yaml), and
+# entity-manager's ingress is otherwise governed by `apis-layer-policy`
+# (layer: apis -> 5000 from api-gateway/nginx/apis/prometheus). The ARC runner
+# lives in another namespace, so without this policy default-deny blocks it and
+# publish fails.
+#
+# This policy is ADDITIVE (NetworkPolicies are OR-combined): it only ADMITS the
+# arc-system namespace to entity-manager:5000. It removes nothing and does not
+# touch api-gateway / validation-Job / prometheus flows.
+#
+# SCOPE NOTE (do not overclaim): NetworkPolicy is L3/L4. It controls who may
+# reach entity-manager:5000 — it CANNOT restrict a single HTTP path. The
+# /publish route shares port 5000 with routes already reachable by the apis
+# layer, so path-level isolation of /publish is provided by the shared secret
+# `X-Internal-Service-Secret` (defense-in-depth), NOT by this policy. This
+# policy's only job is to let the runner namespace reach entity-manager at all.
+#
+# ApplY-time verification (Fase 2, family-critical — verify, do not assume):
+#   - api-gateway -> entity-manager:5000 still works (module resolution).
+#   - the module validation Job still reaches entity-manager.
+#   - the arc-system namespace carries label kubernetes.io/metadata.name=arc-system
+#     (auto-applied by kube-apiserver since K8s 1.21) for the namespaceSelector.
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: entity-manager-arc-publish-policy
+  namespace: nekazari
+  labels:
+    app: entity-manager
+    component: module-publish
+    layer: apis
+spec:
+  podSelector:
+    matchLabels:
+      app: entity-manager
+  policyTypes:
+  - Ingress
+  ingress:
+  # ARC publish runner (arc-system namespace) -> entity-manager:5000.
+  # Secret-gated at the application layer; this only opens the network path.
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: arc-system
+    ports:
+    - protocol: TCP
+      port: 5000
