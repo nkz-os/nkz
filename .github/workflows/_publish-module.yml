@@ -5,25 +5,21 @@ on:
       module_id:   { required: true, type: string }
       build_cmd:   { required: false, type: string, default: "pnpm run build:module" }
       dist_dir:    { required: false, type: string, default: "dist" }
-      # Repo-relative dir holding the pnpm frontend project (install + build + dist run
-      # here). Root for single-package repos (gis-routing); a subdir for monorepos whose
-      # frontend lives alongside a backend (e.g. carbon → "frontend"). dist_dir is
-      # relative to this.
       working_dir: { required: false, type: string, default: "." }
-
     secrets:
-      # Defense-in-depth header validated by entity-manager.
-      # Primary auth: GitHub OIDC JWT (validated by api-gateway).
       INTERNAL_SERVICE_SECRET: { required: true }
+
+# Workflow-level permissions: id-token is needed for the OIDC token request.
+# Must be here — not at the job level — when called via workflow_call.
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   publish:
     # GitHub-hosted runner. Auth: OIDC JWT from token.actions.githubusercontent.com
     # validated by api-gateway against GitHub's JWKS.
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
     env:
       # Public API endpoint. api-gateway validates OIDC JWT before forwarding.
       EM: https://nkz.robotika.cloud
