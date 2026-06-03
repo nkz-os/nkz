@@ -1488,7 +1488,15 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
     route_path = manifest.get('route', manifest.get('route_path', f'/{module_id}'))
     label = manifest.get('label', display_name)
     required_roles = manifest.get('requiredRoles', manifest.get('required_roles', ['Farmer']))
-    required_plan_type = manifest.get('requiredPlan', manifest.get('required_plan_type', 'basic'))
+    # Canonical gating is the integer required_plan_level (migration 073 dropped the
+    # legacy module_type / required_plan_type / pricing_tier columns). New modules
+    # default to 0 (all tiers); on re-publish the ON CONFLICT below leaves it untouched
+    # so admin-set gating is preserved.
+    required_plan_level = manifest.get('requiredPlanLevel', manifest.get('required_plan_level', 0))
+    try:
+        required_plan_level = int(required_plan_level)
+    except (TypeError, ValueError):
+        required_plan_level = 0
     scope = module_id.replace('-', '_')
     exposed_module = './Module'
     remote_entry_url = f'/modules/{module_id}/{version_hash}/mf-manifest.json' if version_hash else f'/modules/{module_id}/mf-manifest.json'
@@ -1509,12 +1517,12 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
         cur.execute("""
             INSERT INTO marketplace_modules (
                 id, name, display_name, description, version, author, category,
-                icon_url, module_type, required_plan_type, pricing_tier,
+                icon_url, required_plan_level,
                 route_path, label, required_roles, remote_entry_url, scope,
                 exposed_module, is_local, is_active, metadata, deployed_version,
                 created_at, updated_at
             ) VALUES (
-                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,NOW(),NOW()
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,NOW(),NOW()
             )
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
@@ -1536,7 +1544,7 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
                 updated_at = NOW()
         """, (
             module_id, name, display_name, description, version, author, category,
-            icon_url, 'ADDON_FREE', required_plan_type, 'FREE',
+            icon_url, required_plan_level,
             route_path, label, required_roles, remote_entry_url, scope,
             exposed_module, False, True,  # is_local, is_active
             metadata,
