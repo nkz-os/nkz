@@ -7,13 +7,9 @@ on:
       dist_dir:    { required: false, type: string, default: "dist" }
       working_dir: { required: false, type: string, default: "." }
     secrets:
+      # Defense-in-depth header validated by entity-manager.
+      # Primary auth: GitHub OIDC JWT (validated by api-gateway).
       INTERNAL_SERVICE_SECRET: { required: true }
-
-# Workflow-level permissions: id-token is needed for the OIDC token request.
-# Must be here — not at the job level — when called via workflow_call.
-permissions:
-  id-token: write
-  contents: read
 
 jobs:
   publish:
