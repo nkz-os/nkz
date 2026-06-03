@@ -545,13 +545,23 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
         return null;
     }
 
-    // Helper to extract numeric value from NGSI-LD entity attribute
+    // Helper to extract numeric value from an entity attribute, checking both
+    // top-level keys and the nested `readings` object used by getWeatherStations().
     const getEntityAttrValue = (key: string): number | null => {
         if (!entityData) return null;
-        const attr = entityData[key];
+        // Check top-level first
+        let attr = entityData[key];
+        // Fallback: getWeatherStations() nests telemetry under "readings"
+        if (!attr && entityData.readings && typeof entityData.readings === 'object') {
+            attr = entityData.readings[key];
+        }
         if (!attr) return null;
         if (typeof attr === 'number') return attr;
-        if (typeof attr?.value === 'number') return attr.value;
+        if (typeof attr === 'object' && attr !== null && 'value' in attr) {
+            const v = (attr as any).value;
+            if (typeof v === 'number') return v;
+            if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? null : n; }
+        }
         return null;
     };
 
