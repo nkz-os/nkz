@@ -8,6 +8,7 @@ import json
 import logging
 import sys
 from flask import Flask, g, request, jsonify, make_response
+from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import cross_origin
 import jwt
 import requests
@@ -109,6 +110,8 @@ except ImportError:
 
 
 app = Flask(__name__)
+# Trust X-Forwarded-For from Traefik (needed for GitHub Actions IP allowlist)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 # CORS: Handled by Traefik Middleware at infrastructure level
 
 # Configuration - All environment variables are REQUIRED for security
