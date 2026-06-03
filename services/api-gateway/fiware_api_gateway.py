@@ -23,6 +23,7 @@ import time
 import uuid
 import boto3
 import re
+import ipaddress
 from collections import defaultdict, deque
 
 # Configure logging FIRST
@@ -262,6 +263,52 @@ def _is_tenant_suspended(tenant_id: str) -> bool:
 
     _suspended_tenant_cache[tenant_id] = (is_suspended, now)
     return is_suspended
+
+
+# ---------------------------------------------------------------------------
+# GitHub Actions IP allowlist for internal CI-only endpoints
+# ---------------------------------------------------------------------------
+
+_github_actions_cache = {"ips": None, "fetched_at": 0.0}
+_GH_IPS_TTL = 86400  # refresh every 24h
+
+
+def _github_actions_ip_ranges():
+    """Fetch GitHub Actions IP ranges from meta API, cached 24h."""
+    now = time.time()
+    cached = _github_actions_cache
+    if cached["ips"] is not None and (now - cached["fetched_at"]) < _GH_IPS_TTL:
+        return cached["ips"]
+    try:
+        resp = requests.get("https://api.github.com/meta", timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            actions_ips = data.get("actions", [])
+            logger.info(f"Loaded {len(actions_ips)} GitHub Actions IP ranges")
+            _github_actions_cache["ips"] = frozenset(actions_ips)
+            _github_actions_cache["fetched_at"] = now
+            return _github_actions_cache["ips"]
+    except Exception as e:
+        logger.error(f"Failed to fetch GitHub Actions IP ranges: {e}")
+    # Fail-closed: if we can't fetch, deny all
+    return cached["ips"] or frozenset()
+
+
+def _is_github_actions_ip(client_ip: str) -> bool:
+    """Check if the given IP is within any GitHub Actions range."""
+    if not client_ip:
+        return False
+    try:
+        ip = ipaddress.ip_address(client_ip)
+    except ValueError:
+        return False
+    for cidr in _github_actions_ip_ranges():
+        try:
+            if ip in ipaddress.ip_network(cidr):
+                return True
+        except ValueError:
+            pass
+    return False
 
 
 @app.before_request
@@ -4482,6 +4529,63 @@ def proxy_datahub_align():
         return make_response(resp.content, resp.status_code, dict(resp.headers))
     except requests.exceptions.RequestException as e:
         logger.error(f"DataHub align proxy error: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+# ---------------------------------------------------------------------------
+# Internal CI-only endpoints — IP-gated to GitHub Actions
+# ---------------------------------------------------------------------------
+
+_INTERNAL_CI_ACTIONS = {"publish", "resolve-url"}
+
+
+@app.route("/api/internal/modules/<module_id>/<action>", methods=["GET", "POST"])
+def internal_module_ci(module_id, action):
+    """
+    Proxy internal module CI endpoints (publish, resolve-url) to entity-manager.
+    Accessible ONLY from GitHub Actions IP ranges.
+    entity-manager validates X-Internal-Service-Secret as second factor.
+    """
+    if action not in _INTERNAL_CI_ACTIONS:
+        return jsonify({"error": "Not found"}), 404
+
+    # Resolve client IP (X-Forwarded-For is set by Traefik ingress)
+    xff = request.headers.get("X-Forwarded-For", "")
+    client_ip = xff.split(",")[0].strip() if xff else request.remote_addr or ""
+
+    if not _is_github_actions_ip(client_ip):
+        logger.warning(
+            f"Blocked /api/internal/modules/{module_id}/{action} "
+            f"from non-GitHub-Actions IP: {client_ip}"
+        )
+        return jsonify({"error": "Forbidden"}), 403
+
+    # Forward to entity-manager — pass through the internal secret header
+    target = f"{ENTITY_MANAGER_URL}/api/internal/modules/{module_id}/{action}"
+    fwd_headers = {
+        "Content-Type": request.headers.get("Content-Type", ""),
+    }
+    secret = request.headers.get("X-Internal-Service-Secret", "")
+    if secret:
+        fwd_headers["X-Internal-Service-Secret"] = secret
+    # Strip empty values
+    fwd_headers = {k: v for k, v in fwd_headers.items() if v}
+
+    try:
+        if request.method == "GET":
+            resp = requests.get(
+                target, headers=fwd_headers, params=request.args, timeout=30
+            )
+        else:
+            resp = requests.post(
+                target,
+                headers=fwd_headers,
+                data=request.get_data(),
+                timeout=60,
+            )
+        return make_response(resp.content, resp.status_code, dict(resp.headers))
+    except requests.exceptions.RequestException as e:
+        logger.error(f"internal CI proxy error for {module_id}/{action}: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 
