@@ -314,6 +314,86 @@ def _is_github_actions_ip(client_ip: str) -> bool:
     return False
 
 
+# ---------------------------------------------------------------------------
+# GitHub Actions OIDC JWT validation for internal CI endpoints
+# Replaces IP-based allowlisting. The runner requests an OIDC token from
+# token.actions.githubusercontent.com; the gateway validates the JWT
+# against GitHub's JWKS and checks claims (iss, aud, repo, ref).
+# ---------------------------------------------------------------------------
+
+_GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com"
+_GITHUB_OIDC_JWKS_URL = f"{_GITHUB_OIDC_ISSUER}/.well-known/jwks"
+_GITHUB_OIDC_AUDIENCE = "nkz-publish"
+_OIDC_JWKS_CLIENT = None
+_OIDC_JWKS_LAST_FETCH = 0.0
+_OIDC_JWKS_TTL = 3600.0
+
+
+def _get_oidc_signing_key(token_headers):
+    """Fetch the signing key from GitHub JWKS, cached 1h."""
+    global _OIDC_JWKS_CLIENT, _OIDC_JWKS_LAST_FETCH
+    now = time.time()
+    if _OIDC_JWKS_CLIENT is None or (now - _OIDC_JWKS_LAST_FETCH) > _OIDC_JWKS_TTL:
+        _OIDC_JWKS_CLIENT = jwt.PyJWKClient(_GITHUB_OIDC_JWKS_URL, cache_keys=False)
+        _OIDC_JWKS_LAST_FETCH = now
+        logger.info("OIDC: refreshed JWKS from GitHub")
+    try:
+        kid = token_headers.get("kid")
+        return _OIDC_JWKS_CLIENT.get_signing_key(kid).key
+    except Exception as e:
+        logger.error(f"OIDC: cannot fetch signing key for kid={kid}: {e}")
+        return None
+
+
+def _validate_oidc_token(token, module_id=""):
+    """
+    Validate a GitHub Actions OIDC JWT.
+    Returns True if the token is valid and the workflow is authorized.
+    """
+    if not token:
+        return False
+    try:
+        headers = jwt.get_unverified_header(token)
+        signing_key = _get_oidc_signing_key(headers)
+        if signing_key is None:
+            return False
+
+        payload = jwt.decode(
+            token,
+            key=signing_key,
+            algorithms=["RS256"],
+            issuer=_GITHUB_OIDC_ISSUER,
+            audience=_GITHUB_OIDC_AUDIENCE,
+            options={"require": ["exp", "iss", "aud"]},
+        )
+
+        repo = payload.get("repository", "")
+        repo_owner = payload.get("repository_owner", "")
+        ref = payload.get("ref", "")
+
+        if repo_owner != "nkz-os":
+            logger.warning(f"OIDC: rejected repo_owner={repo_owner}")
+            return False
+
+        # Accept main branch pushes and tags
+        if ref != "refs/heads/main" and not ref.startswith("refs/tags/"):
+            logger.warning(f"OIDC: rejected ref={ref}")
+            return False
+
+        logger.info(f"OIDC: validated repo={repo} ref={ref} module={module_id}")
+        return True
+
+    except jwt.ExpiredSignatureError:
+        logger.warning("OIDC: token expired")
+        return False
+    except jwt.InvalidTokenError as e:
+        logger.warning(f"OIDC: invalid token: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"OIDC: validation error: {e}")
+        return False
+
+
 @app.before_request
 def enforce_pat_scopes():
     """Validate PAT tokens: check scope covers (method, path)."""
@@ -4546,11 +4626,18 @@ _INTERNAL_CI_ACTIONS = {"publish", "resolve-url"}
 def internal_module_ci(module_id, action):
     """
     Proxy internal module CI endpoints (publish, resolve-url) to entity-manager.
-    IP restriction is enforced at the Traefik level (gh-actions-ipwhitelist middleware).
-    entity-manager validates X-Internal-Service-Secret as second factor.
+    POST (publish) requires a valid GitHub Actions OIDC JWT.
+    GET (resolve-url) is public (returns non-sensitive manifest URL).
+    entity-manager validates X-Internal-Service-Secret as defense-in-depth.
     """
     if action not in _INTERNAL_CI_ACTIONS:
         return jsonify({"error": "Not found"}), 404
+
+    # POST publish requires GitHub OIDC JWT
+    if request.method == "POST" and action == "publish":
+        oidc_token = request.headers.get("X-OIDC-Token", "")
+        if not _validate_oidc_token(oidc_token, module_id):
+            return jsonify({"error": "Forbidden"}), 403
 
     # Forward to entity-manager — pass through the internal secret header
     target = f"{ENTITY_MANAGER_URL}/api/internal/modules/{module_id}/{action}"
