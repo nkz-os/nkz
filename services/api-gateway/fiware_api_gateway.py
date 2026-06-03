@@ -4546,22 +4546,11 @@ _INTERNAL_CI_ACTIONS = {"publish", "resolve-url"}
 def internal_module_ci(module_id, action):
     """
     Proxy internal module CI endpoints (publish, resolve-url) to entity-manager.
-    Accessible ONLY from GitHub Actions IP ranges.
+    IP restriction is enforced at the Traefik level (gh-actions-ipwhitelist middleware).
     entity-manager validates X-Internal-Service-Secret as second factor.
     """
     if action not in _INTERNAL_CI_ACTIONS:
         return jsonify({"error": "Not found"}), 404
-
-    # Resolve client IP (X-Forwarded-For is set by Traefik ingress)
-    xff = request.headers.get("X-Forwarded-For", "")
-    client_ip = xff.split(",")[0].strip() if xff else request.remote_addr or ""
-
-    if not _is_github_actions_ip(client_ip):
-        logger.warning(
-            f"Blocked /api/internal/modules/{module_id}/{action} "
-            f"from non-GitHub-Actions IP: {client_ip}"
-        )
-        return jsonify({"error": "Forbidden"}), 403
 
     # Forward to entity-manager — pass through the internal secret header
     target = f"{ENTITY_MANAGER_URL}/api/internal/modules/{module_id}/{action}"
