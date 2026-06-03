@@ -94,6 +94,8 @@ spec:
               value: http://entity-manager-service:5000
             - name: ENTITY_MANAGER_URL
               value: http://entity-manager-service:5000
+            - name: SOIL_API_URL
+              value: http://soil-module-service:8000
             - name: DATAHUB_BFF_URL
               value: http://datahub-api-service:8000
             - name: TENANT_USER_API_URL

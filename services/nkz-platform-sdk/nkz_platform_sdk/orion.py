@@ -85,9 +85,13 @@ class OrionClient:
         resp.raise_for_status()
         return resp.json()
 
-    async def create_entity(self, entity: dict[str, Any]) -> dict[str, Any]:
+    def _ensure_context(self, entity: dict[str, Any]) -> dict[str, Any]:
         if "@context" not in entity:
-            entity = {"@context": [self.context_url], **entity}
+            return {"@context": [self.context_url], **entity}
+        return entity
+
+    async def create_entity(self, entity: dict[str, Any]) -> dict[str, Any]:
+        entity = self._ensure_context(entity)
         resp = await self._client.post(
             self._url("/ngsi-ld/v1/entities"),
             json=entity,
@@ -96,6 +100,53 @@ class OrionClient:
         resp.raise_for_status()
         location = resp.headers.get("Location", "")
         return {"id": location.split("/")[-1] if location else "", "status": "created"}
+
+    async def create_entities_batch(
+        self,
+        entities: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Create multiple entities via POST /ngsi-ld/v1/entityOperations/create.
+
+        Returns:
+            dict with keys ``created``, ``errors``, ``entity_ids``.
+        Raises:
+            httpx.HTTPStatusError: on non-batchable failure (caller may fall back).
+        """
+        prepared = [self._ensure_context(e) for e in entities]
+        if not prepared:
+            return {"created": 0, "errors": [], "entity_ids": []}
+
+        resp = await self._client.post(
+            self._url("/ngsi-ld/v1/entityOperations/create"),
+            json=prepared,
+            headers=self._headers("application/ld+json"),
+        )
+
+        entity_ids = [e["id"] for e in prepared if e.get("id")]
+
+        if resp.status_code in (200, 201, 204):
+            return {
+                "created": len(prepared),
+                "errors": [],
+                "entity_ids": entity_ids,
+            }
+
+        if resp.status_code == 207:
+            body = resp.json() if resp.content else {}
+            success = body.get("success", entity_ids)
+            errors = body.get("errors", [])
+            if isinstance(success, list) and success and isinstance(success[0], dict):
+                success_ids = [s.get("id", "") for s in success if s.get("id")]
+            else:
+                success_ids = success if isinstance(success, list) else entity_ids
+            return {
+                "created": len(success_ids),
+                "errors": errors,
+                "entity_ids": success_ids,
+            }
+
+        resp.raise_for_status()
+        return {"created": 0, "errors": [], "entity_ids": []}
 
     async def update_entity_attrs(self, entity_id: str, attrs: dict[str, Any]) -> None:
         resp = await self._client.patch(
