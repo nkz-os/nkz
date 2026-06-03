@@ -16,7 +16,6 @@ import {
     Cpu,
     Cable,
     Pencil,
-    Wind,
     CloudRain,
 } from 'lucide-react';
 import {
@@ -151,7 +150,39 @@ function getEntityAttrValue(entityData: any, key: string): number | null {
     return null;
 }
 
+// ===========================================================================
+// Canonical weather attribute descriptor — single source of truth.
+// NGSI-LD names MUST match the timeseries-reader _WEATHER_ATTRIBUTE_MAP
+// (/nkz/services/timeseries-reader/app.py). DB column names are the
+// resolved targets used in the v2 columnar response.
+// ===========================================================================
+
+interface WeatherAttrDescriptor {
+    /** NGSI-LD attribute name as stored in Orion-LD (canonical SDM short name). */
+    ngsiLd: string;
+    /** TimescaleDB column name returned in the v2 columnar response. */
+    dbColumn: string;
+    /** Human-readable label shown in the UI card. */
+    label: string;
+    /** Unit symbol (e.g. "°C", "%", "hPa", "m/s", "mm"). */
+    unit: string;
+    /** Tailwind color classes for the card (bg / text). */
+    color: { bg: string; text: string };
+}
+
+const WEATHER_ATTRS: WeatherAttrDescriptor[] = [
+    { ngsiLd: 'temperature',         dbColumn: 'temp_avg',        label: 'Temperatura',   unit: '°C',  color: { bg: 'from-red-900/30 to-orange-900/30',   text: 'text-red-300'   } },
+    { ngsiLd: 'relativeHumidity',    dbColumn: 'humidity_avg',    label: 'Humedad',       unit: '%',   color: { bg: 'from-blue-900/30 to-cyan-900/30',    text: 'text-blue-300'  } },
+    { ngsiLd: 'atmosphericPressure', dbColumn: 'pressure_hpa',    label: 'Presión',        unit: 'hPa', color: { bg: 'from-purple-900/30 to-indigo-900/30', text: 'text-purple-300' } },
+    { ngsiLd: 'windSpeed',           dbColumn: 'wind_speed_ms',   label: 'Viento',         unit: 'm/s', color: { bg: 'from-teal-900/30 to-emerald-900/30',  text: 'text-teal-300'  } },
+    { ngsiLd: 'precipitation',       dbColumn: 'precip_mm',       label: 'Precipitación',  unit: 'mm',  color: { bg: 'from-sky-900/30 to-blue-900/30',     text: 'text-sky-300'   } },
+];
+
+/** Set of entity types that represent weather/virtual stations. */
 const WEATHER_ENTITY_TYPES = new Set(['WeatherObserved', 'WeatherStation']);
+
+/** Build the canonical attrs=… query-string value for the v2 timeseries endpoint. */
+const WEATHER_ATTRS_CSV = WEATHER_ATTRS.map((d) => d.ngsiLd).join(',');
 
 export const SensorInspector: React.FC<SensorInspectorProps> = ({
     entity,
@@ -186,55 +217,53 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                 // the URN to a weather key (municipality_code) via plan_timeseries_read.
                 // v1 does NOT support URN resolution — it would query with the raw entity_id
                 // which never matches station_id or municipality_code.
-                const weatherAttrs = ['temperature', 'humidity', 'pressure', 'windSpeed', 'precipitation'];
+                //
+                // Attribute names MUST match the canonical _WEATHER_ATTRIBUTE_MAP in
+                // timeseries-reader/app.py. Using non-canonical names (e.g. "humidity"
+                // instead of "relativeHumidity") causes a 400 response for the ENTIRE
+                // batch because v2 validates every attribute before querying.
                 const chartData: Record<string, TelemetryDataPoint[]> = {};
 
-                // Single v2 call with all attributes (columnar format), then split per attr
                 try {
                     const v2url = `/api/timeseries/v2/entities/${encodeURIComponent(entity.id)}/data`;
                     const v2res = await api.get(v2url, {
                         params: {
                             time_from: startTime,
                             time_to: endTime,
-                            attrs: weatherAttrs.join(','),
+                            attrs: WEATHER_ATTRS_CSV,
                             limit: 200,
                         },
                     });
                     const body = v2res.data;
                     // v2 columnar format: { timestamps: string[], attributes: { temp_avg: number[], ... } }
                     if (body?.timestamps && body?.attributes) {
-                        for (const ngsiAttr of weatherAttrs) {
+                        for (const desc of WEATHER_ATTRS) {
+                            const values = body.attributes[desc.dbColumn] as (number | null)[] | undefined;
+                            if (!values || values.length === 0) continue;
                             const points: TelemetryDataPoint[] = [];
-                            for (const [dbCol, values] of Object.entries(body.attributes)) {
-                                const isTemp = dbCol === 'temp_avg' && ngsiAttr === 'temperature';
-                                const isHum = dbCol === 'humidity_avg' && ngsiAttr === 'humidity';
-                                const isPress = dbCol === 'pressure_hpa' && ngsiAttr === 'pressure';
-                                const isWind = dbCol === 'wind_speed_ms' && ngsiAttr === 'windSpeed';
-                                const isPrecip = dbCol === 'precip_mm' && ngsiAttr === 'precipitation';
-                                if (!(isTemp || isHum || isPress || isWind || isPrecip)) continue;
-                                const vals = values as (number | null)[];
-                                for (let i = 0; i < Math.min(body.timestamps.length, vals.length); i++) {
-                                    const v = vals[i];
-                                    if (v !== null && v !== undefined) {
-                                        points.push({
-                                            timestamp: new Date(body.timestamps[i]).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
-                                            value: Number(v),
-                                        });
-                                    }
+                            for (let i = 0; i < Math.min(body.timestamps.length, values.length); i++) {
+                                const v = values[i];
+                                if (v !== null && v !== undefined) {
+                                    points.push({
+                                        timestamp: new Date(body.timestamps[i]).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
+                                        value: Number(v),
+                                    });
                                 }
-                                break;
                             }
-                            if (points.length > 0) chartData[ngsiAttr] = points;
+                            if (points.length > 0) chartData[desc.ngsiLd] = points;
                         }
                     }
-                } catch { /* non-fatal */ }
+                } catch { /* non-fatal — latest readings still shown from entity.data */ }
 
                 setWeatherCharts(chartData);
+                // Populate telemetry state for MiniChart compatibility:
+                // temperature → MiniChart with temp data, humidity → humidity,
+                // battery slot re-used for pressure+wind overlay
                 setTelemetry({
                     temperature: chartData.temperature || [],
-                    humidity: chartData.humidity || [],
+                    humidity: chartData.relativeHumidity || [],
                     battery: [
-                        ...(chartData.pressure || []),
+                        ...(chartData.atmosphericPressure || []),
                         ...(chartData.windSpeed || []),
                     ],
                 });
@@ -308,13 +337,16 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
     const entityName = entity.name || entity.id;
 
     // Latest reading from entity.data (fallback for weather entities when timeseries is empty)
-    const ed = entity?.data;
-    const latestTemp = getEntityAttrValue(ed, 'temperature');
-    const latestHumidity = getEntityAttrValue(ed, 'relativeHumidity') ?? getEntityAttrValue(ed, 'humidity');
-    const latestPressure = getEntityAttrValue(ed, 'atmosphericPressure') ?? getEntityAttrValue(ed, 'pressure');
-    const latestWind = getEntityAttrValue(ed, 'windSpeed');
-    const latestPrecip = getEntityAttrValue(ed, 'precipitation');
-    const hasWeatherAttrs = latestTemp !== null || latestHumidity !== null || latestPressure !== null;
+    // Latest readings from the NGSI-LD entity (fallback when timeseries is empty).
+    // Uses canonical NGSI-LD names from WEATHER_ATTRS descriptor — same names
+    // stored in Orion-LD when @context is properly applied.
+    const entityData = entity?.data;
+    const weatherLatest: Record<string, number | null> = {};
+    for (const desc of WEATHER_ATTRS) {
+        weatherLatest[desc.ngsiLd] = getEntityAttrValue(entityData, desc.ngsiLd);
+    }
+    const hasAnyWeatherLatest = Object.values(weatherLatest).some((v) => v !== null);
+    const hasAnyWeatherChart = Object.keys(weatherCharts).length > 0;
 
     // Build Chart.js config for a given dataset
     const buildChartData = (data: TelemetryDataPoint[], color: string) => ({
@@ -460,94 +492,50 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                     /* Telemetry Tab */
                     <>
                         {/* --- Weather entity: show latest readings + charts from timeseries --- */}
-                        {isWeatherEntity && (hasWeatherAttrs || Object.keys(weatherCharts).length > 0) ? (
+                        {isWeatherEntity && (hasAnyWeatherLatest || hasAnyWeatherChart) ? (
                             <>
-                                {/* Latest reading cards */}
+                                {/* Latest reading cards driven by canonical WEATHER_ATTRS descriptor */}
                                 <div className="grid grid-cols-2 gap-3">
-                                    {latestTemp !== null && (
-                                        <div className="bg-gradient-to-br from-red-900/30 to-orange-900/30 p-3 rounded-lg border border-red-800/30">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Thermometer className="w-4 h-4 text-red-400" />
-                                                <span className="text-xs text-slate-400">Temperatura</span>
+                                    {WEATHER_ATTRS.map((desc) => {
+                                        const val = weatherLatest[desc.ngsiLd];
+                                        if (val === null) return null;
+                                        return (
+                                            <div key={desc.ngsiLd}
+                                                className={`bg-gradient-to-br ${desc.color.bg} p-3 rounded-lg border border-white/10`}
+                                            >
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`text-xs font-semibold ${desc.color.text}`}>{desc.label}</span>
+                                                </div>
+                                                <div className={`text-xl font-bold ${desc.color.text}`}>
+                                                    {val.toFixed(1)}{desc.unit}
+                                                </div>
                                             </div>
-                                            <div className="text-xl font-bold text-red-300">{latestTemp.toFixed(1)}°C</div>
-                                        </div>
-                                    )}
-                                    {latestHumidity !== null && (
-                                        <div className="bg-gradient-to-br from-blue-900/30 to-cyan-900/30 p-3 rounded-lg border border-blue-800/30">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Droplets className="w-4 h-4 text-blue-400" />
-                                                <span className="text-xs text-slate-400">Humedad</span>
-                                            </div>
-                                            <div className="text-xl font-bold text-blue-300">{latestHumidity.toFixed(1)}%</div>
-                                        </div>
-                                    )}
-                                    {latestPressure !== null && (
-                                        <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 p-3 rounded-lg border border-purple-800/30">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Gauge className="w-4 h-4 text-purple-400" />
-                                                <span className="text-xs text-slate-400">Presión</span>
-                                            </div>
-                                            <div className="text-xl font-bold text-purple-300">{latestPressure.toFixed(1)} hPa</div>
-                                        </div>
-                                    )}
-                                    {latestWind !== null && (
-                                        <div className="bg-gradient-to-br from-teal-900/30 to-emerald-900/30 p-3 rounded-lg border border-teal-800/30">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Wind className="w-4 h-4 text-teal-400" />
-                                                <span className="text-xs text-slate-400">Viento</span>
-                                            </div>
-                                            <div className="text-xl font-bold text-teal-300">{latestWind.toFixed(1)} m/s</div>
-                                        </div>
-                                    )}
-                                    {latestPrecip !== null && (
-                                        <div className="bg-gradient-to-br from-sky-900/30 to-blue-900/30 p-3 rounded-lg border border-sky-800/30 col-span-2">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <CloudRain className="w-4 h-4 text-sky-400" />
-                                                <span className="text-xs text-slate-400">Precipitación</span>
-                                            </div>
-                                            <div className="text-xl font-bold text-sky-300">{latestPrecip.toFixed(1)} mm</div>
-                                        </div>
-                                    )}
+                                        );
+                                    })}
                                 </div>
 
-                                {/* Timeseries charts */}
-                                {weatherCharts.temperature && weatherCharts.temperature.length > 0 && (
-                                    <MiniChart
-                                        data={weatherCharts.temperature}
-                                        color="#f97316"
-                                        unit="°C"
-                                        label="Temperatura"
-                                        icon={<Thermometer className="w-4 h-4 text-orange-400" />}
-                                    />
-                                )}
-                                {weatherCharts.humidity && weatherCharts.humidity.length > 0 && (
-                                    <MiniChart
-                                        data={weatherCharts.humidity}
-                                        color="#3b82f6"
-                                        unit="%"
-                                        label="Humedad"
-                                        icon={<Droplets className="w-4 h-4 text-blue-400" />}
-                                    />
-                                )}
-                                {weatherCharts.pressure && weatherCharts.pressure.length > 0 && (
-                                    <MiniChart
-                                        data={weatherCharts.pressure}
-                                        color="#a855f7"
-                                        unit="hPa"
-                                        label="Presión"
-                                        icon={<Gauge className="w-4 h-4 text-purple-400" />}
-                                    />
-                                )}
-                                {weatherCharts.windSpeed && weatherCharts.windSpeed.length > 0 && (
-                                    <MiniChart
-                                        data={weatherCharts.windSpeed}
-                                        color="#14b8a6"
-                                        unit="m/s"
-                                        label="Viento"
-                                        icon={<Wind className="w-4 h-4 text-teal-400" />}
-                                    />
-                                )}
+                                {/* MiniCharts driven by canonical WEATHER_ATTRS descriptor */}
+                                {WEATHER_ATTRS.map((desc) => {
+                                    const data = weatherCharts[desc.ngsiLd];
+                                    if (!data || data.length === 0) return null;
+                                    const chartColors: Record<string, string> = {
+                                        temperature: '#f97316',
+                                        relativeHumidity: '#3b82f6',
+                                        atmosphericPressure: '#a855f7',
+                                        windSpeed: '#14b8a6',
+                                        precipitation: '#0ea5e9',
+                                    };
+                                    return (
+                                        <MiniChart
+                                            key={desc.ngsiLd}
+                                            data={data}
+                                            color={chartColors[desc.ngsiLd] || '#6b7280'}
+                                            unit={desc.unit}
+                                            label={desc.label}
+                                            icon={<Activity className="w-4 h-4" />}
+                                        />
+                                    );
+                                })}
 
                                 {/* Temperature trend chart */}
                                 {weatherCharts.temperature && weatherCharts.temperature.length > 0 && (
