@@ -5,6 +5,11 @@ on:
       module_id:   { required: true, type: string }
       build_cmd:   { required: false, type: string, default: "pnpm run build:module" }
       dist_dir:    { required: false, type: string, default: "dist" }
+      # Repo-relative dir holding the pnpm frontend project (install + build + dist run
+      # here). Root for single-package repos (gis-routing); a subdir for monorepos whose
+      # frontend lives alongside a backend (e.g. carbon → "frontend"). dist_dir is
+      # relative to this.
+      working_dir: { required: false, type: string, default: "." }
       # Name of the in-cluster ARC scale set to run on. On the Free org tier, runner
       # groups can't be restricted, so each module repo gets its own REPO-LEVEL scale
       # set (unique name cluster-wide). Each caller passes the name of its own set;
@@ -40,12 +45,16 @@ jobs:
         with: { node-version: "22" }
       - uses: pnpm/action-setup@v4
         with: { version: 9 }
-      - run: pnpm install --frozen-lockfile
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+        working-directory: ${{ inputs.working_dir }}
       - name: Build module
         run: ${{ inputs.build_cmd }}
+        working-directory: ${{ inputs.working_dir }}
         env:
           NKZ_VERSION_HASH: ${{ github.sha }}
       - name: Publish to entity-manager (immutable <sha>/ + activate)
+        working-directory: ${{ inputs.working_dir }}
         env:
           SECRET: ${{ secrets.INTERNAL_SERVICE_SECRET }}
           DIST: ${{ inputs.dist_dir }}
