@@ -22,7 +22,7 @@ jobs:
     # validated by api-gateway against GitHub's JWKS.
     runs-on: ubuntu-latest
     permissions:
-      id-token: write   # Required for OIDC token
+      id-token: write
       contents: read
     env:
       # Public API endpoint. api-gateway validates OIDC JWT before forwarding.
