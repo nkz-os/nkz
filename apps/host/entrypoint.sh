@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-NGINX_HTML_DIR="/usr/share/nginx/html"
-INDEX_HTML="${NGINX_HTML_DIR}/index.html"
+RUNTIME_DIR="/runtime"
+mkdir -p "${RUNTIME_DIR}"
 
 echo "🚀 Nekazari Frontend - Generando configuración de runtime..."
 
@@ -16,23 +16,13 @@ VITE_ENABLE_WEATHER="${VITE_ENABLE_WEATHER:-true}"
 VITE_ENABLE_RISK="${VITE_ENABLE_RISK:-true}"
 VITE_MODULES_CDN_URL="${VITE_MODULES_CDN_URL:-/modules}"
 VITE_ZULIP_URL="${VITE_ZULIP_URL:-https://messaging.robotika.cloud}"
-
-# Commercial landing env vars (optional — only needed when landing_mode=commercial)
 COMPANY_URL="${COMPANY_URL:-}"
 COMPANY_NAME="${COMPANY_NAME:-}"
 SUPPORT_EMAIL="${SUPPORT_EMAIL:-}"
 SALES_EMAIL="${SALES_EMAIL:-}"
 PARTNERS_JSON="${PARTNERS_JSON:-}"
 
-CESIUM_SCRIPT=""
-if [ -d "${NGINX_HTML_DIR}/cesium" ]; then
-    CESIUM_SCRIPT="<script src=\"/cesium/Cesium.js\"></script>"
-fi
-
-# Write runtime config to a temp file, then inject into index.html.
-# PARTNERS_JSON is written separately to avoid shell quoting issues with nested JSON.
-RUNTIME_JS="${NGINX_HTML_DIR}/__nkz_runtime__.js"
-cat > "${RUNTIME_JS}" <<JSEOF
+cat > "${RUNTIME_DIR}/__nkz_runtime__.js" <<JSEOF
 window.__ENV__ = {
   VITE_API_URL: "${VITE_API_URL}",
   VITE_KEYCLOAK_URL: "${VITE_KEYCLOAK_URL}",
@@ -53,21 +43,13 @@ window.__ENV__ = {
 console.log('[Nekazari] Runtime config injected');
 JSEOF
 
-if [ -f "${INDEX_HTML}" ]; then
-    # Remove any previous runtime-config script (inline or external)
-    sed -i '/<script id="runtime-config">/,/<\/script>/d' "${INDEX_HTML}"
-    sed -i '/<script src="\/__nkz_runtime__\.js"><\/script>/d' "${INDEX_HTML}"
-    sed -i '/<script src="\/cesium\/Cesium.js"><\/script>/d' "${INDEX_HTML}"
-
-    # Inject external runtime script + optional Cesium
-    sed -i "s|</head>|${CESIUM_SCRIPT}\n<script src=\"/__nkz_runtime__.js\"></script>\n</head>|" "${INDEX_HTML}"
-    echo "✅ Configuración y dependencias inyectadas en index.html"
+if [ -d "/usr/share/nginx/html/cesium" ]; then
+    echo "1" > "${RUNTIME_DIR}/__cesium__"
 else
-    echo "⚠️  Archivo index.html no encontrado"
+    echo "0" > "${RUNTIME_DIR}/__cesium__"
 fi
 
+echo "✅ Runtime config escrito en ${RUNTIME_DIR} (root read-only intacto)"
 echo "   - API URL: ${VITE_API_URL}"
-echo "   - Keycloak URL: ${VITE_KEYCLOAK_URL}"
-
 echo "🌐 Iniciando Nginx..."
 exec nginx -g 'daemon off;'
