@@ -10,34 +10,23 @@ on:
       # frontend lives alongside a backend (e.g. carbon → "frontend"). dist_dir is
       # relative to this.
       working_dir: { required: false, type: string, default: "." }
-      # Name of the in-cluster ARC scale set to run on. On the Free org tier, runner
-      # groups can't be restricted, so each module repo gets its own REPO-LEVEL scale
-      # set (unique name cluster-wide). Each caller passes the name of its own set;
-      # gis-routing uses the default.
-      runs_on:     { required: false, type: string, default: "nkz-publish" }
+
     secrets:
-      # Defense-in-depth header. The primary boundary is the network: this job runs on
-      # the in-cluster ARC runner and entity-manager's NetworkPolicy only admits the
-      # runner namespace. No ENTITY_MANAGER_URL secret — the endpoint is an internal DNS
-      # name, never a public URL.
+      # Defense-in-depth header validated by entity-manager.
+      # The primary boundary is the IP allowlist: api-gateway only forwards
+      # /api/internal/modules/*/{publish,resolve-url} from GitHub Actions IPs.
       INTERNAL_SERVICE_SECRET: { required: true }
 
 jobs:
   publish:
-    # In-cluster ARC runner scale set (see gitops-config arc-config). Targeted by the
-    # scale-set installation name, NOT the classic [self-hosted, <label>] tuple.
-    runs-on: ${{ inputs.runs_on }}
+    # GitHub-hosted runner. api-gateway validates the source IP against GitHub
+    # Actions ranges before forwarding to entity-manager (IP allowlist).
+    runs-on: ubuntu-latest
     env:
-      # Fixed internal DNS — entity-manager is cluster-internal (api-gateway does not
-      # proxy /api/internal/* externally). Not a secret.
-      # FQDN is REQUIRED: the runner pod lives in the `arc-system` namespace, so the
-      # short name `entity-manager-service` resolves only against arc-system search
-      # domains (NXDOMAIN). Core services live in `nekazari`; use their FQDN.
-      EM: http://entity-manager-service.nekazari.svc.cluster.local:5000
-      # frontend-static serves /modules/<id>/<sha>/ in-cluster. Same cross-namespace
-      # DNS rule — FQDN required (resolve-url returns a short host that won't resolve
-      # from arc-system, so we build the verify URL ourselves from this base).
-      STATIC: http://frontend-static-service.nekazari.svc.cluster.local:80
+      # Public API endpoint. api-gateway IP-gates /api/internal/* to GitHub Actions.
+      EM: https://nkz.robotika.cloud
+      # Modules are served from the frontend-static domain (public).
+      STATIC: https://nekazari.robotika.cloud
       MODULE: ${{ inputs.module_id }}
     steps:
       - uses: actions/checkout@v4
@@ -69,20 +58,17 @@ jobs:
                  "$EM/api/internal/modules/$MODULE/publish")
           echo "publish HTTP $code"; cat /tmp/pub.json; echo
           case "$code" in 200|201) ;; *) echo "::error::publish failed (HTTP $code)"; exit 1;; esac
-      - name: Verify pointer flipped + manifest served (in-cluster)
+      - name: Verify pointer flipped + manifest served
         run: |
           set -euo pipefail
           SHA=$(echo "${{ github.sha }}" | cut -c1-40)
-          # 1) Pointer flip: resolve-url is internal + unauthenticated; it returns the
-          #    active deployed_version and the in-cluster URL it is served from.
+          # 1) Pointer flip: resolve-url returns the active deployed_version.
           curl -sS -o /tmp/resolve.json -w 'resolve HTTP %{http_code}\n' \
                "$EM/api/internal/modules/$MODULE/resolve-url"
           cat /tmp/resolve.json; echo
           active=$(node -e "console.log(require('/tmp/resolve.json').version||'')")
           [ "$active" = "$SHA" ] || { echo "::error::pointer not flipped (active=$active, expected=$SHA)"; exit 1; }
-          # 2) Bytes actually served from the immutable <sha>/ path. resolve-url returns a
-          #    short-name host (only resolvable inside nekazari), so build the URL from the
-          #    frontend-static FQDN instead of using its manifestUrl verbatim.
+          # 2) Bytes served from the immutable <sha>/ path (public).
           murl="$STATIC/modules/$MODULE/$SHA/mf-manifest.json"
           code=$(curl -sS -o /tmp/mf.json -w '%{http_code}' "$murl")
           bytes=$(wc -c < /tmp/mf.json)
