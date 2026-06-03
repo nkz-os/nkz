@@ -1,0 +1,54 @@
+name: Publish Module (reusable)
+on:
+  workflow_call:
+    inputs:
+      module_id:   { required: true, type: string }
+      build_cmd:   { required: false, type: string, default: "pnpm run build:module" }
+      dist_dir:    { required: false, type: string, default: "dist" }
+    secrets:
+      ENTITY_MANAGER_URL:      { required: true }
+      INTERNAL_SERVICE_SECRET: { required: true }
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - run: pnpm install --frozen-lockfile
+      - name: Build module
+        run: ${{ inputs.build_cmd }}
+        env:
+          NKZ_VERSION_HASH: ${{ github.sha }}
+      - name: Publish to entity-manager (immutable <sha>/ + activate)
+        env:
+          EM: ${{ secrets.ENTITY_MANAGER_URL }}
+          SECRET: ${{ secrets.INTERNAL_SERVICE_SECRET }}
+          MODULE: ${{ inputs.module_id }}
+          DIST: ${{ inputs.dist_dir }}
+        run: |
+          set -euo pipefail
+          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
+          args=$(cd "$DIST" && find . -type f -printf '-F file=@%p;filename=%P ')
+          # shellcheck disable=SC2086
+          code=$(cd "$DIST" && curl -sS -o /tmp/pub.json -w '%{http_code}' \
+                 -H "X-Internal-Service-Secret: $SECRET" \
+                 -F "version_hash=$SHA" $args \
+                 "$EM/api/internal/modules/$MODULE/publish")
+          echo "publish HTTP $code"; cat /tmp/pub.json; echo
+          case "$code" in 200|201) ;; *) echo "::error::publish failed (HTTP $code)"; exit 1;; esac
+      - name: Verify served manifest
+        env:
+          EM: ${{ secrets.ENTITY_MANAGER_URL }}
+          MODULE: ${{ inputs.module_id }}
+        run: |
+          set -euo pipefail
+          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
+          url="$EM/modules/$MODULE/$SHA/mf-manifest.json"
+          code=$(curl -sS -o /tmp/mf.json -w '%{http_code}' "$url")
+          bytes=$(wc -c < /tmp/mf.json)
+          echo "manifest $url -> HTTP $code, $bytes bytes"
+          [ "$code" = "200" ] && [ "$bytes" -gt 0 ] || { echo "::error::manifest not served"; exit 1; }
