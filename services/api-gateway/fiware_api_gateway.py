@@ -353,6 +353,10 @@ def _validate_oidc_token(token, module_id=""):
     if not token:
         return False
     try:
+        # Log token length for debugging
+        logger.info(
+            f"OIDC: validating token ({len(token)} chars) for module={module_id}"
+        )
         headers = jwt.get_unverified_header(token)
         signing_key = _get_oidc_signing_key(headers)
         if signing_key is None:
