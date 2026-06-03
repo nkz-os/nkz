@@ -13,17 +13,19 @@ on:
 
     secrets:
       # Defense-in-depth header validated by entity-manager.
-      # The primary boundary is the IP allowlist: api-gateway only forwards
-      # /api/internal/modules/*/{publish,resolve-url} from GitHub Actions IPs.
+      # Primary auth: GitHub OIDC JWT (validated by api-gateway).
       INTERNAL_SERVICE_SECRET: { required: true }
 
 jobs:
   publish:
-    # GitHub-hosted runner. api-gateway validates the source IP against GitHub
-    # Actions ranges before forwarding to entity-manager (IP allowlist).
+    # GitHub-hosted runner. Auth: OIDC JWT from token.actions.githubusercontent.com
+    # validated by api-gateway against GitHub's JWKS.
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # Required for OIDC token
+      contents: read
     env:
-      # Public API endpoint. api-gateway IP-gates /api/internal/* to GitHub Actions.
+      # Public API endpoint. api-gateway validates OIDC JWT before forwarding.
       EM: https://nkz.robotika.cloud
       # Modules are served from the frontend-static domain (public).
       STATIC: https://nekazari.robotika.cloud
@@ -42,6 +44,11 @@ jobs:
         working-directory: ${{ inputs.working_dir }}
         env:
           NKZ_VERSION_HASH: ${{ github.sha }}
+      - name: Get GitHub OIDC token
+        run: |
+          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=nkz-publish")
+          echo "OIDC_TOKEN=${OIDC_TOKEN}" >> $GITHUB_ENV
       - name: Publish to entity-manager (immutable <sha>/ + activate)
         working-directory: ${{ inputs.working_dir }}
         env:
@@ -54,6 +61,7 @@ jobs:
           # shellcheck disable=SC2086
           code=$(cd "$DIST" && curl -sS -o /tmp/pub.json -w '%{http_code}' \
                  -H "X-Internal-Service-Secret: $SECRET" \
+                 -H "X-OIDC-Token: $OIDC_TOKEN" \
                  -F "version_hash=$SHA" $args \
                  "$EM/api/internal/modules/$MODULE/publish")
           echo "publish HTTP $code"; cat /tmp/pub.json; echo
