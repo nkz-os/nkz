@@ -22,6 +22,8 @@ jobs:
       # Modules are served from the frontend-static domain (public).
       STATIC: https://nekazari.robotika.cloud
       MODULE: ${{ inputs.module_id }}
+      # Required by @nekazari/module-builder manifest-emit step (replaces import.meta.env.VITE_API_URL)
+      VITE_API_URL: https://nkz.robotika.cloud
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
