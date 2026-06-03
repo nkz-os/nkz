@@ -351,6 +351,11 @@ spec:
                 configMapKeyRef:
                   name: core-static-assets-config
                   key: STATIC_ASSETS_URL
+            - name: INTERNAL_SERVICE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: internal-service-secret
+                  key: INTERNAL_SERVICE_SECRET
             - name: MODULE_LIFECYCLE_WEBHOOK_SECRET
               valueFrom:
                 secretKeyRef:
