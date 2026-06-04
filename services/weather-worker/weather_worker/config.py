@@ -27,6 +27,12 @@ class WeatherWorkerConfig:
     # Ingestion settings
     WEATHER_INGESTION_INTERVAL_HOURS: int = int(os.getenv('WEATHER_INGESTION_INTERVAL_HOURS', '1'))
     FORECAST_DAYS: int = int(os.getenv('WEATHER_FORECAST_DAYS', '14'))
+
+    # Parcel Engine settings (parcel-driven weather ingestion)
+    PARCEL_ENGINE_ENABLED: bool = os.getenv('PARCEL_ENGINE_ENABLED', 'true').lower() == 'true'
+    PARCEL_ENGINE_INTERVAL_HOURS: int = int(os.getenv('PARCEL_ENGINE_INTERVAL_HOURS', '2'))
+    PARCEL_ENGINE_CLUSTER_RADIUS_KM: float = float(os.getenv('PARCEL_ENGINE_CLUSTER_RADIUS_KM', '2.0'))
+    PARCEL_ENGINE_MAX_PARCELS: int = int(os.getenv('PARCEL_ENGINE_MAX_PARCELS', '500'))
     
     # Metrics
     METRICS_HOST: str = os.getenv('METRICS_HOST', '0.0.0.0')
