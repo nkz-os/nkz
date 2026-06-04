@@ -9,12 +9,10 @@
 import os
 import sys
 import logging
-import json
 import time
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-import re
 import requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -79,7 +77,32 @@ def _make_headers(tenant_id: str) -> dict:
     }
     ctx = os.getenv("CONTEXT_URL", "")
     if ctx:
-        headers["Link"] = f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+        headers["Link"] = (
+            f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+        )
+    return headers
+
+
+def _make_orion_headers(
+    tenant_id: str, content_type: str = "application/ld+json"
+) -> dict:
+    """Build Orion-LD headers for entity creation (POST)."""
+    n = normalize_tenant_id(tenant_id)
+    headers = {
+        "NGSILD-Tenant": n,
+        "Fiware-Service": n,
+        "Fiware-ServicePath": "/",
+    }
+    if content_type == "application/ld+json":
+        headers["Content-Type"] = "application/ld+json"
+    else:
+        headers["Content-Type"] = "application/json"
+        ctx = os.getenv("CONTEXT_URL", "")
+        if ctx:
+            headers["Link"] = (
+                f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context";'
+                ' type="application/ld+json"'
+            )
     return headers
 
 
@@ -503,58 +526,66 @@ class RiskProcessor:
         evaluation_data: Dict[str, Any],
         confidence: float = 1.0,
     ) -> bool:
-        """Persist daily risk state to PostgreSQL.
+        """Publish RiskAssessment entity to Orion-LD.
 
-        FIWARE COMPLIANCE NOTE: Writes directly to risk_daily_states table.
-        Risk evaluation results are NOT written to Orion-LD as NGSI-LD entities.
-        This is the most significant data flow gap — risk state data lives
-        entirely outside the FIWARE data model.
-
-        TODO (FIWARE certification): Create DiseaseRiskAssessment entities in
-        Orion-LD for each evaluation result, then use subscription notifications
-        to populate risk_daily_states. The entity type is already registered
-        in ngsi-ld-context.json.
+        FIWARE COMPLIANCE: Creates RiskAssessment NGSI-LD entity in Orion-LD.
+        A subscription then feeds risk_daily_states (TimescaleDB) for
+        historical queries.
         """
-        if not self.postgres:
-            return False
-
         try:
-            cursor = self.postgres.cursor()
-            set_tenant_context(self.postgres, tenant_id)
-
-            cursor.execute(
-                """
-                INSERT INTO risk_daily_states (
-                    tenant_id, entity_id, entity_type, risk_code,
-                    probability_score, evaluation_data, evaluation_timestamp,
-                    timestamp, evaluated_by, evaluation_version
-                ) VALUES (
-                    %s, %s, %s, %s,
-                    %s, %s, %s,
-                    %s, %s, %s
-                )
-            """,
-                (
-                    tenant_id,
-                    entity_id,
-                    entity_type,
-                    risk_code,
-                    probability_score,
-                    json.dumps(evaluation_data),
-                    datetime.utcnow(),
-                    datetime.utcnow(),
-                    "risk-worker",
-                    "1.0.0",
-                ),
+            # Sanitize entity_id for use in URN (replace colons to avoid URN issues)
+            short_id = entity_id.rsplit(":", 1)[-1] if ":" in entity_id else entity_id
+            risk_entity_id = (
+                f"urn:ngsi-ld:RiskAssessment:{risk_code}:{tenant_id}:{short_id}"
             )
 
-            self.postgres.commit()
-            cursor.close()
-            return True
+            risk_entity = {
+                "@context": CONTEXT_URL,
+                "id": risk_entity_id,
+                "type": "RiskAssessment",
+                "riskCode": {"type": "Property", "value": risk_code},
+                "probabilityScore": {
+                    "type": "Property",
+                    "value": probability_score,
+                },
+                "confidence": {"type": "Property", "value": confidence},
+                "targetEntityId": {"type": "Property", "value": entity_id},
+                "targetEntityType": {"type": "Property", "value": entity_type},
+                "evaluationData": {
+                    "type": "Property",
+                    "value": evaluation_data,
+                },
+                "evaluatedBy": {"type": "Property", "value": "risk-worker"},
+                "evaluationVersion": {"type": "Property", "value": "1.0.0"},
+                "timestamp": {
+                    "type": "Property",
+                    "value": datetime.utcnow().isoformat(),
+                },
+            }
+
+            headers = _make_orion_headers(tenant_id)
+            response = requests.post(
+                f"{ORION_URL}/ngsi-ld/v1/entityOperations/upsert",
+                json=[risk_entity],
+                headers=headers,
+                timeout=10,
+            )
+
+            if response.status_code in (200, 201, 204):
+                logger.info(
+                    f"Created RiskAssessment: {risk_code} for {entity_id} "
+                    f"(score: {probability_score:.1f})"
+                )
+                return True
+            else:
+                logger.error(
+                    f"Failed to create RiskAssessment entity: "
+                    f"{response.status_code} - {response.text[:200]}"
+                )
+                return False
+
         except Exception as e:
-            logger.error(f"Failed to store risk evaluation: {e}")
-            if self.postgres:
-                self.postgres.rollback()
+            logger.error(f"Failed to publish RiskAssessment to Orion-LD: {e}")
             return False
 
     def _compute_severity(self, probability_score: float, severity_levels: dict) -> str:
