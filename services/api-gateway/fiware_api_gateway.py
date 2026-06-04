@@ -247,13 +247,11 @@ def _is_tenant_suspended(tenant_id: str) -> bool:
         return cached[0]
 
     try:
-        conn = psycopg2.connect(
-            os.getenv(
-                "POSTGRES_URL",
-                "postgresql://postgres:postgres@postgresql-service:5432/nekazari",
-            ),
-            connect_timeout=3,
-        )
+        postgres_url = os.getenv("POSTGRES_URL")
+        if not postgres_url:
+            logger.critical("POSTGRES_URL is required but not set. Refusing to start.")
+            raise RuntimeError("POSTGRES_URL environment variable is required")
+        conn = psycopg2.connect(postgres_url, connect_timeout=3)
         cur = conn.cursor()
         cur.execute("SELECT deleted_at FROM tenants WHERE tenant_id = %s", (tenant_id,))
         row = cur.fetchone()
