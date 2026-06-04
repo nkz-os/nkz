@@ -100,6 +100,8 @@ spec:
           value: "false"  # Allow HTTP internal connections while maintaining HTTPS external
         - name: KC_HOSTNAME_STRICT_BACKCHANNEL
           value: "false"  # Allow internal backchannel connections without strict hostname
+        - name: KC_SPI_COOKIE_SAMESITE
+          value: "None"  # Allow cross-subdomain cookies (frontend ↔ auth ↔ API)
         - name: KC_HOSTNAME_URL
           value: "https://YOUR_KEYCLOAK_DOMAIN/auth"
         # Removed KC_HOSTNAME_ADMIN_URL to prevent Keycloak from auto-redirecting admins to /auth/admin
