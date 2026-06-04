@@ -112,6 +112,16 @@
       "@type": "@id",
       "_comment": "Platform extension — no SDM equivalent. Proposed for FIWARE Smart Data Models AgriFood domain (P1). Daily disease risk evaluation per parcel."
     },
+    "RiskAssessment": {
+      "@id": "nkz:RiskAssessment",
+      "@type": "@id",
+      "_comment": "Platform extension — generic risk evaluation result for batch-evaluated risks (robotic, energy, livestock, agronomic). Disease-specific risks use DiseaseRiskAssessment."
+    },
+    "DeviceCommand": {
+      "@id": "nkz:DeviceCommand",
+      "@type": "@id",
+      "_comment": "Platform extension — MQTT device command tracking. Records command lifecycle (pending -> sent/failed) for IoT device management."
+    },
     "CarbonStock": {
       "@id": "nkz:CarbonStock",
       "@type": "@id",
@@ -239,6 +249,20 @@
     "unit": "saref:Unit",
     "cropType": "nkz:cropType",
     "soilType": "nkz:soilType",
+    "commandType": "nkz:commandType",
+    "mqttTopic": "nkz:mqttTopic",
+    "sentAt": "nkz:sentAt",
+    "executedAt": "nkz:executedAt",
+    "response": "nkz:commandResponse",
+    "targetDeviceId": "nkz:targetDeviceId",
+    "riskCode": "nkz:riskCode",
+    "probabilityScore": "nkz:probabilityScore",
+    "evaluationData": "nkz:evaluationData",
+    "evaluatedBy": "nkz:evaluatedBy",
+    "evaluationVersion": "nkz:evaluationVersion",
+    "severity": "nkz:severity",
+    "targetEntityId": "nkz:targetEntityId",
+    "targetEntityType": "nkz:targetEntityType",
     "observedAt": "ngsi-ld:observedAt",
     "createdAt": "ngsi-ld:createdAt",
     "modifiedAt": "ngsi-ld:modifiedAt",
