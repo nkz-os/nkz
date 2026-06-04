@@ -684,10 +684,10 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Thermometer className="w-5 h-5 text-emerald-600" />
-                    <span className="text-xs font-medium text-emerald-700">{t('weather.gdd') || 'GDD'}</span>
+                    <span className="text-xs font-medium text-emerald-700">{t('weather.gdd')}</span>
                   </div>
                   <p className="text-2xl font-bold text-emerald-900">{weatherData.gdd_accumulated.toFixed(0)}°D</p>
-                  <p className="text-xs text-emerald-600 mt-1">{t('weather.gdd_base_10') || 'base 10°C'}</p>
+                  <p className="text-xs text-emerald-600 mt-1">{t('weather.gdd_base_10')}</p>
                 </div>
               )}
 
@@ -695,10 +695,10 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Droplets className="w-5 h-5 text-teal-600" />
-                    <span className="text-xs font-medium text-teal-700">{t('weather.et0') || 'ET₀'}</span>
+                    <span className="text-xs font-medium text-teal-700">{t('weather.et0')}</span>
                   </div>
                   <p className="text-2xl font-bold text-teal-900">{weatherData.eto_mm.toFixed(1)} mm</p>
-                  <p className="text-xs text-teal-600 mt-1">{t('weather.et0_desc') || 'Evapotranspiración'}</p>
+                  <p className="text-xs text-teal-600 mt-1">{t('weather.et0_desc')}</p>
                 </div>
               )}
             </div>
@@ -708,7 +708,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-nkz-success" />
                 <p className="text-xs text-green-800">
-                  {t('weather.downscaling_active') || 'Datos corregidos para esta parcela (altitud/orientación/pendiente)'}
+                  {t('weather.downscaling_active')}
                 </p>
               </div>
             )}

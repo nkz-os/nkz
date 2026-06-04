@@ -149,7 +149,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                   <button
                     onClick={() => onView(parcel)}
                     className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
-                    title={t('ndvi.view_ndvi') || 'Ver NDVI'}
+                    title={t('ndvi.view_ndvi')}
                   >
                     <Eye className="w-4 h-4" />
                   </button>

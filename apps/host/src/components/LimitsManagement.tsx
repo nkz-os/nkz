@@ -99,7 +99,7 @@ export const LimitsManagement: React.FC = () => {
             className="w-full border border-nkz-border rounded px-3 py-2"
             disabled={loading}
           >
-            <option value="">{t('select_plan') || 'Seleccionar plan...'}</option>
+            <option value="">{t('select_plan')}</option>
             {PLAN_TYPES.map(plan => (
               <option key={plan.value} value={plan.value}>
                 {plan.label}

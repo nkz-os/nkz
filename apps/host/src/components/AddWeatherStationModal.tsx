@@ -44,13 +44,13 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
     setLoading(true);
 
     if (!formData.name) {
-      setError(t('weather.required_fields') || 'Por favor completa todos los campos obligatorios');
+      setError(t('weather.required_fields'));
       setLoading(false);
       return;
     }
 
     if (!formData.latitude || !formData.longitude) {
-      setError(t('weather.required_coordinates') || 'Por favor ingresa las coordenadas GPS (latitud y longitud)');
+      setError(t('weather.required_coordinates'));
       setLoading(false);
       return;
     }
@@ -125,7 +125,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
       onClose();
     } catch (error: any) {
       console.error('Error saving weather station:', error);
-      const errorMsg = error.response?.data?.error || (t('weather.save_error') || 'Error al guardar la estación meteorológica');
+      const errorMsg = error.response?.data?.error || (t('weather.save_error'));
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -140,7 +140,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
         <div className="bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-4 flex justify-between items-center sticky top-0 z-10">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Cloud className="w-6 h-6" />
-            {t('weather.title') || 'Registrar Estación Meteorológica'}
+            {t('weather.title')}
           </h2>
           <button
             onClick={onClose}
@@ -165,13 +165,13 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('weather.name') || 'Nombre'} *
+              {t('weather.name')} *
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder={t('weather.name_placeholder') || 'Ej: Estación Meteorológica Principal'}
+              placeholder={t('weather.name_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               disabled={loading}
               required
@@ -183,14 +183,14 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                 <MapPin className="w-4 h-4" />
-                {t('weather.latitude') || 'Latitud (GPS)'} *
+                {t('weather.latitude')} *
               </label>
               <input
                 type="number"
                 step="any"
                 value={formData.latitude}
                 onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
-                placeholder={t('weather.latitude_placeholder') || 'Ej: 42.571493'}
+                placeholder={t('weather.latitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 disabled={loading}
                 required
@@ -199,14 +199,14 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                 <MapPin className="w-4 h-4" />
-                {t('weather.longitude') || 'Longitud (GPS)'} *
+                {t('weather.longitude')} *
               </label>
               <input
                 type="number"
                 step="any"
                 value={formData.longitude}
                 onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
-                placeholder={t('weather.longitude_placeholder') || 'Ej: -2.028218'}
+                placeholder={t('weather.longitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 disabled={loading}
                 required
@@ -217,14 +217,14 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
           {/* Elevation */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('weather.elevation') || 'Elevación (m)'}
+              {t('weather.elevation')}
             </label>
             <input
               type="number"
               step="0.1"
               value={formData.elevation}
               onChange={(e) => setFormData({ ...formData, elevation: e.target.value })}
-              placeholder={t('weather.elevation_placeholder') || 'Ej: 450.5'}
+              placeholder={t('weather.elevation_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               disabled={loading}
             />
@@ -234,7 +234,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('weather.icon2d') || 'Icono 2D (URL opcional)'}
+                {t('weather.icon2d')}
               </label>
               <input
                 type="url"
@@ -247,7 +247,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('weather.model3d') || 'Modelo 3D (URL opcional)'}
+                {t('weather.model3d')}
               </label>
               <input
                 type="url"
@@ -263,14 +263,14 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
           {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('weather.notes') || 'Notas'}
+              {t('weather.notes')}
             </label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-              placeholder={t('weather.notes_placeholder') || 'Notas adicionales...'}
+              placeholder={t('weather.notes_placeholder')}
               disabled={loading}
             />
           </div>
@@ -283,7 +283,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
               className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? (t('weather.saving') || 'Guardando...') : (t('weather.save') || 'Guardar Estación')}
+              {loading ? (t('weather.saving')) : (t('weather.save'))}
             </button>
             <button
               type="button"
@@ -291,7 +291,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
               disabled={loading}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t('common.cancel') || 'Cancelar'}
+              {t('common.cancel')}
             </button>
           </div>
         </form>

@@ -190,10 +190,10 @@ export const Sensors: React.FC = () => {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'online': return t('common.online') || 'Online';
-      case 'warning': return t('common.warning') || 'Ausente';
-      case 'offline': return t('common.offline') || 'Offline';
-      default: return t('common.unknown') || 'Desconocido';
+      case 'online': return t('common.online');
+      case 'warning': return t('common.warning');
+      case 'offline': return t('common.offline');
+      default: return t('common.unknown');
     }
   };
   
@@ -249,10 +249,10 @@ export const Sensors: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
             <Activity className="w-8 h-8 text-teal-600" />
-            {t('sensors.title') || 'Sensores IoT'}
+            {t('sensors.title')}
           </h1>
           <p className="text-nkz-muted mt-1">
-            {t('sensors.subtitle') || 'Estado de conexión y monitorización de dispositivos'}
+            {t('sensors.subtitle')}
           </p>
         </div>
         <div className="flex gap-3">
@@ -261,7 +261,7 @@ export const Sensors: React.FC = () => {
             className="px-4 py-2.5 bg-nkz-bg-secondary text-gray-700 rounded-xl hover:bg-nkz-bg-secondary transition flex items-center gap-2 border border-nkz-border font-medium"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            {t('common.refresh') || 'Actualizar'}
+            {t('common.refresh')}
           </button>
           {canEdit && (
             <button
@@ -269,7 +269,7 @@ export const Sensors: React.FC = () => {
               className="px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition flex items-center gap-2 shadow-lg shadow-teal-600/20 font-medium"
             >
               <Plus className="w-5 h-5" />
-              {t('sensors.new_sensor') || 'Nuevo Sensor'}
+              {t('sensors.new_sensor')}
             </button>
           )}
         </div>
@@ -282,28 +282,28 @@ export const Sensors: React.FC = () => {
             <div className="p-2 bg-nkz-success-light rounded-lg"><Wifi className="w-5 h-5 text-nkz-success" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.online}</div>
-              <div className="text-xs text-nkz-muted">{t('sensors.online') || 'Online'}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.online')}</div>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
             <div className="p-2 bg-nkz-warning-light rounded-lg"><AlertTriangle className="w-5 h-5 text-nkz-warning" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.warning}</div>
-              <div className="text-xs text-nkz-muted">{t('sensors.intermittent') || 'Intermitente'}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.intermittent')}</div>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
             <div className="p-2 bg-nkz-error-light rounded-lg"><WifiOff className="w-5 h-5 text-nkz-error" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.offline}</div>
-              <div className="text-xs text-nkz-muted">{t('sensors.offline') || 'Offline'}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.offline')}</div>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
             <div className="p-2 bg-nkz-bg-secondary rounded-lg"><HelpCircle className="w-5 h-5 text-nkz-muted" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.unknown}</div>
-              <div className="text-xs text-nkz-muted">{t('sensors.no_signal') || 'Sin señal'}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.no_signal')}</div>
             </div>
           </div>
         </div>
@@ -317,14 +317,14 @@ export const Sensors: React.FC = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nkz-muted w-4 h-4" />
             <input
               type="text"
-              placeholder={t('common.search') || 'Buscar sensores...'}
+              placeholder={t('common.search')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
             />
           </div>
           <div className="flex items-center gap-4 text-sm text-nkz-muted">
-            <span>Total: <strong>{totalCount}</strong> {t('sensors.devices') || 'dispositivos'}</span>
+            <span>Total: <strong>{totalCount}</strong> {t('sensors.devices')}</span>
           </div>
         </div>
 
@@ -334,22 +334,22 @@ export const Sensors: React.FC = () => {
             <thead className="bg-nkz-bg-secondary border-b border-nkz-border">
               <tr>
                 <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
-                  {t('sensors.device') || 'Dispositivo'}
+                  {t('sensors.device')}
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
-                  {t('sensors.status') || 'Estado'}
+                  {t('sensors.status')}
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
-                  {t('sensors.readings') || 'Lecturas'}
+                  {t('sensors.readings')}
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
-                  {t('sensors.battery') || 'Batería'}
+                  {t('sensors.battery')}
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
-                  {t('sensors.last_signal') || 'Última señal'}
+                  {t('sensors.last_signal')}
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider text-right">
-                  {t('common.actions') || 'Acciones'}
+                  {t('common.actions')}
                 </th>
               </tr>
             </thead>
@@ -369,9 +369,9 @@ export const Sensors: React.FC = () => {
                 <tr>
                   <td colSpan={6} className="px-6 py-16 text-center text-nkz-muted">
                     <Gauge className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="font-medium">{t('sensors.empty_title') || 'No hay sensores registrados'}</p>
+                    <p className="font-medium">{t('sensors.empty_title')}</p>
                     <p className="text-sm mt-1 max-w-md mx-auto">
-                      {t('sensors.empty_subtitle') || 'Usa el asistente para registrar un sensor IoT. Se aprovisionará automáticamente en el IoT Agent con credenciales MQTT.'}
+                      {t('sensors.empty_subtitle')}
                     </p>
                     {canEdit && (
                       <button
@@ -379,7 +379,7 @@ export const Sensors: React.FC = () => {
                         className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition text-sm font-medium inline-flex items-center gap-2"
                       >
                         <Plus className="w-4 h-4" />
-                        {t('sensors.new_sensor') || 'Nuevo Sensor'}
+                        {t('sensors.new_sensor')}
                       </button>
                     )}
                   </td>
@@ -410,7 +410,7 @@ export const Sensors: React.FC = () => {
                             </div>
                             <div>
                               <div className="font-medium text-gray-900">
-                                {sensor.name?.value || t('sensors.unnamed') || 'Sin nombre'}
+                                {sensor.name?.value || t('sensors.unnamed')}
                               </div>
                               <div className="text-xs text-nkz-muted font-mono mt-0.5" title={sensor.id}>
                                 {sensor.id.split(':').pop()?.substring(0, 16)}
@@ -440,7 +440,7 @@ export const Sensors: React.FC = () => {
                               ))}
                             </div>
                           ) : (
-                            <span className="text-nkz-muted text-xs italic">{t('sensors.no_data') || 'Sin datos'}</span>
+                            <span className="text-nkz-muted text-xs italic">{t('sensors.no_data')}</span>
                           )}
                         </td>
                         <td className="px-6 py-4">
@@ -472,7 +472,7 @@ export const Sensors: React.FC = () => {
                               </span>
                             </div>
                           ) : (
-                            <span className="text-nkz-muted text-xs italic">{t('sensors.never') || 'Nunca'}</span>
+                            <span className="text-nkz-muted text-xs italic">{t('sensors.never')}</span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -480,7 +480,7 @@ export const Sensors: React.FC = () => {
                             <button
                               onClick={() => navigate(`/entities?focus=${encodeURIComponent(sensor.id)}`)}
                               className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-800 transition px-3 py-1.5 rounded-lg hover:bg-teal-50"
-                              title={t('sensors.view_on_map') || 'Ver en mapa'}
+                              title={t('sensors.view_on_map')}
                             >
                               <MapPin className="w-4 h-4" />
                             </button>
@@ -488,7 +488,7 @@ export const Sensors: React.FC = () => {
                               <button
                                 onClick={() => handleDelete(sensor)}
                                 className="inline-flex items-center gap-1 text-sm font-medium text-nkz-error hover:text-red-800 transition px-3 py-1.5 rounded-lg hover:bg-nkz-error-light"
-                                title={t('common.delete') || 'Eliminar'}
+                                title={t('common.delete')}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>

@@ -49,7 +49,7 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
     setError(null);
 
     try {
-      // TODO: Integrate with Catastro API
+      // Catastro API via nkz-module-cadastral-spain/backend/app/routers/catastro.py
       // For now, return mock data
       const mockResults: CadastralParcel[] = [
         {

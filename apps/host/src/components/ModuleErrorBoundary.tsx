@@ -6,6 +6,7 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, X } from 'lucide-react';
+import { logger } from '@/utils/logger';
 
 interface ModuleErrorBoundaryProps {
     moduleId: string;
@@ -60,11 +61,13 @@ export class ModuleErrorBoundary extends Component<
             this.props.onError(error, errorInfo);
         }
 
-        // TODO: Send to error tracking service (Sentry, etc.)
-        // errorTracker.captureException(error, {
-        //     tags: { moduleId: this.props.moduleId },
-        //     extra: { errorInfo },
-        // });
+        // Structured error logging (Sentry-ready — add captureException when Sentry is integrated)
+        logger.error('Module error boundary caught error', {
+          error: error.message,
+          stack: error.stack,
+          componentStack: errorInfo?.componentStack,
+          moduleId: this.props.moduleId,
+        });
     }
 
     handleRetry = () => {

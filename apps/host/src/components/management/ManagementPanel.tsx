@@ -104,7 +104,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                 headers: { 'Content-Type': 'application/ld+json' }
             });
 
-            setSuccess(t('common.saved_successfully') || 'Guardado correctamente');
+            setSuccess(t('common.saved_successfully'));
             setIsEditing(false);
             if (onUpdate) onUpdate();
 
