@@ -90,10 +90,10 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
   
   // Status options
   const statusOptions: { value: AssetStatus; label: string; color: string }[] = [
-    { value: 'active', label: t('entities.status.active'), color: 'bg-green-500' },
+    { value: 'active', label: t('entities.status.active'), color: 'bg-nkz-success-light0' },
     { value: 'inactive', label: t('entities.status.inactive'), color: 'bg-slate-400' },
     { value: 'maintenance', label: t('entities.status.maintenance'), color: 'bg-amber-500' },
-    { value: 'error', label: t('entities.status.error'), color: 'bg-red-500' },
+    { value: 'error', label: t('entities.status.error'), color: 'bg-nkz-error-light0' },
     { value: 'offline', label: t('entities.status.offline'), color: 'bg-slate-300' },
   ];
   
@@ -104,7 +104,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-slate-700">{t('entities.filters.title')}</span>
           {activeFilterCount > 0 && (
-            <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-nkz-info-light text-nkz-info">
               {activeFilterCount}
             </span>
           )}

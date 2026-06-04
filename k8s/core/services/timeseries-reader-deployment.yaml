@@ -28,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: timeseries-reader
-          image: ghcr.io/nkz-os/nkz/timeseries-reader:latest
+          image: ghcr.io/nkz-os/nkz/timeseries-reader@sha256:967136f43811c3222986e8be2c643d1d305ff9b0cd7a79ae9da430572a12af01  # RLS except:pass → logged warnings
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false

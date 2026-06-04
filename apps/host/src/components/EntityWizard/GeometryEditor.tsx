@@ -640,22 +640,22 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
 
   return (
     <div className="space-y-3">
-      <div className={`${height} rounded-lg overflow-hidden border border-gray-300 bg-gray-100 relative`}>
+      <div className={`${height} rounded-lg overflow-hidden border border-nkz-border bg-nkz-bg-secondary relative`}>
         {cesiumViewer ? (
           // Global Viewer Mode UI
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
             <div className="mb-4">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <div className="w-16 h-16 bg-nkz-info-light rounded-full flex items-center justify-center mx-auto mb-3">
                 {geometryType === 'Point' ? (
-                  <MapPin className="w-8 h-8 text-blue-600" />
+                  <MapPin className="w-8 h-8 text-nkz-info" />
                 ) : (
-                  <PenTool className="w-8 h-8 text-blue-600" />
+                  <PenTool className="w-8 h-8 text-nkz-info" />
                 )}
               </div>
               <h3 className="text-lg font-semibold text-gray-900">
                 {geometryType === 'Point' ? 'Seleccionar Ubicación' : 'Interactive Map Mode'}
               </h3>
-              <p className="text-gray-500 max-w-sm mx-auto mt-1">
+              <p className="text-nkz-muted max-w-sm mx-auto mt-1">
                 {geometryType === 'Point'
                   ? 'Haz clic en el mapa para seleccionar la ubicación. El wizard se ocultará mientras seleccionas.'
                   : `Use the main map to draw the ${geometryType}. The wizard will hide temporarily while you draw.`}
@@ -706,7 +706,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                     setArea(null);
                     setValidationError(null);
                   }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition shadow-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-700 border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary font-medium transition shadow-sm"
                 >
                   <Eraser className="w-4 h-4" />
                   Clear
@@ -715,20 +715,20 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
             </div>
 
             {currentGeometry && (
-              <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200 text-left w-full max-w-md">
+              <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border border-nkz-border text-left w-full max-w-md">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold text-gray-700">Selected Geometry</span>
                   {validationError ? (
-                    <span className="text-xs text-red-600 flex items-center gap-1 font-medium">
+                    <span className="text-xs text-nkz-error flex items-center gap-1 font-medium">
                       <AlertCircle className="w-3 h-3" /> {validationError}
                     </span>
                   ) : (
-                    <span className="text-xs text-green-600 flex items-center gap-1 font-medium">
+                    <span className="text-xs text-nkz-success flex items-center gap-1 font-medium">
                       <CheckCircle2 className="w-3 h-3" /> Valid
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-mono bg-gray-50 p-2 rounded border border-gray-100 overflow-hidden text-ellipsis whitespace-nowrap">
+                <div className="text-xs text-mono bg-nkz-bg-secondary p-2 rounded border border-gray-100 overflow-hidden text-ellipsis whitespace-nowrap">
                   {currentGeometry.type === 'Point' ? (
                     <>
                       📍 Lat: {(currentGeometry as Point).coordinates[1].toFixed(6)}, Lon: {(currentGeometry as Point).coordinates[0].toFixed(6)}
@@ -759,12 +759,12 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
         {currentGeometry && (
           <div className="absolute bottom-4 left-4 bg-white/90 px-3 py-2 rounded shadow text-sm z-10">
             {validationError ? (
-              <div className="flex items-center gap-2 text-red-600">
+              <div className="flex items-center gap-2 text-nkz-error">
                 <AlertCircle className="w-4 h-4" />
                 <span>{validationError}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 text-green-600">
+              <div className="flex items-center gap-2 text-nkz-success">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Geometry valid</span>
               </div>
@@ -784,7 +784,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
               type="button"
               onClick={handleUndo}
               disabled={disabled || pointsRef.current.length === 0}
-              className="px-3 py-2 bg-white rounded shadow hover:bg-gray-50 transition disabled:opacity-50"
+              className="px-3 py-2 bg-white rounded shadow hover:bg-nkz-bg-secondary transition disabled:opacity-50"
               title="Undo last point"
             >
               <RotateCcw className="w-4 h-4" />
@@ -795,7 +795,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
               type="button"
               onClick={handleClear}
               disabled={disabled}
-              className="px-3 py-2 bg-white rounded shadow hover:bg-gray-50 transition disabled:opacity-50"
+              className="px-3 py-2 bg-white rounded shadow hover:bg-nkz-bg-secondary transition disabled:opacity-50"
               title="Clear geometry"
             >
               <Eraser className="w-4 h-4" />
@@ -805,7 +805,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
       </div>
 
       {parentGeometry && (
-        <div className="text-xs text-gray-600 bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
+        <div className="text-xs text-gray-600 bg-nkz-warning-light border border-yellow-200 rounded px-3 py-2">
           <strong>Parent:</strong> {parentGeometry.name} (shown in gray)
         </div>
       )}

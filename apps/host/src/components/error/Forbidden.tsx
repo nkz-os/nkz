@@ -16,8 +16,8 @@ export const Forbidden: React.FC = () => {
         <div className="text-center max-w-2xl">
           {/* Icon */}
           <div className="mb-8 flex justify-center">
-            <div className="p-6 bg-red-100 rounded-full">
-              <Lock className="w-16 h-16 text-red-600" />
+            <div className="p-6 bg-nkz-error-light rounded-full">
+              <Lock className="w-16 h-16 text-nkz-error" />
             </div>
           </div>
 
@@ -31,7 +31,7 @@ export const Forbidden: React.FC = () => {
           <p className="text-lg text-gray-600 mb-2">
             No tienes permisos para acceder a esta página.
           </p>
-          <p className="text-sm text-gray-500 mb-8">
+          <p className="text-sm text-nkz-muted mb-8">
             Si crees que esto es un error, contacta con tu administrador.
           </p>
 
@@ -39,7 +39,7 @@ export const Forbidden: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => navigate(-1)}
-              className="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="inline-flex items-center px-6 py-3 bg-nkz-bg-secondary text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Volver atrás
@@ -54,8 +54,8 @@ export const Forbidden: React.FC = () => {
           </div>
 
           {/* Info */}
-          <div className="mt-12 pt-8 border-t border-gray-200">
-            <div className="flex items-center justify-center text-sm text-gray-500">
+          <div className="mt-12 pt-8 border-t border-nkz-border">
+            <div className="flex items-center justify-center text-sm text-nkz-muted">
               <Shield className="w-4 h-4 mr-2" />
               <span>Tu cuenta no tiene los permisos necesarios para esta acción</span>
             </div>

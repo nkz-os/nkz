@@ -67,7 +67,7 @@ export const TenantInfoWidget: React.FC = () => {
     const getWeatherIcon = (condition: string, size: string = "w-8 h-8") => {
         switch (condition.toLowerCase()) {
             case 'rain': return <CloudRain className={`${size} text-blue-500`} />;
-            case 'cloudy': return <Cloud className={`${size} text-gray-500`} />;
+            case 'cloudy': return <Cloud className={`${size} text-nkz-muted`} />;
             default: return <Sun className={`${size} text-yellow-500`} />;
         }
     };
@@ -81,7 +81,7 @@ export const TenantInfoWidget: React.FC = () => {
                         👋 {t('dashboard.welcome', { name: user?.name || 'User' })}
                     </h1>
                     <div className="flex items-center gap-4 text-gray-600 dark:text-gray-300">
-                        <span className="flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
+                        <span className="flex items-center gap-1 bg-nkz-info-light text-nkz-info px-3 py-1 rounded-full text-sm font-medium">
                             {tenantName || user?.tenant || t('dashboard.tenant_info.tenant_label')}
                         </span>
                         <span className="flex items-center gap-1 bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
@@ -97,7 +97,7 @@ export const TenantInfoWidget: React.FC = () => {
                         <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 font-mono">
                             {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
-                        <div className="text-gray-500 dark:text-gray-400 flex items-center justify-end gap-1">
+                        <div className="text-nkz-muted dark:text-nkz-muted flex items-center justify-end gap-1">
                             <Clock className="w-4 h-4" />
                             {time.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
                         </div>
@@ -123,7 +123,7 @@ export const TenantInfoWidget: React.FC = () => {
                                     <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                                         {weather.temp}°C
                                     </div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                        <div className="text-xs text-nkz-muted dark:text-nkz-muted flex items-center gap-2">
                                         <span className="flex items-center gap-1">
                                             <Wind className="w-3 h-3" /> {weather.windSpeed} {t('dashboard.tenant_info.wind_unit')}
                                         </span>
@@ -131,7 +131,7 @@ export const TenantInfoWidget: React.FC = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+                            <div className="text-sm text-nkz-muted dark:text-nkz-muted italic">
                                 {t('dashboard.configure_parcel_weather')}
                             </div>
                         )}
@@ -142,16 +142,16 @@ export const TenantInfoWidget: React.FC = () => {
             {/* Forecast Section */}
             {!loading && forecast.length > 0 && (
                 <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
-                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wider">{t('dashboard.five_day_forecast')}</h3>
+                    <h3 className="text-sm font-semibold text-nkz-muted dark:text-nkz-muted mb-4 uppercase tracking-wider">{t('dashboard.five_day_forecast')}</h3>
                     <div className="grid grid-cols-5 gap-4">
                         {forecast.map((day) => (
-                            <div key={day.date} className="text-center p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                                <p className="text-xs text-gray-500 mb-2 capitalize">{day.dayName}</p>
+                            <div key={day.date} className="text-center p-2 rounded-lg hover:bg-nkz-bg-secondary dark:hover:bg-gray-700 transition">
+                                <p className="text-xs text-nkz-muted mb-2 capitalize">{day.dayName}</p>
                                 <div className="flex justify-center mb-2">
                                     {getWeatherIcon(day.condition, "w-6 h-6")}
                                 </div>
                                 <p className="text-sm font-medium text-gray-900">
-                                    {Math.round(day.tempMax)}° <span className="text-gray-400 text-xs">/ {Math.round(day.tempMin)}°</span>
+                                    {Math.round(day.tempMax)}° <span className="text-nkz-muted text-xs">/ {Math.round(day.tempMin)}°</span>
                                 </p>
                             </div>
                         ))}

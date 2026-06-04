@@ -76,7 +76,7 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
     } catch (err: any) {
       console.error('Error loading telemetry:', err);
       setIsConnected(false);
-      setError(err?.response?.data?.error || t('sensors.telemetry_error') || 'Error loading telemetry');
+      setError(err?.response?.data?.error || t('sensors.telemetry_error'));
     } finally {
       setIsLoading(false);
     }
@@ -121,10 +121,10 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
 
   if (isLoading && !latestTelemetry) {
     return (
-      <div className="p-4 bg-white rounded-lg border border-gray-200">
+      <div className="p-4 bg-white rounded-lg border border-nkz-border">
         <div className="flex items-center justify-center py-8">
-          <Activity className="w-8 h-8 text-gray-400 animate-pulse" />
-          <span className="ml-2 text-gray-600">{t('sensors.loading_telemetry') || 'Cargando telemetría...'}</span>
+          <Activity className="w-8 h-8 text-nkz-muted animate-pulse" />
+          <span className="ml-2 text-gray-600">{t('sensors.loading_telemetry')}</span>
         </div>
       </div>
     );
@@ -132,10 +132,10 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
 
   if (error && !latestTelemetry) {
     return (
-      <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+      <div className="p-4 bg-nkz-error-light rounded-lg border border-red-200">
         <div className="flex items-center">
-          <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-          <span className="text-red-700">{error}</span>
+          <AlertCircle className="w-5 h-5 text-nkz-error mr-2" />
+          <span className="text-nkz-error">{error}</span>
         </div>
       </div>
     );
@@ -150,15 +150,15 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
   const battery = getMeasurementValue('batteryLevel') || getMeasurementValue('battery');
 
   return (
-    <div className="p-4 bg-white rounded-lg border border-gray-200">
+    <div className="p-4 bg-white rounded-lg border border-nkz-border">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">{deviceName}</h3>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-nkz-success-light0 animate-pulse' : 'bg-gray-400'}`} />
           <span className="text-xs text-gray-600">
             {isConnected 
               ? (latestTelemetry ? formatTimestamp(latestTelemetry.observed_at) : 'Conectado')
-              : t('sensors.disconnected') || 'Desconectado'}
+              : t('sensors.disconnected')}
           </span>
         </div>
       </div>
@@ -167,33 +167,33 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
         {temperature !== null && (
           <div className="bg-gradient-to-br from-red-50 to-orange-50 p-3 rounded-lg border border-red-100">
             <div className="flex items-center justify-between mb-1">
-              <Thermometer className="w-5 h-5 text-red-600" />
-              <span className="text-xs text-gray-600">{getMeasurementUnit('temperature') || '°C'}</span>
+              <Thermometer className="w-5 h-5 text-nkz-error" />
+              <span className="text-xs text-gray-600">{getMeasurementUnit('temperature')}</span>
             </div>
-            <div className="text-2xl font-bold text-red-700">{temperature.toFixed(1)}</div>
-            <div className="text-xs text-gray-600 mt-1">{t('sensors.temperature') || 'Temperatura'}</div>
+            <div className="text-2xl font-bold text-nkz-error">{temperature.toFixed(1)}</div>
+            <div className="text-xs text-gray-600 mt-1">{t('sensors.temperature')}</div>
           </div>
         )}
 
         {humidity !== null && (
           <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-3 rounded-lg border border-blue-100">
             <div className="flex items-center justify-between mb-1">
-              <Droplets className="w-5 h-5 text-blue-600" />
-              <span className="text-xs text-gray-600">{getMeasurementUnit('humidity') || '%'}</span>
+              <Droplets className="w-5 h-5 text-nkz-info" />
+              <span className="text-xs text-gray-600">{getMeasurementUnit('humidity')}</span>
             </div>
-            <div className="text-2xl font-bold text-blue-700">{humidity.toFixed(1)}</div>
-            <div className="text-xs text-gray-600 mt-1">{t('sensors.humidity') || 'Humedad'}</div>
+            <div className="text-2xl font-bold text-nkz-info">{humidity.toFixed(1)}</div>
+            <div className="text-xs text-gray-600 mt-1">{t('sensors.humidity')}</div>
           </div>
         )}
 
         {moisture !== null && (
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-3 rounded-lg border border-green-100">
             <div className="flex items-center justify-between mb-1">
-              <Droplets className="w-5 h-5 text-green-600" />
-              <span className="text-xs text-gray-600">{getMeasurementUnit('moisture') || '%'}</span>
+              <Droplets className="w-5 h-5 text-nkz-success" />
+              <span className="text-xs text-gray-600">{getMeasurementUnit('moisture')}</span>
             </div>
-            <div className="text-2xl font-bold text-green-700">{moisture.toFixed(1)}</div>
-            <div className="text-xs text-gray-600 mt-1">{t('sensors.soil_moisture') || 'Humedad Suelo'}</div>
+            <div className="text-2xl font-bold text-nkz-success">{moisture.toFixed(1)}</div>
+            <div className="text-xs text-gray-600 mt-1">{t('sensors.soil_moisture')}</div>
           </div>
         )}
 
@@ -201,10 +201,10 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
           <div className="bg-gradient-to-br from-purple-50 to-indigo-50 p-3 rounded-lg border border-purple-100">
             <div className="flex items-center justify-between mb-1">
               <Gauge className="w-5 h-5 text-purple-600" />
-              <span className="text-xs text-gray-600">{getMeasurementUnit('pressure') || 'hPa'}</span>
+              <span className="text-xs text-gray-600">{getMeasurementUnit('pressure')}</span>
             </div>
             <div className="text-2xl font-bold text-purple-700">{pressure.toFixed(1)}</div>
-            <div className="text-xs text-gray-600 mt-1">{t('sensors.pressure') || 'Presión'}</div>
+            <div className="text-xs text-gray-600 mt-1">{t('sensors.pressure')}</div>
           </div>
         )}
 
@@ -212,21 +212,21 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
           <div className="bg-gradient-to-br from-gray-50 to-slate-50 p-3 rounded-lg border border-gray-100">
             <div className="flex items-center justify-between mb-1">
               <Wind className="w-5 h-5 text-gray-600" />
-              <span className="text-xs text-gray-600">{getMeasurementUnit('windSpeed') || 'm/s'}</span>
+              <span className="text-xs text-gray-600">{getMeasurementUnit('windSpeed')}</span>
             </div>
             <div className="text-2xl font-bold text-gray-700">{windSpeed.toFixed(1)}</div>
-            <div className="text-xs text-gray-600 mt-1">{t('sensors.wind_speed') || 'Viento'}</div>
+            <div className="text-xs text-gray-600 mt-1">{t('sensors.wind_speed')}</div>
           </div>
         )}
 
         {solarRadiation !== null && (
           <div className="bg-gradient-to-br from-yellow-50 to-amber-50 p-3 rounded-lg border border-yellow-100">
             <div className="flex items-center justify-between mb-1">
-              <Sun className="w-5 h-5 text-yellow-600" />
-              <span className="text-xs text-gray-600">{getMeasurementUnit('solarRadiation') || 'W/m²'}</span>
+              <Sun className="w-5 h-5 text-nkz-warning" />
+              <span className="text-xs text-gray-600">{getMeasurementUnit('solarRadiation')}</span>
             </div>
-            <div className="text-2xl font-bold text-yellow-700">{solarRadiation.toFixed(1)}</div>
-            <div className="text-xs text-gray-600 mt-1">{t('sensors.solar_radiation') || 'Radiación Solar'}</div>
+            <div className="text-2xl font-bold text-nkz-warning">{solarRadiation.toFixed(1)}</div>
+            <div className="text-xs text-gray-600 mt-1">{t('sensors.solar_radiation')}</div>
           </div>
         )}
 
@@ -234,28 +234,28 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
           <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-3 rounded-lg border border-emerald-100">
             <div className="flex items-center justify-between mb-1">
               <Zap className="w-5 h-5 text-emerald-600" />
-              <span className="text-xs text-gray-600">{getMeasurementUnit('batteryLevel') || '%'}</span>
+              <span className="text-xs text-gray-600">{getMeasurementUnit('batteryLevel')}</span>
             </div>
             <div className="text-2xl font-bold text-emerald-700">{battery.toFixed(1)}</div>
-            <div className="text-xs text-gray-600 mt-1">{t('sensors.battery') || 'Batería'}</div>
+            <div className="text-xs text-gray-600 mt-1">{t('sensors.battery')}</div>
           </div>
         )}
 
         {temperature === null && humidity === null && moisture === null && 
          pressure === null && windSpeed === null && solarRadiation === null && battery === null && (
-          <div className="col-span-full text-center py-8 text-gray-500">
-            {t('sensors.no_telemetry_data') || 'No hay datos de telemetría disponibles'}
+          <div className="col-span-full text-center py-8 text-nkz-muted">
+            {t('sensors.no_telemetry_data')}
           </div>
         )}
       </div>
 
       {latestTelemetry && Object.keys(latestTelemetry.payload).length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-4 pt-4 border-t border-nkz-border">
           <details className="text-sm">
             <summary className="cursor-pointer text-gray-600 hover:text-gray-900">
-              {t('sensors.view_raw_data') || 'Ver datos completos'}
+              {t('sensors.view_raw_data')}
             </summary>
-            <pre className="mt-2 p-3 bg-gray-50 rounded text-xs overflow-auto max-h-40">
+            <pre className="mt-2 p-3 bg-nkz-bg-secondary rounded text-xs overflow-auto max-h-40">
               {JSON.stringify(latestTelemetry.payload, null, 2)}
             </pre>
           </details>

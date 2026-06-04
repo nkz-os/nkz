@@ -10,7 +10,7 @@ export const SDMGuideInfo: React.FC = () => {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-full text-xs font-semibold transition-colors border border-blue-200"
+        className="flex items-center gap-2 px-3 py-1.5 bg-nkz-info-light text-nkz-info hover:bg-nkz-info-light rounded-full text-xs font-semibold transition-colors border border-blue-200"
       >
         <HelpCircle className="w-4 h-4" />
         {t('wizard.sdm_guide.help_button')}
@@ -19,10 +19,10 @@ export const SDMGuideInfo: React.FC = () => {
   }
 
   return (
-    <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 relative animate-in fade-in slide-in-from-top-2 duration-200">
+    <div className="bg-nkz-info-light border-2 border-blue-200 rounded-xl p-5 relative animate-in fade-in slide-in-from-top-2 duration-200">
       <button 
         onClick={() => setIsOpen(false)}
-        className="absolute top-3 right-3 text-blue-400 hover:text-blue-600 transition-colors"
+        className="absolute top-3 right-3 text-blue-400 hover:text-nkz-info transition-colors"
       >
         <X className="w-5 h-5" />
       </button>
@@ -77,7 +77,7 @@ export const SDMGuideInfo: React.FC = () => {
 
       <div className="mt-6 pt-4 border-t border-blue-100 flex items-center justify-between">
         <div className="flex gap-4">
-          <div className="flex items-center gap-1 text-[10px] font-medium text-blue-600">
+          <div className="flex items-center gap-1 text-[10px] font-medium text-nkz-info">
             <ShieldCheck className="w-3 h-3" />
             {t('wizard.sdm_guide.benefit_interop')}
           </div>

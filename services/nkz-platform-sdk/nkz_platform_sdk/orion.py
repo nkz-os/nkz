@@ -165,3 +165,136 @@ class OrionClient:
 
     async def close(self) -> None:
         await self._client.aclose()
+
+
+class SyncOrionClient:
+    """Synchronous NGSI-LD client with automatic FIWARE header injection.
+
+    For use in existing synchronous codebases (Flask, sync FastAPI endpoints).
+    Wraps requests.Session instead of httpx.AsyncClient.
+
+    Rules enforced at library level (impossible to forget):
+    - Every request sends NGSILD-Tenant AND Fiware-Service headers
+    - Content-Type: application/ld+json with @context in body
+    - Or Content-Type: application/json with Link header
+    """
+
+    def __init__(
+        self,
+        tenant_id: str,
+        base_url: str | None = None,
+        context_url: str | None = None,
+        timeout: float = 30.0,
+    ):
+        import requests as sync_requests
+
+        self.tenant_id = tenant_id
+        self.base_url = base_url or os.getenv(
+            "ORION_LD_URL", "http://orion-ld-service:1026"
+        )
+        self.context_url = context_url or CONTEXT_URL
+        self.timeout = timeout
+        self._session = sync_requests.Session()
+        self._session.headers.update({"User-Agent": "NKZ-SyncOrionClient/1.0"})
+
+    def _headers(self, content_type: str = "application/ld+json") -> dict[str, str]:
+        headers = {
+            "NGSILD-Tenant": self.tenant_id,
+            "Fiware-Service": self.tenant_id,
+            "Fiware-ServicePath": "/",
+        }
+        if content_type == "application/ld+json":
+            headers["Content-Type"] = "application/ld+json"
+        elif content_type == "application/json":
+            headers["Content-Type"] = "application/json"
+            headers["Link"] = (
+                f'<{self.context_url}>; rel="http://www.w3.org/ns/json-ld#context";'
+                ' type="application/ld+json"'
+            )
+        return headers
+
+    def _url(self, path: str) -> str:
+        return urljoin(f"{self.base_url}/", path.lstrip("/"))
+
+    def query_entities(
+        self,
+        type: str | None = None,
+        q: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        attrs: str | None = None,
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if type:
+            params["type"] = type
+        if q:
+            params["q"] = q
+        if attrs:
+            params["attrs"] = attrs
+        resp = self._session.get(
+            self._url("/ngsi-ld/v1/entities"),
+            params=params,
+            headers=self._headers("application/json"),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_entity(self, entity_id: str) -> dict[str, Any]:
+        resp = self._session.get(
+            self._url(f"/ngsi-ld/v1/entities/{entity_id}"),
+            headers=self._headers("application/json"),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def create_entity(self, entity: dict[str, Any]) -> None:
+        resp = self._session.post(
+            self._url("/ngsi-ld/v1/entities"),
+            json=entity,
+            headers=self._headers("application/ld+json"),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+
+    def delete_entity(self, entity_id: str) -> None:
+        resp = self._session.delete(
+            self._url(f"/ngsi-ld/v1/entities/{entity_id}"),
+            headers=self._headers(),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+
+    def query_types(self) -> list[str]:
+        resp = self._session.get(
+            self._url("/ngsi-ld/v1/types"),
+            headers=self._headers("application/json"),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, dict):
+            return data.get("typeList", [])
+        return data if isinstance(data, list) else []
+
+    def query_subscriptions(self, limit: int = 100) -> list[dict[str, Any]]:
+        resp = self._session.get(
+            self._url("/ngsi-ld/v1/subscriptions"),
+            params={"limit": limit},
+            headers=self._headers("application/json"),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def delete_subscription(self, subscription_id: str) -> None:
+        resp = self._session.delete(
+            self._url(f"/ngsi-ld/v1/subscriptions/{subscription_id}"),
+            headers=self._headers(),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+
+    def close(self) -> None:
+        self._session.close()

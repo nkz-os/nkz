@@ -83,11 +83,11 @@ export const GrafanaEmbedded: React.FC = () => {
     <Layout>
       <div className="space-y-4">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <BarChart3 className="w-6 h-6 text-blue-600" />
+              <div className="p-2 bg-nkz-info-light rounded-lg">
+                <BarChart3 className="w-6 h-6 text-nkz-info" />
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Analíticas y Monitoreo</h1>
@@ -107,7 +107,7 @@ export const GrafanaEmbedded: React.FC = () => {
               <button
                 onClick={handleRefresh}
                 disabled={isLoading}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary disabled:opacity-50 transition-colors"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                 Actualizar
@@ -124,25 +124,25 @@ export const GrafanaEmbedded: React.FC = () => {
           </div>
 
           {error && !error.includes('401') && !error.includes('Request failed with status code 401') && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+            <div className="mt-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg text-sm text-nkz-error flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {membershipGranted && (
-            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700">
+            <div className="mt-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg text-xs text-nkz-success">
               ✓ Acceso verificado para tu organización en Grafana
             </div>
           )}
         </div>
 
         {/* Grafana iframe */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" style={{ height: 'calc(100vh - 250px)', minHeight: '600px' }}>
+        <div className="bg-white rounded-lg shadow-sm border border-nkz-border overflow-hidden" style={{ height: 'calc(100vh - 250px)', minHeight: '600px' }}>
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                <Loader2 className="w-8 h-8 animate-spin text-nkz-info mx-auto mb-4" />
                 <p className="text-gray-600">Cargando Grafana...</p>
               </div>
             </div>
@@ -161,7 +161,7 @@ export const GrafanaEmbedded: React.FC = () => {
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <AlertTriangle className="w-12 h-12 text-nkz-muted mx-auto mb-4" />
                 <p className="text-gray-600 mb-4">No se pudo cargar Grafana</p>
                 <button
                   onClick={handleRefresh}
@@ -175,7 +175,7 @@ export const GrafanaEmbedded: React.FC = () => {
         </div>
 
         {/* Info note */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-800">
             <strong>Nota:</strong> Si Grafana no se carga en el iframe (debido a restricciones de seguridad del navegador),
             puedes usar el botón "Abrir en nueva ventana" para acceder a Grafana directamente.

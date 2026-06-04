@@ -1351,5 +1351,31 @@
     "categories": {
       "all": "All"
     }
-  }
+  },
+  "parcel": {
+    "draw_geometry": "Please draw the parcel geometry on the map",
+    "complete_fields": "Please complete all required fields",
+    "save_error": "Error saving parcel",
+    "draw_before_save": "Please draw a parcel before saving",
+    "manual_draw": "Manual Draw",
+    "cadastral_selector": "Cadastral Selector",
+    "coming_soon": "Coming Soon"
+  },
+  "sensor": {
+    "saving": "Saving...",
+    "save": "Save Sensor",
+    "profile_imported": "Profile \"{{name}}\" imported. Select it from the list.",
+    "invalid_json": "JSON must contain: name, sdm_entity_type and mappings[]",
+    "read_error": "Error reading JSON file. Please check the format."
+  },
+  "cadastral": {
+    "search_error": "Error searching cadastral records. Please try again."
+  },
+  "crop": {
+    "select_type": "Please select a crop type"
+  },
+  "location": {
+    "select_first": "Please select a location first in the Geometry step"
+  },
+  "save_changes_error": "Error saving changes"
 }

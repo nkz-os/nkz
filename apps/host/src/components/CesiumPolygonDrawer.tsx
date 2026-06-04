@@ -1064,7 +1064,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
 
       <div
         ref={wrapperRef}
-        className={`relative w-full rounded-xl border border-gray-200 shadow-inner bg-slate-900 overflow-hidden ${heightClass || 'min-h-[480px]'}`}
+        className={`relative w-full rounded-xl border border-nkz-border shadow-inner bg-slate-900 overflow-hidden ${heightClass || 'min-h-[480px]'}`}
         style={heightStyle}
         onContextMenu={(e) => e.preventDefault()}
       >
@@ -1095,8 +1095,8 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                 <Layers className="w-4 h-4" />
               </button>
               {showTerrainPicker && (
-                <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 min-w-[200px] overflow-hidden z-30">
-                  <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-nkz-border min-w-[200px] overflow-hidden z-30">
+                  <div className="px-3 py-2 bg-nkz-bg-secondary border-b border-nkz-border">
                     <p className="text-xs font-semibold text-gray-700">Modelo de Elevación</p>
                   </div>
                   <button
@@ -1105,11 +1105,11 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                       setTerrainProvider('auto');
                       setShowTerrainPicker(false);
                     }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${terrainProvider === 'auto' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-nkz-bg-secondary transition-colors ${terrainProvider === 'auto' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
                       }`}
                   >
                     <div className="font-medium">Auto</div>
-                    <div className="text-xs text-gray-500 mt-0.5">Detectar según ubicación</div>
+                    <div className="text-xs text-nkz-muted mt-0.5">Detectar según ubicación</div>
                   </button>
                   <button
                     type="button"
@@ -1117,11 +1117,11 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                       setTerrainProvider('idena');
                       setShowTerrainPicker(false);
                     }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${terrainProvider === 'idena' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-nkz-bg-secondary transition-colors ${terrainProvider === 'idena' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
                       }`}
                   >
                     <div className="font-medium">IDENA</div>
-                    <div className="text-xs text-gray-500 mt-0.5">Navarra (5m resolución)</div>
+                    <div className="text-xs text-nkz-muted mt-0.5">Navarra (5m resolución)</div>
                   </button>
                   <button
                     type="button"
@@ -1129,11 +1129,11 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                       setTerrainProvider('ign');
                       setShowTerrainPicker(false);
                     }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${terrainProvider === 'ign' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-nkz-bg-secondary transition-colors ${terrainProvider === 'ign' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
                       }`}
                   >
                     <div className="font-medium">IGN</div>
-                    <div className="text-xs text-gray-500 mt-0.5">España completa</div>
+                    <div className="text-xs text-nkz-muted mt-0.5">España completa</div>
                   </button>
                 </div>
               )}
@@ -1150,14 +1150,14 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
               <Layers className="w-4 h-4" />
             </button>
             {showLayerPicker && (
-              <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 min-w-[180px] overflow-hidden z-30">
+              <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-nkz-border min-w-[180px] overflow-hidden z-30">
                 <button
                   type="button"
                   onClick={() => {
                     setBaseLayer('osm');
                     setShowLayerPicker(false);
                   }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${baseLayer === 'osm' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-nkz-bg-secondary transition-colors ${baseLayer === 'osm' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
                     }`}
                 >
                   OpenStreetMap
@@ -1168,7 +1168,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                     setBaseLayer('pnoa');
                     setShowLayerPicker(false);
                   }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${baseLayer === 'pnoa' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-nkz-bg-secondary transition-colors ${baseLayer === 'pnoa' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
                     }`}
                 >
                   PNOA (Ortofoto)
@@ -1179,7 +1179,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                     setBaseLayer('cnig');
                     setShowLayerPicker(false);
                   }}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors ${baseLayer === 'cnig' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-nkz-bg-secondary transition-colors ${baseLayer === 'cnig' ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-700'
                     }`}
                 >
                   CNIG (Relieve)

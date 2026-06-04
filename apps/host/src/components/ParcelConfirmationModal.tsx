@@ -68,7 +68,7 @@ export const ParcelConfirmationModal: React.FC<ParcelConfirmationModalProps> = (
           </h3>
           <button
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-nkz-muted hover:text-gray-600 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -76,15 +76,15 @@ export const ParcelConfirmationModal: React.FC<ParcelConfirmationModalProps> = (
 
         <div className="space-y-4">
           {cadastralReference && (
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-1">{t('parcels.cadastral_reference')}</p>
+            <div className="bg-nkz-bg-secondary rounded-lg p-3">
+              <p className="text-xs text-nkz-muted mb-1">{t('parcels.cadastral_reference')}</p>
               <p className="text-sm font-medium text-gray-900">{cadastralReference}</p>
             </div>
           )}
 
           {(municipality || province) && (
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-xs text-gray-500 mb-1">{t('parcels.location')}</p>
+            <div className="bg-nkz-bg-secondary rounded-lg p-3">
+              <p className="text-xs text-nkz-muted mb-1">{t('parcels.location')}</p>
               <p className="text-sm font-medium text-gray-900">
                 {municipality && province ? `${municipality}, ${province}` : municipality || province}
               </p>
@@ -105,26 +105,26 @@ export const ParcelConfirmationModal: React.FC<ParcelConfirmationModalProps> = (
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('parcels.parcel_name')} <span className="text-red-500">{t('parcels.parcel_name_required')}</span>
+              {t('parcels.parcel_name')} <span className="text-nkz-error">{t('parcels.parcel_name_required')}</span>
             </label>
             <input
               type="text"
               value={parcelName}
               onChange={(e) => setParcelName(e.target.value)}
               placeholder={t('parcels.parcel_name_placeholder')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+              className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               autoFocus
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-nkz-muted">
               {t('parcels.parcel_name_help')}
             </p>
           </div>
         </div>
 
-        <div className="flex gap-3 pt-4 border-t border-gray-200">
+        <div className="flex gap-3 pt-4 border-t border-nkz-border">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="flex-1 px-4 py-2 border border-nkz-border rounded-lg text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary transition-colors"
           >
             {t('parcels.cancel')}
           </button>

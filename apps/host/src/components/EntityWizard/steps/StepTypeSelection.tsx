@@ -69,7 +69,7 @@ export function StepTypeSelection() {
     <div className="space-y-5">
       {/* Quick actions — most common entities */}
       <div>
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Acceso rápido</p>
+        <p className="text-xs font-medium text-nkz-muted uppercase tracking-wide mb-2">Acceso rápido</p>
         <button
           onClick={() => handleQuickCreate('AgriParcel')}
           className="w-full flex items-center justify-between px-5 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-sm"
@@ -94,16 +94,16 @@ export function StepTypeSelection() {
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-nkz-muted w-5 h-5" />
         <input
           type="text"
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
           placeholder="Buscar: tractor, sensor humedad, Davis, John Deere..."
-          className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base"
+          className="w-full pl-12 pr-4 py-3 border-2 border-nkz-border rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base"
         />
         {searchTerm && (
-          <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+          <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         )}
@@ -119,11 +119,11 @@ export function StepTypeSelection() {
               key={key}
               onClick={() => setActiveMacro(isActive ? null : key)}
               style={isActive ? getColorStyle(macro.color, true) : {}}
-              className={`p-4 rounded-xl border-2 text-left transition-all ${isActive ? '' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${isActive ? '' : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary'}`}
             >
-              <Icon className="w-6 h-6 mb-2 text-gray-500" style={isActive ? getColorStyle(macro.color, true) : {}} />
+              <Icon className="w-6 h-6 mb-2 text-nkz-muted" style={isActive ? getColorStyle(macro.color, true) : {}} />
               <div className="font-semibold text-sm">{macro.label}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{macro.description}</div>
+              <div className="text-xs text-nkz-muted mt-0.5">{macro.description}</div>
             </button>
           );
         })}
@@ -134,9 +134,9 @@ export function StepTypeSelection() {
         <div className="space-y-2">
           <p className="text-sm text-gray-600">{filteredTypes.length} resultado{filteredTypes.length !== 1 ? 's' : ''} para "{searchTerm}"</p>
           {filteredTypes.length === 0 ? (
-            <div className="p-6 text-center bg-gray-50 rounded-xl">
+            <div className="p-6 text-center bg-nkz-bg-secondary rounded-xl">
               <Search className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-500">No se encontraron resultados</p>
+              <p className="text-nkz-muted">No se encontraron resultados</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -147,17 +147,17 @@ export function StepTypeSelection() {
       ) : (
         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
           {Object.entries(groupedTypes).map(([cat, types]) => (
-            <div key={cat} className="border border-gray-200 rounded-lg overflow-hidden">
+            <div key={cat} className="border border-nkz-border rounded-lg overflow-hidden">
               <button
                 onClick={() => toggleCategory(cat)}
-                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition"
+                className="w-full px-4 py-3 flex items-center justify-between bg-nkz-bg-secondary hover:bg-nkz-bg-secondary transition"
               >
                 <span className="font-medium text-sm text-gray-700">{cat}</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{types.length}</span>
+                  <span className="text-xs text-nkz-muted bg-gray-200 px-2 py-0.5 rounded-full">{types.length}</span>
                   {expandedCategories.has(cat)
-                    ? <ChevronDown className="w-4 h-4 text-gray-400" />
-                    : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                    ? <ChevronDown className="w-4 h-4 text-nkz-muted" />
+                    : <ChevronRight className="w-4 h-4 text-nkz-muted" />}
                 </div>
               </button>
               {expandedCategories.has(cat) && (
@@ -175,11 +175,11 @@ export function StepTypeSelection() {
         const meta = ENTITY_TYPE_METADATA[entityType];
         const Icon = meta?.icon ?? Activity;
         return (
-          <div className="p-4 bg-green-50 border-2 border-green-500 rounded-xl flex items-center gap-3">
-            <Icon className="w-6 h-6 text-green-600" />
+          <div className="p-4 bg-nkz-success-light border-2 border-green-500 rounded-xl flex items-center gap-3">
+            <Icon className="w-6 h-6 text-nkz-success" />
             <div>
               <div className="font-semibold text-green-900">{entityType}</div>
-              <div className="text-sm text-green-700">{meta?.description}</div>
+              <div className="text-sm text-nkz-success">{meta?.description}</div>
             </div>
           </div>
         );
@@ -202,7 +202,7 @@ function TypeCard({ type, selected, onSelect, compact = false }: TypeCardProps) 
   const Icon = meta?.icon ?? Activity;
   const style = selected && meta ? getColorStyle(meta.color, true) : {};
   const baseClass = `rounded-lg border-2 text-left transition flex items-${compact ? 'center' : 'start'} gap-${compact ? '2' : '3'} p-${compact ? '2.5' : '3'}`;
-  const borderClass = selected ? '' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50';
+  const borderClass = selected ? '' : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary';
 
   return (
     <button
@@ -211,10 +211,10 @@ function TypeCard({ type, selected, onSelect, compact = false }: TypeCardProps) 
       style={style}
       className={`${baseClass} ${borderClass}`}
     >
-      <Icon className={`w-${compact ? '4' : '5'} h-${compact ? '4' : '5'} flex-shrink-0 text-gray-400`} />
+      <Icon className={`w-${compact ? '4' : '5'} h-${compact ? '4' : '5'} flex-shrink-0 text-nkz-muted`} />
       <div className="min-w-0">
         <div className={`font-medium text-${compact ? 'xs' : 'sm'} truncate`}>{type}</div>
-        {!compact && <div className="text-xs text-gray-500 truncate">{meta?.description}</div>}
+        {!compact && <div className="text-xs text-nkz-muted truncate">{meta?.description}</div>}
       </div>
     </button>
   );

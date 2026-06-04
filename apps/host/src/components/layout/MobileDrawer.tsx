@@ -109,11 +109,11 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
         onClick={onClose}
         className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-colors ${
           isActive
-            ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+            ? 'bg-nkz-success-light dark:bg-green-900/30 text-nkz-success dark:text-green-400'
+            : 'text-gray-700 dark:text-gray-300 hover:bg-nkz-bg-secondary dark:hover:bg-gray-800'
         }`}
       >
-        <Icon className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-green-500 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`} />
+        <Icon className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-green-500 dark:text-green-400' : 'text-nkz-muted dark:text-nkz-muted'}`} />
         {t(item.label)}
       </Link>
     );
@@ -137,7 +137,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
         }`}
       >
         {/* Drawer Header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between h-16 px-4 border-b border-nkz-border dark:border-gray-700">
           <Link to="/dashboard" onClick={onClose} className="flex items-center">
             <img
               src="/nkz-os-logo.svg"
@@ -147,7 +147,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
           </Link>
           <button
             onClick={onClose}
-            className="p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="p-2 rounded-md text-nkz-muted dark:text-nkz-muted hover:text-nkz-muted dark:hover:text-nkz-muted hover:bg-nkz-bg-secondary dark:hover:bg-gray-800 transition-colors"
             aria-label="Cerrar menú"
           >
             <X className="h-6 w-6" />
@@ -165,8 +165,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
             {/* ADDONS Section */}
             {modules && modules.length > 0 && (
               <>
-                <div className="pt-4 pb-2 border-t border-gray-200 dark:border-gray-700">
-                  <div className="px-4 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                <div className="pt-4 pb-2 border-t border-nkz-border dark:border-gray-700">
+                  <div className="px-4 text-xs font-semibold text-nkz-muted dark:text-nkz-muted uppercase tracking-wider">
                     {t('navigation.section_modules', { defaultValue: 'Módulos' })}
                   </div>
                 </div>
@@ -185,7 +185,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
                       className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-colors ${
                         isActive
                           ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-nkz-bg-secondary dark:hover:bg-gray-800'
                       }`}
                     >
                       {hasEmoji ? (
@@ -194,7 +194,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
                         </span>
                       ) : (
                                             <Icon
-                                                className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'}`}
+                                                className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-nkz-muted dark:text-nkz-muted'}`}
                                             />
                       )}
                       {module.label || module.displayName}
@@ -207,7 +207,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
             {/* Admin/Settings Section */}
             {visibleAdminItems.length > 0 && (
               <>
-                <div className="pt-4 pb-2 border-t border-gray-200 dark:border-gray-700 mt-4" />
+                <div className="pt-4 pb-2 border-t border-nkz-border dark:border-gray-700 mt-4" />
                 {visibleAdminItems.map((item) => renderNavLink(item))}
               </>
             )}

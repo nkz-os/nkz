@@ -100,12 +100,12 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
     return (
         <div className="space-y-4">
             {/* Tabs */}
-            <div className="flex border-b border-gray-200">
+            <div className="flex border-b border-nkz-border">
                 <button
                     onClick={() => setActiveTab('library')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'library'
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        ? 'border-blue-500 text-nkz-info'
+                        : 'border-transparent text-nkz-muted hover:text-gray-700'
                         }`}
                 >
                     <div className="flex items-center gap-2">
@@ -116,8 +116,8 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                 <button
                     onClick={() => setActiveTab('upload')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'upload'
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        ? 'border-blue-500 text-nkz-info'
+                        : 'border-transparent text-nkz-muted hover:text-gray-700'
                         }`}
                 >
                     <div className="flex items-center gap-2">
@@ -133,21 +133,21 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                     <div className="space-y-4">
                         {/* Search */}
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nkz-muted w-4 h-4" />
                             <input
                                 type="text"
                                 placeholder="Buscar activos (olivo, tractor...)"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                className="w-full pl-9 pr-4 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
 
                         {/* Grid */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto p-1">
                             {loading ? (
-                                <div className="col-span-full py-8 text-center text-gray-500">
-                                    <Package className="w-8 h-8 mx-auto mb-2 text-gray-400 animate-pulse" />
+                                <div className="col-span-full py-8 text-center text-nkz-muted">
+                                    <Package className="w-8 h-8 mx-auto mb-2 text-nkz-muted animate-pulse" />
                                     <p>Cargando modelos...</p>
                                 </div>
                             ) : filteredAssets.map((asset) => (
@@ -156,11 +156,11 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                     onClick={() => onSelect(asset.url)}
                                     className={`group relative border-2 rounded-xl text-left transition-all hover:shadow-md flex flex-col overflow-hidden h-[220px] ${selectedUrl === asset.url
                                         ? 'border-blue-500 ring-2 ring-blue-200'
-                                        : 'border-gray-200 hover:border-blue-300'
+                                        : 'border-nkz-border hover:border-blue-300'
                                         }`}
                                 >
                                     {/* 3D Preview */}
-                                    <div className="flex-1 w-full bg-gray-50 relative">
+                                    <div className="flex-1 w-full bg-nkz-bg-secondary relative">
                                         {/* @ts-ignore */}
                                         <model-viewer
                                             src={asset.url}
@@ -174,7 +174,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                             background-color="#f9fafb"
                                             style={{ width: '100%', height: '100%' }}
                                         >
-                                            <div slot="poster" className="flex items-center justify-center w-full h-full text-gray-400">
+                                            <div slot="poster" className="flex items-center justify-center w-full h-full text-nkz-muted">
                                                 <Package className="w-8 h-8 opacity-50" />
                                             </div>
                                             {/* @ts-ignore */}
@@ -193,17 +193,17 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                         <div className="font-medium text-sm text-gray-900 capitalize truncate" title={asset.name}>
                                             {shortName(asset)}
                                         </div>
-                                        <div className="text-xs text-gray-500 capitalize flex justify-between items-center mt-1">
+                                        <div className="text-xs text-nkz-muted capitalize flex justify-between items-center mt-1">
                                             <span>{asset.category}</span>
-                                            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px]">GLB</span>
+                                            <span className="bg-nkz-bg-secondary px-1.5 py-0.5 rounded text-[10px]">GLB</span>
                                         </div>
                                     </div>
                                 </button>
                             ))}
 
                             {!loading && filteredAssets.length === 0 && (
-                                <div className="col-span-full py-8 text-center text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                                    <Package className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                                <div className="col-span-full py-8 text-center text-nkz-muted bg-nkz-bg-secondary rounded-lg border border-dashed border-nkz-border">
+                                    <Package className="w-8 h-8 mx-auto mb-2 text-nkz-muted" />
                                     <p>No se encontraron activos</p>
                                 </div>
                             )}
@@ -227,7 +227,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
 
             {/* Scale & Rotation Controls (Shared for Library Selection) */}
             {activeTab === 'library' && selectedUrl && (
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+                <div className="p-4 bg-nkz-bg-secondary rounded-lg border border-nkz-border space-y-4">
                     {/* Scale */}
                     {onScaleChange && (
                         <div>
@@ -243,7 +243,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                 onChange={(e) => onScaleChange(parseFloat(e.target.value))}
                                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                             />
-                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <div className="flex justify-between text-xs text-nkz-muted mt-1">
                                 <span>0.1x</span>
                                 <span>1.0x</span>
                                 <span>10.0x</span>
@@ -260,7 +260,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                             <div className="grid grid-cols-3 gap-2">
                                 {['X', 'Y', 'Z'].map((axis, i) => (
                                     <div key={axis}>
-                                        <label className="text-xs text-gray-500 block mb-1">{axis}: {rotation[i]}°</label>
+                                        <label className="text-xs text-nkz-muted block mb-1">{axis}: {rotation[i]}°</label>
                                         <input
                                             type="number"
                                             value={rotation[i]}
@@ -269,7 +269,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                                 newRot[i] = parseFloat(e.target.value) || 0;
                                                 onRotationChange(newRot);
                                             }}
-                                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                            className="w-full px-2 py-1 text-sm border border-nkz-border rounded focus:ring-1 focus:ring-blue-500"
                                         />
                                     </div>
                                 ))}

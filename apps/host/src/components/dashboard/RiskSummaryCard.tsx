@@ -28,10 +28,10 @@ const RISK_KEY: Record<string, string> = {
 interface SeverityCfg { badge: string; bar: string; dot: string; key: string; }
 
 const SEVERITY_CONFIG: Record<string, SeverityCfg> = {
-  critical: { badge: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',         bar: 'bg-red-500',    dot: 'bg-red-500',    key: 'dashboard.risks.severity.critical' },
+  critical: { badge: 'bg-nkz-error-light text-red-800 dark:bg-red-900/40 dark:text-red-300',         bar: 'bg-nkz-error-light0',    dot: 'bg-nkz-error-light0',    key: 'dashboard.risks.severity.critical' },
   high:     { badge: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300', bar: 'bg-orange-500', dot: 'bg-orange-500', key: 'dashboard.risks.severity.high' },
-  medium:   { badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300', bar: 'bg-yellow-500', dot: 'bg-yellow-500', key: 'dashboard.risks.severity.medium' },
-  low:      { badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',     bar: 'bg-blue-400',   dot: 'bg-blue-400',   key: 'dashboard.risks.severity.low' },
+  medium:   { badge: 'bg-nkz-warning-light text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300', bar: 'bg-nkz-warning-light0', dot: 'bg-nkz-warning-light0', key: 'dashboard.risks.severity.medium' },
+  low:      { badge: 'bg-nkz-info-light text-nkz-info dark:bg-blue-900/40 dark:text-blue-300',     bar: 'bg-blue-400',   dot: 'bg-blue-400',   key: 'dashboard.risks.severity.low' },
 };
 
 function computeSeverity(score: number, severity: string | null | undefined): string {
@@ -146,7 +146,7 @@ export const RiskSummaryCard: React.FC = () => {
             <div className="w-8 h-8 border-4 border-orange-400 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : states.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center py-8 text-gray-500 dark:text-gray-400">
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-8 text-nkz-muted dark:text-nkz-muted">
             <ShieldCheck className="w-12 h-12 text-emerald-400 mb-3" />
             <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
               {t('dashboard.risks.no_alerts')}
@@ -172,7 +172,7 @@ export const RiskSummaryCard: React.FC = () => {
                     </div>
                     {/* Score + badge */}
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+                      <span className="text-xs text-nkz-muted dark:text-nkz-muted tabular-nums">
                         {Math.round(state.probability_score)}%
                       </span>
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.badge}`}>
@@ -181,11 +181,11 @@ export const RiskSummaryCard: React.FC = () => {
                     </div>
                   </div>
                   {/* Entity name */}
-                  <p className="text-xs text-gray-400 dark:text-gray-500 pl-4 truncate">
+                  <p className="text-xs text-nkz-muted dark:text-nkz-muted pl-4 truncate">
                     {shortEntityName(state.entity_id)}
                   </p>
                   {/* Score bar */}
-                  <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
+                  <div className="w-full bg-nkz-bg-secondary dark:bg-gray-700 rounded-full h-1.5">
                     <div
                       className={`h-1.5 rounded-full transition-all duration-500 ${cfg.bar}`}
                       style={{ width: `${Math.min(state.probability_score, 100)}%` }}
@@ -196,7 +196,7 @@ export const RiskSummaryCard: React.FC = () => {
             })}
 
             {states.length > 6 && (
-              <p className="text-xs text-gray-400 dark:text-gray-500 text-center pt-1">
+              <p className="text-xs text-nkz-muted dark:text-nkz-muted text-center pt-1">
                 {t('dashboard.risks.more_evaluations', { count: states.length - 6 })}
               </p>
             )}
@@ -206,13 +206,13 @@ export const RiskSummaryCard: React.FC = () => {
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div className="mt-4 space-y-2">
           {lastUpdated && (
-            <p className="text-xs text-center text-gray-400 dark:text-gray-500">
+            <p className="text-xs text-center text-nkz-muted dark:text-nkz-muted">
               {t('dashboard.risks.updated_time', { time: lastUpdated.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) })}
             </p>
           )}
           <button
             onClick={() => navigate('/risks')}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-xl transition"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-nkz-bg-secondary dark:bg-gray-700 hover:bg-nkz-bg-secondary dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-xl transition"
           >
             {t('dashboard.risks.view_panel')}
             <ArrowRight className="w-4 h-4" />

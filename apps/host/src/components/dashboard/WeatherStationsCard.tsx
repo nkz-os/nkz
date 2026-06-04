@@ -24,7 +24,7 @@ export const WeatherStationsCard: React.FC<WeatherStationsCardProps> = ({ weathe
         {weatherStations.length === 0 ? (
           <div className="text-center py-12">
             <Cloud className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">{t('dashboard.weather.no_stations')}</p>
+            <p className="text-nkz-muted mb-4">{t('dashboard.weather.no_stations')}</p>
             {canManageDevices && (
               <button
                 onClick={() => onOpenWizard('WeatherObserved')}
@@ -38,7 +38,7 @@ export const WeatherStationsCard: React.FC<WeatherStationsCardProps> = ({ weathe
         ) : (
           <div className="space-y-3">
             {weatherStations.slice(0, 4).map((station) => (
-              <div key={station.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition">
+              <div key={station.id} className="flex items-center justify-between p-4 bg-nkz-bg-secondary rounded-xl hover:bg-nkz-bg-secondary transition">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-sky-100 text-sky-600 rounded-lg flex items-center justify-center">
                     <Cloud className="w-5 h-5" />
@@ -48,7 +48,7 @@ export const WeatherStationsCard: React.FC<WeatherStationsCardProps> = ({ weathe
                       {station.name?.value || station.id}
                     </h4>
                     {station.temperature && (
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-nkz-muted">
                         {station.temperature.value}°C
                       </p>
                     )}

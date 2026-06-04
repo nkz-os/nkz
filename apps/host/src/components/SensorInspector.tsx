@@ -119,7 +119,7 @@ const MiniChart: React.FC<MiniChartProps> = ({ data, color, unit, label, icon })
                     <div className={`p-1.5 rounded-lg`} style={{ backgroundColor: `${color}20` }}>
                         {icon}
                     </div>
-                    <span className="text-sm text-gray-400">{label}</span>
+                    <span className="text-sm text-nkz-muted">{label}</span>
                 </div>
                 <span className="text-lg font-bold text-white">
                     {latestValue !== null ? `${latestValue.toFixed(1)}${unit}` : '--'}
@@ -398,20 +398,20 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
             <div className="p-4 border-b border-gray-700/50 flex-shrink-0">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-500/20 rounded-lg">
+                        <div className="p-2 bg-nkz-info-light0/20 rounded-lg">
                             <Cpu className="w-5 h-5 text-blue-400" />
                         </div>
                         <div>
                             <h3 className="text-white font-semibold truncate max-w-[200px]">
                                 {entityName}
                             </h3>
-                            <p className="text-gray-400 text-xs">{entityType}</p>
+                            <p className="text-nkz-muted text-xs">{entityType}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-1">
                         <button
                             onClick={() => openEntityEditor(entity.id, entity.type)}
-                            className="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition flex items-center gap-1"
+                            className="px-3 py-1.5 text-xs bg-nkz-info-light text-nkz-info rounded-lg hover:bg-nkz-info-light transition flex items-center gap-1"
                             title="Editar entidad"
                         >
                             <Pencil className="w-3.5 h-3.5" />
@@ -419,7 +419,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                         </button>
                         <button
                             onClick={onClose}
-                            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
+                            className="p-2 text-nkz-muted hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
                         >
                             <X className="w-5 h-5" />
                         </button>
@@ -433,8 +433,8 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                             key={range}
                             onClick={() => setTimeRange(range)}
                             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${timeRange === range
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                ? 'bg-nkz-info-light0 text-white'
+                                : 'bg-gray-800 text-nkz-muted hover:bg-gray-700'
                                 }`}
                         >
                             {range}
@@ -443,7 +443,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                     <button
                         onClick={loadTelemetry}
                         disabled={loading}
-                        className="ml-auto p-1.5 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
+                        className="ml-auto p-1.5 text-nkz-muted hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                     </button>
@@ -455,7 +455,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                         onClick={() => setActiveTab('telemetry')}
                         className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-colors ${activeTab === 'telemetry'
                             ? 'bg-gray-800 text-white border-b-2 border-blue-500'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                            : 'text-nkz-muted hover:text-white hover:bg-gray-800/50'
                             }`}
                     >
                         <Activity className="w-3.5 h-3.5" />
@@ -465,7 +465,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                         onClick={() => setActiveTab('connectivity')}
                         className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-colors ${activeTab === 'connectivity'
                             ? 'bg-gray-800 text-white border-b-2 border-purple-500'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                            : 'text-nkz-muted hover:text-white hover:bg-gray-800/50'
                             }`}
                     >
                         <Cable className="w-3.5 h-3.5" />
@@ -475,7 +475,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                         onClick={() => setActiveTab('management')}
                         className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-colors ${activeTab === 'management'
                             ? 'bg-gray-800 text-white border-b-2 border-red-500'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                            : 'text-nkz-muted hover:text-white hover:bg-gray-800/50'
                             }`}
                     >
                         <Settings className="w-3.5 h-3.5" />
@@ -552,7 +552,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                             </>
                         ) : isWeatherEntity ? (
                             /* Weather entity but no data at all */
-                            <div className="text-center py-12 text-gray-500">
+                            <div className="text-center py-12 text-nkz-muted">
                                 <CloudRain className="w-12 h-12 mx-auto mb-3 opacity-50" />
                                 <p>Sin datos meteorológicos</p>
                                 <p className="text-xs mt-1">La estación no tiene observaciones recientes.</p>
@@ -605,7 +605,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
 
                                 {/* No data message */}
                                 {Object.values(telemetry).every(arr => arr.length === 0) && !loading && (
-                                    <div className="text-center py-12 text-gray-500">
+                                    <div className="text-center py-12 text-nkz-muted">
                                         <Gauge className="w-12 h-12 mx-auto mb-3 opacity-50" />
                                         <p>Sin datos de telemetría</p>
                                         <p className="text-xs mt-1">Esperando datos del dispositivo...</p>
@@ -622,18 +622,18 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                             </h4>
                             <div className="space-y-2 text-sm">
                                 <div className="flex justify-between">
-                                    <span className="text-gray-500">ID</span>
+                                    <span className="text-nkz-muted">ID</span>
                                     <span className="text-gray-300 font-mono text-xs truncate max-w-[180px]" title={entity.id}>
                                         {entity.id}
                                     </span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-500">Tipo</span>
+                                    <span className="text-nkz-muted">Tipo</span>
                                     <span className="text-gray-300">{entityType}</span>
                                 </div>
                                 {lastUpdate && (
                                     <div className="flex justify-between">
-                                        <span className="text-gray-500">Actualizado</span>
+                                        <span className="text-nkz-muted">Actualizado</span>
                                         <span className="text-gray-300 flex items-center gap-1">
                                             <Clock className="w-3 h-3" />
                                             {lastUpdate.toLocaleTimeString('es')}

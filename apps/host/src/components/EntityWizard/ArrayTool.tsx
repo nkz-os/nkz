@@ -145,31 +145,31 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
       )}
 
       {/* Grid parameters */}
-      <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="grid grid-cols-2 gap-3 p-3 bg-nkz-bg-secondary rounded-lg border border-nkz-border">
         <div>
-          <label className="text-xs font-semibold text-gray-500">{t('wizard.array.rows')}</label>
+          <label className="text-xs font-semibold text-nkz-muted">{t('wizard.array.rows')}</label>
           <input
             type="number"
             min={1}
             max={100}
             value={settings.rows}
             onChange={e => updateSetting('rows', Math.max(1, parseInt(e.target.value) || 1))}
-            className="w-full mt-1 px-2 py-1.5 border border-gray-300 rounded text-sm"
+            className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-500">{t('wizard.array.columns')}</label>
+          <label className="text-xs font-semibold text-nkz-muted">{t('wizard.array.columns')}</label>
           <input
             type="number"
             min={1}
             max={100}
             value={settings.columns}
             onChange={e => updateSetting('columns', Math.max(1, parseInt(e.target.value) || 1))}
-            className="w-full mt-1 px-2 py-1.5 border border-gray-300 rounded text-sm"
+            className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-500">{t('wizard.array.rowSpacing')}</label>
+          <label className="text-xs font-semibold text-nkz-muted">{t('wizard.array.rowSpacing')}</label>
           <input
             type="number"
             min={0.5}
@@ -177,11 +177,11 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             step={0.5}
             value={settings.rowSpacing}
             onChange={e => updateSetting('rowSpacing', Math.max(0.5, parseFloat(e.target.value) || 5))}
-            className="w-full mt-1 px-2 py-1.5 border border-gray-300 rounded text-sm"
+            className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
           />
         </div>
         <div>
-          <label className="text-xs font-semibold text-gray-500">{t('wizard.array.colSpacing')}</label>
+          <label className="text-xs font-semibold text-nkz-muted">{t('wizard.array.colSpacing')}</label>
           <input
             type="number"
             min={0.5}
@@ -189,11 +189,11 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             step={0.5}
             value={settings.colSpacing}
             onChange={e => updateSetting('colSpacing', Math.max(0.5, parseFloat(e.target.value) || 5))}
-            className="w-full mt-1 px-2 py-1.5 border border-gray-300 rounded text-sm"
+            className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
           />
         </div>
         <div className="col-span-2">
-          <label className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+          <label className="text-xs font-semibold text-nkz-muted flex items-center gap-1">
             <Compass className="w-3 h-3" />
             {t('wizard.array.bearing')} ({settings.bearing}°)
           </label>
@@ -205,7 +205,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             onChange={e => updateSetting('bearing', parseInt(e.target.value))}
             className="w-full mt-1 h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-purple-600"
           />
-          <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+          <div className="flex justify-between text-[10px] text-nkz-muted mt-0.5">
             <span>N (0°)</span>
             <span>E (90°)</span>
             <span>S (180°)</span>
@@ -215,14 +215,14 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
       </div>
 
       {/* Scale & rotation variation */}
-      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-        <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+      <div className="p-3 bg-nkz-bg-secondary rounded-lg border border-nkz-border space-y-3">
+        <div className="flex items-center gap-2 text-xs font-semibold text-nkz-muted">
           <Shuffle className="w-3 h-3" />
           {t('wizard.array.variation')}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-gray-500">{t('wizard.array.minScale')}</label>
+            <label className="text-xs text-nkz-muted">{t('wizard.array.minScale')}</label>
             <input
               type="number"
               min={0.1}
@@ -230,11 +230,11 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
               step={0.05}
               value={settings.minScale}
               onChange={e => updateSetting('minScale', Math.max(0.1, parseFloat(e.target.value) || 0.9))}
-              className="w-full mt-1 px-2 py-1.5 border border-gray-300 rounded text-sm"
+              className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500">{t('wizard.array.maxScale')}</label>
+            <label className="text-xs text-nkz-muted">{t('wizard.array.maxScale')}</label>
             <input
               type="number"
               min={settings.minScale}
@@ -242,7 +242,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
               step={0.05}
               value={settings.maxScale}
               onChange={e => updateSetting('maxScale', Math.max(settings.minScale, parseFloat(e.target.value) || 1.1))}
-              className="w-full mt-1 px-2 py-1.5 border border-gray-300 rounded text-sm"
+              className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
             />
           </div>
         </div>
@@ -254,7 +254,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
               type: 'UPDATE_ARRAY_SETTINGS',
               payload: { randomRotation: e.target.checked },
             })}
-            className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+            className="rounded border-nkz-border text-purple-600 focus:ring-purple-500"
           />
           <span className="text-sm text-gray-700">{t('wizard.array.randomRotation')}</span>
         </label>
@@ -262,8 +262,8 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
 
       {/* AgriEnergyTracker-specific controls */}
       {entityType === 'AgriEnergyTracker' && (
-        <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200 space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-yellow-700">
+        <div className="p-3 bg-nkz-warning-light rounded-lg border border-yellow-200 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-semibold text-nkz-warning">
             <Sun className="w-3 h-3" />
             {t('wizard.array.solarParams')}
           </div>
@@ -279,7 +279,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
               onChange={e => updateSetting('tilt', parseInt(e.target.value))}
               className="w-full mt-1 h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-yellow-500"
             />
-            <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+            <div className="flex justify-between text-[10px] text-nkz-muted mt-0.5">
               <span>{t('wizard.array.tiltFlat')} (0°)</span>
               <span>45°</span>
               <span>{t('wizard.array.tiltVertical')} (90°)</span>
@@ -298,12 +298,12 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
                 step={50}
                 value={settings.nominalPower}
                 onChange={e => updateSetting('nominalPower', Math.max(50, parseInt(e.target.value) || 500))}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                className="w-full px-2 py-1.5 border border-nkz-border rounded text-sm"
               />
-              <span className="text-xs text-gray-500 whitespace-nowrap">W</span>
+              <span className="text-xs text-nkz-muted whitespace-nowrap">W</span>
             </div>
           </div>
-          <div className="text-xs text-yellow-700 bg-yellow-100 rounded p-2">
+          <div className="text-xs text-nkz-warning bg-nkz-warning-light rounded p-2">
             {t('wizard.array.solarHint', {
               total: String(settings.rows * settings.columns),
               power: ((settings.rows * settings.columns * settings.nominalPower) / 1000).toFixed(1),
@@ -313,7 +313,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
       )}
 
       {/* Summary bar */}
-      <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="flex justify-between items-center p-2 bg-nkz-bg-secondary rounded-lg border border-nkz-border">
         <span className="text-sm font-medium text-gray-700">
           <span className="text-purple-600 font-bold">{settings.rows * settings.columns}</span>{' '}
           {t('wizard.array.total')}
@@ -321,7 +321,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
         <button
           type="button"
           onClick={handleClear}
-          className="px-3 py-1.5 bg-white border border-gray-300 rounded text-sm hover:bg-red-50 hover:text-red-600 hover:border-red-200 flex items-center gap-1 transition-colors"
+          className="px-3 py-1.5 bg-white border border-nkz-border rounded text-sm hover:bg-nkz-error-light hover:text-nkz-error hover:border-red-200 flex items-center gap-1 transition-colors"
         >
           <Eraser className="w-4 h-4" /> {t('wizard.array.clearAnchor')}
         </button>

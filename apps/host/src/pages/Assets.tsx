@@ -176,7 +176,7 @@ export const Assets: React.FC = () => {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center mb-2">
-            <Layers className="h-6 w-6 text-blue-600 mr-2" />
+            <Layers className="h-6 w-6 text-nkz-info mr-2" />
             <h1 className="text-3xl font-bold text-gray-900">Digitalización de Activos</h1>
           </div>
           <p className="text-gray-600">
@@ -186,8 +186,8 @@ export const Assets: React.FC = () => {
 
         {/* Success/Error Messages */}
         {saveSuccess && (
-          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-green-600" />
+          <div className="mb-4 p-4 bg-nkz-success-light border border-green-200 rounded-lg flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-nkz-success" />
             <p className="text-sm font-medium text-green-900">
               Activo creado exitosamente
             </p>
@@ -195,8 +195,8 @@ export const Assets: React.FC = () => {
         )}
 
         {saveError && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-600" />
+          <div className="mb-4 p-4 bg-nkz-error-light border border-red-200 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-nkz-error" />
             <p className="text-sm font-medium text-red-900">{saveError}</p>
           </div>
         )}

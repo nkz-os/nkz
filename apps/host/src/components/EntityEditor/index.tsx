@@ -70,9 +70,9 @@ const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> =
             <h2 className="text-lg font-bold text-gray-900">
               {t('editor.title') || 'Editar entidad'}
             </h2>
-            <p className="text-xs text-gray-500">{entityType} &mdash; {entityId.split(':').pop()}</p>
+            <p className="text-xs text-nkz-muted">{entityType} &mdash; {entityId.split(':').pop()}</p>
           </div>
-          <button onClick={handleClose} className="p-1 text-gray-400 hover:text-gray-600">
+          <button onClick={handleClose} className="p-1 text-nkz-muted hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -80,7 +80,7 @@ const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> =
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
           {saveError && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{saveError}</div>
+            <div className="p-3 bg-nkz-error-light border border-red-200 rounded-lg text-sm text-nkz-error">{saveError}</div>
           )}
 
           <BasicAttributes />
@@ -92,7 +92,7 @@ const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> =
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50 rounded-b-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-t bg-nkz-bg-secondary rounded-b-2xl">
           <div>
             {hasChanges && (
               <span className="text-xs text-amber-600">
@@ -158,14 +158,14 @@ export const EntityEditorModal: React.FC<EntityEditorProps> = ({ entityId, entit
       {loading ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl p-8 text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+            <Loader2 className="w-8 h-8 animate-spin text-nkz-info mx-auto mb-4" />
             <p className="text-gray-600">Cargando entidad...</p>
           </div>
         </div>
       ) : fetchError ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl p-8 text-center max-w-md">
-            <p className="text-red-600 font-medium mb-2">Error</p>
+            <p className="text-nkz-error font-medium mb-2">Error</p>
             <p className="text-gray-600 text-sm">{fetchError}</p>
             <button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-200 rounded-lg text-sm">Cerrar</button>
           </div>

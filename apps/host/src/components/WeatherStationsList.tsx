@@ -67,7 +67,7 @@ export const WeatherStationsList: React.FC = () => {
     return (
       <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
         <Loader2 className="w-6 h-6 animate-spin text-sky-600 mx-auto" />
-        <p className="text-sm text-gray-500 mt-2">Cargando estaciones...</p>
+        <p className="text-sm text-nkz-muted mt-2">Cargando estaciones...</p>
       </div>
     );
   }
@@ -92,7 +92,7 @@ export const WeatherStationsList: React.FC = () => {
           {stations.map((s) => (
             <div
               key={s.id}
-              className="bg-gray-50 rounded-xl p-4 border border-gray-100 hover:border-sky-200 transition"
+              className="bg-nkz-bg-secondary rounded-xl p-4 border border-gray-100 hover:border-sky-200 transition"
             >
               <p className="text-sm font-semibold text-gray-800 truncate mb-3">
                 {s.name}
@@ -100,7 +100,7 @@ export const WeatherStationsList: React.FC = () => {
               <div className="space-y-1.5">
                 {s.temperature != null && (
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500 flex items-center gap-1">
+                    <span className="text-nkz-muted flex items-center gap-1">
                       <Thermometer className="w-3.5 h-3.5 text-orange-500" />
                       Temp
                     </span>
@@ -109,7 +109,7 @@ export const WeatherStationsList: React.FC = () => {
                 )}
                 {s.humidity != null && (
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500 flex items-center gap-1">
+                    <span className="text-nkz-muted flex items-center gap-1">
                       <Droplets className="w-3.5 h-3.5 text-blue-500" />
                       Hum
                     </span>
@@ -118,8 +118,8 @@ export const WeatherStationsList: React.FC = () => {
                 )}
                 {s.windSpeed != null && (
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500 flex items-center gap-1">
-                      <Wind className="w-3.5 h-3.5 text-gray-500" />
+                    <span className="text-nkz-muted flex items-center gap-1">
+                      <Wind className="w-3.5 h-3.5 text-nkz-muted" />
                       Viento
                     </span>
                     <span className="font-medium">{(s.windSpeed * 3.6).toFixed(1)} km/h</span>
@@ -127,7 +127,7 @@ export const WeatherStationsList: React.FC = () => {
                 )}
               </div>
               {s.lastObserved && (
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-nkz-muted mt-2">
                   {new Date(s.lastObserved).toLocaleString('es-ES', {
                     day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
                   })}

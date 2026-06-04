@@ -36,7 +36,7 @@ export const ParcelCreationModal: React.FC<ParcelCreationModalProps> = ({
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
             <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between p-6 border-b border-nkz-border">
                     <div>
                         <h3 className="text-xl font-bold text-gray-900">
                             Nueva Parcela
@@ -49,7 +49,7 @@ export const ParcelCreationModal: React.FC<ParcelCreationModalProps> = ({
                     </div>
                     <button
                         onClick={onCancel}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-nkz-muted hover:text-gray-600 transition-colors"
                     >
                         <X className="w-6 h-6" />
                     </button>

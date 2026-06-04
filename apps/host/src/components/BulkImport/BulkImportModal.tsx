@@ -57,7 +57,7 @@ function SpatialDots({ rows }: { rows: ImportRow[] }) {
   return (
     <svg
       width={W} height={H}
-      className="rounded border border-gray-200 bg-gray-50"
+      className="rounded border border-nkz-border bg-nkz-bg-secondary"
       aria-label="Previsualización espacial"
     >
       {rows.map((r, i) => {
@@ -155,23 +155,23 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-nkz-border dark:border-gray-700 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <Upload className="w-5 h-5 text-green-600" />
+            <Upload className="w-5 h-5 text-nkz-success" />
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Importación masiva de entidades
             </h2>
           </div>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 transition">
+          <button onClick={handleClose} className="text-nkz-muted hover:text-gray-600 transition">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Step indicator */}
-        <div className="flex items-center gap-2 px-6 py-3 bg-gray-50 dark:bg-gray-750 text-xs text-gray-500 flex-shrink-0 border-b border-gray-100">
+        <div className="flex items-center gap-2 px-6 py-3 bg-nkz-bg-secondary dark:bg-gray-750 text-xs text-nkz-muted flex-shrink-0 border-b border-gray-100">
           {(['upload', 'preview', 'results'] as const).map((s, i) => (
             <React.Fragment key={s}>
-              <span className={`font-medium ${step === s || (step === 'creating' && s === 'preview') ? 'text-green-600' : step === 'results' && i < 2 ? 'text-gray-400' : ''}`}>
+              <span className={`font-medium ${step === s || (step === 'creating' && s === 'preview') ? 'text-nkz-success' : step === 'results' && i < 2 ? 'text-nkz-muted' : ''}`}>
                 {i + 1}. {s === 'upload' ? 'Subir fichero' : s === 'preview' ? 'Vista previa' : 'Resultado'}
               </span>
               {i < 2 && <ChevronRight className="w-3 h-3" />}
@@ -189,13 +189,13 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                 onDrop={handleDrop}
                 onDragOver={e => e.preventDefault()}
                 onClick={() => fileRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-10 text-center cursor-pointer hover:border-green-400 hover:bg-green-50/30 transition"
+                className="border-2 border-dashed border-nkz-border dark:border-gray-600 rounded-xl p-10 text-center cursor-pointer hover:border-green-400 hover:bg-nkz-success-light/30 transition"
               >
-                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <FileText className="w-12 h-12 text-nkz-muted mx-auto mb-3" />
                 <p className="font-medium text-gray-700 dark:text-gray-200">
                   Arrastra aquí tu fichero o haz clic para seleccionar
                 </p>
-                <p className="text-sm text-gray-400 mt-1">CSV · GeoJSON — hasta 500 entidades</p>
+                <p className="text-sm text-nkz-muted mt-1">CSV · GeoJSON — hasta 500 entidades</p>
                 <input
                   ref={fileRef}
                   type="file"
@@ -206,13 +206,13 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               </div>
 
               {parseError && (
-                <div className="flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="flex items-start gap-2 text-sm text-nkz-error bg-nkz-error-light border border-red-200 rounded-lg p-3">
                   <TriangleAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <span>{parseError}</span>
                 </div>
               )}
 
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-700 space-y-1">
+              <div className="bg-nkz-info-light border border-blue-100 rounded-lg p-4 text-sm text-nkz-info space-y-1">
                 <p className="font-medium">Formatos soportados</p>
                 <p><strong>CSV</strong>: columnas <code>lat</code>, <code>lng</code>, <code>name</code> (opcionales: <code>description</code>, otras). Delimitador coma o punto-coma.</p>
                 <p><strong>GeoJSON</strong>: FeatureCollection de puntos. Las propiedades <code>name</code>/<code>description</code> se mapean automáticamente.</p>
@@ -232,7 +232,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                   value={entityType}
                   onChange={e => setEntityType(e.target.value)}
                   disabled={step === 'creating'}
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-green-500 outline-none disabled:opacity-50 bg-white dark:bg-gray-700 dark:text-white"
+                  className="flex-1 border border-nkz-border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-green-500 outline-none disabled:opacity-50 bg-white dark:bg-gray-700 dark:text-white"
                 >
                   {ENTITY_TYPES.map(t => (
                     <option key={t.value} value={t.value}>{t.label}</option>
@@ -242,13 +242,13 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
 
               {/* Summary */}
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">
-                  <span className="font-semibold text-gray-900 dark:text-white">{rows.length}</span> entidades de <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">{fileName}</span>
+                <span className="text-gray-600 dark:text-nkz-muted">
+                  <span className="font-semibold text-gray-900 dark:text-white">{rows.length}</span> entidades de <span className="font-mono bg-nkz-bg-secondary dark:bg-gray-700 px-1 rounded">{fileName}</span>
                 </span>
                 <button
                   onClick={() => { setStep('upload'); }}
                   disabled={step === 'creating'}
-                  className="text-xs text-blue-600 hover:underline disabled:opacity-50"
+                  className="text-xs text-nkz-info hover:underline disabled:opacity-50"
                 >
                   Cambiar fichero
                 </button>
@@ -261,16 +261,16 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
 
               {/* Warnings */}
               {warnings.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-700 space-y-0.5 max-h-28 overflow-y-auto">
+                <div className="bg-nkz-warning-light border border-yellow-200 rounded-lg p-3 text-xs text-nkz-warning space-y-0.5 max-h-28 overflow-y-auto">
                   <p className="font-medium mb-1">{warnings.length} advertencia(s):</p>
                   {warnings.map((w, i) => <p key={i}>• {w}</p>)}
                 </div>
               )}
 
               {/* Data table preview */}
-              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="overflow-x-auto rounded-lg border border-nkz-border dark:border-gray-700">
                 <table className="w-full text-xs">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
+                  <thead className="bg-nkz-bg-secondary dark:bg-gray-700">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">#</th>
                       <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">Nombre</th>
@@ -281,32 +281,32 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {rows.slice(0, 8).map((r, i) => (
-                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-750">
-                        <td className="px-3 py-1.5 text-gray-400">{i + 1}</td>
+                      <tr key={i} className="hover:bg-nkz-bg-secondary dark:hover:bg-gray-750">
+                        <td className="px-3 py-1.5 text-nkz-muted">{i + 1}</td>
                         <td className="px-3 py-1.5 font-medium text-gray-800 dark:text-gray-200 max-w-[160px] truncate">{r.name}</td>
                         <td className="px-3 py-1.5 text-gray-600 font-mono">{r.lat?.toFixed(5)}</td>
                         <td className="px-3 py-1.5 text-gray-600 font-mono">{r.lng?.toFixed(5)}</td>
-                        <td className="px-3 py-1.5 text-gray-500 max-w-[200px] truncate">{r.description ?? '—'}</td>
+                        <td className="px-3 py-1.5 text-nkz-muted max-w-[200px] truncate">{r.description ?? '—'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 {rows.length > 8 && (
-                  <p className="text-xs text-center text-gray-400 py-2">
+                  <p className="text-xs text-center text-nkz-muted py-2">
                     … y {rows.length - 8} entidades más
                   </p>
                 )}
               </div>
 
               {createError && (
-                <div className="flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+                <div className="flex items-start gap-2 text-sm text-nkz-error bg-nkz-error-light border border-red-200 rounded-lg p-3">
                   <TriangleAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <span>{createError}</span>
                 </div>
               )}
 
               {step === 'creating' && (
-                <div className="flex items-center justify-center gap-2 text-green-600 py-2">
+                <div className="flex items-center justify-center gap-2 text-nkz-success py-2">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span className="text-sm font-medium">Creando {rows.length} entidades…</span>
                 </div>
@@ -320,7 +320,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               {results.created > 0 ? (
                 <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
               ) : (
-                <AlertTriangle className="w-16 h-16 text-red-500 mx-auto" />
+                <AlertTriangle className="w-16 h-16 text-nkz-error mx-auto" />
               )}
 
               <div>
@@ -328,19 +328,19 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                   {results.created} entidad{results.created !== 1 ? 'es' : ''} creada{results.created !== 1 ? 's' : ''}
                 </p>
                 {results.errors.length > 0 && (
-                  <p className="text-sm text-red-600 mt-1">
+                  <p className="text-sm text-nkz-error mt-1">
                     {results.errors.length} error{results.errors.length !== 1 ? 'es' : ''}
                   </p>
                 )}
               </div>
 
-              <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <div className="flex items-center justify-center gap-2 text-sm text-nkz-muted">
                 <MapPin className="w-4 h-4 text-green-500" />
                 Tipo: <span className="font-mono font-medium">{entityType}</span>
               </div>
 
               {results.errors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 text-left max-h-32 overflow-y-auto">
+                <div className="bg-nkz-error-light border border-red-200 rounded-lg p-3 text-xs text-nkz-error text-left max-h-32 overflow-y-auto">
                   {results.errors.map((e: any, i: number) => (
                     <p key={i}>• {typeof e === 'string' ? e : JSON.stringify(e)}</p>
                   ))}
@@ -351,7 +351,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-nkz-border dark:border-gray-700 flex-shrink-0">
           <button
             onClick={step === 'results' ? handleClose : handleClose}
             className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition"
@@ -363,7 +363,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
             {step === 'preview' && (
               <button
                 onClick={() => setStep('upload')}
-                className="flex items-center gap-1 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                className="flex items-center gap-1 px-4 py-2 text-sm border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Atrás
@@ -383,7 +383,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
             {step === 'results' && results && results.created > 0 && (
               <button
                 onClick={() => { reset(); }}
-                className="px-4 py-2 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition"
+                className="px-4 py-2 text-sm bg-nkz-info-light text-nkz-info border border-blue-200 rounded-lg hover:bg-nkz-info-light transition"
               >
                 Importar otro fichero
               </button>

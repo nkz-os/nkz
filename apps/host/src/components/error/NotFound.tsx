@@ -33,7 +33,7 @@ export const NotFound: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => navigate(-1)}
-              className="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="inline-flex items-center px-6 py-3 bg-nkz-bg-secondary text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Volver atrás
@@ -48,19 +48,19 @@ export const NotFound: React.FC = () => {
           </div>
 
           {/* Quick Links */}
-          <div className="mt-12 pt-8 border-t border-gray-200">
-            <p className="text-sm text-gray-500 mb-4">Enlaces útiles:</p>
+          <div className="mt-12 pt-8 border-t border-nkz-border">
+            <p className="text-sm text-nkz-muted mb-4">Enlaces útiles:</p>
             <div className="flex flex-wrap gap-4 justify-center">
-              <Link to="/dashboard" className="text-green-600 hover:text-green-700 text-sm">
+              <Link to="/dashboard" className="text-nkz-success hover:text-nkz-success text-sm">
                 Dashboard
               </Link>
-              <Link to="/entities" className="text-green-600 hover:text-green-700 text-sm">
+              <Link to="/entities" className="text-nkz-success hover:text-nkz-success text-sm">
                 Entidades
               </Link>
-              <Link to="/alerts" className="text-green-600 hover:text-green-700 text-sm">
+              <Link to="/alerts" className="text-nkz-success hover:text-nkz-success text-sm">
                 Alertas
               </Link>
-              <Link to="/settings" className="text-green-600 hover:text-green-700 text-sm">
+              <Link to="/settings" className="text-nkz-success hover:text-nkz-success text-sm">
                 Configuración
               </Link>
             </div>

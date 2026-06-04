@@ -262,10 +262,10 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
   const renderCheckbox = () => {
     if (allSelected) {
-      return <CheckSquare className="w-4 h-4 text-blue-600" />;
+      return <CheckSquare className="w-4 h-4 text-nkz-info" />;
     }
     if (someSelected) {
-      return <Minus className="w-4 h-4 text-blue-600" />;
+      return <Minus className="w-4 h-4 text-nkz-info" />;
     }
     return <Square className="w-4 h-4 text-slate-400" />;
   };
@@ -305,7 +305,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               className={`p-1.5 rounded-lg transition-colors ${showFilters || Object.values(filters).some(v =>
                 Array.isArray(v) ? v.length > 0 : v !== '' && v !== null
               )
-                ? 'bg-blue-100 text-blue-600'
+                ? 'bg-nkz-info-light text-nkz-info'
                 : 'hover:bg-white/10 text-white/60 hover:text-white'
                 }`}
               title={t('entities.assets.filters')}
@@ -408,13 +408,13 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
       {/* Bulk Actions Bar */}
       {selectedAssets.size > 0 && (
-        <div className="flex-shrink-0 px-4 py-2 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
+        <div className="flex-shrink-0 px-4 py-2 bg-nkz-info-light border-b border-blue-100 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-blue-800">
             <CheckSquare className="w-4 h-4" />
             <span className="font-medium">{t('entities.assets.selected_count', { count: selectedAssets.size })}</span>
             <button
               onClick={deselectAll}
-              className="text-blue-600 hover:text-blue-800 hover:underline"
+              className="text-nkz-info hover:text-blue-800 hover:underline"
             >
               {t('entities.assets.deselect')}
             </button>
@@ -437,7 +437,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             </button>
             <button
               onClick={handleBulkDelete}
-              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 bg-white rounded border border-red-200 hover:bg-red-50"
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-nkz-error bg-white rounded border border-red-200 hover:bg-nkz-error-light"
             >
               <Trash2 className="w-3 h-3" />
               {t('entities.assets.delete')}
@@ -466,7 +466,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               <p className="text-sm text-slate-600">{error}</p>
               <button
                 onClick={() => refresh()}
-                className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                className="text-sm text-nkz-info hover:text-blue-800 hover:underline"
               >
                 {t('entities.assets.retry')}
               </button>
@@ -489,7 +489,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               {(filters.search || filters.categories.length > 0) && (
                 <button
                   onClick={resetFilters}
-                  className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                  className="text-sm text-nkz-info hover:text-blue-800 hover:underline"
                 >
                   {t('entities.assets.clear_filters')}
                 </button>
@@ -674,7 +674,7 @@ const AssetGridCard: React.FC<AssetGridCardProps> = ({
   return (
     <div
       className={`relative p-3 rounded-xl border transition-all cursor-pointer ${isSelected
-        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20'
+        ? 'border-blue-500 bg-nkz-info-light ring-2 ring-blue-500/20'
         : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
         }`}
       onClick={onClick}
@@ -689,7 +689,7 @@ const AssetGridCard: React.FC<AssetGridCardProps> = ({
         className="absolute top-2 right-2 p-1 rounded hover:bg-slate-100"
       >
         {isSelected
-          ? <CheckSquare className="w-4 h-4 text-blue-600" />
+          ? <CheckSquare className="w-4 h-4 text-nkz-info" />
           : <Square className="w-4 h-4 text-slate-300" />
         }
       </button>
@@ -714,9 +714,9 @@ const AssetGridCard: React.FC<AssetGridCardProps> = ({
 
       {/* Status */}
       <div className="flex items-center gap-1 mt-2">
-        <span className={`w-1.5 h-1.5 rounded-full ${asset.status === 'active' ? 'bg-green-500' :
+        <span className={`w-1.5 h-1.5 rounded-full ${asset.status === 'active' ? 'bg-nkz-success-light0' :
           asset.status === 'inactive' ? 'bg-slate-400' :
-            asset.status === 'error' ? 'bg-red-500' :
+            asset.status === 'error' ? 'bg-nkz-error-light0' :
               asset.status === 'maintenance' ? 'bg-amber-500' :
                 'bg-slate-300'
           }`} />
@@ -792,7 +792,7 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
 
       <button
         onClick={onDelete}
-        className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-red-50 text-red-600"
+        className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-nkz-error-light text-nkz-error"
       >
         <Trash2 className="w-4 h-4" />
         Eliminar

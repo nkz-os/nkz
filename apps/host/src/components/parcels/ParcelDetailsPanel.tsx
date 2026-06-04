@@ -1,6 +1,7 @@
 // =============================================================================
 // Parcel Details Panel - Shows cadastral information for selected parcel
 // =============================================================================
+import { logger } from '@/utils/logger';
 
 import React, { useState, useEffect } from 'react';
 import { MapPin, Ruler, Building2, Calendar, FileText, X, Loader2 } from 'lucide-react';
@@ -91,7 +92,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                                 }
                             }
                         } catch (e) {
-                            console.warn('Error calculating polygon centroid:', e);
+                            logger.warn('Error calculating polygon centroid:', e);
                         }
                     }
                 }
@@ -114,7 +115,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                                 }
                             }
                         } catch (e) {
-                            console.warn('Error calculating polygon centroid from geometry:', e);
+                            logger.warn('Error calculating polygon centroid from geometry:', e);
                         }
                     }
                 }
@@ -123,7 +124,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                 // This ensures accuracy even if stored municipality is incorrect
                 // Only use stored municipality if we don't have coordinates
                 if (coordinates) {
-                    console.log(`[ParcelDetailsPanel] Calculating municipality from coordinates:`, coordinates.lat, coordinates.lon);
+                    logger.debug(`[ParcelDetailsPanel] Calculating municipality from coordinates:`, coordinates.lat, coordinates.lon);
                     try {
                         // Get municipality info and elevation in parallel
                         const [municipalityData, elevation] = await Promise.all([
@@ -132,7 +133,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                                 coordinates.lon,
                                 10 // max 10km - more precise for parcel-specific location
                             ).catch((err) => {
-                                console.error('[ParcelDetailsPanel] Error getting nearest municipality:', err);
+                                logger.error('[ParcelDetailsPanel] Error getting nearest municipality:', err);
                                 return null;
                             }),
                             // Get elevation from Open-Elevation API
@@ -142,18 +143,18 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                                 .catch(() => null)
                         ]);
 
-                        console.log('[ParcelDetailsPanel] Municipality data received:', municipalityData);
-                        console.log('[ParcelDetailsPanel] Full response structure:', JSON.stringify(municipalityData, null, 2));
+                        logger.debug('[ParcelDetailsPanel] Municipality data received:', municipalityData);
+                        logger.debug('[ParcelDetailsPanel] Full response structure:', JSON.stringify(municipalityData, null, 2));
 
                         if (municipalityData && municipalityData.municipality) {
                             // Use calculated municipality from coordinates (most accurate)
                             const calculatedMunicipality = municipalityData.municipality.name;
                             const distance = municipalityData.municipality.distance_km;
-                            console.log(`[ParcelDetailsPanel] Using calculated municipality: ${calculatedMunicipality} (distance: ${distance?.toFixed(2)}km, stored was: ${parcel.municipality || 'none'})`);
+                            logger.debug(`[ParcelDetailsPanel] Using calculated municipality: ${calculatedMunicipality} (distance: ${distance?.toFixed(2)}km, stored was: ${parcel.municipality || 'none'})`);
 
                             // Warn if distance is suspiciously large (might be wrong municipality)
                             if (distance && distance > 5) {
-                                console.warn(`[ParcelDetailsPanel] ⚠️ Municipality found is ${distance.toFixed(2)}km away - might be incorrect!`);
+                                logger.warn(`[ParcelDetailsPanel] ⚠️ Municipality found is ${distance.toFixed(2)}km away - might be incorrect!`);
                             }
 
                             setLocationInfo({
@@ -170,8 +171,8 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                             setLoadingLocation(false);
                             return;
                         } else {
-                            console.warn('[ParcelDetailsPanel] No municipality found from coordinates, using stored:', parcel.municipality);
-                            console.warn('[ParcelDetailsPanel] Response was:', municipalityData);
+                            logger.warn('[ParcelDetailsPanel] No municipality found from coordinates, using stored:', parcel.municipality);
+                            logger.warn('[ParcelDetailsPanel] Response was:', municipalityData);
                             // Coordinates but no municipality found - fallback to stored municipality
                             if (parcel.municipality) {
                                 setLocationInfo({
@@ -187,7 +188,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                             }
                         }
                     } catch (err) {
-                        console.warn('Error calculating municipality from coordinates:', err);
+                        logger.warn('Error calculating municipality from coordinates:', err);
                         // Fallback to stored municipality if calculation fails
                         if (parcel.municipality) {
                             setLocationInfo({
@@ -223,7 +224,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                     });
                 }
             } catch (err) {
-                console.error('Error extracting location info:', err);
+                logger.error('Error extracting location info:', err);
                 setLocationInfo({
                     country: 'España',
                     hasLocation: false,
@@ -238,24 +239,24 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
 
     if (!parcel) {
         return (
-            <div className="h-full flex items-center justify-center bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+            <div className="h-full flex items-center justify-center bg-nkz-bg-secondary rounded-lg border-2 border-dashed border-nkz-border">
                 <div className="text-center">
-                    <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                    <MapPin className="w-12 h-12 text-nkz-muted mx-auto mb-3" />
                     <p className="text-gray-600 font-medium">Selecciona una parcela</p>
-                    <p className="text-sm text-gray-500 mt-1">Haz clic en una parcela del mapa para ver sus detalles</p>
+                    <p className="text-sm text-nkz-muted mt-1">Haz clic en una parcela del mapa para ver sus detalles</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="h-full flex flex-col bg-white rounded-lg shadow-sm border border-gray-200 overflow-y-auto">
+        <div className="h-full flex flex-col bg-white rounded-lg shadow-sm border border-nkz-border overflow-y-auto">
             {/* Header */}
-            <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50 shrink-0">
+            <div className="p-4 border-b border-nkz-border bg-gradient-to-r from-green-50 to-blue-50 shrink-0">
                 <div className="flex items-start justify-between">
                     <div className="flex-1">
                         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                            <MapPin className="w-5 h-5 text-green-600" />
+                            <MapPin className="w-5 h-5 text-nkz-success" />
                             Información de la Parcela
                         </h3>
                         {/* Nombre del usuario (grande, arriba) */}
@@ -263,13 +264,13 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                             {parcel.name || parcel.cadastralReference || 'Parcela sin nombre'}
                         </p>
                         {/* ID interno (pequeño, abajo) */}
-                        <p className="text-xs text-gray-400 font-mono mt-1 break-all">
+                        <p className="text-xs text-nkz-muted font-mono mt-1 break-all">
                             {parcel.id}
                         </p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                        className="p-1 text-nkz-muted hover:text-gray-600 hover:bg-nkz-bg-secondary rounded transition-colors"
                         title="Cerrar"
                     >
                         <X className="w-5 h-5" />
@@ -286,7 +287,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                 <ParcelRiskPanel parcelId={parcel.id} />
 
                 {/* Ubicación */}
-                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <div className="bg-nkz-success-light rounded-lg p-4 border border-green-200">
                     <h4 className="text-sm font-semibold text-green-900 mb-3 flex items-center gap-2">
                         <Building2 className="w-4 h-4" />
                         Ubicación
@@ -350,11 +351,11 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                                 <span className="ml-2 font-semibold text-gray-900">{locationInfo.country}</span>
                             </div>
                             {!locationInfo.coordinates && !locationInfo.municipality && !locationInfo.province && (
-                                <p className="text-gray-500 italic">No hay información de ubicación disponible</p>
+                                <p className="text-nkz-muted italic">No hay información de ubicación disponible</p>
                             )}
                         </div>
                     ) : (
-                        <p className="text-gray-500 italic">No hay información de ubicación disponible</p>
+                        <p className="text-nkz-muted italic">No hay información de ubicación disponible</p>
                     )}
                 </div>
 
@@ -380,8 +381,8 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                         <div>
                             <span className="text-gray-600">Categoría:</span>
                             <span className={`ml-2 px-2 py-1 rounded-full text-xs font-semibold ${parcel.category === 'cadastral'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-green-100 text-green-800'
+                                ? 'bg-nkz-info-light text-blue-800'
+                                : 'bg-nkz-success-light text-green-800'
                                 }`}>
                                 {parcel.category === 'cadastral' ? 'Catastral' : parcel.category === 'managementZone' ? 'Zona de Gestión' : 'Parcela'}
                             </span>
@@ -397,7 +398,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
 
                 {/* Notas */}
                 {parcel.notes && (
-                    <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                    <div className="bg-nkz-warning-light rounded-lg p-4 border border-yellow-200">
                         <h4 className="text-sm font-semibold text-yellow-900 mb-2 flex items-center gap-2">
                             <FileText className="w-4 h-4" />
                             Notas
@@ -408,7 +409,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
 
                 {/* Metadata */}
                 {parcel.refFarm && (
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <div className="bg-nkz-bg-secondary rounded-lg p-4 border border-nkz-border">
                         <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
                             <Calendar className="w-4 h-4" />
                             Información Adicional

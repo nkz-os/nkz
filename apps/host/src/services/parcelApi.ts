@@ -3,6 +3,7 @@
 // =============================================================================
 // Service for managing AgriParcel entities in Orion-LD
 // Implements attribute inheritance for management zones
+import { logger } from '@/utils/logger';
 
 import axios, { AxiosInstance } from 'axios';
 import type { Parcel } from '@/types';
@@ -53,9 +54,9 @@ class ParcelApiService {
 
                         // Check common tenant fields (support both snake_case and kebab-case)
                         tenantId = decoded['tenant-id'] || decoded.tenant_id || decoded.tenantId || decoded.tenant || 'nekazari';
-                        console.log('[ParcelAPI] Using Tenant ID:', tenantId);
+                        logger.debug('[ParcelAPI] Using Tenant ID:', tenantId);
                     } catch (e) {
-                        console.warn('[ParcelAPI] Failed to decode token for tenant extraction', e);
+                        logger.warn('[ParcelAPI] Failed to decode token for tenant extraction', e);
                     }
                 }
 
@@ -83,7 +84,7 @@ class ParcelApiService {
                             if (keycloakInstance && typeof keycloakInstance.updateToken === 'function') {
                                 const refreshed = await keycloakInstance.updateToken(30); // Refresh if expires in 30s
                                 if (refreshed) {
-                                    console.log('[ParcelAPI] Token refreshed, retrying request');
+                                    logger.debug('[ParcelAPI] Token refreshed, retrying request');
                                     // Update token in request and httpOnly cookie
                                     const newToken = keycloakInstance.token;
                                     originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -94,12 +95,12 @@ class ParcelApiService {
                         }
 
                         // If refresh failed, redirect to login
-                        console.warn('[ParcelAPI] Token refresh failed, redirecting to login');
+                        logger.warn('[ParcelAPI] Token refresh failed, redirecting to login');
                         if (typeof window !== 'undefined') {
                             window.location.href = '/login';
                         }
                     } catch (refreshError) {
-                        console.error('[ParcelAPI] Error refreshing token:', refreshError);
+                        logger.error('[ParcelAPI] Error refreshing token:', refreshError);
                         if (typeof window !== 'undefined') {
                             window.location.href = '/login';
                         }
@@ -264,7 +265,7 @@ class ParcelApiService {
             try {
                 area = calculatePolygonAreaHectares(geometry);
             } catch (error) {
-                console.warn('Error calculating area from geometry:', error);
+                logger.warn('Error calculating area from geometry:', error);
             }
         }
 
@@ -303,7 +304,7 @@ class ParcelApiService {
             const entities = Array.isArray(response.data) ? response.data : [];
             return entities.map(e => this.fromNGSILD(e));
         } catch (error) {
-            console.error('Error fetching parcels:', error);
+            logger.error('Error fetching parcels:', error);
             return [];
         }
     }
@@ -370,7 +371,7 @@ class ParcelApiService {
                 createdZones.push(createdZone);
                 childIds.push(createdZone.id);
             } catch (error) {
-                console.error('Error creating zone:', error);
+                logger.error('Error creating zone:', error);
                 throw error;
             }
         }
@@ -391,7 +392,7 @@ class ParcelApiService {
                     }
                 );
             } catch (error) {
-                console.warn('Error updating parent with children:', error);
+                logger.warn('Error updating parent with children:', error);
                 // Non-critical error, zones were created successfully
             }
         }
@@ -520,7 +521,7 @@ class ParcelApiService {
                 );
             }
         } catch (error: any) {
-            console.error('Error deleting zone:', error);
+            logger.error('Error deleting zone:', error);
             throw error;
         }
     }
@@ -564,7 +565,7 @@ class ParcelApiService {
 
             return this.fromNGSILD(response.data);
         } catch (error) {
-            console.error('Error fetching parcel:', error);
+            logger.error('Error fetching parcel:', error);
             return null;
         }
     }

@@ -531,35 +531,35 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
 
       {/* Parcel Search */}
       {showParcelSearch && (
-        <div className="p-4 bg-gray-50 border-b">
+        <div className="p-4 bg-nkz-bg-secondary border-b">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-nkz-muted" />
             <input
               type="text"
               value={parcelSearchTerm}
               onChange={(e) => setParcelSearchTerm(e.target.value)}
               placeholder={t('weather.search_parcel_placeholder')}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {loadingParcels && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-nkz-muted animate-spin" />
             )}
           </div>
           {loadingParcels ? (
-            <div className="mt-2 p-4 text-center text-gray-500">
+            <div className="mt-2 p-4 text-center text-nkz-muted">
               <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
               <p className="text-sm">{t('weather.loading_parcels')}</p>
             </div>
           ) : parcels.length > 0 ? (
-            <div className="mt-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg bg-white shadow-lg">
+            <div className="mt-2 max-h-64 overflow-y-auto border border-nkz-border rounded-lg bg-white shadow-lg">
               {parcels
                 .filter(p => !parcelSearchTerm || p.name.toLowerCase().includes(parcelSearchTerm.toLowerCase()))
                 .map((parcel) => (
                   <button
                     key={parcel.id}
                     onClick={() => handleParcelSelect(parcel.id, parcel.name)}
-                    className={`w-full px-4 py-2 text-left hover:bg-green-50 transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
-                      effectiveParcelId === parcel.id ? 'bg-green-100 font-medium' : ''
+                    className={`w-full px-4 py-2 text-left hover:bg-nkz-success-light transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
+                      effectiveParcelId === parcel.id ? 'bg-nkz-success-light font-medium' : ''
                     }`}
                   >
                     <MapPin className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -567,13 +567,13 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                   </button>
                 ))}
               {parcels.filter(p => !parcelSearchTerm || p.name.toLowerCase().includes(parcelSearchTerm.toLowerCase())).length === 0 && (
-                <div className="p-3 text-sm text-gray-500 text-center">
+                <div className="p-3 text-sm text-nkz-muted text-center">
                   {t('weather.no_parcels_found')}
                 </div>
               )}
             </div>
           ) : (
-            <div className="mt-2 p-3 text-sm text-gray-500 text-center bg-gray-50 rounded-lg">
+            <div className="mt-2 p-3 text-sm text-nkz-muted text-center bg-nkz-bg-secondary rounded-lg">
               {t('weather.no_parcels')}
             </div>
           )}
@@ -583,11 +583,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
       {/* Content */}
       <div className="p-6">
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="mb-4 p-4 bg-nkz-error-light border border-red-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-red-800 text-sm font-medium">Error</p>
-              <p className="text-red-700 text-sm">{error}</p>
+              <p className="text-nkz-error text-sm">{error}</p>
             </div>
           </div>
         )}
@@ -599,7 +599,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               const alertColors: Record<string, string> = {
                 RED: 'bg-red-600 border-red-700',
                 ORANGE: 'bg-orange-500 border-orange-600',
-                YELLOW: 'bg-yellow-500 border-yellow-600',
+                YELLOW: 'bg-nkz-warning-light0 border-yellow-600',
               };
               const alertLabels: Record<string, string> = {
                 RED: 'Alerta Roja',
@@ -640,7 +640,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
 
         {loading && !weatherData ? (
           <div className="text-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+            <Loader2 className="w-8 h-8 animate-spin text-nkz-info mx-auto mb-4" />
               <p className="text-gray-600">{t('weather.loading')}</p>
           </div>
         ) : weatherData ? (
@@ -657,8 +657,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
 
               <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <Droplets className="w-5 h-5 text-blue-600" />
-                  <span className="text-xs font-medium text-blue-700">{t('weather.humidity')}</span>
+                  <Droplets className="w-5 h-5 text-nkz-info" />
+                  <span className="text-xs font-medium text-nkz-info">{t('weather.humidity')}</span>
                 </div>
                 <p className="text-2xl font-bold text-blue-900">{weatherData.humidity_avg?.toFixed(0) || 'N/A'}%</p>
               </div>
@@ -684,10 +684,10 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Thermometer className="w-5 h-5 text-emerald-600" />
-                    <span className="text-xs font-medium text-emerald-700">{t('weather.gdd') || 'GDD'}</span>
+                    <span className="text-xs font-medium text-emerald-700">{t('weather.gdd')}</span>
                   </div>
                   <p className="text-2xl font-bold text-emerald-900">{weatherData.gdd_accumulated.toFixed(0)}°D</p>
-                  <p className="text-xs text-emerald-600 mt-1">{t('weather.gdd_base_10') || 'base 10°C'}</p>
+                  <p className="text-xs text-emerald-600 mt-1">{t('weather.gdd_base_10')}</p>
                 </div>
               )}
 
@@ -695,20 +695,20 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 <div className="bg-gradient-to-br from-teal-50 to-teal-100 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Droplets className="w-5 h-5 text-teal-600" />
-                    <span className="text-xs font-medium text-teal-700">{t('weather.et0') || 'ET₀'}</span>
+                    <span className="text-xs font-medium text-teal-700">{t('weather.et0')}</span>
                   </div>
                   <p className="text-2xl font-bold text-teal-900">{weatherData.eto_mm.toFixed(1)} mm</p>
-                  <p className="text-xs text-teal-600 mt-1">{t('weather.et0_desc') || 'Evapotranspiración'}</p>
+                  <p className="text-xs text-teal-600 mt-1">{t('weather.et0_desc')}</p>
                 </div>
               )}
             </div>
 
             {/* Downscaling indicator */}
             {downscaling === 'applied' && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-green-600" />
+              <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-nkz-success" />
                 <p className="text-xs text-green-800">
-                  {t('weather.downscaling_active') || 'Datos corregidos para esta parcela (altitud/orientación/pendiente)'}
+                  {t('weather.downscaling_active')}
                 </p>
               </div>
             )}
@@ -719,24 +719,24 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('weather.forecast_5_days')}</h3>
                 <div className="grid grid-cols-5 gap-2">
                   {forecast.slice(0, 5).map((day, idx) => (
-                    <div key={idx} className="bg-gray-50 rounded-lg p-3 text-center">
+                    <div key={idx} className="bg-nkz-bg-secondary rounded-lg p-3 text-center">
                       <p className="text-xs text-gray-600 mb-2">
                         {new Date(day.fecha).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' })}
                       </p>
                       <div className="flex items-center justify-center gap-2 mb-2">
                         <span className="text-lg font-bold text-gray-900">{day.t_maxima?.toFixed(0) || 'N/A'}°</span>
-                        <span className="text-sm text-gray-500">{day.t_minima?.toFixed(0) || 'N/A'}°</span>
+                        <span className="text-sm text-nkz-muted">{day.t_minima?.toFixed(0) || 'N/A'}°</span>
                       </div>
                       <p className="text-xs text-gray-600">{day.estado_cielo || 'Despejado'}</p>
                       {day.precipitacion_proba && day.precipitacion_proba > 0 && (
-                        <p className="text-xs text-blue-600 mt-1">💧 {day.precipitacion_proba.toFixed(0)}%</p>
+                        <p className="text-xs text-nkz-info mt-1">💧 {day.precipitacion_proba.toFixed(0)}%</p>
                       )}
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="mt-4 p-3 bg-nkz-warning-light border border-yellow-200 rounded-lg">
                 <p className="text-xs text-yellow-800">
                   ⚠️ Previsión no disponible. Los datos se están cargando en segundo plano.
                 </p>

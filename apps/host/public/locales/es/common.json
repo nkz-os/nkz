@@ -1411,5 +1411,31 @@
     "categories": {
       "all": "Todos"
     }
-  }
+  },
+  "parcel": {
+    "draw_geometry": "Por favor, dibuja la geometría de la parcela en el mapa",
+    "complete_fields": "Por favor, completa todos los campos requeridos",
+    "save_error": "Error al guardar la parcela",
+    "draw_before_save": "Por favor, dibuja una parcela antes de guardar",
+    "manual_draw": "Dibujo Manual",
+    "cadastral_selector": "Selector Catastral",
+    "coming_soon": "Próximamente"
+  },
+  "sensor": {
+    "saving": "Guardando...",
+    "save": "Guardar Sensor",
+    "profile_imported": "Perfil \"{{name}}\" importado. Selecciónalo de la lista.",
+    "invalid_json": "El JSON debe contener: name, sdm_entity_type y mappings[]",
+    "read_error": "Error al leer el archivo JSON. Verifica el formato."
+  },
+  "cadastral": {
+    "search_error": "Error al buscar en el catastro. Por favor, inténtalo de nuevo."
+  },
+  "crop": {
+    "select_type": "Por favor, selecciona un tipo de cultivo"
+  },
+  "location": {
+    "select_first": "Por favor, selecciona primero una ubicación en el paso de Geometría"
+  },
+  "save_changes_error": "Error al guardar los cambios"
 }

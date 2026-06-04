@@ -73,34 +73,34 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
           className={`w-full px-4 py-2 text-left border rounded-lg bg-white flex items-center justify-between ${
-            disabled ? 'bg-gray-50 cursor-not-allowed' : 'hover:border-green-500'
-          } ${selectedParent ? 'border-green-500' : 'border-gray-300'}`}
+            disabled ? 'bg-nkz-bg-secondary cursor-not-allowed' : 'hover:border-green-500'
+          } ${selectedParent ? 'border-green-500' : 'border-nkz-border'}`}
         >
           <span className="flex items-center gap-2">
             {selectedParent ? (
               <>
                 {getEntityIcon(selectedParent.type)}
                 <span className="font-medium">{selectedParent.name}</span>
-                <span className="text-xs text-gray-500">({selectedParent.type})</span>
+                <span className="text-xs text-nkz-muted">({selectedParent.type})</span>
               </>
             ) : (
-              <span className="text-gray-500">Select parent entity (optional)</span>
+              <span className="text-nkz-muted">Select parent entity (optional)</span>
             )}
           </span>
-          <span className="text-xs text-gray-400">▼</span>
+          <span className="text-xs text-nkz-muted">▼</span>
         </button>
 
         {isOpen && !disabled && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+          <div className="absolute z-50 w-full mt-1 bg-white border border-nkz-border rounded-lg shadow-lg max-h-60 overflow-auto">
             <div className="p-2 border-b">
               <div className="relative">
-                <Search className="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-2 top-2.5 w-4 h-4 text-nkz-muted" />
                 <input
                   type="text"
                   placeholder="Search parent entities..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-8 pr-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-green-500"
+                  className="w-full pl-8 pr-2 py-1.5 text-sm border border-nkz-border rounded focus:ring-2 focus:ring-green-500"
                   autoFocus
                 />
               </div>
@@ -114,8 +114,8 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                   setIsOpen(false);
                   setSearchTerm('');
                 }}
-                className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-gray-100 ${
-                  !selectedParentId ? 'bg-green-50 text-green-700' : ''
+                className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-nkz-bg-secondary ${
+                  !selectedParentId ? 'bg-nkz-success-light text-nkz-success' : ''
                 }`}
               >
                 <span className="font-medium">None (independent entity)</span>
@@ -123,9 +123,9 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
             </div>
 
             {loading ? (
-              <div className="p-4 text-center text-sm text-gray-500">Loading...</div>
+              <div className="p-4 text-center text-sm text-nkz-muted">Loading...</div>
             ) : filteredParents.length === 0 ? (
-              <div className="p-4 text-center text-sm text-gray-500">
+              <div className="p-4 text-center text-sm text-nkz-muted">
                 {searchTerm ? 'No matching entities found' : 'No parent entities available'}
               </div>
             ) : (
@@ -138,14 +138,14 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                     setIsOpen(false);
                     setSearchTerm('');
                   }}
-                  className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-gray-100 flex items-center gap-2 ${
-                    selectedParentId === parent.id ? 'bg-green-50 text-green-700' : ''
+                  className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-nkz-bg-secondary flex items-center gap-2 ${
+                    selectedParentId === parent.id ? 'bg-nkz-success-light text-nkz-success' : ''
                   }`}
                 >
                   {getEntityIcon(parent.type)}
                   <div className="flex-1">
                     <div className="font-medium">{parent.name}</div>
-                    <div className="text-xs text-gray-500">{parent.type}</div>
+                    <div className="text-xs text-nkz-muted">{parent.type}</div>
                   </div>
                 </button>
               ))
@@ -155,7 +155,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
       </div>
 
       {selectedParent && (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-nkz-muted">
           The new entity will be created as a subdivision of "{selectedParent.name}".
           Its geometry must be completely within the parent's boundaries.
         </p>

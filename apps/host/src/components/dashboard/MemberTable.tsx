@@ -38,13 +38,13 @@ const getRoleBadge = (role: string) => {
     case 'PlatformAdmin':
       return `${base} bg-purple-100 text-purple-800`;
     case 'TenantAdmin':
-      return `${base} bg-blue-100 text-blue-800`;
+      return `${base} bg-nkz-info-light text-blue-800`;
     case 'TechnicalConsultant':
-      return `${base} bg-green-100 text-green-800`;
+      return `${base} bg-nkz-success-light text-green-800`;
     case 'Farmer':
-      return `${base} bg-yellow-100 text-yellow-800`;
+      return `${base} bg-nkz-warning-light text-yellow-800`;
     default:
-      return `${base} bg-gray-100 text-gray-800`;
+      return `${base} bg-nkz-bg-secondary text-gray-800`;
   }
 };
 
@@ -63,7 +63,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
     return (
       <div className={`text-center py-12 ${className}`}>
         <div className="inline-block w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        <p className="mt-4 text-gray-600 dark:text-gray-400">{t('dashboard.members.loading')}</p>
+        <p className="mt-4 text-gray-600 dark:text-nkz-muted">{t('dashboard.members.loading')}</p>
       </div>
     );
   }
@@ -72,7 +72,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
     return (
       <div className={`text-center py-12 ${className}`}>
         <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-600 dark:text-gray-400 mb-4">{t('dashboard.members.no_members')}</p>
+        <p className="text-gray-600 dark:text-nkz-muted mb-4">{t('dashboard.members.no_members')}</p>
         {onEmptyAction ? (
           <button
             onClick={onEmptyAction}
@@ -89,22 +89,22 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   return (
     <div className={`overflow-x-auto ${className}`}>
       <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50 dark:bg-gray-800">
+        <thead className="bg-nkz-bg-secondary dark:bg-gray-800">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-medium text-nkz-muted dark:text-nkz-muted uppercase tracking-wider">
               {t('dashboard.members.col_user')}
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-medium text-nkz-muted dark:text-nkz-muted uppercase tracking-wider">
               {t('dashboard.members.col_roles')}
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-medium text-nkz-muted dark:text-nkz-muted uppercase tracking-wider">
               {t('dashboard.members.col_created')}
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-medium text-nkz-muted dark:text-nkz-muted uppercase tracking-wider">
               {t('dashboard.members.col_status')}
             </th>
             {(onEdit || onResetPassword || onDelete) && (
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-right text-xs font-medium text-nkz-muted uppercase tracking-wider">
                 {t('dashboard.members.col_actions')}
               </th>
             )}
@@ -112,11 +112,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({
         </thead>
         <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
           {members.map((member) => (
-            <tr key={member.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+            <tr key={member.id} className="hover:bg-nkz-bg-secondary dark:hover:bg-gray-800">
               <td className="px-6 py-4 whitespace-nowrap">
                 <div>
                   <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{member.fullName}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                  <div className="text-sm text-nkz-muted dark:text-nkz-muted flex items-center gap-1">
                     <Mail className="w-3 h-3" />
                     {member.email}
                   </div>
@@ -131,7 +131,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                   ))}
                 </div>
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-nkz-muted dark:text-nkz-muted">
                 <div className="flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
                   {new Date(member.createdAt).toLocaleDateString('es-ES')}
@@ -139,11 +139,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 {member.enabled ? (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-nkz-success-light text-green-800">
                     <CheckCircle className="w-3 h-3 mr-1" /> {t('dashboard.members.status_active')}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-nkz-error-light text-red-800">
                     <AlertTriangle className="w-3 h-3 mr-1" /> {t('dashboard.members.status_inactive')}
                   </span>
                 )}
@@ -154,7 +154,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                     {onEdit ? (
                       <button
                         onClick={() => onEdit(member)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-nkz-info hover:text-blue-900"
                         title={t('dashboard.members.action_edit_roles')}
                       >
                         <Edit2 className="w-4 h-4" />
@@ -172,7 +172,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                     {onDelete ? (
                       <button
                         onClick={() => onDelete(member)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-nkz-error hover:text-red-900"
                         title={t('admin.delete_user')}
                       >
                         <Trash2 className="w-4 h-4" />

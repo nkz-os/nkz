@@ -88,11 +88,11 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
       return;
     }
     if (!formData.firstName.trim() || formData.firstName.trim().length < 2) {
-      setError(t('registration.first_name_required') || 'First name is required');
+      setError(t('registration.first_name_required'));
       return;
     }
     if (!formData.lastName.trim() || formData.lastName.trim().length < 2) {
-      setError(t('registration.last_name_required') || 'Last name is required');
+      setError(t('registration.last_name_required'));
       return;
     }
     if (!formData.tenantName.trim()) {
@@ -113,13 +113,13 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <h2 className="text-nkz-lg font-semibold text-nkz-text-primary mb-4">
-        {t('registration.step_account') || 'Account Details'}
+        {t('registration.step_account')}
       </h2>
 
       {/* Email */}
       <div>
         <label htmlFor="reg-email" className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
-          {t('activation.purchase_email') || 'Email'}
+          {t('activation.purchase_email')}
         </label>
         <Input
           id="reg-email"
@@ -135,14 +135,14 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
       {/* First Name */}
       <div>
         <label htmlFor="reg-firstname" className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
-          {t('registration.first_name') || 'First Name'}
+          {t('registration.first_name')}
         </label>
         <Input
           id="reg-firstname"
           type="text"
           value={formData.firstName}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('firstName', e.target.value)}
-          placeholder={t('registration.first_name_placeholder') || 'Your first name'}
+          placeholder={t('registration.first_name_placeholder')}
           required
           autoComplete="given-name"
         />
@@ -151,14 +151,14 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
       {/* Last Name */}
       <div>
         <label htmlFor="reg-lastname" className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
-          {t('registration.last_name') || 'Last Name'}
+          {t('registration.last_name')}
         </label>
         <Input
           id="reg-lastname"
           type="text"
           value={formData.lastName}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('lastName', e.target.value)}
-          placeholder={t('registration.last_name_placeholder') || 'Your last name'}
+          placeholder={t('registration.last_name_placeholder')}
           required
           autoComplete="family-name"
         />
@@ -167,14 +167,14 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
       {/* Organization Name */}
       <div>
         <label htmlFor="reg-org" className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
-          {t('activation.org_name') || 'Organization Name'}
+          {t('activation.org_name')}
         </label>
         <Input
           id="reg-org"
           type="text"
           value={formData.tenantName}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleTenantNameChange(e.target.value)}
-          placeholder={t('activation.org_name_placeholder') || 'Ej. Mi Cooperativa Agrícola'}
+          placeholder={t('activation.org_name_placeholder')}
           required
           error={tenantValidation !== null && !tenantValidation.isValid}
         />
@@ -199,19 +199,19 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
         {checkingTenant && (
           <p className="text-nkz-xs text-nkz-text-muted flex items-center gap-1 mt-1">
             <Loader2 className="w-3 h-3 animate-spin" />
-            {t('registration.org_name_availability_checking') || 'Checking availability...'}
+            {t('registration.org_name_availability_checking')}
           </p>
         )}
         {!checkingTenant && tenantAvailable === true && (
           <p className="text-nkz-xs text-nkz-success flex items-center gap-1 mt-1">
             <CheckCircle className="w-3 h-3" />
-            {t('registration.org_name_available') || 'This name is available'}
+            {t('registration.org_name_available')}
           </p>
         )}
         {!checkingTenant && tenantAvailable === false && (
           <p className="text-nkz-xs text-nkz-danger flex items-center gap-1 mt-1">
             <AlertCircle className="w-3 h-3" />
-            {t('registration.org_name_taken') || 'This organization name is already registered'}
+            {t('registration.org_name_taken')}
           </p>
         )}
         {tenantValidation?.normalized && (
@@ -232,7 +232,7 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
           disabled={loading}
           loading={loading}
         >
-          {t('registration.continue') || 'Continue'}
+          {t('registration.continue')}
         </Button>
       </div>
     </form>

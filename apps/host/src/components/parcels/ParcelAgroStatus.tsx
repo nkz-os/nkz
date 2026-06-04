@@ -39,17 +39,17 @@ const SemaphoreIcon: React.FC<{
     switch (status) {
       case 'optimal':
       case 'satisfied':
-        return 'text-green-700 bg-green-100 border-green-300';
+        return 'text-nkz-success bg-nkz-success-light border-green-300';
       case 'caution':
       case 'alert':
-        return 'text-yellow-700 bg-yellow-100 border-yellow-300';
+        return 'text-nkz-warning bg-nkz-warning-light border-yellow-300';
       case 'not_suitable':
       case 'too_wet':
       case 'too_dry':
       case 'deficit':
-        return 'text-red-700 bg-red-100 border-red-300';
+        return 'text-nkz-error bg-nkz-error-light border-red-300';
       default:
-        return 'text-gray-500 bg-gray-100 border-gray-300';
+        return 'text-nkz-muted bg-nkz-bg-secondary border-nkz-border';
     }
   };
 
@@ -135,10 +135,10 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
 
   if (!isVisible) {
     return (
-      <div ref={ref} className="flex items-center gap-2 text-gray-400">
-        <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse" />
-        <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse" />
-        <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse" />
+      <div ref={ref} className="flex items-center gap-2 text-nkz-muted">
+        <div className="w-8 h-8 rounded-full bg-nkz-bg-secondary animate-pulse" />
+        <div className="w-8 h-8 rounded-full bg-nkz-bg-secondary animate-pulse" />
+        <div className="w-8 h-8 rounded-full bg-nkz-bg-secondary animate-pulse" />
       </div>
     );
   }
@@ -146,9 +146,9 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
   if (loading) {
     return (
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse" />
-        <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse" />
-        <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse" />
+        <div className="w-8 h-8 rounded-full bg-nkz-bg-secondary animate-pulse" />
+        <div className="w-8 h-8 rounded-full bg-nkz-bg-secondary animate-pulse" />
+        <div className="w-8 h-8 rounded-full bg-nkz-bg-secondary animate-pulse" />
       </div>
     );
   }
@@ -159,15 +159,15 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
         ? 'Sin ubicación de parcela'
         : error || 'Sin datos';
     return (
-      <div className="flex items-center gap-2 text-gray-400" title={msg}>
-        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-          <span className="text-[10px] text-gray-500">—</span>
+      <div className="flex items-center gap-2 text-nkz-muted" title={msg}>
+        <div className="w-8 h-8 rounded-full bg-nkz-bg-secondary flex items-center justify-center">
+          <span className="text-[10px] text-nkz-muted">—</span>
         </div>
-        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-          <span className="text-[10px] text-gray-500">—</span>
+        <div className="w-8 h-8 rounded-full bg-nkz-bg-secondary flex items-center justify-center">
+          <span className="text-[10px] text-nkz-muted">—</span>
         </div>
-        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-          <span className="text-[10px] text-gray-500">—</span>
+        <div className="w-8 h-8 rounded-full bg-nkz-bg-secondary flex items-center justify-center">
+          <span className="text-[10px] text-nkz-muted">—</span>
         </div>
       </div>
     );
@@ -243,9 +243,9 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
         title={source_confidence === 'SENSOR_REAL' ? 'Datos de sensor real' : 'Datos de modelo meteorológico (Open-Meteo)'}
       >
         {source_confidence === 'SENSOR_REAL' ? (
-          <Radio className="w-3.5 h-3.5 text-blue-600" />
+          <Radio className="w-3.5 h-3.5 text-nkz-info" />
         ) : (
-          <Cloud className="w-3.5 h-3.5 text-gray-400" />
+          <Cloud className="w-3.5 h-3.5 text-nkz-muted" />
         )}
       </div>
     </div>

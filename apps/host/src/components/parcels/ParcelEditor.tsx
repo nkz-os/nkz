@@ -58,7 +58,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
                             onClick={() => setMethod('manual')}
                             className={`px-4 py-2 rounded-md font-medium transition-colors ${method === 'manual'
                                 ? 'bg-green-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-nkz-bg-secondary text-gray-700 hover:bg-gray-200'
                                 }`}
                         >
                             Dibujo Manual
@@ -67,7 +67,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
                             onClick={() => setMethod('cadastral')}
                             className={`px-4 py-2 rounded-md font-medium transition-colors ${method === 'cadastral'
                                 ? 'bg-green-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-nkz-bg-secondary text-gray-700 hover:bg-gray-200'
                                 }`}
                             disabled
                             title="Disponible en Fase 3"
@@ -92,10 +92,10 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
 
                 {/* Cadastral Selector - Placeholder */}
                 {method === 'cadastral' && (
-                    <div className="h-full flex items-center justify-center bg-gray-100">
+                    <div className="h-full flex items-center justify-center bg-nkz-bg-secondary">
                         <div className="text-center">
                             <svg
-                                className="mx-auto h-16 w-16 text-gray-400 mb-4"
+                                className="mx-auto h-16 w-16 text-nkz-muted mb-4"
                                 fill="none"
                                 viewBox="0 0 24 24"
                                 stroke="currentColor"
@@ -119,7 +119,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
             </div>
 
             {/* Right Panel - Form */}
-            <div className="w-96 bg-white border-l border-gray-200 overflow-y-auto">
+            <div className="w-96 bg-white border-l border-nkz-border overflow-y-auto">
                 <ParcelForm
                     initialData={parcel}
                     geometry={geometry}

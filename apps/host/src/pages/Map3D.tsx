@@ -13,7 +13,7 @@ export const Map3D: React.FC = () => {
       <div className="container mx-auto px-4 py-6">
         <div className="mb-6">
           <div className="flex items-center mb-2">
-            <Layers className="h-6 w-6 text-blue-600 mr-2" />
+            <Layers className="h-6 w-6 text-nkz-info mr-2" />
             <h1 className="text-3xl font-bold text-gray-900">Visualización 3D</h1>
           </div>
           <p className="text-gray-600">

@@ -111,7 +111,7 @@ export const Settings: React.FC = () => {
           <LanguageSelector />
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">{t('settings.cookies_title')}</h2>
           <p className="text-sm text-gray-600 mb-4">{t('settings.cookies_description')}</p>
           <button
@@ -124,21 +124,21 @@ export const Settings: React.FC = () => {
         </div>
 
         {/* User Profile Card */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('settings.account_info')}</h2>
           {nameError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg">
               <p className="text-sm text-red-800">{nameError}</p>
             </div>
           )}
           {nameSuccess && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg">
               <p className="text-sm text-green-800">{nameSuccess}</p>
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-gray-500">{t('settings.name')}</label>
+              <label className="text-sm font-medium text-nkz-muted">{t('settings.name')}</label>
               {isEditingName ? (
                 <div className="space-y-2">
                   <div className="flex gap-2">
@@ -147,7 +147,7 @@ export const Settings: React.FC = () => {
                       value={editedFirstName}
                       onChange={(e) => setEditedFirstName(e.target.value)}
                       placeholder={t('settings.profile.first_name')}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="flex-1 px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       disabled={savingName}
                     />
                     <input
@@ -155,7 +155,7 @@ export const Settings: React.FC = () => {
                       value={editedLastName}
                       onChange={(e) => setEditedLastName(e.target.value)}
                       placeholder={t('settings.profile.last_name')}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="flex-1 px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       disabled={savingName}
                     />
                   </div>
@@ -187,7 +187,7 @@ export const Settings: React.FC = () => {
                   </p>
                   <button
                     onClick={handleStartEditName}
-                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700 transition text-sm font-medium"
+                    className="flex items-center gap-1 text-nkz-info hover:text-nkz-info transition text-sm font-medium"
                     title={t('settings.profile.edit_name')}
                   >
                     <Edit2 className="w-4 h-4" />
@@ -197,25 +197,25 @@ export const Settings: React.FC = () => {
               )}
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-500">{t('settings.email')}</label>
+              <label className="text-sm font-medium text-nkz-muted">{t('settings.email')}</label>
               <p className="text-gray-900">{user?.email}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-500">{t('settings.farm')}</label>
+              <label className="text-sm font-medium text-nkz-muted">{t('settings.farm')}</label>
               <p className="text-gray-900">{tenantName || tenantId || 'N/A'}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-500">{t('settings.tenant_id')}</label>
+              <label className="text-sm font-medium text-nkz-muted">{t('settings.tenant_id')}</label>
               <div className="flex items-center gap-2">
                 <p className="text-gray-900 font-mono text-sm flex-1">{currentTenantId}</p>
                 {currentTenantId !== 'N/A' && (
                   <button
                     onClick={handleCopyTenantId}
-                    className="text-gray-400 hover:text-gray-600 transition"
+                    className="text-nkz-muted hover:text-gray-600 transition"
                     title={t('settings.copy_tenant_id')}
                   >
                     {copiedTenantId ? (
-                      <Check className="w-4 h-4 text-green-600" />
+                      <Check className="w-4 h-4 text-nkz-success" />
                     ) : (
                       <Copy className="w-4 h-4" />
                     )}
@@ -224,22 +224,22 @@ export const Settings: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-500">{t('settings.roles', { defaultValue: 'Roles' })}</label>
+              <label className="text-sm font-medium text-nkz-muted">{t('settings.roles', { defaultValue: 'Roles' })}</label>
               <div className="flex flex-wrap gap-1 mt-1">
                 {(user?.roles || []).length > 0 ? (user?.roles || []).map((role: string) => (
                   <span key={role} className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                     role === 'PlatformAdmin' ? 'bg-purple-100 text-purple-800' :
-                    role === 'TenantAdmin' ? 'bg-blue-100 text-blue-800' :
+                    role === 'TenantAdmin' ? 'bg-nkz-info-light text-blue-800' :
                     role === 'GestorCUE' ? 'bg-rose-100 text-rose-800' :
-                    role === 'TechnicalConsultant' ? 'bg-green-100 text-green-800' :
-                    role === 'Farmer' ? 'bg-yellow-100 text-yellow-800' :
-                    role === 'role_pro_expired' ? 'bg-red-100 text-red-800' :
-                    'bg-gray-100 text-gray-600'
+                    role === 'TechnicalConsultant' ? 'bg-nkz-success-light text-green-800' :
+                    role === 'Farmer' ? 'bg-nkz-warning-light text-yellow-800' :
+                    role === 'role_pro_expired' ? 'bg-nkz-error-light text-red-800' :
+                    'bg-nkz-bg-secondary text-gray-600'
                   }`}>
                     {role === 'role_pro_expired' ? 'Expired' : role}
                   </span>
                 )) : (
-                  <span className="text-sm text-gray-400">{t('settings.no_roles', { defaultValue: 'No roles assigned' })}</span>
+                  <span className="text-sm text-nkz-muted">{t('settings.no_roles', { defaultValue: 'No roles assigned' })}</span>
                 )}
               </div>
             </div>
@@ -248,21 +248,21 @@ export const Settings: React.FC = () => {
 
         {/* Subscription & Plan Info */}
         {tenantProfile && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('settings.subscription.title', { defaultValue: 'Plan & Subscription' })}</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.plan', { defaultValue: 'Plan' })}</label>
+                <label className="text-sm font-medium text-nkz-muted">{t('settings.subscription.plan', { defaultValue: 'Plan' })}</label>
                 <p className="text-gray-900 font-semibold capitalize">{tenantProfile.plan_type}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.status', { defaultValue: 'Status' })}</label>
-                <p className={`font-semibold ${tenantProfile.status === 'active' ? 'text-green-600' : 'text-red-600'}`}>
+                <label className="text-sm font-medium text-nkz-muted">{t('settings.subscription.status', { defaultValue: 'Status' })}</label>
+                <p className={`font-semibold ${tenantProfile.status === 'active' ? 'text-nkz-success' : 'text-nkz-error'}`}>
                   {tenantProfile.status}
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.expires', { defaultValue: 'Expires' })}</label>
+                <label className="text-sm font-medium text-nkz-muted">{t('settings.subscription.expires', { defaultValue: 'Expires' })}</label>
                 <p className="text-gray-900">
                   {tenantProfile.expires_at
                     ? new Date(tenantProfile.expires_at).toLocaleDateString()
@@ -270,15 +270,15 @@ export const Settings: React.FC = () => {
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.max_users', { defaultValue: 'Max Users' })}</label>
+                <label className="text-sm font-medium text-nkz-muted">{t('settings.subscription.max_users', { defaultValue: 'Max Users' })}</label>
                 <p className="text-gray-900">{tenantProfile.max_users}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.max_robots', { defaultValue: 'Max Robots' })}</label>
+                <label className="text-sm font-medium text-nkz-muted">{t('settings.subscription.max_robots', { defaultValue: 'Max Robots' })}</label>
                 <p className="text-gray-900">{tenantProfile.max_robots}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">{t('settings.subscription.max_sensors', { defaultValue: 'Max Sensors' })}</label>
+                <label className="text-sm font-medium text-nkz-muted">{t('settings.subscription.max_sensors', { defaultValue: 'Max Sensors' })}</label>
                 <p className="text-gray-900">{tenantProfile.max_sensors}</p>
               </div>
             </div>
@@ -346,7 +346,7 @@ export const Settings: React.FC = () => {
 
         {/* Read-only mode info for TechnicalConsultant */}
         {isReadOnly && (
-          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="mb-6 bg-nkz-info-light border border-blue-200 rounded-lg p-4">
             <p className="text-blue-800 text-sm">
               <strong>{t('settings.read_only_mode')}:</strong> {t('settings.read_only_description')}
             </p>
@@ -362,25 +362,25 @@ export const Settings: React.FC = () => {
                 href="https://github.com/nkz-os/nkz/blob/main/docs/api/01-getting-started.md"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium underline"
+                className="text-nkz-info hover:text-nkz-info text-sm font-medium underline"
               >
                 {t('settings.docs.getting_started')}
               </a>
-              <span className="text-gray-400">|</span>
+              <span className="text-nkz-muted">|</span>
               <a
                 href="https://github.com/nkz-os/nkz/blob/main/docs/api/devices/iot-devices.md"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium underline"
+                className="text-nkz-info hover:text-nkz-info text-sm font-medium underline"
               >
                 {t('settings.docs.iot_devices')}
               </a>
-              <span className="text-gray-400">|</span>
+              <span className="text-nkz-muted">|</span>
               <a
                 href="https://github.com/nkz-os/nkz/blob/main/docs/api/devices/weather-stations.md"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-700 text-sm font-medium underline"
+                className="text-nkz-info hover:text-nkz-info text-sm font-medium underline"
               >
                 {t('settings.docs.weather_stations')}
               </a>

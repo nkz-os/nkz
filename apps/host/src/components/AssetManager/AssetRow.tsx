@@ -91,10 +91,10 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
   
   // Status colors
   const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
-    active: { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' },
+    active: { bg: 'bg-nkz-success-light', text: 'text-nkz-success', dot: 'bg-nkz-success-light0' },
     inactive: { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' },
     maintenance: { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500' },
-    error: { bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-500' },
+    error: { bg: 'bg-nkz-error-light', text: 'text-nkz-error', dot: 'bg-nkz-error-light0' },
     offline: { bg: 'bg-slate-100', text: 'text-slate-500', dot: 'bg-slate-400' },
     unknown: { bg: 'bg-slate-50', text: 'text-slate-500', dot: 'bg-slate-300' },
   };
@@ -103,13 +103,13 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
   
   // Category colors for icon background
   const categoryColors: Record<string, string> = {
-    parcels: 'bg-green-100 text-green-600',
+    parcels: 'bg-nkz-success-light text-nkz-success',
     sensors: 'bg-teal-100 text-teal-600',
     fleet: 'bg-indigo-100 text-indigo-600',
     infrastructure: 'bg-slate-100 text-slate-600',
     vegetation: 'bg-emerald-100 text-emerald-600',
     livestock: 'bg-amber-100 text-amber-600',
-    water: 'bg-blue-100 text-blue-600',
+    water: 'bg-nkz-info-light text-nkz-info',
     weather: 'bg-sky-100 text-sky-600',
   };
   

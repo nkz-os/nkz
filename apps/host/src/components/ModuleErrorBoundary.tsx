@@ -6,6 +6,7 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, X } from 'lucide-react';
+import { logger } from '@/utils/logger';
 
 interface ModuleErrorBoundaryProps {
     moduleId: string;
@@ -60,11 +61,13 @@ export class ModuleErrorBoundary extends Component<
             this.props.onError(error, errorInfo);
         }
 
-        // TODO: Send to error tracking service (Sentry, etc.)
-        // errorTracker.captureException(error, {
-        //     tags: { moduleId: this.props.moduleId },
-        //     extra: { errorInfo },
-        // });
+        // Structured error logging (Sentry-ready — add captureException when Sentry is integrated)
+        logger.error('Module error boundary caught error', {
+          error: error.message,
+          stack: error.stack,
+          componentStack: errorInfo?.componentStack,
+          moduleId: this.props.moduleId,
+        });
     }
 
     handleRetry = () => {
@@ -113,26 +116,26 @@ export class ModuleErrorBoundary extends Component<
 
             // Default error UI
             return (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="p-4 bg-nkz-error-light border border-red-200 rounded-lg">
                     <div className="flex items-start gap-3">
-                        <div className="p-2 bg-red-100 rounded-lg flex-shrink-0">
-                            <AlertTriangle className="w-5 h-5 text-red-600" />
+                        <div className="p-2 bg-nkz-error-light rounded-lg flex-shrink-0">
+                            <AlertTriangle className="w-5 h-5 text-nkz-error" />
                         </div>
                         <div className="flex-1 min-w-0">
                             <h4 className="font-semibold text-red-900 mb-1">
                                 Error en módulo: {this.props.moduleName}
                             </h4>
-                            <p className="text-sm text-red-700 mb-3">
-                                El módulo <code className="text-xs bg-red-100 px-1 py-0.5 rounded">{this.props.moduleId}</code> no está disponible temporalmente.
+                            <p className="text-sm text-nkz-error mb-3">
+                                El módulo <code className="text-xs bg-nkz-error-light px-1 py-0.5 rounded">{this.props.moduleId}</code> no está disponible temporalmente.
                             </p>
 
                             {/* Show error details in development */}
                             {process.env.NODE_ENV === 'development' && this.state.error && (
                                 <details className="mt-2 text-xs">
-                                    <summary className="cursor-pointer text-red-600 hover:text-red-800 mb-1">
+                                    <summary className="cursor-pointer text-nkz-error hover:text-red-800 mb-1">
                                         Detalles técnicos (solo desarrollo)
                                     </summary>
-                                    <pre className="mt-2 p-2 bg-red-100 rounded text-red-900 overflow-auto max-h-40">
+                                    <pre className="mt-2 p-2 bg-nkz-error-light rounded text-red-900 overflow-auto max-h-40">
                                         {this.state.error.toString()}
                                         {this.state.errorInfo?.componentStack && (
                                             <>
@@ -154,7 +157,7 @@ export class ModuleErrorBoundary extends Component<
                                 </button>
                                 <button
                                     onClick={this.handleDismiss}
-                                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-lg transition-colors"
+                                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light hover:bg-red-200 rounded-lg transition-colors"
                                 >
                                     <X className="w-4 h-4" />
                                     Ocultar

@@ -116,15 +116,15 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-nkz-border">
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-lg ${
               isBlockedByDependencies 
-                ? 'bg-red-100' 
+                ? 'bg-nkz-error-light' 
                 : 'bg-orange-100'
             }`}>
               {isBlockedByDependencies ? (
-                <AlertCircle className="w-5 h-5 text-red-600" />
+                <AlertCircle className="w-5 h-5 text-nkz-error" />
               ) : (
                 <AlertTriangle className="w-5 h-5 text-orange-600" />
               )}
@@ -136,7 +136,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
                   : 'Confirmar eliminación'
                 }
               </h3>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-sm text-nkz-muted mt-0.5">
                 Esta acción no se puede deshacer
               </p>
             </div>
@@ -144,7 +144,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
           {!isDeleting && (
             <button
               onClick={handleCancel}
-              className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              className="p-1 rounded-lg hover:bg-nkz-bg-secondary text-nkz-muted hover:text-gray-600 transition-colors"
               aria-label="Cerrar"
             >
               <X className="w-5 h-5" />
@@ -156,9 +156,9 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
         <div className="flex-1 overflow-y-auto p-6">
           {/* Dependency Warning (if blocked) */}
           {isBlockedByDependencies && hasDependencies && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="mb-6 p-4 bg-nkz-error-light border border-red-200 rounded-lg">
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <h4 className="font-medium text-red-900 mb-2">
                     Dependencias encontradas
@@ -168,7 +168,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
                   </p>
                   <ul className="space-y-2">
                     {dependencies.map((dep, idx) => (
-                      <li key={idx} className="text-sm text-red-700">
+                      <li key={idx} className="text-sm text-nkz-error">
                         <span className="font-medium">{dep.entityName}</span>
                         {' '}tiene{' '}
                         <span className="font-semibold">{dep.dependentCount} {dep.dependentType}</span>
@@ -176,7 +176,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
                       </li>
                     ))}
                   </ul>
-                  <p className="text-sm text-red-700 mt-3 font-medium">
+                  <p className="text-sm text-nkz-error mt-3 font-medium">
                     Por favor, elimine o mueva los elementos dependientes antes de continuar.
                   </p>
                 </div>
@@ -186,9 +186,9 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
 
           {/* Dependency Info (if not blocked but has dependencies) */}
           {!isBlockedByDependencies && hasDependencies && (
-            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="mb-6 p-4 bg-nkz-warning-light border border-yellow-200 rounded-lg">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-nkz-warning flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <h4 className="font-medium text-yellow-900 mb-2">
                     Información sobre dependencias
@@ -206,16 +206,16 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
             <p className="text-sm text-gray-600 mb-3">
               Estás a punto de eliminar <strong>{entityCount}</strong> entidad(es):
             </p>
-            <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+            <div className="max-h-60 overflow-y-auto border border-nkz-border rounded-lg">
               <ul className="divide-y divide-gray-100">
                 {entities.slice(0, 10).map((entity) => (
-                  <li key={entity.id} className="p-3 hover:bg-gray-50">
+                  <li key={entity.id} className="p-3 hover:bg-nkz-bg-secondary">
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 truncate">
                           {entity.name}
                         </div>
-                        <div className="text-xs text-gray-500 mt-0.5">
+                        <div className="text-xs text-nkz-muted mt-0.5">
                           {entity.type} {entity.municipality && `• ${entity.municipality}`}
                         </div>
                       </div>
@@ -223,7 +223,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
                   </li>
                 ))}
                 {entities.length > 10 && (
-                  <li className="p-3 text-sm text-gray-500 italic bg-gray-50">
+                  <li className="p-3 text-sm text-nkz-muted italic bg-nkz-bg-secondary">
                     ... y {entities.length - 10} más
                   </li>
                 )}
@@ -235,7 +235,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
           {!isBlockedByDependencies && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Escribe <strong className="text-red-600">{REQUIRED_CONFIRM_TEXT}</strong> para confirmar:
+                Escribe <strong className="text-nkz-error">{REQUIRED_CONFIRM_TEXT}</strong> para confirmar:
               </label>
               <input
                 type="text"
@@ -247,7 +247,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
                   }
                 }}
                 disabled={isDeleting || isCheckingDependencies}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 disabled:bg-gray-100 disabled:cursor-not-allowed font-mono"
+                className="w-full px-4 py-2.5 border border-nkz-border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 disabled:bg-nkz-bg-secondary disabled:cursor-not-allowed font-mono"
                 placeholder={REQUIRED_CONFIRM_TEXT}
                 autoFocus
               />
@@ -264,11 +264,11 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-nkz-border bg-nkz-bg-secondary">
           <button
             onClick={handleCancel}
             disabled={isDeleting || isCheckingDependencies}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 text-gray-700 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Cancelar
           </button>
@@ -278,7 +278,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
             className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
               isConfirmEnabled
                 ? 'bg-red-600 text-white hover:bg-red-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-300 text-nkz-muted cursor-not-allowed'
             }`}
           >
             {isDeleting ? (

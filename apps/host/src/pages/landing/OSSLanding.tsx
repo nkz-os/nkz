@@ -59,32 +59,32 @@ export const OSSLanding: React.FC = () => {
 
   const features = [
     {
-      icon: <Database className="h-8 w-8 text-green-600" />,
+      icon: <Database className="h-8 w-8 text-nkz-success" />,
       title: t('landing.features_context.title'),
       description: t('landing.features_context.description')
     },
     {
-      icon: <Users className="h-8 w-8 text-green-600" />,
+      icon: <Users className="h-8 w-8 text-nkz-success" />,
       title: t('landing.features_multitenant.title'),
       description: t('landing.features_multitenant.description')
     },
     {
-      icon: <Lock className="h-8 w-8 text-green-600" />,
+      icon: <Lock className="h-8 w-8 text-nkz-success" />,
       title: t('landing.features_security.title'),
       description: t('landing.features_security.description')
     },
     {
-      icon: <Smartphone className="h-8 w-8 text-green-600" />,
+      icon: <Smartphone className="h-8 w-8 text-nkz-success" />,
       title: t('landing.features_iot.title'),
       description: t('landing.features_iot.description')
     },
     {
-      icon: <BarChart3 className="h-8 w-8 text-green-600" />,
+      icon: <BarChart3 className="h-8 w-8 text-nkz-success" />,
       title: t('landing.features_analytics.title'),
       description: t('landing.features_analytics.description')
     },
     {
-      icon: <Zap className="h-8 w-8 text-green-600" />,
+      icon: <Zap className="h-8 w-8 text-nkz-success" />,
       title: t('landing.features_cloud.title'),
       description: t('landing.features_cloud.description')
     }
@@ -108,9 +108,9 @@ export const OSSLanding: React.FC = () => {
             onClick={() => setShowLanguageMenu(!showLanguageMenu)}
             className={`inline-flex items-center justify-center w-full rounded-lg border transition-all ${
               isScrolled 
-                ? 'border-gray-300 shadow-md bg-white' 
-                : 'border-gray-200 shadow-sm bg-white/90 backdrop-blur-sm'
-            } px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
+                ? 'border-nkz-border shadow-md bg-white' 
+                : 'border-nkz-border shadow-sm bg-white/90 backdrop-blur-sm'
+            } px-4 py-2 text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
           >
             <Globe className="h-4 w-4 mr-2" />
             {supportedLanguages[language] || supportedLanguages['es']}
@@ -124,8 +124,8 @@ export const OSSLanding: React.FC = () => {
                     onClick={() => handleLanguageChange(code)}
                     className={`block w-full text-left px-4 py-2 text-sm transition-colors ${
                       language === code 
-                        ? 'bg-green-50 text-green-900 font-medium' 
-                        : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-nkz-success-light text-green-900 font-medium' 
+                        : 'text-gray-700 hover:bg-nkz-bg-secondary'
                     }`}
                   >
                     {name}
@@ -147,7 +147,7 @@ export const OSSLanding: React.FC = () => {
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-green-200/20 rounded-full blur-3xl animate-pulse"></div>
           <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-200/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-green-100/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-nkz-success-light/10 rounded-full blur-3xl"></div>
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full">
@@ -178,7 +178,7 @@ export const OSSLanding: React.FC = () => {
               <p className="text-xl md:text-2xl text-gray-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
                 {t('landing.description')}
               </p>
-              <p className="text-lg text-gray-500 max-w-2xl mx-auto lg:mx-0">
+              <p className="text-lg text-nkz-muted max-w-2xl mx-auto lg:mx-0">
                 {t('landing.subdescription')}
               </p>
 
@@ -193,13 +193,13 @@ export const OSSLanding: React.FC = () => {
                 </button>
                 <button
                   onClick={handleLogin}
-                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-green-700 text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-nkz-success text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
                 >
                   {t('landing.access')}
                 </button>
                 <button
                   onClick={() => navigate('/activate')}
-                  className="inline-flex items-center justify-center px-8 py-4 bg-gray-50 text-gray-600 text-lg font-medium rounded-xl border border-gray-200 hover:bg-gray-100 transition-all duration-300 sm:w-auto"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-nkz-bg-secondary text-gray-600 text-lg font-medium rounded-xl border border-nkz-border hover:bg-nkz-bg-secondary transition-all duration-300 sm:w-auto"
                 >
                   {t('landing.register_with_code')}
                 </button>
@@ -208,15 +208,15 @@ export const OSSLanding: React.FC = () => {
               {/* Trust Badges - Perfectly aligned to left on desktop */}
               <div className="flex flex-wrap justify-center lg:justify-start items-center gap-x-8 gap-y-4 pt-10 text-sm font-medium text-gray-600">
                 <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-green-100">
-                  <Shield className="h-4 w-4 text-green-600" />
+                  <Shield className="h-4 w-4 text-nkz-success" />
                   <span>{t('landing.trust_enterprise_security')}</span>
                 </div>
                 <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-green-100">
-                  <Zap className="h-4 w-4 text-green-600" />
+                  <Zap className="h-4 w-4 text-nkz-success" />
                   <span>{t('landing.trust_fiware')}</span>
                 </div>
                 <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-green-100">
-                  <Users className="h-4 w-4 text-green-600" />
+                  <Users className="h-4 w-4 text-nkz-success" />
                   <span>{t('landing.trust_multitenant')}</span>
                 </div>
               </div>
@@ -279,7 +279,7 @@ export const OSSLanding: React.FC = () => {
           </p>
           <button
             onClick={handleLogin}
-            className="inline-flex items-center px-10 py-5 bg-white text-green-600 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
+            className="inline-flex items-center px-10 py-5 bg-white text-nkz-success text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
           >
             <span className="flex items-center">
               {t('landing.cta_section_button') || t('landing.cta') || 'Empezar'}
@@ -307,7 +307,7 @@ export const OSSLanding: React.FC = () => {
                     href={(window as any).__ENV__.COMPANY_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center text-gray-400 hover:text-green-400 transition-colors"
+                    className="flex items-center text-nkz-muted hover:text-green-400 transition-colors"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
                     {t('landing.footer_company') || (window as any).__ENV__.COMPANY_URL}
@@ -316,7 +316,7 @@ export const OSSLanding: React.FC = () => {
                 {(window as any).__ENV__?.SUPPORT_EMAIL && (
                   <a
                     href={`mailto:${(window as any).__ENV__.SUPPORT_EMAIL}`}
-                    className="flex items-center text-gray-400 hover:text-green-400 transition-colors"
+                    className="flex items-center text-nkz-muted hover:text-green-400 transition-colors"
                   >
                     <Mail className="h-4 w-4 mr-2" />
                     {t('landing.footer_contact') || (window as any).__ENV__.SUPPORT_EMAIL}
@@ -342,7 +342,7 @@ export const OSSLanding: React.FC = () => {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm space-y-3">
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-gray-400">
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-nkz-muted">
               <button
                 type="button"
                 onClick={openPreferences}
@@ -361,7 +361,7 @@ export const OSSLanding: React.FC = () => {
               </a>
             </div>
             <p>{t('landing.footer_copyright') || '© 2025 NKZ. Todos los derechos reservados.'}</p>
-            <div className="mt-2 text-xs text-gray-400">
+            <div className="mt-2 text-xs text-nkz-muted">
               <NkzAttribution variant="oss" />
             </div>
           </div>

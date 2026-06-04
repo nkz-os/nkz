@@ -77,17 +77,17 @@ const badgeColor = (value: Semaphore) => {
   switch (value) {
     case 'optimal':
     case 'satisfied':
-      return 'bg-green-50 text-green-700 border-green-200';
+      return 'bg-nkz-success-light text-nkz-success border-green-200';
     case 'caution':
     case 'alert':
-      return 'bg-yellow-50 text-yellow-700 border-yellow-200';
+      return 'bg-nkz-warning-light text-nkz-warning border-yellow-200';
     case 'not_suitable':
     case 'too_wet':
     case 'too_dry':
     case 'deficit':
-      return 'bg-red-50 text-red-700 border-red-200';
+      return 'bg-nkz-error-light text-nkz-error border-red-200';
     default:
-      return 'bg-gray-50 text-gray-600 border-gray-200';
+      return 'bg-nkz-bg-secondary text-gray-600 border-nkz-border';
   }
 };
 
@@ -120,7 +120,7 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-gray-500 text-sm">
+      <div className="flex items-center gap-2 text-nkz-muted text-sm">
         <Loader2 className="w-4 h-4 animate-spin" />
         Cargando estado agronómico...
       </div>
@@ -129,7 +129,7 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+      <div className="flex items-center gap-2 text-sm text-nkz-error bg-nkz-error-light border border-red-200 rounded px-3 py-2">
         <AlertCircle className="w-4 h-4" />
         <span>{error}</span>
       </div>
@@ -138,7 +138,7 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
 
   if (!status) {
     return (
-      <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded px-3 py-2">
+      <div className="text-sm text-nkz-muted bg-nkz-bg-secondary border border-nkz-border rounded px-3 py-2">
         Sin datos agronómicos para esta parcela.
       </div>
     );
@@ -160,16 +160,16 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
       <div className="flex-1">
         <p className="text-sm font-semibold text-gray-900">{title}</p>
         <p className="text-sm text-gray-700">{label}</p>
-        {extra && <p className="text-xs text-gray-500 mt-1">{extra}</p>}
+        {extra && <p className="text-xs text-nkz-muted mt-1">{extra}</p>}
       </div>
     </div>
   );
 
   return (
-    <div className="bg-gradient-to-br from-green-50 to-blue-50 border border-gray-200 rounded-lg p-5 space-y-4">
+    <div className="bg-gradient-to-br from-green-50 to-blue-50 border border-nkz-border rounded-lg p-5 space-y-4">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-base font-bold text-gray-900 flex items-center gap-2">
-          <Sprout className="w-5 h-5 text-green-600" />
+          <Sprout className="w-5 h-5 text-nkz-success" />
           Condiciones agronómicas
         </h4>
         <div
@@ -178,12 +178,12 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
         >
           {source_confidence === 'SENSOR_REAL' ? (
             <>
-              <Radio className="w-3 h-3 text-blue-600" />
+              <Radio className="w-3 h-3 text-nkz-info" />
               <span>Sensor</span>
             </>
           ) : (
             <>
-              <Cloud className="w-3 h-3 text-gray-500" />
+              <Cloud className="w-3 h-3 text-nkz-muted" />
               <span>Modelo</span>
             </>
           )}
@@ -221,7 +221,7 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
 
       {/* Detailed metrics section */}
       {(metrics?.temperature !== undefined || metrics?.humidity !== undefined || metrics?.delta_t !== undefined || metrics?.water_balance !== undefined) && (
-        <div className="bg-white/60 rounded-lg p-3 border border-gray-200">
+        <div className="bg-white/60 rounded-lg p-3 border border-nkz-border">
           <p className="text-xs font-semibold text-gray-700 mb-2">Métricas detalladas</p>
           <div className="grid grid-cols-2 gap-2 text-xs">
             {metrics?.temperature !== undefined && (
@@ -245,14 +245,14 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
             {metrics?.water_balance !== undefined && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Balance hídrico:</span>
-                <span className={`font-semibold ${metrics.water_balance >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                <span className={`font-semibold ${metrics.water_balance >= 0 ? 'text-nkz-success' : 'text-nkz-error'}`}>
                   {metrics.water_balance > 0 ? '+' : ''}{metrics.water_balance.toFixed(1)} mm
                 </span>
               </div>
             )}
           </div>
           {status.timestamp && (
-            <p className="text-xs text-gray-500 mt-2 text-right">
+            <p className="text-xs text-nkz-muted mt-2 text-right">
               Actualizado: {new Date(status.timestamp).toLocaleString('es-ES')}
             </p>
           )}

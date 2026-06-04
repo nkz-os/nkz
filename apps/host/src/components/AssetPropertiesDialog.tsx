@@ -74,13 +74,13 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-nkz-border">
           <h3 className="text-lg font-semibold text-gray-900">
             Propiedades del Activo
           </h3>
           <button
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-nkz-muted hover:text-gray-600 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -89,9 +89,9 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
         {/* Content */}
         <div className="p-4 space-y-4">
           {/* Asset Type Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-3">
             <p className="text-sm font-medium text-blue-900">{assetType.name}</p>
-            <p className="text-xs text-blue-700 mt-1">
+            <p className="text-xs text-nkz-info mt-1">
               Tipo: {assetType.geometryType === 'Point' ? 'Punto' : 
                      assetType.geometryType === 'LineString' ? 'Línea' : 'Polígono'}
             </p>
@@ -100,17 +100,17 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
           {/* Name Field */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nombre <span className="text-gray-500">(opcional)</span>
+              Nombre <span className="text-nkz-muted">(opcional)</span>
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={suggestedName || 'Se generará automáticamente'}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {suggestedName && !name && (
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-nkz-muted mt-1">
                 Nombre sugerido: {suggestedName}
               </p>
             )}
@@ -143,11 +143,11 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
                     setScale(val);
                   }
                 }}
-                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                className="w-20 px-2 py-1 border border-nkz-border rounded text-sm"
               />
             </div>
             {errors.scale && (
-              <p className="text-xs text-red-600 mt-1">{errors.scale}</p>
+              <p className="text-xs text-nkz-error mt-1">{errors.scale}</p>
             )}
           </div>
 
@@ -158,7 +158,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
                 Rotación: {rotation}°
               </label>
               <div className="flex items-center gap-3">
-                <RotateCw className="w-4 h-4 text-gray-500" />
+                <RotateCw className="w-4 h-4 text-nkz-muted" />
                 <input
                   type="range"
                   min="0"
@@ -180,17 +180,17 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
                       setRotation(val);
                     }
                   }}
-                  className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                  className="w-20 px-2 py-1 border border-nkz-border rounded text-sm"
                 />
               </div>
               {errors.rotation && (
-                <p className="text-xs text-red-600 mt-1">{errors.rotation}</p>
+                <p className="text-xs text-nkz-error mt-1">{errors.rotation}</p>
               )}
             </div>
           )}
 
           {/* Geometry Info */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+          <div className="bg-nkz-bg-secondary border border-nkz-border rounded-lg p-3">
             <p className="text-xs text-gray-600">
               <strong>Geometría:</strong> {geometry?.type || 'N/A'}
             </p>
@@ -204,10 +204,10 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-end gap-3 p-4 border-t border-nkz-border bg-nkz-bg-secondary">
           <button
             onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 border border-nkz-border rounded-lg text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary transition-colors"
           >
             Cancelar
           </button>

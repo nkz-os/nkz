@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Parcel } from '@/types';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
+import { useNotification } from '@/hooks/useNotification';
 
 interface ParcelFormProps {
     initialData: Partial<Parcel> | null;
@@ -22,6 +23,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
     onCancel,
     mode,
 }) => {
+    const { showNotification } = useNotification();
     const [formData, setFormData] = useState({
         name: initialData?.name || '',
         cadastralReference: initialData?.cadastralReference || '',
@@ -55,7 +57,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
 
         // Validate required fields
         if (!formData.cropType) {
-            alert('Por favor, selecciona un tipo de cultivo');
+            showNotification({ type: 'error', message: 'Por favor, selecciona un tipo de cultivo' });
             return;
         }
 
@@ -85,13 +87,13 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
             {/* Name */}
             <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre de la Parcela <span className="text-red-500">*</span>
+                    Nombre de la Parcela <span className="text-nkz-error">*</span>
                 </label>
                 <input
                     type="text"
                     value={formData.name || ''}
                     onChange={(e) => handleChange('name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder={formData.cadastralReference || "Ej: Mi Parcela 1"}
                     required
                 />
@@ -107,7 +109,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
                         type="text"
                         value={formData.cadastralReference}
                         readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
+                        className="w-full px-3 py-2 border border-nkz-border rounded-md bg-nkz-bg-secondary text-gray-600 cursor-not-allowed"
                     />
                 </div>
             )}
@@ -124,7 +126,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
                                 type="text"
                                 value={formData.municipality}
                                 readOnly
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
+                                className="w-full px-3 py-2 border border-nkz-border rounded-md bg-nkz-bg-secondary text-gray-600 cursor-not-allowed"
                             />
                         </div>
                     )}
@@ -137,7 +139,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
                                 type="text"
                                 value={formData.province}
                                 readOnly
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
+                                className="w-full px-3 py-2 border border-nkz-border rounded-md bg-nkz-bg-secondary text-gray-600 cursor-not-allowed"
                             />
                         </div>
                     )}
@@ -147,12 +149,12 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
             {/* Crop Type */}
             <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tipo de Cultivo <span className="text-red-500">*</span>
+                    Tipo de Cultivo <span className="text-nkz-error">*</span>
                 </label>
                 <select
                     value={formData.cropType}
                     onChange={(e) => handleChange('cropType', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     required
                 >
                     <option value="">Selecciona un cultivo</option>
@@ -172,7 +174,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         Área Estimada
                     </label>
-                    <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-700">
+                    <div className="px-3 py-2 bg-nkz-bg-secondary border border-nkz-border rounded-md text-gray-700">
                         {area ? `${area} hectáreas` : 'Calculando...'}
                     </div>
                 </div>
@@ -182,12 +184,12 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
             <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                     Notas
-                    <span className="text-gray-500 ml-1">(Opcional)</span>
+                    <span className="text-nkz-muted ml-1">(Opcional)</span>
                 </label>
                 <textarea
                     value={formData.notes}
                     onChange={(e) => handleChange('notes', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     rows={3}
                     placeholder="Información adicional sobre la parcela"
                 />
@@ -196,20 +198,20 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
             {/* Geometry Status */}
             <div className="mb-6">
                 <div className={`p-3 rounded-md ${geometry
-                    ? 'bg-green-50 border border-green-200'
-                    : 'bg-yellow-50 border border-yellow-200'
+                    ? 'bg-nkz-success-light border border-green-200'
+                    : 'bg-nkz-warning-light border border-yellow-200'
                     }`}>
                     <div className="flex items-center">
                         {geometry ? (
                             <>
-                                <svg className="h-5 w-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <svg className="h-5 w-5 text-nkz-success mr-2" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                 </svg>
                                 <span className="text-sm text-green-800">Geometría definida</span>
                             </>
                         ) : (
                             <>
-                                <svg className="h-5 w-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <svg className="h-5 w-5 text-nkz-warning mr-2" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                 </svg>
                                 <span className="text-sm text-yellow-800">Dibuja la parcela en el mapa</span>

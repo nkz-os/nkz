@@ -33,6 +33,7 @@ import { SidebarShell } from '@nekazari/viewer-kit';
 type SidebarState = 'closed' | 'compact' | 'expanded';
 import '@nekazari/design-tokens/css';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';
+import { useNotification } from '@/hooks/useNotification';
 import {
     ChevronDown,
     ChevronUp,
@@ -57,6 +58,7 @@ const UnifiedViewerInner: React.FC = () => {
     const { hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
     const { t } = useI18n();
+    const { showNotification } = useNotification();
 
     // Combined state logic for sidebar
     const {
@@ -323,7 +325,7 @@ const UnifiedViewerInner: React.FC = () => {
                     setMapMode('DRAW_PARCEL');
                 }
             } else {
-                alert(t('viewer.cadastral.not_found'));
+                showNotification({ type: 'error', message: t('viewer.cadastral.not_found') });
             }
         } catch (error: any) {
             logger.error('[UnifiedViewer] Error querying cadastral:', error);

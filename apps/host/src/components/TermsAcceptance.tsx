@@ -78,7 +78,7 @@ export const TermsAcceptance: React.FC<TermsAcceptanceProps> = ({
           id="terms-acceptance"
           checked={accepted}
           onChange={handleAcceptChange}
-          className="mt-1 w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+          className="mt-1 w-4 h-4 text-nkz-success border-nkz-border rounded focus:ring-green-500"
           required={required}
         />
         <div className="flex-1">
@@ -86,7 +86,7 @@ export const TermsAcceptance: React.FC<TermsAcceptanceProps> = ({
             {t('terms.accept')}
           </label>
           {termsContent && (
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-nkz-muted mt-1">
               {t('terms.last_updated', { date: formatDate(termsContent.last_updated) })}
             </p>
           )}
@@ -94,11 +94,11 @@ export const TermsAcceptance: React.FC<TermsAcceptanceProps> = ({
       </div>
 
       {termsContent && (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-nkz-border rounded-lg overflow-hidden">
           <button
             type="button"
             onClick={() => setShowTerms(!showTerms)}
-            className="w-full px-4 py-2 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between text-sm font-medium text-gray-700"
+            className="w-full px-4 py-2 bg-nkz-bg-secondary hover:bg-nkz-bg-secondary transition-colors flex items-center justify-between text-sm font-medium text-gray-700"
           >
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4" />
@@ -122,7 +122,7 @@ export const TermsAcceptance: React.FC<TermsAcceptanceProps> = ({
       )}
 
       {loading && (
-        <div className="flex items-center gap-2 text-sm text-gray-500">
+        <div className="flex items-center gap-2 text-sm text-nkz-muted">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span>{t('terms.loading')}</span>
         </div>

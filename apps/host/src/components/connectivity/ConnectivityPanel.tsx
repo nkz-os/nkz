@@ -199,7 +199,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                     onClick={() => setActiveTab('status')}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'status'
                         ? 'bg-purple-600 text-white'
-                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                        : 'text-nkz-muted hover:text-white hover:bg-gray-800'
                         }`}
                 >
                     <Wifi className="w-4 h-4" />
@@ -209,7 +209,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                     onClick={() => setActiveTab('profile')}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'profile'
                         ? 'bg-purple-600 text-white'
-                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                        : 'text-nkz-muted hover:text-white hover:bg-gray-800'
                         }`}
                 >
                     <FileCode className="w-4 h-4" />
@@ -219,13 +219,13 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
 
             {/* Notifications */}
             {error && (
-                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                    <AlertCircle className="w-4 h-4 text-red-500" />
+                <div className="flex items-center gap-2 p-3 bg-nkz-error-light0/10 border border-red-500/30 rounded-lg">
+                    <AlertCircle className="w-4 h-4 text-nkz-error" />
                     <p className="text-sm text-red-300">{error}</p>
                 </div>
             )}
             {success && (
-                <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <div className="flex items-center gap-2 p-3 bg-nkz-success-light0/10 border border-green-500/30 rounded-lg">
                     <Check className="w-4 h-4 text-green-400" />
                     <p className="text-sm text-green-300">{success}</p>
                 </div>
@@ -247,11 +247,11 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                             <div className="space-y-3">
                                 <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-700">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-gray-400 text-xs uppercase tracking-wider">Tipo</span>
+                                        <span className="text-nkz-muted text-xs uppercase tracking-wider">Tipo</span>
                                         <span className="text-sky-300 text-sm">Tailscale / Headscale</span>
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-400 text-center">
+                                <p className="text-xs text-nkz-muted text-center">
                                     Network access is managed via the{' '}
                                     <a href="/devices" className="text-sky-400 underline">Device Management</a> module.
                                     Use a Claim Code to provision this device.
@@ -269,7 +269,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-medium text-white">Broker MQTT</h3>
-                                    <p className="text-xs text-gray-400">Endpoint para envío de telemetría</p>
+                                    <p className="text-xs text-nkz-muted">Endpoint para envío de telemetría</p>
                                 </div>
                             </div>
 
@@ -277,25 +277,25 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                 {/* Connection Info */}
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
-                                        <label className="block text-xs text-gray-500 mb-1">Host</label>
+                                        <label className="block text-xs text-nkz-muted mb-1">Host</label>
                                         <code className="text-sm text-purple-300">{iotDetails.mqtt_host}</code>
                                     </div>
                                     <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
-                                        <label className="block text-xs text-gray-500 mb-1">Port</label>
+                                        <label className="block text-xs text-nkz-muted mb-1">Port</label>
                                         <code className="text-sm text-purple-300">{iotDetails.mqtt_port} ({iotDetails.protocol})</code>
                                     </div>
                                 </div>
 
                                 {/* Topic */}
                                 <div className="p-3 bg-gray-900 rounded-lg border border-gray-700">
-                                    <label className="block text-xs text-gray-500 mb-1">Topic de Publicación</label>
+                                    <label className="block text-xs text-nkz-muted mb-1">Topic de Publicación</label>
                                     <div className="flex items-center justify-between gap-2">
                                         <code className="text-xs text-green-400 break-all">
                                             {newlyRegeneratedKey ? iotDetails.topics?.publish_data?.replace('<API_KEY>', newlyRegeneratedKey) : iotDetails.topics?.publish_data}
                                         </code>
                                         <button
                                             onClick={() => copyToClipboard(newlyRegeneratedKey ? iotDetails.topics?.publish_data?.replace('<API_KEY>', newlyRegeneratedKey) : iotDetails.topics?.publish_data)}
-                                            className="p-1 hover:bg-gray-700 rounded text-gray-400"
+                                            className="p-1 hover:bg-gray-700 rounded text-nkz-muted"
                                         >
                                             <Copy className="w-3.5 h-3.5" />
                                         </button>
@@ -336,7 +336,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                         </div>
                                     ) : (
                                         <div className="p-3 bg-gray-900/50 rounded-lg border border-gray-700 flex items-center justify-between">
-                                            <span className="text-gray-500 text-sm font-mono">••••••••••••••••</span>
+                                            <span className="text-nkz-muted text-sm font-mono">••••••••••••••••</span>
                                             <span className="text-xs text-gray-600 italic">Oculta por seguridad</span>
                                         </div>
                                     )}
@@ -350,11 +350,11 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
                             <div className="bg-gray-800 rounded-xl max-w-sm w-full p-6 border border-gray-700 shadow-2xl">
                                 <div className="flex flex-col items-center text-center gap-4">
-                                    <div className="p-3 bg-red-500/20 rounded-full">
-                                        <TriangleAlert className="w-8 h-8 text-red-500" />
+                                    <div className="p-3 bg-nkz-error-light0/20 rounded-full">
+                                        <TriangleAlert className="w-8 h-8 text-nkz-error" />
                                     </div>
                                     <h3 className="text-lg font-bold text-white">¿Regenerar API Key?</h3>
-                                    <p className="text-sm text-gray-400">
+                                    <p className="text-sm text-nkz-muted">
                                         Esta acción invalidará la clave anterior. El dispositivo dejará de conectar hasta que lo actualices con la nueva clave.
                                     </p>
                                     <div className="flex gap-3 w-full mt-2">
@@ -383,7 +383,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
             {activeTab === 'profile' && (
                 <div className="space-y-6 overflow-y-auto pr-2">
                     <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50">
-                        <label className="block text-sm text-gray-400 mb-2">
+                        <label className="block text-sm text-nkz-muted mb-2">
                             Perfil de Dispositivo
                         </label>
                         <div className="relative">
@@ -409,7 +409,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                     </optgroup>
                                 )}
                             </select>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-nkz-muted pointer-events-none" />
                         </div>
 
                         {/* Switch to Custom */}

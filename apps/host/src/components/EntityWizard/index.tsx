@@ -58,12 +58,12 @@ function StepperIndicator() {
       {steps.map((s, i) => (
         <div key={s.id} className="flex items-center gap-1">
           <div className={`w-2 h-2 rounded-full transition-colors ${
-            i < stepIndex ? 'bg-green-500' : i === stepIndex ? 'bg-green-600 ring-2 ring-green-200' : 'bg-gray-300'
+            i < stepIndex ? 'bg-nkz-success-light0' : i === stepIndex ? 'bg-green-600 ring-2 ring-green-200' : 'bg-gray-300'
           }`} />
           {i < steps.length - 1 && <div className="w-4 h-px bg-gray-200" />}
         </div>
       ))}
-      <span className="ml-2 text-xs text-gray-500">{steps[stepIndex]?.label}</span>
+      <span className="ml-2 text-xs text-nkz-muted">{steps[stepIndex]?.label}</span>
     </div>
   );
 }
@@ -208,7 +208,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
       }`}>
         <div className={`bg-white shadow-xl flex flex-col transition-all duration-300 ${
           isMapInteractMode
-            ? 'absolute top-20 right-4 w-96 max-h-[80vh] pointer-events-auto rounded-xl border border-gray-200'
+            ? 'absolute top-20 right-4 w-96 max-h-[80vh] pointer-events-auto rounded-xl border border-nkz-border'
             : 'rounded-2xl max-w-4xl w-full max-h-[90vh]'
         }`}>
           {/* Header */}
@@ -217,7 +217,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
               <h2 className="text-xl font-bold text-gray-900">Crear Nueva Entidad</h2>
               <StepperIndicator />
             </div>
-            <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
+            <button onClick={handleClose} className="text-nkz-muted hover:text-gray-600">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -225,7 +225,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
           {/* Content */}
           <div className="p-6 flex-1 overflow-y-auto">
             {(error || validationError) && (
-              <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              <div className="mb-4 bg-nkz-error-light border border-red-200 text-nkz-error px-4 py-3 rounded-lg text-sm">
                 {error ?? validationError}
               </div>
             )}
@@ -237,7 +237,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
           </div>
 
           {/* Footer */}
-          <div className="bg-gray-50 px-6 py-4 border-t flex justify-between items-center rounded-b-2xl">
+          <div className="bg-nkz-bg-secondary px-6 py-4 border-t flex justify-between items-center rounded-b-2xl">
             <button
               onClick={goBack}
               disabled={isFirstStep || loading}
@@ -273,7 +273,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
       {loading && (
         <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center">
           <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm w-full mx-4">
-            <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
+            <Loader2 className="w-12 h-12 text-nkz-info animate-spin mb-4" />
             <h3 className="text-xl font-bold text-slate-800">Creando entidad...</h3>
             <p className="text-slate-500 mt-2 text-sm text-center">No cierre esta ventana, por favor.</p>
           </div>

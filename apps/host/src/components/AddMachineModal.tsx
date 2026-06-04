@@ -51,13 +51,13 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
     setLoading(true);
 
     if (!formData.name) {
-      setError(t('machines.required_fields') || 'Por favor completa todos los campos obligatorios');
+      setError(t('machines.required_fields'));
       setLoading(false);
       return;
     }
 
     if (!formData.latitude || !formData.longitude) {
-      setError(t('machines.required_coordinates') || 'Por favor ingresa las coordenadas GPS (latitud y longitud)');
+      setError(t('machines.required_coordinates'));
       setLoading(false);
       return;
     }
@@ -160,7 +160,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
     } catch (error: unknown) {
       console.error('Error saving machine:', error);
       const ax = error as { response?: { data?: { error?: string } } };
-      const errorMsg = ax.response?.data?.error || (t('machines.save_error') || 'Error al guardar la maquinaria');
+      const errorMsg = ax.response?.data?.error || (t('machines.save_error'));
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -175,7 +175,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4 flex justify-between items-center sticky top-0 z-10">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Tractor className="w-6 h-6" />
-            {t('machines.title') || 'Registrar Maquinaria Agrícola'}
+            {t('machines.title')}
           </h2>
           <button
             onClick={onClose}
@@ -188,11 +188,11 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="bg-nkz-error-light border border-red-200 rounded-lg p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-nkz-error mt-0.5 flex-shrink-0" />
               <div className="flex-1">
                 <p className="text-red-800 font-medium">Error</p>
-                <p className="text-red-700 text-sm">{error}</p>
+                <p className="text-nkz-error text-sm">{error}</p>
               </div>
             </div>
           )}
@@ -200,14 +200,14 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('machines.name') || 'Nombre'} *
+              {t('machines.name')} *
             </label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder={t('machines.name_placeholder') || 'Ej: Tractor John Deere 6130M'}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder={t('machines.name_placeholder')}
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               disabled={loading}
               required
             />
@@ -217,27 +217,27 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('machines.manufacturer') || 'Fabricante'}
+                {t('machines.manufacturer')}
               </label>
               <input
                 type="text"
                 value={formData.manufacturer}
                 onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                placeholder={t('machines.manufacturer_placeholder') || 'Ej: John Deere'}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder={t('machines.manufacturer_placeholder')}
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('machines.model') || 'Modelo'}
+                {t('machines.model')}
               </label>
               <input
                 type="text"
                 value={formData.model}
                 onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                placeholder={t('machines.model_placeholder') || 'Ej: 6130M'}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder={t('machines.model_placeholder')}
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               />
             </div>
@@ -246,14 +246,14 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
           {/* Serial Number */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('machines.serial_number') || 'Número de Serie'}
+              {t('machines.serial_number')}
             </label>
             <input
               type="text"
               value={formData.serialNumber}
               onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
-              placeholder={t('machines.serial_number_placeholder') || 'Ej: SN-2024-001'}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder={t('machines.serial_number_placeholder')}
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               disabled={loading}
             />
           </div>
@@ -262,25 +262,25 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('machines.status') || 'Estado'}
+                {t('machines.status')}
               </label>
               <select
                 value={formData.status}
                 onChange={(e) =>
                   setFormData({ ...formData, status: e.target.value as typeof formData.status })
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               >
-                <option value="idle">{t('machines.idle') || 'Inactivo'}</option>
-                <option value="working">{t('machines.working') || 'Trabajando'}</option>
-                <option value="maintenance">{t('machines.maintenance') || 'Mantenimiento'}</option>
-                <option value="error">{t('machines.error') || 'Error'}</option>
+                <option value="idle">{t('machines.idle')}</option>
+                <option value="working">{t('machines.working')}</option>
+                <option value="maintenance">{t('machines.maintenance')}</option>
+                <option value="error">{t('machines.error')}</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('machines.operation_type') || 'Tipo de Operación'}
+                {t('machines.operation_type')}
               </label>
               <select
                 value={formData.operation_type}
@@ -290,15 +290,15 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                     operation_type: e.target.value as typeof formData.operation_type
                   })
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               >
-                <option value="seeding">{t('machines.op_seeding') || 'Siembra'}</option>
-                <option value="fertilization">{t('machines.op_fertilization') || 'Fertilización'}</option>
-                <option value="spraying">{t('machines.op_spraying') || 'Pulverización'}</option>
-                <option value="harvesting">{t('machines.op_harvesting') || 'Cosecha'}</option>
-                <option value="tillage">{t('machines.op_tillage') || 'Labranza'}</option>
-                <option value="irrigation">{t('machines.op_irrigation') || 'Riego'}</option>
+                <option value="seeding">{t('machines.op_seeding')}</option>
+                <option value="fertilization">{t('machines.op_fertilization')}</option>
+                <option value="spraying">{t('machines.op_spraying')}</option>
+                <option value="harvesting">{t('machines.op_harvesting')}</option>
+                <option value="tillage">{t('machines.op_tillage')}</option>
+                <option value="irrigation">{t('machines.op_irrigation')}</option>
               </select>
             </div>
           </div>
@@ -310,11 +310,11 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               id="isobus"
               checked={formData.isobusCompatible}
               onChange={(e) => setFormData({ ...formData, isobusCompatible: e.target.checked })}
-              className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+              className="w-4 h-4 text-orange-600 border-nkz-border rounded focus:ring-orange-500"
               disabled={loading}
             />
             <label htmlFor="isobus" className="ml-2 text-sm text-gray-700">
-              {t('machines.isobus_compatible') || 'Compatible con ISOBUS'}
+              {t('machines.isobus_compatible')}
             </label>
           </div>
 
@@ -330,7 +330,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 value={formData.latitude}
                 onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: 42.571493"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
                 required
               />
@@ -346,7 +346,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 value={formData.longitude}
                 onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: -2.028218"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
                 required
               />
@@ -358,15 +358,15 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                 <MapPin className="w-4 h-4" />
-                {t('machines.latitude') || 'Latitud (GPS)'} *
+                {t('machines.latitude')} *
               </label>
               <input
                 type="number"
                 step="any"
                 value={formData.latitude}
                 onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
-                placeholder={t('machines.latitude_placeholder') || 'Ej: 42.571493'}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder={t('machines.latitude_placeholder')}
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
                 required
               />
@@ -374,15 +374,15 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                 <MapPin className="w-4 h-4" />
-                {t('machines.longitude') || 'Longitud (GPS)'} *
+                {t('machines.longitude')} *
               </label>
               <input
                 type="number"
                 step="any"
                 value={formData.longitude}
                 onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
-                placeholder={t('machines.longitude_placeholder') || 'Ej: -2.028218'}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder={t('machines.longitude_placeholder')}
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
                 required
               />
@@ -393,27 +393,27 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('machines.icon2d') || 'Icono 2D (URL opcional)'}
+                {t('machines.icon2d')}
               </label>
               <input
                 type="url"
                 value={formData.icon2d}
                 onChange={(e) => setFormData({ ...formData, icon2d: e.target.value })}
                 placeholder="https://ejemplo.com/icono.png"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('machines.model3d') || 'Modelo 3D (URL opcional)'}
+                {t('machines.model3d')}
               </label>
               <input
                 type="url"
                 value={formData.model3d}
                 onChange={(e) => setFormData({ ...formData, model3d: e.target.value })}
                 placeholder="https://ejemplo.com/modelo.glb"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               />
             </div>
@@ -422,14 +422,14 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
           {/* Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('machines.notes') || 'Notas'}
+              {t('machines.notes')}
             </label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              placeholder={t('machines.notes_placeholder') || 'Notas adicionales...'}
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder={t('machines.notes_placeholder')}
               disabled={loading}
             />
           </div>
@@ -442,7 +442,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              {loading ? (t('machines.saving') || 'Guardando...') : (t('machines.save') || 'Guardar Maquinaria')}
+              {loading ? (t('machines.saving')) : (t('machines.save'))}
             </button>
             <button
               type="button"
@@ -450,7 +450,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               disabled={loading}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t('common.cancel') || 'Cancelar'}
+              {t('common.cancel')}
             </button>
           </div>
         </form>

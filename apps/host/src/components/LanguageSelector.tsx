@@ -66,7 +66,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
           onClick={() => setShowMenu(!showMenu)}
           title={supportedLanguages[language] || supportedLanguages['es']}
           aria-label={supportedLanguages[language] || 'Idioma'}
-          className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-gray-300 dark:border-gray-600 shadow-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+          className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-nkz-border dark:border-gray-600 shadow-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-nkz-bg-secondary dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
         >
           <Globe className="h-4 w-4" />
         </button>
@@ -77,8 +77,8 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                 key={code}
                 onClick={() => handleLanguageChange(code)}
                 className={`block w-full text-left px-4 py-2 text-sm ${language === code
-                  ? 'bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-400'
-                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  ? 'bg-nkz-success-light dark:bg-green-900/20 text-green-900 dark:text-green-400'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-nkz-bg-secondary dark:hover:bg-gray-700'
                   }`}
               >
                 {(name as React.ReactNode)}
@@ -96,7 +96,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         <button
           type="button"
           onClick={() => setShowMenu(!showMenu)}
-          className="inline-flex items-center justify-center w-full rounded-md border border-gray-300 shadow-sm px-3 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+          className="inline-flex items-center justify-center w-full rounded-md border border-nkz-border shadow-sm px-3 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
         >
           <Globe className="h-4 w-4 mr-2" />
           <span className="text-xs">{supportedLanguages[language] || supportedLanguages['es']}</span>
@@ -108,8 +108,8 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
                 key={code}
                 onClick={() => handleLanguageChange(code)}
                 className={`block w-full text-left px-4 py-2 text-sm ${language === code
-                  ? 'bg-green-50 text-green-900'
-                  : 'text-gray-700 hover:bg-gray-50'
+                  ? 'bg-nkz-success-light text-green-900'
+                  : 'text-gray-700 hover:bg-nkz-bg-secondary'
                   }`}
               >
                 {(name as React.ReactNode)}
@@ -126,7 +126,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       <button
         type="button"
         onClick={() => setShowMenu(!showMenu)}
-        className="inline-flex items-center justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+        className="inline-flex items-center justify-center w-full rounded-md border border-nkz-border shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
       >
         <Globe className="h-5 w-5 mr-2" />
         {supportedLanguages[language] || supportedLanguages['es']}
@@ -138,8 +138,8 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
               key={code}
               onClick={() => handleLanguageChange(code)}
               className={`block w-full text-left px-4 py-2 text-sm ${language === code
-                ? 'bg-green-50 text-green-900'
-                : 'text-gray-700 hover:bg-gray-50'
+                ? 'bg-nkz-success-light text-green-900'
+                : 'text-gray-700 hover:bg-nkz-bg-secondary'
                 }`}
             >
               {(name as React.ReactNode)}

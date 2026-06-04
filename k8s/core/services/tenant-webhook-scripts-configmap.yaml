@@ -150,6 +150,10 @@ data:
             tenant-id: ${TENANT_ID}
         spec:
           serviceAccountName: ${TENANT_ID}-sa
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           containers:
           - name: frontend
             image: nginx:alpine
@@ -158,6 +162,20 @@ data:
             env:
             - name: TENANT_ID
               value: ${TENANT_ID}
+            resources:
+              requests:
+                cpu: 10m
+                memory: 32Mi
+              limits:
+                cpu: 100m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                - ALL
     ---
     apiVersion: v1
     kind: Service

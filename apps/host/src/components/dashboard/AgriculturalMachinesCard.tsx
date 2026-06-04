@@ -24,7 +24,7 @@ export const AgriculturalMachinesCard: React.FC<AgriculturalMachinesCardProps> =
         {machines.length === 0 ? (
           <div className="text-center py-12">
             <Tractor className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">{t('dashboard.machines.no_machines')}</p>
+            <p className="text-nkz-muted mb-4">{t('dashboard.machines.no_machines')}</p>
             {canManageDevices && (
               <button
                 onClick={() => onOpenWizard('ManufacturingMachine')}
@@ -50,7 +50,7 @@ export const AgriculturalMachinesCard: React.FC<AgriculturalMachinesCardProps> =
                     <p className="text-sm font-semibold text-gray-900">
                       {typeof machine.operationType === 'string' ? machine.operationType : machine.operationType.value}
                     </p>
-                    <p className="text-xs text-gray-500">{t('dashboard.machines.operation_type')}</p>
+                    <p className="text-xs text-nkz-muted">{t('dashboard.machines.operation_type')}</p>
                   </div>
                 )}
               </div>

@@ -72,19 +72,6 @@ export async function uploadToMinIO(
 }
 
 /**
- * Legacy alias for backward compatibility
- * @deprecated Use uploadToMinIO instead
- */
-export async function uploadToVercelBlob(
-  file: File,
-  options: UploadOptions = {}
-): Promise<string> {
-  // Determine asset type from file
-  const assetType = isValid3DModelFile(file) ? 'model' : 'icon';
-  return uploadToMinIO(file, assetType, options);
-}
-
-/**
  * Delete an asset from MinIO
  */
 export async function deleteFromMinIO(

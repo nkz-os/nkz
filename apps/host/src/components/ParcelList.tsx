@@ -58,8 +58,8 @@ export const ParcelList: React.FC<ParcelListProps> = ({
 
   if (parcels.length === 0) {
     return (
-      <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg p-6 text-center">
-        <p className="text-sm text-gray-500">
+      <div className="bg-nkz-bg-secondary border border-dashed border-nkz-border rounded-lg p-6 text-center">
+        <p className="text-sm text-nkz-muted">
           {t('parcels.no_parcels_selected')}
         </p>
       </div>
@@ -72,7 +72,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
         {parcels.map((parcel) => (
           <div
             key={parcel.id}
-            className="bg-white border border-gray-200 rounded-lg p-4 hover:border-emerald-300 transition-colors"
+            className="bg-white border border-nkz-border rounded-lg p-4 hover:border-emerald-300 transition-colors"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -101,7 +101,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                     </button>
                     <button
                       onClick={handleCancelEdit}
-                      className="p-1 text-gray-400 hover:bg-gray-50 rounded transition-colors"
+                      className="p-1 text-nkz-muted hover:bg-nkz-bg-secondary rounded transition-colors"
                       title={t('parcels.cancel')}
                     >
                       <X className="w-4 h-4" />
@@ -115,7 +115,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                     {canEdit && (
                       <button
                         onClick={() => handleStartEdit(parcel)}
-                        className="p-1 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                        className="p-1 text-nkz-muted hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
                         title={t('parcels.edit_name')}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -130,12 +130,12 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                     <span className="font-medium">{parcel.areaHectares.toFixed(2)} {t('ndvi.hectares')}</span>
                   </div>
                   {parcel.cadastralReference && (
-                    <span className="text-gray-500">
+                    <span className="text-nkz-muted">
                       {t('parcels.reference', { reference: parcel.cadastralReference })}
                     </span>
                   )}
                   {(parcel.municipality || parcel.province) && (
-                    <span className="text-gray-500">
+                    <span className="text-nkz-muted">
                       {parcel.municipality && parcel.province 
                         ? `${parcel.municipality}, ${parcel.province}`
                         : parcel.municipality || parcel.province}
@@ -149,7 +149,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                   <button
                     onClick={() => onView(parcel)}
                     className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
-                    title={t('ndvi.view_ndvi') || 'Ver NDVI'}
+                    title={t('ndvi.view_ndvi')}
                   >
                     <Eye className="w-4 h-4" />
                   </button>
@@ -157,7 +157,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                 {canEdit && editingId !== parcel.id && (
                   <button
                     onClick={() => onRemove(parcel.id)}
-                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    className="p-1.5 text-red-400 hover:text-nkz-error hover:bg-nkz-error-light rounded transition-colors"
                     title={t('parcels.remove_parcel')}
                   >
                     <Trash2 className="w-4 h-4" />

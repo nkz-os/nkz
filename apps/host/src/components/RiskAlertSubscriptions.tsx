@@ -14,11 +14,11 @@ interface RiskAlertSubscriptionsProps {
 }
 
 const DOMAIN_COLORS: Record<string, string> = {
-  agronomic: 'bg-green-100 text-green-800',
-  energy: 'bg-yellow-100 text-yellow-800',
-  robotic: 'bg-blue-100 text-blue-800',
+  agronomic: 'bg-nkz-success-light text-green-800',
+  energy: 'bg-nkz-warning-light text-yellow-800',
+  robotic: 'bg-nkz-info-light text-blue-800',
   livestock: 'bg-orange-100 text-orange-800',
-  other: 'bg-gray-100 text-gray-800',
+  other: 'bg-nkz-bg-secondary text-gray-800',
 };
 
 export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ readOnly = false }) => {
@@ -147,7 +147,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6">
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           <p className="text-gray-600 mt-2">{t('settings.loading')}</p>
@@ -157,7 +157,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
           <AlertTriangle className="w-5 h-5 text-orange-600" />
@@ -169,14 +169,14 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg">
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
 
       {catalog.length === 0 ? (
         <div className="text-center py-8">
-          <Bell className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <Bell className="w-12 h-12 text-nkz-muted mx-auto mb-4" />
           <p className="text-gray-600">{t('settings.risks.no_risks')}</p>
         </div>
       ) : (
@@ -201,14 +201,14 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
                     <div
                       key={risk.risk_code}
                       className={`border rounded-lg p-4 transition ${
-                        isActive ? 'border-orange-200 bg-orange-50/50' : 'border-gray-200'
+                        isActive ? 'border-orange-200 bg-orange-50/50' : 'border-nkz-border'
                       } ${isUpdating ? 'opacity-60' : ''}`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-medium text-gray-900">{risk.risk_name}</h4>
                           {risk.risk_description && (
-                            <p className="text-xs text-gray-500 mt-0.5 truncate">{risk.risk_description}</p>
+                            <p className="text-xs text-nkz-muted mt-0.5 truncate">{risk.risk_description}</p>
                           )}
                         </div>
                         <button
@@ -217,7 +217,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
                           className={`ml-4 p-2 rounded-lg transition ${
                             isActive
                               ? 'bg-orange-100 text-orange-600 hover:bg-orange-200'
-                              : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                              : 'bg-nkz-bg-secondary text-nkz-muted hover:bg-gray-200'
                           } disabled:opacity-50 disabled:cursor-not-allowed`}
                           title={isActive ? t('settings.risks.deactivate') : t('settings.risks.activate')}
                         >
@@ -226,7 +226,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
                       </div>
 
                       {isActive && sub && (
-                        <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
+                        <div className="mt-3 pt-3 border-t border-nkz-border space-y-3">
                           <div>
                             <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
                               <span>{t('settings.risks.threshold')}</span>

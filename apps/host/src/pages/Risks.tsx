@@ -11,11 +11,11 @@ import type { RiskState, RiskCatalog } from '@/types';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SEVERITY_CONFIG = {
-  critical: { label: 'Crítico',  bg: 'bg-red-100',    text: 'text-red-800',    bar: 'bg-red-500',    dot: 'bg-red-500'    },
+  critical: { label: 'Crítico',  bg: 'bg-nkz-error-light',    text: 'text-red-800',    bar: 'bg-nkz-error-light0',    dot: 'bg-nkz-error-light0'    },
   high:     { label: 'Alto',     bg: 'bg-orange-100', text: 'text-orange-800', bar: 'bg-orange-500', dot: 'bg-orange-500' },
-  medium:   { label: 'Medio',    bg: 'bg-yellow-100', text: 'text-yellow-800', bar: 'bg-yellow-500', dot: 'bg-yellow-500' },
-  low:      { label: 'Bajo',     bg: 'bg-gray-100',   text: 'text-gray-700',   bar: 'bg-gray-400',   dot: 'bg-gray-400'   },
-  null:     { label: 'Sin datos',bg: 'bg-blue-50',    text: 'text-blue-600',   bar: 'bg-blue-300',   dot: 'bg-blue-300'   },
+  medium:   { label: 'Medio',    bg: 'bg-nkz-warning-light', text: 'text-yellow-800', bar: 'bg-nkz-warning-light0', dot: 'bg-nkz-warning-light0' },
+  low:      { label: 'Bajo',     bg: 'bg-nkz-bg-secondary',   text: 'text-gray-700',   bar: 'bg-gray-400',   dot: 'bg-gray-400'   },
+  null:     { label: 'Sin datos',bg: 'bg-nkz-info-light',    text: 'text-nkz-info',   bar: 'bg-blue-300',   dot: 'bg-blue-300'   },
 } as const;
 
 const DOMAIN_EMOJI: Record<string, string> = {
@@ -66,7 +66,7 @@ function ProbabilityBar({ score, severity }: ProbabilityBarProps) {
   const cfg = SEVERITY_CONFIG[severity ?? 'null'];
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <div className="flex-1 bg-gray-100 rounded-full h-1.5 min-w-[60px]">
+      <div className="flex-1 bg-nkz-bg-secondary rounded-full h-1.5 min-w-[60px]">
         <div
           className={`h-1.5 rounded-full transition-all ${cfg.bar}`}
           style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
@@ -85,32 +85,32 @@ function RiskRow({ state, catalog }: RiskRowProps) {
 
   return (
     <>
-      <tr className="hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
+      <tr className="hover:bg-nkz-bg-secondary transition-colors border-b border-gray-100 last:border-0">
         <td className="px-4 py-3 text-sm">
           <div className="flex items-center gap-1.5">
             <span>{risk ? DOMAIN_EMOJI[risk.risk_domain] : '⚠️'}</span>
             <span className="font-medium text-gray-800">{risk?.risk_name ?? state.risk_code}</span>
           </div>
-          <div className="text-xs text-gray-400 mt-0.5">{state.risk_code}</div>
+          <div className="text-xs text-nkz-muted mt-0.5">{state.risk_code}</div>
         </td>
         <td className="px-4 py-3"><SeverityBadge severity={state.severity} /></td>
         <td className="px-4 py-3 w-36"><ProbabilityBar score={state.probability_score} severity={state.severity} /></td>
-        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatTimestamp(state.timestamp)}</td>
+        <td className="px-4 py-3 text-xs text-nkz-muted whitespace-nowrap">{formatTimestamp(state.timestamp)}</td>
         <td className="px-4 py-3 text-right">
           {hasDetails && (
-            <button onClick={() => setExpanded(v => !v)} className="text-gray-400 hover:text-gray-700 transition p-1">
+            <button onClick={() => setExpanded(v => !v)} className="text-nkz-muted hover:text-gray-700 transition p-1">
               {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
             </button>
           )}
         </td>
       </tr>
       {expanded && hasDetails && (
-        <tr className="bg-gray-50/50">
+        <tr className="bg-nkz-bg-secondary/50">
           <td colSpan={5} className="px-4 pb-3 pt-0">
             <div className="rounded-lg p-3 text-xs font-mono text-gray-600 grid grid-cols-2 md:grid-cols-3 gap-2 border border-gray-100">
               {Object.entries(state.evaluation_data).map(([k, v]) => (
                 <div key={k} className="flex gap-1">
-                  <span className="text-gray-400">{k}:</span>
+                  <span className="text-nkz-muted">{k}:</span>
                   <span className="text-gray-700 font-medium">{typeof v === 'number' ? v.toFixed(2) : String(v)}</span>
                 </div>
               ))}
@@ -149,19 +149,19 @@ function ParcelGroup({ entityId, states, catalog }: ParcelGroupProps) {
   }, null as RiskState['severity']);
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm mb-4">
+    <div className="bg-white rounded-xl border border-nkz-border overflow-hidden shadow-sm mb-4">
       {/* Header / Accordion trigger */}
       <button 
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left border-b border-gray-100"
+        className="w-full flex items-center justify-between p-4 hover:bg-nkz-bg-secondary transition-colors text-left border-b border-gray-100"
       >
         <div className="flex items-center gap-4">
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-gray-900">{shortEntityId(entityId)}</h3>
-              <span className="text-xs text-gray-400 font-mono hidden md:inline">{entityId}</span>
+              <span className="text-xs text-nkz-muted font-mono hidden md:inline">{entityId}</span>
             </div>
-            <div className="text-xs text-gray-500 mt-0.5">
+            <div className="text-xs text-nkz-muted mt-0.5">
               {states.length} riesgos evaluados
             </div>
           </div>
@@ -169,10 +169,10 @@ function ParcelGroup({ entityId, states, catalog }: ParcelGroupProps) {
         
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end gap-1">
-            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Estado Máximo</span>
+            <span className="text-[10px] text-nkz-muted uppercase font-bold tracking-wider">Estado Máximo</span>
             <SeverityBadge severity={maxSeverity} />
           </div>
-          {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
+          {isExpanded ? <ChevronDown className="w-5 h-5 text-nkz-muted" /> : <ChevronRight className="w-5 h-5 text-nkz-muted" />}
         </div>
       </button>
 
@@ -180,12 +180,12 @@ function ParcelGroup({ entityId, states, catalog }: ParcelGroupProps) {
       {isExpanded && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50/50 border-b border-gray-100">
+            <thead className="bg-nkz-bg-secondary/50 border-b border-gray-100">
               <tr>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Riesgo</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Severidad</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Probabilidad</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Fecha</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-nkz-muted uppercase tracking-wider">Riesgo</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-nkz-muted uppercase tracking-wider">Severidad</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-nkz-muted uppercase tracking-wider">Probabilidad</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-nkz-muted uppercase tracking-wider">Fecha</th>
                 <th className="px-4 py-2 w-10"></th>
               </tr>
             </thead>
@@ -298,11 +298,11 @@ function MonitorTab() {
               className={`rounded-xl border-2 p-4 text-left transition-all ${
                 filterSeverity === sev
                   ? `${cfg.bg} border-current`
-                  : 'bg-white border-gray-200 hover:border-gray-300'
+                  : 'bg-white border-nkz-border hover:border-nkz-border'
               }`}
             >
               <div className={`text-3xl font-bold ${filterSeverity === sev ? cfg.text : 'text-gray-900'}`}>{count}</div>
-              <div className={`text-sm font-medium mt-1 ${filterSeverity === sev ? cfg.text : 'text-gray-500'}`}>{cfg.label}</div>
+              <div className={`text-sm font-medium mt-1 ${filterSeverity === sev ? cfg.text : 'text-nkz-muted'}`}>{cfg.label}</div>
             </button>
           );
         })}
@@ -324,31 +324,31 @@ function MonitorTab() {
           <button
             onClick={() => { setLoading(true); loadStates(); }}
             disabled={loading}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition"
+            className="p-2 text-nkz-muted hover:text-gray-700 hover:bg-nkz-bg-secondary rounded-lg transition"
             title="Actualizar"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
-        <div className="flex items-center gap-1 text-xs text-gray-400">
+        <div className="flex items-center gap-1 text-xs text-nkz-muted">
           <Clock className="w-3 h-3" />
           Actualizado: {formatTimestamp(lastRefresh.toISOString())} · Auto-refresh 60s
         </div>
       </div>
 
       {triggerMsg && (
-        <div className={`p-3 border rounded-lg text-sm ${triggerMsg.includes('Error') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
+        <div className={`p-3 border rounded-lg text-sm ${triggerMsg.includes('Error') ? 'bg-nkz-error-light border-red-200 text-red-800' : 'bg-nkz-info-light border-blue-200 text-blue-800'}`}>
           {triggerMsg}
         </div>
       )}
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Filter className="w-4 h-4 text-gray-400" />
+        <Filter className="w-4 h-4 text-nkz-muted" />
         <select
           value={filterCode}
           onChange={e => setFilterCode(e.target.value)}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-green-500 outline-none"
+          className="text-sm border border-nkz-border rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-green-500 outline-none"
         >
           <option value="all">Todos los riesgos</option>
           {allCodes.map(code => (
@@ -358,23 +358,23 @@ function MonitorTab() {
         {filterSeverity !== 'all' && (
           <button
             onClick={() => setFilterSeverity('all')}
-            className="text-xs text-gray-500 hover:text-gray-700 underline"
+            className="text-xs text-nkz-muted hover:text-gray-700 underline"
           >
             Quitar filtro de severidad
           </button>
         )}
-        <span className="text-xs text-gray-400 ml-auto">{filtered.length} riesgos detectados</span>
+        <span className="text-xs text-nkz-muted ml-auto">{filtered.length} riesgos detectados</span>
       </div>
 
       {/* Grouped View */}
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-gray-400">
+        <div className="flex items-center justify-center py-16 text-nkz-muted">
           <RefreshCw className="w-6 h-6 animate-spin mr-2" /> Cargando...
         </div>
       ) : sortedEntityIds.length === 0 ? (
-        <div className="text-center py-16 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+        <div className="text-center py-16 bg-nkz-bg-secondary rounded-xl border border-dashed border-nkz-border">
           <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">
+          <p className="text-nkz-muted font-medium">
             {states.length === 0
               ? 'No hay evaluaciones de riesgo. Pulsa "Disparar evaluación" para iniciar.'
               : 'No hay resultados con los filtros actuales.'}
@@ -406,16 +406,16 @@ export const Risks: React.FC = () => {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-          <Shield className="text-green-600 h-8 w-8" />
+          <Shield className="text-nkz-success h-8 w-8" />
           Inteligencia de Riesgos
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-nkz-muted mt-1">
           Monitorización proactiva y modelización de amenazas agroclimáticas mediante SDM y NGSI-LD.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
+      <div className="flex gap-1 border-b border-nkz-border mb-6">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -425,8 +425,8 @@ export const Risks: React.FC = () => {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 isActive
-                  ? 'border-green-600 text-green-700'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-green-600 text-nkz-success'
+                  : 'border-transparent text-nkz-muted hover:text-gray-700 hover:border-nkz-border'
               }`}
             >
               <Icon className="w-4 h-4" />

@@ -37,16 +37,16 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
           type="text"
           value={value}
           readOnly
-          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded bg-gray-50 font-mono"
+          className="flex-1 px-3 py-2 text-sm border border-nkz-border rounded bg-nkz-bg-secondary font-mono"
         />
         <button
           type="button"
           onClick={() => copyToClipboard(value, fieldName)}
-          className="px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 transition"
+          className="px-3 py-2 border border-nkz-border rounded hover:bg-nkz-bg-secondary transition"
           title="Copy to clipboard"
         >
           {copiedField === fieldName
-            ? <Check className="w-4 h-4 text-green-600" />
+            ? <Check className="w-4 h-4 text-nkz-success" />
             : <Copy className="w-4 h-4" />
           }
         </button>
@@ -78,9 +78,9 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
         {/* Content */}
         <div className="p-6 space-y-5">
           {/* Robot info */}
-          <div className="bg-gray-50 rounded-xl p-4">
+          <div className="bg-nkz-bg-secondary rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Server className="w-4 h-4 text-gray-500" />
+              <Server className="w-4 h-4 text-nkz-muted" />
               <h4 className="font-medium text-gray-700">Robot Identity</h4>
             </div>
             <div className="space-y-2">
@@ -111,7 +111,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 border-t rounded-b-2xl">
+        <div className="bg-nkz-bg-secondary px-6 py-4 border-t rounded-b-2xl">
           <button
             type="button"
             onClick={onClose}

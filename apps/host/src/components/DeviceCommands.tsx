@@ -41,12 +41,12 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
 
   // Comandos predefinidos comunes
   const predefinedCommands = [
-    { type: 'reboot', label: t('sensors.command_reboot') || 'Reiniciar dispositivo', payload: { action: 'reboot' } },
-    { type: 'reset', label: t('sensors.command_reset') || 'Reset de fábrica', payload: { action: 'factory_reset' } },
-    { type: 'calibrate', label: t('sensors.command_calibrate') || 'Calibrar sensores', payload: { action: 'calibrate' } },
-    { type: 'update_firmware', label: t('sensors.command_update_firmware') || 'Actualizar firmware', payload: { action: 'update_firmware' } },
-    { type: 'get_status', label: t('sensors.command_get_status') || 'Obtener estado', payload: { action: 'get_status' } },
-    { type: 'custom', label: t('sensors.command_custom') || 'Comando personalizado', payload: {} }
+    { type: 'reboot', label: t('sensors.command_reboot'), payload: { action: 'reboot' } },
+    { type: 'reset', label: t('sensors.command_reset'), payload: { action: 'factory_reset' } },
+    { type: 'calibrate', label: t('sensors.command_calibrate'), payload: { action: 'calibrate' } },
+    { type: 'update_firmware', label: t('sensors.command_update_firmware'), payload: { action: 'update_firmware' } },
+    { type: 'get_status', label: t('sensors.command_get_status'), payload: { action: 'get_status' } },
+    { type: 'custom', label: t('sensors.command_custom'), payload: {} }
   ];
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
         try {
           payload = JSON.parse(commandPayload);
         } catch (e) {
-          setError(t('sensors.invalid_json') || 'JSON inválido');
+          setError(t('sensors.invalid_json'));
           setIsLoading(false);
           return;
         }
@@ -93,7 +93,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
         payload: payload
       });
 
-      setSuccess(t('sensors.command_sent') || 'Comando enviado correctamente');
+      setSuccess(t('sensors.command_sent'));
       setCommandPayload('{}');
       
       // Recargar historial después de un breve delay
@@ -103,7 +103,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
 
     } catch (err: any) {
       console.error('Error sending command:', err);
-      setError(err?.response?.data?.error || t('sensors.command_error') || 'Error al enviar comando');
+      setError(err?.response?.data?.error || t('sensors.command_error'));
     } finally {
       setIsLoading(false);
     }
@@ -116,9 +116,9 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
       case 'sent':
         return <Clock className="w-4 h-4 text-yellow-500" />;
       case 'failed':
-        return <XCircle className="w-4 h-4 text-red-500" />;
+        return <XCircle className="w-4 h-4 text-nkz-error" />;
       default:
-        return <Clock className="w-4 h-4 text-gray-400" />;
+        return <Clock className="w-4 h-4 text-nkz-muted" />;
     }
   };
 
@@ -141,29 +141,29 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
   return (
     <div className="space-y-4">
       {/* Panel de envío de comandos */}
-      <div className="p-4 bg-white rounded-lg border border-gray-200">
+      <div className="p-4 bg-white rounded-lg border border-nkz-border">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          {t('sensors.send_command') || 'Enviar Comando'}
+          {t('sensors.send_command')}
         </h3>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
-            <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-            <span className="text-red-700 text-sm">{error}</span>
+          <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg flex items-center">
+            <AlertCircle className="w-5 h-5 text-nkz-error mr-2" />
+            <span className="text-nkz-error text-sm">{error}</span>
           </div>
         )}
 
         {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center">
+          <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg flex items-center">
             <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-            <span className="text-green-700 text-sm">{success}</span>
+            <span className="text-nkz-success text-sm">{success}</span>
           </div>
         )}
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('sensors.command_type') || 'Tipo de Comando'}
+              {t('sensors.command_type')}
             </label>
             <select
               value={commandType}
@@ -176,7 +176,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
                   setCommandPayload('{}');
                 }
               }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               {predefinedCommands.map(cmd => (
                 <option key={cmd.type} value={cmd.type}>{cmd.label}</option>
@@ -186,24 +186,24 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('sensors.command_payload') || 'Payload (JSON)'}
+              {t('sensors.command_payload')}
             </label>
             <textarea
               value={commandPayload}
               onChange={(e) => setCommandPayload(e.target.value)}
               rows={6}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder='{"action": "reboot", "delay": 5}'
             />
-            <p className="mt-1 text-xs text-gray-500">
-              {t('sensors.command_payload_hint') || 'Ingresa el payload del comando en formato JSON'}
+            <p className="mt-1 text-xs text-nkz-muted">
+              {t('sensors.command_payload_hint')}
             </p>
           </div>
 
           {mqttTopics && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="p-3 bg-nkz-info-light border border-blue-200 rounded-lg">
               <p className="text-xs text-blue-800">
-                <strong>{t('sensors.mqtt_topic_commands') || 'Topic MQTT:'}</strong> {mqttTopics.commands}
+                <strong>{t('sensors.mqtt_topic_commands')}</strong> {mqttTopics.commands}
               </p>
             </div>
           )}
@@ -216,12 +216,12 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
             {isLoading ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>{t('sensors.sending') || 'Enviando...'}</span>
+                <span>{t('sensors.sending')}</span>
               </>
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                <span>{t('sensors.send_command') || 'Enviar Comando'}</span>
+                <span>{t('sensors.send_command')}</span>
               </>
             )}
           </button>
@@ -229,36 +229,36 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
       </div>
 
       {/* Historial de comandos */}
-      <div className="p-4 bg-white rounded-lg border border-gray-200">
+      <div className="p-4 bg-white rounded-lg border border-nkz-border">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <History className="w-5 h-5" />
-            {t('sensors.command_history') || 'Historial de Comandos'}
+            {t('sensors.command_history')}
           </h3>
           <button
             onClick={loadCommandHistory}
             disabled={isLoadingHistory}
             className="p-2 text-gray-600 hover:text-gray-900 transition disabled:opacity-50"
-            title={t('sensors.refresh') || 'Actualizar'}
+            title={t('sensors.refresh')}
           >
             <History className="w-4 h-4" />
           </button>
         </div>
 
         {isLoadingHistory ? (
-          <div className="text-center py-8 text-gray-500">
-            {t('sensors.loading') || 'Cargando...'}
+          <div className="text-center py-8 text-nkz-muted">
+            {t('sensors.loading')}
           </div>
         ) : commandHistory.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            {t('sensors.no_commands') || 'No hay comandos enviados'}
+          <div className="text-center py-8 text-nkz-muted">
+            {t('sensors.no_commands')}
           </div>
         ) : (
           <div className="space-y-2">
             {commandHistory.map((cmd) => (
               <div
                 key={cmd.id}
-                className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition"
+                className="p-3 bg-nkz-bg-secondary rounded-lg border border-nkz-border hover:bg-nkz-bg-secondary transition"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -266,10 +266,10 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
                       {getStatusIcon(cmd.status)}
                       <span className="font-medium text-gray-900">{cmd.command_type}</span>
                       <span className={`text-xs px-2 py-1 rounded ${
-                        cmd.status === 'executed' ? 'bg-green-100 text-green-700' :
-                        cmd.status === 'sent' ? 'bg-yellow-100 text-yellow-700' :
-                        cmd.status === 'failed' ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-700'
+                        cmd.status === 'executed' ? 'bg-nkz-success-light text-nkz-success' :
+                        cmd.status === 'sent' ? 'bg-nkz-warning-light text-nkz-warning' :
+                        cmd.status === 'failed' ? 'bg-nkz-error-light text-nkz-error' :
+                        'bg-nkz-bg-secondary text-gray-700'
                       }`}>
                         {cmd.status}
                       </span>
@@ -280,14 +280,14 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
                     </div>
                     <details className="text-xs">
                       <summary className="cursor-pointer text-gray-600 hover:text-gray-900">
-                        {t('sensors.view_payload') || 'Ver payload'}
+                        {t('sensors.view_payload')}
                       </summary>
                       <pre className="mt-2 p-2 bg-white rounded text-xs overflow-auto">
                         {JSON.stringify(cmd.payload, null, 2)}
                       </pre>
                       {cmd.response && (
                         <>
-                          <p className="mt-2 font-medium">{t('sensors.response') || 'Respuesta:'}</p>
+                          <p className="mt-2 font-medium">{t('sensors.response')}</p>
                           <pre className="mt-1 p-2 bg-white rounded text-xs overflow-auto">
                             {JSON.stringify(cmd.response, null, 2)}
                           </pre>

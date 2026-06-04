@@ -124,16 +124,16 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           type={sensitive ? 'password' : 'text'}
           value={value}
           readOnly
-          className={`flex-1 px-3 py-2 text-sm border border-gray-300 rounded bg-gray-50 ${mono ? 'font-mono' : ''}`}
+          className={`flex-1 px-3 py-2 text-sm border border-nkz-border rounded bg-nkz-bg-secondary ${mono ? 'font-mono' : ''}`}
         />
         <button
           type="button"
           onClick={() => copyToClipboard(value, fieldName)}
-          className="px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 transition"
+          className="px-3 py-2 border border-nkz-border rounded hover:bg-nkz-bg-secondary transition"
           title="Copy to clipboard"
         >
           {copiedField === fieldName ? (
-            <Check className="w-4 h-4 text-green-600" />
+            <Check className="w-4 h-4 text-nkz-success" />
           ) : (
             <Copy className="w-4 h-4" />
           )}
@@ -194,7 +194,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
               className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition font-medium shadow-sm ${
                 allCopied 
                   ? 'bg-green-600 text-white' 
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-nkz-bg-secondary text-gray-700 hover:bg-gray-200'
               }`}
             >
               {allCopied ? (
@@ -214,9 +214,9 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           {/* Credentials Sections */}
           <div className="space-y-4">
             {/* API Key Section - MOST IMPORTANT */}
-            <div className="bg-red-50 rounded-xl p-4 border-2 border-red-300">
+            <div className="bg-nkz-error-light rounded-xl p-4 border-2 border-red-300">
               <div className="flex items-center gap-2 mb-3">
-                <Key className="w-5 h-5 text-red-600" />
+                <Key className="w-5 h-5 text-nkz-error" />
                 <h4 className="font-bold text-red-900">API Key (Secreto)</h4>
                 <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-full">Una sola vez</span>
               </div>
@@ -228,9 +228,9 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             </div>
 
             {/* Device Info Section */}
-            <div className="bg-gray-50 rounded-xl p-4">
+            <div className="bg-nkz-bg-secondary rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
-                <Server className="w-4 h-4 text-gray-500" />
+                <Server className="w-4 h-4 text-nkz-muted" />
                 <h4 className="font-medium text-gray-700">Información del Dispositivo</h4>
               </div>
               <div className="space-y-2">
@@ -281,9 +281,9 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             </div>
 
             {/* Example Payload */}
-            <div className="bg-gray-50 rounded-xl p-4">
+            <div className="bg-nkz-bg-secondary rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
-                <Server className="w-4 h-4 text-gray-500" />
+                <Server className="w-4 h-4 text-nkz-muted" />
                 <h4 className="font-medium text-gray-700">Ejemplo de Payload JSON</h4>
               </div>
               <pre className="bg-gray-900 text-green-400 p-3 rounded-lg text-sm overflow-x-auto">
@@ -297,12 +297,12 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           </div>
 
           {/* Instructions */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="bg-nkz-info-light border border-blue-200 rounded-xl p-4">
             <h4 className="font-medium text-blue-900 mb-2">Próximos pasos:</h4>
             <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
               <li>Descarga el archivo de configuración JSON</li>
               <li>Configura tu dispositivo con la API Key y los topics</li>
-              <li>Conecta por MQTT a <code className="bg-blue-100 px-1 rounded">{credentials.host}:{credentials.port}</code></li>
+              <li>Conecta por MQTT a <code className="bg-nkz-info-light px-1 rounded">{credentials.host}:{credentials.port}</code></li>
               <li>Envía datos al topic de publicación en formato JSON</li>
               <li>Verifica en el visor que los datos aparecen correctamente</li>
             </ol>
@@ -310,7 +310,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 border-t rounded-b-2xl">
+        <div className="bg-nkz-bg-secondary px-6 py-4 border-t rounded-b-2xl">
           <button
             type="button"
             onClick={onClose}

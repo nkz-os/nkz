@@ -27,7 +27,7 @@ export const EnvironmentalSensorsCard: React.FC<EnvironmentalSensorsCardProps> =
         {sensors.length === 0 ? (
           <div className="text-center py-12">
             <Gauge className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">{t('sensors.no_sensors_registered')}</p>
+            <p className="text-nkz-muted mb-4">{t('sensors.no_sensors_registered')}</p>
             {canManageDevices && (
               <button
                 onClick={() => onOpenWizard('AgriSensor')}
@@ -43,7 +43,7 @@ export const EnvironmentalSensorsCard: React.FC<EnvironmentalSensorsCardProps> =
             {sensors.slice(0, 4).map((sensor) => (
               <div key={sensor.id} className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 hover:shadow-md transition">
                 <div className="flex items-center gap-2 mb-3">
-                  <Thermometer className="w-5 h-5 text-green-600" />
+                  <Thermometer className="w-5 h-5 text-nkz-success" />
                   <span className="text-xs font-medium text-gray-600 truncate">
                     {sensor.name?.value || sensor.id}
                   </span>
@@ -54,13 +54,13 @@ export const EnvironmentalSensorsCard: React.FC<EnvironmentalSensorsCardProps> =
                     <p className="text-2xl font-bold text-gray-900">
                       {sensor.temperature.value}°C
                     </p>
-                    <p className="text-xs text-gray-500">{t('weather.temperature')}</p>
+                    <p className="text-xs text-nkz-muted">{t('weather.temperature')}</p>
                   </div>
                 )}
 
                 {sensor.moisture && (
                   <div className="flex items-center gap-2 text-sm">
-                    <Droplets className="w-4 h-4 text-blue-600" />
+                    <Droplets className="w-4 h-4 text-nkz-info" />
                     <span className="text-gray-700">{sensor.moisture.value}{t('dashboard.sensors.humidity_unit_label')}</span>
                   </div>
                 )}
@@ -72,7 +72,7 @@ export const EnvironmentalSensorsCard: React.FC<EnvironmentalSensorsCardProps> =
         {sensors.length > 4 && (
           <button
             onClick={() => navigate('/sensors')}
-            className="w-full mt-4 py-3 text-green-600 hover:bg-green-50 rounded-xl transition font-medium"
+            className="w-full mt-4 py-3 text-nkz-success hover:bg-nkz-success-light rounded-xl transition font-medium"
           >
             {t('dashboard.sensors.view_all_count', { count: sensors.length })}
           </button>

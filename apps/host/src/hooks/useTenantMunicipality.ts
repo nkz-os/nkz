@@ -6,6 +6,7 @@
 // 2. First parcel's municipality
 // 3. Municipality closest to first parcel's centroid
 // =============================================================================
+import { logger } from '@/utils/logger';
 
 import { useState, useEffect } from 'react';
 import api from '@/services/api';
@@ -44,7 +45,7 @@ export const useTenantMunicipality = () => {
             return;
           }
         } catch (err) {
-          console.warn('[useTenantMunicipality] Error loading weather locations:', err);
+          logger.warn('[useTenantMunicipality] Error loading weather locations:', err);
         }
 
         // 2. Try to get municipality from first parcel
@@ -70,7 +71,7 @@ export const useTenantMunicipality = () => {
                   return;
                 }
               } catch (err) {
-                console.warn('[useTenantMunicipality] Error searching municipality:', err);
+                logger.warn('[useTenantMunicipality] Error searching municipality:', err);
               }
             }
 
@@ -144,26 +145,26 @@ export const useTenantMunicipality = () => {
                       }
                     } else if (response.status !== 404) {
                       // 404 is OK - no municipality found nearby
-                      console.warn('[useTenantMunicipality] Error querying nearest municipality:', response.status);
+                      logger.warn('[useTenantMunicipality] Error querying nearest municipality:', response.status);
                     }
                   } catch (err: any) {
-                    console.warn('[useTenantMunicipality] Error querying nearest municipality:', err);
+                    logger.warn('[useTenantMunicipality] Error querying nearest municipality:', err);
                   }
                 }
               } catch (err) {
-                console.warn('[useTenantMunicipality] Error finding nearest municipality:', err);
+                logger.warn('[useTenantMunicipality] Error finding nearest municipality:', err);
               }
             }
           }
         } catch (err) {
-          console.warn('[useTenantMunicipality] Error loading parcels:', err);
+          logger.warn('[useTenantMunicipality] Error loading parcels:', err);
         }
 
         // No municipality found
         setMunicipality(null);
         setLoading(false);
       } catch (err: any) {
-        console.error('[useTenantMunicipality] Error:', err);
+        logger.error('[useTenantMunicipality] Error:', err);
         setError(err.message || 'Error loading municipality');
         setLoading(false);
       }

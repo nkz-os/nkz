@@ -107,7 +107,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+          className="text-xs text-nkz-info hover:text-blue-800 flex items-center gap-1"
         >
           {isExpanded ? (
             <>Menos opciones <ChevronUp className="w-3 h-3" /></>
@@ -120,7 +120,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
       {/* Suggested Icons */}
       {suggestedIcons.length > 0 && (
         <div>
-          <p className="text-xs text-gray-500 mb-2">Sugeridos para {entityType}</p>
+          <p className="text-xs text-nkz-muted mb-2">Sugeridos para {entityType}</p>
           <div className="flex flex-wrap gap-2">
             {suggestedIcons.map(({ key, icon: Icon, label }) => (
               <button
@@ -129,14 +129,14 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
                 onClick={() => onSelect(selectedIcon === key ? null : key)}
                 className={`p-3 rounded-lg border-2 transition flex flex-col items-center gap-1 min-w-[70px] ${
                   selectedIcon === key
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    ? 'border-green-500 bg-nkz-success-light'
+                    : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary'
                 }`}
               >
-                <Icon className={`w-6 h-6 ${selectedIcon === key ? 'text-green-600' : 'text-gray-600'}`} />
+                <Icon className={`w-6 h-6 ${selectedIcon === key ? 'text-nkz-success' : 'text-gray-600'}`} />
                 <span className="text-xs text-gray-600">{label}</span>
                 {selectedIcon === key && (
-                  <Check className="w-3 h-3 text-green-600 absolute top-1 right-1" />
+                  <Check className="w-3 h-3 text-nkz-success absolute top-1 right-1" />
                 )}
               </button>
             ))}
@@ -146,10 +146,10 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
 
       {/* Expanded All Icons */}
       {isExpanded && (
-        <div className="border border-gray-200 rounded-lg p-3 max-h-[250px] overflow-y-auto">
+        <div className="border border-nkz-border rounded-lg p-3 max-h-[250px] overflow-y-auto">
           {Object.entries(groupedIcons).map(([category, icons]) => (
             <div key={category} className="mb-3 last:mb-0">
-              <p className="text-xs font-medium text-gray-500 mb-2">{category}</p>
+              <p className="text-xs font-medium text-nkz-muted mb-2">{category}</p>
               <div className="flex flex-wrap gap-2">
                 {icons.map(({ key, icon: Icon, label }) => (
                   <button
@@ -158,11 +158,11 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
                     onClick={() => onSelect(selectedIcon === key ? null : key)}
                     className={`p-2 rounded-lg border transition flex items-center gap-2 ${
                       selectedIcon === key
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        ? 'border-green-500 bg-nkz-success-light'
+                        : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 ${selectedIcon === key ? 'text-green-600' : 'text-gray-500'}`} />
+                    <Icon className={`w-4 h-4 ${selectedIcon === key ? 'text-nkz-success' : 'text-nkz-muted'}`} />
                     <span className="text-xs text-gray-600">{label}</span>
                   </button>
                 ))}
@@ -174,7 +174,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
 
       {/* Selected indicator */}
       {selectedIcon && (
-        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-nkz-success bg-nkz-success-light px-3 py-2 rounded-lg">
           {(() => {
             const iconData = DEFAULT_ICONS[selectedIcon];
             if (iconData) {
@@ -191,7 +191,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
         </div>
       )}
 
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-nkz-muted">
         Selecciona un icono por defecto o sube uno personalizado abajo.
       </p>
     </div>

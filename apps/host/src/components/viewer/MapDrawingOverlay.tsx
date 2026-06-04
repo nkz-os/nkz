@@ -360,10 +360,10 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
     return (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-lg shadow-lg z-50 pointer-events-none">
             <p className="text-sm font-medium text-gray-800 dark:text-slate-100 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                <span className="w-2 h-2 rounded-full bg-nkz-info-light0 animate-pulse"></span>
                 {getInstructions()}
             </p>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 text-center">
+            <p className="text-xs text-nkz-muted dark:text-slate-400 mt-1 text-center">
                 {t('viewer.drawing.type_label', { type: drawingType })}
             </p>
         </div>

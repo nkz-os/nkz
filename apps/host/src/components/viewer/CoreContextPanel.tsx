@@ -290,8 +290,8 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
     // Get icon based on entity type
     const getEntityIcon = () => {
         switch (selectedEntityType) {
-            case 'AgriParcel': return <MapPin className="w-5 h-5 text-green-600" />;
-            case 'AutonomousMobileRobot': return <Bot className="w-5 h-5 text-blue-600" />;
+            case 'AgriParcel': return <MapPin className="w-5 h-5 text-nkz-success" />;
+            case 'AutonomousMobileRobot': return <Bot className="w-5 h-5 text-nkz-info" />;
             case 'AgriSensor': return <Gauge className="w-5 h-5 text-orange-600" />;
             case 'ManufacturingMachine': return <Tractor className="w-5 h-5 text-amber-600" />;
             case 'WeatherObserved': return <Cloud className="w-5 h-5 text-sky-600" />;
@@ -407,7 +407,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                     <div className="p-4 space-y-4">
                         {/* Entity Header */}
                         <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-blue-50">
+                            <div className="p-2 rounded-lg bg-nkz-info-light">
                                 {getEntityIcon()}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -420,11 +420,11 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                         {/* Status Badge */}
                         {status && (
                             <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${status === 'active' || status === 'online' || status === 'working'
-                                ? 'bg-green-100 text-green-700'
+                                ? 'bg-nkz-success-light text-nkz-success'
                                 : status === 'idle'
                                     ? 'bg-amber-100 text-amber-700'
                                     : status === 'error'
-                                        ? 'bg-red-100 text-red-700'
+                                        ? 'bg-nkz-error-light text-nkz-error'
                                         : 'bg-slate-100 text-slate-600'
                                 }`}>
                                 {status}
@@ -601,7 +601,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                     {t('viewer.telemetry.realtime')}
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected || hasEntityData ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                    <div className={`w-2 h-2 rounded-full ${isConnected || hasEntityData ? 'bg-nkz-success-light0 animate-pulse' : 'bg-gray-400'}`} />
                     {displayTimestamp && (
                         <span className="text-xs text-slate-500">
                             {new Date(displayTimestamp).toLocaleTimeString('es-ES', {
@@ -634,8 +634,8 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                     </div>
                 </div>
             ) : telemetryError && !entityData ? (
-                <div className="border border-red-200 rounded-lg p-4 bg-red-50 dark:bg-red-950/30">
-                    <div className="flex items-center gap-2 text-sm text-red-700">
+                <div className="border border-red-200 rounded-lg p-4 bg-nkz-error-light dark:bg-red-950/30">
+                    <div className="flex items-center gap-2 text-sm text-nkz-error">
                         <AlertCircle className="w-4 h-4" />
                         <span>{telemetryError}</span>
                     </div>
@@ -646,10 +646,10 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                         {temperature !== null && (
                             <div className="bg-gradient-to-br from-red-50 to-orange-50 p-2 rounded-lg border border-red-100">
                                 <div className="flex items-center justify-between mb-1">
-                                    <Thermometer className="w-4 h-4 text-red-600" />
+                                    <Thermometer className="w-4 h-4 text-nkz-error" />
                                     <span className="text-xs text-slate-600">{getMeasurementUnit('temperature') || '°C'}</span>
                                 </div>
-                                <div className="text-lg font-bold text-red-700">{temperature.toFixed(1)}</div>
+                                <div className="text-lg font-bold text-nkz-error">{temperature.toFixed(1)}</div>
                                 <div className="text-xs text-slate-600 mt-0.5">{t('weather.temperature')}</div>
                             </div>
                         )}
@@ -657,10 +657,10 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                         {humidity !== null && (
                             <div className="bg-gradient-to-br from-blue-50 to-cyan-50 p-2 rounded-lg border border-blue-100">
                                 <div className="flex items-center justify-between mb-1">
-                                    <Droplets className="w-4 h-4 text-blue-600" />
+                                    <Droplets className="w-4 h-4 text-nkz-info" />
                                     <span className="text-xs text-slate-600">{getMeasurementUnit('humidity') || '%'}</span>
                                 </div>
-                                <div className="text-lg font-bold text-blue-700">{humidity.toFixed(1)}</div>
+                                <div className="text-lg font-bold text-nkz-info">{humidity.toFixed(1)}</div>
                                 <div className="text-xs text-slate-600 mt-0.5">{t('weather.humidity')}</div>
                             </div>
                         )}
@@ -668,10 +668,10 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                         {moisture !== null && (
                             <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-2 rounded-lg border border-green-100">
                                 <div className="flex items-center justify-between mb-1">
-                                    <Droplets className="w-4 h-4 text-green-600" />
+                                    <Droplets className="w-4 h-4 text-nkz-success" />
                                     <span className="text-xs text-slate-600">{getMeasurementUnit('moisture') || '%'}</span>
                                 </div>
-                                <div className="text-lg font-bold text-green-700">{moisture.toFixed(1)}</div>
+                                <div className="text-lg font-bold text-nkz-success">{moisture.toFixed(1)}</div>
                                 <div className="text-xs text-slate-600 mt-0.5">{t('viewer.telemetry.soil_moisture')}</div>
                             </div>
                         )}
@@ -759,7 +759,7 @@ const TelemetryTabsSection: React.FC<TelemetryTabsSectionProps> = ({
                 <button
                     onClick={() => setActiveTab('realtime')}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'realtime'
-                        ? 'border-b-2 border-blue-600 text-blue-600'
+                        ? 'border-b-2 border-blue-600 text-nkz-info'
                         : 'text-slate-600 hover:text-slate-900'
                         }`}
                 >
@@ -768,7 +768,7 @@ const TelemetryTabsSection: React.FC<TelemetryTabsSectionProps> = ({
                 <button
                     onClick={() => setActiveTab('historical')}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'historical'
-                        ? 'border-b-2 border-blue-600 text-blue-600'
+                        ? 'border-b-2 border-blue-600 text-nkz-info'
                         : 'text-slate-600 hover:text-slate-900'
                         }`}
                 >

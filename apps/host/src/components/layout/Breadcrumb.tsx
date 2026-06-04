@@ -112,7 +112,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({
 
   return (
     <nav 
-      className={`flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400 mb-4 ${className}`}
+      className={`flex items-center space-x-2 text-sm text-gray-600 dark:text-nkz-muted mb-4 ${className}`}
       aria-label="Breadcrumb"
     >
       {displayItems.map((item, index) => {
@@ -123,7 +123,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({
         return (
           <React.Fragment key={item.path}>
             {index > 0 && (
-              <ChevronRight className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+              <ChevronRight className="w-4 h-4 text-nkz-muted dark:text-nkz-muted flex-shrink-0" />
             )}
             {isLast ? (
               <div className="flex items-center text-gray-900 dark:text-gray-100 font-medium">

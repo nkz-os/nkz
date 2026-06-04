@@ -159,9 +159,9 @@ export const AuditLogsPanel: React.FC = () => {
 
   const getStatusIcon = (success: boolean) => {
     if (success) {
-      return <CheckCircle className="w-4 h-4 text-green-600" />;
+      return <CheckCircle className="w-4 h-4 text-nkz-success" />;
     }
-    return <XCircle className="w-4 h-4 text-red-600" />;
+    return <XCircle className="w-4 h-4 text-nkz-error" />;
   };
 
   const formatDate = (dateString: string) => {
@@ -188,14 +188,14 @@ export const AuditLogsPanel: React.FC = () => {
         <div className="flex gap-2">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition-colors"
           >
             <Filter className="w-4 h-4" />
             Filtros
           </button>
           <button
             onClick={exportLogs}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition-colors"
           >
             <Download className="w-4 h-4" />
             Exportar
@@ -213,7 +213,7 @@ export const AuditLogsPanel: React.FC = () => {
 
       {/* Filters Panel */}
       {showFilters && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+        <div className="bg-white border border-nkz-border rounded-lg p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -223,7 +223,7 @@ export const AuditLogsPanel: React.FC = () => {
                 type="text"
                 value={filters.tenant_id}
                 onChange={(e) => handleFilterChange('tenant_id', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Filter by tenant"
               />
             </div>
@@ -235,7 +235,7 @@ export const AuditLogsPanel: React.FC = () => {
                 type="text"
                 value={filters.module_id}
                 onChange={(e) => handleFilterChange('module_id', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., vegetation-prime, ndvi"
               />
             </div>
@@ -247,7 +247,7 @@ export const AuditLogsPanel: React.FC = () => {
                 type="text"
                 value={filters.user_id}
                 onChange={(e) => handleFilterChange('user_id', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Filter by user"
               />
             </div>
@@ -259,7 +259,7 @@ export const AuditLogsPanel: React.FC = () => {
                 type="text"
                 value={filters.action}
                 onChange={(e) => handleFilterChange('action', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., module.toggle"
               />
             </div>
@@ -270,7 +270,7 @@ export const AuditLogsPanel: React.FC = () => {
               <select
                 value={filters.event_type}
                 onChange={(e) => handleFilterChange('event_type', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">All</option>
                 <option value="module_action">Module Action</option>
@@ -287,7 +287,7 @@ export const AuditLogsPanel: React.FC = () => {
                 type="datetime-local"
                 value={filters.date_from}
                 onChange={(e) => handleFilterChange('date_from', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
             <div>
@@ -298,7 +298,7 @@ export const AuditLogsPanel: React.FC = () => {
                 type="datetime-local"
                 value={filters.date_to}
                 onChange={(e) => handleFilterChange('date_to', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
           </div>
@@ -321,25 +321,25 @@ export const AuditLogsPanel: React.FC = () => {
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 text-red-600" />
-          <span className="text-red-700">{error}</span>
+        <div className="bg-nkz-error-light border border-red-200 rounded-lg p-4 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-nkz-error" />
+          <span className="text-nkz-error">{error}</span>
         </div>
       )}
 
       {/* Logs Table */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div className="bg-white border border-nkz-border rounded-lg overflow-hidden">
         {loading ? (
           <div className="p-8 text-center">
-            <RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-2" />
+            <RefreshCw className="w-8 h-8 animate-spin text-nkz-muted mx-auto mb-2" />
             <p className="text-gray-600">Cargando logs...</p>
           </div>
         ) : logs.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-nkz-muted">
             {!tableExists ? (
               <>
                 <p className="font-medium mb-1">Tabla de auditoría no creada</p>
-                <p className="text-sm">Ejecute la migración <code className="bg-gray-100 px-1 rounded">036_create_sys_audit_logs.sql</code> en la base de datos para habilitar los logs.</p>
+                <p className="text-sm">Ejecute la migración <code className="bg-nkz-bg-secondary px-1 rounded">036_create_sys_audit_logs.sql</code> en la base de datos para habilitar los logs.</p>
               </>
             ) : (
               'No hay registros de auditoría aún.'
@@ -349,7 +349,7 @@ export const AuditLogsPanel: React.FC = () => {
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
+                <thead className="bg-nkz-bg-secondary border-b border-nkz-border">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Timestamp</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Tenant</th>
@@ -362,12 +362,12 @@ export const AuditLogsPanel: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {logs.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50">
+                    <tr key={log.id} className="hover:bg-nkz-bg-secondary">
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {formatDate(log.createdAt)}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        <code className="text-xs bg-gray-100 px-2 py-1 rounded">{log.tenant_id}</code>
+                        <code className="text-xs bg-nkz-bg-secondary px-2 py-1 rounded">{log.tenant_id}</code>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
                         {log.username || log.user_id || '-'}
@@ -383,14 +383,14 @@ export const AuditLogsPanel: React.FC = () => {
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        <code className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                        <code className="text-xs bg-nkz-info-light text-nkz-info px-2 py-1 rounded">
                           {log.action}
                         </code>
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(log.success)}
-                          <span className={log.success ? 'text-green-700' : 'text-red-700'}>
+                          <span className={log.success ? 'text-nkz-success' : 'text-nkz-error'}>
                             {log.success ? 'Success' : 'Failed'}
                           </span>
                         </div>
@@ -406,7 +406,7 @@ export const AuditLogsPanel: React.FC = () => {
 
             {/* Pagination */}
             {pagination.pages > 1 && (
-              <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-t border-gray-200">
+              <div className="bg-nkz-bg-secondary px-4 py-3 flex items-center justify-between border-t border-nkz-border">
                 <div className="text-sm text-gray-700">
                   Mostrando {((pagination.page - 1) * pagination.per_page) + 1} - {Math.min(pagination.page * pagination.per_page, pagination.total)} de {pagination.total}
                 </div>
@@ -414,7 +414,7 @@ export const AuditLogsPanel: React.FC = () => {
                   <button
                     onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
                     disabled={pagination.page === 1}
-                    className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -424,7 +424,7 @@ export const AuditLogsPanel: React.FC = () => {
                   <button
                     onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
                     disabled={pagination.page >= pagination.pages}
-                    className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-3 py-1 border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>

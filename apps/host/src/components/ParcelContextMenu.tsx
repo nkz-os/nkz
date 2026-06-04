@@ -86,7 +86,7 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
     <div
       ref={menuRef}
       style={menuStyle}
-      className="bg-white rounded-lg shadow-xl border border-gray-200 w-80 p-4 space-y-4"
+      className="bg-white rounded-lg shadow-xl border border-nkz-border w-80 p-4 space-y-4"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between">
@@ -96,7 +96,7 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
         </h3>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-nkz-muted hover:text-gray-600 transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -114,14 +114,14 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
-            {t('parcels.parcel_name')} <span className="text-red-500">*</span>
+            {t('parcels.parcel_name')} <span className="text-nkz-error">*</span>
           </label>
           <input
             type="text"
             value={parcelName}
             onChange={(e) => setParcelName(e.target.value)}
             placeholder={t('parcels.parcel_name_placeholder')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+            className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter' && parcelName.trim()) {
@@ -133,22 +133,22 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
 
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
-            {t('parcels.description')} <span className="text-gray-400">({t('common.optional')})</span>
+            {t('parcels.description')} <span className="text-nkz-muted">({t('common.optional')})</span>
           </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={t('parcels.description_placeholder')}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm resize-none"
+            className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm resize-none"
           />
         </div>
       </div>
 
-      <div className="flex gap-2 pt-2 border-t border-gray-200">
+      <div className="flex gap-2 pt-2 border-t border-nkz-border">
         <button
           onClick={onClose}
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          className="flex-1 px-3 py-2 border border-nkz-border rounded-lg text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary transition-colors"
         >
           {t('common.cancel')}
         </button>

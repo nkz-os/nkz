@@ -108,15 +108,15 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                 <div className="p-6 space-y-6">
 
                     {/* Introduction */}
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                    <div className="bg-nkz-info-light border border-blue-100 rounded-xl p-4">
                         <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
-                            <HelpCircle className="w-5 h-5 text-blue-600" />
+                            <HelpCircle className="w-5 h-5 text-nkz-info" />
                             What is a Device Profile?
                         </h3>
                         <p className="text-blue-800 text-sm leading-relaxed">
                             A profile acts as a translator between your physical device and the platform.
-                            It defines how each sensor field (e.g. <code className="bg-blue-100 px-1 rounded">temp_c</code>) maps to a
-                            standard SDM attribute (e.g. <code className="bg-blue-100 px-1 rounded">airTemperature</code>).
+                            It defines how each sensor field (e.g. <code className="bg-nkz-info-light px-1 rounded">temp_c</code>) maps to a
+                            standard SDM attribute (e.g. <code className="bg-nkz-info-light px-1 rounded">airTemperature</code>).
                             Only mapped attributes reach the digital twin.
                         </p>
                     </div>
@@ -125,8 +125,8 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                     <div>
                         <h3 className="text-lg font-semibold text-gray-800 mb-3">Practical Example: Weather Station</h3>
                         <div className="grid md:grid-cols-2 gap-4">
-                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Your Sensor (MQTT JSON)</h4>
+                            <div className="bg-nkz-bg-secondary rounded-xl p-4 border border-nkz-border">
+                                <h4 className="text-sm font-semibold text-nkz-muted uppercase tracking-wider mb-2">Your Sensor (MQTT JSON)</h4>
                                 <pre className="text-xs bg-gray-900 text-green-400 p-3 rounded-lg overflow-x-auto font-mono">
                                     {`{
   "temp_c": 24.5,
@@ -136,7 +136,7 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                                 </pre>
                             </div>
                             <div className="flex items-center justify-center md:hidden">
-                                <div className="text-gray-400">Translated to</div>
+                                <div className="text-nkz-muted">Translated to</div>
                             </div>
                             <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-200">
                                 <h4 className="text-sm font-semibold text-indigo-500 uppercase tracking-wider mb-2">Digital Twin (SDM)</h4>
@@ -148,7 +148,7 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                                     <div className="flex justify-between border-b border-indigo-100 pb-1">
                                         <span className="text-gray-600 font-mono">relativeHumidity</span>
                                         <span className="font-mono font-semibold text-indigo-700">0.65</span>
-                                        <span className="text-xs text-gray-400 self-center">( / 100 )</span>
+                                        <span className="text-xs text-nkz-muted self-center">( / 100 )</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-gray-600 font-mono">solarRadiation</span>
@@ -163,15 +163,15 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                     <div className="grid md:grid-cols-3 gap-4">
                         <div className="p-4 border rounded-xl hover:shadow-md transition bg-gradient-to-br from-white to-gray-50">
                             <div className="font-semibold text-gray-900 mb-1">incoming_key</div>
-                            <p className="text-xs text-gray-500">Exact field name in the JSON your device sends over MQTT.</p>
+                            <p className="text-xs text-nkz-muted">Exact field name in the JSON your device sends over MQTT.</p>
                         </div>
                         <div className="p-4 border rounded-xl hover:shadow-md transition bg-gradient-to-br from-white to-gray-50">
                             <div className="font-semibold text-gray-900 mb-1">target_attribute</div>
-                            <p className="text-xs text-gray-500">Standard SDM attribute name. Must be from the list below.</p>
+                            <p className="text-xs text-nkz-muted">Standard SDM attribute name. Must be from the list below.</p>
                         </div>
                         <div className="p-4 border rounded-xl hover:shadow-md transition bg-gradient-to-br from-white to-gray-50">
                             <div className="font-semibold text-gray-900 mb-1">transformation</div>
-                            <p className="text-xs text-gray-500">Optional JEXL expression (e.g. <code>val * 0.1</code>) to convert units.</p>
+                            <p className="text-xs text-nkz-muted">Optional JEXL expression (e.g. <code>val * 0.1</code>) to convert units.</p>
                         </div>
                     </div>
 
@@ -181,10 +181,10 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                             <List className="w-5 h-5 text-indigo-600" />
                             Valid target_attribute values (AgriSensor)
                         </h3>
-                        <div className="bg-gray-50 border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="bg-nkz-bg-secondary border border-nkz-border rounded-xl overflow-hidden">
                             <div className="max-h-48 overflow-y-auto">
                                 <table className="w-full text-xs">
-                                    <thead className="bg-gray-100 sticky top-0">
+                                    <thead className="bg-nkz-bg-secondary sticky top-0">
                                         <tr>
                                             <th className="text-left px-3 py-2 font-semibold text-gray-700">Attribute</th>
                                             <th className="text-left px-3 py-2 font-semibold text-gray-700">Description</th>
@@ -193,17 +193,17 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                                     </thead>
                                     <tbody>
                                         {SDM_ATTRIBUTES.AgriSensor.map((row, i) => (
-                                            <tr key={row.attr} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                            <tr key={row.attr} className={i % 2 === 0 ? 'bg-white' : 'bg-nkz-bg-secondary'}>
                                                 <td className="px-3 py-1.5 font-mono text-indigo-700">{row.attr}</td>
                                                 <td className="px-3 py-1.5 text-gray-600">{row.desc}</td>
-                                                <td className="px-3 py-1.5 text-gray-500">{row.unit}</td>
+                                                <td className="px-3 py-1.5 text-nkz-muted">{row.unit}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1 italic">
+                        <p className="text-xs text-nkz-muted mt-1 italic">
                             Using a value not in this list will cause a validation error on import.
                         </p>
                     </div>
@@ -241,34 +241,34 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                     </div>
 
                     {/* Crop Health Sensors */}
-                    <div className="bg-green-50 -mx-6 px-6 py-4 border-t border-b border-green-100 mt-4">
+                    <div className="bg-nkz-success-light -mx-6 px-6 py-4 border-t border-b border-green-100 mt-4">
                         <h4 className="text-sm font-semibold text-green-800 mb-2 flex items-center gap-2">
                             🌱 Crop Health Sensors
                         </h4>
-                        <p className="text-xs text-green-700 mb-3">
-                            For crop water stress monitoring, use these attributes. Templates available in the <code className="bg-green-100 px-1 rounded">nkz-module-crop-health/templates/</code> folder.
+                        <p className="text-xs text-nkz-success mb-3">
+                            For crop water stress monitoring, use these attributes. Templates available in the <code className="bg-nkz-success-light px-1 rounded">nkz-module-crop-health/templates/</code> folder.
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
                             <div className="bg-white rounded-lg p-2 border border-green-200">
-                                <span className="font-semibold text-green-700">IR Canopy</span>
+                                <span className="font-semibold text-nkz-success">IR Canopy</span>
                                 <p className="text-gray-600">→ <code>leafTemperature</code> (CEL)</p>
-                                <p className="text-gray-400">for CWSI calculation</p>
+                                <p className="text-nkz-muted">for CWSI calculation</p>
                             </div>
                             <div className="bg-white rounded-lg p-2 border border-green-200">
-                                <span className="font-semibold text-green-700">Dendrometer</span>
+                                <span className="font-semibold text-nkz-success">Dendrometer</span>
                                 <p className="text-gray-600">→ <code>trunkDiameter</code> (µm)</p>
-                                <p className="text-gray-400">for MDS calculation</p>
+                                <p className="text-nkz-muted">for MDS calculation</p>
                             </div>
                             <div className="bg-white rounded-lg p-2 border border-green-200">
-                                <span className="font-semibold text-green-700">TDR Probe</span>
+                                <span className="font-semibold text-nkz-success">TDR Probe</span>
                                 <p className="text-gray-600">→ <code>soilMoisture</code> (%)</p>
-                                <p className="text-gray-400">for Water Balance</p>
+                                <p className="text-nkz-muted">for Water Balance</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Action Footer */}
-                    <div className="bg-gray-50 -mx-6 -mb-6 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t mt-2 rounded-b-2xl">
+                    <div className="bg-nkz-bg-secondary -mx-6 -mb-6 px-6 py-4 flex flex-col md:flex-row items-center justify-between gap-4 border-t mt-2 rounded-b-2xl">
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                             <AlertCircle className="w-4 h-4 text-amber-500" />
                             <span>Need a template to get started?</span>

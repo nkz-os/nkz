@@ -583,26 +583,26 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   const getStatusIcon = (color: string) => {
     switch (color) {
       case 'green':
-        return <CheckCircle2 className="w-6 h-6 text-green-600" />;
+        return <CheckCircle2 className="w-6 h-6 text-nkz-success" />;
       case 'yellow':
-        return <AlertCircle className="w-6 h-6 text-yellow-600" />;
+        return <AlertCircle className="w-6 h-6 text-nkz-warning" />;
       case 'red':
-        return <XCircle className="w-6 h-6 text-red-600" />;
+        return <XCircle className="w-6 h-6 text-nkz-error" />;
       default:
-        return <AlertCircle className="w-6 h-6 text-gray-400" />;
+        return <AlertCircle className="w-6 h-6 text-nkz-muted" />;
     }
   };
 
   const getStatusBgColor = (color: string) => {
     switch (color) {
       case 'green':
-        return 'bg-green-50 border-green-200';
+        return 'bg-nkz-success-light border-green-200';
       case 'yellow':
-        return 'bg-yellow-50 border-yellow-200';
+        return 'bg-nkz-warning-light border-yellow-200';
       case 'red':
-        return 'bg-red-50 border-red-200';
+        return 'bg-nkz-error-light border-red-200';
       default:
-        return 'bg-gray-50 border-gray-200';
+        return 'bg-nkz-bg-secondary border-nkz-border';
     }
   };
 
@@ -631,7 +631,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                 {selectedParcelName ? selectedParcelName.substring(0, 20) : t('weather.agro_panel.select_parcel')}
               </button>
               {showParcelSearch && parcels.length > 0 && (
-                <div className="absolute right-0 mt-1 w-64 max-h-64 overflow-y-auto bg-white rounded-lg shadow-lg z-50 border border-gray-200">
+                <div className="absolute right-0 mt-1 w-64 max-h-64 overflow-y-auto bg-white rounded-lg shadow-lg z-50 border border-nkz-border">
                   {parcels.map((p) => (
                     <button
                       key={p.id}
@@ -640,8 +640,8 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                         setSelectedParcelName(p.name);
                         setShowParcelSearch(false);
                       }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-green-50 transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
-                        p.id === selectedParcelId ? 'bg-green-100' : ''
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-nkz-success-light transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
+                        p.id === selectedParcelId ? 'bg-nkz-success-light' : ''
                       }`}
                     >
                       <MapPin className="w-3 h-3 text-green-500 flex-shrink-0" />
@@ -672,22 +672,22 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
 
       {/* Municipality Search */}
       {showMunicipalitySearch && (
-        <div className="p-4 bg-gray-50 border-b">
+        <div className="p-4 bg-nkz-bg-secondary border-b">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-nkz-muted" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={t('weather.agro_panel.search_municipality_placeholder')}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
             {searchingMunicipalities && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 animate-spin" />
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-nkz-muted animate-spin" />
             )}
           </div>
           {municipalities.length > 0 ? (
-            <div className="mt-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg bg-white shadow-lg">
+            <div className="mt-2 max-h-64 overflow-y-auto border border-nkz-border rounded-lg bg-white shadow-lg">
               {municipalities.map((municipality) => (
                 <button
                   key={municipality.code}
@@ -711,7 +711,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                     setCurrentWeather(null);
                     setHistoricalWeather([]);
                   }}
-                  className="w-full px-4 py-2 text-left hover:bg-green-50 transition flex items-center gap-2 border-b border-gray-100 last:border-b-0"
+                  className="w-full px-4 py-2 text-left hover:bg-nkz-success-light transition flex items-center gap-2 border-b border-gray-100 last:border-b-0"
                 >
                   <MapPin className="w-4 h-4 text-green-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-900">
@@ -721,7 +721,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
               ))}
             </div>
           ) : searchTerm.length >= 2 ? (
-            <div className="mt-2 p-4 text-center text-gray-500">
+            <div className="mt-2 p-4 text-center text-nkz-muted">
               <p className="text-sm">{t('weather.agro_panel.no_municipalities_found')}</p>
             </div>
           ) : null}
@@ -731,18 +731,18 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
       {/* Content */}
       <div className="p-6">
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="mb-4 p-4 bg-nkz-error-light border border-red-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-red-800 text-sm font-medium">{t('weather.agro_panel.error')}</p>
-              <p className="text-red-700 text-sm">{error}</p>
+              <p className="text-nkz-error text-sm">{error}</p>
             </div>
           </div>
         )}
 
         {loading && !currentWeather ? (
           <div className="text-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-green-600 mx-auto mb-4" />
+            <Loader2 className="w-8 h-8 animate-spin text-nkz-success mx-auto mb-4" />
             <p className="text-gray-600">{t('weather.agro_panel.loading_agro_data')}</p>
           </div>
         ) : currentWeather ? (
@@ -807,12 +807,12 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                 <div className="flex items-center gap-1 mt-2">
                   {parcelSensors.length > 0 ? (
                     <>
-                      <CheckCircle2 className="w-3 h-3 text-green-600" />
+                      <CheckCircle2 className="w-3 h-3 text-nkz-success" />
                       <span className="text-xs text-gray-600">{t('weather.agro_panel.real_sensor_data')}</span>
                     </>
                   ) : (
                     <>
-                      <Cloud className="w-3 h-3 text-blue-600" />
+                      <Cloud className="w-3 h-3 text-nkz-info" />
                       <span className="text-xs text-gray-600">{t('weather.agro_panel.platform_data')}</span>
                     </>
                   )}
@@ -820,7 +820,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                 {agroStatus?.soil?.texture_applied && agroStatus.soil.texture_class && (
                   <div className="flex items-center gap-1 mt-1">
                     <Database className="w-3 h-3 text-amber-600" />
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-nkz-muted">
                       {agroStatus.soil.texture_class}
                       {agroStatus.soil.source && ` · ${agroStatus.soil.source}`}
                     </span>
@@ -842,11 +842,11 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-gray-600">{t('weather.agro_panel.balance_3_days')}</span>
-                  <span className={`font-medium ${irrigation.balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  <span className={`font-medium ${irrigation.balance < 0 ? 'text-nkz-error' : 'text-nkz-success'}`}>
                     {irrigation.balance > 0 ? '+' : ''}{irrigation.balance.toFixed(1)} mm
                   </span>
                 </div>
-                <div className="text-xs text-gray-500 mt-2">
+                <div className="text-xs text-nkz-muted mt-2">
                   {t('weather.agro_panel.precip_eto_accumulated')}
                 </div>
               </div>

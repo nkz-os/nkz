@@ -130,8 +130,8 @@ export const SmartRiskPanel: React.FC = () => {
   if (isLoading) {
     return (
       <div className="p-12 flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-        <span className="text-gray-500 font-medium">Cargando modelos de inteligencia...</span>
+        <Loader2 className="h-8 w-8 animate-spin text-nkz-success" />
+        <span className="text-nkz-muted font-medium">Cargando modelos de inteligencia...</span>
       </div>
     );
   }
@@ -147,18 +147,18 @@ export const SmartRiskPanel: React.FC = () => {
       />
 
       {/* Hybrid Source Indicator */}
-      <div className="bg-green-50 border border-green-100 rounded-2xl p-4 flex items-center justify-between">
+      <div className="bg-nkz-success-light border border-green-100 rounded-2xl p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-green-100 rounded-lg">
-            <ShieldCheck className="h-6 w-6 text-green-700" />
+          <div className="p-2 bg-nkz-success-light rounded-lg">
+            <ShieldCheck className="h-6 w-6 text-nkz-success" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-green-900">Sistema de Inteligencia Híbrido</h3>
-            <p className="text-xs text-green-700">Priorizando sensores locales con respaldo en modelos climáticos regionales.</p>
+            <p className="text-xs text-nkz-success">Priorizando sensores locales con respaldo en modelos climáticos regionales.</p>
           </div>
         </div>
         <div className="hidden sm:flex items-center gap-4 text-xs font-semibold">
-          <div className="flex items-center gap-1.5 text-blue-700">
+          <div className="flex items-center gap-1.5 text-nkz-info">
             <Zap className="h-3.5 w-3.5" /> Sensor IoT
           </div>
           <div className="flex items-center gap-1.5 text-orange-700">
@@ -169,15 +169,15 @@ export const SmartRiskPanel: React.FC = () => {
 
       {/* Filters & Search */}
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-2 rounded-2xl border border-gray-100 shadow-sm">
-        <div className="flex p-1 bg-gray-50 rounded-xl w-full md:w-auto">
+        <div className="flex p-1 bg-nkz-bg-secondary rounded-xl w-full md:w-auto">
           {categories.map(cat => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 selectedCategory === cat.id 
-                  ? 'bg-white text-green-700 shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-white text-nkz-success shadow-sm' 
+                  : 'text-nkz-muted hover:text-gray-700'
               }`}
             >
               {cat.label}
@@ -185,11 +185,11 @@ export const SmartRiskPanel: React.FC = () => {
           ))}
         </div>
         <div className="relative w-full md:w-64 px-2">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-nkz-muted" />
           <input
             type="text"
             placeholder="Filtrar modelos..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm"
+            className="w-full pl-10 pr-4 py-2 bg-nkz-bg-secondary border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -201,14 +201,14 @@ export const SmartRiskPanel: React.FC = () => {
         {/* Special Card: Create Custom Risk */}
         <div 
           onClick={() => setIsModalOpen(true)}
-          className="group relative bg-white rounded-2xl border-2 border-dashed border-green-200 hover:border-green-500 hover:bg-green-50/30 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center p-8 text-center space-y-4"
+          className="group relative bg-white rounded-2xl border-2 border-dashed border-green-200 hover:border-green-500 hover:bg-nkz-success-light/30 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center p-8 text-center space-y-4"
         >
-          <div className="p-4 bg-green-100 rounded-2xl text-green-600 group-hover:scale-110 transition-transform shadow-sm">
+          <div className="p-4 bg-nkz-success-light rounded-2xl text-nkz-success group-hover:scale-110 transition-transform shadow-sm">
             <Plus className="h-8 w-8" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-gray-900 group-hover:text-green-700">Crear Riesgo Personalizado</h3>
-            <p className="text-xs text-gray-500 mt-1 max-w-[200px]">Define tu propia lógica multivariable con persistencia temporal.</p>
+            <h3 className="text-lg font-bold text-gray-900 group-hover:text-nkz-success">Crear Riesgo Personalizado</h3>
+            <p className="text-xs text-nkz-muted mt-1 max-w-[200px]">Define tu propia lógica multivariable con persistencia temporal.</p>
           </div>
         </div>
 
@@ -232,7 +232,7 @@ export const SmartRiskPanel: React.FC = () => {
             >
               <div className="p-5 space-y-4">
                 <div className="flex justify-between items-start">
-                  <div className={`p-2.5 rounded-xl ${isActive ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
+                  <div className={`p-2.5 rounded-xl ${isActive ? 'bg-nkz-success-light text-nkz-success' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
                     <Icon className="h-6 w-6" />
                   </div>
                   <button
@@ -243,9 +243,9 @@ export const SmartRiskPanel: React.FC = () => {
                     {isSaving ? (
                       <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
                     ) : isActive ? (
-                      <ToggleRight className="h-9 w-9 text-green-600 cursor-pointer" />
+                      <ToggleRight className="h-9 w-9 text-nkz-success cursor-pointer" />
                     ) : (
-                      <ToggleLeft className="h-9 w-9 text-gray-300 cursor-pointer hover:text-gray-400" />
+                      <ToggleLeft className="h-9 w-9 text-gray-300 cursor-pointer hover:text-nkz-muted" />
                     )}
                   </button>
                 </div>
@@ -254,7 +254,7 @@ export const SmartRiskPanel: React.FC = () => {
                   <h3 className="text-base font-bold text-gray-900 leading-tight">
                     {risk.name}
                   </h3>
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                  <p className="text-xs text-nkz-muted mt-1 line-clamp-2">
                     {risk.description}
                   </p>
                 </div>
@@ -267,7 +267,7 @@ export const SmartRiskPanel: React.FC = () => {
                         key={param}
                         className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
                           availableSensors[param] === 'iot' 
-                            ? 'bg-blue-50 text-blue-700' 
+                            ? 'bg-nkz-info-light text-nkz-info' 
                             : 'bg-orange-50 text-orange-700'
                         }`}
                         title={availableSensors[param] === 'iot' ? 'Sensor real detectado' : 'Usando estimación meteorológica'}
@@ -279,10 +279,10 @@ export const SmartRiskPanel: React.FC = () => {
                   </div>
                   
                   <div className="flex items-center justify-between text-[10px] font-bold">
-                    <span className={`px-2 py-0.5 rounded-full ${dataQuality === 'high' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                    <span className={`px-2 py-0.5 rounded-full ${dataQuality === 'high' ? 'bg-nkz-success-light text-nkz-success' : 'bg-orange-100 text-orange-700'}`}>
                       {dataQuality === 'high' ? 'ALTA PRECISIÓN' : 'ESTIMADO'}
                     </span>
-                    <span className="text-gray-400 uppercase tracking-tighter">
+                    <span className="text-nkz-muted uppercase tracking-tighter">
                       {risk.id}
                     </span>
                   </div>
@@ -290,12 +290,12 @@ export const SmartRiskPanel: React.FC = () => {
 
                 {/* Active Settings */}
                 {isActive && (
-                  <div className="bg-green-50/50 rounded-xl p-3 flex items-center justify-between border border-green-100 animate-in fade-in slide-in-from-top-1">
+                  <div className="bg-nkz-success-light/50 rounded-xl p-3 flex items-center justify-between border border-green-100 animate-in fade-in slide-in-from-top-1">
                     <div className="flex items-center gap-2 text-[10px] font-bold text-green-800 uppercase">
                       <BellRing className="h-3.5 w-3.5" />
                       Monitorización ON
                     </div>
-                    <Settings2 className="h-3.5 w-3.5 text-green-600 cursor-pointer hover:rotate-90 transition-transform" />
+                    <Settings2 className="h-3.5 w-3.5 text-nkz-success cursor-pointer hover:rotate-90 transition-transform" />
                   </div>
                 )}
               </div>
@@ -305,7 +305,7 @@ export const SmartRiskPanel: React.FC = () => {
       </div>
 
       {filteredRisks.length === 0 && (
-        <div className="text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+        <div className="text-center py-16 bg-nkz-bg-secondary rounded-2xl border-2 border-dashed border-nkz-border">
           <HelpCircle className="h-10 w-10 text-gray-300 mx-auto mb-3" />
           <h3 className="text-sm font-medium text-gray-900">No se encontraron modelos</h3>
         </div>

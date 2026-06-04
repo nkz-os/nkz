@@ -163,7 +163,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
             </div>
 
             {/* Info Banner */}
-            <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+            <div className="flex items-start gap-2 p-3 bg-nkz-info-light0/10 border border-blue-500/30 rounded-lg">
                 <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-blue-300">
                     Configura cómo los datos del sensor se traducen a atributos estándar SDM.
@@ -174,7 +174,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
             {/* Mappings Table */}
             <div className="space-y-3">
                 {mappings.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500 border border-dashed border-gray-700 rounded-lg">
+                    <div className="text-center py-8 text-nkz-muted border border-dashed border-gray-700 rounded-lg">
                         <Code className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p>No hay mapeos configurados</p>
                         <p className="text-xs mt-1">Haz clic en "Añadir" para crear uno</p>
@@ -188,7 +188,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                             {/* Row 1: Incoming Key → Target Attribute */}
                             <div className="flex items-center gap-3">
                                 <div className="flex-1">
-                                    <label className="block text-xs text-gray-500 mb-1">
+                                    <label className="block text-xs text-nkz-muted mb-1">
                                         Origen (clave del sensor)
                                     </label>
                                     <input
@@ -201,10 +201,10 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                     />
                                 </div>
 
-                                <ArrowRight className="w-5 h-5 text-gray-500 mt-5" />
+                                <ArrowRight className="w-5 h-5 text-nkz-muted mt-5" />
 
                                 <div className="flex-1">
-                                    <label className="block text-xs text-gray-500 mb-1">
+                                    <label className="block text-xs text-nkz-muted mb-1">
                                         Destino (atributo SDM)
                                     </label>
                                     <select
@@ -225,7 +225,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                 {!readonly && (
                                     <button
                                         onClick={() => removeMapping(index)}
-                                        className="mt-5 p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                                        className="mt-5 p-2 text-red-400 hover:text-red-300 hover:bg-nkz-error-light0/10 rounded-lg transition-colors"
                                         title="Eliminar mapeo"
                                     >
                                         <Trash2 className="w-4 h-4" />
@@ -236,7 +236,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                             {/* Row 2: Transformation */}
                             <div className="flex items-start gap-3">
                                 <div className="flex-1">
-                                    <label className="block text-xs text-gray-500 mb-1">
+                                    <label className="block text-xs text-nkz-muted mb-1">
                                         Transformación (JEXL)
                                     </label>
                                     <div className="flex gap-2">
@@ -255,7 +255,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                             value=""
                                             onChange={(e) => updateMapping(index, 'transformation', e.target.value)}
                                             disabled={readonly}
-                                            className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-400 text-sm"
+                                            className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-nkz-muted text-sm"
                                         >
                                             <option value="">Plantillas...</option>
                                             {JEXL_PATTERNS.map((p) => (
@@ -274,7 +274,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                 </div>
 
                                 <div className="w-24">
-                                    <label className="block text-xs text-gray-500 mb-1">
+                                    <label className="block text-xs text-nkz-muted mb-1">
                                         Unidad
                                     </label>
                                     <input
@@ -294,7 +294,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
 
             {/* Validation Summary */}
             {Object.keys(errors).length > 0 && (
-                <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <div className="flex items-center gap-2 p-3 bg-nkz-error-light0/10 border border-red-500/30 rounded-lg">
                     <AlertCircle className="w-4 h-4 text-red-400" />
                     <p className="text-xs text-red-300">
                         Hay {Object.keys(errors).length} mapeo(s) con errores de validación

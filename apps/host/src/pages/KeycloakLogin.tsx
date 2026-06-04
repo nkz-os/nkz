@@ -113,10 +113,10 @@ const KeycloakLogin: React.FC = () => {
           >
             ¿Olvidaste tu contraseña?
           </Link>
-          <div className="border-t border-gray-200 pt-3 mt-2 w-full">
+          <div className="border-t border-nkz-border pt-3 mt-2 w-full">
             <Link
               to="/register"
-              className="w-full block px-6 py-3 bg-white border-2 border-green-600 text-green-700 rounded-lg hover:bg-green-50 transition font-medium text-center"
+              className="w-full block px-6 py-3 bg-white border-2 border-green-600 text-nkz-success rounded-lg hover:bg-nkz-success-light transition font-medium text-center"
             >
               Crear cuenta gratuita
             </Link>

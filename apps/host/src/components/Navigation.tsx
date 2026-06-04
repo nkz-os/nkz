@@ -124,7 +124,7 @@ export const Navigation: React.FC = () => {
 
   return (
     <>
-      <nav className="bg-white dark:bg-slate-900 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50 transition-colors duration-200 h-16">
+      <nav className="bg-white dark:bg-slate-900 shadow-sm border-b border-nkz-border dark:border-gray-700 sticky top-0 z-50 transition-colors duration-200 h-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
           <div className="flex justify-between items-center h-full">
 
@@ -133,7 +133,7 @@ export const Navigation: React.FC = () => {
               {/* Mobile Hamburger (Visible only on mobile) */}
               <button
                 onClick={() => setMobileDrawerOpen(true)}
-                className="md:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="md:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-nkz-bg-secondary dark:hover:bg-gray-800 transition-colors"
                 aria-label="Abrir menú"
               >
                 <Menu className="h-6 w-6" />
@@ -156,7 +156,7 @@ export const Navigation: React.FC = () => {
                     className="h-7 w-auto dark:invert"
                   />
                   <ChevronDown
-                    className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform duration-300 ${isMenuOpen ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 text-nkz-muted dark:text-nkz-muted transition-transform duration-300 ${isMenuOpen ? 'rotate-180' : ''}`}
                   />
                 </button>
 
@@ -171,7 +171,7 @@ export const Navigation: React.FC = () => {
                   {/* Column 1: Principal */}
                   <div className="flex flex-col py-2 border-r border-gray-100 dark:border-gray-700/50 min-w-[140px]">
                     <div className="px-4 py-1">
-                      <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                      <span className="text-xs font-semibold text-nkz-muted dark:text-nkz-muted uppercase tracking-wider">
                         Principal
                       </span>
                     </div>
@@ -184,11 +184,11 @@ export const Navigation: React.FC = () => {
                           to={item.path}
                           onClick={() => setIsMenuOpen(false)}
                           className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all ${active
-                            ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                            ? 'bg-nkz-success-light dark:bg-green-900/20 text-nkz-success dark:text-green-400'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                         >
-                          <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`} />
+                          <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-nkz-success dark:text-green-400' : 'text-nkz-muted'}`} />
                           <span className="font-medium truncate">
                             {t(item.label)}
                           </span>
@@ -201,7 +201,7 @@ export const Navigation: React.FC = () => {
                   {visibleModules.length > 0 && (
                     <div className="flex flex-col py-2 border-r border-gray-100 dark:border-gray-700/50 min-w-[180px] max-w-[240px]">
                       <div className="px-4 py-1 flex-shrink-0">
-                        <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                        <span className="text-xs font-semibold text-nkz-muted dark:text-nkz-muted uppercase tracking-wider">
                           Módulos
                         </span>
                       </div>
@@ -225,7 +225,7 @@ export const Navigation: React.FC = () => {
                               {hasEmoji ? (
                                 <span className="w-5 h-5 flex items-center justify-center text-base flex-shrink-0">{emoji}</span>
                               ) : (
-                                <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`} />
+                                <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-nkz-muted'}`} />
                               )}
                               <span className="font-medium truncate">
                                 {module.label || module.displayName || module.name}
@@ -238,7 +238,7 @@ export const Navigation: React.FC = () => {
                         <Link
                           to="/admin/modules"
                           onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center gap-2 px-4 py-2 mx-2 mt-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 flex-shrink-0"
+                          className="flex items-center gap-2 px-4 py-2 mx-2 mt-1 text-sm text-nkz-info hover:text-nkz-info dark:text-blue-400 flex-shrink-0"
                         >
                           <ExternalLink className="w-4 h-4" />
                           {t('navigation.manage_modules', { defaultValue: 'Gestionar módulos' })}
@@ -251,7 +251,7 @@ export const Navigation: React.FC = () => {
                   {adminItems.length > 0 && (
                     <div className="flex flex-col py-2 min-w-[140px]">
                       <div className="px-4 py-1">
-                        <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                        <span className="text-xs font-semibold text-nkz-muted dark:text-nkz-muted uppercase tracking-wider">
                           {t('navigation.section_admin', { defaultValue: 'Admin' })}
                         </span>
                       </div>
@@ -264,11 +264,11 @@ export const Navigation: React.FC = () => {
                             to={item.path}
                             onClick={() => setIsMenuOpen(false)}
                             className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all ${active
-                              ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
+                              ? 'bg-nkz-info-light dark:bg-blue-900/20 text-nkz-info dark:text-blue-400'
                               : 'text-gray-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                               }`}
                           >
-                            <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`} />
+                            <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-nkz-info dark:text-blue-400' : 'text-nkz-muted'}`} />
                             <span className="font-medium truncate">
                               {t(item.label)}
                             </span>
@@ -292,16 +292,16 @@ export const Navigation: React.FC = () => {
                   <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                     {user?.email}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                  <div className="text-xs text-nkz-muted dark:text-nkz-muted capitalize">
                     {isAdmin ? t('layout.administrator', { defaultValue: 'Administrador' }) : userRoles[0] || t('layout.user', { defaultValue: 'Usuario' })}
                   </div>
                 </div>
 
                 {/* Admin Badge */}
                 {isAdmin && (
-                  <div className="flex items-center px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded-md">
-                    <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-1" />
-                    <span className="text-xs text-blue-600 dark:text-blue-400 font-medium hidden xl:inline">
+                  <div className="flex items-center px-2 py-1 bg-nkz-info-light dark:bg-blue-900/30 rounded-md">
+                    <Shield className="w-4 h-4 text-nkz-info dark:text-blue-400 mr-1" />
+                    <span className="text-xs text-nkz-info dark:text-blue-400 font-medium hidden xl:inline">
                       {t('navigation.admin_badge', { defaultValue: 'Admin' })}
                     </span>
                   </div>
@@ -319,7 +319,7 @@ export const Navigation: React.FC = () => {
               {/* Logout Button (Desktop) */}
               <button
                 onClick={handleLogout}
-                className="hidden md:flex p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                className="hidden md:flex p-2 text-nkz-muted hover:text-nkz-error hover:bg-nkz-error-light dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 title={t('layout.logout', { defaultValue: 'Cerrar sesión' })}
               >
                 <LogOut className="w-5 h-5" />

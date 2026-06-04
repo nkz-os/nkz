@@ -11,8 +11,8 @@ export const RelationshipSection: React.FC = () => {
   if (schemas.length === 0) return null;
 
   return (
-    <details className="border border-gray-200 rounded-lg">
-      <summary className="px-4 py-3 bg-gray-50 cursor-pointer text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-lg">
+    <details className="border border-nkz-border rounded-lg">
+      <summary className="px-4 py-3 bg-nkz-bg-secondary cursor-pointer text-sm font-semibold text-gray-700 hover:bg-nkz-bg-secondary rounded-lg">
         {t('editor.section.relationships') || 'Relaciones'}
       </summary>
       <div className="p-4 grid grid-cols-1 gap-4">

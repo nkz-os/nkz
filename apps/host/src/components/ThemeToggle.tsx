@@ -40,7 +40,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
     return (
       <button
         onClick={toggleTheme}
-        className={`inline-flex items-center justify-center w-full rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-3 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${className}`}
+        className={`inline-flex items-center justify-center w-full rounded-md border border-nkz-border dark:border-gray-600 shadow-sm px-3 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-nkz-bg-secondary dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${className}`}
         aria-label={`Cambiar tema (${getLabel()})`}
         title={`Tema actual: ${getLabel()}`}
       >
@@ -53,7 +53,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
   return (
     <button
       onClick={toggleTheme}
-      className={`relative inline-flex items-center justify-center w-10 h-10 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${className}`}
+      className={`relative inline-flex items-center justify-center w-10 h-10 rounded-md border border-nkz-border dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-nkz-bg-secondary dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${className}`}
       aria-label={`Cambiar tema (${getLabel()})`}
       title={`Tema actual: ${getLabel()}. Click para cambiar.`}
     >
@@ -65,7 +65,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
         )}
       </div>
       {theme === 'system' && (
-        <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-white dark:ring-gray-800" />
+        <span className="absolute -top-1 -right-1 w-2 h-2 bg-nkz-info-light0 rounded-full ring-2 ring-white dark:ring-gray-800" />
       )}
     </button>
   );

@@ -143,9 +143,9 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
       case 'waiting':
         return {
           icon: WifiOff,
-          color: 'text-gray-400',
-          bgColor: 'bg-gray-100',
-          borderColor: 'border-gray-200',
+          color: 'text-nkz-muted',
+          bgColor: 'bg-nkz-bg-secondary',
+          borderColor: 'border-nkz-border',
           text: 'Esperando conexión...',
           subtext: `Configurando ${entityType}. Conecta el dispositivo.`,
         };
@@ -153,7 +153,7 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
         return {
           icon: Loader2,
           color: 'text-blue-500',
-          bgColor: 'bg-blue-50',
+          bgColor: 'bg-nkz-info-light',
           borderColor: 'border-blue-200',
           text: 'Verificando...',
           subtext: 'Comprobando estado de conexión',
@@ -162,8 +162,8 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
       case 'connected':
         return {
           icon: Check,
-          color: 'text-green-600',
-          bgColor: 'bg-green-50',
+          color: 'text-nkz-success',
+          bgColor: 'bg-nkz-success-light',
           borderColor: 'border-green-300',
           text: '¡Conectado!',
           subtext: 'El dispositivo está online y enviando datos.',
@@ -188,7 +188,7 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
       <div className={`inline-flex items-center gap-2 ${className}`} title={config.text}>
         <Icon className={`w-5 h-5 ${config.color} ${config.animate ? 'animate-spin' : ''}`} />
         {status === 'waiting' && (
-          <span className="text-xs text-gray-500">{formatTime(elapsedTime)}</span>
+          <span className="text-xs text-nkz-muted">{formatTime(elapsedTime)}</span>
         )}
       </div>
     );
@@ -206,7 +206,7 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
               {config.text}
             </p>
             {status === 'waiting' && (
-              <span className="text-xs text-gray-500 tabular-nums">
+              <span className="text-xs text-nkz-muted tabular-nums">
                 {formatTime(elapsedTime)}
               </span>
             )}
@@ -223,7 +223,7 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
                     className="h-1 flex-1 bg-gray-300 rounded-full overflow-hidden"
                   >
                     <div
-                      className="h-full bg-blue-500 rounded-full animate-pulse"
+                      className="h-full bg-nkz-info-light0 rounded-full animate-pulse"
                       style={{
                         animationDelay: `${i * 200}ms`,
                         width: '100%',
@@ -238,8 +238,8 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
           {/* Success animation */}
           {status === 'connected' && (
             <div className="mt-2 flex items-center gap-2">
-              <Wifi className="w-4 h-4 text-green-600" />
-              <span className="text-sm text-green-700">
+              <Wifi className="w-4 h-4 text-nkz-success" />
+              <span className="text-sm text-nkz-success">
                 Primer heartbeat recibido
               </span>
             </div>

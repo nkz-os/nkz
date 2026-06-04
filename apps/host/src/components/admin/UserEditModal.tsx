@@ -64,7 +64,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
             <h3 className="text-lg font-medium text-gray-900">
               {t('settings.users.edit_title')}: {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}
             </h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <button onClick={onClose} className="text-nkz-muted hover:text-gray-600">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -85,7 +85,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
                     type="text"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -96,7 +96,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
                     type="text"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -117,14 +117,14 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
                   <span className="text-sm">
                     {role.label}
                     {role.description && (
-                      <span className="text-gray-500"> - {role.description}</span>
+                      <span className="text-nkz-muted"> - {role.description}</span>
                     )}
                   </span>
                 </label>
               ))}
 
               {!isPlatformContext && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-3">
+                <div className="bg-nkz-warning-light border border-yellow-200 rounded-lg p-3 mt-3">
                   <p className="text-xs text-yellow-800">
                     <AlertTriangle className="w-3 h-3 inline mr-1" />
                     {t('settings.users.platform_only_roles_warning', {
@@ -139,7 +139,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
           <div className="flex justify-end space-x-3 mt-6">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-nkz-bg-secondary rounded-lg hover:bg-gray-200"
             >
               {t('settings.cancel')}
             </button>
