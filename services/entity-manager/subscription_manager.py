@@ -52,6 +52,20 @@ SUBSCRIPTIONS = [
         "throttling": 5,
         "isActive": True,
     },
+    {
+        "description": "Entity Manager - DeviceCommand tracking",
+        "type": "Subscription",
+        "entities": [{"type": "DeviceCommand"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 1,
+        "isActive": True,
+    },
 ]
 
 

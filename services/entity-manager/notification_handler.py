@@ -87,6 +87,10 @@ def handle_notification():
             total += _handle_risk_assessment(
                 tenant_id, by_type["RiskAssessment"]
             )
+        if "DeviceCommand" in by_type:
+            total += _handle_device_command(
+                tenant_id, by_type["DeviceCommand"]
+            )
 
         logger.info(
             "Persisted %d entities for tenant=%s", total, tenant_id
@@ -287,6 +291,69 @@ def _handle_risk_assessment(tenant_id: str, entities: list) -> int:
     except Exception as e:
         logger.error(
             "Error in _handle_risk_assessment: %s", e, exc_info=True
+        )
+        conn.rollback()
+        return persisted
+    finally:
+        conn.close()
+
+
+def _handle_device_command(tenant_id: str, entities: list) -> int:
+    """Persist DeviceCommand entities to commands table."""
+    persisted = 0
+    conn = _get_conn()
+    try:
+        _set_tenant_context(conn, tenant_id)
+        with conn.cursor() as cur:
+            for entity in entities:
+                command_id = _extract_prop(entity, "commandId")
+                command_type = _extract_prop(entity, "commandType")
+                device_id = _extract_prop(entity, "targetDeviceId")
+                payload_val = _extract_prop(entity, "payload")
+                status_val = _extract_prop(entity, "status") or "pending"
+                sent_at = _extract_prop(entity, "sentAt")
+                executed_at = _extract_prop(entity, "executedAt")
+                response_val = _extract_prop(entity, "response")
+
+                if not command_id or not device_id:
+                    continue
+
+                cur.execute(
+                    """
+                    INSERT INTO commands (
+                        id, tenant_id, device_id, command_type,
+                        payload, status, sent_at, executed_at, response
+                    ) VALUES (
+                        %s, %s, %s, %s,
+                        %s, %s, %s::timestamptz, %s::timestamptz, %s
+                    )
+                    ON CONFLICT (id) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        executed_at = COALESCE(
+                            EXCLUDED.executed_at, commands.executed_at
+                        ),
+                        response = COALESCE(
+                            EXCLUDED.response, commands.response
+                        )
+                    """,
+                    (
+                        command_id,
+                        tenant_id,
+                        device_id,
+                        command_type or "custom",
+                        json.dumps(payload_val or {}),
+                        status_val,
+                        sent_at,
+                        executed_at,
+                        json.dumps(response_val) if response_val else None,
+                    ),
+                )
+                persisted += 1
+        conn.commit()
+        return persisted
+    except Exception as e:
+        logger.error(
+            "Error in _handle_device_command: %s", e, exc_info=True
         )
         conn.rollback()
         return persisted

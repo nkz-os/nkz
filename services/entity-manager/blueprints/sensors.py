@@ -56,6 +56,50 @@ def _extract_prop_value(entity: dict, key: str):
     return prop
 
 
+def _patch_command_status(
+    tenant_id: str,
+    entity_id: str,
+    status: str,
+    response_data: dict | None = None,
+) -> bool:
+    """PATCH a DeviceCommand entity status in Orion-LD."""
+    try:
+        patch_body = {
+            'status': {
+                'type': 'Property',
+                'value': status,
+            },
+        }
+        if status == 'sent':
+            patch_body['executedAt'] = {
+                'type': 'Property',
+                'value': datetime.utcnow().isoformat(),
+            }
+        if response_data:
+            patch_body['response'] = {
+                'type': 'Property',
+                'value': response_data,
+            }
+
+        headers = {
+            'Content-Type': 'application/ld+json',
+            'Fiware-Service': tenant_id,
+            'Fiware-ServicePath': '/',
+        }
+        resp = requests.patch(
+            f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs",
+            json=patch_body,
+            headers=headers,
+            timeout=10,
+        )
+        return resp.status_code in (200, 204)
+    except Exception as e:
+        logger.error(
+            "Failed to patch DeviceCommand %s: %s", entity_id, e
+        )
+        return False
+
+
 # =============================================================================
 # Sensor Registration
 # =============================================================================
@@ -882,37 +926,70 @@ def send_device_command(device_id):
                 return jsonify({'error': 'Device not found'}), 404
 
             # Determine MQTT topic for commands
-            # Pattern: {tenant_id}/{device_id}/cmd
             mqtt_topic = f"{tenant_id}/{device_id}/cmd"
 
-            # Create command record in database
+            # ── Create DeviceCommand entity in Orion-LD ──────────────────
             command_id = str(uuid.uuid4())
-            conn = get_db_connection_with_tenant(tenant_id)
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
-                INSERT INTO commands (id, tenant_id, device_id, command_type, payload, status, sent_at)
-                VALUES (%s, %s, %s, %s, %s, 'pending', NOW())
-                RETURNING id, sent_at
-            """, (command_id, tenant_id, device_id, command_type, json.dumps(payload)))
+            command_entity_id = (
+                f"urn:ngsi-ld:DeviceCommand:{tenant_id}:{command_id}"
+            )
+            now_iso = datetime.utcnow().isoformat()
 
-            command_record = cur.fetchone()
-            conn.commit()
-            cur.close()
-            conn.close()
+            command_entity = {
+                '@context': [CONTEXT_URL],
+                'id': command_entity_id,
+                'type': 'DeviceCommand',
+                'commandId': {'type': 'Property', 'value': command_id},
+                'commandType': {
+                    'type': 'Property',
+                    'value': command_type,
+                },
+                'targetDeviceId': {
+                    'type': 'Property',
+                    'value': device_id,
+                },
+                'mqttTopic': {
+                    'type': 'Property',
+                    'value': mqtt_topic,
+                },
+                'payload': {
+                    'type': 'Property',
+                    'value': payload,
+                },
+                'status': {'type': 'Property', 'value': 'pending'},
+                'sentAt': {'type': 'Property', 'value': now_iso},
+            }
+
+            orion_headers = {
+                'Content-Type': 'application/ld+json',
+                'Fiware-Service': tenant_id,
+                'Fiware-ServicePath': '/',
+            }
+            orion_resp = requests.post(
+                f"{ORION_URL}/ngsi-ld/v1/entities",
+                json=command_entity,
+                headers=orion_headers,
+                timeout=10,
+            )
+            if orion_resp.status_code not in (200, 201):
+                logger.error(
+                    "Failed to create DeviceCommand in Orion-LD: %s",
+                    orion_resp.text,
+                )
+                return jsonify({
+                    'error': 'Failed to create command record'
+                }), 502
 
             # Publish command to MQTT
             mqtt_client = get_mqtt_client()
             if not mqtt_client:
-                # Update command status to failed
-                conn = get_db_connection_with_tenant(tenant_id)
-                cur = conn.cursor()
-                cur.execute("""
-                    UPDATE commands SET status = 'failed', response = %s
-                    WHERE id = %s
-                """, (json.dumps({'error': 'MQTT client not available'}), command_id))
-                conn.commit()
-                cur.close()
-                conn.close()
+                # ── Update DeviceCommand status to failed via Orion-LD ──
+                _patch_command_status(
+                    tenant_id,
+                    command_entity_id,
+                    'failed',
+                    {'error': 'MQTT client not available'},
+                )
                 return jsonify({'error': 'MQTT service unavailable'}), 503
 
             # Publish command
@@ -920,65 +997,63 @@ def send_device_command(device_id):
                 'command_id': command_id,
                 'command_type': command_type,
                 'payload': payload,
-                'timestamp': datetime.utcnow().isoformat()
+                'timestamp': now_iso,
             }
 
             try:
-                result = mqtt_client.publish(mqtt_topic, json.dumps(command_message), qos=1)
+                result = mqtt_client.publish(
+                    mqtt_topic,
+                    json.dumps(command_message),
+                    qos=1,
+                )
 
                 if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                    # Update command status to sent
-                    conn = get_db_connection_with_tenant(tenant_id)
-                    cur = conn.cursor()
-                    cur.execute("""
-                        UPDATE commands SET status = 'sent'
-                        WHERE id = %s
-                    """, (command_id,))
-                    conn.commit()
-                    cur.close()
-                    conn.close()
+                    # ── Update DeviceCommand status to sent via Orion-LD ──
+                    _patch_command_status(
+                        tenant_id, command_entity_id, 'sent'
+                    )
 
                     return jsonify({
                         'success': True,
                         'command_id': command_id,
                         'mqtt_topic': mqtt_topic,
                         'status': 'sent',
-                        'sent_at': command_record['sent_at'].isoformat()
+                        'sent_at': now_iso,
                     }), 201
                 else:
-                    # Update command status to failed
-                    conn = get_db_connection_with_tenant(tenant_id)
-                    cur = conn.cursor()
-                    cur.execute("""
-                        UPDATE commands SET status = 'failed', response = %s
-                        WHERE id = %s
-                    """, (json.dumps({'error': f'MQTT publish failed with code {result.rc}'}), command_id))
-                    conn.commit()
-                    cur.close()
-                    conn.close()
-
-                    return jsonify({'error': f'Failed to publish command: MQTT error {result.rc}'}), 500
+                    _patch_command_status(
+                        tenant_id,
+                        command_entity_id,
+                        'failed',
+                        {
+                            'error': (
+                                f'MQTT publish failed with code '
+                                f'{result.rc}'
+                            )
+                        },
+                    )
+                    return jsonify({
+                        'error': (
+                            f'Failed to publish command: '
+                            f'MQTT error {result.rc}'
+                        )
+                    }), 500
 
             except Exception as mqtt_error:
-                logger.error(f"MQTT publish error: {mqtt_error}")
-                # Update command status to failed
-                conn = get_db_connection_with_tenant(tenant_id)
-                cur = conn.cursor()
-                cur.execute("""
-                    UPDATE commands SET status = 'failed', response = %s
-                    WHERE id = %s
-                """, (json.dumps({'error': str(mqtt_error)}), command_id))
-                conn.commit()
-                cur.close()
-                conn.close()
-
-                return jsonify({'error': f'Failed to publish command: {str(mqtt_error)}'}), 500
+                logger.error("MQTT publish error: %s", mqtt_error)
+                _patch_command_status(
+                    tenant_id,
+                    command_entity_id,
+                    'failed',
+                    {'error': str(mqtt_error)},
+                )
+                return jsonify({
+                    'error': f'Failed to publish command: {str(mqtt_error)}'
+                }), 500
 
         except Exception as e:
-            if conn:
-                conn.close()
-            logger.error(f"Error sending command: {e}")
-            return jsonify({'error': 'Database error'}), 500
+            logger.error("Error sending command: %s", e)
+            return jsonify({'error': 'Internal server error'}), 500
 
     except Exception as e:
         logger.error(f"Error in send_device_command: {e}")
@@ -1097,11 +1172,10 @@ def check_entity_heartbeat():
 
         conn = None
         try:
-            postgres_url = os.getenv('DATABASE_URL') or os.getenv('POSTGRES_URL')
-            if not postgres_url:
+            conn = get_db_connection_simple()
+            if not conn:
                 return jsonify({'error': 'Database not configured'}), 503
 
-            conn = psycopg2.connect(postgres_url)
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Check telemetry_events table for any data from this device
