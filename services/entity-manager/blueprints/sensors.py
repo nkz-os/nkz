@@ -48,6 +48,14 @@ def _normalize_device_id(device_id: str) -> str:
     return device_id
 
 
+def _extract_prop_value(entity: dict, key: str):
+    """Extract Property value from NGSI-LD entity dict."""
+    prop = entity.get(key, {})
+    if isinstance(prop, dict) and 'value' in prop:
+        return prop['value']
+    return prop
+
+
 # =============================================================================
 # Sensor Registration
 # =============================================================================
@@ -124,24 +132,39 @@ def register_sensor():
             sdm_entity_type = profile_row.get('sdm_entity_type') or 'AgriSensor'
             profile_mapping = profile_row.get('mapping') or {}
 
-            # Check if sensor already exists
-            cur.execute("""
-                SELECT id, external_id, name FROM sensors
-                WHERE tenant_id = %s AND external_id = %s
-            """, (tenant_id, external_id))
+            cur.close()
+            conn.close()
 
-            existing = cur.fetchone()
-            if existing:
-                cur.close()
-                conn.close()
-                return jsonify({
-                    'error': f'Sensor with external_id "{external_id}" already exists',
-                    'sensor': {
-                        'id': str(existing['id']),
-                        'external_id': existing['external_id'],
-                        'name': existing['name']
-                    }
-                }), 409
+            # ── Dedup check via Orion-LD ──────────────────────────────────
+            orion_query_headers = {
+                'Accept': 'application/ld+json',
+                'Fiware-Service': tenant_id,
+                'Fiware-ServicePath': '/'
+            }
+            orion_check_url = (
+                f"{ORION_URL}/ngsi-ld/v1/entities"
+                f"?type={sdm_entity_type}"
+                f'&q=externalId=="{external_id}"'
+            )
+            orion_check = requests.get(
+                orion_check_url, headers=orion_query_headers, timeout=10
+            )
+            if orion_check.status_code == 200:
+                existing_entities = orion_check.json()
+                if existing_entities:
+                    existing_entity = existing_entities[0]
+                    return jsonify({
+                        'error': f'Sensor with external_id "{external_id}" already exists',
+                        'sensor': {
+                            'id': existing_entity.get('id'),
+                            'external_id': _extract_prop_value(
+                                existing_entity, 'externalId'
+                            ),
+                            'name': _extract_prop_value(
+                                existing_entity, 'name'
+                            ),
+                        }
+                    }), 409
 
             # Prepare metadata
             metadata = data.get('metadata', {})
@@ -150,12 +173,13 @@ def register_sensor():
                 metadata['station_id'] = data['station_id']
 
             import json
-            metadata_json = json.dumps(metadata)
 
             # =============================================================================
-            # STEP 1: Create NGSI-LD entity in Orion-LD (FIRST - before Postgres INSERT)
+            # STEP 1: Create NGSI-LD entity in Orion-LD (sole source of truth)
             # =============================================================================
-            orion_entity_id = f"urn:ngsi-ld:{sdm_entity_type}:{tenant_id}:{external_id}"
+            orion_entity_id = (
+                f"urn:ngsi-ld:{sdm_entity_type}:{tenant_id}:{external_id}"
+            )
 
             orion_entity = {
                 '@context': [CONTEXT_URL],
@@ -164,69 +188,88 @@ def register_sensor():
                 'name': {'type': 'Property', 'value': name},
                 'location': {
                     'type': 'GeoProperty',
-                    'value': {'type': 'Point', 'coordinates': [lon, lat]}
+                    'value': {
+                        'type': 'Point',
+                        'coordinates': [lon, lat],
+                    },
                 },
                 'externalId': {'type': 'Property', 'value': external_id},
-                'sensorType': {'type': 'Property', 'value': profile_code}
+                'sensorType': {'type': 'Property', 'value': profile_code},
+                'profileCode': {'type': 'Property', 'value': profile_code},
+                'installedAt': {
+                    'type': 'Property',
+                    'value': datetime.utcnow().isoformat(),
+                },
+                'status': {'type': 'Property', 'value': 'active'},
             }
 
             if metadata:
-                orion_entity['metadata'] = {'type': 'Property', 'value': metadata}
+                orion_entity['metadata'] = {
+                    'type': 'Property',
+                    'value': metadata,
+                }
             if data.get('is_under_canopy'):
-                orion_entity['isUnderCanopy'] = {'type': 'Property', 'value': True}
+                orion_entity['isUnderCanopy'] = {
+                    'type': 'Property',
+                    'value': True,
+                }
             if data.get('station_id'):
-                orion_entity['stationId'] = {'type': 'Property', 'value': data['station_id']}
+                orion_entity['stationId'] = {
+                    'type': 'Property',
+                    'value': data['station_id'],
+                }
+            if data.get('altitude_meters'):
+                orion_entity['altitudeMeters'] = {
+                    'type': 'Property',
+                    'value': data['altitude_meters'],
+                }
+            if data.get('parcel_id'):
+                orion_entity['parcelId'] = {
+                    'type': 'Property',
+                    'value': data['parcel_id'],
+                }
 
             orion_headers = {
                 'Content-Type': 'application/ld+json',
                 'Fiware-Service': tenant_id,
-                'Fiware-ServicePath': '/'
+                'Fiware-ServicePath': '/',
             }
             orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
 
             orion_entity_created = False
-            orion_response = requests.post(orion_url, json=orion_entity, headers=orion_headers, timeout=10)
+            orion_response = requests.post(
+                orion_url,
+                json=orion_entity,
+                headers=orion_headers,
+                timeout=10,
+            )
             if orion_response.status_code in [200, 201]:
                 orion_entity_created = True
-                logger.info(f"Created Orion-LD entity {orion_entity_id} for sensor {external_id}")
+                logger.info(
+                    "Created Orion-LD entity %s for sensor %s",
+                    orion_entity_id,
+                    external_id,
+                )
             elif orion_response.status_code == 409:
                 orion_entity_created = True
-                logger.info(f"Orion-LD entity {orion_entity_id} already exists for sensor {external_id}")
+                logger.info(
+                    "Orion-LD entity %s already exists for sensor %s",
+                    orion_entity_id,
+                    external_id,
+                )
             else:
-                cur.close()
-                conn.close()
-                logger.error(f"Failed to create Orion-LD entity for sensor {external_id}: {orion_response.status_code} - {orion_response.text}")
-                return jsonify({'error': 'Failed to create sensor entity in context broker'}), 502
-
-            # =============================================================================
-            # STEP 2: INSERT sensor into Postgres (SECOND - after Orion-LD success)
-            # =============================================================================
-            cur.execute("""
-                INSERT INTO sensors (
-                    tenant_id, external_id, profile_id, name,
-                    installation_location, is_under_canopy, metadata
+                logger.error(
+                    "Failed to create Orion-LD entity for sensor %s: %s - %s",
+                    external_id,
+                    orion_response.status_code,
+                    orion_response.text,
                 )
-                VALUES (
-                    %s, %s, %s, %s,
-                    ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
-                    %s, %s::jsonb
-                )
-                RETURNING id, external_id, name, created_at
-            """, (
-                tenant_id, external_id, profile_id, name,
-                lon, lat,
-                data.get('is_under_canopy', False),
-                metadata_json
-            ))
-
-            sensor_row = cur.fetchone()
-            conn.commit()
-            cur.close()
-
-            conn.close()
+                return jsonify({
+                    'error': 'Failed to create sensor entity in context broker'
+                }), 502
 
             # =============================================================================
-            # STEP 3: Create MQTT credentials for the device
+            # STEP 2: Create MQTT credentials for the device
             # =============================================================================
             mqtt_credentials = None
             mqtt_credentials_created = False
@@ -252,7 +295,7 @@ def register_sensor():
                 # Don't fail the whole request, but log it
 
             # =============================================================================
-            # STEP 4: Configure IoT Agent for this device
+            # STEP 3: Configure IoT Agent for this device
             # =============================================================================
             iot_agent_configured = False
             try:
@@ -315,14 +358,14 @@ def register_sensor():
             response_data = {
                 'success': True,
                 'sensor': {
-                    'id': str(sensor_row['id']),
-                    'external_id': sensor_row['external_id'],
-                    'name': sensor_row['name'],
+                    'id': orion_entity_id,
+                    'external_id': external_id,
+                    'name': name,
                     'profile': profile_code,
                     'tenant_id': tenant_id,
-                    'created_at': sensor_row['created_at'].isoformat()
+                    'created_at': datetime.utcnow().isoformat(),
                 },
-                'message': 'Sensor registered successfully'
+                'message': 'Sensor registered successfully',
             }
 
             # Add Orion-LD entity info if created
@@ -356,25 +399,35 @@ def register_sensor():
             return jsonify(response_data), 201
 
         except Exception as e:
-            conn.rollback()
-            conn.close()
-            logger.error(f"Error registering sensor: {e}")
+            logger.error("Error registering sensor: %s", e)
             # Best-effort cleanup of Orion-LD entity if it was created
-            if orion_entity_created and orion_entity_id:
+            try:
+                _cleanup_needed = orion_entity_created and orion_entity_id
+            except NameError:
+                _cleanup_needed = False
+            if _cleanup_needed:
                 try:
+                    cleanup_headers = {
+                        'Fiware-Service': tenant_id,
+                        'Fiware-ServicePath': '/',
+                    }
                     requests.delete(
                         f"{ORION_URL}/ngsi-ld/v1/entities/{orion_entity_id}",
-                        headers=orion_headers, timeout=5
+                        headers=cleanup_headers,
+                        timeout=5,
                     )
-                    logger.info(f"Cleaned up Orion-LD entity {orion_entity_id} after Postgres failure")
+                    logger.info(
+                        "Cleaned up Orion-LD entity %s after failure",
+                        orion_entity_id,
+                    )
                 except Exception as cleanup_error:
                     logger.critical(
-                        f"INCONSISTENCY: Orion-LD entity {orion_entity_id} exists "
-                        f"but Postgres operation failed and cleanup also failed: {cleanup_error}"
+                        "INCONSISTENCY: Orion-LD entity %s exists but cleanup "
+                        "failed: %s",
+                        orion_entity_id,
+                        cleanup_error,
                     )
-            return jsonify({
-                'error': f'Database error: {str(e)}'
-            }), 500
+            return jsonify({'error': f'Registration error: {str(e)}'}), 500
 
     except Exception as e:
         logger.error(f"Error in register_sensor: {e}")
