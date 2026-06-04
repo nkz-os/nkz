@@ -71,7 +71,7 @@ data:
       timestamp: true,
       timestampFormat: 'ISO8601',
       defaultResource: '/iot/json',
-      defaultKey: process.env.IOTA_DEFAULT_KEY || '1234'
+      defaultKey: process.env.IOTA_DEFAULT_KEY  // Must come from K8s Secret (iot-agent-secret). No hardcoded fallback.
     };
     
     module.exports = config;
@@ -155,6 +155,11 @@ spec:
           value: "true"
         - name: IOTA_DEFAULT_RESOURCE
           value: "/iot/json"
+        - name: IOTA_DEFAULT_KEY
+          valueFrom:
+            secretKeyRef:
+              name: iot-agent-secret
+              key: default-key
         - name: IOTA_REGISTRY_TYPE
           value: "mongodb"
         - name: IOTA_MONGO_HOST
