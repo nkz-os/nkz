@@ -326,7 +326,7 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: patcher
-        image: bitnami/kubectl:latest
+        image: bitnami/kubectl:1.32.3
         command: ["/bin/bash"]
         args:
           - /scripts/patch-deployments.sh

@@ -39,7 +39,7 @@ spec:
         ']
       containers:
       - name: keycloak
-        image: ghcr.io/nkz-os/nkz/keycloak:latest
+        image: ghcr.io/nkz-os/nkz/keycloak@sha256:ca03b69688f9305251ecb4b6ddc351f3ae1b4073f63f95af35ffd8cfc8577e47
         # Built by .github/workflows/docker-build.yml from services/keycloak/Dockerfile
         # Contains: PostgreSQL driver + Script Mappers JAR + themes/nkz login branding
         imagePullPolicy: Always

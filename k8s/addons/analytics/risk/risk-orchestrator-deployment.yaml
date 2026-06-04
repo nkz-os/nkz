@@ -34,7 +34,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: risk-orchestrator
-        image: ghcr.io/nkz-os/nkz/risk-orchestrator:latest
+        image: ghcr.io/nkz-os/nkz/risk-orchestrator@sha256:c5fe79405730c9ddf214fcb70e51a0c3742d0f9665296cea79c32c2373a30bb6
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
