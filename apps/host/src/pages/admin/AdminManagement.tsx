@@ -112,6 +112,7 @@ const PLATFORM_ADMIN_ROLES = [
 
 export const AdminManagement: React.FC = () => {
   const { t } = useI18n();
+  const { showNotification } = useNotification();
   const { modules } = useModules();
 
   // Global tab state: null = master-detail (sidebar + tenant/user panels)
@@ -368,7 +369,7 @@ export const AdminManagement: React.FC = () => {
       showNotification({ type: 'error', message: t('admin.code_generated') });
       void loadActivations();
     } catch (error: any) {
-      const detail = error?.response?.data?.error || error?.message || '';
+      // error detail available via error.response.data.error
       showNotification({ type: 'error', message: t('admin.code_generate_error') });
     } finally {
       setActivationsLoading(false);
@@ -384,7 +385,7 @@ export const AdminManagement: React.FC = () => {
       setActivations(activations.map(a => a.id === codeId ? { ...a, status: 'revoked' } : a));
       showNotification({ type: 'error', message: t('admin.code_revoked') });
     } catch (error: any) {
-      const detail = error?.response?.data?.error || error?.message || '';
+      // error detail available via error.response.data.error
       showNotification({ type: 'error', message: t('admin.code_revoke_error') });
     }
   };

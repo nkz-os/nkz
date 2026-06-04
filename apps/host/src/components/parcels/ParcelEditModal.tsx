@@ -22,6 +22,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
     onSave,
     onCancel,
 }) => {
+    const { showNotification } = useNotification();
     const [formData, setFormData] = useState({
         name: '',
         cropType: '',

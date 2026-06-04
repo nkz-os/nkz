@@ -23,6 +23,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
     onCancel,
     mode,
 }) => {
+    const { showNotification } = useNotification();
     const [formData, setFormData] = useState({
         name: initialData?.name || '',
         cadastralReference: initialData?.cadastralReference || '',

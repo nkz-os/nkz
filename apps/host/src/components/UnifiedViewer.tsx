@@ -58,6 +58,7 @@ const UnifiedViewerInner: React.FC = () => {
     const { hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
     const { t } = useI18n();
+    const { showNotification } = useNotification();
 
     // Combined state logic for sidebar
     const {

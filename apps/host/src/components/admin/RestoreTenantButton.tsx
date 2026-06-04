@@ -10,7 +10,6 @@ interface Props {
 
 export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) => {
   const { t } = useTranslation();
-  const { showNotification } = useNotification();
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
 

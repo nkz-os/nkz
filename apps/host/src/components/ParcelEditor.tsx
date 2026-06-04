@@ -36,6 +36,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
   onCancel,
   mode,
 }) => {
+  const { showNotification } = useNotification();
   const [municipality, setMunicipality] = useState(parcel?.municipality || '');
   const [province, setProvince] = useState(parcel?.province || '');
   const [cropType, setCropType] = useState(parcel?.crop_type || '');

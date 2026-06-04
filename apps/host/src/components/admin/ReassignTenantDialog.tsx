@@ -15,7 +15,6 @@ export const ReassignTenantDialog: React.FC<Props> = ({
   userId, username, currentTenantId, onClose, onReassigned,
 }) => {
   const { t } = useTranslation();
-  const { showNotification } = useNotification();
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [loading, setLoading] = useState(false);
