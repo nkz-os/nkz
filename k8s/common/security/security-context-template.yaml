@@ -171,109 +171,92 @@ metadata:
     app: nekazari
     component: security-tools
 data:
-  patch-deployments.sh: |
+  apply-security-context.sh: |
     #!/bin/bash
-    # Script para añadir Security Context a deployments existentes
-    
-    set -e
-    
+    # Apply Security Context to deployments using kubectl get + apply
+    # (NOT kubectl patch — patch --type='json' destroys envFrom references)
+    #
+    # PREFERRED APPROACH: Add securityContext directly to source YAML in gitops-config
+    # or nkz/k8s templates. This script is a migration aid for existing deployments.
+    set -euo pipefail
+
     NAMESPACE="${1:-nekazari}"
-    
+    SECURITY_TYPE="${2:-application}"
+
     echo "======================================"
-    echo "Security Context Patcher"
+    echo "Security Context Applier (get + apply)"
     echo "Namespace: $NAMESPACE"
+    echo "Security type: $SECURITY_TYPE"
     echo "======================================"
-    
-    # Función para parchear un deployment
-    patch_deployment() {
-      local deployment=$1
-      local security_type=$2
-      
-      echo "Parcheando $deployment con perfil $security_type..."
-      
-      case $security_type in
-        "application")
-          kubectl patch deployment $deployment -n $NAMESPACE --type='json' -p='[
-            {
-              "op": "add",
-              "path": "/spec/template/spec/securityContext",
-              "value": {
-                "runAsNonRoot": true,
-                "runAsUser": 1000,
-                "runAsGroup": 1000,
-                "fsGroup": 1000,
-                "seccompProfile": {"type": "RuntimeDefault"}
-              }
-            },
-            {
-              "op": "add",
-              "path": "/spec/template/spec/containers/0/securityContext",
-              "value": {
-                "allowPrivilegeEscalation": false,
-                "runAsNonRoot": true,
-                "runAsUser": 1000,
-                "runAsGroup": 1000,
-                "readOnlyRootFilesystem": true,
-                "capabilities": {"drop": ["ALL"]}
-              }
-            }
-          ]'
-          ;;
-        
-        "database")
-          kubectl patch deployment $deployment -n $NAMESPACE --type='json' -p='[
-            {
-              "op": "add",
-              "path": "/spec/template/spec/securityContext",
-              "value": {
-                "runAsNonRoot": true,
-                "runAsUser": 999,
-                "runAsGroup": 999,
-                "fsGroup": 999,
-                "seccompProfile": {"type": "RuntimeDefault"}
-              }
-            },
-            {
-              "op": "add",
-              "path": "/spec/template/spec/containers/0/securityContext",
-              "value": {
-                "allowPrivilegeEscalation": false,
-                "runAsNonRoot": true,
-                "runAsUser": 999,
-                "runAsGroup": 999,
-                "readOnlyRootFilesystem": false,
-                "capabilities": {"drop": ["ALL"]}
-              }
-            }
-          ]'
-          ;;
-      esac
+
+    # Define security contexts
+    case $SECURITY_TYPE in
+      application)
+        POD_CTX='{"runAsNonRoot":true,"runAsUser":1000,"runAsGroup":1000,"fsGroup":1000,"seccompProfile":{"type":"RuntimeDefault"}}'
+        CONTAINER_CTX='{"allowPrivilegeEscalation":false,"runAsNonRoot":true,"runAsUser":1000,"runAsGroup":1000,"readOnlyRootFilesystem":true,"capabilities":{"drop":["ALL"]}}'
+        ;;
+      database)
+        POD_CTX='{"runAsNonRoot":true,"runAsUser":999,"runAsGroup":999,"fsGroup":999,"seccompProfile":{"type":"RuntimeDefault"}}'
+        CONTAINER_CTX='{"allowPrivilegeEscalation":false,"runAsNonRoot":true,"runAsUser":999,"runAsGroup":999,"readOnlyRootFilesystem":false,"capabilities":{"drop":["ALL"]}}'
+        ;;
+      *)
+        echo "ERROR: Unknown security type: $SECURITY_TYPE"
+        echo "Valid: application, database"
+        exit 1
+        ;;
+    esac
+
+    apply_to_deployment() {
+      local dep="$1"
+      echo "Processing $dep..."
+
+      # Export current deployment
+      kubectl get deployment "$dep" -n "$NAMESPACE" -o json > "/tmp/${dep}.json"
+
+      # Check if security contexts already exist
+      if jq -e '.spec.template.spec.securityContext' "/tmp/${dep}.json" >/dev/null 2>&1; then
+        echo "  Skipping $dep: securityContext already present"
+        rm "/tmp/${dep}.json"
+        return
+      fi
+
+      # Add pod-level securityContext
+      jq --argjson ctx "$POD_CTX" \
+         '.spec.template.spec.securityContext = $ctx' \
+         "/tmp/${dep}.json" > "/tmp/${dep}-patched.json"
+
+      # Add container-level securityContext to first container
+      jq --argjson ctx "$CONTAINER_CTX" \
+         '.spec.template.spec.containers[0].securityContext = $ctx' \
+         "/tmp/${dep}-patched.json" > "/tmp/${dep}-final.json"
+
+      # Apply the modified deployment
+      kubectl apply -f "/tmp/${dep}-final.json" -n "$NAMESPACE"
+      echo "  Applied security context to $dep"
+
+      rm "/tmp/${dep}.json" "/tmp/${dep}-patched.json" "/tmp/${dep}-final.json"
     }
-    
-    # Parchear servicios de aplicación
+
+    # Apply to all deployments in namespace (or specific ones via args)
+    if [ $# -gt 2 ]; then
+      shift 2
+      for dep in "$@"; do
+        if kubectl get deployment "$dep" -n "$NAMESPACE" &>/dev/null; then
+          apply_to_deployment "$dep"
+        else
+          echo "Deployment $dep not found in $NAMESPACE"
+        fi
+      done
+    else
+      for dep in $(kubectl get deployments -n "$NAMESPACE" -o name | sed 's|deployment.apps/||'); do
+        apply_to_deployment "$dep"
+      done
+    fi
+
     echo ""
-    echo "Parcheando servicios de aplicación..."
-    for deployment in api-gateway api-validator entity-manager activation-codes; do
-      if kubectl get deployment $deployment -n $NAMESPACE &>/dev/null; then
-        patch_deployment $deployment "application"
-      else
-        echo "⚠️  Deployment $deployment no encontrado"
-      fi
-    done
-    
-    # Parchear bases de datos
+    echo "Done. Verify with: kubectl get deployments -n $NAMESPACE -o jsonpath='{range .items[*]}{.metadata.name}{\"\\t\"}{.spec.template.spec.containers[0].securityContext}{\"\\n\"}{end}'"
     echo ""
-    echo "Parcheando servicios de bases de datos..."
-    for deployment in postgresql mongodb; do
-      if kubectl get deployment $deployment -n $NAMESPACE &>/dev/null; then
-        patch_deployment $deployment "database"
-      else
-        echo "⚠️  Deployment $deployment no encontrado"
-      fi
-    done
-    
-    echo ""
-    echo "✅ Security Context aplicado a todos los deployments"
+    echo "IMPORTANT: For permanent fix, add securityContext to source YAML in gitops-config"
 
   verify-security.sh: |
     #!/bin/bash
