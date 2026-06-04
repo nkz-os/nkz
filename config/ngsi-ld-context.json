@@ -112,6 +112,11 @@
       "@type": "@id",
       "_comment": "Platform extension — no SDM equivalent. Proposed for FIWARE Smart Data Models AgriFood domain (P1). Daily disease risk evaluation per parcel."
     },
+    "RiskAssessment": {
+      "@id": "nkz:RiskAssessment",
+      "@type": "@id",
+      "_comment": "Platform extension — generic risk evaluation result for batch-evaluated risks (robotic, energy, livestock, agronomic). Disease-specific risks use DiseaseRiskAssessment."
+    },
     "CarbonStock": {
       "@id": "nkz:CarbonStock",
       "@type": "@id",
@@ -239,6 +244,14 @@
     "unit": "saref:Unit",
     "cropType": "nkz:cropType",
     "soilType": "nkz:soilType",
+    "riskCode": "nkz:riskCode",
+    "probabilityScore": "nkz:probabilityScore",
+    "evaluationData": "nkz:evaluationData",
+    "evaluatedBy": "nkz:evaluatedBy",
+    "evaluationVersion": "nkz:evaluationVersion",
+    "severity": "nkz:severity",
+    "targetEntityId": "nkz:targetEntityId",
+    "targetEntityType": "nkz:targetEntityType",
     "observedAt": "ngsi-ld:observedAt",
     "createdAt": "ngsi-ld:createdAt",
     "modifiedAt": "ngsi-ld:modifiedAt",
