@@ -364,6 +364,10 @@ charts/nekazari/charts/*.tgz
 # live OUTSIDE this repo (in /home/g/Documents/nekazari/documents/). These
 # entries are belt-and-suspenders against accidental drift.
 # =============================================================================
+# Agent / AI instruction files — keep out of the repo
+AGENTS.md
+CLAUDE.md
+GEMINI.md
 .aider*
 .cody/
 internal-docs/
