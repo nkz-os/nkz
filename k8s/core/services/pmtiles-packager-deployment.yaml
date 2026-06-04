@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: pmtiles-packager
-        image: ghcr.io/nkz-os/nkz/pmtiles-packager:latest
+        image: ghcr.io/nkz-os/nkz/pmtiles-packager@sha256:5a1ceb490a40c1cb2f17549b929ab4328664ca52ff0ae8e33cbd8663acba72d6
         imagePullPolicy: Always
         envFrom:
         - configMapRef:

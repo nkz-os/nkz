@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: push-notification
-          image: ghcr.io/nkz-os/nkz/push-notification-service:latest
+          image: ghcr.io/nkz-os/nkz/push-notification-service@sha256:6ee4b90247d038c55ce17d80dd819205e9d286fa0033d46754230860519c5a4f
           imagePullPolicy: Always
           ports:
             - name: http
