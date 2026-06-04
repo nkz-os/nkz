@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: website
-        image: ghcr.io/nkz-os/nkz-os-website:latest
+        image: ghcr.io/nkz-os/nkz-os-website@sha256:d07121cfde423faa5c730d9eabcf08c39b8bccdecbf785d4c73d33b1c1d47395
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false
