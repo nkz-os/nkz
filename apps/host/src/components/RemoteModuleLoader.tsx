@@ -48,14 +48,14 @@ class RemoteModuleErrorBoundary extends React.Component<
         return this.props.fallback(this.state.error);
       }
       return (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+        <div className="p-4 bg-nkz-error-light border border-red-200 rounded-md">
           <h3 className="text-red-800 font-semibold">Error loading module</h3>
-          <p className="text-red-600 text-sm mt-1">
+          <p className="text-nkz-error text-sm mt-1">
             {this.state.error.message || 'Failed to load remote module'}
           </p>
           <details className="mt-2">
             <summary className="text-xs text-gray-600 cursor-pointer">Stack trace</summary>
-            <pre className="text-xs text-gray-500 mt-1 overflow-auto max-h-40">
+            <pre className="text-xs text-nkz-muted mt-1 overflow-auto max-h-40">
               {this.state.error.stack}
             </pre>
           </details>
@@ -155,10 +155,10 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
           // placeholder rather than throwing — slot widgets will still mount
           // wherever the host hosts them.
           setComponent(() => () => (
-            <div className="p-8 text-center bg-gray-50 rounded-lg border border-gray-200">
+            <div className="p-8 text-center bg-nkz-bg-secondary rounded-lg border border-nkz-border">
               <h3 className="text-lg font-semibold text-gray-700 mb-2">Module Active: {module.id}</h3>
-              <p className="text-gray-500">This module is active and has registered its widgets.</p>
-              <p className="text-gray-400 text-sm mt-2">No main view component provided.</p>
+              <p className="text-nkz-muted">This module is active and has registered its widgets.</p>
+              <p className="text-nkz-muted text-sm mt-2">No main view component provided.</p>
             </div>
           ));
         }
@@ -182,17 +182,17 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
       return <>{errorFallback(loadError)}</>;
     }
     return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+      <div className="p-4 bg-nkz-error-light border border-red-200 rounded-md">
         <h3 className="text-red-800 font-semibold">Error loading module: {module.displayName}</h3>
-        <p className="text-red-600 text-sm mt-1">{loadError.message}</p>
+        <p className="text-nkz-error text-sm mt-1">{loadError.message}</p>
         {!isLocal && module.remoteEntry && (
-          <p className="text-gray-500 text-xs mt-2">
+          <p className="text-nkz-muted text-xs mt-2">
             Remote Entry: {module.remoteEntry}
           </p>
         )}
         <details className="mt-2">
           <summary className="text-xs text-gray-600 cursor-pointer">Stack trace</summary>
-          <pre className="text-xs text-gray-500 mt-1 overflow-auto max-h-40">
+          <pre className="text-xs text-nkz-muted mt-1 overflow-auto max-h-40">
             {loadError.stack || 'No stack trace available'}
           </pre>
         </details>

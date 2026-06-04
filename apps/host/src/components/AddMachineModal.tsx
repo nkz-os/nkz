@@ -188,11 +188,11 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="bg-nkz-error-light border border-red-200 rounded-lg p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-nkz-error mt-0.5 flex-shrink-0" />
               <div className="flex-1">
                 <p className="text-red-800 font-medium">Error</p>
-                <p className="text-red-700 text-sm">{error}</p>
+                <p className="text-nkz-error text-sm">{error}</p>
               </div>
             </div>
           )}
@@ -207,7 +207,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder={t('machines.name_placeholder') || 'Ej: Tractor John Deere 6130M'}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               disabled={loading}
               required
             />
@@ -224,7 +224,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 value={formData.manufacturer}
                 onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
                 placeholder={t('machines.manufacturer_placeholder') || 'Ej: John Deere'}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               />
             </div>
@@ -237,7 +237,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 value={formData.model}
                 onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                 placeholder={t('machines.model_placeholder') || 'Ej: 6130M'}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               />
             </div>
@@ -253,7 +253,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               value={formData.serialNumber}
               onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
               placeholder={t('machines.serial_number_placeholder') || 'Ej: SN-2024-001'}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               disabled={loading}
             />
           </div>
@@ -269,7 +269,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 onChange={(e) =>
                   setFormData({ ...formData, status: e.target.value as typeof formData.status })
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               >
                 <option value="idle">{t('machines.idle') || 'Inactivo'}</option>
@@ -290,7 +290,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                     operation_type: e.target.value as typeof formData.operation_type
                   })
                 }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               >
                 <option value="seeding">{t('machines.op_seeding') || 'Siembra'}</option>
@@ -310,7 +310,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               id="isobus"
               checked={formData.isobusCompatible}
               onChange={(e) => setFormData({ ...formData, isobusCompatible: e.target.checked })}
-              className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+              className="w-4 h-4 text-orange-600 border-nkz-border rounded focus:ring-orange-500"
               disabled={loading}
             />
             <label htmlFor="isobus" className="ml-2 text-sm text-gray-700">
@@ -330,7 +330,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 value={formData.latitude}
                 onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: 42.571493"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
                 required
               />
@@ -346,7 +346,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 value={formData.longitude}
                 onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: -2.028218"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
                 required
               />
@@ -366,7 +366,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 value={formData.latitude}
                 onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('machines.latitude_placeholder') || 'Ej: 42.571493'}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
                 required
               />
@@ -382,7 +382,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 value={formData.longitude}
                 onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('machines.longitude_placeholder') || 'Ej: -2.028218'}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
                 required
               />
@@ -400,7 +400,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 value={formData.icon2d}
                 onChange={(e) => setFormData({ ...formData, icon2d: e.target.value })}
                 placeholder="https://ejemplo.com/icono.png"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               />
             </div>
@@ -413,7 +413,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 value={formData.model3d}
                 onChange={(e) => setFormData({ ...formData, model3d: e.target.value })}
                 placeholder="https://ejemplo.com/modelo.glb"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
               />
             </div>
@@ -428,7 +428,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               placeholder={t('machines.notes_placeholder') || 'Notas adicionales...'}
               disabled={loading}
             />

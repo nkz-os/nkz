@@ -96,7 +96,7 @@ export const LimitsManagement: React.FC = () => {
           <select
             value={limits.planType ?? ''}
             onChange={(e) => setLimits((s) => ({ ...s, planType: e.target.value }))}
-            className="w-full border border-gray-300 rounded px-3 py-2"
+            className="w-full border border-nkz-border rounded px-3 py-2"
             disabled={loading}
           >
             <option value="">{t('select_plan') || 'Seleccionar plan...'}</option>
@@ -113,7 +113,7 @@ export const LimitsManagement: React.FC = () => {
             type="number"
             value={limits.maxUsers ?? ''}
             onChange={(e) => setLimits((s) => ({ ...s, maxUsers: e.target.value === '' ? undefined : Number(e.target.value) }))}
-            className="w-full border border-gray-300 rounded px-3 py-2"
+            className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading}
           />
@@ -124,7 +124,7 @@ export const LimitsManagement: React.FC = () => {
             type="number"
             value={limits.maxRobots ?? ''}
             onChange={(e) => setLimits((s) => ({ ...s, maxRobots: e.target.value === '' ? undefined : Number(e.target.value) }))}
-            className="w-full border border-gray-300 rounded px-3 py-2"
+            className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading}
           />
@@ -135,7 +135,7 @@ export const LimitsManagement: React.FC = () => {
             type="number"
             value={limits.maxSensors ?? ''}
             onChange={(e) => setLimits((s) => ({ ...s, maxSensors: e.target.value === '' ? undefined : Number(e.target.value) }))}
-            className="w-full border border-gray-300 rounded px-3 py-2"
+            className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading}
           />
@@ -147,7 +147,7 @@ export const LimitsManagement: React.FC = () => {
             step="0.01"
             value={limits.maxAreaHectares ?? ''}
             onChange={(e) => setLimits((s) => ({ ...s, maxAreaHectares: e.target.value === '' ? undefined : Number(e.target.value) }))}
-            className="w-full border border-gray-300 rounded px-3 py-2"
+            className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading}
           />
@@ -158,7 +158,7 @@ export const LimitsManagement: React.FC = () => {
             type="number"
             value={limits.maxParcels ?? ''}
             onChange={(e) => setLimits((s) => ({ ...s, maxParcels: e.target.value === '' ? undefined : Number(e.target.value) }))}
-            className="w-full border border-gray-300 rounded px-3 py-2"
+            className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading}
           />
@@ -169,13 +169,13 @@ export const LimitsManagement: React.FC = () => {
             type="number"
             value={limits.maxEntitiesTotal ?? ''}
             onChange={(e) => setLimits((s) => ({ ...s, maxEntitiesTotal: e.target.value === '' ? undefined : Number(e.target.value) }))}
-            className="w-full border border-gray-300 rounded px-3 py-2"
+            className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading || !isBasic}
             title={!isBasic ? t('quota.max_entities_total') : undefined}
           />
           {!isBasic && (
-            <p className="text-xs text-gray-400 mt-1">{t('quota.max_entities_total')}</p>
+            <p className="text-xs text-nkz-muted mt-1">{t('quota.max_entities_total')}</p>
           )}
         </div>
       </div>
@@ -190,7 +190,7 @@ export const LimitsManagement: React.FC = () => {
         <button
           onClick={load}
           disabled={loading}
-          className="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200 disabled:opacity-50"
+          className="bg-nkz-bg-secondary text-gray-800 px-4 py-2 rounded hover:bg-gray-200 disabled:opacity-50"
         >
           {t('reload')}
         </button>

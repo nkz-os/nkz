@@ -19,7 +19,7 @@ export function StepSummary() {
       <div className="bg-gradient-to-br from-green-50 to-blue-50 p-5 rounded-xl border border-green-200 space-y-3">
         {/* Header */}
         <div className="flex items-center gap-3 pb-3 border-b border-green-200">
-          <Icon className="w-8 h-8 text-green-600" />
+          <Icon className="w-8 h-8 text-nkz-success" />
           <div>
             <div className="font-bold text-lg text-gray-900">{formData.name || '(sin nombre)'}</div>
             <div className="text-sm text-gray-600">{entityType}</div>
@@ -30,7 +30,7 @@ export function StepSummary() {
         <div className="grid grid-cols-2 gap-3 text-sm">
           {formData.description && (
             <div className="col-span-2">
-              <span className="text-gray-500">Descripción:</span>
+              <span className="text-nkz-muted">Descripción:</span>
               <span className="ml-2 text-gray-900">{formData.description}</span>
             </div>
           )}
@@ -38,19 +38,19 @@ export function StepSummary() {
           {/* Geo asset: hierarchy + cadastral */}
           {assetData?.isSubdivision && assetData.parentEntity && (
             <div>
-              <span className="text-gray-500">Padre:</span>
+              <span className="text-nkz-muted">Padre:</span>
               <span className="ml-2 text-gray-900">{assetData.parentEntity.name}</span>
             </div>
           )}
           {assetData?.municipality && (
             <div>
-              <span className="text-gray-500">Municipio:</span>
+              <span className="text-nkz-muted">Municipio:</span>
               <span className="ml-2 text-gray-900">{assetData.municipality}</span>
             </div>
           )}
           {assetData?.cadastralReference && (
             <div className="col-span-2">
-              <span className="text-gray-500">Ref. catastral:</span>
+              <span className="text-nkz-muted">Ref. catastral:</span>
               <span className="ml-2 text-gray-900 font-mono text-xs">{assetData.cadastralReference}</span>
             </div>
           )}
@@ -58,7 +58,7 @@ export function StepSummary() {
           {/* Geometry */}
           {formData.geometry && (
             <div>
-              <span className="text-gray-500">Geometría:</span>
+              <span className="text-nkz-muted">Geometría:</span>
               <span className="ml-2 text-gray-900">{formData.geometry.type}</span>
             </div>
           )}
@@ -69,7 +69,7 @@ export function StepSummary() {
           <div className="flex gap-4 pt-3 border-t border-green-200">
             {(formData.defaultIconKey || formData.iconUrl) && (
               <div className="flex items-center gap-2 text-sm">
-                <div className="w-8 h-8 bg-white rounded-lg border border-gray-200 flex items-center justify-center">
+                <div className="w-8 h-8 bg-white rounded-lg border border-nkz-border flex items-center justify-center">
                   {formData.iconUrl
                     ? <img src={formData.iconUrl} alt="Icono" className="w-6 h-6 object-contain" />
                     : <Icon className="w-5 h-5 text-gray-600" />
@@ -80,7 +80,7 @@ export function StepSummary() {
             )}
             {formData.model3DUrl && (
               <div className="flex items-center gap-2 text-sm">
-                <div className="w-8 h-8 bg-white rounded-lg border border-gray-200 flex items-center justify-center">
+                <div className="w-8 h-8 bg-white rounded-lg border border-nkz-border flex items-center justify-center">
                   <Building2 className="w-5 h-5 text-gray-600" />
                 </div>
                 <span className="text-gray-600">Modelo 3D</span>
@@ -92,7 +92,7 @@ export function StepSummary() {
 
       {/* Robot-specific note */}
       {entityType === 'AutonomousMobileRobot' && (
-        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+        <div className="p-3 bg-nkz-warning-light border border-yellow-200 rounded-lg text-sm text-yellow-800">
           <strong>Nota:</strong> Tras crear el robot, ve a <a href="/devices" className="underline font-medium">Device Management</a> para activar su acceso a la red SDN con el Claim Code del chasis.
         </div>
       )}

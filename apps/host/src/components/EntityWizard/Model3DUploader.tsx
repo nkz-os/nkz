@@ -88,7 +88,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
         {/* Upload */}
         <div className="flex items-center gap-2">
           <label
-            className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition ${
+            className={`flex items-center gap-2 px-4 py-2 border border-nkz-border rounded-lg cursor-pointer hover:bg-nkz-bg-secondary transition ${
               disabled || uploading ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
@@ -115,7 +115,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
               type="button"
               onClick={handleRemove}
               disabled={disabled}
-              className="px-4 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition disabled:opacity-50"
+              className="px-4 py-2 border border-red-300 text-nkz-error rounded-lg hover:bg-nkz-error-light transition disabled:opacity-50"
             >
               <X className="w-4 h-4" />
             </button>
@@ -126,24 +126,24 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
         {uploading && uploadProgress > 0 && (
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div 
-              className="bg-green-500 h-2 rounded-full transition-all duration-300"
+              className="bg-nkz-success-light0 h-2 rounded-full transition-all duration-300"
               style={{ width: `${uploadProgress}%` }}
             />
           </div>
         )}
 
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-nkz-muted">
           Formats: GLB, GLTF. Max size: {getMaxFileSizeMB('model')}MB
         </p>
 
         {error && (
-          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">
+          <div className="text-xs text-nkz-error bg-nkz-error-light border border-red-200 rounded px-2 py-1">
             {error}
           </div>
         )}
 
         {currentModelUrl && (
-          <div className="flex items-center gap-1 text-xs text-green-600">
+          <div className="flex items-center gap-1 text-xs text-nkz-success">
             <Check className="w-3 h-3" />
             <span>3D model uploaded successfully</span>
           </div>
@@ -151,7 +151,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
 
         {/* Scale and Rotation controls */}
         {currentModelUrl && (
-          <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="space-y-3 p-4 bg-nkz-bg-secondary rounded-lg border border-nkz-border">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Scale: {modelScale.toFixed(2)}x
@@ -166,7 +166,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                 disabled={disabled}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <div className="flex justify-between text-xs text-nkz-muted mt-1">
                 <span>0.1x</span>
                 <span>5.0x</span>
               </div>
@@ -190,7 +190,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                       modelRotation[2]
                     ])}
                     disabled={disabled}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                    className="w-full px-2 py-1 text-sm border border-nkz-border rounded"
                   />
                 </div>
                 <div>
@@ -206,7 +206,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                       modelRotation[2]
                     ])}
                     disabled={disabled}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                    className="w-full px-2 py-1 text-sm border border-nkz-border rounded"
                   />
                 </div>
                 <div>
@@ -222,7 +222,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                       parseInt(e.target.value) || 0
                     ])}
                     disabled={disabled}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+                    className="w-full px-2 py-1 text-sm border border-nkz-border rounded"
                   />
                 </div>
               </div>

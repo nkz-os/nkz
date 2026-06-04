@@ -362,8 +362,8 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
   if (error) {
     return (
-      <div className="border border-red-200 rounded-lg p-4 bg-red-50/50">
-        <div className="flex items-center gap-2 text-sm text-red-700">
+      <div className="border border-red-200 rounded-lg p-4 bg-nkz-error-light/50">
+        <div className="flex items-center gap-2 text-sm text-nkz-error">
           <AlertCircle className="w-4 h-4" />
           <span>{error}</span>
         </div>
@@ -376,7 +376,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-blue-600" />
+          <TrendingUp className="w-5 h-5 text-nkz-info" />
           <h3 className="text-lg font-semibold text-slate-800">
             Histórico - {entityName || entityId}
           </h3>
@@ -479,7 +479,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
               key={attr}
               className={`px-3 py-1.5 text-sm rounded-lg cursor-pointer transition-colors ${
                 selectedAttributes.includes(attr)
-                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  ? 'bg-nkz-info-light text-nkz-info border border-blue-300'
                   : 'bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200'
               }`}
             >
@@ -516,7 +516,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             />
             {/* Current time indicator info */}
             {isCurrentTimeInRange && (
-              <div className="absolute top-2 right-2 px-2 py-1 bg-red-500/90 text-white text-xs rounded shadow-sm animate-pulse">
+              <div className="absolute top-2 right-2 px-2 py-1 bg-nkz-error-light0/90 text-white text-xs rounded shadow-sm animate-pulse">
                 Tiempo actual visible
               </div>
             )}

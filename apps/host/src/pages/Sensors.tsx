@@ -181,10 +181,10 @@ export const Sensors: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'online': return 'bg-green-100 text-green-800 border-green-200';
-      case 'warning': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'offline': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'online': return 'bg-nkz-success-light text-green-800 border-green-200';
+      case 'warning': return 'bg-nkz-warning-light text-yellow-800 border-yellow-200';
+      case 'offline': return 'bg-nkz-error-light text-red-800 border-red-200';
+      default: return 'bg-nkz-bg-secondary text-gray-800 border-nkz-border';
     }
   };
 
@@ -251,14 +251,14 @@ export const Sensors: React.FC = () => {
             <Activity className="w-8 h-8 text-teal-600" />
             {t('sensors.title') || 'Sensores IoT'}
           </h1>
-          <p className="text-gray-500 mt-1">
+          <p className="text-nkz-muted mt-1">
             {t('sensors.subtitle') || 'Estado de conexión y monitorización de dispositivos'}
           </p>
         </div>
         <div className="flex gap-3">
           <button
             onClick={loadSensors}
-            className="px-4 py-2.5 bg-gray-50 text-gray-700 rounded-xl hover:bg-gray-100 transition flex items-center gap-2 border border-gray-200 font-medium"
+            className="px-4 py-2.5 bg-nkz-bg-secondary text-gray-700 rounded-xl hover:bg-nkz-bg-secondary transition flex items-center gap-2 border border-nkz-border font-medium"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             {t('common.refresh') || 'Actualizar'}
@@ -278,52 +278,52 @@ export const Sensors: React.FC = () => {
       {/* Health Summary Bar */}
       {!loading && sensors.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
-            <div className="p-2 bg-green-50 rounded-lg"><Wifi className="w-5 h-5 text-green-600" /></div>
+          <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
+            <div className="p-2 bg-nkz-success-light rounded-lg"><Wifi className="w-5 h-5 text-nkz-success" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.online}</div>
-              <div className="text-xs text-gray-500">{t('sensors.online') || 'Online'}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.online') || 'Online'}</div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
-            <div className="p-2 bg-yellow-50 rounded-lg"><AlertTriangle className="w-5 h-5 text-yellow-600" /></div>
+          <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
+            <div className="p-2 bg-nkz-warning-light rounded-lg"><AlertTriangle className="w-5 h-5 text-nkz-warning" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.warning}</div>
-              <div className="text-xs text-gray-500">{t('sensors.intermittent') || 'Intermitente'}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.intermittent') || 'Intermitente'}</div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
-            <div className="p-2 bg-red-50 rounded-lg"><WifiOff className="w-5 h-5 text-red-600" /></div>
+          <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
+            <div className="p-2 bg-nkz-error-light rounded-lg"><WifiOff className="w-5 h-5 text-nkz-error" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.offline}</div>
-              <div className="text-xs text-gray-500">{t('sensors.offline') || 'Offline'}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.offline') || 'Offline'}</div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3">
-            <div className="p-2 bg-gray-50 rounded-lg"><HelpCircle className="w-5 h-5 text-gray-400" /></div>
+          <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
+            <div className="p-2 bg-nkz-bg-secondary rounded-lg"><HelpCircle className="w-5 h-5 text-nkz-muted" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.unknown}</div>
-              <div className="text-xs text-gray-500">{t('sensors.no_signal') || 'Sin señal'}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.no_signal') || 'Sin señal'}</div>
             </div>
           </div>
         </div>
       )}
 
       {/* Main Grid */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-nkz-border overflow-hidden">
         {/* Toolbar */}
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
+        <div className="p-4 border-b border-nkz-border flex justify-between items-center bg-nkz-bg-secondary/50">
           <div className="relative max-w-md w-full">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nkz-muted w-4 h-4" />
             <input
               type="text"
               placeholder={t('common.search') || 'Buscar sensores...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+              className="w-full pl-10 pr-4 py-2 bg-white border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
             />
           </div>
-          <div className="flex items-center gap-4 text-sm text-gray-500">
+          <div className="flex items-center gap-4 text-sm text-nkz-muted">
             <span>Total: <strong>{totalCount}</strong> {t('sensors.devices') || 'dispositivos'}</span>
           </div>
         </div>
@@ -331,24 +331,24 @@ export const Sensors: React.FC = () => {
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-nkz-bg-secondary border-b border-nkz-border">
               <tr>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
                   {t('sensors.device') || 'Dispositivo'}
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
                   {t('sensors.status') || 'Estado'}
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
                   {t('sensors.readings') || 'Lecturas'}
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
                   {t('sensors.battery') || 'Batería'}
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
                   {t('sensors.last_signal') || 'Última señal'}
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider text-right">
                   {t('common.actions') || 'Acciones'}
                 </th>
               </tr>
@@ -367,7 +367,7 @@ export const Sensors: React.FC = () => {
                 ))
               ) : sensors.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-16 text-center text-nkz-muted">
                     <Gauge className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                     <p className="font-medium">{t('sensors.empty_title') || 'No hay sensores registrados'}</p>
                     <p className="text-sm mt-1 max-w-md mx-auto">
@@ -402,7 +402,7 @@ export const Sensors: React.FC = () => {
                     const dynamicAttrs = getDynamicAttrs(sensor);
 
                     return (
-                      <tr key={sensor.id} className="hover:bg-gray-50 transition group">
+                      <tr key={sensor.id} className="hover:bg-nkz-bg-secondary transition group">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div className="p-2 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-100 transition">
@@ -412,7 +412,7 @@ export const Sensors: React.FC = () => {
                               <div className="font-medium text-gray-900">
                                 {sensor.name?.value || t('sensors.unnamed') || 'Sin nombre'}
                               </div>
-                              <div className="text-xs text-gray-500 font-mono mt-0.5" title={sensor.id}>
+                              <div className="text-xs text-nkz-muted font-mono mt-0.5" title={sensor.id}>
                                 {sensor.id.split(':').pop()?.substring(0, 16)}
                               </div>
                             </div>
@@ -420,8 +420,8 @@ export const Sensors: React.FC = () => {
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(status)}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${status === 'online' ? 'bg-green-500 animate-pulse' :
-                                status === 'warning' ? 'bg-yellow-500' : 'bg-gray-400'
+                            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${status === 'online' ? 'bg-nkz-success-light0 animate-pulse' :
+                                status === 'warning' ? 'bg-nkz-warning-light0' : 'bg-gray-400'
                               }`}></span>
                             {getStatusLabel(status)}
                           </span>
@@ -431,8 +431,8 @@ export const Sensors: React.FC = () => {
                             <div className="flex flex-col gap-1">
                               {dynamicAttrs.map(attr => (
                                 <div key={attr.key} className="flex items-center gap-1.5 text-xs">
-                                  <Thermometer className="w-3 h-3 text-gray-400 flex-shrink-0" />
-                                  <span className="text-gray-500 truncate max-w-[80px]" title={attr.key}>{attr.key}:</span>
+                                  <Thermometer className="w-3 h-3 text-nkz-muted flex-shrink-0" />
+                                  <span className="text-nkz-muted truncate max-w-[80px]" title={attr.key}>{attr.key}:</span>
                                   <span className="font-medium text-gray-800">
                                     {typeof attr.value === 'number' ? attr.value.toFixed(1) : String(attr.value)}
                                   </span>
@@ -440,39 +440,39 @@ export const Sensors: React.FC = () => {
                               ))}
                             </div>
                           ) : (
-                            <span className="text-gray-400 text-xs italic">{t('sensors.no_data') || 'Sin datos'}</span>
+                            <span className="text-nkz-muted text-xs italic">{t('sensors.no_data') || 'Sin datos'}</span>
                           )}
                         </td>
                         <td className="px-6 py-4">
                           {battery !== undefined ? (
                             <div className="flex items-center gap-2">
                               <Battery className={`w-4 h-4 ${battery > 50 ? 'text-green-500' :
-                                  battery > 20 ? 'text-yellow-500' : 'text-red-500'
+                                  battery > 20 ? 'text-yellow-500' : 'text-nkz-error'
                                 }`} />
                               <span className="text-sm font-medium text-gray-700">{battery}%</span>
                               <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full ${battery > 50 ? 'bg-green-500' :
-                                      battery > 20 ? 'bg-yellow-500' : 'bg-red-500'
+                                  className={`h-full rounded-full ${battery > 50 ? 'bg-nkz-success-light0' :
+                                      battery > 20 ? 'bg-nkz-warning-light0' : 'bg-nkz-error-light0'
                                     }`}
                                   style={{ width: `${Math.min(100, Math.max(0, battery))}%` }}
                                 ></div>
                               </div>
                             </div>
                           ) : (
-                            <span className="text-gray-400 text-xs">-</span>
+                            <span className="text-nkz-muted text-xs">-</span>
                           )}
                         </td>
                         <td className="px-6 py-4">
                           {lastSignalDate ? (
                             <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                              <Calendar className="w-3.5 h-3.5 text-nkz-muted" />
                               <span title={parseISO(lastSignalDate).toLocaleString()}>
                                 {formatDistanceToNow(parseISO(lastSignalDate), { addSuffix: true, locale: getDateLocale() })}
                               </span>
                             </div>
                           ) : (
-                            <span className="text-gray-400 text-xs italic">{t('sensors.never') || 'Nunca'}</span>
+                            <span className="text-nkz-muted text-xs italic">{t('sensors.never') || 'Nunca'}</span>
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -487,7 +487,7 @@ export const Sensors: React.FC = () => {
                             {canEdit && (
                               <button
                                 onClick={() => handleDelete(sensor)}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-red-600 hover:text-red-800 transition px-3 py-1.5 rounded-lg hover:bg-red-50"
+                                className="inline-flex items-center gap-1 text-sm font-medium text-nkz-error hover:text-red-800 transition px-3 py-1.5 rounded-lg hover:bg-nkz-error-light"
                                 title={t('common.delete') || 'Eliminar'}
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -504,19 +504,19 @@ export const Sensors: React.FC = () => {
         </div>
 
         {/* Pagination Controls */}
-        <div className="bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div className="bg-white border-t border-nkz-border px-6 py-4 flex items-center justify-between">
           <div className="flex-1 flex justify-between sm:hidden">
             <button
               onClick={() => setPage(page > 0 ? page - 1 : 0)}
               disabled={page === 0}
-              className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              className="relative inline-flex items-center px-4 py-2 border border-nkz-border text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-nkz-bg-secondary disabled:opacity-50"
             >
               Anterior
             </button>
             <button
               onClick={() => setPage(page + 1)}
               disabled={(page + 1) * pageSize >= totalCount}
-              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              className="ml-3 relative inline-flex items-center px-4 py-2 border border-nkz-border text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-nkz-bg-secondary disabled:opacity-50"
             >
               Siguiente
             </button>
@@ -532,19 +532,19 @@ export const Sensors: React.FC = () => {
                 <button
                   onClick={() => setPage(page > 0 ? page - 1 : 0)}
                   disabled={page === 0}
-                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-nkz-border bg-white text-sm font-medium text-nkz-muted hover:bg-nkz-bg-secondary disabled:opacity-50"
                 >
                   <span className="sr-only">Anterior</span>
                   <ChevronLeft className="h-5 w-5" aria-hidden="true" />
                 </button>
                 {/* Simplified page numbers - just show current */}
-                <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                <span className="relative inline-flex items-center px-4 py-2 border border-nkz-border bg-white text-sm font-medium text-gray-700">
                   Página {page + 1}
                 </span>
                 <button
                   onClick={() => setPage(page + 1)}
                   disabled={(page + 1) * pageSize >= totalCount}
-                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-nkz-border bg-white text-sm font-medium text-nkz-muted hover:bg-nkz-bg-secondary disabled:opacity-50"
                 >
                   <span className="sr-only">Siguiente</span>
                   <ChevronRight className="h-5 w-5" aria-hidden="true" />

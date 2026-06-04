@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Save, X, Edit3, Trash2, Map as MapIcon, Check } from 'lucide-react';
+import { useNotification } from '@/hooks/useNotification';
 
 interface ParcelGeometry {
   type: 'Polygon';
@@ -78,12 +79,12 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
 
   const handleSave = async () => {
     if (!geometry) {
-      alert('Por favor, dibuja una parcela antes de guardar');
+      showNotification({ type: \'error\', message: \'Por favor, dibuja una parcela antes de guardar\' });
       return;
     }
 
     if (!municipality || !province || !cropType) {
-      alert('Por favor, completa todos los campos requeridos');
+      showNotification({ type: \'error\', message: \'Por favor, completa todos los campos requeridos\' });
       return;
     }
 
@@ -110,7 +111,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
       await onSave(parcelData);
     } catch (error) {
       console.error('Error saving parcel:', error);
-      alert('Error al guardar la parcela');
+      showNotification({ type: \'error\', message: \'Error al guardar la parcela\' });
     }
   };
 
@@ -127,23 +128,23 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-gray-900">
           {mode === 'create' ? 'Crear Parcela' : 'Editar Parcela'}
         </h3>
         <button
           onClick={onCancel}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-nkz-bg-secondary rounded-lg transition-colors"
         >
           <X className="w-5 h-5 text-gray-600" />
         </button>
       </div>
 
       {/* Drawing Tools */}
-      <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <div className="mb-6 p-4 bg-nkz-info-light border border-blue-200 rounded-lg">
         <div className="flex items-center gap-2 mb-3">
-          <MapIcon className="w-5 h-5 text-blue-600" />
+          <MapIcon className="w-5 h-5 text-nkz-info" />
           <h4 className="font-semibold text-blue-900">Dibujar en Mapa</h4>
         </div>
         
@@ -159,7 +160,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
             <button
               onClick={() => {
                 // TODO: Trigger cadastral selector
-                alert('Selector catastral será implementado');
+                showNotification({ type: \'error\', message: \'Selector catastral será implementado\' });
               }}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
             >
@@ -194,7 +195,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
 
         {geometry && !isDrawing && (
           <div className="space-y-2">
-            <div className="p-3 bg-white border border-gray-200 rounded-lg">
+            <div className="p-3 bg-white border border-nkz-border rounded-lg">
               <p className="text-sm font-medium text-gray-900">
                 Parcela dibujada
               </p>
@@ -212,7 +213,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
               </button>
               <button
                 onClick={handleClearGeometry}
-                className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors flex items-center gap-2 text-sm"
+                className="px-3 py-2 bg-nkz-error-light text-nkz-error rounded-lg hover:bg-red-200 transition-colors flex items-center gap-2 text-sm"
               >
                 <Trash2 className="w-4 h-4" />
                 Eliminar
@@ -233,7 +234,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
               type="text"
               value={municipality}
               onChange={(e) => setMunicipality(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
           </div>
@@ -246,7 +247,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
               type="text"
               value={province}
               onChange={(e) => setProvince(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
           </div>
@@ -259,7 +260,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
           <select
             value={cropType}
             onChange={(e) => setCropType(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             required
           >
             <option value="">Seleccionar...</option>
@@ -281,13 +282,13 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Información adicional sobre la parcela..."
           />
         </div>
 
         {parcel?.cadastral_reference && (
-          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="p-3 bg-nkz-bg-secondary border border-nkz-border rounded-lg">
             <p className="text-sm text-gray-600">
               Ref. Catastral: <span className="font-mono font-semibold">{parcel.cadastral_reference}</span>
             </p>
@@ -296,10 +297,10 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
+      <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-nkz-border">
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+          className="px-4 py-2 text-gray-700 bg-nkz-bg-secondary rounded-lg hover:bg-gray-200 transition-colors"
         >
           Cancelar
         </button>

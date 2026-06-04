@@ -84,7 +84,7 @@ export const SkeletonTable: React.FC<{
 }> = ({ rows = 5, columns = 4, className = '' }) => (
   <div className={`overflow-x-auto ${className}`}>
     <table className="min-w-full divide-y divide-gray-200">
-      <thead className="bg-gray-50 dark:bg-gray-800">
+      <thead className="bg-nkz-bg-secondary dark:bg-gray-800">
         <tr>
           {Array.from({ length: columns }).map((_, i) => (
             <th key={i} className="px-4 py-3 text-left">

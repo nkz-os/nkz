@@ -24,7 +24,7 @@ export const LivestockCard: React.FC<LivestockCardProps> = ({ livestock, canMana
         {livestock.length === 0 ? (
           <div className="text-center py-12">
             <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">{t('dashboard.livestock.no_animals')}</p>
+            <p className="text-nkz-muted mb-4">{t('dashboard.livestock.no_animals')}</p>
             {canManageDevices && (
               <button
                 onClick={() => onOpenWizard('LivestockAnimal')}
@@ -38,7 +38,7 @@ export const LivestockCard: React.FC<LivestockCardProps> = ({ livestock, canMana
         ) : (
           <div className="space-y-3">
             {livestock.slice(0, 4).map((animal) => (
-              <div key={animal.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition">
+              <div key={animal.id} className="flex items-center justify-between p-4 bg-nkz-bg-secondary rounded-xl hover:bg-nkz-bg-secondary transition">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center">
                     <Heart className="w-5 h-5" />
@@ -47,7 +47,7 @@ export const LivestockCard: React.FC<LivestockCardProps> = ({ livestock, canMana
                     <h4 className="font-semibold text-gray-900">
                       {animal.name?.value || animal.id}
                     </h4>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-nkz-muted">
                       {typeof animal.species === 'string' ? animal.species : animal.species?.value || t('dashboard.livestock.species_label')}
                     </p>
                   </div>

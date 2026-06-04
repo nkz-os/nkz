@@ -61,12 +61,12 @@ export const ForgotPassword: React.FC = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8 text-center">
-          <CheckCircle className="mx-auto h-16 w-16 text-green-600 mb-4" />
+          <CheckCircle className="mx-auto h-16 w-16 text-nkz-success mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('forgot_password.email_sent')}</h1>
           <p className="text-gray-600 mb-6">
             {t('forgot_password.email_sent_message')}
           </p>
-          <p className="text-sm text-gray-500 mb-6">
+          <p className="text-sm text-nkz-muted mb-6">
             {t('forgot_password.check_spam')}
           </p>
           <Link
@@ -93,8 +93,8 @@ export const ForgotPassword: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
-              <AlertCircle className="h-5 w-5 text-red-600 mr-3 flex-shrink-0 mt-0.5" />
+            <div className="bg-nkz-error-light border border-red-200 rounded-lg p-4 flex items-start">
+              <AlertCircle className="h-5 w-5 text-nkz-error mr-3 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
@@ -109,11 +109,11 @@ export const ForgotPassword: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t('forgot_password.email_placeholder')}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
+              className="w-full px-4 py-3 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
               required
               disabled={loading}
             />
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-sm text-nkz-muted">
               {t('forgot_password.email_help')}
             </p>
           </div>

@@ -4,8 +4,10 @@ import { useWizard } from '../WizardContext';
 import { listDeviceProfiles, createDeviceProfile, type DeviceProfile } from '@/services/deviceProfilesApi';
 import { DeviceProfileHelpModal } from '../../DeviceProfileHelpModal';
 import type { IoTSensorFormData } from '../types';
+import { useNotification } from '@/hooks/useNotification';
 
 export function StepIoTSensorConfig() {
+  const { showNotification } = useNotification();
   const { entityType, formData, updateFormData } = useWizard();
   const [deviceProfiles, setDeviceProfiles] = useState<DeviceProfile[]>([]);
   const [showHelp, setShowHelp] = useState(false);
@@ -37,10 +39,10 @@ export function StepIoTSensorConfig() {
           const updated = await listDeviceProfiles({ sdm_entity_type: entityType ?? undefined });
           setDeviceProfiles(updated);
         } else {
-          alert('El JSON debe contener: name, sdm_entity_type y mappings[]');
+          showNotification({ type: \'error\', message: \'El JSON debe contener: name, sdm_entity_type y mappings[]\' });
         }
       } catch {
-        alert('Error al leer el archivo JSON. Verifica el formato.');
+        showNotification({ type: \'error\', message: \'Error al leer el archivo JSON. Verifica el formato.\' });
       }
     };
     reader.readAsText(file);
@@ -60,7 +62,7 @@ export function StepIoTSensorConfig() {
           type="text"
           value={data.name}
           onChange={e => updateFormData({ name: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+          className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500"
           placeholder="Ej: Sensor suelo parcela norte"
         />
       </div>
@@ -71,7 +73,7 @@ export function StepIoTSensorConfig() {
         <textarea
           value={data.description ?? ''}
           onChange={e => updateFormData({ description: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500"
+          className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500"
           placeholder="Descripción opcional"
           rows={2}
         />
@@ -100,7 +102,7 @@ export function StepIoTSensorConfig() {
                 value={data.deviceProfileId ?? ''}
                 onChange={e => updateFormData({ deviceProfileId: e.target.value || null })}
                 className={`flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 bg-white ${
-                  !data.deviceProfileId ? 'border-red-300' : 'border-gray-300'
+                  !data.deviceProfileId ? 'border-red-300' : 'border-nkz-border'
                 }`}
               >
                 <option value="">-- Selecciona un perfil --</option>
@@ -117,7 +119,7 @@ export function StepIoTSensorConfig() {
               </select>
               <button
                 onClick={() => setShowHelp(true)}
-                className="px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-600 flex items-center"
+                className="px-3 py-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary text-gray-600 flex items-center"
                 title="Ayuda y plantillas"
               >
                 <HelpCircle className="w-5 h-5" />
@@ -135,7 +137,7 @@ export function StepIoTSensorConfig() {
               <Activity className="w-3 h-3" /> Ver Plantillas
             </button>
 
-            <label className="flex items-center justify-center gap-2 text-xs font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 py-2 rounded-lg border border-blue-200 cursor-pointer">
+            <label className="flex items-center justify-center gap-2 text-xs font-medium text-nkz-info bg-nkz-info-light hover:bg-blue-200 py-2 rounded-lg border border-blue-200 cursor-pointer">
               <input
                 type="file"
                 accept=".json,application/json"
@@ -152,13 +154,13 @@ export function StepIoTSensorConfig() {
               Importar JSON
             </label>
 
-            <div className="flex items-center justify-center gap-2 text-xs text-gray-500 bg-white border border-gray-200 py-2 rounded-lg">
+            <div className="flex items-center justify-center gap-2 text-xs text-nkz-muted bg-white border border-nkz-border py-2 rounded-lg">
               <Zap className="w-3 h-3 text-yellow-500" />
               Credenciales MQTT al finalizar
             </div>
           </div>
 
-          <p className="text-xs text-gray-500 italic">
+          <p className="text-xs text-nkz-muted italic">
             * El perfil de dispositivo es obligatorio. Define cómo se traducen los datos del datalogger a atributos SDM estándar. Si no encuentras un perfil adecuado, importa uno o crea uno nuevo desde "Ver Plantillas".
           </p>
         </div>

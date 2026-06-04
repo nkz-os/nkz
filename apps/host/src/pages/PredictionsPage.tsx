@@ -47,7 +47,7 @@ export const PredictionsPage: React.FC = () => {
                         <Brain className="h-8 w-8 text-purple-600" />
                         Predicciones & Inteligencia Artificial
                     </h1>
-                    <p className="text-gray-500 mt-1">Centro de modelos predictivos y análisis avanzado.</p>
+                    <p className="text-nkz-muted mt-1">Centro de modelos predictivos y análisis avanzado.</p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -61,18 +61,18 @@ export const PredictionsPage: React.FC = () => {
                                     onClick={() => setSelectedAlgo(algo.id)}
                                     className={`w-full text-left p-4 rounded-xl border transition-all ${selectedAlgo === algo.id
                                         ? 'border-purple-500 bg-purple-50 shadow-md'
-                                        : 'border-gray-200 bg-white hover:border-purple-300 hover:bg-gray-50'
+                                        : 'border-nkz-border bg-white hover:border-purple-300 hover:bg-nkz-bg-secondary'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between mb-2">
-                                        <div className={`p-2 rounded-lg ${selectedAlgo === algo.id ? 'bg-purple-200' : 'bg-gray-100'}`}>
+                                        <div className={`p-2 rounded-lg ${selectedAlgo === algo.id ? 'bg-purple-200' : 'bg-nkz-bg-secondary'}`}>
                                             <algo.icon className={`h-5 w-5 ${selectedAlgo === algo.id ? 'text-purple-700' : 'text-gray-600'}`} />
                                         </div>
-                                        {algo.status === 'beta' && <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">Beta</span>}
-                                        {algo.status === 'training' && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Training</span>}
+                                        {algo.status === 'beta' && <span className="text-xs bg-nkz-warning-light text-yellow-800 px-2 py-0.5 rounded-full">Beta</span>}
+                                        {algo.status === 'training' && <span className="text-xs bg-nkz-info-light text-blue-800 px-2 py-0.5 rounded-full">Training</span>}
                                     </div>
                                     <h3 className={`font-medium ${selectedAlgo === algo.id ? 'text-purple-900' : 'text-gray-900'}`}>{algo.name}</h3>
-                                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{algo.description}</p>
+                                    <p className="text-xs text-nkz-muted mt-1 line-clamp-2">{algo.description}</p>
                                 </button>
                             ))}
                         </div>
@@ -80,7 +80,7 @@ export const PredictionsPage: React.FC = () => {
 
                     {/* Main Content: Studio */}
                     <div className="lg:col-span-3">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 min-h-[600px] p-6">
+                        <div className="bg-white rounded-xl shadow-sm border border-nkz-border min-h-[600px] p-6">
                             {selectedAlgo ? (
                                 <div className="h-full flex flex-col">
                                     <div className="flex items-center justify-between border-b pb-4 mb-6">
@@ -93,32 +93,32 @@ export const PredictionsPage: React.FC = () => {
                                     </div>
 
                                     {/* Mock Visualization Area */}
-                                    <div className="flex-1 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center flex-col gap-4">
+                                    <div className="flex-1 bg-nkz-bg-secondary rounded-lg border-2 border-dashed border-nkz-border flex items-center justify-center flex-col gap-4">
                                         <TrendingUp className="h-16 w-16 text-gray-300" />
-                                        <p className="text-gray-400 font-medium">Visualización del Modelo</p>
-                                        <p className="text-sm text-gray-400">Selecciona parámetros para generar una predicción</p>
+                                        <p className="text-nkz-muted font-medium">Visualización del Modelo</p>
+                                        <p className="text-sm text-nkz-muted">Selecciona parámetros para generar una predicción</p>
                                     </div>
 
                                     {/* Mock Parameters */}
                                     <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="p-4 bg-gray-50 rounded-lg">
+                                        <div className="p-4 bg-nkz-bg-secondary rounded-lg">
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Parcela Objetivo</label>
-                                            <select className="w-full border-gray-300 rounded-md shadow-sm focus:border-purple-500 focus:ring-purple-500">
+                                            <select className="w-full border-nkz-border rounded-md shadow-sm focus:border-purple-500 focus:ring-purple-500">
                                                 <option>Seleccionar parcela...</option>
                                                 {parcels.map(p => (
                                                     <option key={p.id} value={p.id}>{p.name || p.id}</option>
                                                 ))}
                                             </select>
                                         </div>
-                                        <div className="p-4 bg-gray-50 rounded-lg">
+                                        <div className="p-4 bg-nkz-bg-secondary rounded-lg">
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Horizonte Temporal</label>
-                                            <select className="w-full border-gray-300 rounded-md shadow-sm focus:border-purple-500 focus:ring-purple-500">
+                                            <select className="w-full border-nkz-border rounded-md shadow-sm focus:border-purple-500 focus:ring-purple-500">
                                                 <option>7 días</option>
                                                 <option>30 días</option>
                                                 <option>Fin de campaña</option>
                                             </select>
                                         </div>
-                                        <div className="p-4 bg-gray-50 rounded-lg">
+                                        <div className="p-4 bg-nkz-bg-secondary rounded-lg">
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Sensibilidad</label>
                                             <input type="range" className="w-full accent-purple-600" />
                                         </div>
@@ -130,7 +130,7 @@ export const PredictionsPage: React.FC = () => {
                                         <Brain className="h-16 w-16 text-purple-600" />
                                     </div>
                                     <h3 className="text-xl font-bold text-gray-900 mb-2">Selecciona un Algoritmo</h3>
-                                    <p className="text-gray-500 max-w-md">
+                                    <p className="text-nkz-muted max-w-md">
                                         Elige uno de los modelos de inteligencia artificial disponibles en el panel lateral para comenzar una simulación o predicción.
                                     </p>
                                 </div>

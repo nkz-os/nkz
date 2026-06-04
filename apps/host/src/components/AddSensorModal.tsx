@@ -163,11 +163,11 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="bg-nkz-error-light border border-red-200 rounded-lg p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-nkz-error mt-0.5 flex-shrink-0" />
               <div className="flex-1">
                 <p className="text-red-800 font-medium">Error</p>
-                <p className="text-red-700 text-sm">{error}</p>
+                <p className="text-nkz-error text-sm">{error}</p>
               </div>
             </div>
           )}
@@ -182,11 +182,11 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
               value={formData.external_id}
               onChange={(e) => setFormData({ ...formData, external_id: e.target.value })}
               placeholder="Ej: BP_Vaso_PAR_1"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={loading}
               required
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-nkz-muted mt-1">
               Identificador único del sensor físico (no se puede cambiar después)
             </p>
           </div>
@@ -201,7 +201,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Ej: Sensor Temperatura Estación 01"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={loading}
               required
             />
@@ -215,7 +215,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             <select
               value={formData.profile}
               onChange={(e) => setFormData({ ...formData, profile: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={loading}
               required
             >
@@ -246,7 +246,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
               return (
                 <div className="space-y-2 mt-2">
                   {selectedProfile.description && (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-nkz-muted">
                       {selectedProfile.description}
                     </p>
                   )}
@@ -286,7 +286,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
                 value={formData.latitude}
                 onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: 42.571493"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 disabled={loading}
                 required
               />
@@ -302,7 +302,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
                 value={formData.longitude}
                 onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: -2.028218"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 disabled={loading}
                 required
               />
@@ -333,10 +333,10 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
               value={formData.station_id}
               onChange={(e) => setFormData({ ...formData, station_id: e.target.value })}
               placeholder="Ej: Estacion_Principal"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={loading}
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-nkz-muted mt-1">
               Agrupa sensores relacionados en una estación
             </p>
           </div>
@@ -348,7 +348,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
               id="under_canopy"
               checked={formData.is_under_canopy}
               onChange={(e) => setFormData({ ...formData, is_under_canopy: e.target.checked })}
-              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+              className="w-4 h-4 text-nkz-success border-nkz-border rounded focus:ring-green-500"
               disabled={loading}
             />
             <label htmlFor="under_canopy" className="ml-2 text-sm text-gray-700">

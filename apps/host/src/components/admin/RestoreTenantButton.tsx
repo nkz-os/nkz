@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RotateCcw, Loader2 } from 'lucide-react';
 import client from '@/services/api';
+import { useNotification } from '@/hooks/useNotification';
 
 interface Props {
   tenantId: string;
@@ -10,6 +11,7 @@ interface Props {
 
 export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) => {
   const { t } = useTranslation();
+  const { showNotification } = useNotification();
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
 

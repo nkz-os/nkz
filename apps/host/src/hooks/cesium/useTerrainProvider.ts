@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { detectTerrainProviderFromParcels, TERRAIN_PROVIDERS } from '@/utils/terrain';
 import type { Parcel } from '@/types';
+import { logger } from '@/utils/logger';
 
 /**
  * Manages Cesium terrain provider switching (IDENA/IGN/ellipsoid).
@@ -44,7 +45,7 @@ export function useTerrainProvider(
         const detected = detectTerrainProviderFromParcels(parcelsForDetection);
         terrainUrlToUse = TERRAIN_PROVIDERS[detected];
         providerName = detected.toUpperCase();
-        console.log('[CesiumMap] Auto-detected terrain provider:', detected);
+        logger.debug('[CesiumMap] Auto-detected terrain provider:', detected);
       } else if (currentTerrainProvider && currentTerrainProvider.startsWith('http')) {
         terrainUrlToUse = currentTerrainProvider;
       } else {
@@ -53,7 +54,7 @@ export function useTerrainProvider(
       }
 
       if (terrainUrlToUse) {
-        console.log('[CesiumMap] Activating terrain provider:', providerName);
+        logger.debug('[CesiumMap] Activating terrain provider:', providerName);
         const baseUrl = terrainUrlToUse.replace('/layer.json', '');
 
         Cesium.CesiumTerrainProvider.fromUrl(baseUrl, {
@@ -65,20 +66,20 @@ export function useTerrainProvider(
 
             if (!viewer.isDestroyed()) {
               terrainProviderInstance.errorEvent.addEventListener((error: any) => {
-                console.warn('[CesiumMap] Terrain provider error:', providerName, error);
+                logger.warn('[CesiumMap] Terrain provider error:', providerName, error);
                 if (!viewer.isDestroyed()) viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
               });
               viewer.terrainProvider = terrainProviderInstance;
-              console.log('[CesiumMap] Terrain provider activated:', providerName);
+              logger.debug('[CesiumMap] Terrain provider activated:', providerName);
             }
           })
           .catch((error: any) => {
-            console.error('[CesiumMap] Failed to load terrain provider:', providerName, error);
+            logger.error('[CesiumMap] Failed to load terrain provider:', providerName, error);
             if (!viewer.isDestroyed()) viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
           });
       }
     } catch (e) {
-      console.warn('[CesiumMap] Failed to configure terrain, using ellipsoid:', e);
+      logger.warn('[CesiumMap] Failed to configure terrain, using ellipsoid:', e);
       if (viewer && !viewer.isDestroyed()) viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
     }
   }, [enable3DTerrain, currentTerrainProvider, parcels]);

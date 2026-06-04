@@ -14,8 +14,8 @@ interface ParcelRiskPanelProps {
 
 const SEVERITY_STYLES: Record<string, { badge: string; bar: string; label: string }> = {
     critical: {
-        badge: 'bg-red-100 text-red-800 border border-red-200',
-        bar: 'bg-red-500',
+        badge: 'bg-nkz-error-light text-red-800 border border-red-200',
+        bar: 'bg-nkz-error-light0',
         label: 'Crítico',
     },
     high: {
@@ -24,12 +24,12 @@ const SEVERITY_STYLES: Record<string, { badge: string; bar: string; label: strin
         label: 'Alto',
     },
     medium: {
-        badge: 'bg-yellow-100 text-yellow-800 border border-yellow-200',
-        bar: 'bg-yellow-500',
+        badge: 'bg-nkz-warning-light text-yellow-800 border border-yellow-200',
+        bar: 'bg-nkz-warning-light0',
         label: 'Medio',
     },
     low: {
-        badge: 'bg-blue-100 text-blue-800 border border-blue-200',
+        badge: 'bg-nkz-info-light text-blue-800 border border-blue-200',
         bar: 'bg-blue-400',
         label: 'Bajo',
     },
@@ -71,7 +71,7 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
     );
 
     return (
-        <div className="bg-red-50 rounded-lg border border-red-200">
+        <div className="bg-nkz-error-light rounded-lg border border-red-200">
             {/* Section header */}
             <button
                 className="w-full flex items-center justify-between p-4 text-left"
@@ -81,15 +81,15 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
                     <AlertTriangle className="w-4 h-4" />
                     Riesgos activos
                     {!loading && criticalOrHigh.length > 0 && (
-                        <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold">
+                        <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-nkz-error-light0 text-white text-xs font-bold">
                             {criticalOrHigh.length}
                         </span>
                     )}
                 </h4>
                 {collapsed ? (
-                    <ChevronDown className="w-4 h-4 text-red-700" />
+                    <ChevronDown className="w-4 h-4 text-nkz-error" />
                 ) : (
-                    <ChevronUp className="w-4 h-4 text-red-700" />
+                    <ChevronUp className="w-4 h-4 text-nkz-error" />
                 )}
             </button>
 
@@ -135,12 +135,12 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
                                                 style={{ width: `${state.probability_score}%` }}
                                             />
                                         </div>
-                                        <span className="text-xs text-gray-500 shrink-0 w-10 text-right">
+                                        <span className="text-xs text-nkz-muted shrink-0 w-10 text-right">
                                             {state.probability_score.toFixed(0)}%
                                         </span>
                                     </div>
 
-                                    <p className="text-xs text-gray-400">Evaluado: {timestamp}</p>
+                                    <p className="text-xs text-nkz-muted">Evaluado: {timestamp}</p>
                                 </div>
                             );
                         })
@@ -148,7 +148,7 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
 
                     {/* Configure alerts shortcut */}
                     <button
-                        className="flex items-center gap-1 text-xs text-red-700 hover:text-red-900 hover:underline"
+                        className="flex items-center gap-1 text-xs text-nkz-error hover:text-red-900 hover:underline"
                         onClick={() => navigate('/alerts')}
                     >
                         <Settings2 className="w-3 h-3" />

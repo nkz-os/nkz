@@ -59,23 +59,23 @@ export const EntityList: React.FC<EntityListProps> = ({
     };
 
     const getStatusColor = (status?: string) => {
-        if (!status) return 'bg-gray-100 text-gray-600';
+        if (!status) return 'bg-nkz-bg-secondary text-gray-600';
         switch (status.toLowerCase()) {
             case 'working':
             case 'active':
             case 'online':
-                return 'bg-green-100 text-green-600';
+                return 'bg-nkz-success-light text-nkz-success';
             case 'idle':
             case 'standby':
-                return 'bg-blue-100 text-blue-600';
+                return 'bg-nkz-info-light text-nkz-info';
             case 'error':
             case 'offline':
             case 'maintenance':
-                return 'bg-red-100 text-red-600';
+                return 'bg-nkz-error-light text-nkz-error';
             case 'charging':
-                return 'bg-yellow-100 text-yellow-600';
+                return 'bg-nkz-warning-light text-nkz-warning';
             default:
-                return 'bg-gray-100 text-gray-600';
+                return 'bg-nkz-bg-secondary text-gray-600';
         }
     };
 
@@ -124,19 +124,19 @@ export const EntityList: React.FC<EntityListProps> = ({
             <div key={entity.id} className="w-full">
                 <div
                     onClick={() => onEntityClick(entity)}
-                    className={`w-full p-3 flex items-center gap-3 text-left hover:bg-gray-50 rounded-lg transition border border-gray-100 cursor-pointer group ${isSelected ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : ''
+                    className={`w-full p-3 flex items-center gap-3 text-left hover:bg-nkz-bg-secondary rounded-lg transition border border-gray-100 cursor-pointer group ${isSelected ? 'bg-nkz-info-light border-blue-500 ring-1 ring-blue-500' : ''
                         } ${isChild ? 'ml-6 border-l-2 border-l-gray-300' : ''}`}
                 >
                     {hasChildren && (
                         <button
                             onClick={(e) => toggleParent(entity.id, e)}
-                            className="p-1 hover:bg-gray-200 rounded text-gray-500"
+                            className="p-1 hover:bg-gray-200 rounded text-nkz-muted"
                         >
                             {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
                     )}
 
-                    <div className={`p-2 rounded-lg transition-colors ${isSelected ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500 group-hover:bg-gray-200'}`}>
+                    <div className={`p-2 rounded-lg transition-colors ${isSelected ? 'bg-nkz-info-light text-nkz-info' : 'bg-nkz-bg-secondary text-nkz-muted group-hover:bg-gray-200'}`}>
                         <Icon className="w-5 h-5" />
                     </div>
 
@@ -149,7 +149,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                                         e.stopPropagation();
                                         openEntityEditor(entity.id, entity.type);
                                     }}
-                                    className="p-1 text-gray-300 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition"
+                                    className="p-1 text-gray-300 hover:text-nkz-info hover:bg-nkz-info-light rounded opacity-0 group-hover:opacity-100 transition"
                                     title="Editar"
                                 >
                                     <Pencil className="w-3.5 h-3.5" />
@@ -161,7 +161,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                                 )}
                             </div>
                         </div>
-                        <div className="flex items-center text-xs text-gray-500 gap-2">
+                        <div className="flex items-center text-xs text-nkz-muted gap-2">
                             <span className="capitalize">{type.replace(/([A-Z])/g, ' $1').trim()}</span>
                             {entity.details && (
                                 <>
@@ -173,7 +173,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                     </div>
 
                     {!hasChildren && (
-                        <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isSelected ? 'text-blue-500 translate-x-1' : ''}`} />
+                        <ChevronRight className={`w-4 h-4 text-nkz-muted transition-transform ${isSelected ? 'text-blue-500 translate-x-1' : ''}`} />
                     )}
                 </div>
             </div>
@@ -198,7 +198,7 @@ export const EntityList: React.FC<EntityListProps> = ({
 
     if (entities.length === 0) {
         return (
-            <div className="p-8 text-center text-gray-500">
+            <div className="p-8 text-center text-nkz-muted">
                 <p>No se encontraron entidades</p>
             </div>
         );

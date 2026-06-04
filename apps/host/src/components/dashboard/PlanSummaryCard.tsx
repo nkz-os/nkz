@@ -34,15 +34,15 @@ const formatPlanName = (t: TFn, planType?: string | null): string => {
 
 const formatExpiration = (t: TFn, daysRemaining?: number | null): { label: string; tone: string } => {
   if (typeof daysRemaining !== 'number') {
-    return { label: t('dashboard.plan.no_expiration_data'), tone: 'text-gray-500' };
+    return { label: t('dashboard.plan.no_expiration_data'), tone: 'text-nkz-muted' };
   }
   if (daysRemaining <= 0) {
-    return { label: t('dashboard.plan.expired'), tone: 'text-red-600 font-semibold' };
+    return { label: t('dashboard.plan.expired'), tone: 'text-nkz-error font-semibold' };
   }
   const key = daysRemaining === 1 ? 'dashboard.plan.expires_one' : 'dashboard.plan.expires_other';
   const label = t(key, { days: daysRemaining });
   const tone = daysRemaining <= 3
-    ? 'text-red-500 font-semibold'
+    ? 'text-nkz-error font-semibold'
     : daysRemaining <= 7
       ? 'text-orange-500 font-semibold'
       : 'text-emerald-600 font-semibold';
@@ -69,7 +69,7 @@ export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
   const areaLimitFrag = limits?.maxAreaHectares ? `de ${limits.maxAreaHectares} ha` : '';
 
   return (
-    <div className="mb-8 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+    <div className="mb-8 rounded-2xl border border-nkz-border dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
       <div className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700 px-6 py-4 text-white flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex items-center gap-3">
           <ShieldCheck className="w-6 h-6" />
@@ -94,21 +94,21 @@ export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
       </div>
 
       <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/50">
+        <div className="rounded-xl border border-nkz-border dark:border-gray-700 p-4 bg-nkz-bg-secondary dark:bg-gray-700/50">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.plan.users')}</div>
-            <Users className="w-4 h-4 text-gray-400" />
+            <div className="text-sm text-nkz-muted dark:text-nkz-muted">{t('dashboard.plan.users')}</div>
+            <Users className="w-4 h-4 text-nkz-muted" />
           </div>
             <div className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
             {limits?.maxUsers ?? '—'}
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{t('dashboard.plan.users_allowed')}</p>
+          <p className="text-xs text-nkz-muted dark:text-nkz-muted">{t('dashboard.plan.users_allowed')}</p>
         </div>
 
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/50">
+        <div className="rounded-xl border border-nkz-border dark:border-gray-700 p-4 bg-nkz-bg-secondary dark:bg-gray-700/50">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.plan.robots')}</div>
-            <Bot className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <div className="text-sm text-nkz-muted dark:text-nkz-muted">{t('dashboard.plan.robots')}</div>
+            <Bot className="w-4 h-4 text-nkz-muted dark:text-nkz-muted" />
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
             {t('dashboard.plan.in_use_of_limit', { count: robotsInUse, limit: robotsLimitFrag })}
@@ -121,10 +121,10 @@ export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
           />
         </div>
 
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/50">
+        <div className="rounded-xl border border-nkz-border dark:border-gray-700 p-4 bg-nkz-bg-secondary dark:bg-gray-700/50">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.plan.sensors')}</div>
-            <Gauge className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <div className="text-sm text-nkz-muted dark:text-nkz-muted">{t('dashboard.plan.sensors')}</div>
+            <Gauge className="w-4 h-4 text-nkz-muted dark:text-nkz-muted" />
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
             {t('dashboard.plan.in_use_of_limit', { count: sensorsInUse, limit: sensorsLimitFrag })}
@@ -137,10 +137,10 @@ export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
           />
         </div>
 
-        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-700/50">
+        <div className="rounded-xl border border-nkz-border dark:border-gray-700 p-4 bg-nkz-bg-secondary dark:bg-gray-700/50">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.plan.monitored_area')}</div>
-            <MapPin className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+            <div className="text-sm text-nkz-muted dark:text-nkz-muted">{t('dashboard.plan.monitored_area')}</div>
+            <MapPin className="w-4 h-4 text-nkz-muted dark:text-nkz-muted" />
           </div>
           <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
             {t('dashboard.plan.area_in_use', { value: areaInUse.toFixed(2), limit: areaLimitFrag })}
@@ -154,7 +154,7 @@ export const PlanSummaryCard: React.FC<PlanSummaryCardProps> = ({
         </div>
       </div>
 
-      <div className="px-6 pb-5 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
+      <div className="px-6 pb-5 text-xs text-nkz-muted dark:text-nkz-muted flex items-center justify-between">
         <div className="flex items-center gap-2">
           <RefreshCw className="w-3 h-3" />
           <span>

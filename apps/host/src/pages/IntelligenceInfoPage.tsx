@@ -86,23 +86,23 @@ export const IntelligenceInfoPage: React.FC = () => {
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Endpoints API</h3>
                 <ul className="space-y-2 text-sm font-mono text-gray-700">
                   <li className="flex items-center gap-2">
-                    <Code className="w-4 h-4 text-gray-400" />
+                    <Code className="w-4 h-4 text-nkz-muted" />
                     <span>POST /api/intelligence/analyze</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <Code className="w-4 h-4 text-gray-400" />
+                    <Code className="w-4 h-4 text-nkz-muted" />
                     <span>POST /api/intelligence/predict</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <Code className="w-4 h-4 text-gray-400" />
+                    <Code className="w-4 h-4 text-nkz-muted" />
                     <span>GET /api/intelligence/jobs/{'{job_id}'}</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <Code className="w-4 h-4 text-gray-400" />
+                    <Code className="w-4 h-4 text-nkz-muted" />
                     <span>POST /api/intelligence/webhook/n8n</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <Code className="w-4 h-4 text-gray-400" />
+                    <Code className="w-4 h-4 text-nkz-muted" />
                     <span>GET /api/intelligence/plugins</span>
                   </li>
                 </ul>
@@ -129,7 +129,7 @@ export const IntelligenceInfoPage: React.FC = () => {
                   <div>
                     <p className="font-medium mb-1">Las predicciones se generan automáticamente</p>
                     <p className="text-sm text-gray-600">
-                      El módulo procesa datos históricos y genera entidades <code className="bg-gray-100 px-1 rounded">Prediction</code> 
+                      El módulo procesa datos históricos y genera entidades <code className="bg-nkz-bg-secondary px-1 rounded">Prediction</code> 
                       que se almacenan en Orion-LD siguiendo el estándar NGSI-LD de FIWARE.
                     </p>
                   </div>
@@ -147,7 +147,7 @@ export const IntelligenceInfoPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-semibold">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-nkz-success-light text-nkz-success flex items-center justify-center font-semibold">
                     3
                   </div>
                   <div>

@@ -2,6 +2,7 @@
 // Modules Management Page - Admin Panel
 // =============================================================================
 // Allows TenantAdmin and PlatformAdmin to view and manage installed modules.
+import { logger } from '@/utils/logger';
 
 import React, { useState, useEffect } from 'react';
 import { useModules } from '@/context/ModuleContext';
@@ -12,6 +13,7 @@ import { Button } from '@nekazari/ui-kit';
 import { CheckCircle2, XCircle, Package, RefreshCw, Upload } from 'lucide-react';
 import { getConfig } from '@/config/environment';
 import { ModuleUploadModal } from '@/components/ModuleUploadModal';
+import { useNotification } from '@/hooks/useNotification';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl || '/api';
@@ -117,12 +119,12 @@ export const Modules: React.FC = () => {
       const data = await client.get<MarketplaceModule[]>('/api/modules/marketplace');
       // Ensure data is always an array
       const modules = Array.isArray(data) ? data : [];
-      console.log('[Modules] Loaded marketplace modules:', modules.length);
+      logger.debug('[Modules] Loaded marketplace modules:', modules.length);
       setMarketplaceModules(modules);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load marketplace modules';
       setError(errorMessage);
-      console.error('[Modules] Error loading marketplace:', err);
+      logger.error('[Modules] Error loading marketplace:', err);
       setMarketplaceModules([]); // Ensure empty array on error
     } finally {
       setIsLoading(false);
@@ -147,11 +149,11 @@ export const Modules: React.FC = () => {
       // Refresh marketplace to see updated status
       await loadMarketplace();
 
-      console.log(`Module ${moduleId} ${!currentActive ? 'activated' : 'deactivated'} in marketplace`);
+      logger.debug(`Module ${moduleId} ${!currentActive ? 'activated' : 'deactivated'} in marketplace`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to activate/deactivate module';
       setError(errorMessage);
-      console.error('[Modules] Error activating/deactivating module:', err);
+      logger.error('[Modules] Error activating/deactivating module:', err);
     } finally {
       setActivating(prev => {
         const next = new Set(prev);
@@ -180,7 +182,7 @@ export const Modules: React.FC = () => {
       await refreshInstalled();
 
       // Show success feedback (could use a toast library)
-      console.log(`Module ${moduleId} ${!currentEnabled ? 'enabled' : 'disabled'}`);
+      logger.debug(`Module ${moduleId} ${!currentEnabled ? 'enabled' : 'disabled'}`);
     } catch (err: any) {
       // Extract detailed error message from API response
       let errorMessage = 'Error al instalar/desinstalar el módulo';
@@ -207,7 +209,7 @@ export const Modules: React.FC = () => {
       // Show user-friendly error message
       const displayMessage = navigator.language.startsWith('es') ? errorMessage : errorMessageEn;
       setError(displayMessage);
-      console.error('[Modules] Error toggling module:', err);
+      logger.error('[Modules] Error toggling module:', err);
 
       // Show alert to user with detailed information
       if (err?.response?.data?.action_required === 'upgrade_plan') {
@@ -236,7 +238,7 @@ export const Modules: React.FC = () => {
       <div className="p-6">
         <Card>
           <div className="text-center py-8">
-            <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <XCircle className="w-12 h-12 text-nkz-error mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
             <p className="text-gray-600">You need TenantAdmin or PlatformAdmin role to manage modules.</p>
           </div>
@@ -277,7 +279,7 @@ export const Modules: React.FC = () => {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+        <div className="bg-nkz-error-light border border-red-200 rounded-md p-4">
           <p className="text-red-800 text-sm">{error}</p>
         </div>
       )}
@@ -287,7 +289,7 @@ export const Modules: React.FC = () => {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('installed_modules')} ({installedModules?.length || 0})</h2>
         {(!installedModules || installedModules.length === 0) ? (
           <Card>
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-nkz-muted">
               {t('no_modules_installed')}
             </div>
           </Card>
@@ -304,19 +306,19 @@ export const Modules: React.FC = () => {
                         <img
                           src={module.icon_url}
                           alt={module.displayName}
-                          className="w-12 h-12 rounded-lg object-cover border border-gray-200"
+                          className="w-12 h-12 rounded-lg object-cover border border-nkz-border"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                           }}
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center text-xl">
+                        <div className="w-12 h-12 rounded-lg bg-nkz-bg-secondary flex items-center justify-center text-xl">
                           {module.icon}
                         </div>
                       )
                     ) : (
-                      <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
-                        <Package className="w-6 h-6 text-gray-400" />
+                      <div className="w-12 h-12 rounded-lg bg-nkz-bg-secondary flex items-center justify-center">
+                        <Package className="w-6 h-6 text-nkz-muted" />
                       </div>
                     )}
                   </div>
@@ -330,13 +332,13 @@ export const Modules: React.FC = () => {
                       <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                      <span className="text-xs font-medium text-nkz-muted bg-nkz-bg-secondary px-2 py-0.5 rounded">
                         v{module.version || '1.0.0'}
                       </span>
                       {module.moduleType && (
-                        <span className={`text-xs px-2 py-0.5 rounded ${module.moduleType === 'CORE' ? 'bg-blue-100 text-blue-700' :
-                          module.moduleType === 'ADDON_FREE' ? 'bg-green-100 text-green-700' :
-                            module.moduleType === 'ADDON_PAID' ? 'bg-yellow-100 text-yellow-700' :
+                        <span className={`text-xs px-2 py-0.5 rounded ${module.moduleType === 'CORE' ? 'bg-nkz-info-light text-nkz-info' :
+                          module.moduleType === 'ADDON_FREE' ? 'bg-nkz-success-light text-nkz-success' :
+                            module.moduleType === 'ADDON_PAID' ? 'bg-nkz-warning-light text-nkz-warning' :
                               'bg-purple-100 text-purple-700'
                           }`}>
                           {module.moduleType === 'CORE' ? t('core') :
@@ -357,10 +359,10 @@ export const Modules: React.FC = () => {
                 </div>
 
                 {/* Route and Actions - Clear separation */}
-                <div className="pt-3 border-t border-gray-200">
+                <div className="pt-3 border-t border-nkz-border">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <span className="text-xs text-gray-500 block truncate">
+                      <span className="text-xs text-nkz-muted block truncate">
                         <span className="font-medium">{t('route')}:</span> {module.routePath || `/${module.id}`}
                       </span>
                     </div>
@@ -400,7 +402,7 @@ export const Modules: React.FC = () => {
           </Card>
         ) : (!marketplaceModules || marketplaceModules.length === 0) ? (
           <Card>
-            <div className="text-center py-8 text-gray-500">{t('no_modules_available')}</div>
+            <div className="text-center py-8 text-nkz-muted">{t('no_modules_available')}</div>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -418,7 +420,7 @@ export const Modules: React.FC = () => {
                 <Card
                   key={module.id}
                   padding="md"
-                  className={`hover:shadow-md transition-shadow ${isInactive && isPlatformAdmin ? 'opacity-60 bg-gray-50' : ''}`}
+                  className={`hover:shadow-md transition-shadow ${isInactive && isPlatformAdmin ? 'opacity-60 bg-nkz-bg-secondary' : ''}`}
                 >
                   {/* Header with Icon, Title, and Status */}
                   <div className="flex items-start gap-3 mb-4">
@@ -428,14 +430,14 @@ export const Modules: React.FC = () => {
                         <img
                           src={module.icon_url}
                           alt={module.display_name}
-                          className={`w-12 h-12 rounded-lg object-cover border border-gray-200 ${isInactive ? 'grayscale opacity-50' : ''}`}
+                          className={`w-12 h-12 rounded-lg object-cover border border-nkz-border ${isInactive ? 'grayscale opacity-50' : ''}`}
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                           }}
                         />
                       ) : (
-                        <div className={`w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center ${isInactive ? 'opacity-50' : ''}`}>
-                          <Package className={`w-6 h-6 ${isInactive ? 'text-gray-300' : 'text-gray-400'}`} />
+                        <div className={`w-12 h-12 rounded-lg bg-nkz-bg-secondary flex items-center justify-center ${isInactive ? 'opacity-50' : ''}`}>
+                          <Package className={`w-6 h-6 ${isInactive ? 'text-gray-300' : 'text-nkz-muted'}`} />
                         </div>
                       )}
                     </div>
@@ -443,7 +445,7 @@ export const Modules: React.FC = () => {
                     {/* Title, Version, and Badges - Clear separation */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <h3 className={`font-semibold text-base leading-tight break-words ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}>
+                        <h3 className={`font-semibold text-base leading-tight break-words ${isInactive ? 'text-nkz-muted' : 'text-gray-900'}`}>
                           {module.display_name || module.name || module.id}
                         </h3>
                         {installed && enabled && (
@@ -453,14 +455,14 @@ export const Modules: React.FC = () => {
 
                       {/* Version, Author, and Developer Org - Clear line */}
                       <div className="mb-2">
-                        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded mr-2">
+                        <span className="text-xs font-medium text-nkz-muted bg-nkz-bg-secondary px-2 py-0.5 rounded mr-2">
                           v{module.version || '1.0.0'}
                         </span>
                         {module.developer_organization && (
-                          <span className="text-xs text-gray-500">por {module.developer_organization}</span>
+                          <span className="text-xs text-nkz-muted">por {module.developer_organization}</span>
                         )}
                         {!module.developer_organization && module.author && (
-                          <span className="text-xs text-gray-500">por {module.author}</span>
+                          <span className="text-xs text-nkz-muted">por {module.author}</span>
                         )}
                       </div>
 
@@ -475,9 +477,9 @@ export const Modules: React.FC = () => {
                         )}
                         {/* Module Type Badge */}
                         {module.module_type && (
-                          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${module.module_type === 'CORE' ? 'bg-blue-100 text-blue-800' :
-                            module.module_type === 'ADDON_FREE' ? 'bg-green-100 text-green-800' :
-                              module.module_type === 'ADDON_PAID' ? 'bg-yellow-100 text-yellow-800' :
+                          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${module.module_type === 'CORE' ? 'bg-nkz-info-light text-blue-800' :
+                            module.module_type === 'ADDON_FREE' ? 'bg-nkz-success-light text-green-800' :
+                              module.module_type === 'ADDON_PAID' ? 'bg-nkz-warning-light text-yellow-800' :
                                 'bg-purple-100 text-purple-800'
                             }`}>
                             {module.module_type === 'CORE' ? t('core') :
@@ -488,13 +490,13 @@ export const Modules: React.FC = () => {
                         )}
                         {/* Inactive Badge */}
                         {isInactive && isPlatformAdmin && (
-                          <span className="inline-block px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 rounded">
+                          <span className="inline-block px-2 py-0.5 text-xs font-medium bg-nkz-warning-light text-yellow-800 rounded">
                             {t('inactive')}
                           </span>
                         )}
                         {/* Plan Requirement Badge */}
                         {module.required_plan_type && !isPlatformAdmin && (
-                          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${module.required_plan_type === 'premium' ? 'bg-yellow-100 text-yellow-800' :
+                          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${module.required_plan_type === 'premium' ? 'bg-nkz-warning-light text-yellow-800' :
                             'bg-purple-100 text-purple-800'
                             }`}>
                             {t('requires_plan')} {t(module.required_plan_type)}
@@ -506,7 +508,7 @@ export const Modules: React.FC = () => {
 
                   {/* Description - Clear spacing */}
                   <div className="mb-4">
-                    <p className={`text-sm leading-relaxed line-clamp-3 ${isInactive ? 'text-gray-400' : 'text-gray-600'}`}>
+                    <p className={`text-sm leading-relaxed line-clamp-3 ${isInactive ? 'text-nkz-muted' : 'text-gray-600'}`}>
                       {module.description || 'No hay descripción disponible para este módulo.'}
                     </p>
                   </div>
@@ -514,13 +516,13 @@ export const Modules: React.FC = () => {
                   {/* Category Tag */}
                   {module.category && (
                     <div className="mb-4">
-                      <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${isInactive ? 'bg-gray-200 text-gray-500' : 'bg-gray-100 text-gray-700'}`}>
+                      <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${isInactive ? 'bg-gray-200 text-nkz-muted' : 'bg-nkz-bg-secondary text-gray-700'}`}>
                         {module.category}
                       </span>
                     </div>
                   )}
                   <div className="flex items-center justify-between gap-2">
-                    <span className={`text-xs ${isInactive ? 'text-gray-400' : 'text-gray-500'}`}>
+                    <span className={`text-xs ${isInactive ? 'text-nkz-muted' : 'text-nkz-muted'}`}>
                       {installed ? t('installed') : t('not_installed')}
                     </span>
                     <div className="flex gap-2">
@@ -548,7 +550,7 @@ export const Modules: React.FC = () => {
                               >
                                 Install
                               </Button>
-                              <span className="text-xs text-red-600 mt-1 text-right max-w-[120px]">
+                              <span className="text-xs text-nkz-error mt-1 text-right max-w-[120px]">
                                 {eligibilityCheck?.reason || t('cannot_install')}
                               </span>
                             </div>

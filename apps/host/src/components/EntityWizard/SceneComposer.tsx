@@ -153,11 +153,11 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
   if (!modelUrl) {
     return (
       <div 
-        className="bg-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center"
+        className="bg-nkz-bg-secondary rounded-xl border-2 border-dashed border-nkz-border flex items-center justify-center"
         style={{ height }}
       >
-        <div className="text-center text-gray-500 p-4">
-          <Move className="w-10 h-10 mx-auto mb-2 text-gray-400" />
+        <div className="text-center text-nkz-muted p-4">
+          <Move className="w-10 h-10 mx-auto mb-2 text-nkz-muted" />
           <p className="font-medium">Sin modelo 3D</p>
           <p className="text-sm">Sube un archivo GLB para ver la preview</p>
         </div>
@@ -176,7 +176,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
             type="button"
             onClick={() => setAutoRotate(!autoRotate)}
             className={`p-1.5 rounded transition ${
-              autoRotate ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'
+              autoRotate ? 'bg-nkz-info-light text-nkz-info' : 'bg-nkz-bg-secondary text-nkz-muted'
             }`}
             title={autoRotate ? 'Detener rotación' : 'Auto-rotar'}
           >
@@ -185,7 +185,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
           <button
             type="button"
             onClick={() => setShowControls(!showControls)}
-            className="p-1.5 rounded bg-gray-100 text-gray-500 hover:bg-gray-200 transition"
+            className="p-1.5 rounded bg-nkz-bg-secondary text-nkz-muted hover:bg-gray-200 transition"
             title={showControls ? 'Ocultar controles' : 'Mostrar controles'}
           >
             {showControls ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -219,7 +219,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center text-gray-400">
+            <div className="text-center text-nkz-muted">
               <RefreshCw className="w-8 h-8 mx-auto mb-2 animate-spin" />
               <p className="text-sm">Cargando visor 3D...</p>
             </div>
@@ -239,7 +239,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
 
       {/* Controls */}
       {showControls && (
-        <div className="bg-gray-50 rounded-xl p-4 space-y-4">
+        <div className="bg-nkz-bg-secondary rounded-xl p-4 space-y-4">
           {/* Scale Control */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-2">
@@ -249,7 +249,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
               <button
                 type="button"
                 onClick={() => handleScaleChange(-0.1)}
-                className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition"
+                className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
               >
                 <ZoomOut className="w-4 h-4" />
               </button>
@@ -269,12 +269,12 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
               <button
                 type="button"
                 onClick={() => handleScaleChange(0.1)}
-                className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition"
+                className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
               >
                 <ZoomIn className="w-4 h-4" />
               </button>
               
-              <span className="w-16 text-center text-sm font-mono bg-white border border-gray-300 rounded px-2 py-1">
+              <span className="w-16 text-center text-sm font-mono bg-white border border-nkz-border rounded px-2 py-1">
                 {scale.toFixed(2)}
               </span>
             </div>
@@ -289,7 +289,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
               <button
                 type="button"
                 onClick={() => handleRotationChange(0, -15)}
-                className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition"
+                className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -309,12 +309,12 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
               <button
                 type="button"
                 onClick={() => handleRotationChange(0, 15)}
-                className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition"
+                className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
               
-              <span className="w-16 text-center text-sm font-mono bg-white border border-gray-300 rounded px-2 py-1">
+              <span className="w-16 text-center text-sm font-mono bg-white border border-nkz-border rounded px-2 py-1">
                 {rotation[0]}°
               </span>
             </div>
@@ -331,7 +331,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleRotationChange(1, -15)}
-                    className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition"
+                    className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
                   >
                     <ChevronDown className="w-4 h-4" />
                   </button>
@@ -351,12 +351,12 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleRotationChange(1, 15)}
-                    className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition"
+                    className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
                   >
                     <ChevronUp className="w-4 h-4" />
                   </button>
                   
-                  <span className="w-16 text-center text-sm font-mono bg-white border border-gray-300 rounded px-2 py-1">
+                  <span className="w-16 text-center text-sm font-mono bg-white border border-nkz-border rounded px-2 py-1">
                     {rotation[1]}°
                   </span>
                 </div>
@@ -370,7 +370,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleRotationChange(2, -15)}
-                    className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition"
+                    className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
                   >
                     <RotateCw className="w-4 h-4 -scale-x-100" />
                   </button>
@@ -390,12 +390,12 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
                   <button
                     type="button"
                     onClick={() => handleRotationChange(2, 15)}
-                    className="p-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition"
+                    className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
                   >
                     <RotateCw className="w-4 h-4" />
                   </button>
                   
-                  <span className="w-16 text-center text-sm font-mono bg-white border border-gray-300 rounded px-2 py-1">
+                  <span className="w-16 text-center text-sm font-mono bg-white border border-nkz-border rounded px-2 py-1">
                     {rotation[2]}°
                   </span>
                 </div>

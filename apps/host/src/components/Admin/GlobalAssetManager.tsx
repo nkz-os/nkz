@@ -217,8 +217,8 @@ export const GlobalAssetManager: React.FC = () => {
 
     if (!isPlatformAdmin && !canManageTenant) {
         return (
-            <div className="p-6 text-center text-gray-500">
-                <AlertCircle className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+            <div className="p-6 text-center text-nkz-muted">
+                <AlertCircle className="w-12 h-12 mx-auto mb-2 text-nkz-muted" />
                 <p>You do not have permission to manage assets.</p>
             </div>
         );
@@ -226,18 +226,18 @@ export const GlobalAssetManager: React.FC = () => {
 
     return (
         <div className="bg-white rounded-lg shadow">
-            <div className="p-6 border-b border-gray-200">
+            <div className="p-6 border-b border-nkz-border">
                 <div className="flex justify-between items-center mb-4">
                     <div>
                         <h2 className="text-xl font-semibold text-gray-900">Asset Library</h2>
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-nkz-muted">
                             {activeTab === 'public' ? 'Public models and icons (all tenants).' : 'Your tenant’s models and icons.'}
                         </p>
                     </div>
                     <button
                         onClick={loadAssets}
                         disabled={isLoading}
-                        className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
+                        className="p-2 text-nkz-muted hover:text-nkz-info transition-colors"
                         title="Refresh"
                     >
                         <Loader2 className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -245,10 +245,10 @@ export const GlobalAssetManager: React.FC = () => {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-gray-200 mb-4">
+                <div className="flex border-b border-nkz-border mb-4">
                     <button
                         onClick={() => { setActiveTab('public'); setError(null); setSuccess(null); }}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'public' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'public' ? 'border-blue-500 text-nkz-info' : 'border-transparent text-nkz-muted hover:text-gray-700'}`}
                     >
                         <Globe className="w-4 h-4" />
                         Public
@@ -256,7 +256,7 @@ export const GlobalAssetManager: React.FC = () => {
                     {canManageTenant && (
                         <button
                             onClick={() => { setActiveTab('tenant'); setError(null); setSuccess(null); }}
-                            className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'tenant' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                            className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'tenant' ? 'border-blue-500 text-nkz-info' : 'border-transparent text-nkz-muted hover:text-gray-700'}`}
                         >
                             <Building2 className="w-4 h-4" />
                             My tenant models
@@ -267,7 +267,7 @@ export const GlobalAssetManager: React.FC = () => {
                 {/* Upload Area */}
                 {showUpload && (
                     <div
-                        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'} ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive ? 'border-blue-500 bg-nkz-info-light' : 'border-nkz-border hover:border-gray-400'} ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                         onDragEnter={handleDrag}
                         onDragLeave={handleDrag}
                         onDragOver={handleDrag}
@@ -285,13 +285,13 @@ export const GlobalAssetManager: React.FC = () => {
                             {uploading ? (
                                 <div className="flex flex-col items-center">
                                     <Loader2 className="w-10 h-10 text-blue-500 animate-spin mb-2" />
-                                    <p className="text-sm text-blue-600 font-medium">Uploading...</p>
+                                    <p className="text-sm text-nkz-info font-medium">Uploading...</p>
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center">
-                                    <Upload className="w-10 h-10 text-gray-400 mb-2" />
+                                    <Upload className="w-10 h-10 text-nkz-muted mb-2" />
                                     <p className="text-sm text-gray-600 font-medium">Drag and drop or click to browse</p>
-                                    <p className="text-xs text-gray-500 mt-1">.glb, .gltf (models) and .png, .jpg (icons)</p>
+                                    <p className="text-xs text-nkz-muted mt-1">.glb, .gltf (models) and .png, .jpg (icons)</p>
                                 </div>
                             )}
                         </label>
@@ -299,13 +299,13 @@ export const GlobalAssetManager: React.FC = () => {
                 )}
 
                 {error && (
-                    <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md flex items-center gap-2">
+                    <div className="mt-4 p-3 bg-nkz-error-light text-nkz-error rounded-md flex items-center gap-2">
                         <AlertCircle className="w-5 h-5 shrink-0" />
                         {error}
                     </div>
                 )}
                 {success && (
-                    <div className="mt-4 p-3 bg-green-50 text-green-700 rounded-md flex items-center gap-2">
+                    <div className="mt-4 p-3 bg-nkz-success-light text-nkz-success rounded-md flex items-center gap-2">
                         <CheckCircle className="w-5 h-5 shrink-0" />
                         {success}
                     </div>
@@ -315,21 +315,21 @@ export const GlobalAssetManager: React.FC = () => {
             {/* Asset List */}
             <div className="p-0">
                 {currentAssets.length === 0 && !isLoading ? (
-                    <div className="p-8 text-center text-gray-500">
+                    <div className="p-8 text-center text-nkz-muted">
                         <Box className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                         <p>{activeTab === 'public' ? 'No public assets found.' : 'No tenant assets yet. Upload models or icons above.'}</p>
                     </div>
                 ) : (
                     <div className="divide-y divide-gray-200">
                         {currentAssets.map((asset) => (
-                            <div key={asset.key} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+                            <div key={asset.key} className="flex items-center justify-between p-4 hover:bg-nkz-bg-secondary transition-colors">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center text-gray-500">
+                                    <div className="w-10 h-10 bg-nkz-bg-secondary rounded flex items-center justify-center text-nkz-muted">
                                         {asset.type === 'model' ? <Box className="w-6 h-6" /> : <FileIcon className="w-6 h-6" />}
                                     </div>
                                     <div>
                                         <h4 className="font-medium text-gray-900">{asset.filename || asset.name}</h4>
-                                        <div className="flex gap-4 text-xs text-gray-500">
+                                        <div className="flex gap-4 text-xs text-nkz-muted">
                                             <span>{formatSize(asset.size)}</span>
                                             <span>{new Date(asset.last_modified).toLocaleDateString()}</span>
                                             <span className="uppercase bg-gray-200 px-1.5 rounded text-[10px] font-bold tracking-wider pt-0.5">{asset.type}</span>
@@ -338,13 +338,13 @@ export const GlobalAssetManager: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     {asset.type === 'model' && (
-                                        <a href={asset.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 text-sm mr-2">
+                                        <a href={asset.url} target="_blank" rel="noopener noreferrer" className="text-nkz-info hover:text-blue-800 text-sm mr-2">
                                             Download
                                         </a>
                                     )}
                                     <button
                                         onClick={() => activeTab === 'public' ? handleDeletePublic(asset.key) : handleDeleteTenant(asset)}
-                                        className="p-2 text-gray-400 hover:text-red-600 transition-colors rounded-full hover:bg-red-50"
+                                        className="p-2 text-nkz-muted hover:text-nkz-error transition-colors rounded-full hover:bg-nkz-error-light"
                                         title="Delete"
                                     >
                                         <Trash2 className="w-5 h-5" />

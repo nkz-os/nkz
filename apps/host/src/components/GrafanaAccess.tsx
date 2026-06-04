@@ -74,20 +74,20 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
   if (embedded) {
     console.log('[GrafanaAccess] Rendering embedded view', { user: user?.email, tenant: user?.tenant });
     return (
-      <div className="w-full h-full border border-gray-200 rounded-lg overflow-hidden bg-white">
-        <div className="flex items-center justify-between p-3 bg-gray-50 border-b">
+      <div className="w-full h-full border border-nkz-border rounded-lg overflow-hidden bg-white">
+        <div className="flex items-center justify-between p-3 bg-nkz-bg-secondary border-b">
           <div className="flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-gray-600" />
             <span className="font-medium text-gray-700">Grafana Analytics</span>
             {user?.tenant && (
-              <span className="text-xs text-gray-500">(Tenant: {user.tenant})</span>
+              <span className="text-xs text-nkz-muted">(Tenant: {user.tenant})</span>
             )}
           </div>
           <a
             href={lastLink || config.external.grafanaUrl || '/grafana'}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+            className="flex items-center gap-1 text-sm text-nkz-info hover:text-nkz-info"
             onClick={(e) => {
               e.preventDefault();
               handleOpenGrafana();
@@ -97,7 +97,7 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
             Abrir en nueva ventana
           </a>
         </div>
-        <div className="p-4 text-center text-gray-500">
+        <div className="p-4 text-center text-nkz-muted">
           <p className="mb-2">⚠️ Vista embebida limitada por autenticación OAuth</p>
           <p className="text-sm mb-4">Se recomienda abrir Grafana en una nueva ventana para mejor experiencia</p>
           <button
@@ -113,7 +113,7 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
 
   // Button view (recommended - opens in new tab)
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -123,19 +123,19 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
             Accede a Grafana para visualizar métricas detalladas, dashboards personalizados 
             y análisis avanzados de tus robots y sensores.
             {user?.tenant && (
-              <span className="block mt-1 text-xs text-gray-500">
+              <span className="block mt-1 text-xs text-nkz-muted">
                 Tu organización: {user.tenant}
               </span>
             )}
           </p>
           {error && (
-            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700 flex items-center gap-2">
+            <div className="mb-3 p-2 bg-nkz-error-light border border-red-200 rounded text-sm text-nkz-error flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
               <span>{error}</span>
             </div>
           )}
           {membershipGranted && (
-            <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-700 flex items-center gap-2">
+            <div className="mb-3 p-2 bg-nkz-success-light border border-green-200 rounded text-xs text-nkz-success flex items-center gap-2">
               <ShieldCheck className="w-4 h-4" /> Acceso verificado para tu organización en Grafana.
             </div>
           )}

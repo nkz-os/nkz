@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, UserCheck } from 'lucide-react';
 import client from '@/services/api';
+import { useNotification } from '@/hooks/useNotification';
 
 interface Props {
   userId: string;
@@ -15,6 +16,7 @@ export const ReassignTenantDialog: React.FC<Props> = ({
   userId, username, currentTenantId, onClose, onReassigned,
 }) => {
   const { t } = useTranslation();
+  const { showNotification } = useNotification();
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [loading, setLoading] = useState(false);

@@ -92,7 +92,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
             },
             parcels: {
               active: 'bg-green-600 text-white',
-              inactive: 'bg-green-50 text-green-700 hover:bg-green-100'
+              inactive: 'bg-nkz-success-light text-nkz-success hover:bg-nkz-success-light'
             },
             sensors: {
               active: 'bg-teal-600 text-white',
@@ -116,7 +116,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
             },
             water: {
               active: 'bg-blue-600 text-white',
-              inactive: 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+              inactive: 'bg-nkz-info-light text-nkz-info hover:bg-nkz-info-light'
             },
             weather: {
               active: 'bg-sky-600 text-white',

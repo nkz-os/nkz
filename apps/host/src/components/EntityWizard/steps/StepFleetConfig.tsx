@@ -23,7 +23,7 @@ export function StepFleetConfig() {
           type="text"
           value={data.name}
           onChange={e => updateFormData({ name: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+          className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-indigo-500"
           placeholder={isRobot ? 'Ej: Rover Norte-01' : isMachine ? 'Ej: Fendt 516 #3' : 'Nombre de la unidad'}
         />
       </div>
@@ -34,7 +34,7 @@ export function StepFleetConfig() {
         <textarea
           value={data.description ?? ''}
           onChange={e => updateFormData({ description: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+          className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-indigo-500"
           placeholder="Descripción opcional"
           rows={2}
         />
@@ -48,7 +48,7 @@ export function StepFleetConfig() {
             type="text"
             value={data.manufacturer ?? ''}
             onChange={e => updateFormData({ manufacturer: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
             placeholder={isRobot ? 'Ej: Naio Technologies' : 'Ej: Fendt, John Deere'}
           />
         </div>
@@ -58,7 +58,7 @@ export function StepFleetConfig() {
             type="text"
             value={data.serialNumber ?? ''}
             onChange={e => updateFormData({ serialNumber: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
             placeholder="S/N"
           />
         </div>
@@ -74,7 +74,7 @@ export function StepFleetConfig() {
             <select
               value={data.robotType ?? ''}
               onChange={e => updateFormData({ robotType: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
+              className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
             >
               <option value="">-- Selecciona tipo --</option>
               {ROBOT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -87,10 +87,10 @@ export function StepFleetConfig() {
               type="text"
               value={data.rosNamespace ?? ''}
               onChange={e => updateFormData({ rosNamespace: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
               placeholder="Ej: /robot_norte_01"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-nkz-muted mt-1">
               Namespace ROS2 único. Las credenciales de red se generan al finalizar.
             </p>
           </div>

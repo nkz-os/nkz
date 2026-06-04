@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, MapPin, Info } from 'lucide-react';
 import type { Parcel } from '@/types';
+import { useNotification } from '@/hooks/useNotification';
 
 interface ParcelEditModalProps {
     isOpen: boolean;
@@ -50,7 +51,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
             onCancel();
         } catch (error) {
             console.error('Error saving parcel:', error);
-            alert('Error al guardar los cambios');
+            showNotification({ type: \'error\', message: \'Error al guardar los cambios\' });
         } finally {
             setIsSaving(false);
         }
@@ -59,13 +60,13 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-                <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between p-4 border-b border-nkz-border">
                     <div>
                         <h2 className="text-xl font-bold text-gray-900">
                             {isZone ? 'Editar Zona' : 'Editar Parcela'}
                         </h2>
                         {isZone && (
-                            <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                            <p className="text-xs text-nkz-muted mt-1 flex items-center gap-1">
                                 <MapPin className="w-3 h-3" />
                                 Zona de gestión
                             </p>
@@ -73,7 +74,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                     </div>
                     <button
                         onClick={onCancel}
-                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                        className="p-1 text-nkz-muted hover:text-gray-600 hover:bg-nkz-bg-secondary rounded transition-colors"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -81,13 +82,13 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
 
                 {/* Zone Info */}
                 {isZone && parentParcel && (
-                    <div className="p-4 bg-blue-50 border-b border-blue-200">
+                    <div className="p-4 bg-nkz-info-light border-b border-blue-200">
                         <div className="flex items-start gap-2">
-                            <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <Info className="w-4 h-4 text-nkz-info mt-0.5 flex-shrink-0" />
                             <div className="flex-1">
                                 <p className="text-sm font-medium text-blue-900">Parcela Padre</p>
-                                <p className="text-xs text-blue-700">{parentParcel.name || parentParcel.cadastralReference || parentParcel.id}</p>
-                                <p className="text-xs text-blue-600 mt-1">
+                                <p className="text-xs text-nkz-info">{parentParcel.name || parentParcel.cadastralReference || parentParcel.id}</p>
+                                <p className="text-xs text-nkz-info mt-1">
                                     Los cambios en esta zona no afectan a la parcela padre.
                                 </p>
                             </div>
@@ -104,7 +105,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                             type="text"
                             value={formData.name}
                             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                             placeholder="Nombre de la parcela"
                         />
                     </div>
@@ -116,7 +117,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                         <select
                             value={formData.cropType}
                             onChange={(e) => setFormData(prev => ({ ...prev, cropType: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                         >
                             <option value="">Selecciona un cultivo</option>
                             <option value="wheat">Trigo</option>
@@ -130,7 +131,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                             <option value="other">Otro</option>
                         </select>
                         {isZone && (
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-nkz-muted mt-1">
                                 Nota: Puedes sobrescribir el tipo de cultivo heredado de la parcela padre.
                             </p>
                         )}
@@ -143,17 +144,17 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                         <textarea
                             value={formData.notes}
                             onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                             rows={3}
                             placeholder="Notas adicionales sobre la parcela"
                         />
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">
+                    <div className="flex justify-end gap-2 pt-4 border-t border-nkz-border">
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+                            className="px-4 py-2 text-gray-700 bg-nkz-bg-secondary rounded-md hover:bg-gray-200 transition-colors"
                             disabled={isSaving}
                         >
                             Cancelar

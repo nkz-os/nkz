@@ -14,10 +14,10 @@ interface RiskWebhooksPanelProps {
 }
 
 const SEVERITY_COLORS: Record<string, string> = {
-  low: 'bg-gray-100 text-gray-700',
-  medium: 'bg-yellow-100 text-yellow-800',
+  low: 'bg-nkz-bg-secondary text-gray-700',
+  medium: 'bg-nkz-warning-light text-yellow-800',
   high: 'bg-orange-100 text-orange-800',
-  critical: 'bg-red-100 text-red-800',
+  critical: 'bg-nkz-error-light text-red-800',
 };
 
 export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly = false }) => {
@@ -87,10 +87,10 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-nkz-border dark:border-gray-700 overflow-hidden">
+      <div className="px-6 py-4 border-b border-nkz-border dark:border-gray-700 flex items-center justify-between">
         <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <Webhook className="w-5 h-5 text-gray-500" />
+          <Webhook className="w-5 h-5 text-nkz-muted" />
           {t('settings.risk_webhooks.title')}
         </h3>
         {!readOnly && (
@@ -106,9 +106,9 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
 
       {/* Inline create form */}
       {showForm && !readOnly && (
-        <form onSubmit={handleCreate} className="px-6 py-4 bg-gray-50 dark:bg-gray-700/40 border-b border-gray-200 dark:border-gray-700 space-y-3">
+        <form onSubmit={handleCreate} className="px-6 py-4 bg-nkz-bg-secondary dark:bg-gray-700/40 border-b border-nkz-border dark:border-gray-700 space-y-3">
           {formError && (
-            <p className="text-sm text-red-600 dark:text-red-400">{formError}</p>
+            <p className="text-sm text-nkz-error dark:text-red-400">{formError}</p>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
@@ -119,7 +119,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
                 onChange={e => setFormName(e.target.value)}
                 placeholder="Mi webhook"
                 required
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 text-sm border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               />
             </div>
             <div>
@@ -130,7 +130,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
                 onChange={e => setFormUrl(e.target.value)}
                 placeholder="https://hooks.example.com/risk"
                 required
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 text-sm border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               />
             </div>
             <div>
@@ -140,7 +140,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
                 value={formSecret}
                 onChange={e => setFormSecret(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 text-sm border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               />
             </div>
             <div>
@@ -148,7 +148,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
               <select
                 value={formSeverity}
                 onChange={e => setFormSeverity(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full px-3 py-2 text-sm border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
                 <option value="low">Baja</option>
                 <option value="medium">Media</option>
@@ -182,9 +182,9 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
             <div className="inline-block w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : error ? (
-          <div className="px-6 py-4 text-sm text-red-600 dark:text-red-400">{error}</div>
+          <div className="px-6 py-4 text-sm text-nkz-error dark:text-red-400">{error}</div>
         ) : webhooks.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          <div className="px-6 py-8 text-center text-sm text-nkz-muted dark:text-nkz-muted">
             <Webhook className="w-8 h-8 mx-auto mb-2 opacity-30" />
             <p>No hay webhooks registrados.</p>
             {!readOnly && (
@@ -196,7 +196,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
             <div key={wh.id} className="px-6 py-3 flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{wh.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{wh.url}</p>
+                <p className="text-xs text-nkz-muted dark:text-nkz-muted truncate">{wh.url}</p>
               </div>
               <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${SEVERITY_COLORS[wh.min_severity] || SEVERITY_COLORS.medium}`}>
                 ≥ {wh.min_severity}
@@ -204,7 +204,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
               {!readOnly && (
                 <button
                   onClick={() => handleDelete(wh.id)}
-                  className="shrink-0 p-1.5 text-gray-400 hover:text-red-600 transition rounded"
+                  className="shrink-0 p-1.5 text-nkz-muted hover:text-nkz-error transition rounded"
                   title={t('settings.users.delete')}
                 >
                   <Trash2 className="w-4 h-4" />

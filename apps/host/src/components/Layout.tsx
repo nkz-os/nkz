@@ -35,7 +35,7 @@ export const Layout: React.FC<LayoutProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200 host-protected">
+    <div className="min-h-screen bg-nkz-bg-secondary dark:bg-gray-900 transition-colors duration-200 host-protected">
       {/* Global Loading Bar */}
       <LoadingBar />
 
@@ -60,18 +60,18 @@ export const Layout: React.FC<LayoutProps> = ({
         {/* Footer */}
         <footer className="mt-auto py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex justify-between items-center">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="border-t border-nkz-border dark:border-gray-700 pt-4 flex justify-between items-center">
+              <div className="text-sm text-nkz-muted dark:text-nkz-muted">
                 {t('layout.copyright')}
               </div>
               <div className="flex items-center space-x-4">
-                <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex items-center text-sm text-nkz-muted dark:text-nkz-muted">
                   <User className="w-4 h-4 mr-1" />
                   {user?.email}
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  className="flex items-center text-sm text-nkz-muted dark:text-nkz-muted hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                 >
                   <LogOut className="w-4 h-4 mr-1" />
                   {t('layout.logout')}
@@ -79,7 +79,7 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-nkz-muted dark:text-nkz-muted">
               <button
                 type="button"
                 onClick={openPreferences}

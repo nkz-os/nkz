@@ -116,9 +116,9 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
       case 'sent':
         return <Clock className="w-4 h-4 text-yellow-500" />;
       case 'failed':
-        return <XCircle className="w-4 h-4 text-red-500" />;
+        return <XCircle className="w-4 h-4 text-nkz-error" />;
       default:
-        return <Clock className="w-4 h-4 text-gray-400" />;
+        return <Clock className="w-4 h-4 text-nkz-muted" />;
     }
   };
 
@@ -141,22 +141,22 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
   return (
     <div className="space-y-4">
       {/* Panel de envío de comandos */}
-      <div className="p-4 bg-white rounded-lg border border-gray-200">
+      <div className="p-4 bg-white rounded-lg border border-nkz-border">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           {t('sensors.send_command') || 'Enviar Comando'}
         </h3>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
-            <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-            <span className="text-red-700 text-sm">{error}</span>
+          <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg flex items-center">
+            <AlertCircle className="w-5 h-5 text-nkz-error mr-2" />
+            <span className="text-nkz-error text-sm">{error}</span>
           </div>
         )}
 
         {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center">
+          <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg flex items-center">
             <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-            <span className="text-green-700 text-sm">{success}</span>
+            <span className="text-nkz-success text-sm">{success}</span>
           </div>
         )}
 
@@ -176,7 +176,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
                   setCommandPayload('{}');
                 }
               }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               {predefinedCommands.map(cmd => (
                 <option key={cmd.type} value={cmd.type}>{cmd.label}</option>
@@ -192,16 +192,16 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
               value={commandPayload}
               onChange={(e) => setCommandPayload(e.target.value)}
               rows={6}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder='{"action": "reboot", "delay": 5}'
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-nkz-muted">
               {t('sensors.command_payload_hint') || 'Ingresa el payload del comando en formato JSON'}
             </p>
           </div>
 
           {mqttTopics && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="p-3 bg-nkz-info-light border border-blue-200 rounded-lg">
               <p className="text-xs text-blue-800">
                 <strong>{t('sensors.mqtt_topic_commands') || 'Topic MQTT:'}</strong> {mqttTopics.commands}
               </p>
@@ -229,7 +229,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
       </div>
 
       {/* Historial de comandos */}
-      <div className="p-4 bg-white rounded-lg border border-gray-200">
+      <div className="p-4 bg-white rounded-lg border border-nkz-border">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <History className="w-5 h-5" />
@@ -246,11 +246,11 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
         </div>
 
         {isLoadingHistory ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-nkz-muted">
             {t('sensors.loading') || 'Cargando...'}
           </div>
         ) : commandHistory.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-nkz-muted">
             {t('sensors.no_commands') || 'No hay comandos enviados'}
           </div>
         ) : (
@@ -258,7 +258,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
             {commandHistory.map((cmd) => (
               <div
                 key={cmd.id}
-                className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition"
+                className="p-3 bg-nkz-bg-secondary rounded-lg border border-nkz-border hover:bg-nkz-bg-secondary transition"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -266,10 +266,10 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
                       {getStatusIcon(cmd.status)}
                       <span className="font-medium text-gray-900">{cmd.command_type}</span>
                       <span className={`text-xs px-2 py-1 rounded ${
-                        cmd.status === 'executed' ? 'bg-green-100 text-green-700' :
-                        cmd.status === 'sent' ? 'bg-yellow-100 text-yellow-700' :
-                        cmd.status === 'failed' ? 'bg-red-100 text-red-700' :
-                        'bg-gray-100 text-gray-700'
+                        cmd.status === 'executed' ? 'bg-nkz-success-light text-nkz-success' :
+                        cmd.status === 'sent' ? 'bg-nkz-warning-light text-nkz-warning' :
+                        cmd.status === 'failed' ? 'bg-nkz-error-light text-nkz-error' :
+                        'bg-nkz-bg-secondary text-gray-700'
                       }`}>
                         {cmd.status}
                       </span>

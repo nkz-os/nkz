@@ -7,6 +7,7 @@
 // - Cadastral parcels visualization
 // - NDVI color mapping
 // - Extensible layer system for easy addition of new layers
+import { logger } from '@/utils/logger';
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Layers, Calendar, MapPin, Loader2, Eye, EyeOff, Expand, Minimize } from 'lucide-react';
@@ -93,14 +94,14 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
 
-    console.log('[CesiumMapAdvanced] Initializing Cesium viewer');
+    logger.debug('[CesiumMapAdvanced] Initializing Cesium viewer');
 
     try {
       // @ts-ignore - Cesium types
       const Cesium = window.Cesium;
 
       if (!Cesium) {
-        console.warn('[CesiumMapAdvanced] Cesium not available');
+        logger.warn('[CesiumMapAdvanced] Cesium not available');
         return;
       }
 
@@ -129,7 +130,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
         if (viewer.scene.sun) viewer.scene.sun.show = false;
         if (viewer.scene.moon) viewer.scene.moon.show = false;
       } catch (sceneError) {
-        console.warn('[CesiumMapAdvanced] Unable to adjust scene appearance', sceneError);
+        logger.warn('[CesiumMapAdvanced] Unable to adjust scene appearance', sceneError);
       }
 
       // Set initial camera to Spain center
@@ -137,9 +138,9 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
         destination: Cesium.Cartesian3.fromDegrees(-3.0, 40.0, 1000000),
       });
 
-      console.log('[CesiumMapAdvanced] Viewer initialized');
+      logger.debug('[CesiumMapAdvanced] Viewer initialized');
     } catch (error) {
-      console.error('[CesiumMapAdvanced] Error initializing:', error);
+      logger.error('[CesiumMapAdvanced] Error initializing:', error);
     }
 
     return () => {
@@ -148,7 +149,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
           viewerRef.current.destroy();
           viewerRef.current = null;
         } catch (error) {
-          console.error('[CesiumMapAdvanced] Error destroying viewer:', error);
+          logger.error('[CesiumMapAdvanced] Error destroying viewer:', error);
         }
       }
     };
@@ -178,9 +179,9 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
     const element = wrapperRef.current;
     if (!element) return;
     if (document.fullscreenElement === element) {
-      document.exitFullscreen?.().catch((err) => console.warn('[CesiumMapAdvanced] exitFullscreen failed', err));
+      document.exitFullscreen?.().catch((err) => logger.warn('[CesiumMapAdvanced] exitFullscreen failed', err));
     } else {
-      element.requestFullscreen?.().catch((err) => console.warn('[CesiumMapAdvanced] requestFullscreen failed', err));
+      element.requestFullscreen?.().catch((err) => logger.warn('[CesiumMapAdvanced] requestFullscreen failed', err));
     }
   };
 
@@ -204,7 +205,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
         }));
       setParcels(convertedParcels);
     } catch (error) {
-      console.error('[CesiumMapAdvanced] Error loading parcels:', error);
+      logger.error('[CesiumMapAdvanced] Error loading parcels:', error);
     } finally {
       setIsLoading(false);
     }
@@ -221,7 +222,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
       const robotsData = await api.getRobots();
       setRobots(robotsData);
     } catch (error) {
-      console.error('[CesiumMapAdvanced] Error loading robots:', error);
+      logger.error('[CesiumMapAdvanced] Error loading robots:', error);
     }
   };
 
@@ -236,7 +237,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
       const sensorsData = await api.getSensors();
       setSensors(sensorsData);
     } catch (error) {
-      console.error('[CesiumMapAdvanced] Error loading sensors:', error);
+      logger.error('[CesiumMapAdvanced] Error loading sensors:', error);
     }
   };
 
@@ -256,7 +257,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
       // });
       // setEntities(response.data);
     } catch (error) {
-      console.error('[CesiumMapAdvanced] Error loading entities:', error);
+      logger.error('[CesiumMapAdvanced] Error loading entities:', error);
     }
   };
 
@@ -305,13 +306,13 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
           ];
           ndviMap.set(parcel.id, mockData);
         } catch (err) {
-          console.warn(`[CesiumMapAdvanced] Error loading NDVI for parcel ${parcel.id}:`, err);
+          logger.warn(`[CesiumMapAdvanced] Error loading NDVI for parcel ${parcel.id}:`, err);
         }
       }
 
       setNdviData(ndviMap);
     } catch (error) {
-      console.error('[CesiumMapAdvanced] Error loading NDVI data:', error);
+      logger.error('[CesiumMapAdvanced] Error loading NDVI data:', error);
     } finally {
       setIsLoading(false);
     }
@@ -389,7 +390,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
         });
         viewer.imageryLayers.addImageryProvider(pnoaProvider);
       } catch (error) {
-        console.error('[CesiumMapAdvanced] Error adding PNOA layer:', error);
+        logger.error('[CesiumMapAdvanced] Error adding PNOA layer:', error);
       }
     }
 
@@ -409,7 +410,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
         });
         viewer.imageryLayers.addImageryProvider(cnigProvider);
       } catch (error) {
-        console.error('[CesiumMapAdvanced] Error adding CNIG layer:', error);
+        logger.error('[CesiumMapAdvanced] Error adding CNIG layer:', error);
       }
     }
 
@@ -430,7 +431,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
         });
         viewer.imageryLayers.addImageryProvider(ignProvider);
       } catch (error) {
-        console.error('[CesiumMapAdvanced] Error adding IGN 3D layer:', error);
+        logger.error('[CesiumMapAdvanced] Error adding IGN 3D layer:', error);
       }
     }
   }, [selectedLayers]);
@@ -581,7 +582,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
       {isLoading && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20">
           <div className="bg-white rounded-lg p-4 flex items-center gap-3">
-            <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+            <Loader2 className="w-5 h-5 animate-spin text-nkz-info" />
             <span className="text-gray-900">Cargando datos...</span>
           </div>
         </div>
@@ -613,7 +614,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
             </div>
             <button
               onClick={() => setShowLayerPanel(false)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-nkz-muted hover:text-gray-600"
             >
               <EyeOff className="w-4 h-4" />
             </button>
@@ -634,14 +635,14 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
 
               return (
                 <div key={category}>
-                  <div className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                  <div className="text-xs font-semibold text-nkz-muted uppercase mb-2">
                     {categoryNames[category]}
                   </div>
                   <div className="space-y-1">
                     {categoryLayers.map((config) => (
                       <label
                         key={config.id}
-                        className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                        className="flex items-center gap-3 p-2 hover:bg-nkz-bg-secondary rounded cursor-pointer"
                       >
                         <input
                           type="checkbox"
@@ -654,11 +655,11 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
                             (config.id === 'sensors' && sensors.length === 0) ||
                             (config.id === 'entities' && entities.length === 0)
                           }
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50"
+                          className="w-4 h-4 text-nkz-info border-nkz-border rounded focus:ring-blue-500 disabled:opacity-50"
                         />
                         <div className="flex-1">
                           <div className="font-medium text-gray-900">{config.name}</div>
-                          <div className="text-xs text-gray-500">{config.description}</div>
+                          <div className="text-xs text-nkz-muted">{config.description}</div>
                         </div>
                       </label>
                     ))}
@@ -682,7 +683,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
                     type="date"
                     value={dateRange.start}
                     onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-2 py-1 text-sm border border-nkz-border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -691,7 +692,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
                     type="date"
                     value={dateRange.end}
                     onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-2 py-1 text-sm border border-nkz-border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -730,7 +731,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
       {!showLayerPanel && (
         <button
           onClick={() => setShowLayerPanel(true)}
-          className="absolute top-4 right-4 z-20 bg-white rounded-lg shadow-lg p-2 hover:bg-gray-50"
+          className="absolute top-4 right-4 z-20 bg-white rounded-lg shadow-lg p-2 hover:bg-nkz-bg-secondary"
         >
           <Eye className="w-5 h-5 text-gray-600" />
         </button>

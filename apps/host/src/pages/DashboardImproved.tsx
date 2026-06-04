@@ -91,7 +91,7 @@ export const DashboardImproved: React.FC = () => {
             </div>
             <a
               href="/settings"
-              className="px-4 py-2 bg-white dark:bg-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition font-medium text-sm text-gray-900 dark:text-gray-100 flex-shrink-0 ml-4"
+              className="px-4 py-2 bg-white dark:bg-gray-700 rounded-md hover:bg-nkz-bg-secondary dark:hover:bg-gray-600 transition font-medium text-sm text-gray-900 dark:text-gray-100 flex-shrink-0 ml-4"
             >
               {t('dashboard.renew_subscription')}
             </a>

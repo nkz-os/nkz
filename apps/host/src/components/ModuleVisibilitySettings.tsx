@@ -118,7 +118,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
   const isReadOnly = false;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">
@@ -131,7 +131,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
           </p>
         </div>
         {loading && (
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
+          <div className="flex items-center gap-2 text-nkz-muted text-sm">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>{t('settings.loading', { defaultValue: 'Loading…' })}</span>
           </div>
@@ -139,20 +139,20 @@ export const ModuleVisibilitySettings: React.FC = () => {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 flex items-start gap-2">
+        <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg text-sm text-red-800 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5" />
           <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+        <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg text-sm text-green-800">
           {success}
         </div>
       )}
 
       {isReadOnly && (
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-start gap-2">
+        <div className="mb-4 p-3 bg-nkz-info-light border border-blue-200 rounded-lg text-sm text-blue-800 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5" />
           <span>
             {t('settings.module_visibility.platform_admin_hint', {
@@ -166,7 +166,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200">
+            <tr className="border-b border-nkz-border">
               <th className="text-left py-2 pr-4 text-gray-600 font-medium">
                 {t('settings.module_visibility.module', { defaultValue: 'Module' })}
               </th>
@@ -181,14 +181,14 @@ export const ModuleVisibilitySettings: React.FC = () => {
             {modules.map((mod) => {
               const rule = rules[mod.id] || { hiddenRoles: [] };
               return (
-                <tr key={mod.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <tr key={mod.id} className="border-b border-gray-100 hover:bg-nkz-bg-secondary">
                   <td className="py-2 pr-4">
                     <div className="flex flex-col">
                       <span className="font-medium text-gray-900">
                         {mod.display_name || mod.name || mod.id}
                       </span>
                       {mod.description && (
-                        <span className="text-xs text-gray-500 line-clamp-2">{mod.description}</span>
+                        <span className="text-xs text-nkz-muted line-clamp-2">{mod.description}</span>
                       )}
                     </div>
                   </td>
@@ -202,7 +202,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
                           onClick={() => toggleRoleVisibility(mod.id, role)}
                           className={`inline-flex items-center justify-center w-9 h-9 rounded-full border text-xs font-medium transition ${
                             hidden
-                              ? 'bg-gray-200 border-gray-300 text-gray-700'
+                              ? 'bg-gray-200 border-nkz-border text-gray-700'
                               : 'bg-emerald-50 border-emerald-200 text-emerald-700'
                           } ${saving || isReadOnly ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-sm'}`}
                           title={
@@ -229,7 +229,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
               <tr>
                 <td
                   colSpan={1 + MANAGEABLE_ROLES.length}
-                  className="py-4 text-center text-gray-500 text-sm"
+                  className="py-4 text-center text-nkz-muted text-sm"
                 >
                   {t('settings.module_visibility.no_modules', {
                     defaultValue: 'No modules available for this tenant yet.',

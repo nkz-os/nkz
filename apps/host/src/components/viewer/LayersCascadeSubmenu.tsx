@@ -105,7 +105,7 @@ export const LayersCascadeSubmenu: React.FC<LayersCascadeSubmenuProps> = ({
               onClick={() => setRiskEnabled(!riskEnabled)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                 riskEnabled
-                  ? 'bg-red-50 text-red-700 border border-red-200'
+                  ? 'bg-nkz-error-light text-nkz-error border border-red-200'
                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent'
               }`}
             >
@@ -113,7 +113,7 @@ export const LayersCascadeSubmenu: React.FC<LayersCascadeSubmenuProps> = ({
               <span className="flex-1 text-left">{t('viewer.layersRiskOverlay')}</span>
               <span
                 className={`text-xs px-1.5 py-0.5 rounded ${
-                  riskEnabled ? 'bg-red-100 text-red-600' : 'bg-slate-200 text-slate-500'
+                  riskEnabled ? 'bg-nkz-error-light text-nkz-error' : 'bg-slate-200 text-slate-500'
                 }`}
               >
                 {riskEnabled ? t('viewer.layers.risk_on') : t('viewer.layers.risk_off')}

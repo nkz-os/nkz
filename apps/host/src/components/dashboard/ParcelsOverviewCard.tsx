@@ -24,7 +24,7 @@ export const ParcelsOverviewCard: React.FC<ParcelsOverviewCardProps> = ({ parcel
         {parcels.length === 0 ? (
           <div className="text-center py-12">
             <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-4">{t('dashboard.no_parcels')}</p>
+            <p className="text-nkz-muted mb-4">{t('dashboard.no_parcels')}</p>
             <button className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition flex items-center gap-2 mx-auto">
               <Plus className="w-4 h-4" />
               {t('dashboard.add_parcel')}
@@ -35,17 +35,17 @@ export const ParcelsOverviewCard: React.FC<ParcelsOverviewCardProps> = ({ parcel
             {parcels.slice(0, 4).map((parcel) => (
               <div
                 key={parcel.id}
-                className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+                className="flex items-center justify-between p-4 bg-nkz-bg-secondary rounded-xl hover:bg-nkz-bg-secondary transition cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center">
+                  <div className="w-10 h-10 bg-nkz-warning-light text-nkz-warning rounded-lg flex items-center justify-center">
                     <MapPin className="w-5 h-5" />
                   </div>
                   <div>
                     <h4 className="font-semibold text-gray-900">
                       {normalizeParcelValue(parcel.name) || parcel.id}
                     </h4>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-nkz-muted">
                       {normalizeParcelValue(parcel.cropType) || t('dashboard.crop_not_specified')}
                     </p>
                   </div>
@@ -56,14 +56,14 @@ export const ParcelsOverviewCard: React.FC<ParcelsOverviewCardProps> = ({ parcel
                     <p className="font-semibold text-gray-900">
                       {normalizeNumberValue(parcel.area)} ha
                     </p>
-                    <p className="text-xs text-gray-500">{t('dashboard.area_label', { area: '' }).replace(' ha', '')}</p>
+                    <p className="text-xs text-nkz-muted">{t('dashboard.area_label', { area: '' }).replace(' ha', '')}</p>
                   </div>
                 )}
               </div>
             ))}
 
             {parcels.length > 4 && (
-              <button className="w-full py-3 text-yellow-600 hover:bg-yellow-50 rounded-xl transition font-medium">
+              <button className="w-full py-3 text-nkz-warning hover:bg-nkz-warning-light rounded-xl transition font-medium">
                 {t('common.view_all_parcels')} ({parcels.length})
               </button>
             )}

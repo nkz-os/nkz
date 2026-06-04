@@ -56,7 +56,7 @@ export const CoreTimelineControls: React.FC<Props> = ({ photos }) => {
                         onClick={() => setPhotoWindowDays(w.days)}
                         className={`px-2 py-1 text-xs rounded-lg transition-all ${
                             photoWindowDays === w.days
-                                ? 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700'
+                                ? 'bg-nkz-info-light text-nkz-info border border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700'
                                 : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
                         }`}
                     >

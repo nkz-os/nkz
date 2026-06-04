@@ -56,7 +56,7 @@ export function StepGeoAssetConfig() {
           type="text"
           value={data.name}
           onChange={e => updateFormData({ name: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+          className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500"
           placeholder="Nombre del activo"
         />
       </div>
@@ -67,7 +67,7 @@ export function StepGeoAssetConfig() {
         <textarea
           value={data.description ?? ''}
           onChange={e => updateFormData({ description: e.target.value })}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+          className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500"
           placeholder="Descripción opcional"
           rows={2}
         />
@@ -85,7 +85,7 @@ export function StepGeoAssetConfig() {
                 type="text"
                 value={data.municipality ?? ''}
                 onChange={e => updateFormData({ municipality: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
                 placeholder="Ej: Vitoria-Gasteiz"
               />
             </div>
@@ -95,7 +95,7 @@ export function StepGeoAssetConfig() {
                 type="text"
                 value={data.province ?? ''}
                 onChange={e => updateFormData({ province: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
                 placeholder="Ej: Álava"
               />
             </div>
@@ -107,7 +107,7 @@ export function StepGeoAssetConfig() {
               type="text"
               value={data.cadastralReference ?? ''}
               onChange={e => updateFormData({ cadastralReference: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 font-mono"
+              className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500 font-mono"
               placeholder="Ej: 01001A001000010000DP"
             />
           </div>
@@ -118,7 +118,7 @@ export function StepGeoAssetConfig() {
               type="text"
               value={data.cropType ?? ''}
               onChange={e => updateFormData({ cropType: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
               placeholder="Ej: Viñedo, Cereal, Olivar"
             />
           </div>
@@ -130,15 +130,15 @@ export function StepGeoAssetConfig() {
         <div className="pt-4 border-t">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             <span className="flex items-center gap-1.5">
-              <Sprout className="w-4 h-4 text-green-600" />
+              <Sprout className="w-4 h-4 text-nkz-success" />
               Parcela asociada
             </span>
           </label>
-          <p className="text-xs text-gray-500 mb-2">
+          <p className="text-xs text-nkz-muted mb-2">
             Vincula este activo a una parcela existente para que el módulo AgriEnergy lo gestione.
           </p>
           {parcelsLoading ? (
-            <p className="text-sm text-gray-400">Cargando parcelas...</p>
+            <p className="text-sm text-nkz-muted">Cargando parcelas...</p>
           ) : parcels.length === 0 ? (
             <p className="text-sm text-amber-600">No hay parcelas creadas. Puedes vincularla después.</p>
           ) : (
@@ -150,7 +150,7 @@ export function StepGeoAssetConfig() {
                   parentEntity: parcel ? { id: parcel.id, type: 'AgriParcel', name: parcel.name, geometry: null } : null,
                 });
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
             >
               <option value="">Sin parcela (opcional)</option>
               {parcels.map(p => (

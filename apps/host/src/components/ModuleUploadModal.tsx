@@ -171,20 +171,20 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Package className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 bg-nkz-info-light rounded-lg flex items-center justify-center">
+              <Package className="w-5 h-5 text-nkz-info" />
             </div>
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Upload Module</h2>
-              <p className="text-sm text-gray-500">Upload a ZIP file containing your module</p>
+              <p className="text-sm text-nkz-muted">Upload a ZIP file containing your module</p>
             </div>
           </div>
           <button
             onClick={handleClose}
             disabled={uploadStatus.status === 'uploading' || uploadStatus.status === 'validating'}
-            className="p-2 hover:bg-gray-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-2 hover:bg-nkz-bg-secondary rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-nkz-muted" />
           </button>
         </div>
 
@@ -197,7 +197,7 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Module ZIP File
                 </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition">
+                <div className="border-2 border-dashed border-nkz-border rounded-lg p-8 text-center hover:border-blue-400 transition">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -210,16 +210,16 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
                     htmlFor="module-file-input"
                     className="cursor-pointer flex flex-col items-center"
                   >
-                    <Upload className="w-12 h-12 text-gray-400 mb-3" />
+                    <Upload className="w-12 h-12 text-nkz-muted mb-3" />
                     <span className="text-sm font-medium text-gray-700">
                       {selectedFile ? selectedFile.name : 'Click to select ZIP file'}
                     </span>
                     {selectedFile && (
-                      <span className="text-xs text-gray-500 mt-1">
+                      <span className="text-xs text-nkz-muted mt-1">
                         {formatFileSize(selectedFile.size)}
                       </span>
                     )}
-                    <span className="text-xs text-gray-500 mt-2">
+                    <span className="text-xs text-nkz-muted mt-2">
                       Maximum file size: 50MB
                     </span>
                   </label>
@@ -227,13 +227,13 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
               </div>
 
               {/* Requirements */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-blue-900 mb-2">
                   Module Requirements
                 </h3>
                 <ul className="text-xs text-blue-800 space-y-1 list-disc list-inside">
-                  <li>ZIP file must contain a <code className="bg-blue-100 px-1 rounded">manifest.json</code> file</li>
-                  <li>ZIP file must contain <code className="bg-blue-100 px-1 rounded">src/App.tsx</code> or <code className="bg-blue-100 px-1 rounded">src/App.jsx</code></li>
+                  <li>ZIP file must contain a <code className="bg-nkz-info-light px-1 rounded">manifest.json</code> file</li>
+                  <li>ZIP file must contain <code className="bg-nkz-info-light px-1 rounded">src/App.tsx</code> or <code className="bg-nkz-info-light px-1 rounded">src/App.jsx</code></li>
                   <li>Manifest must follow the required schema (see documentation)</li>
                   <li>Module will be validated before being added to the marketplace</li>
                 </ul>
@@ -244,28 +244,28 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
           {/* Upload Status */}
           {(uploadStatus.status === 'uploading' || uploadStatus.status === 'validating') && (
             <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+              <div className="flex items-center gap-3 p-4 bg-nkz-info-light border border-blue-200 rounded-lg">
+                <Loader2 className="w-5 h-5 text-nkz-info animate-spin" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-blue-900">
                     {uploadStatus.status === 'uploading' ? 'Uploading...' : 'Validating...'}
                   </p>
-                  <p className="text-xs text-blue-700 mt-1">
+                  <p className="text-xs text-nkz-info mt-1">
                     {uploadStatus.message}
                   </p>
                 </div>
               </div>
               
               {uploadStatus.moduleId && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="bg-nkz-bg-secondary border border-nkz-border rounded-lg p-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-500">Module ID:</span>
+                      <span className="text-nkz-muted">Module ID:</span>
                       <span className="ml-2 font-mono text-gray-900">{uploadStatus.moduleId}</span>
                     </div>
                     {uploadStatus.version && (
                       <div>
-                        <span className="text-gray-500">Version:</span>
+                        <span className="text-nkz-muted">Version:</span>
                         <span className="ml-2 font-mono text-gray-900">{uploadStatus.version}</span>
                       </div>
                     )}
@@ -275,10 +275,10 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
 
               {/* Validation Logs */}
               {uploadStatus.status === 'validating' && uploadStatus.uploadId && (
-                <div className="border border-gray-200 rounded-lg">
+                <div className="border border-nkz-border rounded-lg">
                   <button
                     onClick={() => setShowLogs(!showLogs)}
-                    className="w-full px-4 py-2 text-left text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-t-lg flex items-center justify-between"
+                    className="w-full px-4 py-2 text-left text-sm font-medium text-gray-700 bg-nkz-bg-secondary hover:bg-nkz-bg-secondary rounded-t-lg flex items-center justify-between"
                   >
                     <span>Validation Logs {logs.length > 0 && `(${logs.length} lines)`}</span>
                     <span className="text-xs">{showLogs ? '▼' : '▶'}</span>
@@ -292,7 +292,7 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
                           </div>
                         ))
                       ) : (
-                        <div className="text-gray-500">Waiting for logs...</div>
+                        <div className="text-nkz-muted">Waiting for logs...</div>
                       )}
                     </div>
                   )}
@@ -304,27 +304,27 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
           {/* Success Status */}
           {uploadStatus.status === 'completed' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
+              <div className="flex items-center gap-3 p-4 bg-nkz-success-light border border-green-200 rounded-lg">
+                <CheckCircle2 className="w-5 h-5 text-nkz-success" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-green-900">
                     Module uploaded successfully!
                   </p>
-                  <p className="text-xs text-green-700 mt-1">
+                  <p className="text-xs text-nkz-success mt-1">
                     Validation is in progress. The module will be available in the marketplace once validated.
                   </p>
                 </div>
               </div>
               {uploadStatus.moduleId && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="bg-nkz-bg-secondary border border-nkz-border rounded-lg p-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-500">Module ID:</span>
+                      <span className="text-nkz-muted">Module ID:</span>
                       <span className="ml-2 font-mono text-gray-900">{uploadStatus.moduleId}</span>
                     </div>
                     {uploadStatus.version && (
                       <div>
-                        <span className="text-gray-500">Version:</span>
+                        <span className="text-nkz-muted">Version:</span>
                         <span className="ml-2 font-mono text-gray-900">{uploadStatus.version}</span>
                       </div>
                     )}
@@ -336,17 +336,17 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
 
           {/* Error Display */}
           {error && (
-            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-4 bg-nkz-error-light border border-red-200 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-red-900">Upload Failed</p>
-                <p className="text-xs text-red-700 mt-1">{error}</p>
+                <p className="text-xs text-nkz-error mt-1">{error}</p>
               </div>
             </div>
           )}
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+          <div className="flex justify-end gap-3 pt-4 border-t border-nkz-border">
             <Button
               variant="secondary"
               onClick={handleClose}

@@ -87,6 +87,7 @@ class ParcelSync:
 
         headers = {
             'Content-Type': 'application/ld+json',
+            'NGSILD-Tenant': tenant_id,
             'Fiware-Service': tenant_id,
             'Fiware-ServicePath': '/'
         }

@@ -109,7 +109,7 @@ function getAssetIcon(asset: UnifiedAsset): React.ReactNode {
   
   switch (asset.category) {
     case 'parcels':
-      return <MapPin className={`${iconClass} text-green-600`} />;
+      return <MapPin className={`${iconClass} text-nkz-success`} />;
     case 'vegetation':
       return <TreeDeciduous className={`${iconClass} text-emerald-600`} />;
     case 'sensors':
@@ -117,7 +117,7 @@ function getAssetIcon(asset: UnifiedAsset): React.ReactNode {
     case 'infrastructure':
       return <Building2 className={`${iconClass} text-slate-600`} />;
     case 'water':
-      return <Droplets className={`${iconClass} text-blue-600`} />;
+      return <Droplets className={`${iconClass} text-nkz-info`} />;
     default:
       return <Box className={`${iconClass} text-slate-500`} />;
   }
@@ -165,7 +165,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
       <div
         className={`flex items-center gap-2 py-2 px-2 cursor-pointer transition-colors group ${
           isSelected
-            ? 'bg-blue-50 hover:bg-blue-100'
+            ? 'bg-nkz-info-light hover:bg-nkz-info-light'
             : 'hover:bg-slate-50'
         }`}
         style={{ paddingLeft }}
@@ -217,8 +217,8 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
         {/* Status Indicator */}
         <div className="flex-shrink-0">
           <span className={`w-2 h-2 rounded-full inline-block ${
-            asset.status === 'active' ? 'bg-green-500' :
-            asset.status === 'error' ? 'bg-red-500' :
+            asset.status === 'active' ? 'bg-nkz-success-light0' :
+            asset.status === 'error' ? 'bg-nkz-error-light0' :
             asset.status === 'maintenance' ? 'bg-amber-500' :
             'bg-slate-300'
           }`} />

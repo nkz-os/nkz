@@ -209,9 +209,9 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
   if (isLoading) {
     return (
-      <div className="p-4 bg-white rounded-lg border border-gray-200" style={{ height: `${height}px` }}>
+      <div className="p-4 bg-white rounded-lg border border-nkz-border" style={{ height: `${height}px` }}>
         <div className="flex items-center justify-center h-full">
-          <RefreshCw className="w-6 h-6 text-gray-400 animate-spin" />
+          <RefreshCw className="w-6 h-6 text-nkz-muted animate-spin" />
           <span className="ml-2 text-gray-600">{t('sensors.loading_chart') || 'Cargando gráfico...'}</span>
         </div>
       </div>
@@ -220,9 +220,9 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
   if (error) {
     return (
-      <div className="p-4 bg-red-50 rounded-lg border border-red-200" style={{ height: `${height}px` }}>
+      <div className="p-4 bg-nkz-error-light rounded-lg border border-red-200" style={{ height: `${height}px` }}>
         <div className="flex items-center justify-center h-full">
-          <span className="text-red-700">{error}</span>
+          <span className="text-nkz-error">{error}</span>
         </div>
       </div>
     );
@@ -230,9 +230,9 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
   if (telemetryData.length === 0) {
     return (
-      <div className="p-4 bg-white rounded-lg border border-gray-200" style={{ height: `${height}px` }}>
+      <div className="p-4 bg-white rounded-lg border border-nkz-border" style={{ height: `${height}px` }}>
         <div className="flex items-center justify-center h-full">
-          <span className="text-gray-500">{t('sensors.no_historical_data') || 'No hay datos históricos disponibles'}</span>
+          <span className="text-nkz-muted">{t('sensors.no_historical_data') || 'No hay datos históricos disponibles'}</span>
         </div>
       </div>
     );
@@ -241,10 +241,10 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
   const ChartComponent = chartType === 'line' ? Line : Bar;
 
   return (
-    <div className="p-4 bg-white rounded-lg border border-gray-200">
+    <div className="p-4 bg-white rounded-lg border border-nkz-border">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-blue-600" />
+          <TrendingUp className="w-5 h-5 text-nkz-info" />
           <h3 className="text-lg font-semibold text-gray-900">
             {measurementLabel || measurementKey} - {deviceName}
           </h3>
@@ -253,7 +253,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
           <select
             value={selectedTimeRange}
             onChange={(e) => setSelectedTimeRange(e.target.value as any)}
-            className="px-3 py-1 text-sm border border-gray-300 rounded-lg bg-white"
+            className="px-3 py-1 text-sm border border-nkz-border rounded-lg bg-white"
           >
             {timeRangeOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -273,7 +273,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         <ChartComponent data={chartData} options={chartOptions} />
       </div>
 
-      <div className="mt-2 text-xs text-gray-500 text-center">
+      <div className="mt-2 text-xs text-nkz-muted text-center">
         {telemetryData.length} {t('sensors.data_points') || 'puntos de datos'}
       </div>
     </div>

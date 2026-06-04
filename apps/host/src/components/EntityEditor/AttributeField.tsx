@@ -29,7 +29,7 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
           type="checkbox"
           checked={!!currentValue}
           onChange={e => emit(e.target.checked)}
-          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          className="w-4 h-4 rounded border-nkz-border text-nkz-info focus:ring-blue-500"
         />
         <span className="text-sm text-gray-700">{t(schema.labelKey)}</span>
       </label>
@@ -43,7 +43,7 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
         <select
           value={String(currentValue ?? '')}
           onChange={e => emit(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="">—</option>
           {schema.options?.map(opt => (
@@ -66,10 +66,10 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
             min={schema.min}
             max={schema.max}
             step={schema.step}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           {schema.unitCode && (
-            <span className="text-xs text-gray-500 w-10">{schema.unitCode}</span>
+            <span className="text-xs text-nkz-muted w-10">{schema.unitCode}</span>
           )}
         </div>
       </div>
@@ -84,7 +84,7 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
         type="text"
         value={currentValue != null ? String(currentValue) : ''}
         onChange={e => emit(e.target.value)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       />
     </div>
   );

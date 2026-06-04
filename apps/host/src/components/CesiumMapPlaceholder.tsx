@@ -32,26 +32,26 @@ export const CesiumMapPlaceholder: React.FC<CesiumMapPlaceholderProps> = ({
       {/* Content */}
       <div className="relative h-full flex flex-col items-center justify-center p-6 text-center">
         <div className="mb-6">
-          <div className="w-20 h-20 bg-blue-500 bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <Globe className="w-10 h-10 text-blue-600" />
+          <div className="w-20 h-20 bg-nkz-info-light0 bg-opacity-20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <Globe className="w-10 h-10 text-nkz-info" />
           </div>
           <h3 className="text-xl font-bold text-blue-900 mb-2">{displayTitle}</h3>
-          <p className="text-blue-700 max-w-md">
+          <p className="text-nkz-info max-w-md">
             {t('common.interactive_3d_visualization')}
           </p>
         </div>
 
         <div className="space-y-2 text-sm text-blue-800">
           <div className="flex items-center gap-2 justify-center">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <div className="w-2 h-2 bg-nkz-info-light0 rounded-full"></div>
             <span>{t('common.terrain_3d')}</span>
           </div>
           <div className="flex items-center gap-2 justify-center">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <div className="w-2 h-2 bg-nkz-success-light0 rounded-full"></div>
             <span>{t('common.robot_position_realtime')}</span>
           </div>
           <div className="flex items-center gap-2 justify-center">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+            <div className="w-2 h-2 bg-nkz-warning-light0 rounded-full"></div>
             <span>{t('common.sensor_location')}</span>
           </div>
           <div className="flex items-center gap-2 justify-center">

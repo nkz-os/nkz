@@ -110,7 +110,7 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6">
       <div className="flex items-center gap-2 mb-4">
         <MapPin className="w-5 h-5 text-gray-600" />
         <h3 className="text-lg font-semibold text-gray-900">
@@ -127,10 +127,10 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Ref. Catastral (ej: 48037A02100034)"
               disabled={disabled || isSearching}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-nkz-bg-secondary disabled:cursor-not-allowed"
               pattern="[0-9]{7}[A-Z]{2}[0-9]{4}"
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-nkz-muted">
               Formato: 7 dígitos + 2 letras + 4 dígitos
             </p>
           </div>
@@ -155,8 +155,8 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
       </form>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
@@ -166,7 +166,7 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
           {results.map((parcel) => (
             <div
               key={parcel.reference}
-              className="p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition-colors"
+              className="p-4 border border-nkz-border rounded-lg hover:border-blue-500 hover:bg-nkz-info-light cursor-pointer transition-colors"
               onClick={() => handleSelect(parcel)}
             >
               <div className="flex items-start justify-between">
@@ -177,11 +177,11 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
                   <p className="text-sm text-gray-600">
                     {parcel.municipality}, {parcel.province}
                   </p>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-nkz-muted mt-1">
                     {parcel.use} • {(parcel.area / 10000).toFixed(2)} ha
                   </p>
                 </div>
-                <Check className="w-5 h-5 text-blue-600" />
+                <Check className="w-5 h-5 text-nkz-info" />
               </div>
             </div>
           ))}
@@ -189,18 +189,18 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
       )}
 
       {selectedParcel && (
-        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="p-4 bg-nkz-success-light border border-green-200 rounded-lg">
           <div className="flex items-start justify-between">
             <div>
               <p className="font-semibold text-green-900">Parcela seleccionada</p>
-              <p className="text-sm text-green-700">{selectedParcel.reference}</p>
-              <p className="text-sm text-green-600 mt-1">
+              <p className="text-sm text-nkz-success">{selectedParcel.reference}</p>
+              <p className="text-sm text-nkz-success mt-1">
                 {selectedParcel.municipality}, {selectedParcel.province}
               </p>
             </div>
             <button
               onClick={handleClear}
-              className="text-sm text-green-700 hover:text-green-900 underline"
+              className="text-sm text-nkz-success hover:text-green-900 underline"
             >
               Cambiar
             </button>

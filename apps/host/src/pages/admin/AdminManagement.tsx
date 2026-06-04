@@ -28,6 +28,7 @@ import { TermsManagement } from '@/components/TermsManagement';
 import { PlatformApiCredentials } from '@/components/PlatformApiCredentials';
 import { AuditLogsPanel } from '@/components/AuditLogsPanel';
 import { GlobalAssetManager } from '@/components/Admin/GlobalAssetManager';
+import { useNotification } from '@/hooks/useNotification';
 
 interface Tenant {
   tenant_id: string;
@@ -364,11 +365,11 @@ export const AdminManagement: React.FC = () => {
       });
       setShowCodeModal(false);
       setCodeForm({ email: '', plan: 'premium' });
-      alert(t('admin.code_generated'));
+      showNotification({ type: 'error', message: t('admin.code_generated') });
       void loadActivations();
     } catch (error: any) {
       const detail = error?.response?.data?.error || error?.message || '';
-      alert(`${t('admin.code_generate_error')}${detail ? ': ' + detail : ''}`);
+      showNotification({ type: 'error', message: t('admin.code_generate_error') });
     } finally {
       setActivationsLoading(false);
     }
@@ -381,10 +382,10 @@ export const AdminManagement: React.FC = () => {
     try {
       await client.delete(`/api/admin/activations/${codeId}`);
       setActivations(activations.map(a => a.id === codeId ? { ...a, status: 'revoked' } : a));
-      alert(t('admin.code_revoked'));
+      showNotification({ type: 'error', message: t('admin.code_revoked') });
     } catch (error: any) {
       const detail = error?.response?.data?.error || error?.message || '';
-      alert(`${t('admin.code_revoke_error')}${detail ? ': ' + detail : ''}`);
+      showNotification({ type: 'error', message: t('admin.code_revoke_error') });
     }
   };
 

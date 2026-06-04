@@ -116,27 +116,27 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
   };
 
   return (
-    <div className={`bg-white rounded-lg shadow-lg border border-gray-200 ${className}`}>
+    <div className={`bg-white rounded-lg shadow-lg border border-nkz-border ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-4 border-b border-nkz-border">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">
           Biblioteca de Activos
         </h3>
         
         {/* Search */}
         <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-nkz-muted" />
           <input
             type="text"
             placeholder="Buscar activos..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-nkz-muted hover:text-gray-600"
             >
               <X className="w-4 h-4" />
             </button>
@@ -150,7 +150,7 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
             className={`px-3 py-1 text-xs rounded-full transition-colors ${
               !selectedCategory
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-nkz-bg-secondary text-gray-700 hover:bg-gray-200'
             }`}
           >
             Todos
@@ -162,7 +162,7 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
               className={`px-3 py-1 text-xs rounded-full transition-colors ${
                 selectedCategory === category
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-nkz-bg-secondary text-gray-700 hover:bg-gray-200'
               }`}
             >
               {categoryLabels[category] || category}
@@ -174,7 +174,7 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
       {/* Asset List */}
       <div className="p-4 max-h-[600px] overflow-y-auto">
         {filteredAssets.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-nkz-muted">
             <p>No se encontraron activos</p>
           </div>
         ) : (
@@ -189,13 +189,13 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
                   onClick={() => onSelectAsset(asset)}
                   className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
                     isSelected
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50'
+                      ? 'border-blue-600 bg-nkz-info-light'
+                      : 'border-nkz-border bg-white hover:border-blue-300 hover:bg-nkz-info-light'
                   }`}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-lg ${
-                      isSelected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
+                      isSelected ? 'bg-blue-600 text-white' : 'bg-nkz-bg-secondary text-gray-700'
                     }`}>
                       <IconComponent className="w-5 h-5" />
                     </div>
@@ -203,7 +203,7 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
                       <h4 className="font-medium text-gray-900 mb-1">
                         {asset.name}
                       </h4>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-nkz-muted">
                         {asset.geometryType === 'Point' && 'Punto'}
                         {asset.geometryType === 'LineString' && 'Línea'}
                         {asset.geometryType === 'Polygon' && 'Polígono'}
@@ -219,7 +219,7 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
       </div>
 
       {/* Footer Info */}
-      <div className="p-4 border-t border-gray-200 bg-gray-50">
+      <div className="p-4 border-t border-nkz-border bg-nkz-bg-secondary">
         <p className="text-xs text-gray-600">
           Selecciona un activo para comenzar a digitalizarlo en el mapa
         </p>

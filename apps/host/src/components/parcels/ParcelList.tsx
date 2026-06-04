@@ -113,7 +113,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                 <div className="text-center max-w-md">
                     <div className="mb-4">
                         <svg
-                            className="mx-auto h-16 w-16 text-gray-400"
+                            className="mx-auto h-16 w-16 text-nkz-muted"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -135,7 +135,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                     </p>
                     <button
                         onClick={onRefresh}
-                        className="text-green-600 hover:text-green-700 font-medium"
+                        className="text-nkz-success hover:text-nkz-success font-medium"
                     >
                         Actualizar lista
                     </button>
@@ -152,7 +152,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
         return (
             <tr
                 key={parcel.id}
-                className={`hover:bg-gray-50 cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 border-l-4 border-blue-500' : ''} ${isZone ? 'bg-gray-50/50' : ''}`}
+                className={`hover:bg-nkz-bg-secondary cursor-pointer transition-colors ${isSelected ? 'bg-nkz-info-light border-l-4 border-blue-500' : ''} ${isZone ? 'bg-nkz-bg-secondary/50' : ''}`}
                 onClick={() => onSelect(parcel)}
                 style={{ paddingLeft: `${indent * 24}px` }}
             >
@@ -164,7 +164,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                                     e.stopPropagation();
                                     toggleExpand(parcel.id);
                                 }}
-                                className="text-gray-400 hover:text-gray-600"
+                                className="text-nkz-muted hover:text-gray-600"
                             >
                                 {expandedParcels.has(parcel.id) ? (
                                     <ChevronDown className="w-4 h-4" />
@@ -175,19 +175,19 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         )}
                         {isZone && <div className="w-4" />}
                         {isZone ? (
-                            <MapPin className="w-4 h-4 text-green-600" />
+                            <MapPin className="w-4 h-4 text-nkz-success" />
                         ) : (
-                            <MapPin className="w-4 h-4 text-blue-600" />
+                            <MapPin className="w-4 h-4 text-nkz-info" />
                         )}
                         <div className="flex-1 min-w-0">
                             <div className="text-base font-semibold text-gray-900 truncate" title={parcel.name || parcel.cadastralReference || parcel.id}>
                                 {parcel.name || parcel.cadastralReference || 'Parcela sin nombre'}
                             </div>
-                            <div className="text-xs text-gray-400 font-mono truncate max-w-xs mt-1" title={parcel.id}>
+                            <div className="text-xs text-nkz-muted font-mono truncate max-w-xs mt-1" title={parcel.id}>
                                 {parcel.id.length > 40 ? `${parcel.id.substring(0, 40)}...` : parcel.id}
                             </div>
                             {parcel.notes && (
-                                <div className="text-xs text-gray-500 truncate max-w-xs mt-1" title={parcel.notes}>
+                                <div className="text-xs text-nkz-muted truncate max-w-xs mt-1" title={parcel.notes}>
                                     {parcel.notes}
                                 </div>
                             )}
@@ -196,7 +196,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{parcel.municipality || '-'}</div>
-                    <div className="text-sm text-gray-500">{parcel.province || '-'}</div>
+                    <div className="text-sm text-nkz-muted">{parcel.province || '-'}</div>
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">{parcel.cropType || '-'}</div>
@@ -209,13 +209,13 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                 <td className="px-4 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         parcel.category === 'cadastral'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-green-100 text-green-800'
+                            ? 'bg-nkz-info-light text-blue-800'
+                            : 'bg-nkz-success-light text-green-800'
                     }`}>
                         {parcel.category === 'cadastral' ? 'Catastral' : parcel.category === 'managementZone' ? 'Zona' : 'Parcela'}
                     </span>
                     {isParent && zonesCount > 0 && (
-                        <span className="ml-2 px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">
+                        <span className="ml-2 px-2 py-0.5 text-xs bg-nkz-bg-secondary text-gray-600 rounded-full">
                             {zonesCount} zona{zonesCount !== 1 ? 's' : ''}
                         </span>
                     )}
@@ -230,7 +230,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                                 e.stopPropagation();
                                 onEdit(parcel);
                             }}
-                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 rounded-md hover:bg-green-100 transition-colors"
+                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-success bg-nkz-success-light rounded-md hover:bg-nkz-success-light transition-colors"
                             title="Editar"
                         >
                             <Edit className="w-4 h-4 mr-1" />
@@ -245,7 +245,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                                         onDeleteZone(parcel, parent);
                                     }
                                 }}
-                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors"
+                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light rounded-md hover:bg-nkz-error-light transition-colors"
                                 title="Eliminar zona"
                             >
                                 <Trash2 className="w-4 h-4 mr-1" />
@@ -257,7 +257,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                                     e.stopPropagation();
                                     onDelete(parcel);
                                 }}
-                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors"
+                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light rounded-md hover:bg-nkz-error-light transition-colors"
                                 title="Eliminar parcela"
                             >
                                 <Trash2 className="w-4 h-4 mr-1" />
@@ -273,7 +273,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
     return (
         <div className="w-full" style={{ minHeight: '200px' }}>
             {/* Filter Bar */}
-            <div className="mb-4 bg-white p-3 rounded-lg border border-gray-200 flex items-center justify-between">
+            <div className="mb-4 bg-white p-3 rounded-lg border border-nkz-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-700">Filtro:</span>
                     <button
@@ -281,7 +281,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         className={`px-3 py-1 text-sm rounded-md transition-colors ${
                             filter === 'all'
                                 ? 'bg-green-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-nkz-bg-secondary text-gray-700 hover:bg-gray-200'
                         }`}
                     >
                         Todas ({parcels.length})
@@ -291,7 +291,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         className={`px-3 py-1 text-sm rounded-md transition-colors ${
                             filter === 'parcels'
                                 ? 'bg-green-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-nkz-bg-secondary text-gray-700 hover:bg-gray-200'
                         }`}
                     >
                         Parcelas ({parcels.filter(p => p.category !== 'managementZone').length})
@@ -301,7 +301,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         className={`px-3 py-1 text-sm rounded-md transition-colors ${
                             filter === 'zones'
                                 ? 'bg-green-600 text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-nkz-bg-secondary text-gray-700 hover:bg-gray-200'
                         }`}
                     >
                         Zonas ({parcels.filter(p => p.category === 'managementZone').length})
@@ -311,27 +311,27 @@ export const ParcelList: React.FC<ParcelListProps> = ({
 
             <div className="bg-white rounded-lg shadow overflow-x-auto" style={{ width: '100%' }}>
                 <table className="min-w-full divide-y divide-gray-200" style={{ width: '100%', tableLayout: 'auto' }}>
-                    <thead className="bg-gray-50">
+                    <thead className="bg-nkz-bg-secondary">
                         <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ maxWidth: '200px' }}>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider" style={{ maxWidth: '200px' }}>
                                 Nombre
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-4 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider">
                                 Municipio
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-4 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider">
                                 Cultivo
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-4 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider">
                                 Área (ha)
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-4 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider">
                                 Tipo
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-4 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider">
                                 Condiciones Agronómicas
                             </th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-4 py-3 text-right text-xs font-medium text-nkz-muted uppercase tracking-wider">
                                 Acciones
                             </th>
                         </tr>

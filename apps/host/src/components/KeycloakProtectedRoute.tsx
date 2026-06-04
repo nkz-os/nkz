@@ -116,7 +116,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     if (user && !user.tenant) {
       logger.debug('[ProtectedRoute] Tenant required but user has no tenant. Location:', location.pathname, 'User:', user);
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="min-h-screen flex items-center justify-center bg-nkz-bg-secondary">
           <div className="text-center max-w-md mx-auto p-8 bg-white rounded-lg shadow-lg">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
               Tenant Required
@@ -154,10 +154,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             <p className="text-gray-600">
               You don't have the required permissions to access this resource.
             </p>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-nkz-muted mt-2">
               Required roles: {requiredRoles.join(', ')}
             </p>
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-nkz-muted mt-2">
               Your roles: {userRoles.join(', ')}
             </p>
           </div>

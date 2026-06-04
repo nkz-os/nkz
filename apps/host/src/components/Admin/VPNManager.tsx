@@ -39,7 +39,7 @@ export const VPNManager: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600">
+            <div className="bg-nkz-bg-secondary rounded-xl p-4 text-sm text-gray-600">
                 <p className="font-medium text-gray-700 mb-1">Migration note</p>
                 <p>
                     WireGuard-based VPN was removed on 2026-02-21 and replaced by Headscale (open-source

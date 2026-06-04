@@ -5,8 +5,10 @@ import { AssetBrowser } from '../AssetBrowser';
 import { DefaultIconSelector } from '../DefaultIconSelector';
 import { useViewer } from '@/context/ViewerContext';
 import type { Geometry, Point } from 'geojson';
+import { useNotification } from '@/hooks/useNotification';
 
 export function StepVisualization() {
+  const { showNotification } = useNotification();
   const { entityType, formData, updateFormData } = useWizard();
   const { startModelPreview } = useViewer();
 
@@ -28,7 +30,7 @@ export function StepVisualization() {
       </div>
 
       {/* Default icon */}
-      <div className="bg-gray-50 rounded-xl p-4">
+      <div className="bg-nkz-bg-secondary rounded-xl p-4">
         <DefaultIconSelector
           entityType={entityType ?? undefined}
           selectedIcon={formData.defaultIconKey ?? null}
@@ -41,9 +43,9 @@ export function StepVisualization() {
 
       {/* Divider */}
       <div className="relative flex items-center">
-        <div className="flex-1 border-t border-gray-200" />
-        <span className="px-3 text-sm text-gray-500 bg-white">o sube un icono personalizado</span>
-        <div className="flex-1 border-t border-gray-200" />
+        <div className="flex-1 border-t border-nkz-border" />
+        <span className="px-3 text-sm text-nkz-muted bg-white">o sube un icono personalizado</span>
+        <div className="flex-1 border-t border-nkz-border" />
       </div>
 
       {/* Custom icon upload */}
@@ -70,7 +72,7 @@ export function StepVisualization() {
           <div className="mt-4 bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-gray-800">Ajuste Visual</span>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-nkz-muted">
                 Escala: {(formData.modelScale ?? 1).toFixed(1)}x · Rot: {formData.modelRotation?.[0] ?? 0}°
               </span>
             </div>
@@ -78,7 +80,7 @@ export function StepVisualization() {
               type="button"
               onClick={() => {
                 if (!coords) {
-                  alert('Por favor, selecciona primero una ubicación en el paso de Geometría');
+                  showNotification({ type: \'error\', message: \'Por favor, selecciona primero una ubicación en el paso de Geometría\' });
                   return;
                 }
                 startModelPreview(formData.model3DUrl!, coords, {
@@ -91,7 +93,7 @@ export function StepVisualization() {
               <MapPin className="w-5 h-5" />
               Previsualizar en el Terreno
             </button>
-            <p className="text-xs text-gray-500 text-center mt-2">El wizard se ocultará. Ajusta escala y rotación sobre el mapa.</p>
+            <p className="text-xs text-nkz-muted text-center mt-2">El wizard se ocultará. Ajusta escala y rotación sobre el mapa.</p>
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@
 // loaded via the Module Federation runtime: registerRemotes() declares the
 // available remotes (URLs from the backend), and RemoteModuleLoader calls
 // loadRemote('<id>/Module') on demand to retrieve the validated definition.
+import { logger } from '@/utils/logger';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { registerRemotes, loadRemote } from '@module-federation/runtime';
@@ -68,7 +69,7 @@ export interface ModuleDefinition {
  */
 const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
   if (!module || typeof module !== 'object') {
-    console.warn('[ModuleContext] Invalid module: not an object', module);
+    logger.warn('[ModuleContext] Invalid module: not an object', module);
     return null;
   }
 
@@ -76,12 +77,12 @@ const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
   const routePath = typeof module.routePath === 'string' ? module.routePath.trim() : '';
 
   if (!id) {
-    console.warn('[ModuleContext] Invalid module: missing id', module);
+    logger.warn('[ModuleContext] Invalid module: missing id', module);
     return null;
   }
 
   if (!routePath) {
-    console.warn('[ModuleContext] Invalid module: missing routePath for module', id);
+    logger.warn('[ModuleContext] Invalid module: missing routePath for module', id);
     return null;
   }
 
@@ -214,10 +215,10 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
             visibility = normalised;
           }
         } catch (visibilityError) {
-          console.warn('[ModuleContext] Failed to load module visibility rules:', visibilityError);
+          logger.warn('[ModuleContext] Failed to load module visibility rules:', visibilityError);
         }
       } catch (remoteError) {
-        console.warn('[ModuleContext] Failed to load remote modules:', remoteError);
+        logger.warn('[ModuleContext] Failed to load remote modules:', remoteError);
       }
 
       const moduleMap = new Map<string, ModuleDefinition>();
@@ -240,7 +241,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
       remoteModules.forEach(rawModule => {
         const m = validateAndSanitizeModule(rawModule);
         if (!m) {
-          console.warn('[ModuleContext] Skipping invalid remote module:', rawModule);
+          logger.warn('[ModuleContext] Skipping invalid remote module:', rawModule);
           return;
         }
 
@@ -281,7 +282,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         if (!result.compatible) {
           incompatibleReasons.set(modId, result.reason || 'Unknown incompatibility reason');
           moduleMap.delete(modId);
-          console.warn(
+          logger.warn(
             `[ModuleContext] Module "${modId}" is incompatible with host: ${result.reason}`
           );
         }
@@ -315,7 +316,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
           registerRemotes(remotesToRegister, { force: true });
           registeredFingerprintRef.current = nextFingerprint;
         } catch (regError) {
-          console.error('[ModuleContext] Failed to register federated remotes:', regError);
+          logger.error('[ModuleContext] Failed to register federated remotes:', regError);
         }
       }
 
@@ -323,7 +324,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
       setVisibilityRules(visibility);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load modules');
-      console.error('[ModuleContext] Error loading modules:', error);
+      logger.error('[ModuleContext] Error loading modules:', error);
       setError(error);
       setModules([]);
     } finally {
@@ -379,7 +380,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
           ),
         );
       } catch (err) {
-        console.warn(`[ModuleContext] Slot preload failed for module "${m.id}":`, err);
+        logger.warn(`[ModuleContext] Slot preload failed for module "${m.id}":`, err);
       }
     });
   }, [modules]);

@@ -108,8 +108,8 @@ export const LandingFooter: React.FC<Props> = ({
                         onClick={() => onLanguageChange(code)}
                         className={`block w-full text-left px-3 py-2 text-xs transition-colors ${
                           language === code
-                            ? 'bg-green-50 text-green-900 font-medium'
-                            : 'text-gray-700 hover:bg-gray-50'
+                            ? 'bg-nkz-success-light text-green-900 font-medium'
+                            : 'text-gray-700 hover:bg-nkz-bg-secondary'
                         }`}
                       >
                         {name as string}

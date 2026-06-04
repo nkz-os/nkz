@@ -137,9 +137,9 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6">
         {(usersError || usersSuccess || userActions.error || userActions.success) && (
-          <div className={`mb-4 p-3 rounded-lg ${(usersSuccess || userActions.success) ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+          <div className={`mb-4 p-3 rounded-lg ${(usersSuccess || userActions.success) ? 'bg-nkz-success-light border border-green-200' : 'bg-nkz-error-light border border-red-200'}`}>
             <p className={`text-sm ${(usersSuccess || userActions.success) ? 'text-green-800' : 'text-red-800'}`}>
               {usersSuccess || userActions.success || usersError || userActions.error}
             </p>
@@ -188,7 +188,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                 <h3 className="text-lg font-medium text-gray-900">{t('settings.users.create_title')}</h3>
                 <button
                   onClick={() => setShowCreateUserModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-nkz-muted hover:text-gray-600"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -203,7 +203,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                     type="email"
                     value={newUser.email}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="user@example.com"
                   />
                 </div>
@@ -217,7 +217,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                       type="text"
                       value={newUser.firstName}
                       onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -228,7 +228,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                       type="text"
                       value={newUser.lastName}
                       onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -241,9 +241,9 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                     type="password"
                     value={newUser.password}
                     onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-nkz-muted">
                     {t('settings.users.temp_password_hint')}
                   </p>
                 </div>
@@ -275,7 +275,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
               <div className="flex justify-end space-x-3 mt-6">
                 <button
                   onClick={() => setShowCreateUserModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-nkz-bg-secondary rounded-lg hover:bg-gray-200"
                 >
                   {t('settings.cancel')}
                 </button>

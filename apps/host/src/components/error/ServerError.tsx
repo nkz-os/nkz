@@ -37,7 +37,7 @@ export const ServerError: React.FC<ServerErrorProps> = ({ error, resetError }) =
           <p className="text-lg text-gray-600 mb-2">
             Algo salió mal en el servidor. Estamos trabajando para solucionarlo.
           </p>
-          <p className="text-sm text-gray-500 mb-8">
+          <p className="text-sm text-nkz-muted mb-8">
             Por favor, inténtalo de nuevo en unos momentos.
           </p>
 
@@ -46,7 +46,7 @@ export const ServerError: React.FC<ServerErrorProps> = ({ error, resetError }) =
             <div className="mb-8 text-left">
               <button
                 onClick={() => setShowDetails(!showDetails)}
-                className="flex items-center justify-between w-full px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium text-gray-700"
+                className="flex items-center justify-between w-full px-4 py-2 bg-nkz-bg-secondary rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium text-gray-700"
               >
                 <span>Ver detalles del error</span>
                 {showDetails ? (
@@ -56,7 +56,7 @@ export const ServerError: React.FC<ServerErrorProps> = ({ error, resetError }) =
                 )}
               </button>
               {showDetails && (
-                <div className="mt-2 p-4 bg-gray-50 rounded-lg text-xs font-mono text-gray-600 overflow-auto max-h-48">
+                <div className="mt-2 p-4 bg-nkz-bg-secondary rounded-lg text-xs font-mono text-gray-600 overflow-auto max-h-48">
                   <div className="mb-2">
                     <strong>Mensaje:</strong> {error.message}
                   </div>
@@ -84,7 +84,7 @@ export const ServerError: React.FC<ServerErrorProps> = ({ error, resetError }) =
             )}
             <button
               onClick={() => navigate(-1)}
-              className="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              className="inline-flex items-center px-6 py-3 bg-nkz-bg-secondary text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Volver atrás
@@ -99,10 +99,10 @@ export const ServerError: React.FC<ServerErrorProps> = ({ error, resetError }) =
           </div>
 
           {/* Help */}
-          <div className="mt-12 pt-8 border-t border-gray-200">
-            <p className="text-sm text-gray-500">
+          <div className="mt-12 pt-8 border-t border-nkz-border">
+            <p className="text-sm text-nkz-muted">
               Si el problema persiste, contacta con{' '}
-              <a href={`mailto:${(window as any).__ENV__?.SUPPORT_EMAIL || 'support'}`} className="text-green-600 hover:text-green-700">
+              <a href={`mailto:${(window as any).__ENV__?.SUPPORT_EMAIL || 'support'}`} className="text-nkz-success hover:text-nkz-success">
                 soporte técnico
               </a>
             </p>

@@ -216,7 +216,7 @@ export const ExternalApiCredentials: React.FC = () => {
     return (
       <div className="bg-white rounded-lg shadow p-6">
         <div className="text-center py-8">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <AlertCircle className="w-12 h-12 text-nkz-error mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Acceso Denegado
           </h3>
@@ -232,8 +232,8 @@ export const ExternalApiCredentials: React.FC = () => {
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-            <Key className="w-5 h-5 text-blue-600" />
+          <div className="w-10 h-10 bg-nkz-info-light rounded-lg flex items-center justify-center">
+            <Key className="w-5 h-5 text-nkz-info" />
           </div>
           <div>
             <h2 className="text-xl font-bold text-gray-900">{t('settings.external_apis.title')}</h2>
@@ -261,34 +261,34 @@ export const ExternalApiCredentials: React.FC = () => {
       </div>
 
       {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-4 p-4 bg-nkz-error-light border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-red-800">Error</p>
-            <p className="text-sm text-red-700">{error}</p>
+            <p className="text-sm text-nkz-error">{error}</p>
           </div>
         </div>
       )}
 
       {success && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-4 p-4 bg-nkz-success-light border border-green-200 rounded-lg flex items-start gap-3">
+          <CheckCircle className="w-5 h-5 text-nkz-success flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-green-800">Éxito</p>
-            <p className="text-sm text-green-700">{success}</p>
+            <p className="text-sm text-nkz-success">{success}</p>
           </div>
         </div>
       )}
 
       {showForm && (
-        <div className="mb-6 p-6 border border-gray-200 rounded-lg bg-gray-50">
+        <div className="mb-6 p-6 border border-nkz-border rounded-lg bg-nkz-bg-secondary">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
               {editingId ? t('settings.external_apis.edit_credential') : t('settings.external_apis.new_credential')}
             </h3>
             <button
               onClick={() => setShowForm(false)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-nkz-muted hover:text-gray-600"
             >
               <X className="w-5 h-5" />
             </button>
@@ -304,10 +304,10 @@ export const ExternalApiCredentials: React.FC = () => {
                 value={formData.service_name}
                 onChange={(e) => setFormData({ ...formData, service_name: e.target.value })}
                 placeholder="sentinel-hub, aemet, catastro"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-nkz-muted mt-1">
                 Identificador único (ej: sentinel-hub, aemet)
               </p>
             </div>
@@ -321,10 +321,10 @@ export const ExternalApiCredentials: React.FC = () => {
                 value={formData.service_url}
                 onChange={(e) => setFormData({ ...formData, service_url: e.target.value })}
                 placeholder="https://services.sentinel-hub.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-nkz-muted mt-1">
                 {t('settings.external_apis.service_url_hint')}
               </p>
             </div>
@@ -336,7 +336,7 @@ export const ExternalApiCredentials: React.FC = () => {
               <select
                 value={formData.auth_type}
                 onChange={(e) => setFormData({ ...formData, auth_type: e.target.value as any })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="none">Sin autenticación</option>
                 <option value="api_key">API Key</option>
@@ -356,7 +356,7 @@ export const ExternalApiCredentials: React.FC = () => {
                     value={formData.username || ''}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     placeholder="usuario"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -368,9 +368,9 @@ export const ExternalApiCredentials: React.FC = () => {
                     value={formData.password || ''}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="••••••••"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-nkz-muted mt-1">
                     {editingId ? 'Dejar vacío para no cambiar' : 'Obligatorio para nuevo'}
                   </p>
                 </div>
@@ -387,9 +387,9 @@ export const ExternalApiCredentials: React.FC = () => {
                   value={formData.api_key || ''}
                   onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
                   placeholder="••••••••"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-nkz-muted mt-1">
                   {editingId ? 'Dejar vacío para no cambiar' : 'Obligatorio para nuevo'}
                 </p>
               </div>
@@ -404,7 +404,7 @@ export const ExternalApiCredentials: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder={t('settings.external_apis.description_placeholder')}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -414,7 +414,7 @@ export const ExternalApiCredentials: React.FC = () => {
                 id="is_active"
                 checked={formData.is_active}
                 onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                className="w-4 h-4 text-nkz-info border-nkz-border rounded focus:ring-blue-500"
               />
               <label htmlFor="is_active" className="text-sm text-gray-700">
                 {t('settings.external_apis.active')}
@@ -425,7 +425,7 @@ export const ExternalApiCredentials: React.FC = () => {
           <div className="flex justify-end gap-2 mt-4">
             <button
               onClick={() => setShowForm(false)}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              className="px-4 py-2 text-gray-700 bg-nkz-bg-secondary rounded-lg hover:bg-gray-200"
             >
               Cancelar
             </button>
@@ -447,7 +447,7 @@ export const ExternalApiCredentials: React.FC = () => {
         </div>
       ) : credentials.length === 0 ? (
         <div className="text-center py-8">
-          <Key className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <Key className="w-12 h-12 text-nkz-muted mx-auto mb-4" />
           <p className="text-gray-600">No hay credenciales configuradas</p>
           <button
             onClick={handleCreate}
@@ -459,40 +459,40 @@ export const ExternalApiCredentials: React.FC = () => {
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-nkz-bg-secondary">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider">
                   Servicio
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider">
                   URL
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider">
                   Autenticación
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider">
                   Estado
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-nkz-muted uppercase tracking-wider">
                   Último Uso
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-nkz-muted uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {credentials.map((credential) => (
-                <tr key={credential.id} className="hover:bg-gray-50">
+                <tr key={credential.id} className="hover:bg-nkz-bg-secondary">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <Key className="w-4 h-4 text-gray-400 mr-2" />
+                      <Key className="w-4 h-4 text-nkz-muted mr-2" />
                       <div>
                         <div className="text-sm font-medium text-gray-900">
                           {credential.service_name}
                         </div>
                         {credential.description && (
-                          <div className="text-xs text-gray-500">{credential.description}</div>
+                          <div className="text-xs text-nkz-muted">{credential.description}</div>
                         )}
                       </div>
                     </div>
@@ -505,28 +505,28 @@ export const ExternalApiCredentials: React.FC = () => {
                       href={credential.service_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                      className="text-xs text-nkz-info hover:text-blue-800 flex items-center gap-1"
                     >
                       Abrir <ExternalLink className="w-3 h-3" />
                     </a>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-nkz-info-light text-blue-800">
                       {getAuthTypeLabel(credential.auth_type)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {credential.is_active ? (
-                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-nkz-success-light text-green-800">
                         Activo
                       </span>
                     ) : (
-                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-nkz-bg-secondary text-gray-800">
                         Inactivo
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-nkz-muted">
                     {credential.last_used_at
                       ? new Date(credential.last_used_at).toLocaleDateString('es-ES')
                       : 'Nunca'}
@@ -535,14 +535,14 @@ export const ExternalApiCredentials: React.FC = () => {
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => handleEdit(credential)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-nkz-info hover:text-blue-900"
                         title="Editar"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(credential.id, credential.service_name)}
-                        className="text-red-600 hover:text-red-900"
+                        className="text-nkz-error hover:text-red-900"
                         title="Eliminar"
                       >
                         <Trash2 className="w-4 h-4" />

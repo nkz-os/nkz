@@ -3,6 +3,7 @@
 // =============================================================================
 // Hook for managing NGSI-LD subscriptions to entities.
 // Enables real-time updates via WebSocket or HTTP notifications.
+import { logger } from '@/utils/logger';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '@/services/api';
@@ -142,7 +143,7 @@ async function deleteSubscription(subscriptionId: string): Promise<void> {
  *   entityType: 'AgriSensor',
  *   notificationEndpoint: '/api/webhooks/subscription',
  *   onNotification: (data) => {
- *     console.log('Received update:', data);
+ *     logger.debug('Received update:', data);
  *   }
  * });
  * ```
@@ -225,7 +226,7 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
       setSubscription(created);
       setIsActive(created.status === 'active' || !created.status);
     } catch (err: any) {
-      console.error('[useSubscription] Error creating subscription:', err);
+      logger.error('[useSubscription] Error creating subscription:', err);
       const errorMessage = err.response?.data?.error || err.message || 'Failed to create subscription';
       setError(errorMessage);
       setSubscription(null);
@@ -263,7 +264,7 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
       await updateSubscription(subscription.id, updates);
       setSubscription(prev => prev ? { ...prev, ...updates } : null);
     } catch (err: any) {
-      console.error('[useSubscription] Error updating subscription:', err);
+      logger.error('[useSubscription] Error updating subscription:', err);
       const errorMessage = err.response?.data?.error || err.message || 'Failed to update subscription';
       setError(errorMessage);
     } finally {
@@ -289,7 +290,7 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
       setSubscription(null);
       setIsActive(false);
     } catch (err: any) {
-      console.error('[useSubscription] Error deleting subscription:', err);
+      logger.error('[useSubscription] Error deleting subscription:', err);
       const errorMessage = err.response?.data?.error || err.message || 'Failed to delete subscription';
       setError(errorMessage);
     } finally {
@@ -322,7 +323,7 @@ export function useSubscription(options: UseSubscriptionOptions): UseSubscriptio
         setIsActive(false);
       }
     } catch (err: any) {
-      console.error('[useSubscription] Error refreshing subscription:', err);
+      logger.error('[useSubscription] Error refreshing subscription:', err);
       const errorMessage = err.response?.data?.error || err.message || 'Failed to refresh subscription';
       setError(errorMessage);
     } finally {

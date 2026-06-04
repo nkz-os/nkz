@@ -1,6 +1,7 @@
 // =============================================================================
 // Entities Page - Visualización de todas las entidades
 // =============================================================================
+import { logger } from '@/utils/logger';
 
 import React, { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
@@ -54,9 +55,9 @@ export const Entities: React.FC = () => {
   const canManageDevices = hasAnyRole(['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant', 'Farmer']);
 
   useEffect(() => {
-    console.log('[Entities] Page Mounted');
+    logger.debug('[Entities] Page Mounted');
     loadAllEntities();
-    return () => console.log('[Entities] Page Unmounted');
+    return () => logger.debug('[Entities] Page Unmounted');
   }, []);
 
   // Reload when external modules signal a refresh (e.g. cadastral module creating a parcel)
@@ -102,7 +103,7 @@ export const Entities: React.FC = () => {
       setDevices(devicesData.status === 'fulfilled' ? devicesData.value : []);
 
     } catch (error) {
-      console.error('Error loading entities:', error);
+      logger.error('Error loading entities:', error);
     } finally {
       setIsLoading(false);
     }
@@ -135,7 +136,7 @@ export const Entities: React.FC = () => {
             data: p
           });
         } catch (e) {
-          console.error('Error processing parcel:', p, e);
+          logger.error('Error processing parcel:', p, e);
         }
       });
       // Add Crops
@@ -153,7 +154,7 @@ export const Entities: React.FC = () => {
             data: c
           });
         } catch (e) {
-          console.error('Error processing crop:', c, e);
+          logger.error('Error processing crop:', c, e);
         }
       });
     } else if (activeTab === 'fleet') {
@@ -174,7 +175,7 @@ export const Entities: React.FC = () => {
             data: r
           });
         } catch (e) {
-          console.error('Error processing robot:', r, e);
+          logger.error('Error processing robot:', r, e);
         }
       });
       // Add Machines
@@ -192,7 +193,7 @@ export const Entities: React.FC = () => {
             data: m
           });
         } catch (e) {
-          console.error('Error processing machine:', m, e);
+          logger.error('Error processing machine:', m, e);
         }
       });
     } else if (activeTab === 'installations') {
@@ -211,7 +212,7 @@ export const Entities: React.FC = () => {
             data: s
           });
         } catch (e) {
-          console.error('Error processing sensor:', s, e);
+          logger.error('Error processing sensor:', s, e);
         }
       });
       // Add Weather Stations
@@ -227,7 +228,7 @@ export const Entities: React.FC = () => {
             data: w
           });
         } catch (e) {
-          console.error('Error processing weather station:', w, e);
+          logger.error('Error processing weather station:', w, e);
         }
       });
       // Add Buildings
@@ -245,7 +246,7 @@ export const Entities: React.FC = () => {
             data: b
           });
         } catch (e) {
-          console.error('Error processing building:', b, e);
+          logger.error('Error processing building:', b, e);
         }
       });
       // Add Devices
@@ -263,7 +264,7 @@ export const Entities: React.FC = () => {
             data: d
           });
         } catch (e) {
-          console.error('Error processing device:', d, e);
+          logger.error('Error processing device:', d, e);
         }
       });
       // Add Livestock
@@ -281,7 +282,7 @@ export const Entities: React.FC = () => {
             data: l
           });
         } catch (e) {
-          console.error('Error processing livestock:', l, e);
+          logger.error('Error processing livestock:', l, e);
         }
       });
     }
@@ -317,7 +318,7 @@ export const Entities: React.FC = () => {
           <div className="flex items-center justify-between flex-shrink-0">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                <MapPin className="w-8 h-8 text-blue-600" />
+                <MapPin className="w-8 h-8 text-nkz-info" />
                 Gestión de Entidades
               </h1>
               <p className="text-gray-600 mt-1">
@@ -328,7 +329,7 @@ export const Entities: React.FC = () => {
               <button
                 onClick={loadAllEntities}
                 disabled={isLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-nkz-border text-gray-700 rounded-lg hover:bg-nkz-bg-secondary transition disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                 Actualizar
@@ -355,41 +356,41 @@ export const Entities: React.FC = () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex border-b border-gray-200 flex-shrink-0 bg-white rounded-t-lg px-2">
+          <div className="flex border-b border-nkz-border flex-shrink-0 bg-white rounded-t-lg px-2">
             <button
               onClick={() => setActiveTab('crops')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'crops'
-                ? 'border-green-500 text-green-600 bg-green-50/50'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? 'border-green-500 text-nkz-success bg-nkz-success-light/50'
+                : 'border-transparent text-nkz-muted hover:text-gray-700 hover:bg-nkz-bg-secondary'
                 }`}
             >
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4" />
-                Cultivos <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.crops}</span>
+                Cultivos <span className="bg-nkz-bg-secondary text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.crops}</span>
               </div>
             </button>
             <button
               onClick={() => setActiveTab('fleet')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'fleet'
-                ? 'border-blue-500 text-blue-600 bg-blue-50/50'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                ? 'border-blue-500 text-nkz-info bg-nkz-info-light/50'
+                : 'border-transparent text-nkz-muted hover:text-gray-700 hover:bg-nkz-bg-secondary'
                 }`}
             >
               <div className="flex items-center gap-2">
                 <Bot className="w-4 h-4" />
-                Flota <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.fleet}</span>
+                Flota <span className="bg-nkz-bg-secondary text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.fleet}</span>
               </div>
             </button>
             <button
               onClick={() => setActiveTab('installations')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'installations'
                 ? 'border-orange-500 text-orange-600 bg-orange-50/50'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                : 'border-transparent text-nkz-muted hover:text-gray-700 hover:bg-nkz-bg-secondary'
                 }`}
             >
               <div className="flex items-center gap-2">
                 <Gauge className="w-4 h-4" />
-                Instalaciones <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.installations}</span>
+                Instalaciones <span className="bg-nkz-bg-secondary text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.installations}</span>
               </div>
             </button>
           </div>
@@ -397,16 +398,16 @@ export const Entities: React.FC = () => {
           {/* Content */}
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
             {/* List Panel */}
-            <div className="lg:col-span-1 bg-white rounded-lg shadow flex flex-col min-h-0 border border-gray-200">
-              <div className="p-4 border-b flex-shrink-0 bg-gray-50 rounded-t-lg">
+            <div className="lg:col-span-1 bg-white rounded-lg shadow flex flex-col min-h-0 border border-nkz-border">
+              <div className="p-4 border-b flex-shrink-0 bg-nkz-bg-secondary rounded-t-lg">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nkz-muted w-5 h-5" />
                   <input
                     type="text"
                     placeholder="Buscar entidades..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
+                    className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                   />
                 </div>
               </div>
@@ -421,7 +422,7 @@ export const Entities: React.FC = () => {
             </div>
 
             {/* Map Panel */}
-            <div className="lg:col-span-2 bg-white rounded-lg shadow overflow-hidden flex flex-col min-h-0 border border-gray-200">
+            <div className="lg:col-span-2 bg-white rounded-lg shadow overflow-hidden flex flex-col min-h-0 border border-nkz-border">
               <div className="flex-1 relative">
                 <ErrorBoundary componentName="Mapa de Entidades">
                   <CesiumMap

@@ -34,6 +34,7 @@ type SidebarState = 'closed' | 'compact' | 'expanded';
 import '@nekazari/design-tokens/css';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';
 import {
+import { useNotification } from '@/hooks/useNotification';
     ChevronDown,
     ChevronUp,
     Loader2,
@@ -323,7 +324,7 @@ const UnifiedViewerInner: React.FC = () => {
                     setMapMode('DRAW_PARCEL');
                 }
             } else {
-                alert(t('viewer.cadastral.not_found'));
+                showNotification({ type: 'error', message: t('viewer.cadastral.not_found') });
             }
         } catch (error: any) {
             logger.error('[UnifiedViewer] Error querying cadastral:', error);

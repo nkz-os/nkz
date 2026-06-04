@@ -26,6 +26,7 @@ module.exports = {
     '@typescript-eslint/ban-ts-comment': 'warn',
 
     // Code quality
+    'no-console': ['warn', { allow: ['warn', 'error'] }],  // prefer logger; allow console.warn/error as escape hatch
     'no-console': ['warn', { allow: ['warn', 'error'] }],
     'no-debugger': 'error',
     'prefer-const': 'warn',

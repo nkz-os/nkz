@@ -170,7 +170,7 @@ export const PlatformApiCredentials: React.FC = () => {
     return (
       <div className="bg-white rounded-lg shadow p-6">
         <div className="text-center py-8">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <AlertCircle className="w-12 h-12 text-nkz-error mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Acceso Denegado
           </h3>
@@ -188,8 +188,8 @@ export const PlatformApiCredentials: React.FC = () => {
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Key className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 bg-nkz-info-light rounded-lg flex items-center justify-center">
+              <Key className="w-5 h-5 text-nkz-info" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900">Credenciales de APIs de Plataforma</h2>
@@ -208,21 +208,21 @@ export const PlatformApiCredentials: React.FC = () => {
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="mb-4 p-4 bg-nkz-error-light border border-red-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-red-800">Error</p>
-              <p className="text-sm text-red-700">{error}</p>
+              <p className="text-sm text-nkz-error">{error}</p>
             </div>
           </div>
         )}
 
         {success && (
-          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+          <div className="mb-4 p-4 bg-nkz-success-light border border-green-200 rounded-lg flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 text-nkz-success flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-green-800">Éxito</p>
-              <p className="text-sm text-green-700">{success}</p>
+              <p className="text-sm text-nkz-success">{success}</p>
             </div>
           </div>
         )}
@@ -231,8 +231,8 @@ export const PlatformApiCredentials: React.FC = () => {
       {/* Copernicus CDSE Section */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-            <Globe className="w-5 h-5 text-green-600" />
+          <div className="w-10 h-10 bg-nkz-success-light rounded-lg flex items-center justify-center">
+            <Globe className="w-5 h-5 text-nkz-success" />
           </div>
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-gray-900">Copernicus CDSE</h3>
@@ -241,16 +241,16 @@ export const PlatformApiCredentials: React.FC = () => {
             </p>
           </div>
           {copernicus.configured && (
-            <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+            <span className="px-3 py-1 text-xs font-medium rounded-full bg-nkz-success-light text-green-800">
               Configurado
             </span>
           )}
         </div>
 
         <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-4">
             <div className="flex items-start gap-2">
-              <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <Info className="w-5 h-5 text-nkz-info flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-800">
                 <p className="font-medium mb-1">Obtener credenciales:</p>
                 <ol className="list-decimal list-inside space-y-1 ml-2">
@@ -272,7 +272,7 @@ export const PlatformApiCredentials: React.FC = () => {
                 value={copernicus.username}
                 onChange={(e) => setCopernicus(prev => ({ ...prev, username: e.target.value }))}
                 placeholder="Tu Client ID de Copernicus CDSE"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
             </div>
@@ -287,13 +287,13 @@ export const PlatformApiCredentials: React.FC = () => {
                   value={copernicus.password}
                   onChange={(e) => setCopernicus(prev => ({ ...prev, password: e.target.value }))}
                   placeholder={copernicus.configured ? '•••••••• (dejar vacío para no cambiar)' : 'Tu Client Secret'}
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 pr-10 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required={!copernicus.configured}
                 />
                 <button
                   type="button"
                   onClick={() => togglePasswordVisibility('copernicus')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600"
                 >
                   {showPassword.copernicus ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -309,7 +309,7 @@ export const PlatformApiCredentials: React.FC = () => {
                 value={copernicus.url}
                 onChange={(e) => setCopernicus(prev => ({ ...prev, url: e.target.value }))}
                 placeholder="https://dataspace.copernicus.eu"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -340,16 +340,16 @@ export const PlatformApiCredentials: React.FC = () => {
             </p>
           </div>
           {aemet.configured && (
-            <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+            <span className="px-3 py-1 text-xs font-medium rounded-full bg-nkz-success-light text-green-800">
               Configurado
             </span>
           )}
         </div>
 
         <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-4">
             <div className="flex items-start gap-2">
-              <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <Info className="w-5 h-5 text-nkz-info flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-800">
                 <p className="font-medium mb-1">Obtener API Key:</p>
                 <ol className="list-decimal list-inside space-y-1 ml-2">
@@ -372,13 +372,13 @@ export const PlatformApiCredentials: React.FC = () => {
                   value={aemet.api_key}
                   onChange={(e) => setAemet(prev => ({ ...prev, api_key: e.target.value }))}
                   placeholder={aemet.configured ? '•••••••• (dejar vacío para no cambiar)' : 'Tu API Key de AEMET'}
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 pr-10 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required={!aemet.configured}
                 />
                 <button
                   type="button"
                   onClick={() => togglePasswordVisibility('aemet')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600"
                 >
                   {showPassword.aemet ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -394,7 +394,7 @@ export const PlatformApiCredentials: React.FC = () => {
                 value={aemet.url}
                 onChange={(e) => setAemet(prev => ({ ...prev, url: e.target.value }))}
                 placeholder="https://opendata.aemet.es/opendata/api"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>

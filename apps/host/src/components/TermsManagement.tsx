@@ -103,7 +103,7 @@ export const TermsManagement: React.FC = () => {
             <select
               value={selectedLanguage}
               onChange={(e) => setSelectedLanguage(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             >
               {Object.entries(SUPPORTED_LANGUAGES).map(([code, name]) => (
                 <option key={code} value={code}>
@@ -111,15 +111,15 @@ export const TermsManagement: React.FC = () => {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-nkz-muted mt-1">
               {t('admin.terms_for_language', { language: SUPPORTED_LANGUAGES[selectedLanguage as keyof typeof SUPPORTED_LANGUAGES] })}
             </p>
           </div>
 
           {/* Last Updated Info */}
           {lastUpdated && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-700">
+            <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-nkz-info">
                 <strong>{t('admin.current_content')}:</strong> {formatDate(lastUpdated)}
               </p>
             </div>
@@ -130,8 +130,8 @@ export const TermsManagement: React.FC = () => {
             <div
               className={`flex items-center gap-2 p-4 rounded-lg ${
                 message.type === 'success'
-                  ? 'bg-green-50 border border-green-200 text-green-800'
-                  : 'bg-red-50 border border-red-200 text-red-800'
+                  ? 'bg-nkz-success-light border border-green-200 text-green-800'
+                  : 'bg-nkz-error-light border border-red-200 text-red-800'
               }`}
             >
               {message.type === 'success' ? (
@@ -153,12 +153,12 @@ export const TermsManagement: React.FC = () => {
               onChange={(e) => setTermsContent(e.target.value)}
               placeholder={t('admin.terms_placeholder')}
               rows={15}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono text-sm"
+              className="w-full px-4 py-3 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono text-sm"
             />
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-nkz-muted mt-2">
               {t('admin.terms_help')}
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-nkz-muted mt-1">
               <strong>Nota:</strong> Puedes usar HTML básico para formatear el texto (p, br, strong, em, ul, ol, li, h1-h6, a).
             </p>
           </div>
@@ -169,7 +169,7 @@ export const TermsManagement: React.FC = () => {
               <h3 className="text-sm font-medium text-gray-700 mb-2">
                 {t('admin.preview')}
               </h3>
-              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
+              <div className="border border-nkz-border rounded-lg p-4 bg-nkz-bg-secondary max-h-64 overflow-y-auto">
                 <div
                   className="text-sm text-gray-700 prose prose-sm max-w-none"
                   dangerouslySetInnerHTML={{ __html: sanitizeTermsHtml(termsContent) }}

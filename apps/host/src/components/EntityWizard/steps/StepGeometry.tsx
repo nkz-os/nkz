@@ -70,7 +70,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
       {/* Stamp mode: asset library + paint tool */}
       {placementState.mode === 'stamp' && (
         <>
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="bg-nkz-info-light border border-blue-200 rounded-xl p-4">
             <h4 className="font-semibold text-blue-900 mb-2">Selecciona el activo a pintar</h4>
             <AssetBrowser
               selectedUrl={formData.model3DUrl}
@@ -82,7 +82,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
               onScaleChange={s => updateFormData({ modelScale: s })}
             />
             {!formData.model3DUrl && (
-              <p className="text-red-500 text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
+              <p className="text-nkz-error text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
             )}
           </div>
           <StampTool
@@ -99,7 +99,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
       {/* Array mode: asset library + grid tool */}
       {placementState.mode === 'array' && (
         <>
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="bg-nkz-info-light border border-blue-200 rounded-xl p-4">
             <h4 className="font-semibold text-blue-900 mb-2">Selecciona el activo a colocar</h4>
             <AssetBrowser
               selectedUrl={formData.model3DUrl}
@@ -111,7 +111,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
               onScaleChange={s => updateFormData({ modelScale: s })}
             />
             {!formData.model3DUrl && (
-              <p className="text-red-500 text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
+              <p className="text-nkz-error text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
             )}
           </div>
           <ArrayTool
@@ -137,7 +137,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
                     key={gt}
                     type="button"
                     onClick={() => updateFormData({ geometryType: gt, geometry: null })}
-                    className={`p-2 rounded border text-sm ${geometryType === gt ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-green-200'}`}
+                    className={`p-2 rounded border text-sm ${geometryType === gt ? 'border-green-500 bg-nkz-success-light' : 'border-nkz-border hover:border-green-200'}`}
                   >
                     {gt}
                   </button>
@@ -160,9 +160,9 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
           />
 
           {assetData?.isSubdivision && assetData.parentEntity && (
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+            <div className="p-3 bg-nkz-warning-light border border-yellow-200 rounded-lg text-sm text-yellow-800">
               <strong>Padre:</strong> {assetData.parentEntity.name} ({assetData.parentEntity.type})<br />
-              <span className="text-xs text-yellow-700">La geometría debe quedar completamente dentro de los límites del padre.</span>
+              <span className="text-xs text-nkz-warning">La geometría debe quedar completamente dentro de los límites del padre.</span>
             </div>
           )}
         </>

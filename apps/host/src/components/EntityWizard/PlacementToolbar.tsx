@@ -86,10 +86,10 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
 
     return (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-3 flex items-center gap-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-nkz-border p-3 flex items-center gap-4">
                 {/* Mode Indicator */}
-                <div className="flex items-center gap-2 pr-3 border-r border-gray-200">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isPreviewMode ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
+                <div className="flex items-center gap-2 pr-3 border-r border-nkz-border">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isPreviewMode ? 'bg-nkz-info-light text-nkz-info' : 'bg-nkz-success-light text-nkz-success'
                         }`}>
                         {isPreviewMode ? <Maximize2 className="w-4 h-4" /> : <Paintbrush className="w-4 h-4" />}
                     </div>
@@ -100,7 +100,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
 
                 {/* Scale Control */}
                 <div className="flex items-center gap-2">
-                    <Maximize2 className="w-4 h-4 text-gray-500" />
+                    <Maximize2 className="w-4 h-4 text-nkz-muted" />
                     <input
                         type="range"
                         min="0.1"
@@ -111,7 +111,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                         className="w-20 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
                         disabled={!isPreviewMode}
                     />
-                    <span className="text-xs text-gray-500 w-8">
+                    <span className="text-xs text-nkz-muted w-8">
                         {isPreviewMode ? `${(modelPlacement?.scale ?? 1).toFixed(1)}x` : '-'}
                     </span>
                 </div>
@@ -119,7 +119,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                 {/* Rotation Control (Preview Mode Only) */}
                 {isPreviewMode && (
                     <div className="flex items-center gap-2">
-                        <RotateCw className="w-4 h-4 text-gray-500" />
+                        <RotateCw className="w-4 h-4 text-nkz-muted" />
                         <input
                             type="range"
                             min="0"
@@ -129,7 +129,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                             onChange={(e) => handleRotationChange(parseFloat(e.target.value))}
                             className="w-20 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
                         />
-                        <span className="text-xs text-gray-500 w-10">
+                        <span className="text-xs text-nkz-muted w-10">
                             {modelPlacement?.rotation[0] ?? 0}°
                         </span>
                     </div>
@@ -140,7 +140,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                     <>
                         {/* Density */}
                         <div className="flex items-center gap-2">
-                            <Grid className="w-4 h-4 text-gray-500" />
+                            <Grid className="w-4 h-4 text-nkz-muted" />
                             <input
                                 type="range"
                                 min="0.1"
@@ -150,14 +150,14 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                                 onChange={(e) => handleDensityChange(parseFloat(e.target.value))}
                                 className="w-16 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-green-600"
                             />
-                            <span className="text-xs text-gray-500 w-8">
+                            <span className="text-xs text-nkz-muted w-8">
                                 {(stampOptions.density * 100).toFixed(0)}%
                             </span>
                         </div>
 
                         {/* Brush Size */}
                         <div className="flex items-center gap-2">
-                            <Paintbrush className="w-4 h-4 text-gray-500" />
+                            <Paintbrush className="w-4 h-4 text-nkz-muted" />
                             <input
                                 type="range"
                                 min="1"
@@ -167,7 +167,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                                 onChange={(e) => handleBrushSizeChange(parseFloat(e.target.value))}
                                 className="w-16 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-green-600"
                             />
-                            <span className="text-xs text-gray-500 w-10">
+                            <span className="text-xs text-nkz-muted w-10">
                                 {stampOptions.brushSize}m
                             </span>
                         </div>
@@ -175,17 +175,17 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                 )}
 
                 {/* Action Buttons */}
-                <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
+                <div className="flex items-center gap-2 pl-3 border-l border-nkz-border">
                     <button
                         onClick={handleCancel}
-                        className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+                        className="w-9 h-9 rounded-lg bg-nkz-bg-secondary hover:bg-gray-200 flex items-center justify-center transition-colors"
                         title="Cancelar"
                     >
                         <X className="w-5 h-5 text-gray-600" />
                     </button>
                     <button
                         onClick={handleConfirm}
-                        className="w-9 h-9 rounded-lg bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors"
+                        className="w-9 h-9 rounded-lg bg-nkz-success-light0 hover:bg-green-600 flex items-center justify-center transition-colors"
                         title="Confirmar"
                     >
                         <Check className="w-5 h-5 text-white" />
@@ -195,7 +195,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
 
             {/* Instructions hint */}
             <div className="text-center mt-2">
-                <p className="text-xs text-gray-500 bg-black/50 text-white px-3 py-1 rounded-full inline-block">
+                <p className="text-xs text-nkz-muted bg-black/50 text-white px-3 py-1 rounded-full inline-block">
                     {isPreviewMode
                         ? 'Ajusta escala y rotación, luego confirma'
                         : 'Haz clic para colocar instancias, arrastra para pintar'}
