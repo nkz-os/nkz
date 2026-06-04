@@ -106,22 +106,12 @@ class TimescaleDBWriter:
     ) -> int:
         """Write weather observations to TimescaleDB.
 
-        FIWARE COMPLIANCE NOTE: Writes directly to weather_observations table,
-        then syncs back to Orion-LD via sync_weather_to_orion().
-        The dual-write pattern (DB then Orion) is deliberate: weather data must
-        be available for TimescaleDB continuous aggregates immediately, while
-        Orion-LD entity updates are asynchronous.
+        DEPRECATED: ParcelWeatherEngine now writes WeatherObserved to Orion-LD.
+        The telemetry-worker subscription pipeline handles TimescaleDB persistence.
 
-        TODO (FIWARE certification): Reverse the order — write to Orion-LD first,
-        use subscription notification to populate TimescaleDB. The subscription
-        infrastructure already exists (telemetry-worker subscription_manager.py).
-
-        Args:
-            observations: List of observation dictionaries
-            tenant_id: Tenant ID
-
-        Returns:
-            Number of observations written
+        This method remains ONLY for MUNICIPALITY_WORKER_ENABLED=true backward
+        compatibility. It will be removed when the municipality worker is fully
+        decommissioned.
         """
         if not observations:
             return 0
