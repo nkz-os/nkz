@@ -327,23 +327,59 @@ def get_parcel_weather(
             f"{settings.orion_url}/ngsi-ld/v1/entities",
             params={
                 "type": "WeatherObserved",
-                "q": f"refParcel=={parcel_id}",
+                "q": f'refParcel=="{parcel_id}"',
                 "limit": 1,
-                "options": "keyValues",
             },
             headers=headers,
             timeout=10,
         )
 
+        wo_entity = None
         if wo_resp.status_code == 200:
             wo_data = wo_resp.json()
-            wo_entity = wo_data[0] if isinstance(wo_data, list) else wo_data
-            if wo_entity:
-                return {
-                    "parcel_id": parcel_id,
-                    "source": "orion-cache",
-                    "weather_observed": wo_entity,
-                }
+            if isinstance(wo_data, list) and len(wo_data) > 0:
+                wo_entity = wo_data[0]
+            elif isinstance(wo_data, dict) and wo_data.get("id"):
+                wo_entity = wo_data
+
+        if wo_entity:
+            # Normalize to same schema as on-the-fly response
+            wo_attrs = wo_entity if isinstance(wo_entity, dict) else {}
+            temp = wo_attrs.get("temperature", {})
+            humidity = wo_attrs.get("relativeHumidity", {})
+            wind = wo_attrs.get("windSpeed", {})
+            precip = wo_attrs.get("precipitation", {})
+            pressure = wo_attrs.get("atmosphericPressure", {})
+            et0 = wo_attrs.get("et0", {})
+            delta_t = wo_attrs.get("deltaT", {})
+            date_obs = wo_attrs.get("dateObserved", {})
+
+            normalized_obs = {
+                "observed_at": (
+                    date_obs.get("value", {}).get("@value", "")
+                    if isinstance(date_obs, dict)
+                    else ""
+                ),
+                "temp_avg": temp.get("value") if isinstance(temp, dict) else None,
+                "temp_max": None,
+                "temp_min": None,
+                "humidity_avg": humidity.get("value") if isinstance(humidity, dict) else None,
+                "precip_mm": precip.get("value") if isinstance(precip, dict) else None,
+                "wind_speed_ms": wind.get("value") if isinstance(wind, dict) else None,
+                "pressure_hpa": pressure.get("value") if isinstance(pressure, dict) else None,
+                "eto_mm": et0.get("value") if isinstance(et0, dict) else None,
+                "delta_t": delta_t.get("value") if isinstance(delta_t, dict) else None,
+                "source": wo_attrs.get("sourceConfidence", {}).get("value", "OPEN-METEO")
+                if isinstance(wo_attrs.get("sourceConfidence"), dict)
+                else "OPEN-METEO",
+                "data_type": "HISTORY",
+            }
+
+            return {
+                "parcel_id": parcel_id,
+                "source": "orion-cache",
+                "observations": [normalized_obs],
+            }
 
         # Step 5: Cache miss — fetch from Open-Meteo directly + downscaling
         from datetime import datetime, timedelta

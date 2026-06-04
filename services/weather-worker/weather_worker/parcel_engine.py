@@ -609,6 +609,9 @@ class ParcelWeatherEngine:
 
         except ImportError:
             logger.debug("Spatial downscaler not available — using raw data")
+            # Deep copy to avoid mutating shared observations across parcels in a cluster
+            import copy
+            observations = copy.deepcopy(observations)
             for obs in observations:
                 obs["source"] = "OPEN-METEO"
                 obs["data_type"] = "FORECAST"
