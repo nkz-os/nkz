@@ -238,7 +238,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: entity-manager
-          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:f4981405428cd105ef28f3435d07ac750ce569e0de186cf501c8cb5aa965ab02  # NGSILD-Tenant fix + parcel_sync headers
+          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:e25080720efce0c4ad97e3de01f73ea8cbfd9c5cbbe98dfa5b256fa54313d18f  # FIWARE: DeviceCommand via Orion-LD + notification handler for AgriSensor/RiskAssessment/DeviceCommand
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false

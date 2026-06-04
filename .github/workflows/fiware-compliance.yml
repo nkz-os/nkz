@@ -1,0 +1,58 @@
+name: FIWARE Compliance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  compliance:
+    name: Check Direct DB Writes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run FIWARE compliance check (full scan)
+        run: bash scripts/check-fiware-compliance.sh --all
+        continue-on-error: true
+
+      - name: Check new lines in PR for direct DB writes
+        run: |
+          echo "Checking added lines in this PR (excluding allowed paths)..."
+          EXEMPT='notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|/ingest/|/tests/|/migrations/|/docker/'
+
+          # Get list of changed Python files, exclude allowed paths
+          changed=$(git diff --name-only origin/main...HEAD -- '*.py' | grep -vE "$EXEMPT" || true)
+
+          if [ -z "$changed" ]; then
+            echo "No non-exempt Python files changed."
+            exit 0
+          fi
+
+          echo "Checking these files:"
+          echo "$changed"
+          echo ""
+
+          violations=0
+          for f in $changed; do
+            # Get only added lines from this file
+            added=$(git diff origin/main...HEAD -- "$f" | grep '^+' | grep -v '^+++' || true)
+            if echo "$added" | grep -qE 'INSERT[[:space:]]+INTO|execute[[:space:]]*\([[:space:]]*['"'"'"]INSERT'; then
+              echo "❌ $f — direct DB write in added lines:"
+              echo "$added" | grep -nE 'INSERT[[:space:]]+INTO|execute[[:space:]]*\([[:space:]]*['"'"'"]INSERT'
+              echo ""
+              violations=$((violations + 1))
+            fi
+          done
+
+          if [ "$violations" -gt 0 ]; then
+            echo "❌ Found $violations file(s) with direct DB writes."
+            echo "Allowed exceptions: notification_handler.py, subscription_manager.py, ingest/, migrations/"
+            echo "See .ai/RULES.md for the architecture rules."
+            exit 1
+          fi
+
+          echo "✅ No direct DB writes in new non-exempt lines."
