@@ -8,6 +8,7 @@ import sys
 import logging
 import signal
 import time
+import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
@@ -278,26 +279,75 @@ class WeatherWorker:
         finally:
             WEATHER_INGESTION_IN_PROGRESS.set(0)
     
+    def _run_parcel_engine_loop(self):
+        """Run parcel-driven weather engine in a background thread."""
+        if not self.config.PARCEL_ENGINE_ENABLED:
+            logger.info("ParcelWeatherEngine disabled via PARCEL_ENGINE_ENABLED=false")
+            return
+
+        logger.info(
+            f"ParcelWeatherEngine starting: interval={self.config.PARCEL_ENGINE_INTERVAL_HOURS}h, "
+            f"cluster_radius={self.config.PARCEL_ENGINE_CLUSTER_RADIUS_KM}km"
+        )
+
+        # Wait for initial DB connection and first municipality cycle
+        time.sleep(10)
+
+        from weather_worker.parcel_engine import ParcelWeatherEngine
+
+        parcel_engine = ParcelWeatherEngine(
+            orion_url=os.getenv("ORION_URL", "http://orion-ld-service:1026"),
+            openmeteo_url=self.config.OPENMETEO_API_URL,
+            postgres_url=self.postgres_url,
+            forecast_days=self.config.FORECAST_DAYS,
+            cluster_radius_km=self.config.PARCEL_ENGINE_CLUSTER_RADIUS_KM,
+            max_parcels=self.config.PARCEL_ENGINE_MAX_PARCELS,
+        )
+
+        interval_seconds = self.config.PARCEL_ENGINE_INTERVAL_HOURS * 3600
+
+        while True:
+            try:
+                logger.info("ParcelWeatherEngine: starting cycle")
+                stats = parcel_engine.run_once()
+                logger.info(f"ParcelWeatherEngine cycle stats: {stats}")
+            except Exception as e:
+                logger.error(f"ParcelWeatherEngine cycle failed: {e}", exc_info=True)
+
+            time.sleep(interval_seconds)
+
     def run(self):
-        """Run worker in continuous mode"""
+        """Run worker in continuous mode — both municipality and parcel engines."""
         logger.info("Weather Worker starting in continuous mode")
-        
+
         # Initial connection
         self.storage.connect()
-        
-        # Run initial ingestion
+
+        # Start parcel engine in background thread
+        parcel_thread = threading.Thread(
+            target=self._run_parcel_engine_loop,
+            daemon=True,
+            name="parcel-engine",
+        )
+        parcel_thread.start()
+        logger.info("ParcelWeatherEngine thread started")
+
+        # Run initial municipality ingestion
         self.run_ingestion_cycle()
-        
-        # Schedule periodic ingestion
+
+        # Schedule periodic municipality ingestion
         interval_seconds = self.config.WEATHER_INGESTION_INTERVAL_HOURS * 3600
-        
-        logger.info(f"Scheduling ingestion every {self.config.WEATHER_INGESTION_INTERVAL_HOURS} hours")
-        
+
+        logger.info(
+            f"Scheduling municipality ingestion every "
+            f"{self.config.WEATHER_INGESTION_INTERVAL_HOURS} hours"
+        )
+
         try:
             while True:
                 time.sleep(interval_seconds)
                 self.run_ingestion_cycle()
-                
+
         except KeyboardInterrupt:
             logger.info("Weather Worker stopped by user")
         finally:
