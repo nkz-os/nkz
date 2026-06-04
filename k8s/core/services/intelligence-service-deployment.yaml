@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: backend
-          image: ghcr.io/nkz-os/nekazari-module-intelligence/intelligence-backend:main
+          image: ghcr.io/nkz-os/nekazari-module-intelligence/intelligence-backend@sha256:0c1472df4d512cf6caab73efaa89b91691c3de38decfe00406ee69645fe91fbf
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -151,7 +151,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: worker
-          image: ghcr.io/nkz-os/nekazari-module-intelligence/intelligence-backend:main
+          image: ghcr.io/nkz-os/nekazari-module-intelligence/intelligence-backend@sha256:0c1472df4d512cf6caab73efaa89b91691c3de38decfe00406ee69645fe91fbf
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
