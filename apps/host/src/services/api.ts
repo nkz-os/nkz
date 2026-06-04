@@ -459,23 +459,6 @@ class ApiService {
     }
   }
 
-  /**
-   * @deprecated Use createSensor instead, which now uses the SDM service.
-   */
-  async registerSensor(sensorData: {
-    external_id: string;
-    name: string;
-    profile: string;
-    location: { lat: number; lon: number };
-    station_id?: string;
-    is_under_canopy?: boolean;
-    metadata?: Record<string, any>;
-  }): Promise<any> {
-    logger.warn('[API] registerSensor is deprecated. Use createSensor instead.');
-    const response = await this.client.post('/api/sensors/register', sensorData);
-    return response.data;
-  }
-
   // =============================================================================
   // Telemetry Methods
   // =============================================================================
