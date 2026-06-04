@@ -3606,76 +3606,82 @@ def _purge_phase_subscriptions(tenant_id: str) -> dict:
 
 
 def _purge_phase_ngsi_ld(tenant_id: str) -> dict:
-    """Phase 3: Delete all Orion-LD entities via NGSI-LD API with proper headers,
+    """Phase 3: Delete all Orion-LD entities using SyncOrionClient (NGSI-LD compliant),
     then subscriptions, then verify count=0 before optionally dropping MongoDB."""
-    from common.auth_middleware import inject_fiware_headers
+    from nkz_platform_sdk import SyncOrionClient
 
-    orion_url = os.getenv("ORION_URL", "http://orion-ld-service:1026")
-    base = f"{orion_url}/ngsi-ld/v1"
-    # NGSI-LD compliant headers with both NGSILD-Tenant AND Fiware-Service
-    headers = inject_fiware_headers({}, tenant_id)
-    headers["Accept"] = "application/json"
+    client = SyncOrionClient(
+        tenant_id=tenant_id,
+        timeout=float(PURGE_SYSTEM_TIMEOUT),
+    )
     deleted_entities = 0
     deleted_subs = 0
 
     # Dynamic type discovery
-    r = requests.get(f"{base}/types", headers=headers, timeout=PURGE_SYSTEM_TIMEOUT)
-    types = []
-    if r.status_code == 200:
-        data = r.json()
-        types = data.get("typeList", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
-    else:
-        logger.warning(f"Purge: failed to list types for {tenant_id}: HTTP {r.status_code}")
+    try:
+        types = client.query_types()
+    except Exception as e:
+        logger.warning(f"Purge: failed to list types for {tenant_id}: {e}")
+        types = []
 
     for etype in types:
-        r = requests.get(f"{base}/entities", headers=headers,
-                        params={"type": etype, "limit": 1000}, timeout=PURGE_SYSTEM_TIMEOUT)
-        if r.status_code == 200:
-            for entity in r.json():
-                eid = entity.get("id", "")
-                if eid:
-                    del_resp = requests.delete(f"{base}/entities/{eid}", headers=headers, timeout=10)
-                    if del_resp.status_code in (204, 200):
-                        deleted_entities += 1
-                    else:
-                        logger.warning(
-                            f"Purge: failed to delete entity {eid} for {tenant_id}: HTTP {del_resp.status_code}"
-                        )
+        try:
+            entities = client.query_entities(type=etype, limit=1000)
+        except Exception as e:
+            logger.warning(f"Purge: failed to list entities of type {etype}: {e}")
+            continue
+        for entity in entities:
+            eid = entity.get("id", "")
+            if eid:
+                try:
+                    client.delete_entity(eid)
+                    deleted_entities += 1
+                except Exception as e:
+                    logger.warning(f"Purge: failed to delete entity {eid}: {e}")
 
-    r = requests.get(f"{base}/subscriptions", headers=headers, timeout=PURGE_SYSTEM_TIMEOUT)
-    if r.status_code == 200:
-        for sub in r.json():
-            sid = sub.get("id", "")
-            if sid:
-                del_resp = requests.delete(f"{base}/subscriptions/{sid}", headers=headers, timeout=10)
-                if del_resp.status_code in (204, 200):
-                    deleted_subs += 1
+    # Delete subscriptions
+    try:
+        subs = client.query_subscriptions()
+    except Exception as e:
+        logger.warning(f"Purge: failed to list subscriptions: {e}")
+        subs = []
+    for sub in subs:
+        sid = sub.get("id", "")
+        if sid:
+            try:
+                client.delete_subscription(sid)
+                deleted_subs += 1
+            except Exception as e:
+                logger.warning(f"Purge: failed to delete subscription {sid}: {e}")
 
     # Verify count = 0 before MongoDB drop
-    verify = requests.get(f"{base}/entities", headers=headers,
-                          params={"limit": 1}, timeout=PURGE_SYSTEM_TIMEOUT)
-    remaining = len(verify.json()) if verify.status_code == 200 else -1
+    remaining = -1
+    try:
+        remaining_entities = client.query_entities(limit=1)
+        remaining = len(remaining_entities)
+    except Exception:
+        pass
 
     mongo_dropped = False
     if remaining == 0:
-        # Only drop MongoDB if Orion is fully clean
         try:
             mongo_uri = os.getenv("ORION_MONGO_URI", "mongodb://mongodb-service:27017")
             from pymongo import MongoClient
-            client = MongoClient(mongo_uri, serverSelectionTimeoutMS=10000)
+            mongo = MongoClient(mongo_uri, serverSelectionTimeoutMS=10000)
             db_name = f"orion-{normalize_tenant_id(tenant_id)}"
-            if db_name in client.list_database_names():
-                client.drop_database(db_name)
+            if db_name in mongo.list_database_names():
+                mongo.drop_database(db_name)
                 mongo_dropped = True
                 logger.info(f"Purge: dropped MongoDB database {db_name} for {tenant_id}")
         except Exception as e:
-            logger.warning(f"MongoDB drop failed for {tenant_id}: {e}")
+            logger.warning(f"Purge: MongoDB drop failed for {tenant_id}: {e}")
     elif remaining > 0:
         logger.error(
             f"Purge: SKIPPED MongoDB drop for {tenant_id} — "
             f"{remaining} entities still present in Orion-LD"
         )
 
+    client.close()
     return {
         "ok": True,
         "deleted_entities": deleted_entities,
