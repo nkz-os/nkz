@@ -2,7 +2,7 @@
 
 Quick reference for developers and AI agents. Everything here reflects how the platform **actually works** in production. If your code contradicts this document, your code has a bug.
 
-Last verified: 2026-05-08 (NGSI-LD compliance hardening — unified inject_fiware_headers, URN entity IDs, SDM type allowlisting)
+Last verified: 2026-06-04 (V1.3 closure — SyncOrionClient, POSTGRES_URL mandatory, IOTA_DEFAULT_KEY from Secret, kubectl patch eliminated, :latest pinned, RLS logging, tenant-webhook NGSI-LD purge)
 
 ---
 
@@ -328,7 +328,7 @@ Fiware-ServicePath: /
 
 - **Never** mix: if `@context` is in the body, do NOT send the Link header (Orion rejects it).
 - **Never** use external context URLs in production (`https://raw.githubusercontent.com/smart-data-models/...`). Always use the local gateway context: `http://api-gateway-service:5000/ngsi-ld-context.json`.
-- **Services inside `nkz/services/`**: Import `inject_fiware_headers()` from `common/auth_middleware.py`. It handles tenant normalization, both headers, Content-Type, Link, and @context mutual exclusivity.
+- **Services inside `nkz/services/`**: Prefer `SyncOrionClient(tenant_id)` from `nkz-platform-sdk` (sync) or `OrionClient(tenant_id)` (async). Both enforce NGSILD-Tenant + Fiware-Service + @context/Link automatically. For services that cannot import the SDK, use `inject_fiware_headers()` from `common/auth_middleware.py`. It handles tenant normalization, both headers, Content-Type, Link, and @context mutual exclusivity.
 - **Standalone modules (separate repos)**: Copy `ngsi_headers.py` into `backend/app/common/` and use `inject_fiware_headers()` from there. See `nkz-module-carbon/backend/app/common/` or the module template for reference.
 - The api-gateway handles headers automatically for proxied requests (through `/ngsi-ld/*` and `/api/*` routes).
 - For direct Orion calls from backend services (bypassing the gateway), you MUST use `inject_fiware_headers()`.
