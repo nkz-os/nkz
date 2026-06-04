@@ -91,7 +91,6 @@ async def handle_notification(request: Request):
                     evaluation_data = _extract_prop(entity, "evaluationData")
                     evaluated_by = _extract_prop(entity, "evaluatedBy")
                     evaluation_version = _extract_prop(entity, "evaluationVersion")
-                    confidence = _extract_prop(entity, "confidence")
                     severity = _extract_prop(entity, "severity")
                     timestamp_val = _extract_prop(entity, "timestamp")
 
@@ -129,8 +128,7 @@ async def handle_notification(request: Request):
                             target_entity_type or entity.get("type", ""),
                             risk_code,
                             float(probability_score),
-                            severity
-                            or _compute_severity(float(probability_score)),
+                            severity or _compute_severity(float(probability_score)),
                             json.dumps(evaluation_data or {}),
                             ts,
                             ts,
@@ -144,9 +142,7 @@ async def handle_notification(request: Request):
         finally:
             conn.close()
 
-        logger.info(
-            "Persisted %d risk evaluations for tenant=%s", persisted, tenant_id
-        )
+        logger.info("Persisted %d risk evaluations for tenant=%s", persisted, tenant_id)
         return {"status": "ok", "persisted": persisted}
 
     except Exception as e:
