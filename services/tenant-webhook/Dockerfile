@@ -33,6 +33,9 @@ COPY services/tenant-webhook/expiration_notifier.py .
 # Copy common module for keycloak_auth
 COPY services/common /app/common
 
+# Copy NKZ Platform SDK (SyncOrionClient)
+COPY services/nkz-platform-sdk/nkz_platform_sdk /app/nkz_platform_sdk
+
 # Copy tenant creation scripts (build context is root, so scripts/ is available)
 COPY services/tenant-webhook/scripts/create-tenant.sh /app/scripts/create-tenant.sh
 COPY services/tenant-webhook/scripts/create-tenant-ros2.sh /app/scripts/create-tenant-ros2.sh
