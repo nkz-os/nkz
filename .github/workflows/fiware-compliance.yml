@@ -1,0 +1,38 @@
+name: FIWARE Compliance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  compliance:
+    name: Check Direct DB Writes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run FIWARE compliance check (full scan)
+        run: bash scripts/check-fiware-compliance.sh --all
+        continue-on-error: true
+
+      - name: Check staged changes only
+        run: |
+          echo "Checking files changed in this PR..."
+          git diff --name-only origin/main...HEAD -- '*.py' > /tmp/changed_files.txt
+          cat /tmp/changed_files.txt
+          if [ -s /tmp/changed_files.txt ]; then
+            while IFS= read -r f; do
+              if echo "$f" | grep -qE 'notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|/ingest/|/tests/|/migrations/|/docker/'; then
+                continue
+              fi
+              if grep -qE 'INSERT[[:space:]]+INTO|execute[[:space:]]*\([[:space:]]*['"'"'"]INSERT' "$f" 2>/dev/null; then
+                echo "❌ Direct DB write in changed file: $f"
+                exit 1
+              fi
+            done < /tmp/changed_files.txt
+          fi
+          echo "✅ No new direct DB writes in changed files."

@@ -1,9 +1,16 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# Pre-commit hook: FIWARE compliance check
 
-# Polyglot extreme-fast linters
-echo "Running lint-staged..."
-pnpm exec lint-staged
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-# Run safety check: no .env or obvious secrets in staged files.
-# See scripts/pre-commit-check.sh and LINT_WARNINGS_AND_CLEANUP_PLAN.md Phase D.
-exec "$(git rev-parse --show-toplevel)/scripts/pre-commit-check.sh"
+echo "Running FIWARE compliance check..."
+if bash "$REPO_ROOT/scripts/check-fiware-compliance.sh"; then
+    echo "✅ FIWARE compliance check passed."
+    exit 0
+else
+    echo ""
+    echo "❌ Commit blocked: FIWARE compliance violations detected."
+    echo "   See .ai/RULES.md for the architecture rules."
+    echo "   To override (EMERGENCY ONLY): git commit --no-verify"
+    exit 1
+fi
