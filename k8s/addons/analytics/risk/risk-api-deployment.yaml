@@ -31,7 +31,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: risk-api
-        image: ghcr.io/nkz-os/nkz/risk-api:latest
+        image: ghcr.io/nkz-os/nkz/risk-api@sha256:2fa076c2db952863cb1d52d51b48eff772574ef59f06069d58085e1048d71c92
         imagePullPolicy: Always
         securityContext:
           allowPrivilegeEscalation: false

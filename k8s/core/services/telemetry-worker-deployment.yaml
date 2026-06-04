@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: telemetry-worker
-          image: ghcr.io/nkz-os/nkz/telemetry-worker:latest
+          image: ghcr.io/nkz-os/nkz/telemetry-worker@sha256:abc9b6731648016704af32bb49dcd164f2dc836dc8188745f6ad5b19da8be184
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
