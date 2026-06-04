@@ -79,12 +79,12 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
 
   const handleSave = async () => {
     if (!geometry) {
-      showNotification({ type: \'error\', message: \'Por favor, dibuja una parcela antes de guardar\' });
+      showNotification({ type: 'error', message: 'Por favor, dibuja una parcela antes de guardar' });
       return;
     }
 
     if (!municipality || !province || !cropType) {
-      showNotification({ type: \'error\', message: \'Por favor, completa todos los campos requeridos\' });
+      showNotification({ type: 'error', message: 'Por favor, completa todos los campos requeridos' });
       return;
     }
 
@@ -111,7 +111,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
       await onSave(parcelData);
     } catch (error) {
       console.error('Error saving parcel:', error);
-      showNotification({ type: \'error\', message: \'Error al guardar la parcela\' });
+      showNotification({ type: 'error', message: 'Error al guardar la parcela' });
     }
   };
 
@@ -160,7 +160,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
             <button
               onClick={() => {
                 // TODO: Trigger cadastral selector
-                showNotification({ type: \'error\', message: \'Selector catastral será implementado\' });
+                showNotification({ type: 'error', message: 'Selector catastral será implementado' });
               }}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
             >

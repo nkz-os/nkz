@@ -33,8 +33,8 @@ import { SidebarShell } from '@nekazari/viewer-kit';
 type SidebarState = 'closed' | 'compact' | 'expanded';
 import '@nekazari/design-tokens/css';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';
-import {
 import { useNotification } from '@/hooks/useNotification';
+import {
     ChevronDown,
     ChevronUp,
     Loader2,

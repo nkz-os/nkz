@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, UserCheck } from 'lucide-react';
 import client from '@/services/api';
-import { useNotification } from '@/hooks/useNotification';
 
 interface Props {
   userId: string;

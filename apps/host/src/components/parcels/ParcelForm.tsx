@@ -56,7 +56,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
 
         // Validate required fields
         if (!formData.cropType) {
-            showNotification({ type: \'error\', message: \'Por favor, selecciona un tipo de cultivo\' });
+            showNotification({ type: 'error', message: 'Por favor, selecciona un tipo de cultivo' });
             return;
         }
 

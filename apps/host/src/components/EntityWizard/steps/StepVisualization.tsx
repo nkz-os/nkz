@@ -80,7 +80,7 @@ export function StepVisualization() {
               type="button"
               onClick={() => {
                 if (!coords) {
-                  showNotification({ type: \'error\', message: \'Por favor, selecciona primero una ubicación en el paso de Geometría\' });
+                  showNotification({ type: 'error', message: 'Por favor, selecciona primero una ubicación en el paso de Geometría' });
                   return;
                 }
                 startModelPreview(formData.model3DUrl!, coords, {

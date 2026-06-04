@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RotateCcw, Loader2 } from 'lucide-react';
 import client from '@/services/api';
-import { useNotification } from '@/hooks/useNotification';
 
 interface Props {
   tenantId: string;

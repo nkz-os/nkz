@@ -13,7 +13,6 @@ import { Button } from '@nekazari/ui-kit';
 import { CheckCircle2, XCircle, Package, RefreshCw, Upload } from 'lucide-react';
 import { getConfig } from '@/config/environment';
 import { ModuleUploadModal } from '@/components/ModuleUploadModal';
-import { useNotification } from '@/hooks/useNotification';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl || '/api';

@@ -51,7 +51,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
             onCancel();
         } catch (error) {
             console.error('Error saving parcel:', error);
-            showNotification({ type: \'error\', message: \'Error al guardar los cambios\' });
+            showNotification({ type: 'error', message: 'Error al guardar los cambios' });
         } finally {
             setIsSaving(false);
         }

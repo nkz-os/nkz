@@ -39,10 +39,10 @@ export function StepIoTSensorConfig() {
           const updated = await listDeviceProfiles({ sdm_entity_type: entityType ?? undefined });
           setDeviceProfiles(updated);
         } else {
-          showNotification({ type: \'error\', message: \'El JSON debe contener: name, sdm_entity_type y mappings[]\' });
+          showNotification({ type: 'error', message: 'El JSON debe contener: name, sdm_entity_type y mappings[]' });
         }
       } catch {
-        showNotification({ type: \'error\', message: \'Error al leer el archivo JSON. Verifica el formato.\' });
+        showNotification({ type: 'error', message: 'Error al leer el archivo JSON. Verifica el formato.' });
       }
     };
     reader.readAsText(file);
