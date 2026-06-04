@@ -33,6 +33,9 @@ class WeatherWorkerConfig:
     PARCEL_ENGINE_INTERVAL_HOURS: int = int(os.getenv('PARCEL_ENGINE_INTERVAL_HOURS', '2'))
     PARCEL_ENGINE_CLUSTER_RADIUS_KM: float = float(os.getenv('PARCEL_ENGINE_CLUSTER_RADIUS_KM', '2.0'))
     PARCEL_ENGINE_MAX_PARCELS: int = int(os.getenv('PARCEL_ENGINE_MAX_PARCELS', '500'))
+
+    # Municipality worker (DEPRECATED — disabled by default, use ParcelEngine)
+    MUNICIPALITY_WORKER_ENABLED: bool = os.getenv('MUNICIPALITY_WORKER_ENABLED', 'false').lower() == 'true'
     
     # Metrics
     METRICS_HOST: str = os.getenv('METRICS_HOST', '0.0.0.0')

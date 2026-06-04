@@ -317,41 +317,51 @@ class WeatherWorker:
             time.sleep(interval_seconds)
 
     def run(self):
-        """Run worker in continuous mode — both municipality and parcel engines."""
+        """Run worker in continuous mode.
+
+        ParcelWeatherEngine always runs (handles the agronomic heart).
+        Municipality worker is OFF by default — forecast data is ephemeral.
+        """
         logger.info("Weather Worker starting in continuous mode")
 
-        # Initial connection
-        self.storage.connect()
+        # Start parcel engine in background thread (always on)
+        if self.config.PARCEL_ENGINE_ENABLED:
+            self.storage.connect()
+            parcel_thread = threading.Thread(
+                target=self._run_parcel_engine_loop,
+                daemon=True,
+                name="parcel-engine",
+            )
+            parcel_thread.start()
+            logger.info("ParcelWeatherEngine thread started")
 
-        # Start parcel engine in background thread
-        parcel_thread = threading.Thread(
-            target=self._run_parcel_engine_loop,
-            daemon=True,
-            name="parcel-engine",
-        )
-        parcel_thread.start()
-        logger.info("ParcelWeatherEngine thread started")
-
-        # Run initial municipality ingestion
-        self.run_ingestion_cycle()
-
-        # Schedule periodic municipality ingestion
-        interval_seconds = self.config.WEATHER_INGESTION_INTERVAL_HOURS * 3600
-
-        logger.info(
-            f"Scheduling municipality ingestion every "
-            f"{self.config.WEATHER_INGESTION_INTERVAL_HOURS} hours"
-        )
-
-        try:
-            while True:
-                time.sleep(interval_seconds)
-                self.run_ingestion_cycle()
-
-        except KeyboardInterrupt:
-            logger.info("Weather Worker stopped by user")
-        finally:
-            self.storage.close()
+        # Municipality worker is OFF by default
+        if self.config.MUNICIPALITY_WORKER_ENABLED:
+            logger.info("Municipality worker enabled (legacy mode)")
+            self.run_ingestion_cycle()
+            interval_seconds = self.config.WEATHER_INGESTION_INTERVAL_HOURS * 3600
+            logger.info(
+                f"Scheduling municipality ingestion every "
+                f"{self.config.WEATHER_INGESTION_INTERVAL_HOURS} hours"
+            )
+            try:
+                while True:
+                    time.sleep(interval_seconds)
+                    self.run_ingestion_cycle()
+            except KeyboardInterrupt:
+                logger.info("Weather Worker stopped by user")
+            finally:
+                self.storage.close()
+        else:
+            logger.info(
+                "Municipality worker disabled — parcel engine only. "
+                "Municipality forecasts are served statelessly by weather-api."
+            )
+            try:
+                while True:
+                    time.sleep(60)  # keep main thread alive
+            except KeyboardInterrupt:
+                logger.info("Weather Worker stopped by user")
 
 
 def main():
