@@ -128,7 +128,6 @@ def register_sensor():
                     'error': f'Profile "{profile_code}" not found'
                 }), 404
 
-            profile_id = profile_row['id']
             sdm_entity_type = profile_row.get('sdm_entity_type') or 'AgriSensor'
             profile_mapping = profile_row.get('mapping') or {}
 
