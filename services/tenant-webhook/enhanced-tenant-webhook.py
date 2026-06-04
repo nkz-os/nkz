@@ -2716,8 +2716,8 @@ def internal_update_tenant_license(tenant_id):
         logger.error(f"internal_update_tenant_license({tenant_id}): {exc}")
         try:
             conn.rollback()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Keycloak user operation failed: {e}")
         audit_log(
             action="billing.tenant.license.update",
             resource_type="tenant",
@@ -3486,8 +3486,8 @@ def create_tenant_directly():
         finally:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"PAT validation failed: {e}")
 
     # --- 7. Keycloak owner user (best-effort; logged as warning) --------
     user_result = webhook_service.create_keycloak_user(
@@ -3659,8 +3659,9 @@ def _purge_phase_ngsi_ld(tenant_id: str) -> dict:
     try:
         remaining_entities = client.query_entities(limit=1)
         remaining = len(remaining_entities)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Purge: failed to verify entity count for {tenant_id}: {e}")
+        remaining = -1
 
     mongo_dropped = False
     if remaining == 0:
@@ -3712,8 +3713,8 @@ def _purge_phase_relational(tenant_id: str) -> dict:
             try:
                 cursor.execute('DELETE FROM "%s"."%s" WHERE tenant_id = %%s' % (schema, table), (tenant_id,))
                 tables_cleaned += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"SQL purge failed for table {schema}.{table}: {e}")
 
         cursor.execute("DELETE FROM tenants WHERE tenant_id = %s", (tenant_id,))
         conn.commit()
@@ -3779,8 +3780,8 @@ def _purge_phase_infrastructure(tenant_id: str) -> dict:
                 for t in table_names:
                     try:
                         cursor.execute(f'DELETE FROM "{t}" WHERE tenant_id = %s', (tenant_id,))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Odoo deactivation failed: {e}")
                 conn.commit()
                 cursor.close()
             finally:
@@ -3854,8 +3855,8 @@ def _purge_phase_close(tenant_id: str) -> dict:
                     },
                     timeout=10,
                 )
-    except Exception:
-        pass  # Non-critical
+    except Exception as e:
+        logger.debug(f"Non-critical infra operation failed for {tenant_id}: {e}")
 
     return {"ok": True}
 
@@ -4108,8 +4109,8 @@ def suspend_tenant(tenant_id: str):
                 json={"key": f"suspended:{tenant_id}"},
                 timeout=5,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Redis cache clear failed for suspension key {tenant_id}: {e}")
 
         # Force logout all users with this tenant_id
         token = webhook_service.get_keycloak_token()
@@ -4183,8 +4184,8 @@ def restore_tenant(tenant_id: str):
                 json={"key": f"suspended:{tenant_id}"},
                 timeout=5,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Redis cache clear failed for unsuspension key {tenant_id}: {e}")
 
         audit_log(
             action='admin.tenant.restore',
@@ -4414,8 +4415,8 @@ def delete_user_directly(user_id: str):
                 for table in cleanup_tables:
                     try:
                         cursor.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Keycloak role update failed: {e}")
                 conn.commit()
                 cursor.close()
             except Exception as e:
@@ -5895,13 +5896,13 @@ def accept_invitation():  # noqa: C901
         if cursor is not None:
             try:
                 cursor.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Activation code insert failed: {e}")
         if conn is not None:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Activation code update failed: {e}")
 
 
 @app.route("/api/tenant/users/<user_id>", methods=["DELETE"])
