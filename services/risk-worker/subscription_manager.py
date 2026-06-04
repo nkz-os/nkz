@@ -16,8 +16,11 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 logger = logging.getLogger(__name__)
 
 ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
-SERVICE_HOST = os.getenv("SERVICE_HOST", "risk-worker-service")
-SERVICE_PORT = os.getenv("SERVICE_PORT", "80")
+SERVICE_HOST = os.getenv(
+    "NOTIFICATION_SERVICE_HOST",
+    os.getenv("SERVICE_HOST", "entity-manager-service"),
+)
+SERVICE_PORT = os.getenv("NOTIFICATION_SERVICE_PORT", "5000")
 NOTIFICATION_URL = f"http://{SERVICE_HOST}:{SERVICE_PORT}/notify"
 POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 DEFAULT_TENANT = "platform"

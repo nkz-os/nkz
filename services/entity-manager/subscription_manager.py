@@ -1,8 +1,9 @@
 """
-Orion-LD subscription manager for AgriSensor entities.
+Orion-LD subscription manager for entity-manager notifications.
 
-Ensures NGSI-LD subscriptions exist per tenant so that AgriSensor
-entity changes are forwarded to the notification handler.
+Ensures NGSI-LD subscriptions exist per tenant so that entity
+changes are forwarded to the notification handler (/notify).
+Handles: AgriSensor, RiskAssessment
 """
 
 import logging
@@ -27,6 +28,20 @@ SUBSCRIPTIONS = [
         "description": "Entity Manager - AgriSensor registration",
         "type": "Subscription",
         "entities": [{"type": "AgriSensor"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 5,
+        "isActive": True,
+    },
+    {
+        "description": "Entity Manager - RiskAssessment evaluations",
+        "type": "Subscription",
+        "entities": [{"type": "RiskAssessment"}],
         "notification": {
             "endpoint": {
                 "uri": NOTIFICATION_URL,
