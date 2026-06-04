@@ -113,7 +113,9 @@ ls dist/
 # remoteEntry.js   mf-manifest.json   manifest.json   mf-stats.json   assets/
 ```
 
-## 5. Upload to MinIO
+## 5. Upload to MinIO (local dev)
+
+> **For production:** skip to step 6. In production, push to `main` and GitHub Actions handles everything via OIDC publish. See `PLATFORM_CONVENTIONS.md` §11.
 
 The platform's nginx proxies `/modules/` → local MinIO. Upload your `dist/` there:
 
@@ -132,7 +134,9 @@ curl -sS http://localhost:3000/modules/my-first-module/mf-manifest.json | head -
 # Should print a JSON object with "name", "exposes", "shared", etc.
 ```
 
-## 6. Register in the database
+## 6. Register in the database (local dev)
+
+> **For production:** this is a one-time setup. The module must be registered in `marketplace_modules`. After that, every push to `main` deploys automatically — see `PLATFORM_CONVENTIONS.md` §11.
 
 ```bash
 psql -h localhost -U postgres -d nekazari <<'SQL'
