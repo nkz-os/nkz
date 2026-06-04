@@ -50,6 +50,8 @@ except ImportError:
     def inject_fiware_headers(headers, tenant):
         headers["Fiware-Service"] = tenant
         return headers
+
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -63,6 +65,8 @@ except ImportError:
 
     def normalize_device_id(x):  # type: ignore
         return x.rsplit(":", 1)[-1] if x and ":" in x else (x or "")
+
+
 # Whitelist of valid column names to prevent SQL injection (weather_observations only).
 # Never interpolate user input into SQL as identifiers except values verified against these sets.
 VALID_ATTRIBUTES = frozenset(
@@ -96,10 +100,14 @@ _WEATHER_ATTRIBUTE_MAP: Dict[str, str] = {
 # DB column names also accepted (passthrough for scripts, direct API)
 for _col in VALID_ATTRIBUTES:
     _WEATHER_ATTRIBUTE_MAP.setdefault(_col, _col)
+
+
 def _resolve_weather_attribute(requested: str) -> Optional[str]:
     """Map NGSI-LD attribute name or DB column name to weather_observations column."""
     r = (requested or "").strip() if requested else ""
     return _WEATHER_ATTRIBUTE_MAP.get(r)
+
+
 # Whitelist for telemetry payload.measurements object keys (bound as %s via ->>; restricted to known names).
 # Extend via env TIMESERIES_V2_TELEMETRY_ATTR_WHITELIST_EXTRA=comma,separated,keys
 _VALID_TELEMETRY_BASE = frozenset(
@@ -121,8 +129,13 @@ _VALID_TELEMETRY_BASE = frozenset(
         "temperature",
         "panelInclination",
         # Crop Health Assessment attributes
-        "cwsiValue", "mdsValue", "mdsRatio", "vpdKpa",
-        "waterBalanceDeficit", "vigorIndex", "compositeStressIndex",
+        "cwsiValue",
+        "mdsValue",
+        "mdsRatio",
+        "vpdKpa",
+        "waterBalanceDeficit",
+        "vigorIndex",
+        "compositeStressIndex",
         "yieldUtilizationPct",
     }
 )
@@ -132,12 +145,16 @@ _VALID_TELEMETRY_BASE = frozenset(
 _TELEMETRY_MEASUREMENT_UI_ALIASES: Dict[str, str] = {
     "sensorsinsolation": "solarRadiation",
 }
+
+
 def _telemetry_measurement_whitelist() -> frozenset:
     extra = os.getenv("TIMESERIES_V2_TELEMETRY_ATTR_WHITELIST_EXTRA", "")
     if not extra.strip():
         return _VALID_TELEMETRY_BASE
     more = frozenset(x.strip() for x in extra.split(",") if x.strip())
     return _VALID_TELEMETRY_BASE | more
+
+
 def _resolve_telemetry_measurement_key(requested: str) -> Optional[str]:
     """
     Map a requested attribute (from Orion/Data BFF) to the key inside payload.measurements.
@@ -153,6 +170,8 @@ def _resolve_telemetry_measurement_key(requested: str) -> Optional[str]:
     if canonical and canonical in twl:
         return canonical
     return None
+
+
 # Hard cap for POST /v2/query series count (DoS / query size). Override via env if needed.
 MAX_V2_QUERY_SERIES = int(os.getenv("MAX_V2_QUERY_SERIES", "10"))
 TIMESERIES_STATS_ENGINE = os.getenv("TIMESERIES_STATS_ENGINE", "v1").strip().lower()
@@ -177,6 +196,8 @@ if not POSTGRES_URL:
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 logger.setLevel(getattr(logging, LOG_LEVEL))
+
+
 # =============================================================================
 # Database Connection
 # =============================================================================
@@ -188,6 +209,8 @@ def get_db_connection():
     except Exception as e:
         logger.error(f"Database connection error: {e}")
         raise
+
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -196,6 +219,8 @@ def parse_datetime(value: str) -> datetime:
     if isinstance(value, datetime):
         return value
     return isoparse(value)
+
+
 def get_tenant_from_request() -> Optional[str]:
     """Extract tenant ID: must agree with JWT (g.tenant) when gateway sends X-Tenant-ID/Fiware-Service."""
     if getattr(g, "system_gateway_delegation", False):
@@ -216,6 +241,8 @@ def get_tenant_from_request() -> Optional[str]:
         logger.warning("Tenant header does not match token tenant")
         return None
     return jwt_tenant or header_tenant
+
+
 def _resolve_tenant_context() -> Union[str, Tuple[Any, int]]:
     """Return tenant_id or (jsonify body, status_code)."""
     tenant_id = get_tenant_from_request()
@@ -224,6 +251,8 @@ def _resolve_tenant_context() -> Union[str, Tuple[Any, int]]:
     if not tenant_id:
         return jsonify({"error": "Tenant ID required"}), 400
     return tenant_id
+
+
 def format_time_bucket(aggregation: str) -> Optional[str]:
     """Convert aggregation type to TimescaleDB time_bucket interval"""
     mapping = {
@@ -234,6 +263,8 @@ def format_time_bucket(aggregation: str) -> Optional[str]:
         "monthly": "1 month",
     }
     return mapping.get(aggregation.lower(), "1 hour")
+
+
 # Standard intervals for quantization (seconds, PostgreSQL interval string).
 # Using standard intervals optimizes TimescaleDB query planner and cache.
 STANDARD_INTERVALS: List[Tuple[int, str]] = [
@@ -260,6 +291,8 @@ STANDARD_INTERVAL_STRINGS = frozenset(pg for _, pg in STANDARD_INTERVALS)
 _SAFE_DEVICE_ID = re.compile(r"^[a-zA-Z0-9_:.\-]{1,256}$")
 # Municipality INE-style or alphanumeric station keys (parameter binding only)
 _SAFE_WEATHER_ENTITY_KEY = re.compile(r"^[a-zA-Z0-9_.\-]{1,64}$")
+
+
 def _execute_align_query(
     conn,
     tenant_id: str,
@@ -318,8 +351,11 @@ def _execute_align_query(
             cursor.execute(
                 "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"Failed to set RLS tenant context for {tenant_id}: {e}. "
+                "Row-level security may not be enforced for this query."
+            )
         cursor.execute(sql, params)
         rows = cursor.fetchall()
     finally:
@@ -336,6 +372,8 @@ def _execute_align_query(
             [r[f"value_{idx}"] for r in rows], type=pa.float64()
         )
     return pa.table(cols)
+
+
 def _execute_telemetry_align_query(
     conn,
     tenant_id: str,
@@ -395,8 +433,11 @@ def _execute_telemetry_align_query(
             cursor.execute(
                 "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"Failed to set RLS tenant context for {tenant_id}: {e}. "
+                "Row-level security may not be enforced for this query."
+            )
         cursor.execute(sql, params)
         rows = cursor.fetchall()
     finally:
@@ -413,6 +454,8 @@ def _execute_telemetry_align_query(
             [r[f"value_{idx}"] for r in rows], type=pa.float64()
         )
     return pa.table(cols)
+
+
 def _execute_v2_align_unified_sql(
     conn,
     tenant_id: str,
@@ -581,8 +624,11 @@ ORDER BY timestamp ASC
             cursor.execute(
                 "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"Failed to set RLS tenant context for {tenant_id}: {e}. "
+                "Row-level security may not be enforced for this query."
+            )
         cursor.execute(sql, params)
         rows = cursor.fetchall()
     finally:
@@ -601,6 +647,8 @@ ORDER BY timestamp ASC
             [r[f"value_{idx}"] for r in rows], type=pa.float64()
         )
     return pa.table(cols_out)
+
+
 def calculate_dynamic_bucket(
     start_time: datetime, end_time: datetime, resolution: int
 ) -> str:
@@ -616,6 +664,8 @@ def calculate_dynamic_bucket(
         if raw_bucket_sec <= sec:
             return pg_interval
     return "1 month"
+
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
@@ -631,6 +681,8 @@ def health():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return jsonify({"status": "unhealthy", "error": str(e)}), 500
+
+
 @app.route("/api/timeseries/entities", methods=["GET"])
 @require_auth
 def list_timeseries_entities():
@@ -651,8 +703,11 @@ def list_timeseries_entities():
                 cursor.execute(
                     "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    f"Failed to set RLS tenant context: {e}. "
+                    "Row-level security may not be enforced for this query."
+                )
             cursor.execute(
                 """
                 SELECT DISTINCT station_id AS id FROM weather_observations
@@ -679,6 +734,8 @@ def list_timeseries_entities():
     except Exception as e:
         logger.error(f"Error listing timeseries entities: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/timeseries/entities/<entity_id>/data", methods=["GET"])
 @require_auth
 def get_entity_timeseries(entity_id: str):
@@ -753,8 +810,11 @@ def get_entity_timeseries(entity_id: str):
                 cursor.execute(
                     "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    f"Failed to set RLS tenant context: {e}. "
+                    "Row-level security may not be enforced for this query."
+                )
 
             if fmt == "arrow" and time_bucket:
                 # Arrow path: single attribute, epoch float8 + value float8 (parameterised bucket)
@@ -885,6 +945,8 @@ def get_entity_timeseries(entity_id: str):
     except Exception as e:
         logger.error(f"Error querying timeseries: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/timeseries/align", methods=["POST"])
 @require_auth
 def post_timeseries_align():
@@ -963,6 +1025,8 @@ def post_timeseries_align():
     except Exception as e:
         logger.error(f"Error in align: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+
 def _get_s3_client():
     """S3 client for MinIO (exports bucket). Requires S3_* env vars."""
     import boto3
@@ -981,8 +1045,12 @@ def _get_s3_client():
         config=Config(signature_version="s3v4"),
         region_name=os.getenv("S3_REGION", "us-east-1"),
     )
+
+
 # Spool to disk above 25 MB to avoid OOM in the pod (Parquet export).
 _PARQUET_SPOOL_MAX_SIZE = 25 * 1024 * 1024
+
+
 def _upload_parquet_and_presign(table: pa.Table, tenant_id: str) -> Optional[str]:
     """
     Write table to MinIO under exports/<tenant_id>/<uuid>.parquet; return presigned GET URL or None.
@@ -1014,12 +1082,16 @@ def _upload_parquet_and_presign(table: pa.Table, tenant_id: str) -> Optional[str
     except Exception as e:
         logger.error(f"MinIO upload/presign failed: {e}", exc_info=True)
         return None
+
+
 # Export aggregation: analytical granularity, not screen resolution. "raw" = finest (1 second).
 EXPORT_AGGREGATION_MAP = {
     "raw": "1 second",
     "1 hour": "1 hour",
     "1 day": "1 day",
 }
+
+
 @app.route("/api/timeseries/export", methods=["POST"])
 @require_auth
 def post_timeseries_export():
@@ -1135,6 +1207,8 @@ def post_timeseries_export():
     except Exception as e:
         logger.error(f"Error in export: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+
 def _build_telemetry_columnar(
     rows: List[Dict[str, Any]], attrs_filter: Optional[List[str]]
 ) -> Dict[str, Any]:
@@ -1195,6 +1269,8 @@ def _build_telemetry_columnar(
         for a in attr_list:
             attributes[a].append(rd.get(a))
     return {"timestamps": timestamps, "attributes": attributes}
+
+
 def _fetch_telemetry_rows(
     conn,
     tenant_id: str,
@@ -1212,8 +1288,11 @@ def _fetch_telemetry_rows(
             cur.execute(
                 "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"Failed to set RLS tenant context for {tenant_id}: {e}. "
+                "Row-level security may not be enforced for this query."
+            )
         cur.execute(
             """
             SELECT observed_at, payload
@@ -1229,6 +1308,8 @@ def _fetch_telemetry_rows(
         return list(cur.fetchall())
     finally:
         cur.close()
+
+
 def _weather_query_columnar(
     conn,
     tenant_id: str,
@@ -1247,8 +1328,11 @@ def _weather_query_columnar(
             cur.execute(
                 "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"Failed to set RLS tenant context for {tenant_id}: {e}. "
+                "Row-level security may not be enforced for this query."
+            )
         col_sql = ", ".join(f'"{a}"' for a in want)
         cur.execute(
             f"""
@@ -1273,6 +1357,8 @@ def _weather_query_columnar(
             v = row.get(a)
             attributes[a].append(float(v) if v is not None else None)
     return {"timestamps": timestamps, "attributes": attributes}
+
+
 @app.route("/api/timeseries/v2/entities/<path:entity_urn>/data", methods=["GET"])
 @require_auth
 def get_v2_entity_timeseries(entity_urn: str):
@@ -1459,6 +1545,8 @@ def get_v2_entity_timeseries(entity_urn: str):
                 "attributes": col["attributes"],
             }
         )
+
+
 @app.route("/api/timeseries/v2/query", methods=["POST"])
 @require_auth
 def post_v2_timeseries_query():
@@ -1614,6 +1702,8 @@ def post_v2_timeseries_query():
             "series_kind": series_kind,
         }
     )
+
+
 @app.route("/api/timeseries/entities/<entity_id>/stats", methods=["GET"])
 @require_auth
 def get_entity_stats(entity_id: str):
@@ -1649,8 +1739,11 @@ def get_entity_stats(entity_id: str):
                 cursor.execute(
                     "SELECT set_config('app.current_tenant', %s, true)", (tenant_id,)
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    f"Failed to set RLS tenant context: {e}. "
+                    "Row-level security may not be enforced for this query."
+                )
 
             # Build stats query (only whitelisted column names)
             attributes = ["temp_avg", "humidity_avg", "precip_mm", "pressure_hpa"]
@@ -1715,6 +1808,8 @@ def get_entity_stats(entity_id: str):
     except Exception as e:
         logger.error(f"Error querying stats: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     debug = os.getenv("DEBUG", "false").lower() == "true"
