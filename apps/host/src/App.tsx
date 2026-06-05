@@ -230,13 +230,36 @@ const AppRoutes = () => {
 
 const AppInitializer = () => {
   const [editorState, setEditorState] = useState<EditorEventDetail | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
     return initEntityEditorListener((detail) => setEditorState(detail));
   }, []);
 
+  // Session expiry handler — triggered by NKZClient when refresh fails
+  useEffect(() => {
+    const handler = () => {
+      setSessionExpired(true);
+      // Redirect to login after 3 seconds (gives user time to read the message)
+      setTimeout(() => {
+        const currentPath = window.location.pathname + window.location.search;
+        window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+      }, 3000);
+    };
+    window.addEventListener('nekazari:session:expired', handler);
+    return () => window.removeEventListener('nekazari:session:expired', handler);
+  }, []);
+
   return (
     <>
+      {sessionExpired && (
+        <div
+          role="alert"
+          className="fixed top-0 left-0 right-0 z-[9999] bg-red-600 text-white px-4 py-3 text-center text-sm font-medium"
+        >
+          <span>Tu sesión ha expirado. Redirigiendo al inicio de sesión…</span>
+        </div>
+      )}
       <AppRoutes />
       <EntityEditorModal
         entityId={editorState?.entityId || ''}
