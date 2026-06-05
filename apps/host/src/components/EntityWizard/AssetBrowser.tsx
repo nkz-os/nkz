@@ -141,6 +141,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                 type="text"
                                 placeholder="Buscar activos (olivo, tractor...)"
                                 value={searchTerm}
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 onChange={(e: any) => setSearchTerm(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                             />
@@ -243,6 +244,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                 max="10.0"
                                 step="0.1"
                                 value={scale}
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 onChange={(e: any) => onScaleChange(parseFloat(e.target.value))}
                                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                             />
@@ -267,6 +269,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                         <Input
                                             type="number"
                                             value={rotation[i]}
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                             onChange={(e: any) => {
                                                 const newRot = [...rotation] as [number, number, number];
                                                 newRot[i] = parseFloat(e.target.value) || 0;

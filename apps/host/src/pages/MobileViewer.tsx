@@ -5,6 +5,7 @@ import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { logger as baseLogger } from '@/utils/logger';
 
 // Prefixed logger for mobile viewer context
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const logger = {
     info: (msg: string, ...args: any[]) => baseLogger.info(`[MobileViewer] ${msg}`, ...args),
     warn: (msg: string, ...args: any[]) => baseLogger.warn(`[MobileViewer] ${msg}`, ...args),
@@ -243,10 +244,12 @@ export const MobileViewer: React.FC = () => {
 
         // Listen on both for compatibility
         window.addEventListener('message', handleMessage);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         document.addEventListener('message', handleMessage as any);
 
         return () => {
             window.removeEventListener('message', handleMessage);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             document.removeEventListener('message', handleMessage as any);
         };
     }, [isReady]); // Re-bind if viewer recreates (unlikely but safe)

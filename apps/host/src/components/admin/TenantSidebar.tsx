@@ -78,6 +78,7 @@ export const TenantSidebar: React.FC<TenantSidebarProps> = ({
             placeholder={t('admin.search_tenants', { defaultValue: 'Search tenants...' })}
             className="w-full pl-9 pr-3 py-2 text-nkz-sm border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
             value={search}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setSearch(e.target.value)}
           />
         </div>

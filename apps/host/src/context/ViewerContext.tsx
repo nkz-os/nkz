@@ -9,6 +9,7 @@ import { logger } from '@/utils/logger';
 
 // Types for viewer state
 export type LayerType =
+/* eslint-disable @typescript-eslint/no-explicit-any */
     | 'parcels'
     | 'robots'
     | 'sensors'
@@ -174,6 +175,7 @@ const ViewerContext = createContext<ViewerContextType | undefined>(undefined);
 
 // Expose the context itself globally so remote modules can use useContext directly
 if (typeof window !== 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).__nekazariViewerContextInstance = ViewerContext;
 }
 

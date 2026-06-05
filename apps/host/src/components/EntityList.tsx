@@ -130,6 +130,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                 >
                     {hasChildren && (
                         <Button
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             onClick={((e: any) => toggleParent(entity.id, e)) as any}
                             className="p-1 hover:bg-gray-200 rounded text-nkz-muted"
                         >
@@ -146,9 +147,11 @@ export const EntityList: React.FC<EntityListProps> = ({
                             <p className="font-medium text-gray-900 truncate">{entity.name || 'Sin nombre'}</p>
                             <div className="flex items-center gap-1">
                                 <Button
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     onClick={((e: any) => {
                                         e.stopPropagation();
                                         openEntityEditor(entity.id, entity.type);
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                     }) as any}
                                     className="p-1 text-gray-300 hover:text-nkz-info hover:bg-nkz-info-light rounded opacity-0 group-hover:opacity-100 transition"
                                     title="Editar"

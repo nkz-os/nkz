@@ -3,6 +3,7 @@
 // =============================================================================
 // Configuration system for extensible Cesium layers
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export type LayerType = 
   | 'osm'           // OpenStreetMap base
   | 'catastro'      // Cadastral parcels

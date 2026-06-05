@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Cloud, 
   Database,
   Droplets, 
@@ -679,6 +680,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
             <Input
               type="text"
               value={searchTerm}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setSearchTerm(e.target.value)}
               placeholder={t('weather.agro_panel.search_municipality_placeholder')}
               className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"

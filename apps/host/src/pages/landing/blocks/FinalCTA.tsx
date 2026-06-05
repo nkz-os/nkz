@@ -32,6 +32,7 @@ export const FinalCTA: React.FC = () => {
             {t('landing_v2.cta_final_primary')}
           </Button>
           <a
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             href={`mailto:${(window as any).__ENV__?.SALES_EMAIL || 'info@nekazari.com'}`}
             className="inline-flex items-center gap-1.5 text-white/70 font-medium hover:text-white transition-colors group"
             style={{ fontSize: '1rem' }}

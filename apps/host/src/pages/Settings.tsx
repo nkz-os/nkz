@@ -148,6 +148,7 @@ export const Settings: React.FC = () => {
                     <Input
                       type="text"
                       value={editedFirstName}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onChange={(e: any) => setEditedFirstName(e.target.value)}
                       placeholder={t('settings.profile.first_name')}
                       className="flex-1 px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -156,6 +157,7 @@ export const Settings: React.FC = () => {
                     <Input
                       type="text"
                       value={editedLastName}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onChange={(e: any) => setEditedLastName(e.target.value)}
                       placeholder={t('settings.profile.last_name')}
                       className="flex-1 px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

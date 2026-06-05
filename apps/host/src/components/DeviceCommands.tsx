@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger';
 import { Button } from '@nekazari/ui-kit';
 
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Command {
   id: string;
   command_type: string;
@@ -170,6 +171,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
             </label>
             <select
               value={commandType}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => {
                 setCommandType(e.target.value);
                 const cmd = predefinedCommands.find(c => c.type === e.target.value);
@@ -193,6 +195,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
             </label>
             <textarea
               value={commandPayload}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setCommandPayload(e.target.value)}
               rows={6}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

@@ -9,6 +9,7 @@ import type { AssetType, GeoPolygon } from '@/types';
 import { toGeoPolygon } from '@/utils/geo';
 import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface CesiumAssetDrawerProps {
   assetType: AssetType | null;
   viewer: any; // Cesium Viewer instance

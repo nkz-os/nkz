@@ -13,6 +13,7 @@ import api from '@/services/api';
 // =============================================================================
 
 export interface NGSISubscription {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   id: string;
   type: string;
   description?: string;

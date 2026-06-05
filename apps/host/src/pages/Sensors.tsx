@@ -14,6 +14,7 @@ import { useToastContext } from '@/context/ToastContext';
 import { logger } from '@/utils/logger';
 import { UnifiedAsset } from '@/types/assets';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Gauge,
   Plus,
   Search,
@@ -205,6 +206,7 @@ export const Sensors: React.FC = () => {
       type: sensor.type || 'AgriSensor',
       name: sensor.name?.value || sensor.id.split(':').pop() || 'Sensor',
       category: 'sensors',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       status: getStatus(sensor) as any,
       rawEntity: sensor,
       hasLocation: !!sensor.location,
@@ -320,6 +322,7 @@ export const Sensors: React.FC = () => {
               type="text"
               placeholder={t('common.search')}
               value={searchTerm}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
             />

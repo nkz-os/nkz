@@ -173,6 +173,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
             <Input
               type="text"
               value={formData.name}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
               placeholder={t('weather.name_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
@@ -192,6 +193,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
                 type="number"
                 step="any"
                 value={formData.latitude}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('weather.latitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
@@ -208,6 +210,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
                 type="number"
                 step="any"
                 value={formData.longitude}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('weather.longitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
@@ -226,6 +229,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
               type="number"
               step="0.1"
               value={formData.elevation}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, elevation: e.target.value })}
               placeholder={t('weather.elevation_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
@@ -242,6 +246,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
               <Input
                 type="url"
                 value={formData.icon2d}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, icon2d: e.target.value })}
                 placeholder="https://ejemplo.com/icono.png"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
@@ -255,6 +260,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
               <Input
                 type="url"
                 value={formData.model3d}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, model3d: e.target.value })}
                 placeholder="https://ejemplo.com/modelo.glb"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
@@ -270,6 +276,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
             </label>
             <textarea
               value={formData.notes}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"

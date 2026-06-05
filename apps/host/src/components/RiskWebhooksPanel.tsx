@@ -117,6 +117,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
               <Input
                 type="text"
                 value={formName}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormName(e.target.value)}
                 placeholder="Mi webhook"
                 required
@@ -128,6 +129,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
               <Input
                 type="url"
                 value={formUrl}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormUrl(e.target.value)}
                 placeholder="https://hooks.example.com/risk"
                 required
@@ -139,6 +141,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
               <Input
                 type="password"
                 value={formSecret}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormSecret(e.target.value)}
                 placeholder="••••••••"
                 className="w-full px-3 py-2 text-sm border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
@@ -148,6 +151,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Severidad mínima</label>
               <select
                 value={formSeverity}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormSeverity(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >

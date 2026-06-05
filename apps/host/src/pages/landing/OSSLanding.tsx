@@ -92,6 +92,7 @@ export const OSSLanding: React.FC = () => {
   ];
 
   const handleLanguageChange = async (lang: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await setLanguage(lang as any);
     setShowLanguageMenu(false);
   };
@@ -303,23 +304,29 @@ export const OSSLanding: React.FC = () => {
                 {t('landing.footer_description') || 'Plataforma IoT agrícola de grado empresarial potenciada por FIWARE'}
               </p>
               <div className="flex items-center space-x-4 text-sm">
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 {(window as any).__ENV__?.COMPANY_URL && (
                   <a
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     href={(window as any).__ENV__.COMPANY_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center text-nkz-muted hover:text-green-400 transition-colors"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     {t('landing.footer_company') || (window as any).__ENV__.COMPANY_URL}
                   </a>
                 )}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 {(window as any).__ENV__?.SUPPORT_EMAIL && (
                   <a
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     href={`mailto:${(window as any).__ENV__.SUPPORT_EMAIL}`}
                     className="flex items-center text-nkz-muted hover:text-green-400 transition-colors"
                   >
                     <Mail className="h-4 w-4 mr-2" />
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     {t('landing.footer_contact') || (window as any).__ENV__.SUPPORT_EMAIL}
                   </a>
                 )}

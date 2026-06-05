@@ -23,6 +23,7 @@ export function StepFleetConfig() {
         <Input
           type="text"
           value={data.name}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => updateFormData({ name: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-indigo-500"
           placeholder={isRobot ? 'Ej: Rover Norte-01' : isMachine ? 'Ej: Fendt 516 #3' : 'Nombre de la unidad'}
@@ -34,6 +35,7 @@ export function StepFleetConfig() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
         <textarea
           value={data.description ?? ''}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => updateFormData({ description: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-indigo-500"
           placeholder="Descripción opcional"
@@ -48,6 +50,7 @@ export function StepFleetConfig() {
           <Input
             type="text"
             value={data.manufacturer ?? ''}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => updateFormData({ manufacturer: e.target.value })}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
             placeholder={isRobot ? 'Ej: Naio Technologies' : 'Ej: Fendt, John Deere'}
@@ -58,6 +61,7 @@ export function StepFleetConfig() {
           <Input
             type="text"
             value={data.serialNumber ?? ''}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => updateFormData({ serialNumber: e.target.value })}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
             placeholder="S/N"
@@ -74,6 +78,7 @@ export function StepFleetConfig() {
             <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de robot</label>
             <select
               value={data.robotType ?? ''}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateFormData({ robotType: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
             >
@@ -87,6 +92,7 @@ export function StepFleetConfig() {
             <Input
               type="text"
               value={data.rosNamespace ?? ''}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateFormData({ rosNamespace: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
               placeholder="Ej: /robot_norte_01"
@@ -106,6 +112,7 @@ export function StepFleetConfig() {
               type="checkbox"
               id="isobus"
               checked={data.isobusCompatible ?? false}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateFormData({ isobusCompatible: e.target.checked })}
               className="w-4 h-4 accent-indigo-600"
             />

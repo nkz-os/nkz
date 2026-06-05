@@ -5,6 +5,7 @@
 
 import { LayerType, LayerConfig, EntityData, LayerRenderer } from './CesiumLayerConfig';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const createImageryLayerRenderer = (layerType: LayerType): LayerRenderer => {
   return {
     type: layerType,

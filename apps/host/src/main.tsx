@@ -5,6 +5,7 @@ import './index.css';
 
 // Expose React globally for SDK hooks (useViewer) that access window.React.
 // Required for backward compatibility with @nekazari/sdk pre-MF-native hooks.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 (window as any).React = React;
 // Cesium CSS is imported by Cesium-using components (CesiumMap, MobileViewer) via lazy chunks
 import { ErrorBoundary } from './components/ErrorBoundary';

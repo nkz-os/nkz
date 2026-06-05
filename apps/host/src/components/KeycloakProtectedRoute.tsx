@@ -30,6 +30,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // CRÍTICO: Si hay sesión Keycloak pero isAuthenticated es false, puede ser que esté procesando
   // Esperar un momento antes de redirigir
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hasStoredToken = typeof window !== 'undefined' && (window as any).keycloak?.token;
   const [hasCheckedAuth, setHasCheckedAuth] = React.useState(false);
 

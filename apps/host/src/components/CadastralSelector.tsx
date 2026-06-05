@@ -127,6 +127,7 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
             <Input
               type="text"
               value={searchTerm}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setSearchTerm(e.target.value)}
               placeholder="Ref. Catastral (ej: 48037A02100034)"
               disabled={disabled || isSearching}

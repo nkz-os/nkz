@@ -144,6 +144,7 @@ export const CookieBanner: React.FC = () => {
                     type="checkbox"
                     className="mt-1 h-5 w-5 shrink-0 rounded border-nkz-border text-nkz-success focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700"
                     checked={draftAnalytics}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => setDraftAnalytics(e.target.checked)}
                     aria-label={t('cookies.category_analytics_title')}
                   />

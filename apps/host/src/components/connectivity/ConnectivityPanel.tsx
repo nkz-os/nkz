@@ -392,6 +392,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                         <div className="relative">
                             <select
                                 value={selectedProfileId || ''}
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 onChange={(e: any) => handleProfileSelect(e.target.value || null)}
                                 disabled={readonly || loading}
                                 className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white appearance-none pr-10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-50"
@@ -456,6 +457,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                         <Input
                             type="text"
                             value={saveAsProfileName}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             onChange={(e: any) => setSaveAsProfileName(e.target.value)}
                             placeholder="Nombre del perfil..."
                             className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white mb-4"

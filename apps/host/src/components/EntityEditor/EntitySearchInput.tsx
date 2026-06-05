@@ -33,7 +33,9 @@ export const EntitySearchInput: React.FC<Props> = ({
   const ref = useRef<HTMLDivElement>(null);
 
   const resolvedTarget = targetType === '<same>' ? currentEntityType : targetType;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const currentObject = value && (value as any).type === 'Relationship'
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ? (value as any).object : undefined;
 
   useEffect(() => {
@@ -49,12 +51,15 @@ export const EntitySearchInput: React.FC<Props> = ({
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const response = await (api as any).client.get('/ngsi-ld/v1/entities', {
           params: { type: resolvedTarget, q: searchTerm, limit: 10 },
         });
         const entities = Array.isArray(response.data) ? response.data : (response.data?.instances || []);
         const items: SearchResult[] = entities
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .filter((e: any) => e.id !== currentEntityId)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .map((e: any) => ({
             id: e.id,
             name: getNGSIValue(e.name) || e.id?.split(':')?.pop() || e.id,
@@ -107,6 +112,7 @@ export const EntitySearchInput: React.FC<Props> = ({
             <Input
               type="text"
               value={searchTerm}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setSearchTerm(e.target.value)}
               placeholder={t('editor.search_entity') || 'Buscar...'}
               className="w-full px-3 py-2 text-sm focus:outline-none"

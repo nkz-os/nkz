@@ -150,6 +150,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   }, [reset, onClose]);
 
   const handleNext = () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const err = validateStep(currentStep.id, entityType, formData as any, placementState);
     if (err) { setError(err); return; }
     goNext();

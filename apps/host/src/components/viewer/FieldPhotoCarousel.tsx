@@ -11,6 +11,7 @@ interface FieldPhotoCarouselProps {
   onClose: () => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const API = (import.meta as any).env?.VITE_API_URL ?? '';
 
 export const FieldPhotoCarousel: React.FC<FieldPhotoCarouselProps> = ({

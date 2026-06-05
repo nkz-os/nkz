@@ -163,6 +163,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                 max="5.0"
                 step="0.1"
                 value={modelScale}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => onScaleChange(parseFloat(e.target.value))}
                 disabled={disabled}
                 className="w-full"
@@ -185,6 +186,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                     min="0"
                     max="360"
                     value={modelRotation[0]}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => onRotationChange([
                       parseInt(e.target.value) || 0,
                       modelRotation[1],
@@ -201,6 +203,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                     min="0"
                     max="360"
                     value={modelRotation[1]}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => onRotationChange([
                       modelRotation[0],
                       parseInt(e.target.value) || 0,
@@ -217,6 +220,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                     min="0"
                     max="360"
                     value={modelRotation[2]}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => onRotationChange([
                       modelRotation[0],
                       modelRotation[1],

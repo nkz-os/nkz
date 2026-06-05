@@ -33,6 +33,7 @@ export const PurgeTenantDialog: React.FC<Props> = ({ tenantId, tenantName, onClo
       try {
         setLoading(true);
         await client.get(`/api/admin/tenants/${tenantId}/inventory`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
         setError(e?.response?.data?.error || e.message || 'Failed to load inventory');
       } finally {
@@ -53,6 +54,7 @@ export const PurgeTenantDialog: React.FC<Props> = ({ tenantId, tenantName, onClo
       if (data.status === 'completed') {
         setTimeout(onPurged, 3000);
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setPhases(e?.response?.data?.phases || []);
       setRunning(false);
@@ -110,11 +112,13 @@ export const PurgeTenantDialog: React.FC<Props> = ({ tenantId, tenantName, onClo
             </div>
             <div className="space-y-4">
               <Input type="text" value={confirmName}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setConfirmName(e.target.value)}
                 className="w-full p-2 border border-nkz-danger rounded bg-nkz-bg text-nkz-text-primary"
                 placeholder={t('admin.purge_type_tenant_id', { id: tenantId })} />
               <label className="flex items-center gap-2 text-sm">
                 <Input type="checkbox" checked={confirmedIrreversible}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => setConfirmedIrreversible(e.target.checked)} />
                 {t('admin.purge_confirm_irreversible')}
               </label>

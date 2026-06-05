@@ -197,6 +197,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                     <Input
                                         type="text"
                                         value={mapping.incoming_key}
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         onChange={(e: any) => updateMapping(index, 'incoming_key', e.target.value)}
                                         placeholder="temp_out"
                                         disabled={readonly}
@@ -212,6 +213,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                     </label>
                                     <select
                                         value={mapping.target_attribute}
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         onChange={(e: any) => updateMapping(index, 'target_attribute', e.target.value)}
                                         disabled={readonly || loading}
                                         className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-50"
@@ -246,6 +248,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                         <Input
                                             type="text"
                                             value={mapping.transformation || 'val'}
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                             onChange={(e: any) => updateMapping(index, 'transformation', e.target.value)}
                                             placeholder="val"
                                             disabled={readonly}
@@ -256,6 +259,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                         />
                                         <select
                                             value=""
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                             onChange={(e: any) => updateMapping(index, 'transformation', e.target.value)}
                                             disabled={readonly}
                                             className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-nkz-muted text-sm"
@@ -283,6 +287,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                     <Input
                                         type="text"
                                         value={mapping.unitCode || ''}
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         onChange={(e: any) => updateMapping(index, 'unitCode', e.target.value)}
                                         placeholder="CEL"
                                         disabled={readonly}

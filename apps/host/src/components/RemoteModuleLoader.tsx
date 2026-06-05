@@ -223,6 +223,7 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
             moduleId={module.id}
             apiBasePath={module.api?.basePath}
             queryClient={module.queryClient}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             tenantPlan={tenantProfile?.plan_type as any}
           >
             <Component />

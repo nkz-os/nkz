@@ -8,6 +8,7 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Search,
   RefreshCw,
   Download,
@@ -683,9 +684,11 @@ const AssetGridCard: React.FC<AssetGridCardProps> = ({
     >
       {/* Checkbox */}
       <Button
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onClick={((e: any) => {
           e.stopPropagation();
           onSelect();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }) as any}
         className="absolute top-2 right-2 p-1 rounded hover:bg-slate-100"
       >

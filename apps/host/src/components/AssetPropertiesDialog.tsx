@@ -106,6 +106,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
             <Input
               type="text"
               value={name}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setName(e.target.value)}
               placeholder={suggestedName || 'Se generará automáticamente'}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -129,6 +130,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
                 max="5.0"
                 step="0.1"
                 value={scale}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setScale(parseFloat(e.target.value))}
                 className="flex-1"
               />
@@ -138,6 +140,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
                 max="5.0"
                 step="0.1"
                 value={scale}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => {
                   const val = parseFloat(e.target.value);
                   if (!isNaN(val) && val >= 0.1 && val <= 5.0) {
@@ -166,6 +169,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
                   max="360"
                   step="1"
                   value={rotation}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => setRotation(parseInt(e.target.value))}
                   className="flex-1"
                 />
@@ -175,6 +179,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
                   max="360"
                   step="1"
                   value={rotation}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => {
                     const val = parseInt(e.target.value);
                     if (!isNaN(val) && val >= 0 && val <= 360) {

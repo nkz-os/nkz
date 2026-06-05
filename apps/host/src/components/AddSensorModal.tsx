@@ -183,6 +183,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             <Input
               type="text"
               value={formData.external_id}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, external_id: e.target.value })}
               placeholder="Ej: BP_Vaso_PAR_1"
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -202,6 +203,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             <Input
               type="text"
               value={formData.name}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Ej: Sensor Temperatura Estación 01"
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -217,6 +219,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             </label>
             <select
               value={formData.profile}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, profile: e.target.value })}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={loading}
@@ -287,6 +290,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
                 type="number"
                 step="any"
                 value={formData.latitude}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: 42.571493"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -303,6 +307,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
                 type="number"
                 step="any"
                 value={formData.longitude}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: -2.028218"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -334,6 +339,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             <Input
               type="text"
               value={formData.station_id}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, station_id: e.target.value })}
               placeholder="Ej: Estacion_Principal"
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -350,6 +356,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
               type="checkbox"
               id="under_canopy"
               checked={formData.is_under_canopy}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, is_under_canopy: e.target.checked })}
               className="w-4 h-4 text-nkz-success border-nkz-border rounded focus:ring-green-500"
               disabled={loading}

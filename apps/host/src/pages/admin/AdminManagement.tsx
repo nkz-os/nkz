@@ -710,6 +710,7 @@ export const AdminManagement: React.FC = () => {
                         placeholder={t('admin.search_users', { defaultValue: 'Search users...' })}
                         className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none"
                         value={usersSearch}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(e: any) => setUsersSearch(e.target.value)}
                       />
                     </div>
@@ -992,6 +993,7 @@ export const AdminManagement: React.FC = () => {
                 <Input
                   type="email"
                   value={codeForm.email}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => setCodeForm(f => ({ ...f, email: e.target.value }))}
                   className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none"
                   placeholder="user@example.com"
@@ -1001,6 +1003,7 @@ export const AdminManagement: React.FC = () => {
                 <label className="block text-sm font-medium text-nkz-text-primary mb-1">{t('admin.plan_type')}</label>
                 <select
                   value={codeForm.plan}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => setCodeForm(f => ({ ...f, plan: e.target.value }))}
                   className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
                 >

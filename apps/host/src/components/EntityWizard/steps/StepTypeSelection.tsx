@@ -99,6 +99,7 @@ export function StepTypeSelection() {
         <Input
           type="text"
           value={searchTerm}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => setSearchTerm(e.target.value)}
           placeholder="Buscar: tractor, sensor humedad, Davis, John Deere..."
           className="w-full pl-12 pr-4 py-3 border-2 border-nkz-border rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base"

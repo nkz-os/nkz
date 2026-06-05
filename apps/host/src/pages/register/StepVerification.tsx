@@ -180,6 +180,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
             id="reg-code"
             type="text"
             value={formData.activationCode}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => handleCodeChange(e.target.value)}
             placeholder={t('activation.activation_code_placeholder')}
             className="font-mono text-center tracking-wider"
@@ -224,6 +225,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
                   id="reg-otp"
                   type="text"
                   value={formData.otp}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => handleOtpChange(e.target.value)}
                   placeholder="000000"
                   className="font-mono text-center text-nkz-xl tracking-[0.25em]"

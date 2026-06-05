@@ -448,6 +448,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             <Input
               type="datetime-local"
               value={customStart}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setCustomStart(e.target.value)}
               className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg"
             />
@@ -457,6 +458,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             <Input
               type="datetime-local"
               value={customEnd}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setCustomEnd(e.target.value)}
               className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg"
             />

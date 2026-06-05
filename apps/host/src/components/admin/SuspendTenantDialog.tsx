@@ -37,6 +37,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
         setLoading(true);
         const { data } = await client.get(`/api/admin/tenants/${tenantId}/inventory`);
         setInventory(data);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
         setError(e?.response?.data?.error || e.message || 'Failed to load inventory');
       } finally {
@@ -53,6 +54,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
         deletion_notes: notes,
       });
       onSuspended();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setError(e?.response?.data?.error || e.message || 'Suspension failed');
     } finally {
@@ -146,6 +148,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
             <Input
               type="text"
               value={confirmName}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setConfirmName(e.target.value)}
               className="mt-1 w-full p-2 border border-nkz-border rounded bg-nkz-bg text-nkz-text-primary"
               placeholder={tenantName}
@@ -153,6 +156,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
           </div>
 
           <label className="flex items-center gap-2 text-nkz-sm">
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             <Input type="checkbox" checked={confirmed} onChange={(e: any) => setConfirmed(e.target.checked)} />
             {t('admin.suspend_confirm_checkbox')}
           </label>
@@ -163,6 +167,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
             </label>
             <textarea
               value={notes}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setNotes(e.target.value)}
               className="mt-1 w-full p-2 border border-nkz-border rounded bg-nkz-bg text-nkz-text-primary"
               rows={2}

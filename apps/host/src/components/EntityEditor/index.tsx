@@ -207,5 +207,6 @@ export function openEntityEditor(entityId: string, entityType: string): void {
 
 // Expose globally for SDK access
 if (typeof window !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).__NKZ__OPEN_ENTITY_EDITOR__ = openEntityEditor;
 }

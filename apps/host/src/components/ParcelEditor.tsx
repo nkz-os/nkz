@@ -237,6 +237,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
             <Input
               type="text"
               value={municipality}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setMunicipality(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
@@ -250,6 +251,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
             <Input
               type="text"
               value={province}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setProvince(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
@@ -263,6 +265,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
           </label>
           <select
             value={cropType}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setCropType(e.target.value)}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             required
@@ -284,6 +287,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
           </label>
           <textarea
             value={notes}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setNotes(e.target.value)}
             rows={3}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

@@ -49,6 +49,7 @@ export const LimitsManagement: React.FC = () => {
         maxEntitiesTotal: res.data.maxEntitiesTotal ?? res.data.max_entities_total ?? undefined,
       });
       setMessage(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setMessage('Error cargando límites: ' + (e.response?.data?.error || e.message));
       logger.error('Error loading limits:', e);
@@ -73,6 +74,7 @@ export const LimitsManagement: React.FC = () => {
       setMessage(t('success'));
       setTimeout(() => setMessage(null), 3000);
       await load();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setMessage('Error guardando límites: ' + (e.response?.data?.error || e.message));
       logger.error('Error saving limits:', e);
@@ -98,6 +100,7 @@ export const LimitsManagement: React.FC = () => {
           <label className="block text-sm text-gray-600 mb-1">{t('plan_type')}</label>
           <select
             value={limits.planType ?? ''}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setLimits((s) => ({ ...s, planType: e.target.value }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             disabled={loading}
@@ -115,6 +118,7 @@ export const LimitsManagement: React.FC = () => {
           <Input
             type="number"
             value={limits.maxUsers ?? ''}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setLimits((s) => ({ ...s, maxUsers: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
@@ -126,6 +130,7 @@ export const LimitsManagement: React.FC = () => {
           <Input
             type="number"
             value={limits.maxRobots ?? ''}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setLimits((s) => ({ ...s, maxRobots: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
@@ -137,6 +142,7 @@ export const LimitsManagement: React.FC = () => {
           <Input
             type="number"
             value={limits.maxSensors ?? ''}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setLimits((s) => ({ ...s, maxSensors: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
@@ -149,6 +155,7 @@ export const LimitsManagement: React.FC = () => {
             type="number"
             step="0.01"
             value={limits.maxAreaHectares ?? ''}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setLimits((s) => ({ ...s, maxAreaHectares: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
@@ -160,6 +167,7 @@ export const LimitsManagement: React.FC = () => {
           <Input
             type="number"
             value={limits.maxParcels ?? ''}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setLimits((s) => ({ ...s, maxParcels: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
@@ -171,6 +179,7 @@ export const LimitsManagement: React.FC = () => {
           <Input
             type="number"
             value={limits.maxEntitiesTotal ?? ''}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setLimits((s) => ({ ...s, maxEntitiesTotal: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}

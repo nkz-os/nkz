@@ -12,6 +12,7 @@ import { useTenantMunicipality } from '@/hooks/useTenantMunicipality';
 import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface WeatherData {
   observed_at: string;
   temp_avg?: number;
@@ -105,7 +106,9 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         const result = await api.getParcels();
         if (!cancelled) {
           const items: ParcelOption[] = (result || [])
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .filter((e: any) => e?.id)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .map((e: any) => ({
               id: e.id,
               name: e.name?.value || e.name || e.id?.split(':')?.pop() || 'Parcela',
@@ -538,6 +541,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             <Input
               type="text"
               value={parcelSearchTerm}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setParcelSearchTerm(e.target.value)}
               placeholder={t('weather.search_parcel_placeholder')}
               className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

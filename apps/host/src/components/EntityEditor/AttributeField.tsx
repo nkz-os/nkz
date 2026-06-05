@@ -29,6 +29,7 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
         <Input
           type="checkbox"
           checked={!!currentValue}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => emit(e.target.checked)}
           className="w-4 h-4 rounded border-nkz-border text-nkz-info focus:ring-blue-500"
         />
@@ -43,6 +44,7 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
         <label className="text-xs font-medium text-gray-600">{t(schema.labelKey)}</label>
         <select
           value={String(currentValue ?? '')}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => emit(e.target.value)}
           className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
@@ -63,6 +65,7 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
           <Input
             type="number"
             value={currentValue != null ? String(currentValue) : ''}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => emit(e.target.value === '' ? '' : Number(e.target.value))}
             min={schema.min}
             max={schema.max}
@@ -84,6 +87,7 @@ export const AttributeField: React.FC<Props> = ({ schema, value, onChange }) => 
       <Input
         type="text"
         value={currentValue != null ? String(currentValue) : ''}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onChange={(e: any) => emit(e.target.value)}
         className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       />

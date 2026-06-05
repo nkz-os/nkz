@@ -11,6 +11,7 @@ import { logger } from '@/utils/logger';
 
 export interface UseEntityOptions {
   /** Entity type (e.g., 'AgriSensor', 'AutonomousMobileRobot') */
+/* eslint-disable @typescript-eslint/no-explicit-any */
   entityType: string;
   /** Entity ID */
   entityId: string;

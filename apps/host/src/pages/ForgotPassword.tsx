@@ -108,6 +108,7 @@ export const ForgotPassword: React.FC = () => {
               id="email"
               type="email"
               value={email}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setEmail(e.target.value)}
               placeholder={t('forgot_password.email_placeholder')}
               className="w-full px-4 py-3 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"

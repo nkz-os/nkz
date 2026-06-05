@@ -201,6 +201,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
       >
         {isLoaded ? (
           <model-viewer
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ref={modelViewerRef as any}
             src={modelUrl}
             alt="Vista previa del modelo 3D"
@@ -262,6 +263,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
                   max="5"
                   step="0.1"
                   value={scale}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => onScaleChange(parseFloat(e.target.value))}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
                 />
@@ -302,6 +304,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
                   max="360"
                   step="15"
                   value={rotation[0]}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => onRotationChange([parseFloat(e.target.value), rotation[1], rotation[2]])}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
@@ -344,6 +347,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
                       max="90"
                       step="15"
                       value={rotation[1]}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onChange={(e: any) => onRotationChange([rotation[0], parseFloat(e.target.value), rotation[2]])}
                       className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500"
                     />
@@ -383,6 +387,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
                       max="180"
                       step="15"
                       value={rotation[2]}
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onChange={(e: any) => onRotationChange([rotation[0], rotation[1], parseFloat(e.target.value)])}
                       className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
                     />

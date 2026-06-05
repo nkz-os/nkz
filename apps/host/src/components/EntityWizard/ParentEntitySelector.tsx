@@ -102,6 +102,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                   type="text"
                   placeholder="Search parent entities..."
                   value={searchTerm}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => setSearchTerm(e.target.value)}
                   className="w-full pl-8 pr-2 py-1.5 text-sm border border-nkz-border rounded focus:ring-2 focus:ring-green-500"
                   autoFocus

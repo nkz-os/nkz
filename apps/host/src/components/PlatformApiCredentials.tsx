@@ -272,6 +272,7 @@ export const PlatformApiCredentials: React.FC = () => {
               <Input
                 type="text"
                 value={copernicus.username}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setCopernicus(prev => ({ ...prev, username: e.target.value }))}
                 placeholder="Tu Client ID de Copernicus CDSE"
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -287,6 +288,7 @@ export const PlatformApiCredentials: React.FC = () => {
                 <Input
                   type={showPassword.copernicus ? 'text' : 'password'}
                   value={copernicus.password}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => setCopernicus(prev => ({ ...prev, password: e.target.value }))}
                   placeholder={copernicus.configured ? '•••••••• (dejar vacío para no cambiar)' : 'Tu Client Secret'}
                   className="w-full px-3 py-2 pr-10 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -309,6 +311,7 @@ export const PlatformApiCredentials: React.FC = () => {
               <Input
                 type="url"
                 value={copernicus.url}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setCopernicus(prev => ({ ...prev, url: e.target.value }))}
                 placeholder="https://dataspace.copernicus.eu"
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -372,6 +375,7 @@ export const PlatformApiCredentials: React.FC = () => {
                 <Input
                   type={showPassword.aemet ? 'text' : 'password'}
                   value={aemet.api_key}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => setAemet(prev => ({ ...prev, api_key: e.target.value }))}
                   placeholder={aemet.configured ? '•••••••• (dejar vacío para no cambiar)' : 'Tu API Key de AEMET'}
                   className="w-full px-3 py-2 pr-10 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -394,6 +398,7 @@ export const PlatformApiCredentials: React.FC = () => {
               <Input
                 type="url"
                 value={aemet.url}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setAemet(prev => ({ ...prev, url: e.target.value }))}
                 placeholder="https://opendata.aemet.es/opendata/api"
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

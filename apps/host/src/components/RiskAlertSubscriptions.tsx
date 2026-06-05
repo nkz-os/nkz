@@ -240,6 +240,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
                               min="0"
                               max="100"
                               value={threshold}
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               onChange={(e: any) => handleThresholdChange(risk, parseInt(e.target.value))}
                               disabled={!canEdit || isUpdating}
                               className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500 disabled:cursor-not-allowed"

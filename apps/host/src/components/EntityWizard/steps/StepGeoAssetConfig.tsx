@@ -56,6 +56,7 @@ export function StepGeoAssetConfig() {
         <Input
           type="text"
           value={data.name}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => updateFormData({ name: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500"
           placeholder="Nombre del activo"
@@ -67,6 +68,7 @@ export function StepGeoAssetConfig() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
         <textarea
           value={data.description ?? ''}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => updateFormData({ description: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500"
           placeholder="Descripción opcional"
@@ -85,6 +87,7 @@ export function StepGeoAssetConfig() {
               <Input
                 type="text"
                 value={data.municipality ?? ''}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => updateFormData({ municipality: e.target.value })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
                 placeholder="Ej: Vitoria-Gasteiz"
@@ -95,6 +98,7 @@ export function StepGeoAssetConfig() {
               <Input
                 type="text"
                 value={data.province ?? ''}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => updateFormData({ province: e.target.value })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
                 placeholder="Ej: Álava"
@@ -107,6 +111,7 @@ export function StepGeoAssetConfig() {
             <Input
               type="text"
               value={data.cadastralReference ?? ''}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateFormData({ cadastralReference: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500 font-mono"
               placeholder="Ej: 01001A001000010000DP"
@@ -118,6 +123,7 @@ export function StepGeoAssetConfig() {
             <Input
               type="text"
               value={data.cropType ?? ''}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateFormData({ cropType: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
               placeholder="Ej: Viñedo, Cereal, Olivar"
@@ -145,6 +151,7 @@ export function StepGeoAssetConfig() {
           ) : (
             <select
               value={data.parentEntity?.id ?? ''}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => {
                 const parcel = parcels.find(p => p.id === e.target.value);
                 updateFormData({
@@ -170,6 +177,7 @@ export function StepGeoAssetConfig() {
               type="checkbox"
               id="isSubdivision"
               checked={data.isSubdivision}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateFormData({
                 isSubdivision: e.target.checked,
                 parentEntity: e.target.checked ? data.parentEntity : null,

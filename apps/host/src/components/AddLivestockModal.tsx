@@ -207,6 +207,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
             <Input
               type="text"
               value={formData.name}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
               placeholder={t('livestock.name_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -223,6 +224,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               </label>
               <select
                 value={formData.species}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) =>
                   setFormData({ ...formData, species: e.target.value as typeof formData.species })
                 }
@@ -244,6 +246,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <Input
                 type="text"
                 value={formData.breed}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, breed: e.target.value })}
                 placeholder={t('livestock.breed_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -261,6 +264,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <Input
                 type="text"
                 value={formData.herdId}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, herdId: e.target.value })}
                 placeholder={t('livestock.herd_id_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -273,6 +277,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               </label>
               <select
                 value={formData.activity}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) =>
                   setFormData({ ...formData, activity: e.target.value as typeof formData.activity })
                 }
@@ -296,6 +301,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <Input
                 type="date"
                 value={formData.birthDate}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, birthDate: e.target.value })}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
@@ -309,6 +315,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
                 type="number"
                 step="0.1"
                 value={formData.weight}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, weight: e.target.value })}
                 placeholder={t('livestock.weight_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -328,6 +335,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
                 type="number"
                 step="any"
                 value={formData.latitude}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('livestock.latitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -344,6 +352,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
                 type="number"
                 step="any"
                 value={formData.longitude}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('livestock.longitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -362,6 +371,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <Input
                 type="url"
                 value={formData.icon2d}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, icon2d: e.target.value })}
                 placeholder="https://ejemplo.com/icono.png"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -375,6 +385,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <Input
                 type="url"
                 value={formData.model3d}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, model3d: e.target.value })}
                 placeholder="https://ejemplo.com/modelo.glb"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -390,6 +401,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
             </label>
             <textarea
               value={formData.notes}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"

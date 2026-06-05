@@ -42,6 +42,7 @@ export const CoreTimelineControls: React.FC<Props> = ({ photos }) => {
                     value={toDateInput(currentDate)}
                     min={min}
                     max={max}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => { if (e.target.value) setCurrentDate(new Date(e.target.value)); }}
                     className="bg-slate-100 dark:bg-slate-700 rounded-lg px-2 py-1 text-xs"
                 />

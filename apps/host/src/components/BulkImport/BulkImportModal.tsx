@@ -231,6 +231,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                 </label>
                 <select
                   value={entityType}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => setEntityType(e.target.value)}
                   disabled={step === 'creating'}
                   className="flex-1 border border-nkz-border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-green-500 outline-none disabled:opacity-50 bg-white dark:bg-gray-700 dark:text-white"

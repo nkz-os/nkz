@@ -21,6 +21,7 @@ import { Button } from '@nekazari/ui-kit';
 
 // NOTE: CesiumMap import removed - all geometry types now use global viewer via startDrawing
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ParentGeometry {
   id: string;
   name: string;

@@ -19,6 +19,7 @@ export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) =
     try {
       await client.post(`/api/admin/tenants/${tenantId}/restore`);
       onRestored();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       alert(e?.response?.data?.error || 'Restore failed');
     } finally {

@@ -105,6 +105,7 @@ export const StampTool: React.FC<StampToolProps> = ({
               min="1"
               max="50"
               value={stampOptions.brushSize}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateStampOptions({ brushSize: parseInt(e.target.value) })}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
             />
@@ -117,6 +118,7 @@ export const StampTool: React.FC<StampToolProps> = ({
               max="1.0"
               step="0.1"
               value={stampOptions.density}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateStampOptions({ density: parseFloat(e.target.value) })}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
             />

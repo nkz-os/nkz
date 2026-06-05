@@ -8,8 +8,10 @@ export const GeometrySection: React.FC = () => {
   const { t } = useI18n();
   const { formState, setField } = useEntityEditor();
   const locationAttr = formState.attributes['location'];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (!locationAttr || (locationAttr as any).type !== 'GeoProperty') return null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const locValue = (locationAttr as any).value;
   const geomType = locValue?.type || 'Point';
   const coords = locValue?.coordinates;
@@ -43,6 +45,7 @@ export const GeometrySection: React.FC = () => {
                 type="number"
                 step="0.000001"
                 value={coords[0] ?? ''}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleCoordsChange([Number(e.target.value), coords[1]])}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
               />
@@ -53,6 +56,7 @@ export const GeometrySection: React.FC = () => {
                 type="number"
                 step="0.000001"
                 value={coords[1] ?? ''}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleCoordsChange([coords[0], Number(e.target.value)])}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
               />

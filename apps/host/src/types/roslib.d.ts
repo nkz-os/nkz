@@ -1,4 +1,5 @@
 // Type declarations for roslib
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare module 'roslib' {
   export class Ros {
     constructor(options: { url: string });

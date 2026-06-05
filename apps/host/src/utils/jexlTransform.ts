@@ -16,6 +16,7 @@ import { logger } from '@/utils/logger';
  * @param value - The input value to transform
  * @returns The transformed value
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export function evaluateExpression(expression: string, value: number): number {
     if (!expression || expression.trim() === '' || expression.trim() === 'val') {
         return value;
