@@ -941,6 +941,71 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
     refreshTenantProfile: fetchTenantProfile,
   };
 
+  // =========================================================================
+  // Proactive token refresh: visibility + focus awareness
+  // =========================================================================
+  // Browsers suspend setInterval in inactive tabs, stalling Keycloak's
+  // internal refresh timer. When the user returns, the token may be expired.
+  // These listeners force an early check so the first API call succeeds.
+  React.useEffect(() => {
+    if (!keycloak || !isAuthenticated) return;
+
+    const tryRefresh = () => {
+      const kc = keycloak;
+      if (!kc?.tokenParsed?.exp) return;
+      const remaining = kc.tokenParsed.exp - Math.floor(Date.now() / 1000);
+      if (remaining < 120 && remaining > 0) {
+        logger.debug('[Auth] Proactive refresh — token expires in', remaining, 's');
+        kc.updateToken(30).then((refreshed) => {
+          if (refreshed && kc.token) api.setSession(kc.token).catch(() => {});
+        }).catch(() => {});
+      }
+    };
+
+    const onVisible = () => { if (document.visibilityState === 'visible') tryRefresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', tryRefresh);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', tryRefresh);
+    };
+  }, [keycloak, isAuthenticated]);
+
+  // =========================================================================
+  // Reactive token refresh: SDK-orchestrated 401 handling
+  // =========================================================================
+  // NKZClient dispatches `nekazari:token:expired` on 401. We refresh via
+  // Keycloak and signal `nekazari:token:refreshed` (success) or
+  // `nekazari:session:expired` (permanent failure) back to all modules.
+  React.useEffect(() => {
+    if (!keycloak || !isAuthenticated) return;
+
+    const onTokenExpired = () => {
+      logger.debug('[Auth] SDK requested token refresh via nekazari:token:expired');
+      const kc = keycloak;
+      kc.updateToken(30).then((refreshed) => {
+        if (refreshed && kc.token) {
+          api.setSession(kc.token).then(() => {
+            logger.debug('[Auth] Token refreshed — dispatching nekazari:token:refreshed');
+            window.dispatchEvent(new CustomEvent('nekazari:token:refreshed'));
+          }).catch(() => {
+            logger.warn('[Auth] Cookie update failed, but token is fresh');
+            window.dispatchEvent(new CustomEvent('nekazari:token:refreshed'));
+          });
+        } else {
+          logger.warn('[Auth] Token refresh returned no new token');
+          window.dispatchEvent(new CustomEvent('nekazari:session:expired'));
+        }
+      }).catch((err) => {
+        logger.warn('[Auth] Token refresh failed:', err);
+        window.dispatchEvent(new CustomEvent('nekazari:session:expired'));
+      });
+    };
+
+    window.addEventListener('nekazari:token:expired', onTokenExpired);
+    return () => window.removeEventListener('nekazari:token:expired', onTokenExpired);
+  }, [keycloak, isAuthenticated]);
+
   // Expose auth context to external modules via window (for SDK access)
   // SECURITY: token and getToken are intentionally omitted — modules must
   // rely on the httpOnly cookie sent automatically with credentials: 'include'.
