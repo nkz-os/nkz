@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { logger } from '@/utils/logger';
+
 
 /**
  * Handles the ghost model rendering in PREVIEW_MODEL mode.
@@ -27,7 +29,7 @@ export function useModelPreview(
       const scale = Number(modelPlacement.scale) || 1;
 
       if (isNaN(lon) || isNaN(lat) || isNaN(scale) || scale <= 0) {
-        console.warn('[CesiumMap] Invalid 3D preview parameters:', modelPlacement);
+        logger.warn('[CesiumMap] Invalid 3D preview parameters:', modelPlacement);
         return;
       }
 
@@ -58,7 +60,7 @@ export function useModelPreview(
           }
         });
       } catch (e) {
-        console.error('[CesiumMap] Error adding preview ghost:', e);
+        logger.error('[CesiumMap] Error adding preview ghost:', e);
       }
     }
   }, [isViewerReady, viewerContext?.mapMode, viewerContext?.modelPlacement]);

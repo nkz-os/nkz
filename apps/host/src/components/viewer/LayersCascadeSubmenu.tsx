@@ -5,6 +5,7 @@ import { SlotRenderer } from '@/components/SlotRenderer'
 import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay'
 import { useI18n } from '@/context/I18nContext'
 import type { SubmenuSide } from './positionFlip'
+import { Button } from '@nekazari/ui-kit';
 
 const surfaceBase =
   'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg'
@@ -39,7 +40,7 @@ const CollapsibleGroup: React.FC<CollapsibleGroupProps> = ({
   }, [storageKey, isOpen])
   return (
     <div className="py-1">
-      <button
+      <Button
         type="button"
         onClick={() => setIsOpen(v => !v)}
         aria-expanded={isOpen}
@@ -52,7 +53,7 @@ const CollapsibleGroup: React.FC<CollapsibleGroupProps> = ({
         ) : (
           <ChevronRight className="w-3.5 h-3.5" />
         )}
-      </button>
+      </Button>
       {isOpen && <div className="px-2 pt-1 pb-2 space-y-1">{children}</div>}
     </div>
   )
@@ -100,7 +101,7 @@ export const LayersCascadeSubmenu: React.FC<LayersCascadeSubmenuProps> = ({
             title={t('viewer.layersGroupCore')}
           >
             <CoreLayerToggles />
-            <button
+            <Button
               type="button"
               onClick={() => setRiskEnabled(!riskEnabled)}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
@@ -118,7 +119,7 @@ export const LayersCascadeSubmenu: React.FC<LayersCascadeSubmenuProps> = ({
               >
                 {riskEnabled ? t('viewer.layers.risk_on') : t('viewer.layers.risk_off')}
               </span>
-            </button>
+            </Button>
           </CollapsibleGroup>
 
           <CollapsibleGroup

@@ -6,6 +6,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+
 
 // =============================================================================
 // Types
@@ -153,7 +155,7 @@ export function useTelemetry(options: UseTelemetryOptions): UseTelemetryReturn {
         setIsConnected(false);
       }
     } catch (err: any) {
-      console.error('[useTelemetry] Error fetching latest telemetry:', err);
+      logger.error('[useTelemetry] Error fetching latest telemetry:', err);
       setIsConnected(false);
       setError(err.response?.data?.error || err.message || 'Error loading telemetry');
     } finally {
@@ -189,7 +191,7 @@ export function useTelemetry(options: UseTelemetryOptions): UseTelemetryReturn {
         setHistoricalTelemetry([]);
       }
     } catch (err: any) {
-      console.error('[useTelemetry] Error fetching historical telemetry:', err);
+      logger.error('[useTelemetry] Error fetching historical telemetry:', err);
       setError(err.response?.data?.error || err.message || 'Error loading historical telemetry');
       setHistoricalTelemetry([]);
     } finally {
@@ -219,7 +221,7 @@ export function useTelemetry(options: UseTelemetryOptions): UseTelemetryReturn {
       const data = await api.getDeviceTelemetryStats(deviceId, params);
       setStats(data || null);
     } catch (err: any) {
-      console.error('[useTelemetry] Error fetching telemetry stats:', err);
+      logger.error('[useTelemetry] Error fetching telemetry stats:', err);
       setError(err.response?.data?.error || err.message || 'Error loading statistics');
       setStats(null);
     } finally {

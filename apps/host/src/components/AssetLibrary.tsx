@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { AssetType } from '@/types';
 import { useI18n } from '@/context/I18nContext';
+import { Button, Input } from '@nekazari/ui-kit';
 
 // Icon mapping from string to React component
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -126,26 +127,26 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
         {/* Search */}
         <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-nkz-muted" />
-          <input
+          <Input
             type="text"
             placeholder="Buscar activos..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e: any) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           {searchQuery && (
-            <button
+            <Button
               onClick={() => setSearchQuery('')}
               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-nkz-muted hover:text-gray-600"
             >
               <X className="w-4 h-4" />
-            </button>
+            </Button>
           )}
         </div>
 
         {/* Category Filter */}
         <div className="flex flex-wrap gap-2">
-          <button
+          <Button
             onClick={() => setSelectedCategory(null)}
             className={`px-3 py-1 text-xs rounded-full transition-colors ${
               !selectedCategory
@@ -154,9 +155,9 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
             }`}
           >
             Todos
-          </button>
+          </Button>
           {categories.map(category => (
-            <button
+            <Button
               key={category}
               onClick={() => setSelectedCategory(category)}
               className={`px-3 py-1 text-xs rounded-full transition-colors ${
@@ -166,7 +167,7 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
               }`}
             >
               {categoryLabels[category] || category}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -184,7 +185,7 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
               const isSelected = selectedAssetType?.id === asset.id;
               
               return (
-                <button
+                <Button
                   key={asset.id}
                   onClick={() => onSelectAsset(asset)}
                   className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
@@ -211,7 +212,7 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
                       </p>
                     </div>
                   </div>
-                </button>
+                </Button>
               );
             })}
           </div>

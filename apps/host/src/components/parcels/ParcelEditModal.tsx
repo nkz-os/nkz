@@ -6,6 +6,9 @@ import React, { useState, useEffect } from 'react';
 import { X, MapPin, Info } from 'lucide-react';
 import type { Parcel } from '@/types';
 import { useNotification } from '@/hooks/useNotification';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 interface ParcelEditModalProps {
     isOpen: boolean;
@@ -51,7 +54,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
             await onSave(parcel, formData);
             onCancel();
         } catch (error) {
-            console.error('Error saving parcel:', error);
+            logger.error('Error saving parcel:', error);
             showNotification({ type: 'error', message: 'Error al guardar los cambios' });
         } finally {
             setIsSaving(false);
@@ -73,12 +76,12 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                             </p>
                         )}
                     </div>
-                    <button
+                    <Button
                         onClick={onCancel}
                         className="p-1 text-nkz-muted hover:text-gray-600 hover:bg-nkz-bg-secondary rounded transition-colors"
                     >
                         <X className="w-5 h-5" />
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Zone Info */}
@@ -102,10 +105,10 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Nombre
                         </label>
-                        <input
+                        <Input
                             type="text"
                             value={formData.name}
-                            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                            onChange={(e: any) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                             className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                             placeholder="Nombre de la parcela"
                         />
@@ -117,7 +120,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                         </label>
                         <select
                             value={formData.cropType}
-                            onChange={(e) => setFormData(prev => ({ ...prev, cropType: e.target.value }))}
+                            onChange={(e: any) => setFormData(prev => ({ ...prev, cropType: e.target.value }))}
                             className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                         >
                             <option value="">Selecciona un cultivo</option>
@@ -144,7 +147,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                         </label>
                         <textarea
                             value={formData.notes}
-                            onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                            onChange={(e: any) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                             className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                             rows={3}
                             placeholder="Notas adicionales sobre la parcela"
@@ -152,21 +155,21 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                     </div>
 
                     <div className="flex justify-end gap-2 pt-4 border-t border-nkz-border">
-                        <button
+                        <Button
                             type="button"
                             onClick={onCancel}
                             className="px-4 py-2 text-gray-700 bg-nkz-bg-secondary rounded-md hover:bg-gray-200 transition-colors"
                             disabled={isSaving}
                         >
                             Cancelar
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             type="submit"
                             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
                             disabled={isSaving}
                         >
                             {isSaving ? 'Guardando...' : 'Guardar'}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </div>

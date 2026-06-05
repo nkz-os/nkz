@@ -5,9 +5,11 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
+import { logger } from '@/utils/logger';
 import { BarChart3, ExternalLink, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import api from '@/services/api';
 import { getConfig } from '@/config/environment';
+import { Button } from '@nekazari/ui-kit';
 
 interface GrafanaAccessProps {
   embedded?: boolean;
@@ -33,7 +35,7 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
     try {
       const token = getToken();
       if (!token) {
-        console.warn('[GrafanaAccess] No token available, user may need to login again');
+        logger.warn('[GrafanaAccess] No token available, user may need to login again');
         setError('No se pudo obtener el token de autenticación');
         setIsLoading(false);
         return;
@@ -52,7 +54,7 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
           setIsLoading(false);
         }, 300);
       } catch (apiError: any) {
-        console.error('[GrafanaAccess] Backend grafana link error:', apiError);
+        logger.error('[GrafanaAccess] Backend grafana link error:', apiError);
         const message = apiError?.response?.data?.error || apiError?.message || 'No se pudo preparar el acceso a Grafana.';
         setError(message);
         const fallbackUrl = config.external.grafanaUrl
@@ -63,7 +65,7 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
         setIsLoading(false);
       }
     } catch (err) {
-      console.error('[GrafanaAccess] Error opening Grafana:', err);
+      logger.error('[GrafanaAccess] Error opening Grafana:', err);
       setError('Error al abrir Grafana');
       setIsLoading(false);
     }
@@ -72,7 +74,7 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
   // Embedded view (iframe) - Note: iframe may not work with OAuth SSO due to same-origin policy
   // It's recommended to use the button view instead
   if (embedded) {
-    console.log('[GrafanaAccess] Rendering embedded view', { user: user?.email, tenant: user?.tenant });
+    logger.log('[GrafanaAccess] Rendering embedded view', { user: user?.email, tenant: user?.tenant });
     return (
       <div className="w-full h-full border border-nkz-border rounded-lg overflow-hidden bg-white">
         <div className="flex items-center justify-between p-3 bg-nkz-bg-secondary border-b">
@@ -100,12 +102,12 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
         <div className="p-4 text-center text-nkz-muted">
           <p className="mb-2">⚠️ Vista embebida limitada por autenticación OAuth</p>
           <p className="text-sm mb-4">Se recomienda abrir Grafana en una nueva ventana para mejor experiencia</p>
-          <button
+          <Button
             onClick={handleOpenGrafana}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Abrir Grafana en nueva ventana
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -139,7 +141,7 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
               <ShieldCheck className="w-4 h-4" /> Acceso verificado para tu organización en Grafana.
             </div>
           )}
-          <button
+          <Button
             onClick={handleOpenGrafana}
             disabled={isLoading}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
@@ -156,7 +158,7 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
                 <ExternalLink className="w-4 h-4" />
               </>
             )}
-          </button>
+          </Button>
         </div>
         <div className="ml-6">
           <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">

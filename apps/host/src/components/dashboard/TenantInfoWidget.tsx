@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
+import { logger } from '@/utils/logger';
 import { Clock, Cloud, Sun, CloudRain, Wind } from 'lucide-react';
 import api from '@/services/api';
 
@@ -55,7 +56,7 @@ export const TenantInfoWidget: React.FC = () => {
                 }
             } catch (error) {
                 // Silently handle errors - weather is optional
-                console.debug('Weather data not available:', error);
+                logger.debug('Weather data not available:', error);
             } finally {
                 setLoading(false);
             }

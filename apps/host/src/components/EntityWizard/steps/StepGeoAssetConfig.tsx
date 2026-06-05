@@ -4,6 +4,7 @@ import { useWizard } from '../WizardContext';
 import { ParentEntitySelector } from '../ParentEntitySelector';
 import api from '@/services/api';
 import type { GeoAssetFormData } from '../types';
+import { Input } from '@nekazari/ui-kit';
 
 // Types that support the subdivision (parent-child) workflow
 const SUBDIVISION_CAPABLE = new Set([
@@ -52,10 +53,10 @@ export function StepGeoAssetConfig() {
       {/* Name */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-        <input
+        <Input
           type="text"
           value={data.name}
-          onChange={e => updateFormData({ name: e.target.value })}
+          onChange={(e: any) => updateFormData({ name: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500"
           placeholder="Nombre del activo"
         />
@@ -66,7 +67,7 @@ export function StepGeoAssetConfig() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
         <textarea
           value={data.description ?? ''}
-          onChange={e => updateFormData({ description: e.target.value })}
+          onChange={(e: any) => updateFormData({ description: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500"
           placeholder="Descripción opcional"
           rows={2}
@@ -81,20 +82,20 @@ export function StepGeoAssetConfig() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Municipio</label>
-              <input
+              <Input
                 type="text"
                 value={data.municipality ?? ''}
-                onChange={e => updateFormData({ municipality: e.target.value })}
+                onChange={(e: any) => updateFormData({ municipality: e.target.value })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
                 placeholder="Ej: Vitoria-Gasteiz"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Provincia</label>
-              <input
+              <Input
                 type="text"
                 value={data.province ?? ''}
-                onChange={e => updateFormData({ province: e.target.value })}
+                onChange={(e: any) => updateFormData({ province: e.target.value })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
                 placeholder="Ej: Álava"
               />
@@ -103,10 +104,10 @@ export function StepGeoAssetConfig() {
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Referencia catastral</label>
-            <input
+            <Input
               type="text"
               value={data.cadastralReference ?? ''}
-              onChange={e => updateFormData({ cadastralReference: e.target.value })}
+              onChange={(e: any) => updateFormData({ cadastralReference: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500 font-mono"
               placeholder="Ej: 01001A001000010000DP"
             />
@@ -114,10 +115,10 @@ export function StepGeoAssetConfig() {
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de cultivo</label>
-            <input
+            <Input
               type="text"
               value={data.cropType ?? ''}
-              onChange={e => updateFormData({ cropType: e.target.value })}
+              onChange={(e: any) => updateFormData({ cropType: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
               placeholder="Ej: Viñedo, Cereal, Olivar"
             />
@@ -144,7 +145,7 @@ export function StepGeoAssetConfig() {
           ) : (
             <select
               value={data.parentEntity?.id ?? ''}
-              onChange={e => {
+              onChange={(e: any) => {
                 const parcel = parcels.find(p => p.id === e.target.value);
                 updateFormData({
                   parentEntity: parcel ? { id: parcel.id, type: 'AgriParcel', name: parcel.name, geometry: null } : null,
@@ -165,11 +166,11 @@ export function StepGeoAssetConfig() {
       {canSubdivide && (
         <div className="pt-4 border-t">
           <div className="flex items-center gap-2 mb-3">
-            <input
+            <Input
               type="checkbox"
               id="isSubdivision"
               checked={data.isSubdivision}
-              onChange={e => updateFormData({
+              onChange={(e: any) => updateFormData({
                 isSubdivision: e.target.checked,
                 parentEntity: e.target.checked ? data.parentEntity : null,
               })}

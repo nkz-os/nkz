@@ -5,6 +5,8 @@
 import React from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { Loader2 } from 'lucide-react';
+import { logger } from '@/utils/logger';
+
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -29,7 +31,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     login().catch(err => {
       // If login fails, log and stay on a minimal page to allow user to retry manually
        
-      console.error('[ProtectedRoute] Login initiation failed', err);
+      logger.error('[ProtectedRoute] Login initiation failed', err);
       window.location.href = '/login';
     });
     return null;

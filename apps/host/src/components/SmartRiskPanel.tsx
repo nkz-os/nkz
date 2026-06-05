@@ -8,6 +8,9 @@ import api from '@/services/api';
 import { RISK_CATALOG, RiskCategory, RiskPreset } from '@/config/riskCatalog';
 import { RiskSubscription } from '@/types';
 import { CustomRiskModal } from './CustomRiskModal';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 interface ExtendedRiskPreset extends RiskPreset {
   id: string;
@@ -66,7 +69,7 @@ export const SmartRiskPanel: React.FC = () => {
       setFullCatalog([...(RISK_CATALOG as ExtendedRiskPreset[]), ...customRisks]);
 
     } catch (err) {
-      console.error('Error fetching risk panel data:', err);
+      logger.error('Error fetching risk panel data:', err);
     } finally {
       setIsLoading(false);
     }
@@ -106,7 +109,7 @@ export const SmartRiskPanel: React.FC = () => {
         });
       }
     } catch (err) {
-      console.error('Error toggling risk:', err);
+      logger.error('Error toggling risk:', err);
     } finally {
       setSaving(prev => ({ ...prev, [riskId]: false }));
     }
@@ -142,7 +145,7 @@ export const SmartRiskPanel: React.FC = () => {
       <CustomRiskModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)}
-        onSuccess={() => { loadData().catch(console.error); }}
+        onSuccess={() => { loadData().catch(logger.error); }}
         availableAttributes={Object.keys(availableSensors)}
       />
 
@@ -171,7 +174,7 @@ export const SmartRiskPanel: React.FC = () => {
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-2 rounded-2xl border border-gray-100 shadow-sm">
         <div className="flex p-1 bg-nkz-bg-secondary rounded-xl w-full md:w-auto">
           {categories.map(cat => (
-            <button
+            <Button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -181,17 +184,17 @@ export const SmartRiskPanel: React.FC = () => {
               }`}
             >
               {cat.label}
-            </button>
+            </Button>
           ))}
         </div>
         <div className="relative w-full md:w-64 px-2">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-nkz-muted" />
-          <input
+          <Input
             type="text"
             placeholder="Filtrar modelos..."
             className="w-full pl-10 pr-4 py-2 bg-nkz-bg-secondary border-none rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-sm"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e: any) => setSearchQuery(e.target.value)}
           />
         </div>
       </div>
@@ -235,8 +238,8 @@ export const SmartRiskPanel: React.FC = () => {
                   <div className={`p-2.5 rounded-xl ${isActive ? 'bg-nkz-success-light text-nkz-success' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
                     <Icon className="h-6 w-6" />
                   </div>
-                  <button
-                    onClick={() => { handleToggleRisk(risk.id).catch(console.error); }}
+                  <Button
+                    onClick={() => { handleToggleRisk(risk.id).catch(logger.error); }}
                     disabled={isSaving}
                     className="transition-opacity disabled:opacity-50"
                   >
@@ -247,7 +250,7 @@ export const SmartRiskPanel: React.FC = () => {
                     ) : (
                       <ToggleLeft className="h-9 w-9 text-gray-300 cursor-pointer hover:text-nkz-muted" />
                     )}
-                  </button>
+                  </Button>
                 </div>
 
                 <div>

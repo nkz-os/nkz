@@ -14,6 +14,8 @@ import { toNKZRegistration, NKZProvider } from '@nekazari/module-kit';
 import { ModuleDefinition, useModules } from '@/context/ModuleContext';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { isLocalAddon, getLocalAddon } from '@/config/localAddons';
+import { logger } from '@/utils/logger';
+
 
 interface RemoteModuleLoaderProps {
   module: ModuleDefinition;
@@ -39,7 +41,7 @@ class RemoteModuleErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('[RemoteModuleLoader] Module render error:', error.message, errorInfo.componentStack);
+    logger.error('[RemoteModuleLoader] Module render error:', error.message, errorInfo.componentStack);
   }
 
   render() {
@@ -163,7 +165,7 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
           ));
         }
       } catch (error) {
-        console.error(`[RemoteModuleLoader] Failed to load module ${module.id}:`, error);
+        logger.error(`[RemoteModuleLoader] Failed to load module ${module.id}:`, error);
         if (isMounted) {
           setLoadError(error instanceof Error ? error : new Error('Unknown error loading module'));
         }

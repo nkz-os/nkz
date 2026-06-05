@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import client from '@/services/api';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface TenantConfig {
   tenant_id: string;
@@ -152,10 +153,10 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
   ) => (
     <div key={key}>
       <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">{label}</label>
-      <input
+      <Input
         type="number"
         value={value ?? ''}
-        onChange={(e) => {
+        onChange={(e: any) => {
           const v = e.target.value;
           setter(v === '' ? null : parseInt(v, 10));
         }}
@@ -185,10 +186,10 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
             <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">
               {t('admin.tenant_name', { defaultValue: 'Tenant Name' })}
             </label>
-            <input
+            <Input
               type="text"
               value={tenantName}
-              onChange={(e) => setTenantName(e.target.value)}
+              onChange={(e: any) => setTenantName(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             />
           </div>
@@ -198,7 +199,7 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
             </label>
             <select
               value={planType}
-              onChange={(e) => setPlanType(e.target.value)}
+              onChange={(e: any) => setPlanType(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             >
               <option value="basic">{t('common.basic')}</option>
@@ -213,7 +214,7 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
             </label>
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(e: any) => setStatus(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             >
               <option value="active">{t('common.active')}</option>
@@ -227,10 +228,10 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
             <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">
               {t('admin.expiration_date', { defaultValue: 'Expiration Date' })}
             </label>
-            <input
+            <Input
               type="date"
               value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
+              onChange={(e: any) => setExpiresAt(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             />
           </div>
@@ -246,10 +247,10 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
               <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">
                 {t('admin.contact_email', { defaultValue: 'Contact Email' })}
               </label>
-              <input
+              <Input
                 type="email"
                 value={contactEmail}
-                onChange={(e) => setContactEmail(e.target.value)}
+                onChange={(e: any) => setContactEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
               />
             </div>
@@ -257,10 +258,10 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
               <label className="block text-nkz-sm font-medium text-nkz-text-secondary mb-1">
                 {t('admin.contact_phone', { defaultValue: 'Phone' })}
               </label>
-              <input
+              <Input
                 type="text"
                 value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
+                onChange={(e: any) => setContactPhone(e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
               />
             </div>
@@ -290,13 +291,13 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
         </div>
 
         <div className="flex justify-end pt-4 border-t border-nkz-border">
-          <button
+          <Button
             onClick={handleSave}
             disabled={saving}
             className="px-6 py-2 bg-nkz-accent-base text-nkz-text-on-accent font-semibold rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {saving ? t('common.saving') : t('common.save_changes')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

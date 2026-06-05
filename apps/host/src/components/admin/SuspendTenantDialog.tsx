@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import client from '@/services/api';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface InventoryData {
   tenant_id: string;
@@ -142,17 +143,17 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
             <label className="text-nkz-sm font-medium text-nkz-text-primary block">
               {t('admin.type_tenant_name_confirm', { name: tenantName })}
             </label>
-            <input
+            <Input
               type="text"
               value={confirmName}
-              onChange={(e) => setConfirmName(e.target.value)}
+              onChange={(e: any) => setConfirmName(e.target.value)}
               className="mt-1 w-full p-2 border border-nkz-border rounded bg-nkz-bg text-nkz-text-primary"
               placeholder={tenantName}
             />
           </div>
 
           <label className="flex items-center gap-2 text-nkz-sm">
-            <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
+            <Input type="checkbox" checked={confirmed} onChange={(e: any) => setConfirmed(e.target.checked)} />
             {t('admin.suspend_confirm_checkbox')}
           </label>
 
@@ -162,7 +163,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
             </label>
             <textarea
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e: any) => setNotes(e.target.value)}
               className="mt-1 w-full p-2 border border-nkz-border rounded bg-nkz-bg text-nkz-text-primary"
               rows={2}
               placeholder={t('admin.suspend_notes_placeholder')}
@@ -171,17 +172,17 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary" disabled={suspending}>
+          <Button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary" disabled={suspending}>
             {t('common.cancel')}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSuspend}
             disabled={confirmName !== tenantName || !confirmed || suspending}
             className="px-4 py-2 bg-nkz-warning-strong text-white rounded disabled:opacity-50"
           >
             {suspending && <Loader2 className="h-4 w-4 animate-spin inline mr-1" />}
             {t('admin.suspend_tenant_button')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

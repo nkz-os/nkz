@@ -7,7 +7,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 import {
+
   Key,
   Plus,
   Edit2,
@@ -93,7 +96,7 @@ export const ExternalApiCredentials: React.FC = () => {
       setCredentials(response.data.credentials || []);
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Error cargando credenciales');
-      console.error('Error loading credentials:', err);
+      logger.error('Error loading credentials:', err);
     } finally {
       setLoading(false);
     }
@@ -176,7 +179,7 @@ export const ExternalApiCredentials: React.FC = () => {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Error guardando credencial');
-      console.error('Error saving credential:', err);
+      logger.error('Error saving credential:', err);
     }
   };
 
@@ -198,7 +201,7 @@ export const ExternalApiCredentials: React.FC = () => {
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Error eliminando credencial');
-      console.error('Error deleting credential:', err);
+      logger.error('Error deleting credential:', err);
     }
   };
 
@@ -243,20 +246,20 @@ export const ExternalApiCredentials: React.FC = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <button
+          <Button
             onClick={loadCredentials}
             disabled={loading}
             className="px-4 py-2 text-gray-600 hover:text-gray-900 disabled:opacity-50"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleCreate}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             {t('settings.external_apis.new_credential')}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -286,12 +289,12 @@ export const ExternalApiCredentials: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-900">
               {editingId ? t('settings.external_apis.edit_credential') : t('settings.external_apis.new_credential')}
             </h3>
-            <button
+            <Button
               onClick={() => setShowForm(false)}
               className="text-nkz-muted hover:text-gray-600"
             >
               <X className="w-5 h-5" />
-            </button>
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -299,10 +302,10 @@ export const ExternalApiCredentials: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('settings.external_apis.service_name')} *
               </label>
-              <input
+              <Input
                 type="text"
                 value={formData.service_name}
-                onChange={(e) => setFormData({ ...formData, service_name: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, service_name: e.target.value })}
                 placeholder="sentinel-hub, aemet, catastro"
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
@@ -316,10 +319,10 @@ export const ExternalApiCredentials: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('settings.external_apis.service_url')} *
               </label>
-              <input
+              <Input
                 type="url"
                 value={formData.service_url}
-                onChange={(e) => setFormData({ ...formData, service_url: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, service_url: e.target.value })}
                 placeholder="https://services.sentinel-hub.com"
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
@@ -335,7 +338,7 @@ export const ExternalApiCredentials: React.FC = () => {
               </label>
               <select
                 value={formData.auth_type}
-                onChange={(e) => setFormData({ ...formData, auth_type: e.target.value as any })}
+                onChange={(e: any) => setFormData({ ...formData, auth_type: e.target.value as any })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="none">Sin autenticación</option>
@@ -351,10 +354,10 @@ export const ExternalApiCredentials: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Usuario *
                   </label>
-                  <input
+                  <Input
                     type="text"
                     value={formData.username || ''}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    onChange={(e: any) => setFormData({ ...formData, username: e.target.value })}
                     placeholder="usuario"
                     className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
@@ -363,10 +366,10 @@ export const ExternalApiCredentials: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Contraseña *
                   </label>
-                  <input
+                  <Input
                     type="password"
                     value={formData.password || ''}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e: any) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="••••••••"
                     className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
@@ -382,10 +385,10 @@ export const ExternalApiCredentials: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {formData.auth_type === 'api_key' ? t('settings.external_apis.api_key') : t('settings.external_apis.bearer_token')} *
                 </label>
-                <input
+                <Input
                   type="password"
                   value={formData.api_key || ''}
-                  onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                  onChange={(e: any) => setFormData({ ...formData, api_key: e.target.value })}
                   placeholder="••••••••"
                   className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
@@ -401,7 +404,7 @@ export const ExternalApiCredentials: React.FC = () => {
               </label>
               <textarea
                 value={formData.description || ''}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, description: e.target.value })}
                 placeholder={t('settings.external_apis.description_placeholder')}
                 rows={3}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -409,11 +412,11 @@ export const ExternalApiCredentials: React.FC = () => {
             </div>
 
             <div className="md:col-span-2 flex items-center gap-2">
-              <input
+              <Input
                 type="checkbox"
                 id="is_active"
                 checked={formData.is_active}
-                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                onChange={(e: any) => setFormData({ ...formData, is_active: e.target.checked })}
                 className="w-4 h-4 text-nkz-info border-nkz-border rounded focus:ring-blue-500"
               />
               <label htmlFor="is_active" className="text-sm text-gray-700">
@@ -423,19 +426,19 @@ export const ExternalApiCredentials: React.FC = () => {
           </div>
 
           <div className="flex justify-end gap-2 mt-4">
-            <button
+            <Button
               onClick={() => setShowForm(false)}
               className="px-4 py-2 text-gray-700 bg-nkz-bg-secondary rounded-lg hover:bg-gray-200"
             >
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
               Guardar
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -449,12 +452,12 @@ export const ExternalApiCredentials: React.FC = () => {
         <div className="text-center py-8">
           <Key className="w-12 h-12 text-nkz-muted mx-auto mb-4" />
           <p className="text-gray-600">No hay credenciales configuradas</p>
-          <button
+          <Button
             onClick={handleCreate}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Crear Primera Credencial
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -533,20 +536,20 @@ export const ExternalApiCredentials: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end gap-2">
-                      <button
+                      <Button
                         onClick={() => handleEdit(credential)}
                         className="text-nkz-info hover:text-blue-900"
                         title="Editar"
                       >
                         <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={() => handleDelete(credential.id, credential.service_name)}
                         className="text-nkz-error hover:text-red-900"
                         title="Eliminar"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>

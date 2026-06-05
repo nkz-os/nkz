@@ -8,6 +8,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useViewer } from '@/context/ViewerContext';
 import type { FieldPhotoRecord } from '@/utils/fieldPhotos';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface Props {
     /** Used only to derive the scrub input's min/max date span. */
@@ -35,13 +36,13 @@ export const CoreTimelineControls: React.FC<Props> = ({ photos }) => {
         <div className="flex items-center gap-4 px-4 w-full text-slate-700 dark:text-slate-200">
             <label className="flex items-center gap-2 text-xs">
                 <span className="text-slate-500 dark:text-slate-400">{t('viewer.fieldPhotos.currentDate')}</span>
-                <input
+                <Input
                     type="date"
                     aria-label={t('viewer.fieldPhotos.currentDate')}
                     value={toDateInput(currentDate)}
                     min={min}
                     max={max}
-                    onChange={e => { if (e.target.value) setCurrentDate(new Date(e.target.value)); }}
+                    onChange={(e: any) => { if (e.target.value) setCurrentDate(new Date(e.target.value)); }}
                     className="bg-slate-100 dark:bg-slate-700 rounded-lg px-2 py-1 text-xs"
                 />
             </label>
@@ -49,7 +50,7 @@ export const CoreTimelineControls: React.FC<Props> = ({ photos }) => {
             <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 dark:text-slate-400">{t('viewer.fieldPhotos.window')}</span>
                 {WINDOWS.map(w => (
-                    <button
+                    <Button
                         key={w.key}
                         type="button"
                         aria-pressed={photoWindowDays === w.days}
@@ -61,7 +62,7 @@ export const CoreTimelineControls: React.FC<Props> = ({ photos }) => {
                         }`}
                     >
                         {t(w.key)}
-                    </button>
+                    </Button>
                 ))}
             </div>
         </div>

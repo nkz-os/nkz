@@ -35,6 +35,7 @@ import {
 import { EntityWizard } from '@/components/EntityWizard';
 import { SlotRegistryProvider } from '@/context/SlotRegistry';
 import { SlotRenderer } from '@/components/SlotRenderer';
+import { Button } from '@nekazari/ui-kit';
 
 export const DashboardImproved: React.FC = () => {
   const navigate = useNavigate();
@@ -185,12 +186,12 @@ export const DashboardImproved: React.FC = () => {
               ? t('dashboard.updated_at', { time: new Date(lastUsageUpdate).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) })
               : undefined}
           >
-            <button
+            <Button
               onClick={() => navigate('/entities')}
               className="text-xs text-white/80 hover:text-white underline underline-offset-2 transition"
             >
               {t('dashboard.view_all_entities')}
-            </button>
+            </Button>
           </MetricCard>
         </div>
 

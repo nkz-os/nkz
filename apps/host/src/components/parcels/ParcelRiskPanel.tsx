@@ -7,6 +7,7 @@ import { AlertTriangle, ShieldCheck, Loader2, ChevronDown, ChevronUp, Settings2 
 import { useNavigate } from 'react-router-dom';
 import api from '@/services/api';
 import type { RiskState } from '@/types';
+import { Button } from '@nekazari/ui-kit';
 
 interface ParcelRiskPanelProps {
     parcelId: string;
@@ -73,7 +74,7 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
     return (
         <div className="bg-nkz-error-light rounded-lg border border-red-200">
             {/* Section header */}
-            <button
+            <Button
                 className="w-full flex items-center justify-between p-4 text-left"
                 onClick={() => setCollapsed((c) => !c)}
             >
@@ -91,7 +92,7 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
                 ) : (
                     <ChevronUp className="w-4 h-4 text-nkz-error" />
                 )}
-            </button>
+            </Button>
 
             {!collapsed && (
                 <div className="px-4 pb-4 space-y-3">
@@ -147,13 +148,13 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
                     )}
 
                     {/* Configure alerts shortcut */}
-                    <button
+                    <Button
                         className="flex items-center gap-1 text-xs text-nkz-error hover:text-red-900 hover:underline"
                         onClick={() => navigate('/alerts')}
                     >
                         <Settings2 className="w-3 h-3" />
                         Configurar alertas
-                    </button>
+                    </Button>
                 </div>
             )}
         </div>

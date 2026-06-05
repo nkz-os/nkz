@@ -27,6 +27,7 @@ import type { Robot, Sensor, AgriculturalMachine, LivestockAnimal, WeatherStatio
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SensorInspector } from '@/components/SensorInspector';
 import { BulkImportModal } from '@/components/BulkImport/BulkImportModal';
+import { Button, Input } from '@nekazari/ui-kit';
 
 export const Entities: React.FC = () => {
   const { t: _t } = useI18n();
@@ -326,30 +327,30 @@ export const Entities: React.FC = () => {
               </p>
             </div>
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={loadAllEntities}
                 disabled={isLoading}
                 className="flex items-center gap-2 px-4 py-2 bg-white border border-nkz-border text-gray-700 rounded-lg hover:bg-nkz-bg-secondary transition disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                 Actualizar
-              </button>
+              </Button>
               {canManageDevices && (
                 <>
-                  <button
+                  <Button
                     onClick={() => setIsImportOpen(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-sm"
                   >
                     <Upload className="w-4 h-4" />
                     Importar
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setIsWizardOpen(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm"
                   >
                     <Plus className="w-4 h-4" />
                     Nueva Entidad
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
@@ -357,7 +358,7 @@ export const Entities: React.FC = () => {
 
           {/* Tabs */}
           <div className="flex border-b border-nkz-border flex-shrink-0 bg-white rounded-t-lg px-2">
-            <button
+            <Button
               onClick={() => setActiveTab('crops')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'crops'
                 ? 'border-green-500 text-nkz-success bg-nkz-success-light/50'
@@ -368,8 +369,8 @@ export const Entities: React.FC = () => {
                 <MapPin className="w-4 h-4" />
                 Cultivos <span className="bg-nkz-bg-secondary text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.crops}</span>
               </div>
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setActiveTab('fleet')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'fleet'
                 ? 'border-blue-500 text-nkz-info bg-nkz-info-light/50'
@@ -380,8 +381,8 @@ export const Entities: React.FC = () => {
                 <Bot className="w-4 h-4" />
                 Flota <span className="bg-nkz-bg-secondary text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.fleet}</span>
               </div>
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setActiveTab('installations')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'installations'
                 ? 'border-orange-500 text-orange-600 bg-orange-50/50'
@@ -392,7 +393,7 @@ export const Entities: React.FC = () => {
                 <Gauge className="w-4 h-4" />
                 Instalaciones <span className="bg-nkz-bg-secondary text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.installations}</span>
               </div>
-            </button>
+            </Button>
           </div>
 
           {/* Content */}
@@ -402,11 +403,11 @@ export const Entities: React.FC = () => {
               <div className="p-4 border-b flex-shrink-0 bg-nkz-bg-secondary rounded-t-lg">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nkz-muted w-5 h-5" />
-                  <input
+                  <Input
                     type="text"
                     placeholder="Buscar entidades..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e: any) => setSearchTerm(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                   />
                 </div>

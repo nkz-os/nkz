@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import type { Parcel } from '@/types';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { useNotification } from '@/hooks/useNotification';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface ParcelFormProps {
     initialData: Partial<Parcel> | null;
@@ -89,10 +90,10 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                     Nombre de la Parcela <span className="text-nkz-error">*</span>
                 </label>
-                <input
+                <Input
                     type="text"
                     value={formData.name || ''}
-                    onChange={(e) => handleChange('name', e.target.value)}
+                    onChange={(e: any) => handleChange('name', e.target.value)}
                     className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder={formData.cadastralReference || "Ej: Mi Parcela 1"}
                     required
@@ -105,7 +106,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         Referencia Catastral
                     </label>
-                    <input
+                    <Input
                         type="text"
                         value={formData.cadastralReference}
                         readOnly
@@ -122,7 +123,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Municipio
                             </label>
-                            <input
+                            <Input
                                 type="text"
                                 value={formData.municipality}
                                 readOnly
@@ -135,7 +136,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Provincia
                             </label>
-                            <input
+                            <Input
                                 type="text"
                                 value={formData.province}
                                 readOnly
@@ -153,7 +154,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
                 </label>
                 <select
                     value={formData.cropType}
-                    onChange={(e) => handleChange('cropType', e.target.value)}
+                    onChange={(e: any) => handleChange('cropType', e.target.value)}
                     className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     required
                 >
@@ -188,7 +189,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
                 </label>
                 <textarea
                     value={formData.notes}
-                    onChange={(e) => handleChange('notes', e.target.value)}
+                    onChange={(e: any) => handleChange('notes', e.target.value)}
                     className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     rows={3}
                     placeholder="Información adicional sobre la parcela"
@@ -223,20 +224,20 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
 
             {/* Actions */}
             <div className="flex gap-3">
-                <button
+                <Button
                     type="submit"
                     disabled={!geometry}
                     className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium transition-colors"
                 >
                     {mode === 'create' ? 'Crear Parcela' : 'Guardar Cambios'}
-                </button>
-                <button
+                </Button>
+                <Button
                     type="button"
                     onClick={onCancel}
                     className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 font-medium transition-colors"
                 >
                     Cancelar
-                </button>
+                </Button>
             </div>
         </form>
     );

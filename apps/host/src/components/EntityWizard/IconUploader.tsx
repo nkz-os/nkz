@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Image as ImageIcon, Check, Loader2 } from 'lucide-react';
 import { uploadToMinIO, isValidIconFile, getMaxFileSizeMB, UploadProgress } from '@/utils/minioAssets';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface IconUploaderProps {
   currentIconUrl?: string;
@@ -121,7 +122,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
               <span className="text-sm font-medium">
                 {uploading ? `Uploading... ${uploadProgress}%` : 'Upload Icon'}
               </span>
-              <input
+              <Input
                 ref={fileInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
@@ -132,14 +133,14 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
             </label>
 
             {preview && preview !== defaultIconPath && !uploading && (
-              <button
+              <Button
                 type="button"
                 onClick={handleRemove}
                 disabled={disabled}
                 className="px-4 py-2 border border-red-300 text-nkz-error rounded-lg hover:bg-nkz-error-light transition disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
-              </button>
+              </Button>
             )}
           </div>
 

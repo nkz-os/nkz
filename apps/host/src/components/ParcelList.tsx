@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { Edit2, Trash2, Check, X, Ruler, Eye } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
+import { Button, Input } from '@nekazari/ui-kit';
 
 export interface SelectedParcel {
   id: string;
@@ -78,13 +79,13 @@ export const ParcelList: React.FC<ParcelListProps> = ({
               <div className="flex-1 min-w-0">
                 {editingId === parcel.id ? (
                   <div className="flex items-center gap-2">
-                    <input
+                    <Input
                       type="text"
                       value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
+                      onChange={(e: any) => setEditValue(e.target.value)}
                       className="flex-1 px-2 py-1 border border-emerald-500 rounded text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       autoFocus
-                      onKeyDown={(e) => {
+                      onKeyDown={(e: any) => {
                         if (e.key === 'Enter') {
                           handleSaveEdit(parcel.id);
                         } else if (e.key === 'Escape') {
@@ -92,20 +93,20 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         }
                       }}
                     />
-                    <button
+                    <Button
                       onClick={() => handleSaveEdit(parcel.id)}
                       className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
                       title={t('parcels.save')}
                     >
                       <Check className="w-4 h-4" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={handleCancelEdit}
                       className="p-1 text-nkz-muted hover:bg-nkz-bg-secondary rounded transition-colors"
                       title={t('parcels.cancel')}
                     >
                       <X className="w-4 h-4" />
-                    </button>
+                    </Button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -113,13 +114,13 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                       {parcel.name}
                     </h4>
                     {canEdit && (
-                      <button
+                      <Button
                         onClick={() => handleStartEdit(parcel)}
                         className="p-1 text-nkz-muted hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
                         title={t('parcels.edit_name')}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 )}
@@ -146,22 +147,22 @@ export const ParcelList: React.FC<ParcelListProps> = ({
               
               <div className="flex items-center gap-2">
                 {onView && (
-                  <button
+                  <Button
                     onClick={() => onView(parcel)}
                     className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
                     title={t('ndvi.view_ndvi')}
                   >
                     <Eye className="w-4 h-4" />
-                  </button>
+                  </Button>
                 )}
                 {canEdit && editingId !== parcel.id && (
-                  <button
+                  <Button
                     onClick={() => onRemove(parcel.id)}
                     className="p-1.5 text-red-400 hover:text-nkz-error hover:bg-nkz-error-light rounded transition-colors"
                     title={t('parcels.remove_parcel')}
                   >
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

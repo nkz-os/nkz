@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Wind, Droplets, Thermometer, Radio, Cloud, AlertCircle, Loader2, Sprout } from 'lucide-react';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+
 
 interface ParcelAgroStatusDetailProps {
   parcelId: string;
@@ -105,7 +107,7 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
         const resp = await api.getParcelAgroStatus(parcelId);
         setStatus(resp);
       } catch (err: any) {
-        console.error('Error loading parcel agro status:', err);
+        logger.error('Error loading parcel agro status:', err);
         setError(
           err?.response?.data?.error ||
             err?.message ||

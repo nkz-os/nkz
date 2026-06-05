@@ -15,7 +15,9 @@ import {
   sortNavigationItemsByPriority,
 } from '@/config/navigation';
 import { X } from 'lucide-react';
+import { Button } from '@nekazari/ui-kit';
 import {
+
   Puzzle,
   Bird,
   Sparkles,
@@ -145,13 +147,13 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
               className="h-7 w-auto dark:invert"
             />
           </Link>
-          <button
+          <Button
             onClick={onClose}
             className="p-2 rounded-md text-nkz-muted dark:text-nkz-muted hover:text-nkz-muted dark:hover:text-nkz-muted hover:bg-nkz-bg-secondary dark:hover:bg-gray-800 transition-colors"
             aria-label="Cerrar menú"
           >
             <X className="h-6 w-6" />
-          </button>
+          </Button>
         </div>
 
         {/* Drawer Content */}

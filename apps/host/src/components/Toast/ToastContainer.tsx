@@ -5,6 +5,7 @@
 
 import React, { useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { Button } from '@nekazari/ui-kit';
 
 // =============================================================================
 // Types
@@ -95,13 +96,13 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium">{toast.message}</p>
       </div>
-      <button
+      <Button
         onClick={() => onRemove(toast.id)}
         className="flex-shrink-0 text-nkz-muted hover:text-gray-600 transition-colors"
         aria-label="Cerrar"
       >
         <X className="w-4 h-4" />
-      </button>
+      </Button>
     </div>
   );
 };

@@ -10,6 +10,9 @@ import { useI18n } from '@/context/I18nContext';
 import { useViewer } from '@/context/ViewerContext';
 import api from '@/services/api';
 import type { Sensor } from '@/types';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 interface SensorProfile {
   code: string;
@@ -67,7 +70,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
       const data = await api.getSensorProfiles();
       setProfiles(data);
     } catch (error) {
-      console.error('Error loading profiles:', error);
+      logger.error('Error loading profiles:', error);
     }
   };
 
@@ -125,7 +128,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
       }
       onClose();
     } catch (error: unknown) {
-      console.error('Error saving sensor:', error);
+      logger.error('Error saving sensor:', error);
       const ax = error as { response?: { data?: { error?: string } } };
       const errorMsg = ax.response?.data?.error ?? t('sensors.save_error');
       setError(errorMsg);
@@ -151,13 +154,13 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             <Gauge className="w-6 h-6" />
             Registrar Nuevo Sensor
           </h2>
-          <button
+          <Button
             onClick={onClose}
             className="text-white hover:text-gray-200 transition"
             disabled={loading}
           >
             <X className="w-6 h-6" />
-          </button>
+          </Button>
         </div>
 
         {/* Form */}
@@ -177,10 +180,10 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               ID Externo *
             </label>
-            <input
+            <Input
               type="text"
               value={formData.external_id}
-              onChange={(e) => setFormData({ ...formData, external_id: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, external_id: e.target.value })}
               placeholder="Ej: BP_Vaso_PAR_1"
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={loading}
@@ -196,10 +199,10 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nombre *
             </label>
-            <input
+            <Input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Ej: Sensor Temperatura Estación 01"
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={loading}
@@ -214,7 +217,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             </label>
             <select
               value={formData.profile}
-              onChange={(e) => setFormData({ ...formData, profile: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, profile: e.target.value })}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={loading}
               required
@@ -280,11 +283,11 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
                 <MapPin className="w-4 h-4" />
                 Latitud (GPS) *
               </label>
-              <input
+              <Input
                 type="number"
                 step="any"
                 value={formData.latitude}
-                onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
+                onChange={(e: any) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: 42.571493"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 disabled={loading}
@@ -296,11 +299,11 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
                 <MapPin className="w-4 h-4" />
                 Longitud (GPS) *
               </label>
-              <input
+              <Input
                 type="number"
                 step="any"
                 value={formData.longitude}
-                onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
+                onChange={(e: any) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: -2.028218"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 disabled={loading}
@@ -310,7 +313,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
           </div>
 
           {/* Botón Seleccionar en Mapa */}
-          <button
+          <Button
             type="button"
             onClick={() => {
               pickLocation((lat, lon) => {
@@ -321,17 +324,17 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
           >
             <MapPin className="w-4 h-4" />
             Seleccionar en el mapa del Visor
-          </button>
+          </Button>
 
           {/* Estación */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Estación (opcional)
             </label>
-            <input
+            <Input
               type="text"
               value={formData.station_id}
-              onChange={(e) => setFormData({ ...formData, station_id: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, station_id: e.target.value })}
               placeholder="Ej: Estacion_Principal"
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               disabled={loading}
@@ -343,11 +346,11 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
 
           {/* Bajo dosel */}
           <div className="flex items-center">
-            <input
+            <Input
               type="checkbox"
               id="under_canopy"
               checked={formData.is_under_canopy}
-              onChange={(e) => setFormData({ ...formData, is_under_canopy: e.target.checked })}
+              onChange={(e: any) => setFormData({ ...formData, is_under_canopy: e.target.checked })}
               className="w-4 h-4 text-nkz-success border-nkz-border rounded focus:ring-green-500"
               disabled={loading}
             />
@@ -358,22 +361,22 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
 
           {/* Botones */}
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
               type="submit"
               disabled={loading}
               className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               {loading ? 'Guardando...' : 'Guardar Sensor'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={onClose}
               disabled={loading}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancelar
-            </button>
+            </Button>
           </div>
         </form>
       </div>

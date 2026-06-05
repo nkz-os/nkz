@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { openEntityEditor } from '@/components/EntityEditor';
+import { Button } from '@nekazari/ui-kit';
 import {
     MapPin,
     Bot,
@@ -128,12 +129,12 @@ export const EntityList: React.FC<EntityListProps> = ({
                         } ${isChild ? 'ml-6 border-l-2 border-l-gray-300' : ''}`}
                 >
                     {hasChildren && (
-                        <button
-                            onClick={(e) => toggleParent(entity.id, e)}
+                        <Button
+                            onClick={((e: any) => toggleParent(entity.id, e)) as any}
                             className="p-1 hover:bg-gray-200 rounded text-nkz-muted"
                         >
                             {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        </button>
+                        </Button>
                     )}
 
                     <div className={`p-2 rounded-lg transition-colors ${isSelected ? 'bg-nkz-info-light text-nkz-info' : 'bg-nkz-bg-secondary text-nkz-muted group-hover:bg-gray-200'}`}>
@@ -144,16 +145,16 @@ export const EntityList: React.FC<EntityListProps> = ({
                         <div className="flex items-center justify-between mb-0.5">
                             <p className="font-medium text-gray-900 truncate">{entity.name || 'Sin nombre'}</p>
                             <div className="flex items-center gap-1">
-                                <button
-                                    onClick={(e) => {
+                                <Button
+                                    onClick={((e: any) => {
                                         e.stopPropagation();
                                         openEntityEditor(entity.id, entity.type);
-                                    }}
+                                    }) as any}
                                     className="p-1 text-gray-300 hover:text-nkz-info hover:bg-nkz-info-light rounded opacity-0 group-hover:opacity-100 transition"
                                     title="Editar"
                                 >
                                     <Pencil className="w-3.5 h-3.5" />
-                                </button>
+                                </Button>
                                 {entity.status && (
                                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full uppercase font-bold tracking-wider ${getStatusColor(entity.status)}`}>
                                         {entity.status}

@@ -9,6 +9,8 @@ import './index.css';
 // Cesium CSS is imported by Cesium-using components (CesiumMap, MobileViewer) via lazy chunks
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initHostI18n } from './i18n/init';
+import { logger } from '@/utils/logger';
+
 
 // =============================================================================
 // Global Error Handlers
@@ -19,11 +21,11 @@ window.onerror = (message, source, lineno, colno, error) => {
   if (typeof message === 'string' && message.includes('ResizeObserver loop')) {
     return true;
   }
-  console.error('[NKZ] Uncaught error:', message, { source, lineno, colno, error });
+  logger.error('[NKZ] Uncaught error:', message, { source, lineno, colno, error });
   return false;
 };
 window.onunhandledrejection = (event) => {
-  console.error('[NKZ] Unhandled rejection:', event.reason);
+  logger.error('[NKZ] Unhandled rejection:', event.reason);
 };
 
 // =============================================================================

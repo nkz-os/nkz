@@ -19,10 +19,11 @@ export const logger = {
   debug: isDev ? console.debug.bind(console) : noop,
   log: isDev ? console.log.bind(console) : noop,
   info: isDev ? console.info.bind(console) : noop,
-  warn: isDev ? console.warn.bind(console) : noop,
+  warn: console.warn.bind(console), // Always emit warnings
   error: console.error.bind(console), // Always emit errors
   table: isDev ? console.table.bind(console) : noop,
   group: isDev ? console.group.bind(console) : noop,
   groupEnd: isDev ? console.groupEnd.bind(console) : noop,
+  trace: isDev ? console.trace.bind(console) : noop,
 };
 /* eslint-enable no-console */

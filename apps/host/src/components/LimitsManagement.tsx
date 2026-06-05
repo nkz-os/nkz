@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 type Limits = {
   planType?: string | null;
@@ -48,7 +51,7 @@ export const LimitsManagement: React.FC = () => {
       setMessage(null);
     } catch (e: any) {
       setMessage('Error cargando límites: ' + (e.response?.data?.error || e.message));
-      console.error('Error loading limits:', e);
+      logger.error('Error loading limits:', e);
     } finally {
       setLoading(false);
     }
@@ -72,7 +75,7 @@ export const LimitsManagement: React.FC = () => {
       await load();
     } catch (e: any) {
       setMessage('Error guardando límites: ' + (e.response?.data?.error || e.message));
-      console.error('Error saving limits:', e);
+      logger.error('Error saving limits:', e);
     } finally {
       setSaving(false);
     }
@@ -95,7 +98,7 @@ export const LimitsManagement: React.FC = () => {
           <label className="block text-sm text-gray-600 mb-1">{t('plan_type')}</label>
           <select
             value={limits.planType ?? ''}
-            onChange={(e) => setLimits((s) => ({ ...s, planType: e.target.value }))}
+            onChange={(e: any) => setLimits((s) => ({ ...s, planType: e.target.value }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             disabled={loading}
           >
@@ -109,10 +112,10 @@ export const LimitsManagement: React.FC = () => {
         </div>
         <div>
           <label className="block text-sm text-gray-600 mb-1">{t('max_users')}</label>
-          <input
+          <Input
             type="number"
             value={limits.maxUsers ?? ''}
-            onChange={(e) => setLimits((s) => ({ ...s, maxUsers: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            onChange={(e: any) => setLimits((s) => ({ ...s, maxUsers: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading}
@@ -120,10 +123,10 @@ export const LimitsManagement: React.FC = () => {
         </div>
         <div>
           <label className="block text-sm text-gray-600 mb-1">{t('max_robots')}</label>
-          <input
+          <Input
             type="number"
             value={limits.maxRobots ?? ''}
-            onChange={(e) => setLimits((s) => ({ ...s, maxRobots: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            onChange={(e: any) => setLimits((s) => ({ ...s, maxRobots: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading}
@@ -131,10 +134,10 @@ export const LimitsManagement: React.FC = () => {
         </div>
         <div>
           <label className="block text-sm text-gray-600 mb-1">{t('max_sensors')}</label>
-          <input
+          <Input
             type="number"
             value={limits.maxSensors ?? ''}
-            onChange={(e) => setLimits((s) => ({ ...s, maxSensors: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            onChange={(e: any) => setLimits((s) => ({ ...s, maxSensors: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading}
@@ -142,11 +145,11 @@ export const LimitsManagement: React.FC = () => {
         </div>
         <div>
           <label className="block text-sm text-gray-600 mb-1">{t('max_area_hectares')}</label>
-          <input
+          <Input
             type="number"
             step="0.01"
             value={limits.maxAreaHectares ?? ''}
-            onChange={(e) => setLimits((s) => ({ ...s, maxAreaHectares: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            onChange={(e: any) => setLimits((s) => ({ ...s, maxAreaHectares: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading}
@@ -154,10 +157,10 @@ export const LimitsManagement: React.FC = () => {
         </div>
         <div>
           <label className="block text-sm text-gray-600 mb-1">{t('quota.max_parcels')}</label>
-          <input
+          <Input
             type="number"
             value={limits.maxParcels ?? ''}
-            onChange={(e) => setLimits((s) => ({ ...s, maxParcels: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            onChange={(e: any) => setLimits((s) => ({ ...s, maxParcels: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading}
@@ -165,10 +168,10 @@ export const LimitsManagement: React.FC = () => {
         </div>
         <div>
           <label className="block text-sm text-gray-600 mb-1">{t('quota.max_entities_total')}</label>
-          <input
+          <Input
             type="number"
             value={limits.maxEntitiesTotal ?? ''}
-            onChange={(e) => setLimits((s) => ({ ...s, maxEntitiesTotal: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            onChange={(e: any) => setLimits((s) => ({ ...s, maxEntitiesTotal: e.target.value === '' ? undefined : Number(e.target.value) }))}
             className="w-full border border-nkz-border rounded px-3 py-2"
             min={0}
             disabled={loading || !isBasic}
@@ -180,20 +183,20 @@ export const LimitsManagement: React.FC = () => {
         </div>
       </div>
       <div className="mt-6 flex gap-3">
-        <button
+        <Button
           onClick={save}
           disabled={saving || loading}
           className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? t('saving') : t('save')}
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={load}
           disabled={loading}
           className="bg-nkz-bg-secondary text-gray-800 px-4 py-2 rounded hover:bg-gray-200 disabled:opacity-50"
         >
           {t('reload')}
-        </button>
+        </Button>
       </div>
     </div>
   );

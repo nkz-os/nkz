@@ -6,6 +6,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { Shield, ArrowLeft, Home, Lock } from 'lucide-react';
+import { Button } from '@nekazari/ui-kit';
 
 export const Forbidden: React.FC = () => {
   const navigate = useNavigate();
@@ -37,13 +38,13 @@ export const Forbidden: React.FC = () => {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
+            <Button
               onClick={() => navigate(-1)}
               className="inline-flex items-center px-6 py-3 bg-nkz-bg-secondary text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Volver atrás
-            </button>
+            </Button>
             <Link
               to="/dashboard"
               className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"

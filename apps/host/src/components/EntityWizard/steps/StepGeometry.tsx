@@ -9,6 +9,7 @@ import { AssetBrowser } from '../AssetBrowser';
 import { validateGeometryWithinParent } from '@/utils/geometryValidation';
 import type { Geometry } from 'geojson';
 import type { GeoAssetFormData } from '../types';
+import { Button } from '@nekazari/ui-kit';
 
 // ─── Props — placementState lives in shell (UI state, not form payload) ───────
 
@@ -133,14 +134,14 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
               <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de geometría</label>
               <div className="grid grid-cols-4 gap-2">
                 {(['Point', 'Polygon', 'LineString', 'MultiLineString'] as const).map(gt => (
-                  <button
+                  <Button
                     key={gt}
                     type="button"
                     onClick={() => updateFormData({ geometryType: gt, geometry: null })}
                     className={`p-2 rounded border text-sm ${geometryType === gt ? 'border-green-500 bg-nkz-success-light' : 'border-nkz-border hover:border-green-200'}`}
                   >
                     {gt}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>

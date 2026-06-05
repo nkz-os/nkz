@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, UserCheck } from 'lucide-react';
 import client from '@/services/api';
+import { Button } from '@nekazari/ui-kit';
 
 interface Props {
   userId: string;
@@ -59,7 +60,7 @@ export const ReassignTenantDialog: React.FC<Props> = ({
           <Loader2 className="h-6 w-6 animate-spin mx-auto mt-4" />
         ) : (
           <select value={selectedTenantId}
-            onChange={(e) => setSelectedTenantId(e.target.value)}
+            onChange={(e: any) => setSelectedTenantId(e.target.value)}
             className="mt-4 w-full p-2 border border-nkz-border rounded bg-nkz-bg text-nkz-text-primary">
             <option value="">{t('admin.select_tenant')}</option>
             {tenants.map((t: any) => (
@@ -71,13 +72,13 @@ export const ReassignTenantDialog: React.FC<Props> = ({
         )}
 
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">{t('common.cancel')}</button>
-          <button onClick={handleReassign}
+          <Button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">{t('common.cancel')}</Button>
+          <Button onClick={handleReassign}
             disabled={!selectedTenantId || reassigning}
             className="px-4 py-2 bg-nkz-accent-base text-white rounded disabled:opacity-50">
             {reassigning ? <Loader2 className="h-4 w-4 animate-spin inline mr-1" /> : null}
             {t('admin.reassign_button')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

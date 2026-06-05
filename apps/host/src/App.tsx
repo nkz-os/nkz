@@ -53,6 +53,8 @@ const RouteFallback = () => (
 );
 
 import { EntityEditorModal, initEntityEditorListener, type EditorEventDetail } from '@/components/EntityEditor';
+import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
 
 
 // Dynamic routes component that includes remote modules
@@ -178,7 +180,7 @@ const DynamicRoutes = () => {
             ============================================ */}
         {!isLoading && Array.isArray(modules) && modules.map((module) => {
           if (!module || !module.id || !module.routePath) {
-            console.warn('[DynamicRoutes] Invalid module skipped:', module);
+            logger.warn('[DynamicRoutes] Invalid module skipped:', module);
             return null;
           }
           // Skip intelligence route (handled statically above)
@@ -208,7 +210,7 @@ const DynamicRoutes = () => {
       </React.Suspense>
     );
   } catch (error) {
-    console.error('🔥 [DynamicRoutes] CRITICAL RENDER ERROR:', error);
+    logger.error('🔥 [DynamicRoutes] CRITICAL RENDER ERROR:', error);
     return null;
   }
 };
@@ -221,7 +223,7 @@ const AppRoutes = () => {
       </ModuleProvider>
     );
   } catch (err) {
-    console.error('🔥 [AppRoutes] CRITICAL ERROR:', err);
+    logger.error('🔥 [AppRoutes] CRITICAL ERROR:', err);
     throw err;
   }
 };
@@ -269,7 +271,7 @@ const DiagnosticFallback: React.FC<{ error?: Error | null }> = ({ error }) => (
         <li>Root element: {document.getElementById('root') ? '✅ Existe' : '❌ No existe'}</li>
       </ul>
     </div>
-    <button
+    <Button
       onClick={() => window.location.reload()}
       style={{
         marginTop: '20px',
@@ -283,7 +285,7 @@ const DiagnosticFallback: React.FC<{ error?: Error | null }> = ({ error }) => (
       }}
     >
       🔄 Recargar Página
-    </button>
+    </Button>
   </div>
 );
 
@@ -328,7 +330,7 @@ function App() {
       </BrowserRouter>
     );
   } catch (error) {
-    console.error('[App] Error in render:', error);
+    logger.error('[App] Error in render:', error);
     return <DiagnosticFallback error={error instanceof Error ? error : new Error(String(error))} />;
   }
 }

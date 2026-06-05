@@ -7,6 +7,7 @@ import { X, CheckCircle2, Ruler } from 'lucide-react';
 import type { GeoPolygon } from '@/types';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { useI18n } from '@/context/I18nContext';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface ParcelConfirmationModalProps {
   isOpen: boolean;
@@ -66,12 +67,12 @@ export const ParcelConfirmationModal: React.FC<ParcelConfirmationModalProps> = (
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
             {t('parcels.confirm_parcel_title')}
           </h3>
-          <button
+          <Button
             onClick={onCancel}
             className="text-nkz-muted hover:text-gray-600 transition-colors"
           >
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         <div className="space-y-4">
@@ -107,10 +108,10 @@ export const ParcelConfirmationModal: React.FC<ParcelConfirmationModalProps> = (
             <label className="block text-sm font-medium text-gray-700 mb-2">
               {t('parcels.parcel_name')} <span className="text-nkz-error">{t('parcels.parcel_name_required')}</span>
             </label>
-            <input
+            <Input
               type="text"
               value={parcelName}
-              onChange={(e) => setParcelName(e.target.value)}
+              onChange={(e: any) => setParcelName(e.target.value)}
               placeholder={t('parcels.parcel_name_placeholder')}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               autoFocus
@@ -122,20 +123,20 @@ export const ParcelConfirmationModal: React.FC<ParcelConfirmationModalProps> = (
         </div>
 
         <div className="flex gap-3 pt-4 border-t border-nkz-border">
-          <button
+          <Button
             onClick={onCancel}
             className="flex-1 px-4 py-2 border border-nkz-border rounded-lg text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary transition-colors"
           >
             {t('parcels.cancel')}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleConfirm}
             disabled={!parcelName.trim()}
             className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
           >
             <CheckCircle2 className="w-4 h-4" />
             {t('parcels.add_parcel')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

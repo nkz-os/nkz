@@ -5,7 +5,9 @@
 import React, { useEffect, useState } from 'react';
 import { Cookie } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
+import { Button, Input } from '@nekazari/ui-kit';
 import {
+
   useCookieConsent,
   COOKIE_POLICY_NOTICE_VERSION,
 } from '@/context/CookieConsentContext';
@@ -57,7 +59,7 @@ export const CookieBanner: React.FC = () => {
 
   const dismissOverlay =
     hasAnswered && preferencesOpen ? (
-      <button
+      <Button
         type="button"
         className="fixed inset-0 z-40 bg-black/40"
         aria-label={t('cookies.close_overlay')}
@@ -138,11 +140,11 @@ export const CookieBanner: React.FC = () => {
                       {t('cookies.category_analytics_desc')}
                     </p>
                   </div>
-                  <input
+                  <Input
                     type="checkbox"
                     className="mt-1 h-5 w-5 shrink-0 rounded border-nkz-border text-nkz-success focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700"
                     checked={draftAnalytics}
-                    onChange={(e) => setDraftAnalytics(e.target.checked)}
+                    onChange={(e: any) => setDraftAnalytics(e.target.checked)}
                     aria-label={t('cookies.category_analytics_title')}
                   />
                 </div>
@@ -152,31 +154,31 @@ export const CookieBanner: React.FC = () => {
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
               {!showConfigure ? (
                 <>
-                  <button
+                  <Button
                     type="button"
                     onClick={handleReject}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
                   >
                     {t('cookies.reject_optional')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={() => setShowConfigure(true)}
                     className="px-4 py-2 text-sm font-medium text-gray-800 bg-nkz-bg-secondary border border-nkz-border rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"
                   >
                     {t('cookies.configure')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={handleAcceptAll}
                     className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
                   >
                     {t('cookies.accept_all')}
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <>
-                  <button
+                  <Button
                     type="button"
                     onClick={() => {
                       setShowConfigure(false);
@@ -185,14 +187,14 @@ export const CookieBanner: React.FC = () => {
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary dark:bg-gray-800 dark:text-gray-200"
                   >
                     {t('cookies.cancel')}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={handleSaveCustom}
                     className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
                   >
                     {t('cookies.save_preferences')}
-                  </button>
+                  </Button>
                 </>
               )}
             </div>

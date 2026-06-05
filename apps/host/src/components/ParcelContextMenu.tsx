@@ -7,6 +7,7 @@ import ReactDOM from 'react-dom';
 import { Save, X, Ruler } from 'lucide-react';
 import type { GeoPolygon } from '@/types';
 import { useI18n } from '@/context/I18nContext';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface ParcelContextMenuProps {
   isOpen: boolean;
@@ -94,12 +95,12 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
           <Save className="w-4 h-4 text-emerald-600" />
           {t('parcels.save_parcel')}
         </h3>
-        <button
+        <Button
           onClick={onClose}
           className="text-nkz-muted hover:text-gray-600 transition-colors"
         >
           <X className="w-4 h-4" />
-        </button>
+        </Button>
       </div>
 
       {areaHectares !== null && (
@@ -116,14 +117,14 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
           <label className="block text-xs font-medium text-gray-700 mb-1">
             {t('parcels.parcel_name')} <span className="text-nkz-error">*</span>
           </label>
-          <input
+          <Input
             type="text"
             value={parcelName}
-            onChange={(e) => setParcelName(e.target.value)}
+            onChange={(e: any) => setParcelName(e.target.value)}
             placeholder={t('parcels.parcel_name_placeholder')}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
             autoFocus
-            onKeyDown={(e) => {
+            onKeyDown={(e: any) => {
               if (e.key === 'Enter' && parcelName.trim()) {
                 handleSave();
               }
@@ -137,7 +138,7 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
           </label>
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e: any) => setDescription(e.target.value)}
             placeholder={t('parcels.description_placeholder')}
             rows={3}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm resize-none"
@@ -146,20 +147,20 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
       </div>
 
       <div className="flex gap-2 pt-2 border-t border-nkz-border">
-        <button
+        <Button
           onClick={onClose}
           className="flex-1 px-3 py-2 border border-nkz-border rounded-lg text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary transition-colors"
         >
           {t('common.cancel')}
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={handleSave}
           disabled={!parcelName.trim()}
           className="flex-1 px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
         >
           <Save className="w-4 h-4" />
           {t('parcels.save')}
-        </button>
+        </Button>
       </div>
     </div>,
     document.body

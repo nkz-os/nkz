@@ -125,7 +125,7 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
           id="reg-email"
           type="email"
           value={formData.email}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('email', e.target.value)}
+          onChange={(e: any) => updateField('email', e.target.value)}
           placeholder={t('activation.email_placeholder')}
           required
           autoComplete="email"
@@ -141,7 +141,7 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
           id="reg-firstname"
           type="text"
           value={formData.firstName}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('firstName', e.target.value)}
+          onChange={(e: any) => updateField('firstName', e.target.value)}
           placeholder={t('registration.first_name_placeholder')}
           required
           autoComplete="given-name"
@@ -157,7 +157,7 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
           id="reg-lastname"
           type="text"
           value={formData.lastName}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('lastName', e.target.value)}
+          onChange={(e: any) => updateField('lastName', e.target.value)}
           placeholder={t('registration.last_name_placeholder')}
           required
           autoComplete="family-name"
@@ -173,7 +173,7 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
           id="reg-org"
           type="text"
           value={formData.tenantName}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleTenantNameChange(e.target.value)}
+          onChange={(e: any) => handleTenantNameChange(e.target.value)}
           placeholder={t('activation.org_name_placeholder')}
           required
           error={tenantValidation !== null && !tenantValidation.isValid}

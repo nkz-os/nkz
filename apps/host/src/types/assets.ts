@@ -3,6 +3,8 @@
 // =============================================================================
 // Provides a normalized view of all entity types for the asset management UI.
 
+import { logger } from '@/utils/logger';
+
 // =============================================================================
 // Asset Categories
 // =============================================================================
@@ -597,7 +599,7 @@ export function normalizeEntities(entities: Record<string, any[]>): UnifiedAsset
         try {
           assets.push(normalizeToAsset({ ...item, type: item.type || type }));
         } catch (e) {
-          console.warn(`[Assets] Failed to normalize entity:`, item, e);
+          logger.warn(`[Assets] Failed to normalize entity:`, item, e);
         }
       });
     }

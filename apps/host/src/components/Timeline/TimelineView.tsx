@@ -24,6 +24,7 @@ import { es } from 'date-fns/locale';
 import { TrendingUp, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
 import { useTimeseries } from '@/hooks/useTimeseries';
 import { useViewer } from '@/context/ViewerContext';
+import { Button, Input } from '@nekazari/ui-kit';
 
 // Register Chart.js components
 ChartJS.register(
@@ -381,7 +382,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             Histórico - {entityName || entityId}
           </h3>
         </div>
-        <button
+        <Button
           onClick={() => fetchData()}
           disabled={isLoading}
           className="p-2 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
@@ -392,12 +393,12 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           ) : (
             <RefreshCw className="w-4 h-4" />
           )}
-        </button>
+        </Button>
       </div>
 
       {/* Time Range Presets */}
       <div className="flex flex-wrap gap-2">
-        <button
+        <Button
           onClick={() => handlePresetChange('24h')}
           className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
             timeRangePreset === '24h'
@@ -406,8 +407,8 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           }`}
         >
           Últimas 24h
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => handlePresetChange('7d')}
           className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
             timeRangePreset === '7d'
@@ -416,8 +417,8 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           }`}
         >
           Semana
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => handlePresetChange('30d')}
           className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
             timeRangePreset === '30d'
@@ -426,8 +427,8 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           }`}
         >
           Mes
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => handlePresetChange('custom')}
           className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
             timeRangePreset === 'custom'
@@ -436,7 +437,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
           }`}
         >
           Personalizado
-        </button>
+        </Button>
       </div>
 
       {/* Custom Range Inputs */}
@@ -444,29 +445,29 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         <div className="flex gap-2 items-center">
           <div className="flex-1">
             <label className="text-xs text-slate-600 mb-1 block">Desde</label>
-            <input
+            <Input
               type="datetime-local"
               value={customStart}
-              onChange={(e) => setCustomStart(e.target.value)}
+              onChange={(e: any) => setCustomStart(e.target.value)}
               className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg"
             />
           </div>
           <div className="flex-1">
             <label className="text-xs text-slate-600 mb-1 block">Hasta</label>
-            <input
+            <Input
               type="datetime-local"
               value={customEnd}
-              onChange={(e) => setCustomEnd(e.target.value)}
+              onChange={(e: any) => setCustomEnd(e.target.value)}
               className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg"
             />
           </div>
-          <button
+          <Button
             onClick={handleApplyCustomRange}
             disabled={!customStart || isLoading}
             className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Aplicar
-          </button>
+          </Button>
         </div>
       )}
 
@@ -483,7 +484,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
                   : 'bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200'
               }`}
             >
-              <input
+              <Input
                 type="checkbox"
                 checked={selectedAttributes.includes(attr)}
                 onChange={() => toggleAttribute(attr)}

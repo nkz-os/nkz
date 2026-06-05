@@ -26,7 +26,9 @@ import {
   filterNavigationItemsByRoles,
   sortNavigationItemsByPriority,
 } from '@/config/navigation';
+import { Button } from '@nekazari/ui-kit';
 import {
+
   ChevronDown,
   LogOut,
   Shield,
@@ -131,13 +133,13 @@ export const Navigation: React.FC = () => {
             {/* LEFT SECTION: Logo & Mega Menu */}
             <div className="flex items-center gap-4">
               {/* Mobile Hamburger (Visible only on mobile) */}
-              <button
+              <Button
                 onClick={() => setMobileDrawerOpen(true)}
                 className="md:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-nkz-bg-secondary dark:hover:bg-gray-800 transition-colors"
                 aria-label="Abrir menú"
               >
                 <Menu className="h-6 w-6" />
-              </button>
+              </Button>
 
               {/* Mega Menu Container (Desktop) */}
               <div
@@ -147,7 +149,7 @@ export const Navigation: React.FC = () => {
                 onMouseLeave={handleMouseLeave}
               >
                 {/* Logo Button Trigger */}
-                <button
+                <Button
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all duration-200 ${isMenuOpen ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   <img
@@ -158,7 +160,7 @@ export const Navigation: React.FC = () => {
                   <ChevronDown
                     className={`w-4 h-4 text-nkz-muted dark:text-nkz-muted transition-transform duration-300 ${isMenuOpen ? 'rotate-180' : ''}`}
                   />
-                </button>
+                </Button>
 
                 {/* Dropdown Menu Content - Mega menu in columns so all modules are visible */}
                 <div
@@ -317,13 +319,13 @@ export const Navigation: React.FC = () => {
               <LanguageSelector variant="compact" />
 
               {/* Logout Button (Desktop) */}
-              <button
+              <Button
                 onClick={handleLogout}
                 className="hidden md:flex p-2 text-nkz-muted hover:text-nkz-error hover:bg-nkz-error-light dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 title={t('layout.logout', { defaultValue: 'Cerrar sesión' })}
               >
                 <LogOut className="w-5 h-5" />
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -8,6 +8,9 @@ import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 import type { RiskCatalog, RiskSubscription } from '@/types';
 import { AlertTriangle, Bell, BellOff, Mail } from 'lucide-react';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 interface RiskAlertSubscriptionsProps {
   readOnly?: boolean;
@@ -48,7 +51,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
       setCatalog(catalogData);
       setSubscriptions(subsData);
     } catch (err: any) {
-      if (import.meta.env.DEV) console.error('Error loading risk data:', err);
+      if (import.meta.env.DEV) logger.error('Error loading risk data:', err);
       setError(t('settings.risks.load_error'));
     } finally {
       setLoading(false);
@@ -82,7 +85,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
         setSubscriptions(prev => [...prev, created]);
       }
     } catch (err: any) {
-      if (import.meta.env.DEV) console.error('Error toggling subscription:', err);
+      if (import.meta.env.DEV) logger.error('Error toggling subscription:', err);
       setError(t('settings.risks.update_error'));
       setTimeout(() => setError(null), 3000);
     } finally {
@@ -104,7 +107,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
         prev.map(s => s.id === existing.id ? updated : s)
       );
     } catch (err: any) {
-      if (import.meta.env.DEV) console.error('Error updating threshold:', err);
+      if (import.meta.env.DEV) logger.error('Error updating threshold:', err);
       setError(t('settings.risks.update_error'));
       setTimeout(() => setError(null), 3000);
     } finally {
@@ -129,7 +132,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
         prev.map(s => s.id === existing.id ? updated : s)
       );
     } catch (err: any) {
-      if (import.meta.env.DEV) console.error('Error toggling email:', err);
+      if (import.meta.env.DEV) logger.error('Error toggling email:', err);
       setError(t('settings.risks.update_error'));
       setTimeout(() => setError(null), 3000);
     } finally {
@@ -211,7 +214,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
                             <p className="text-xs text-nkz-muted mt-0.5 truncate">{risk.risk_description}</p>
                           )}
                         </div>
-                        <button
+                        <Button
                           onClick={() => handleToggleSubscription(risk)}
                           disabled={!canEdit || isUpdating}
                           className={`ml-4 p-2 rounded-lg transition ${
@@ -222,7 +225,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
                           title={isActive ? t('settings.risks.deactivate') : t('settings.risks.activate')}
                         >
                           {isActive ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-                        </button>
+                        </Button>
                       </div>
 
                       {isActive && sub && (
@@ -232,12 +235,12 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
                               <span>{t('settings.risks.threshold')}</span>
                               <span className="font-medium">{threshold}%</span>
                             </div>
-                            <input
+                            <Input
                               type="range"
                               min="0"
                               max="100"
                               value={threshold}
-                              onChange={(e) => handleThresholdChange(risk, parseInt(e.target.value))}
+                              onChange={(e: any) => handleThresholdChange(risk, parseInt(e.target.value))}
                               disabled={!canEdit || isUpdating}
                               className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500 disabled:cursor-not-allowed"
                             />
@@ -248,7 +251,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
                               <Mail className="w-3 h-3" />
                               {t('settings.risks.email_notifications')}
                             </span>
-                            <button
+                            <Button
                               onClick={() => handleToggleEmail(risk)}
                               disabled={!canEdit || isUpdating}
                               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
@@ -260,7 +263,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
                                   emailEnabled ? 'translate-x-4.5' : 'translate-x-0.5'
                                 }`}
                               />
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       )}

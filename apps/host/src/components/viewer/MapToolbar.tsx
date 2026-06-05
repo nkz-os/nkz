@@ -8,6 +8,7 @@ import React from 'react';
 import { useViewer, MapMode } from '@/context/ViewerContext';
 import { useI18n } from '@/context/I18nContext';
 import { CheckCircle2, X, Undo2, Eraser } from 'lucide-react';
+import { Button } from '@nekazari/ui-kit';
 
 interface MapToolbarProps {
     /** Callback when user accepts (completes) the current operation */
@@ -91,24 +92,24 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
                 <div className="flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-3">
                     {/* Undo */}
                     {onUndo && mapMode === 'DRAW_PARCEL' && (
-                        <button
+                        <Button
                             onClick={onUndo}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100"
                             title={t('viewer.toolbar.undo_title')}
                         >
                             <Undo2 className="w-4 h-4" />
-                        </button>
+                        </Button>
                     )}
 
                     {/* Clear */}
                     {onClear && mapMode === 'DRAW_PARCEL' && (
-                        <button
+                        <Button
                             onClick={onClear}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100"
                             title={t('viewer.toolbar.clear_title')}
                         >
                             <Eraser className="w-4 h-4" />
-                        </button>
+                        </Button>
                     )}
 
                     {/* Custom Actions */}
@@ -116,25 +117,25 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
 
                     {/* Accept */}
                     {onAccept && (
-                        <button
+                        <Button
                             onClick={onAccept}
                             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 font-medium"
                             title={t('viewer.toolbar.accept')}
                         >
                             <CheckCircle2 className="w-4 h-4" />
                             {t('viewer.toolbar.accept')}
-                        </button>
+                        </Button>
                     )}
 
                     {/* Cancel */}
-                    <button
+                    <Button
                         onClick={handleCancel}
                         className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-100 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors flex items-center gap-2 font-medium"
                         title={t('cancel')}
                     >
                         <X className="w-4 h-4" />
                         {t('cancel')}
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>

@@ -2,12 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 
-// Logger for mobile viewer
+import { logger as baseLogger } from '@/utils/logger';
+
+// Prefixed logger for mobile viewer context
 const logger = {
-    info: (msg: string, ...args: any[]) => console.log(`[MobileViewer] ${msg}`, ...args),
-    warn: (msg: string, ...args: any[]) => console.warn(`[MobileViewer] ${msg}`, ...args),
-    error: (msg: string, ...args: any[]) => console.error(`[MobileViewer] ${msg}`, ...args),
-    debug: (msg: string, ...args: any[]) => console.debug(`[MobileViewer] ${msg}`, ...args),
+    info: (msg: string, ...args: any[]) => baseLogger.info(`[MobileViewer] ${msg}`, ...args),
+    warn: (msg: string, ...args: any[]) => baseLogger.warn(`[MobileViewer] ${msg}`, ...args),
+    error: (msg: string, ...args: any[]) => baseLogger.error(`[MobileViewer] ${msg}`, ...args),
+    debug: (msg: string, ...args: any[]) => baseLogger.debug(`[MobileViewer] ${msg}`, ...args),
 };
 
 // Fix window types for Cesium global

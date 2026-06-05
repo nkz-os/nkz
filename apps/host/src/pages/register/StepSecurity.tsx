@@ -82,13 +82,13 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
         <h2 className="text-nkz-lg font-semibold text-nkz-text-primary">
           {t('registration.step_security') || 'Security'}
         </h2>
-        <button
+        <Button
           type="button"
           onClick={onBack}
           className="text-nkz-sm text-nkz-text-muted hover:text-nkz-text-primary transition-colors"
         >
           {t('registration.back') || 'Back'}
-        </button>
+        </Button>
       </div>
 
       {displayError && (
@@ -107,20 +107,20 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
             id="reg-password"
             type={showPassword ? 'text' : 'password'}
             value={formData.password}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('password', e.target.value)}
+            onChange={(e: any) => updateField('password', e.target.value)}
             placeholder={t('activation.password_placeholder') || '••••••••'}
             required
             autoComplete="new-password"
             className="pr-10"
           />
-          <button
+          <Button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-nkz-text-muted hover:text-nkz-text-primary p-1"
             tabIndex={-1}
           >
             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -155,21 +155,21 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
             id="reg-confirm"
             type={showConfirm ? 'text' : 'password'}
             value={formData.confirmPassword}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('confirmPassword', e.target.value)}
+            onChange={(e: any) => updateField('confirmPassword', e.target.value)}
             placeholder={t('activation.password_placeholder') || '••••••••'}
             required
             autoComplete="new-password"
             error={formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword}
             className="pr-10"
           />
-          <button
+          <Button
             type="button"
             onClick={() => setShowConfirm(!showConfirm)}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-nkz-text-muted hover:text-nkz-text-primary p-1"
             tabIndex={-1}
           >
             {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
+          </Button>
         </div>
         {formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword && (
           <p className="text-nkz-xs text-nkz-danger mt-1">

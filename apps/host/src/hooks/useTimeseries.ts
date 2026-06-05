@@ -6,6 +6,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+
 
 // =============================================================================
 // Types
@@ -211,7 +213,7 @@ export function useTimeseries(options: UseTimeseriesOptions): UseTimeseriesRetur
         setAttributeState(overrideOptions.attribute || null);
       }
     } catch (err: any) {
-      console.error('[useTimeseries] Error fetching data:', err);
+      logger.error('[useTimeseries] Error fetching data:', err);
       setError(err.response?.data?.error || err.message || 'Failed to fetch timeseries data');
       setData([]);
     } finally {
@@ -247,7 +249,7 @@ export function useTimeseries(options: UseTimeseriesOptions): UseTimeseriesRetur
 
       setStats(response.stats || null);
     } catch (err: any) {
-      console.error('[useTimeseries] Error fetching stats:', err);
+      logger.error('[useTimeseries] Error fetching stats:', err);
       setError(err.response?.data?.error || err.message || 'Failed to fetch statistics');
       setStats(null);
     } finally {

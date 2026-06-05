@@ -48,6 +48,7 @@ import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { useEntityDependencies } from '@/hooks/useEntityDependencies';
 import { useToastContext } from '@/context/ToastContext';
 import { useI18n } from '@/context/I18nContext';
+import { Button, Input } from '@nekazari/ui-kit';
 // =============================================================================
 // Types
 // =============================================================================
@@ -291,16 +292,16 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
           {/* Actions */}
           <div className="flex items-center gap-1">
-            <button
+            <Button
               onClick={() => refresh()}
               disabled={isRefreshing}
               className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
               title={t('entities.assets.refresh')}
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
+            </Button>
 
-            <button
+            <Button
               onClick={() => setShowFilters(!showFilters)}
               className={`p-1.5 rounded-lg transition-colors ${showFilters || Object.values(filters).some(v =>
                 Array.isArray(v) ? v.length > 0 : v !== '' && v !== null
@@ -311,12 +312,12 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               title={t('entities.assets.filters')}
             >
               <SlidersHorizontal className="w-4 h-4" />
-            </button>
+            </Button>
 
             <div className="w-px h-4 bg-slate-200 mx-1" />
 
             {/* View Mode Toggles */}
-            <button
+            <Button
               onClick={() => setViewMode('list')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'list'
                 ? 'bg-white/15 text-white'
@@ -325,9 +326,9 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               title={t('entities.assets.view_list')}
             >
               <List className="w-4 h-4" />
-            </button>
+            </Button>
 
-            <button
+            <Button
               onClick={() => setViewMode('tree')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'tree'
                 ? 'bg-emerald-100 text-emerald-700'
@@ -336,9 +337,9 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               title={t('entities.assets.view_tree')}
             >
               <FolderTree className="w-4 h-4" />
-            </button>
+            </Button>
 
-            <button
+            <Button
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'grid'
                 ? 'bg-white/15 text-white'
@@ -347,18 +348,18 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               title={t('entities.assets.view_grid')}
             >
               <LayoutGrid className="w-4 h-4" />
-            </button>
+            </Button>
 
             {onAddEntity && (
               <>
                 <div className="w-px h-4 bg-slate-200 mx-1" />
-                <button
+                <Button
                   onClick={onAddEntity}
                   className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors text-sm font-medium"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">{t('entities.assets.add')}</span>
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -367,7 +368,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
         {/* Search Bar */}
         <div className="mt-3 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-          <input
+          <Input
             type="text"
             placeholder={t('entities.assets.search_placeholder')}
             value={filters.search}
@@ -375,12 +376,12 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             className="w-full pl-9 pr-8 py-2 text-sm border border-white/10 rounded-lg bg-white/5 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/30"
           />
           {filters.search && (
-            <button
+            <Button
               onClick={() => setFilters({ search: '' })}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               <X className="w-3 h-3 text-white/40" />
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -412,36 +413,36 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
           <div className="flex items-center gap-2 text-sm text-blue-800">
             <CheckSquare className="w-4 h-4" />
             <span className="font-medium">{t('entities.assets.selected_count', { count: selectedAssets.size })}</span>
-            <button
+            <Button
               onClick={deselectAll}
               className="text-nkz-info hover:text-blue-800 hover:underline"
             >
               {t('entities.assets.deselect')}
-            </button>
+            </Button>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            <Button
               onClick={() => handleBulkExport('csv')}
               className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 bg-white rounded border border-slate-200 hover:bg-slate-50"
             >
               <Download className="w-3 h-3" />
               {t('entities.assets.export_csv')}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => handleBulkExport('json')}
               className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 bg-white rounded border border-slate-200 hover:bg-slate-50"
             >
               <Download className="w-3 h-3" />
               {t('entities.assets.export_json')}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleBulkDelete}
               className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-nkz-error bg-white rounded border border-red-200 hover:bg-nkz-error-light"
             >
               <Trash2 className="w-3 h-3" />
               {t('entities.assets.delete')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -464,12 +465,12 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             <div className="flex flex-col items-center gap-3 text-center px-4">
               <AlertCircle className="w-10 h-10 text-red-400" />
               <p className="text-sm text-slate-600">{error}</p>
-              <button
+              <Button
                 onClick={() => refresh()}
                 className="text-sm text-nkz-info hover:text-blue-800 hover:underline"
               >
                 {t('entities.assets.retry')}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -487,21 +488,21 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                   : t('entities.assets.no_assets')}
               </p>
               {(filters.search || filters.categories.length > 0) && (
-                <button
+                <Button
                   onClick={resetFilters}
                   className="text-sm text-nkz-info hover:text-blue-800 hover:underline"
                 >
                   {t('entities.assets.clear_filters')}
-                </button>
+                </Button>
               )}
               {onAddEntity && !filters.search && filters.categories.length === 0 && (
-                <button
+                <Button
                   onClick={onAddEntity}
                   className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
                 >
                   <Plus className="w-4 h-4" />
                   {t('entities.assets.create_first')}
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -526,41 +527,41 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             <div className="min-w-[600px]">
               {/* Table Header */}
               <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 bg-white/5 border-b border-white/10 text-xs font-medium text-white/60 uppercase tracking-wider">
-                <button
+                <Button
                   onClick={handleSelectAllToggle}
                   className="flex-shrink-0 p-1 rounded hover:bg-slate-200"
                 >
                   {renderCheckbox()}
-                </button>
+                </Button>
 
-                <button
+                <Button
                   onClick={() => handleSortChange('name')}
                   className="flex-1 min-w-[180px] flex items-center gap-1 hover:text-white text-left"
                 >
                   Nombre {renderSortIcon('name')}
-                </button>
+                </Button>
 
-                <button
+                <Button
                   onClick={() => handleSortChange('type')}
                   className="w-28 flex-shrink-0 flex items-center gap-1 hover:text-white"
                 >
                   Tipo {renderSortIcon('type')}
-                </button>
+                </Button>
 
-                <button
+                <Button
                   onClick={() => handleSortChange('status')}
                   className="w-24 flex-shrink-0 flex items-center gap-1 hover:text-white"
                 >
                   Estado {renderSortIcon('status')}
-                </button>
+                </Button>
 
                 {!compact && (
-                  <button
+                  <Button
                     onClick={() => handleSortChange('municipality')}
                     className="w-32 flex-shrink-0 flex items-center gap-1 hover:text-white hidden md:flex"
                   >
                     Ubicación {renderSortIcon('municipality')}
-                  </button>
+                  </Button>
                 )}
 
                 <div className="w-8 flex-shrink-0" />
@@ -681,18 +682,18 @@ const AssetGridCard: React.FC<AssetGridCardProps> = ({
       onContextMenu={onContextMenu}
     >
       {/* Checkbox */}
-      <button
-        onClick={(e) => {
+      <Button
+        onClick={((e: any) => {
           e.stopPropagation();
           onSelect();
-        }}
+        }) as any}
         className="absolute top-2 right-2 p-1 rounded hover:bg-slate-100"
       >
         {isSelected
           ? <CheckSquare className="w-4 h-4 text-nkz-info" />
           : <Square className="w-4 h-4 text-slate-300" />
         }
-      </button>
+      </Button>
 
       {/* Icon */}
       <div
@@ -759,25 +760,25 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
     >
-      <button
+      <Button
         onClick={onView}
         className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 text-slate-700"
       >
         <Eye className="w-4 h-4" />
         Ver en mapa
-      </button>
+      </Button>
 
       {canAssignParent && (
-        <button
+        <Button
           onClick={onAssignParent}
           className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 text-slate-700"
         >
           <Link2 className="w-4 h-4" />
           Asignar a Parcela...
-        </button>
+        </Button>
       )}
 
-      <button
+      <Button
         onClick={() => {
           navigator.clipboard.writeText(asset.id);
           onClose();
@@ -786,17 +787,17 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
       >
         <Copy className="w-4 h-4" />
         Copiar ID
-      </button>
+      </Button>
 
       <div className="border-t border-slate-100 my-1" />
 
-      <button
+      <Button
         onClick={onDelete}
         className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-nkz-error-light text-nkz-error"
       >
         <Trash2 className="w-4 h-4" />
         Eliminar
-      </button>
+      </Button>
     </div>,
     document.body
   );

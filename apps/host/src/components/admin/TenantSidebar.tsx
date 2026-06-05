@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Plus, Building2 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface Tenant {
   tenant_id: string;
@@ -59,25 +60,25 @@ export const TenantSidebar: React.FC<TenantSidebarProps> = ({
     <div className="w-80 min-w-[320px] border-r border-nkz-border bg-nkz-surface-sunken flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-nkz-border">
-        <button
+        <Button
           onClick={onCreateNew}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-nkz-accent-base text-nkz-text-on-accent font-semibold rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors"
         >
           <Plus className="h-5 w-5" />
           {t('admin.new_tenant', { defaultValue: 'New Tenant' })}
-        </button>
+        </Button>
       </div>
 
       {/* Search */}
       <div className="p-3 border-b border-nkz-border">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-nkz-text-muted" />
-          <input
+          <Input
             type="text"
             placeholder={t('admin.search_tenants', { defaultValue: 'Search tenants...' })}
             className="w-full pl-9 pr-3 py-2 text-nkz-sm border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e: any) => setSearch(e.target.value)}
           />
         </div>
       </div>
@@ -96,7 +97,7 @@ export const TenantSidebar: React.FC<TenantSidebarProps> = ({
           </div>
         ) : (
           filtered.map((tenant) => (
-            <button
+            <Button
               key={tenant.tenant_id}
               onClick={() => onSelect(tenant.tenant_id)}
               className={`w-full text-left p-3 border-b border-nkz-border hover:bg-nkz-canvas transition-colors ${
@@ -156,7 +157,7 @@ export const TenantSidebar: React.FC<TenantSidebarProps> = ({
                   </span>
                 )}
               </div>
-            </button>
+            </Button>
           ))
         )}
       </div>

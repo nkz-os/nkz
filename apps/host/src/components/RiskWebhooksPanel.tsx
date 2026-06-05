@@ -8,6 +8,7 @@ import { useI18n } from '@/context/I18nContext';
 import { api } from '@/services/api';
 import type { RiskWebhook } from '@/types';
 import { Webhook, Plus, Trash2, X, ChevronUp } from 'lucide-react';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface RiskWebhooksPanelProps {
   readOnly?: boolean;
@@ -94,13 +95,13 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
           {t('settings.risk_webhooks.title')}
         </h3>
         {!readOnly && (
-          <button
+          <Button
             onClick={() => setShowForm(v => !v)}
             className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition"
           >
             {showForm ? <ChevronUp className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             {showForm ? 'Cancelar' : '+ Nuevo'}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -113,10 +114,10 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.risk_webhooks.name')} *</label>
-              <input
+              <Input
                 type="text"
                 value={formName}
-                onChange={e => setFormName(e.target.value)}
+                onChange={(e: any) => setFormName(e.target.value)}
                 placeholder="Mi webhook"
                 required
                 className="w-full px-3 py-2 text-sm border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
@@ -124,10 +125,10 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.risk_webhooks.url')} *</label>
-              <input
+              <Input
                 type="url"
                 value={formUrl}
-                onChange={e => setFormUrl(e.target.value)}
+                onChange={(e: any) => setFormUrl(e.target.value)}
                 placeholder="https://hooks.example.com/risk"
                 required
                 className="w-full px-3 py-2 text-sm border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
@@ -135,10 +136,10 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Secret (opcional)</label>
-              <input
+              <Input
                 type="password"
                 value={formSecret}
-                onChange={e => setFormSecret(e.target.value)}
+                onChange={(e: any) => setFormSecret(e.target.value)}
                 placeholder="••••••••"
                 className="w-full px-3 py-2 text-sm border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               />
@@ -147,7 +148,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Severidad mínima</label>
               <select
                 value={formSeverity}
-                onChange={e => setFormSeverity(e.target.value)}
+                onChange={(e: any) => setFormSeverity(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
                 <option value="low">Baja</option>
@@ -158,20 +159,20 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <button
+            <Button
               type="button"
               onClick={() => setShowForm(false)}
               className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 transition"
             >
               <X className="w-4 h-4 inline mr-1" />Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={submitting}
               className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 transition"
             >
               {submitting ? 'Guardando...' : 'Crear webhook'}
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -202,13 +203,13 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
                 ≥ {wh.min_severity}
               </span>
               {!readOnly && (
-                <button
+                <Button
                   onClick={() => handleDelete(wh.id)}
                   className="shrink-0 p-1.5 text-nkz-muted hover:text-nkz-error transition rounded"
                   title={t('settings.users.delete')}
                 >
                   <Trash2 className="w-4 h-4" />
-                </button>
+                </Button>
               )}
             </div>
           ))

@@ -19,6 +19,7 @@ import { LAYER_RENDERERS } from './cesium/CesiumLayerRenderers';
 
 // Import Cesium CSS
 import 'cesium/Build/Cesium/Widgets/widgets.css';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface CadastralParcel {
   id: string;
@@ -594,14 +595,14 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
       </div>
 
       <div className="absolute bottom-4 right-4 z-30 flex flex-col gap-2 items-end">
-        <button
+        <Button
           type="button"
           onClick={toggleFullscreen}
           className="inline-flex items-center justify-center rounded-full bg-black/60 text-white p-2 hover:bg-black/70 transition"
           aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
         >
           {isFullscreen ? <Minimize className="w-4 h-4" /> : <Expand className="w-4 h-4" />}
-        </button>
+        </Button>
       </div>
 
       {/* Layer Panel */}
@@ -612,12 +613,12 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
               <Layers className="w-5 h-5 text-gray-600" />
               <h4 className="font-semibold text-gray-900">Capas</h4>
             </div>
-            <button
+            <Button
               onClick={() => setShowLayerPanel(false)}
               className="text-nkz-muted hover:text-gray-600"
             >
               <EyeOff className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
 
           {/* Layer toggles - grouped by category */}
@@ -644,7 +645,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
                         key={config.id}
                         className="flex items-center gap-3 p-2 hover:bg-nkz-bg-secondary rounded cursor-pointer"
                       >
-                        <input
+                        <Input
                           type="checkbox"
                           checked={selectedLayers.has(config.id)}
                           onChange={() => toggleLayer(config.id)}
@@ -679,19 +680,19 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
               <div className="space-y-2">
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Desde</label>
-                  <input
+                  <Input
                     type="date"
                     value={dateRange.start}
-                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                    onChange={(e: any) => setDateRange({ ...dateRange, start: e.target.value })}
                     className="w-full px-2 py-1 text-sm border border-nkz-border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Hasta</label>
-                  <input
+                  <Input
                     type="date"
                     value={dateRange.end}
-                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                    onChange={(e: any) => setDateRange({ ...dateRange, end: e.target.value })}
                     className="w-full px-2 py-1 text-sm border border-nkz-border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -729,12 +730,12 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
 
       {/* Show panel button */}
       {!showLayerPanel && (
-        <button
+        <Button
           onClick={() => setShowLayerPanel(true)}
           className="absolute top-4 right-4 z-20 bg-white rounded-lg shadow-lg p-2 hover:bg-nkz-bg-secondary"
         >
           <Eye className="w-5 h-5 text-gray-600" />
-        </button>
+        </Button>
       )}
 
       {/* Cesium container */}

@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { AlertTriangle, ArrowLeft, Home, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from '@nekazari/ui-kit';
 
 interface ServerErrorProps {
   error?: Error;
@@ -44,7 +45,7 @@ export const ServerError: React.FC<ServerErrorProps> = ({ error, resetError }) =
           {/* Error Details (if provided) */}
           {error && (
             <div className="mb-8 text-left">
-              <button
+              <Button
                 onClick={() => setShowDetails(!showDetails)}
                 className="flex items-center justify-between w-full px-4 py-2 bg-nkz-bg-secondary rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium text-gray-700"
               >
@@ -54,7 +55,7 @@ export const ServerError: React.FC<ServerErrorProps> = ({ error, resetError }) =
                 ) : (
                   <ChevronDown className="w-4 h-4" />
                 )}
-              </button>
+              </Button>
               {showDetails && (
                 <div className="mt-2 p-4 bg-nkz-bg-secondary rounded-lg text-xs font-mono text-gray-600 overflow-auto max-h-48">
                   <div className="mb-2">
@@ -74,21 +75,21 @@ export const ServerError: React.FC<ServerErrorProps> = ({ error, resetError }) =
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {resetError && (
-              <button
+              <Button
                 onClick={resetError}
                 className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <RefreshCw className="w-5 h-5 mr-2" />
                 Reintentar
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               onClick={() => navigate(-1)}
               className="inline-flex items-center px-6 py-3 bg-nkz-bg-secondary text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />
               Volver atrás
-            </button>
+            </Button>
             <Link
               to="/dashboard"
               className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"

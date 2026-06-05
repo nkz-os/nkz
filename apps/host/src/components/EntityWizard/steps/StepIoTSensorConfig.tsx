@@ -5,6 +5,7 @@ import { listDeviceProfiles, createDeviceProfile, type DeviceProfile } from '@/s
 import { DeviceProfileHelpModal } from '../../DeviceProfileHelpModal';
 import type { IoTSensorFormData } from '../types';
 import { useNotification } from '@/hooks/useNotification';
+import { Button, Input } from '@nekazari/ui-kit';
 
 export function StepIoTSensorConfig() {
   const { showNotification } = useNotification();
@@ -58,10 +59,10 @@ export function StepIoTSensorConfig() {
       {/* Name */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-        <input
+        <Input
           type="text"
           value={data.name}
-          onChange={e => updateFormData({ name: e.target.value })}
+          onChange={(e: any) => updateFormData({ name: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500"
           placeholder="Ej: Sensor suelo parcela norte"
         />
@@ -72,7 +73,7 @@ export function StepIoTSensorConfig() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
         <textarea
           value={data.description ?? ''}
-          onChange={e => updateFormData({ description: e.target.value })}
+          onChange={(e: any) => updateFormData({ description: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500"
           placeholder="Descripción opcional"
           rows={2}
@@ -100,7 +101,7 @@ export function StepIoTSensorConfig() {
             <div className="flex gap-2">
               <select
                 value={data.deviceProfileId ?? ''}
-                onChange={e => updateFormData({ deviceProfileId: e.target.value || null })}
+                onChange={(e: any) => updateFormData({ deviceProfileId: e.target.value || null })}
                 className={`flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 bg-white ${
                   !data.deviceProfileId ? 'border-red-300' : 'border-nkz-border'
                 }`}
@@ -117,32 +118,32 @@ export function StepIoTSensorConfig() {
                   </optgroup>
                 )}
               </select>
-              <button
+              <Button
                 onClick={() => setShowHelp(true)}
                 className="px-3 py-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary text-gray-600 flex items-center"
                 title="Ayuda y plantillas"
               >
                 <HelpCircle className="w-5 h-5" />
-              </button>
+              </Button>
             </div>
           </div>
 
           {/* Actions row */}
           <div className="grid grid-cols-3 gap-3">
-            <button
+            <Button
               type="button"
               onClick={() => setShowHelp(true)}
               className="flex items-center justify-center gap-2 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 py-2 rounded-lg border border-purple-200"
             >
               <Activity className="w-3 h-3" /> Ver Plantillas
-            </button>
+            </Button>
 
             <label className="flex items-center justify-center gap-2 text-xs font-medium text-nkz-info bg-nkz-info-light hover:bg-blue-200 py-2 rounded-lg border border-blue-200 cursor-pointer">
-              <input
+              <Input
                 type="file"
                 accept=".json,application/json"
                 className="hidden"
-                onChange={e => {
+                onChange={(e: any) => {
                   const file = e.target.files?.[0];
                   if (file) handleImportProfile(file);
                   e.target.value = '';

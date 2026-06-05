@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Check, Loader2 } from 'lucide-react';
 import { uploadToMinIO, isValid3DModelFile, getMaxFileSizeMB, UploadProgress } from '@/utils/minioAssets';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface Model3DUploaderProps {
   currentModelUrl?: string;
@@ -100,7 +101,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
             <span className="text-sm font-medium">
               {uploading ? `Uploading... ${uploadProgress}%` : 'Upload 3D Model'}
             </span>
-            <input
+            <Input
               ref={fileInputRef}
               type="file"
               accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
@@ -111,14 +112,14 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
           </label>
 
           {currentModelUrl && !uploading && (
-            <button
+            <Button
               type="button"
               onClick={handleRemove}
               disabled={disabled}
               className="px-4 py-2 border border-red-300 text-nkz-error rounded-lg hover:bg-nkz-error-light transition disabled:opacity-50"
             >
               <X className="w-4 h-4" />
-            </button>
+            </Button>
           )}
         </div>
 
@@ -156,13 +157,13 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Scale: {modelScale.toFixed(2)}x
               </label>
-              <input
+              <Input
                 type="range"
                 min="0.1"
                 max="5.0"
                 step="0.1"
                 value={modelScale}
-                onChange={(e) => onScaleChange(parseFloat(e.target.value))}
+                onChange={(e: any) => onScaleChange(parseFloat(e.target.value))}
                 disabled={disabled}
                 className="w-full"
               />
@@ -179,12 +180,12 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">X</label>
-                  <input
+                  <Input
                     type="number"
                     min="0"
                     max="360"
                     value={modelRotation[0]}
-                    onChange={(e) => onRotationChange([
+                    onChange={(e: any) => onRotationChange([
                       parseInt(e.target.value) || 0,
                       modelRotation[1],
                       modelRotation[2]
@@ -195,12 +196,12 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Y</label>
-                  <input
+                  <Input
                     type="number"
                     min="0"
                     max="360"
                     value={modelRotation[1]}
-                    onChange={(e) => onRotationChange([
+                    onChange={(e: any) => onRotationChange([
                       modelRotation[0],
                       parseInt(e.target.value) || 0,
                       modelRotation[2]
@@ -211,12 +212,12 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Z</label>
-                  <input
+                  <Input
                     type="number"
                     min="0"
                     max="360"
                     value={modelRotation[2]}
-                    onChange={(e) => onRotationChange([
+                    onChange={(e: any) => onRotationChange([
                       modelRotation[0],
                       modelRotation[1],
                       parseInt(e.target.value) || 0

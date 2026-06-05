@@ -39,6 +39,7 @@ const DATAHUB_EVENT_TIME_HOVER = 'nekazari:datahub:timeHover';
 
 // Import Cesium CSS
 import 'cesium/Build/Cesium/Widgets/widgets.css';
+import { Button } from '@nekazari/ui-kit';
 
 interface CesiumMapProps {
   title?: string;
@@ -482,7 +483,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       if (viewerRef.current) {
         try {
           logger.debug('[CesiumMap] Destroying viewer');
-          console.trace('[CesiumMap] Destroy stack trace');
+          logger.trace('[CesiumMap] Destroy stack trace');
           viewerRef.current.destroy();
         } catch (error) {
           logger.error('[CesiumMap] Error destroying viewer:', error);
@@ -1717,16 +1718,16 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       {showControls && isViewerReady && (
         <div className="absolute top-4 right-4 flex flex-col gap-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           {/* Fullscreen Toggle */}
-          <button
+          <Button
             onClick={toggleFullscreen}
             className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg shadow-lg transition-all border border-slate-600"
             title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
           >
             {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
-          </button>
+          </Button>
 
           {/* 3D Terrain Toggle */}
-          <button
+          <Button
             type="button"
             onClick={() => {
               // Toggle logic would go here if we had a setEnable3DTerrain prop or state
@@ -1737,18 +1738,18 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             title={enable3DTerrain ? 'Desactivar relieve 3D' : 'Activar relieve 3D'}
           >
             <Mountain size={20} />
-          </button>
+          </Button>
 
           {/* Layer Picker (Base Map & Terrain) */}
           <div className="relative">
-            <button
+            <Button
               type="button"
               onClick={() => setShowTerrainPicker(!showTerrainPicker)}
               className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg shadow-lg transition-all border border-slate-600"
               title="Seleccionar capas"
             >
               <Layers size={20} />
-            </button>
+            </Button>
 
             {showTerrainPicker && (
               <div className="absolute right-full top-0 mr-2 bg-slate-800 rounded-lg shadow-xl border border-slate-600 min-w-[220px] overflow-hidden z-20">
@@ -1757,35 +1758,35 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                   <p className="text-xs font-semibold text-slate-300">Mapa Base</p>
                 </div>
                 <div className="p-1 border-b border-slate-700">
-                  <button
+                  <Button
                     onClick={() => setBaseLayer('osm')}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'osm' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                   >
                     <div className="font-medium">Callejero (OSM)</div>
                     <div className="text-xs text-slate-500">OpenStreetMap global</div>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setBaseLayer('pnoa')}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'pnoa' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                   >
                     <div className="font-medium">Ortofoto (PNOA)</div>
                     <div className="text-xs text-slate-500">Alta resolución (España)</div>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setBaseLayer('esri')}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'esri' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                   >
                     <div className="font-medium">Satélite (Esri)</div>
                     <div className="text-xs text-slate-500">Imágenes satelitales globales</div>
-                  </button>
+                  </Button>
                   {import.meta.env.VITE_CESIUM_ION_TOKEN && (
-                    <button
+                    <Button
                       onClick={() => setBaseLayer('cesium')}
                       className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'cesium' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                     >
                       <div className="font-medium">Satélite (Cesium Ion)</div>
                       <div className="text-xs text-slate-500">Bing Maps Aerial (Premium)</div>
-                    </button>
+                    </Button>
                   )}
                 </div>
 
@@ -1801,7 +1802,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                         { id: 'idena', name: 'IDENA (Navarra)', desc: 'Alta precisión (MDT05)' },
                         { id: 'ign', name: 'IGN (España)', desc: 'Cobertura nacional (MDT25)' }
                       ].map((provider) => (
-                        <button
+                        <Button
                           key={provider.id}
                           onClick={() => {
                             setCurrentTerrainProvider(provider.id);
@@ -1811,7 +1812,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                         >
                           <div className="font-medium">{provider.name}</div>
                           <div className="text-xs text-slate-500">{provider.desc}</div>
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   </>

@@ -8,6 +8,7 @@ import { ShieldAlert, ShieldCheck, ArrowRight, RefreshCw } from 'lucide-react';
 import { api } from '@/services/api';
 import type { RiskState } from '@/types';
 import { useTranslation } from '@nekazari/sdk';
+import { Button } from '@nekazari/ui-kit';
 
 type TFn = (key: string, opts?: Record<string, unknown>) => string;
 
@@ -112,14 +113,14 @@ export const RiskSummaryCard: React.FC = () => {
               {t(alertCount === 1 ? 'dashboard.risks.alert_count_one' : 'dashboard.risks.alert_count_other', { count: alertCount })}
             </span>
           )}
-          <button
+          <Button
             onClick={load}
             disabled={loading}
             className="text-white/70 hover:text-white transition"
             title={t('refresh')}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -210,13 +211,13 @@ export const RiskSummaryCard: React.FC = () => {
               {t('dashboard.risks.updated_time', { time: lastUpdated.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) })}
             </p>
           )}
-          <button
+          <Button
             onClick={() => navigate('/risks')}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-nkz-bg-secondary dark:bg-gray-700 hover:bg-nkz-bg-secondary dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-xl transition"
           >
             {t('dashboard.risks.view_panel')}
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@
  */
 
 import React, { useState } from 'react';
+import { Button } from '@nekazari/ui-kit';
 import { 
   MapPin, Gauge, Bot, Building2, Droplets, Trees, Zap, Tractor,
   Leaf, Activity, Sun, Thermometer, Wind, CloudRain, Sprout,
@@ -104,7 +105,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
         <label className="block text-sm font-medium text-gray-700">
           Icono por defecto
         </label>
-        <button
+        <Button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
           className="text-xs text-nkz-info hover:text-blue-800 flex items-center gap-1"
@@ -114,7 +115,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
           ) : (
             <>Más opciones <ChevronDown className="w-3 h-3" /></>
           )}
-        </button>
+        </Button>
       </div>
 
       {/* Suggested Icons */}
@@ -123,7 +124,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
           <p className="text-xs text-nkz-muted mb-2">Sugeridos para {entityType}</p>
           <div className="flex flex-wrap gap-2">
             {suggestedIcons.map(({ key, icon: Icon, label }) => (
-              <button
+              <Button
                 key={key}
                 type="button"
                 onClick={() => onSelect(selectedIcon === key ? null : key)}
@@ -138,7 +139,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
                 {selectedIcon === key && (
                   <Check className="w-3 h-3 text-nkz-success absolute top-1 right-1" />
                 )}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -152,7 +153,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
               <p className="text-xs font-medium text-nkz-muted mb-2">{category}</p>
               <div className="flex flex-wrap gap-2">
                 {icons.map(({ key, icon: Icon, label }) => (
-                  <button
+                  <Button
                     key={key}
                     type="button"
                     onClick={() => onSelect(selectedIcon === key ? null : key)}
@@ -164,7 +165,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
                   >
                     <Icon className={`w-4 h-4 ${selectedIcon === key ? 'text-nkz-success' : 'text-nkz-muted'}`} />
                     <span className="text-xs text-gray-600">{label}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>

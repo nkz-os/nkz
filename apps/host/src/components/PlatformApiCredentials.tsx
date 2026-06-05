@@ -7,7 +7,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import api from '@/services/api';
+import { Button, Input } from '@nekazari/ui-kit';
 import {
+
   Key,
   Save,
   Eye,
@@ -198,13 +200,13 @@ export const PlatformApiCredentials: React.FC = () => {
               </p>
             </div>
           </div>
-          <button
+          <Button
             onClick={loadCredentials}
             disabled={loading}
             className="px-4 py-2 text-gray-600 hover:text-gray-900 disabled:opacity-50"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          </Button>
         </div>
 
         {error && (
@@ -267,10 +269,10 @@ export const PlatformApiCredentials: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Client ID (Usuario) *
               </label>
-              <input
+              <Input
                 type="text"
                 value={copernicus.username}
-                onChange={(e) => setCopernicus(prev => ({ ...prev, username: e.target.value }))}
+                onChange={(e: any) => setCopernicus(prev => ({ ...prev, username: e.target.value }))}
                 placeholder="Tu Client ID de Copernicus CDSE"
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
@@ -282,21 +284,21 @@ export const PlatformApiCredentials: React.FC = () => {
                 Client Secret (Contraseña) *
               </label>
               <div className="relative">
-                <input
+                <Input
                   type={showPassword.copernicus ? 'text' : 'password'}
                   value={copernicus.password}
-                  onChange={(e) => setCopernicus(prev => ({ ...prev, password: e.target.value }))}
+                  onChange={(e: any) => setCopernicus(prev => ({ ...prev, password: e.target.value }))}
                   placeholder={copernicus.configured ? '•••••••• (dejar vacío para no cambiar)' : 'Tu Client Secret'}
                   className="w-full px-3 py-2 pr-10 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required={!copernicus.configured}
                 />
-                <button
+                <Button
                   type="button"
                   onClick={() => togglePasswordVisibility('copernicus')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600"
                 >
                   {showPassword.copernicus ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -304,10 +306,10 @@ export const PlatformApiCredentials: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 URL Base
               </label>
-              <input
+              <Input
                 type="url"
                 value={copernicus.url}
-                onChange={(e) => setCopernicus(prev => ({ ...prev, url: e.target.value }))}
+                onChange={(e: any) => setCopernicus(prev => ({ ...prev, url: e.target.value }))}
                 placeholder="https://dataspace.copernicus.eu"
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -315,14 +317,14 @@ export const PlatformApiCredentials: React.FC = () => {
           </div>
 
           <div className="flex justify-end">
-            <button
+            <Button
               onClick={handleSaveCopernicus}
               disabled={saving.copernicus || !copernicus.username || (!copernicus.password && !copernicus.configured)}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
               {saving.copernicus ? 'Guardando...' : 'Guardar Credenciales'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -367,21 +369,21 @@ export const PlatformApiCredentials: React.FC = () => {
                 API Key *
               </label>
               <div className="relative">
-                <input
+                <Input
                   type={showPassword.aemet ? 'text' : 'password'}
                   value={aemet.api_key}
-                  onChange={(e) => setAemet(prev => ({ ...prev, api_key: e.target.value }))}
+                  onChange={(e: any) => setAemet(prev => ({ ...prev, api_key: e.target.value }))}
                   placeholder={aemet.configured ? '•••••••• (dejar vacío para no cambiar)' : 'Tu API Key de AEMET'}
                   className="w-full px-3 py-2 pr-10 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required={!aemet.configured}
                 />
-                <button
+                <Button
                   type="button"
                   onClick={() => togglePasswordVisibility('aemet')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600"
                 >
                   {showPassword.aemet ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -389,10 +391,10 @@ export const PlatformApiCredentials: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 URL Base
               </label>
-              <input
+              <Input
                 type="url"
                 value={aemet.url}
-                onChange={(e) => setAemet(prev => ({ ...prev, url: e.target.value }))}
+                onChange={(e: any) => setAemet(prev => ({ ...prev, url: e.target.value }))}
                 placeholder="https://opendata.aemet.es/opendata/api"
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -400,14 +402,14 @@ export const PlatformApiCredentials: React.FC = () => {
           </div>
 
           <div className="flex justify-end">
-            <button
+            <Button
               onClick={handleSaveAemet}
               disabled={saving.aemet || (!aemet.api_key && !aemet.configured)}
               className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
               {saving.aemet ? 'Guardando...' : 'Guardar Credenciales'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

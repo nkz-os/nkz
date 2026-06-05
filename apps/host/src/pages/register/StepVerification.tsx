@@ -128,13 +128,13 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
         <h2 className="text-nkz-lg font-semibold text-nkz-text-primary">
           {t('registration.step_verify') || 'Verification'}
         </h2>
-        <button
+        <Button
           type="button"
           onClick={onBack}
           className="text-nkz-sm text-nkz-text-muted hover:text-nkz-text-primary transition-colors"
         >
           {t('registration.back') || 'Back'}
-        </button>
+        </Button>
       </div>
 
       {/* Method selector */}
@@ -180,7 +180,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
             id="reg-code"
             type="text"
             value={formData.activationCode}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleCodeChange(e.target.value)}
+            onChange={(e: any) => handleCodeChange(e.target.value)}
             placeholder={t('activation.activation_code_placeholder')}
             className="font-mono text-center tracking-wider"
             maxLength={18}
@@ -224,7 +224,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
                   id="reg-otp"
                   type="text"
                   value={formData.otp}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleOtpChange(e.target.value)}
+                  onChange={(e: any) => handleOtpChange(e.target.value)}
                   placeholder="000000"
                   className="font-mono text-center text-nkz-xl tracking-[0.25em]"
                   maxLength={6}
@@ -237,13 +237,13 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
                     {t('registration.resend_otp', { seconds: resendCountdown }) || `Resend code in ${resendCountdown}s`}
                   </span>
                 ) : (
-                  <button
+                  <Button
                     type="button"
                     onClick={handleSendOtp}
                     className="text-nkz-xs text-nkz-accent-base hover:text-nkz-accent-strong font-medium"
                   >
                     {t('registration.resend_otp_available') || 'Resend code'}
-                  </button>
+                  </Button>
                 )}
               </div>
             </>

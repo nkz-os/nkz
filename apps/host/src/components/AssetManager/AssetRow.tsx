@@ -25,6 +25,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { UnifiedAsset, ASSET_TYPE_REGISTRY } from '@/types/assets';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
 // =============================================================================
 // Icon Map
@@ -127,18 +128,18 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
       onContextMenu={onContextMenu}
     >
       {/* Checkbox */}
-      <button
-        onClick={(e) => {
+      <Button
+        onClick={((e: any) => {
           e.stopPropagation();
           onSelect();
-        }}
+        }) as any}
         className="flex-shrink-0 p-1 rounded hover:bg-slate-200"
       >
         {isSelected
           ? <CheckSquare className="w-4 h-4 text-blue-400" />
           : <Square className="w-4 h-4 text-white/30 hover:text-white/50" />
         }
-      </button>
+      </Button>
       
       {/* Icon + Name */}
       <div className="flex-1 min-w-[180px] flex items-center gap-3">
@@ -204,15 +205,15 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
       )}
       
       {/* Actions */}
-      <button
-        onClick={(e) => {
+      <Button
+        onClick={((e: any) => {
           e.stopPropagation();
           onContextMenu?.(e);
-        }}
+        }) as any}
         className="flex-shrink-0 p-1 rounded hover:bg-white/10 text-white/40 hover:text-white/70"
       >
         <MoreVertical className="w-4 h-4" />
-      </button>
+      </Button>
     </div>
   );
 });

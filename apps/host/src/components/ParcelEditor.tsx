@@ -5,6 +5,9 @@
 import React, { useState, useEffect } from 'react';
 import { Save, X, Edit3, Trash2, Map as MapIcon, Check } from 'lucide-react';
 import { useNotification } from '@/hooks/useNotification';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 interface ParcelGeometry {
   type: 'Polygon';
@@ -111,7 +114,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
       // Save via API
       await onSave(parcelData);
     } catch (error) {
-      console.error('Error saving parcel:', error);
+      logger.error('Error saving parcel:', error);
       showNotification({ type: 'error', message: 'Error al guardar la parcela' });
     }
   };
@@ -134,12 +137,12 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
         <h3 className="text-lg font-semibold text-gray-900">
           {mode === 'create' ? 'Crear Parcela' : 'Editar Parcela'}
         </h3>
-        <button
+        <Button
           onClick={onCancel}
           className="p-2 hover:bg-nkz-bg-secondary rounded-lg transition-colors"
         >
           <X className="w-5 h-5 text-gray-600" />
-        </button>
+        </Button>
       </div>
 
       {/* Drawing Tools */}
@@ -151,14 +154,14 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
         
         {!geometry && !isDrawing && (
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={handleDrawPolygon}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
             >
               <MapIcon className="w-4 h-4" />
               Dibujar Parcela
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => {
                 // TODO: Trigger cadastral selector
                 showNotification({ type: 'error', message: 'Selector catastral será implementado' });
@@ -166,7 +169,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
             >
               Buscar en Catastro
-            </button>
+            </Button>
           </div>
         )}
 
@@ -176,20 +179,20 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
               Haz clic en el mapa para dibujar vértices. Haz clic en el primer punto para cerrar.
             </p>
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={handleConfirmDrawing}
                 disabled={drawingCoords.length < 3}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 <Check className="w-4 h-4" />
                 Confirmar
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleCancelDrawing}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
                 Cancelar
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -205,20 +208,20 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
               </p>
             </div>
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={handleDrawPolygon}
                 className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center gap-2 text-sm"
               >
                 <Edit3 className="w-4 h-4" />
                 Redibujar
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleClearGeometry}
                 className="px-3 py-2 bg-nkz-error-light text-nkz-error rounded-lg hover:bg-red-200 transition-colors flex items-center gap-2 text-sm"
               >
                 <Trash2 className="w-4 h-4" />
                 Eliminar
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -231,10 +234,10 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Municipio *
             </label>
-            <input
+            <Input
               type="text"
               value={municipality}
-              onChange={(e) => setMunicipality(e.target.value)}
+              onChange={(e: any) => setMunicipality(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
@@ -244,10 +247,10 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Provincia *
             </label>
-            <input
+            <Input
               type="text"
               value={province}
-              onChange={(e) => setProvince(e.target.value)}
+              onChange={(e: any) => setProvince(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             />
@@ -260,7 +263,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
           </label>
           <select
             value={cropType}
-            onChange={(e) => setCropType(e.target.value)}
+            onChange={(e: any) => setCropType(e.target.value)}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             required
           >
@@ -281,7 +284,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
           </label>
           <textarea
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e: any) => setNotes(e.target.value)}
             rows={3}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Información adicional sobre la parcela..."
@@ -299,20 +302,20 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
 
       {/* Actions */}
       <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-nkz-border">
-        <button
+        <Button
           onClick={onCancel}
           className="px-4 py-2 text-gray-700 bg-nkz-bg-secondary rounded-lg hover:bg-gray-200 transition-colors"
         >
           Cancelar
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={handleSave}
           disabled={!geometry || !municipality || !province || !cropType}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
         >
           <Save className="w-4 h-4" />
           Guardar Parcela
-        </button>
+        </Button>
       </div>
     </div>
   );

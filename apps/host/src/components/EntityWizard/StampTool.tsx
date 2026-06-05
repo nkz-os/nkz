@@ -11,6 +11,7 @@
 import React, { useEffect } from 'react';
 import { Eraser } from 'lucide-react';
 import { useViewer } from '@/context/ViewerContext';
+import { Button, Input } from '@nekazari/ui-kit';
 
 export interface InstanceData {
   // Business logic properties
@@ -99,24 +100,24 @@ export const StampTool: React.FC<StampToolProps> = ({
         <div className="flex gap-4">
           <div className="flex-1">
             <label className="text-xs font-semibold text-nkz-muted">Tamaño Pincel ({stampOptions.brushSize}m)</label>
-            <input
+            <Input
               type="range"
               min="1"
               max="50"
               value={stampOptions.brushSize}
-              onChange={e => updateStampOptions({ brushSize: parseInt(e.target.value) })}
+              onChange={(e: any) => updateStampOptions({ brushSize: parseInt(e.target.value) })}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
             />
           </div>
           <div className="flex-1">
             <label className="text-xs font-semibold text-nkz-muted">Densidad ({(stampOptions.density * 100).toFixed(0)}%)</label>
-            <input
+            <Input
               type="range"
               min="0.1"
               max="1.0"
               step="0.1"
               value={stampOptions.density}
-              onChange={e => updateStampOptions({ density: parseFloat(e.target.value) })}
+              onChange={(e: any) => updateStampOptions({ density: parseFloat(e.target.value) })}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
             />
           </div>
@@ -126,13 +127,13 @@ export const StampTool: React.FC<StampToolProps> = ({
           <span className="text-sm font-medium text-gray-700">
             <span className="text-nkz-info font-bold">{stampInstances.length}</span> elementos
           </span>
-          <button
+          <Button
             type="button"
             onClick={handleClear}
             className="px-3 py-1.5 bg-white border border-nkz-border rounded text-sm hover:bg-nkz-error-light hover:text-nkz-error hover:border-red-200 flex items-center gap-1 transition-colors"
           >
             <Eraser className="w-4 h-4" /> Limpiar Todo
-          </button>
+          </Button>
         </div>
       </div>
 
