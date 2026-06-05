@@ -356,8 +356,8 @@ class ParcelWeatherEngine:
                     "wind_direction_10m_dominant",
                     "et0_fao_evapotranspiration",
                     "shortwave_radiation_sum",
-                    "soil_moisture_0_to_10cm_mean",
-                    "soil_moisture_10_to_40cm_mean",
+                    "soil_moisture_0_to_7cm_mean",
+                    "soil_moisture_7_to_28cm_mean",
                     "surface_pressure_mean",
                 ],
                 "timezone": "Europe/Madrid",
@@ -420,10 +420,10 @@ class ParcelWeatherEngine:
                     0.0864,  # MJ/m2/day → W/m2
                 ),
                 "soil_moisture_0_10cm": self._safe_get(
-                    daily, "soil_moisture_0_to_10cm_mean", i
+                    daily, "soil_moisture_0_to_7cm_mean", i
                 ),
                 "soil_moisture_10_40cm": self._safe_get(
-                    daily, "soil_moisture_10_to_40cm_mean", i
+                    daily, "soil_moisture_7_to_28cm_mean", i
                 ),
                 "station_elevation_m": station_elevation,
             }

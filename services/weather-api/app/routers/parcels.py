@@ -347,8 +347,8 @@ def get_parcel_weather(
                     "wind_direction_10m_dominant",
                     "et0_fao_evapotranspiration",
                     "shortwave_radiation_sum",
-                    "soil_moisture_0_to_10cm_mean",
-                    "soil_moisture_10_to_40cm_mean",
+                    "soil_moisture_0_to_7cm_mean",
+                    "soil_moisture_7_to_28cm_mean",
                     "surface_pressure_mean",
                 ],
                 "timezone": "Europe/Madrid",
@@ -386,10 +386,10 @@ def get_parcel_weather(
                     _safe_idx(daily, "shortwave_radiation_sum", i), 0.0864
                 ),
                 "soil_moisture_0_10cm": _safe_idx(
-                    daily, "soil_moisture_0_to_10cm_mean", i
+                    daily, "soil_moisture_0_to_7cm_mean", i
                 ),
                 "soil_moisture_10_40cm": _safe_idx(
-                    daily, "soil_moisture_10_to_40cm_mean", i
+                    daily, "soil_moisture_7_to_28cm_mean", i
                 ),
             }
             observations.append(obs)
@@ -735,7 +735,7 @@ def get_parcel_agro_status(
             parcel_slope_deg=parcel_slope,
         )
 
-        # 7. Persist agroStatus to Orion-LD and PostgreSQL (non-blocking, best-effort)
+        # 7. Persist agroStatus to Orion-LD (non-blocking, best-effort)
         _persist_agro_status_to_orion(tenant_id, parcel_id, result)
 
         return result
