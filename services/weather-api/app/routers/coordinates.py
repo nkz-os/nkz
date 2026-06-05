@@ -1,9 +1,8 @@
 """
-GET /api/weather/municipality/{ine_code}/forecast — direct Open-Meteo proxy.
+GET /api/weather/coordinates — coordinate-based Open-Meteo forecast.
 
-DEPRECATED: use GET /api/weather/coordinates?lat=&lon= for international
-locations, or GET /api/weather/parcel/{id}/forecast for parcel-specific.
-Kept for backward compatibility with existing Spain-only tenants.
+Replaces the deprecated municipality-based forecast endpoint for
+international tenants. No DB dependency — pure lat/lon → Open-Meteo.
 """
 
 import logging
@@ -15,63 +14,33 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
 from app.auth import require_auth_optional
-from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/weather", tags=["municipality-forecast"])
+router = APIRouter(prefix="/api/weather", tags=["coordinates-forecast"])
 
 OPENMETEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
 
-@router.get("/municipality/{ine_code}/forecast")
-def get_municipality_forecast(
-    ine_code: str,
-    tenant_id: str = Depends(require_auth_optional),
+@router.get("/coordinates")
+def get_coordinates_forecast(
+    lat: float = Query(..., ge=-90, le=90, description="Latitude"),
+    lon: float = Query(..., ge=-180, le=180, description="Longitude"),
+    name: Optional[str] = Query(None, description="Display name for the location"),
     days: int = Query(7, le=14, description="Forecast days (max 14)"),
+    tenant_id: str = Depends(require_auth_optional),
 ):
     """
-    Direct Open-Meteo forecast for a municipality — no persistence.
+    Direct Open-Meteo forecast for arbitrary coordinates — no DB, no catalog.
 
-    DEPRECATED: Use GET /api/weather/coordinates for international
-    locations, or GET /api/weather/parcel/{id}/forecast for parcels.
-    This endpoint depends on catalog_municipalities (Spain-only).
+    Use this for:
+    - Tenant home location (widget superior)
+    - Any coordinate-based forecast query
+    - International locations (no catalog_municipalities dependency)
+
+    Returns the same JSON structure as the deprecated municipality forecast.
     """
-    if not tenant_id:
-        tenant_id = "default"
-
     try:
-        # 1. Resolve municipality coordinates
-        from app.deps import get_db_connection
-        from psycopg2.extras import RealDictCursor
-
-        conn = get_db_connection(tenant_id)
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT name, province, latitude, longitude, aemet_id
-                FROM catalog_municipalities
-                WHERE ine_code = %s
-                LIMIT 1
-                """,
-                (ine_code,),
-            )
-            muni = cur.fetchone()
-        finally:
-            cur.close()
-            conn.close()
-
-        if not muni or not muni.get("latitude") or not muni.get("longitude"):
-            return JSONResponse(
-                {"error": f"Municipality {ine_code} not found or missing coordinates"},
-                status_code=404,
-            )
-
-        lat = float(muni["latitude"])
-        lon = float(muni["longitude"])
-
-        # 2. Fetch forecast from Open-Meteo
         today = datetime.utcnow().strftime("%Y-%m-%d")
         end = (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%d")
 
@@ -91,7 +60,7 @@ def get_municipality_forecast(
                 "et0_fao_evapotranspiration",
                 "shortwave_radiation_sum",
             ],
-            "timezone": "Europe/Madrid",
+            "timezone": "auto",
         }
 
         resp = requests.get(OPENMETEO_FORECAST_URL, params=params, timeout=10)
@@ -105,7 +74,7 @@ def get_municipality_forecast(
         daily = raw.get("daily", {})
         dates = daily.get("time", [])
 
-        # 3. Build clean forecast response
+        # Build clean forecast response (same structure as municipality_forecast)
         forecast = []
         for i, date_str in enumerate(dates):
             forecast.append(
@@ -129,30 +98,24 @@ def get_municipality_forecast(
                 }
             )
 
-        return JSONResponse(
-            content={
-                "municipality_code": ine_code,
-                "municipality_name": muni.get("name"),
-                "province": muni.get("province"),
-                "coordinates": {"latitude": lat, "longitude": lon},
-                "elevation_m": raw.get("elevation"),
-                "forecast_days": days,
-                "forecast": forecast,
-                "source": "OPEN-METEO",
-                "cached": False,
-                "deprecated": True,
-            },
-            headers={"Deprecation": "true"},
-        )
+        return {
+            "coordinates": {"latitude": lat, "longitude": lon},
+            "location_name": name,
+            "elevation_m": raw.get("elevation"),
+            "forecast_days": days,
+            "forecast": forecast,
+            "source": "OPEN-METEO",
+            "cached": False,
+        }
 
     except requests.exceptions.Timeout:
         return JSONResponse(
             {"error": "Open-Meteo request timed out"}, status_code=504
         )
     except Exception as e:
-        logger.error(f"Error in municipality forecast: {e}", exc_info=True)
+        logger.error(f"Error in coordinates forecast: {e}", exc_info=True)
         return JSONResponse(
-            {"error": "Failed to fetch municipality forecast"}, status_code=500
+            {"error": "Failed to fetch coordinates forecast"}, status_code=500
         )
 
 

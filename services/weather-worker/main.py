@@ -185,11 +185,11 @@ class WeatherWorker:
                             status='success'
                         ).inc(count)
             
-            # 3. AEMET alerts are now handled by AemetAlertsEngine
+            # 3. Weather alerts are now handled by MeteoAlertsEngine
             #    (independent engine → Orion-LD → subscription → TimescaleDB).
             #    The municipality worker no longer writes alerts directly.
             logger.debug(
-                f"AEMET alerts for {municipality_code} handled by AemetAlertsEngine"
+                f"Weather alerts for {municipality_code} handled by MeteoAlertsEngine"
             )
             
             logger.info(f"Completed ingestion for {municipality_code}: {result}")
@@ -296,31 +296,30 @@ class WeatherWorker:
 
             time.sleep(interval_seconds)
 
-    def _run_aemet_alerts_loop(self):
-        """Run AEMET alerts engine in a background thread."""
-        if not self.config.AEMET_ALERTS_ENABLED:
-            logger.info("AemetAlertsEngine disabled via AEMET_ALERTS_ENABLED=false")
-            return
-
-        if not self.config.AEMET_API_KEY:
+    def _run_meteoalerts_loop(self):
+        """Run MeteoAlarm alerts engine in a background thread."""
+        enabled = (
+            self.config.METEOALARM_ENABLED
+            or self.config.AEMET_ALERTS_ENABLED  # backward compat
+        )
+        if not enabled:
             logger.info(
-                "AemetAlertsEngine: no AEMET_API_KEY configured — skipping"
+                "MeteoAlertsEngine disabled (METEOALARM_ENABLED=false, "
+                "AEMET_ALERTS_ENABLED=false)"
             )
             return
 
         logger.info(
-            f"AemetAlertsEngine starting: interval={self.config.AEMET_ALERTS_INTERVAL_HOURS}h"
+            f"MeteoAlertsEngine starting: interval={self.config.AEMET_ALERTS_INTERVAL_HOURS}h"
         )
 
         # Small delay to let DB connection settle
         time.sleep(5)
 
-        from weather_worker.aemet_alerts_engine import AemetAlertsEngine
+        from weather_worker.meteo_alerts_engine import MeteoAlertsEngine
 
-        engine = AemetAlertsEngine(
+        engine = MeteoAlertsEngine(
             orion_url=os.getenv("ORION_URL", "http://orion-ld-service:1026"),
-            aemet_api_key=self.config.AEMET_API_KEY,
-            aemet_api_url=self.config.AEMET_API_URL,
             interval_hours=self.config.AEMET_ALERTS_INTERVAL_HOURS,
         )
 
@@ -330,7 +329,7 @@ class WeatherWorker:
         """Run worker in continuous mode.
 
         ParcelWeatherEngine always runs (handles the agronomic heart).
-        AemetAlertsEngine always runs (handles official weather alerts).
+        MeteoAlertsEngine always runs (handles official weather alerts).
         Municipality worker is OFF by default — forecast data is ephemeral.
         """
         logger.info("Weather Worker starting in continuous mode")
@@ -346,15 +345,15 @@ class WeatherWorker:
             parcel_thread.start()
             logger.info("ParcelWeatherEngine thread started")
 
-        # Start AEMET alerts engine in background thread (always on)
-        if self.config.AEMET_ALERTS_ENABLED and self.config.AEMET_API_KEY:
+        # Start MeteoAlarm alerts engine in background thread (always on)
+        if self.config.METEOALARM_ENABLED or self.config.AEMET_ALERTS_ENABLED:
             alerts_thread = threading.Thread(
-                target=self._run_aemet_alerts_loop,
+                target=self._run_meteoalerts_loop,
                 daemon=True,
-                name="aemet-alerts-engine",
+                name="meteoalarm-engine",
             )
             alerts_thread.start()
-            logger.info("AemetAlertsEngine thread started")
+            logger.info("MeteoAlertsEngine thread started")
 
         # Municipality worker is OFF by default
         if self.config.MUNICIPALITY_WORKER_ENABLED:
