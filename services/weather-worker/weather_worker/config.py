@@ -36,6 +36,10 @@ class WeatherWorkerConfig:
 
     # Municipality worker (DEPRECATED — disabled by default, use ParcelEngine)
     MUNICIPALITY_WORKER_ENABLED: bool = os.getenv('MUNICIPALITY_WORKER_ENABLED', 'false').lower() == 'true'
+
+    # AEMET Alerts Engine (independent of ParcelEngine and municipality worker)
+    AEMET_ALERTS_ENABLED: bool = os.getenv('AEMET_ALERTS_ENABLED', 'true').lower() == 'true'
+    AEMET_ALERTS_INTERVAL_HOURS: int = int(os.getenv('AEMET_ALERTS_INTERVAL_HOURS', '1'))
     
     # Metrics
     METRICS_HOST: str = os.getenv('METRICS_HOST', '0.0.0.0')

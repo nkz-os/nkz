@@ -121,16 +121,15 @@ class TimescaleDBWriter:
         alerts: List[Dict[str, Any]],
         tenant_id: str
     ) -> int:
-        """DEPRECATED - no-op. AEMET alerts pending migration to Orion-LD WeatherAlert entities.
+        """DEPRECATED: alerts now flow through AemetAlertsEngine → Orion-LD →
+        telemetry-worker subscription → TimescaleDB.
 
-        Previously wrote directly to weather_alerts (PostgreSQL).
-        Kept as no-op for backward compatibility when MUNICIPALITY_WORKER_ENABLED=true.
-        TODO: migrate to Orion-LD WeatherAlert entities + subscription pipeline.
+        This method is kept as a no-op stub for backward compatibility.
+        Callers should be migrated to the new event-driven pipeline.
         """
-        logger.warning(
-            "write_alerts is DEPRECATED and does nothing. "
-            "AEMET alerts pending migration to Orion-LD WeatherAlert entities. "
-            "Set MUNICIPALITY_WORKER_ENABLED=false (default) to suppress this warning."
+        logger.debug(
+            "write_alerts() is deprecated — alerts flow through "
+            "AemetAlertsEngine → Orion-LD → telemetry-worker"
         )
         return 0
 

@@ -103,6 +103,20 @@ SUBSCRIPTIONS = [
         "throttling": 30,
         "isActive": True,
     },
+    {
+        "description": "Telemetry Worker - WeatherAlert updates",
+        "type": "Subscription",
+        "entities": [{"type": "WeatherAlert"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 10,
+        "isActive": True,
+    },
 ]
 
 
