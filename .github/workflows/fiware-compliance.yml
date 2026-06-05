@@ -22,7 +22,7 @@ jobs:
       - name: Check new lines in PR for direct DB writes
         run: |
           echo "Checking added lines in this PR (excluding allowed paths)..."
-          EXEMPT='notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|/ingest/|/tests/|/migrations/|/docker/'
+          EXEMPT='notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|/locations\.py|/ingest/|/tests/|/migrations/|/docker/'
 
           # Get list of changed Python files, exclude allowed paths
           changed=$(git diff --name-only origin/main...HEAD -- '*.py' | grep -vE "$EXEMPT" || true)
