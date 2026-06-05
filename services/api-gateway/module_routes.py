@@ -20,10 +20,20 @@ MODULE_SERVICE_URL = os.getenv(
 )
 
 
+# Module names that don't follow the standard {module_id}-backend-service pattern.
+# Mapped to their actual K8s service name (without namespace).
+_MODULE_SERVICE_OVERRIDES: dict[str, str] = {
+    "nkz-module-eu-elevation": "elevation-api-service",
+}
+
+
 def _resolve_module_backend(module_name: str) -> Optional[str]:
     gateway_enabled = os.getenv("MODULE_GATEWAY_ENABLED", "").split(",")
     if module_name not in gateway_enabled:
         return None
+    if module_name in _MODULE_SERVICE_OVERRIDES:
+        svc = _MODULE_SERVICE_OVERRIDES[module_name]
+        return f"http://{svc}.nekazari.svc.cluster.local:80"
     return MODULE_SERVICE_URL.format(module_id=module_name)
 
 
