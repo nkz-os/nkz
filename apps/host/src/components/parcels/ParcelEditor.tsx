@@ -5,9 +5,11 @@
 // Integrates drawing tools and form
 
 import React, { useState } from 'react';
+import { logger } from '@/utils/logger';
 import { ParcelForm } from './ParcelForm';
 import { CesiumPolygonDrawer, type CesiumPolygonDrawerRef } from '@/components/CesiumPolygonDrawer';
 import type { Parcel } from '@/types';
+import { Button } from '@nekazari/ui-kit';
 
 interface ParcelEditorProps {
     mode: 'create' | 'edit';
@@ -27,7 +29,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
     const drawerRef = React.useRef<CesiumPolygonDrawerRef>(null);
 
     const handleGeometryChange = (newGeometry: any) => {
-        console.log('Geometry changed:', newGeometry);
+        logger.log('Geometry changed:', newGeometry);
         setGeometry(newGeometry);
     };
 
@@ -54,7 +56,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
                 {/* Method Selector */}
                 <div className="absolute top-4 left-4 z-10 bg-white rounded-lg shadow-lg p-2">
                     <div className="flex gap-2">
-                        <button
+                        <Button
                             onClick={() => setMethod('manual')}
                             className={`px-4 py-2 rounded-md font-medium transition-colors ${method === 'manual'
                                 ? 'bg-green-600 text-white'
@@ -62,8 +64,8 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
                                 }`}
                         >
                             Dibujo Manual
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             onClick={() => setMethod('cadastral')}
                             className={`px-4 py-2 rounded-md font-medium transition-colors ${method === 'cadastral'
                                 ? 'bg-green-600 text-white'
@@ -74,7 +76,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
                         >
                             Selector Catastral
                             <span className="ml-2 text-xs">(Próximamente)</span>
-                        </button>
+                        </Button>
                     </div>
                 </div>
 

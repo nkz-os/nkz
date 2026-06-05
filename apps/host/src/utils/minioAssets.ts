@@ -8,6 +8,8 @@
  */
 
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+
 
 export interface UploadProgress {
   loaded: number;
@@ -62,7 +64,7 @@ export async function uploadToMinIO(
 
     return response.url;
   } catch (error: any) {
-    console.error('Error uploading to MinIO:', error);
+    logger.error('Error uploading to MinIO:', error);
     throw new Error(
       error.response?.data?.error || 
       error.message || 
@@ -82,7 +84,7 @@ export async function deleteFromMinIO(
   try {
     await api.deleteAsset(assetId, assetType, extension);
   } catch (error: any) {
-    console.error('Error deleting from MinIO:', error);
+    logger.error('Error deleting from MinIO:', error);
     throw new Error(
       error.response?.data?.error || 
       error.message || 
@@ -103,7 +105,7 @@ export async function getAssetUrl(
     const response = await api.getAssetUrl(assetId, assetType, extension);
     return response.url;
   } catch (error: any) {
-    console.error('Error getting asset URL:', error);
+    logger.error('Error getting asset URL:', error);
     throw new Error(
       error.response?.data?.error || 
       error.message || 

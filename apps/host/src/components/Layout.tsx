@@ -7,6 +7,7 @@ import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { LoadingBar } from '@/components/loading/LoadingBar';
 import { LogOut, User } from 'lucide-react';
 import { NkzAttribution } from '@/components/attribution/NkzAttribution';
+import { Button } from '@nekazari/ui-kit';
 
 export interface LayoutProps {
   children: React.ReactNode;
@@ -69,24 +70,24 @@ export const Layout: React.FC<LayoutProps> = ({
                   <User className="w-4 h-4 mr-1" />
                   {user?.email}
                 </div>
-                <button
+                <Button
                   onClick={handleLogout}
                   className="flex items-center text-sm text-nkz-muted dark:text-nkz-muted hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                 >
                   <LogOut className="w-4 h-4 mr-1" />
                   {t('layout.logout')}
-                </button>
+                </Button>
               </div>
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-nkz-muted dark:text-nkz-muted">
-              <button
+              <Button
                 type="button"
                 onClick={openPreferences}
                 className="underline hover:text-gray-700 dark:hover:text-gray-200"
               >
                 {t('layout.cookie_settings')}
-              </button>
+              </Button>
               <NkzAttribution variant="core" />
             </div>
           </div>

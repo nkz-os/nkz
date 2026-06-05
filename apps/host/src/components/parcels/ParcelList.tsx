@@ -8,7 +8,9 @@ import React, { useState, useMemo } from 'react';
 import { Edit, Trash2, ChevronDown, ChevronRight, MapPin } from 'lucide-react';
 import type { Parcel } from '@/types';
 import { ParcelAgroStatus } from './ParcelAgroStatus';
+import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ParcelListProps {
     parcels: Parcel[];
     isLoading: boolean;
@@ -133,12 +135,12 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         Comienza creando tu primera parcela agrícola.
                         Puedes dibujarla manualmente o seleccionarla del catastro.
                     </p>
-                    <button
+                    <Button
                         onClick={onRefresh}
                         className="text-nkz-success hover:text-nkz-success font-medium"
                     >
                         Actualizar lista
-                    </button>
+                    </Button>
                 </div>
             </div>
         );
@@ -159,11 +161,11 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                 <td className="px-4 py-4 max-w-xs" style={{ paddingLeft: `${indent * 24 + 16}px` }}>
                     <div className="flex items-center gap-2">
                         {isParent && zonesCount > 0 && (
-                            <button
-                                onClick={(e) => {
+                            <Button
+                                onClick={((e: any) => {
                                     e.stopPropagation();
                                     toggleExpand(parcel.id);
-                                }}
+                                }) as any}
                                 className="text-nkz-muted hover:text-gray-600"
                             >
                                 {expandedParcels.has(parcel.id) ? (
@@ -171,7 +173,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                                 ) : (
                                     <ChevronRight className="w-4 h-4" />
                                 )}
-                            </button>
+                            </Button>
                         )}
                         {isZone && <div className="w-4" />}
                         {isZone ? (
@@ -225,44 +227,44 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-2 flex-wrap">
-                        <button
-                            onClick={(e) => {
+                        <Button
+                            onClick={((e: any) => {
                                 e.stopPropagation();
                                 onEdit(parcel);
-                            }}
+                            }) as any}
                             className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-success bg-nkz-success-light rounded-md hover:bg-nkz-success-light transition-colors"
                             title="Editar"
                         >
                             <Edit className="w-4 h-4 mr-1" />
                             Editar
-                        </button>
+                        </Button>
                         {isZone && onDeleteZone ? (
-                            <button
-                                onClick={(e) => {
+                            <Button
+                                onClick={((e: any) => {
                                     e.stopPropagation();
                                     const parent = parcels.find(p => p.id === parcel.refParent);
                                     if (parent) {
                                         onDeleteZone(parcel, parent);
                                     }
-                                }}
+                                }) as any}
                                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light rounded-md hover:bg-nkz-error-light transition-colors"
                                 title="Eliminar zona"
                             >
                                 <Trash2 className="w-4 h-4 mr-1" />
                                 Eliminar
-                            </button>
+                            </Button>
                         ) : (
-                            <button
-                                onClick={(e) => {
+                            <Button
+                                onClick={((e: any) => {
                                     e.stopPropagation();
                                     onDelete(parcel);
-                                }}
+                                }) as any}
                                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light rounded-md hover:bg-nkz-error-light transition-colors"
                                 title="Eliminar parcela"
                             >
                                 <Trash2 className="w-4 h-4 mr-1" />
                                 Eliminar
-                            </button>
+                            </Button>
                         )}
                     </div>
                 </td>
@@ -276,7 +278,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
             <div className="mb-4 bg-white p-3 rounded-lg border border-nkz-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-700">Filtro:</span>
-                    <button
+                    <Button
                         onClick={() => setFilter('all')}
                         className={`px-3 py-1 text-sm rounded-md transition-colors ${
                             filter === 'all'
@@ -285,8 +287,8 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         }`}
                     >
                         Todas ({parcels.length})
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         onClick={() => setFilter('parcels')}
                         className={`px-3 py-1 text-sm rounded-md transition-colors ${
                             filter === 'parcels'
@@ -295,8 +297,8 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         }`}
                     >
                         Parcelas ({parcels.filter(p => p.category !== 'managementZone').length})
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         onClick={() => setFilter('zones')}
                         className={`px-3 py-1 text-sm rounded-md transition-colors ${
                             filter === 'zones'
@@ -305,7 +307,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         }`}
                     >
                         Zonas ({parcels.filter(p => p.category === 'managementZone').length})
-                    </button>
+                    </Button>
                 </div>
             </div>
 

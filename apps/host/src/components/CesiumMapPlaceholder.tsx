@@ -5,6 +5,7 @@
 import React from 'react';
 import { Globe, Maximize2 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
 interface CesiumMapPlaceholderProps {
   title?: string;
@@ -62,10 +63,10 @@ export const CesiumMapPlaceholder: React.FC<CesiumMapPlaceholderProps> = ({
 
         {showControls && (
           <div className="mt-6 flex gap-2">
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm">
+            <Button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm">
               <Maximize2 className="w-4 h-4" />
               {t('common.full_view')}
-            </button>
+            </Button>
           </div>
         )}
 

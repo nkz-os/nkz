@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Thermometer, Gauge, Droplets, Plus } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import type { Sensor } from '@/types';
+import { Button } from '@nekazari/ui-kit';
 
 interface EnvironmentalSensorsCardProps {
   sensors: Sensor[];
@@ -29,13 +30,13 @@ export const EnvironmentalSensorsCard: React.FC<EnvironmentalSensorsCardProps> =
             <Gauge className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-nkz-muted mb-4">{t('sensors.no_sensors_registered')}</p>
             {canManageDevices && (
-              <button
+              <Button
                 onClick={() => onOpenWizard('AgriSensor')}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />
                 {t('sensors.new_sensor')}
-              </button>
+              </Button>
             )}
           </div>
         ) : (
@@ -70,12 +71,12 @@ export const EnvironmentalSensorsCard: React.FC<EnvironmentalSensorsCardProps> =
         )}
 
         {sensors.length > 4 && (
-          <button
+          <Button
             onClick={() => navigate('/sensors')}
             className="w-full mt-4 py-3 text-nkz-success hover:bg-nkz-success-light rounded-xl transition font-medium"
           >
             {t('dashboard.sensors.view_all_count', { count: sensors.length })}
-          </button>
+          </Button>
         )}
       </div>
     </div>

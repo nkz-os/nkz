@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   X,
   AlertTriangle,
   Loader2,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { UnifiedAsset } from '@/types/assets';
 import { EntityDependency } from '@/hooks/useEntityDependencies';
+import { Button, Input } from '@nekazari/ui-kit';
 
 // =============================================================================
 // Types
@@ -113,7 +115,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
     >
       <div
         className="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        onClick={((e: any) => e.stopPropagation()) as any}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-nkz-border">
@@ -142,13 +144,13 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
             </div>
           </div>
           {!isDeleting && (
-            <button
+            <Button
               onClick={handleCancel}
               className="p-1 rounded-lg hover:bg-nkz-bg-secondary text-nkz-muted hover:text-gray-600 transition-colors"
               aria-label="Cerrar"
             >
               <X className="w-5 h-5" />
-            </button>
+            </Button>
           )}
         </div>
 
@@ -237,11 +239,11 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Escribe <strong className="text-nkz-error">{REQUIRED_CONFIRM_TEXT}</strong> para confirmar:
               </label>
-              <input
+              <Input
                 type="text"
                 value={confirmText}
-                onChange={(e) => setConfirmText(e.target.value)}
-                onKeyDown={(e) => {
+                onChange={(e: any) => setConfirmText(e.target.value)}
+                onKeyDown={(e: any) => {
                   if (e.key === 'Enter' && isConfirmEnabled) {
                     handleConfirm();
                   }
@@ -265,14 +267,14 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 p-6 border-t border-nkz-border bg-nkz-bg-secondary">
-          <button
+          <Button
             onClick={handleCancel}
             disabled={isDeleting || isCheckingDependencies}
             className="px-4 py-2 text-gray-700 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleConfirm}
             disabled={!isConfirmEnabled}
             className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
@@ -292,7 +294,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
                 Eliminar
               </>
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { MapPin, Plus } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { normalizeParcelValue, normalizeNumberValue } from '@/utils/parcelHelpers';
 import type { Parcel } from '@/types';
+import { Button } from '@nekazari/ui-kit';
 
 interface ParcelsOverviewCardProps {
   parcels: Parcel[];
@@ -25,10 +26,10 @@ export const ParcelsOverviewCard: React.FC<ParcelsOverviewCardProps> = ({ parcel
           <div className="text-center py-12">
             <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-nkz-muted mb-4">{t('dashboard.no_parcels')}</p>
-            <button className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition flex items-center gap-2 mx-auto">
+            <Button className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition flex items-center gap-2 mx-auto">
               <Plus className="w-4 h-4" />
               {t('dashboard.add_parcel')}
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="space-y-3">
@@ -63,9 +64,9 @@ export const ParcelsOverviewCard: React.FC<ParcelsOverviewCardProps> = ({ parcel
             ))}
 
             {parcels.length > 4 && (
-              <button className="w-full py-3 text-nkz-warning hover:bg-nkz-warning-light rounded-xl transition font-medium">
+              <Button className="w-full py-3 text-nkz-warning hover:bg-nkz-warning-light rounded-xl transition font-medium">
                 {t('common.view_all_parcels')} ({parcels.length})
-              </button>
+              </Button>
             )}
           </div>
         )}

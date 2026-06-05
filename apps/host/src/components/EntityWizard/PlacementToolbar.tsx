@@ -10,7 +10,9 @@
 import React from 'react';
 import { Check, X, RotateCw, Maximize2, Paintbrush, Grid } from 'lucide-react';
 import { useViewer } from '@/context/ViewerContext';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface PlacementToolbarProps {
     onConfirm?: () => void;
     onCancel?: () => void;
@@ -101,13 +103,13 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                 {/* Scale Control */}
                 <div className="flex items-center gap-2">
                     <Maximize2 className="w-4 h-4 text-nkz-muted" />
-                    <input
+                    <Input
                         type="range"
                         min="0.1"
                         max="5"
                         step="0.1"
                         value={isPreviewMode ? (modelPlacement?.scale ?? 1) : 1}
-                        onChange={(e) => handleScaleChange(parseFloat(e.target.value))}
+                        onChange={(e: any) => handleScaleChange(parseFloat(e.target.value))}
                         className="w-20 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
                         disabled={!isPreviewMode}
                     />
@@ -120,13 +122,13 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                 {isPreviewMode && (
                     <div className="flex items-center gap-2">
                         <RotateCw className="w-4 h-4 text-nkz-muted" />
-                        <input
+                        <Input
                             type="range"
                             min="0"
                             max="360"
                             step="15"
                             value={modelPlacement?.rotation[0] ?? 0}
-                            onChange={(e) => handleRotationChange(parseFloat(e.target.value))}
+                            onChange={(e: any) => handleRotationChange(parseFloat(e.target.value))}
                             className="w-20 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
                         />
                         <span className="text-xs text-nkz-muted w-10">
@@ -141,13 +143,13 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                         {/* Density */}
                         <div className="flex items-center gap-2">
                             <Grid className="w-4 h-4 text-nkz-muted" />
-                            <input
+                            <Input
                                 type="range"
                                 min="0.1"
                                 max="1"
                                 step="0.1"
                                 value={stampOptions.density}
-                                onChange={(e) => handleDensityChange(parseFloat(e.target.value))}
+                                onChange={(e: any) => handleDensityChange(parseFloat(e.target.value))}
                                 className="w-16 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-green-600"
                             />
                             <span className="text-xs text-nkz-muted w-8">
@@ -158,13 +160,13 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                         {/* Brush Size */}
                         <div className="flex items-center gap-2">
                             <Paintbrush className="w-4 h-4 text-nkz-muted" />
-                            <input
+                            <Input
                                 type="range"
                                 min="1"
                                 max="20"
                                 step="1"
                                 value={stampOptions.brushSize}
-                                onChange={(e) => handleBrushSizeChange(parseFloat(e.target.value))}
+                                onChange={(e: any) => handleBrushSizeChange(parseFloat(e.target.value))}
                                 className="w-16 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-green-600"
                             />
                             <span className="text-xs text-nkz-muted w-10">
@@ -176,20 +178,20 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 pl-3 border-l border-nkz-border">
-                    <button
+                    <Button
                         onClick={handleCancel}
                         className="w-9 h-9 rounded-lg bg-nkz-bg-secondary hover:bg-gray-200 flex items-center justify-center transition-colors"
                         title="Cancelar"
                     >
                         <X className="w-5 h-5 text-gray-600" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         onClick={handleConfirm}
                         className="w-9 h-9 rounded-lg bg-nkz-success-light0 hover:bg-green-600 flex items-center justify-center transition-colors"
                         title="Confirmar"
                     >
                         <Check className="w-5 h-5 text-white" />
-                    </button>
+                    </Button>
                 </div>
             </div>
 

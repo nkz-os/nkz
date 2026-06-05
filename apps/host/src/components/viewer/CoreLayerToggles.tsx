@@ -7,7 +7,9 @@
 import React from 'react';
 import { useViewer, LayerType } from '@/context/ViewerContext';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 import {
+
     MapPin,
     Bot,
     Gauge,
@@ -54,7 +56,7 @@ const CoreLayerToggles: React.FC<CoreLayerTogglesProps> = ({ compact = false }) 
         return (
             <div className="flex flex-wrap gap-1">
                 {LAYER_DEFINITIONS.map(layer => (
-                    <button
+                    <Button
                         key={layer.id}
                         onClick={() => toggleLayer(layer.id)}
                         className={`p-2 rounded-lg transition-all ${isLayerActive(layer.id)
@@ -66,7 +68,7 @@ const CoreLayerToggles: React.FC<CoreLayerTogglesProps> = ({ compact = false }) 
                         <span className={isLayerActive(layer.id) ? layer.color : 'text-slate-400'}>
                             {layer.icon}
                         </span>
-                    </button>
+                    </Button>
                 ))}
             </div>
         );
@@ -75,7 +77,7 @@ const CoreLayerToggles: React.FC<CoreLayerTogglesProps> = ({ compact = false }) 
     return (
         <div className="space-y-1">
             {LAYER_DEFINITIONS.map(layer => (
-                <button
+                <Button
                     key={layer.id}
                     onClick={() => toggleLayer(layer.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isLayerActive(layer.id)
@@ -87,7 +89,7 @@ const CoreLayerToggles: React.FC<CoreLayerTogglesProps> = ({ compact = false }) 
                     <span className="flex-1 text-left text-sm">{t(layer.labelKey)}</span>
                     <div className={`w-3 h-3 rounded-full transition-colors ${isLayerActive(layer.id) ? 'bg-nkz-info-light0' : 'bg-slate-300'
                         }`} />
-                </button>
+                </Button>
             ))}
         </div>
     );

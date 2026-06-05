@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Upload, Package, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { getConfig } from '@/config/environment';
-import { Card } from '@nekazari/ui-kit';
+import { Input,  Card } from '@nekazari/ui-kit';
 import { Button } from '@nekazari/ui-kit';
 
 const config = getConfig();
@@ -179,13 +179,13 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
               <p className="text-sm text-nkz-muted">Upload a ZIP file containing your module</p>
             </div>
           </div>
-          <button
+          <Button
             onClick={handleClose}
             disabled={uploadStatus.status === 'uploading' || uploadStatus.status === 'validating'}
             className="p-2 hover:bg-nkz-bg-secondary rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <X className="w-5 h-5 text-nkz-muted" />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -198,7 +198,7 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
                   Module ZIP File
                 </label>
                 <div className="border-2 border-dashed border-nkz-border rounded-lg p-8 text-center hover:border-blue-400 transition">
-                  <input
+                  <Input
                     ref={fileInputRef}
                     type="file"
                     accept=".zip"
@@ -276,13 +276,13 @@ export const ModuleUploadModal: React.FC<ModuleUploadModalProps> = ({
               {/* Validation Logs */}
               {uploadStatus.status === 'validating' && uploadStatus.uploadId && (
                 <div className="border border-nkz-border rounded-lg">
-                  <button
+                  <Button
                     onClick={() => setShowLogs(!showLogs)}
                     className="w-full px-4 py-2 text-left text-sm font-medium text-gray-700 bg-nkz-bg-secondary hover:bg-nkz-bg-secondary rounded-t-lg flex items-center justify-between"
                   >
                     <span>Validation Logs {logs.length > 0 && `(${logs.length} lines)`}</span>
                     <span className="text-xs">{showLogs ? '▼' : '▶'}</span>
-                  </button>
+                  </Button>
                   {showLogs && (
                     <div className="p-4 bg-gray-900 text-green-400 font-mono text-xs max-h-64 overflow-y-auto">
                       {logs.length > 0 ? (

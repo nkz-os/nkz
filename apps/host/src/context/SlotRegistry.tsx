@@ -16,6 +16,7 @@ import { getLocalModuleSlots, isLocalModule } from '@/modules/registry';
 // =============================================================================
 
 // Lazy imports for core widgets
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const CoreEntityTree = React.lazy(() => import('@/components/viewer/CoreEntityTree'));
 const CoreContextPanel = React.lazy(() => import('@/components/viewer/CoreContextPanel'));
 const CoreLayerToggles = React.lazy(() => import('@/components/viewer/CoreLayerToggles'));

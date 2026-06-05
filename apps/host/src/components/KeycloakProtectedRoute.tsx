@@ -3,7 +3,9 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/KeycloakAuthContext';
 import { logger } from '@/utils/logger';
 import { getConfig } from '@/config/environment';
+import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRoles?: string[];
@@ -124,7 +126,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             <p className="text-gray-600 mb-6">
               You need to be assigned to a tenant to access this resource. Please contact your administrator.
             </p>
-            <button
+            <Button
               onClick={() => {
                 // Cerrar sesión de Keycloak para forzar un nuevo login con token actualizado
                 logout();
@@ -132,7 +134,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
             >
               Cerrar Sesión y Reintentar
-            </button>
+            </Button>
           </div>
         </div>
       );

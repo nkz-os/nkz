@@ -10,6 +10,7 @@ import {
   ASSET_TYPE_REGISTRY,
 } from '@/types/assets';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
 // =============================================================================
 // Props
@@ -112,20 +113,20 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
         
         <div className="flex items-center gap-1">
           {activeFilterCount > 0 && (
-            <button
+            <Button
               onClick={onReset}
               className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded"
             >
               <RotateCcw className="w-3 h-3" />
               {t('entities.filters.clear')}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             onClick={onClose}
             className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
           >
             <X className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       </div>
       
@@ -140,7 +141,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
             {statusOptions.map(({ value, label, color }) => {
               const isActive = filters.statuses.includes(value);
               return (
-                <button
+                <Button
                   key={value}
                   onClick={() => toggleStatus(value)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
@@ -152,7 +153,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
                   <span className={`w-2 h-2 rounded-full ${color}`} />
                   {label}
                   {isActive && <Check className="w-3 h-3" />}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -164,7 +165,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
             {t('entities.filters.location')}
           </h4>
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={() => onFiltersChange({ 
                 hasLocation: filters.hasLocation === true ? null : true 
               })}
@@ -176,8 +177,8 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
             >
               {t('entities.filters.with_location')}
               {filters.hasLocation === true && <Check className="w-3 h-3" />}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => onFiltersChange({ 
                 hasLocation: filters.hasLocation === false ? null : false 
               })}
@@ -189,7 +190,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
             >
               {t('entities.filters.without_location')}
               {filters.hasLocation === false && <Check className="w-3 h-3" />}
-            </button>
+            </Button>
           </div>
         </div>
         
@@ -214,7 +215,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
                       .map(({ type, label, count }) => {
                         const isActive = filters.types.includes(type);
                         return (
-                          <button
+                          <Button
                             key={type}
                             onClick={() => toggleType(type)}
                             className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-all ${
@@ -229,7 +230,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
                             }`}>
                               {count}
                             </span>
-                          </button>
+                          </Button>
                         );
                       })}
                   </div>

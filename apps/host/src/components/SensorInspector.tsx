@@ -33,6 +33,9 @@ import { openEntityEditor } from '@/components/EntityEditor';
 import { ConnectivityPanel } from './connectivity';
 import { ManagementPanel } from './management';
 import { Settings } from 'lucide-react';
+import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
+
 
 // Register Chart.js components
 ChartJS.register(
@@ -310,7 +313,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                 }
             }
         } catch (error) {
-            console.error('Error loading telemetry:', error);
+            logger.error('Error loading telemetry:', error);
         } finally {
             setLoading(false);
         }
@@ -409,27 +412,27 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                         </div>
                     </div>
                     <div className="flex items-center gap-1">
-                        <button
+                        <Button
                             onClick={() => openEntityEditor(entity.id, entity.type)}
                             className="px-3 py-1.5 text-xs bg-nkz-info-light text-nkz-info rounded-lg hover:bg-nkz-info-light transition flex items-center gap-1"
                             title="Editar entidad"
                         >
                             <Pencil className="w-3.5 h-3.5" />
                             Editar
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             onClick={onClose}
                             className="p-2 text-nkz-muted hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
                         >
                             <X className="w-5 h-5" />
-                        </button>
+                        </Button>
                     </div>
                 </div>
 
                 {/* Time Range Selector */}
                 <div className="flex gap-2 mt-4">
                     {(['1h', '6h', '24h'] as const).map((range) => (
-                        <button
+                        <Button
                             key={range}
                             onClick={() => setTimeRange(range)}
                             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${timeRange === range
@@ -438,20 +441,20 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                                 }`}
                         >
                             {range}
-                        </button>
+                        </Button>
                     ))}
-                    <button
+                    <Button
                         onClick={loadTelemetry}
                         disabled={loading}
                         className="ml-auto p-1.5 text-nkz-muted hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
                     >
                         <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Tab Navigation */}
                 <div className="flex gap-1 mt-4 border-b border-gray-700/50 pb-0">
-                    <button
+                    <Button
                         onClick={() => setActiveTab('telemetry')}
                         className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-colors ${activeTab === 'telemetry'
                             ? 'bg-gray-800 text-white border-b-2 border-blue-500'
@@ -460,8 +463,8 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                     >
                         <Activity className="w-3.5 h-3.5" />
                         Telemetría
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         onClick={() => setActiveTab('connectivity')}
                         className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-colors ${activeTab === 'connectivity'
                             ? 'bg-gray-800 text-white border-b-2 border-purple-500'
@@ -470,8 +473,8 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                     >
                         <Cable className="w-3.5 h-3.5" />
                         Conectividad
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         onClick={() => setActiveTab('management')}
                         className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-colors ${activeTab === 'management'
                             ? 'bg-gray-800 text-white border-b-2 border-red-500'
@@ -480,7 +483,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                     >
                         <Settings className="w-3.5 h-3.5" />
                         Gestión
-                    </button>
+                    </Button>
 
 
                 </div>

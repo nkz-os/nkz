@@ -2,6 +2,7 @@ import React from 'react';
 import { Heart, Plus } from 'lucide-react';
 import type { LivestockAnimal } from '@/types';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
 interface LivestockCardProps {
   livestock: LivestockAnimal[];
@@ -26,13 +27,13 @@ export const LivestockCard: React.FC<LivestockCardProps> = ({ livestock, canMana
             <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-nkz-muted mb-4">{t('dashboard.livestock.no_animals')}</p>
             {canManageDevices && (
-              <button
+              <Button
                 onClick={() => onOpenWizard('LivestockAnimal')}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />
                 {t('dashboard.livestock.add_animal')}
-              </button>
+              </Button>
             )}
           </div>
         ) : (

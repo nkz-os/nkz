@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { MousePointer2, X } from 'lucide-react';
 import type { AssetType, GeoPolygon } from '@/types';
 import { toGeoPolygon } from '@/utils/geo';
+import { Button } from '@nekazari/ui-kit';
 
 interface CesiumAssetDrawerProps {
   assetType: AssetType | null;
@@ -329,7 +330,7 @@ export const CesiumAssetDrawer: React.FC<CesiumAssetDrawerProps> = ({
         {assetType.geometryType === 'Polygon' && `Dibuja un polígono (${currentPoints.length} puntos). Clic derecho para terminar`}
       </span>
       {onCancel && (
-        <button
+        <Button
           onClick={() => {
             cleanup();
             setIsDrawing(false);
@@ -338,7 +339,7 @@ export const CesiumAssetDrawer: React.FC<CesiumAssetDrawerProps> = ({
           className="ml-2 text-white hover:text-gray-300"
         >
           <X className="w-4 h-4" />
-        </button>
+        </Button>
       )}
     </div>
   );

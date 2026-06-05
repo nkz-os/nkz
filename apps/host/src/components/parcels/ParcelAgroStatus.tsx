@@ -6,6 +6,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Wind, Droplets, Thermometer, Radio, Cloud } from 'lucide-react';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+
 
 interface ParcelAgroStatusProps {
   parcelId: string;
@@ -117,7 +119,7 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
         const response = await api.getParcelAgroStatus(parcelId);
         setStatus(response);
       } catch (err: any) {
-        console.error('Error loading parcel agro status:', err);
+        logger.error('Error loading parcel agro status:', err);
         const errorMsg = err?.response?.data?.error || err?.response?.data?.details || err?.message || 'Error cargando estado agronómico';
         // Check if it's a location/geometry error
         if (errorMsg.toLowerCase().includes('location') || errorMsg.toLowerCase().includes('geometry')) {

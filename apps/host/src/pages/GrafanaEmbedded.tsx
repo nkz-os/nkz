@@ -9,6 +9,9 @@ import { Layout } from '@/components/Layout';
 import { BarChart3, ExternalLink, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import api from '@/services/api';
 import { getConfig } from '@/config/environment';
+import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
+
 
 const config = getConfig();
 
@@ -45,7 +48,7 @@ export const GrafanaEmbedded: React.FC = () => {
       setMembershipGranted(Boolean(response.membershipGranted));
       setIsLoading(false);
     } catch (apiError: any) {
-      console.error('[GrafanaEmbedded] Error loading Grafana link:', apiError);
+      logger.error('[GrafanaEmbedded] Error loading Grafana link:', apiError);
       const message = apiError?.response?.data?.error || apiError?.message || 'No se pudo cargar Grafana.';
       setError(message);
       
@@ -75,7 +78,7 @@ export const GrafanaEmbedded: React.FC = () => {
 
   // Handle iframe load errors
   const handleIframeError = () => {
-    console.warn('[GrafanaEmbedded] Iframe load error, may be due to OAuth restrictions');
+    logger.warn('[GrafanaEmbedded] Iframe load error, may be due to OAuth restrictions');
     setError('No se pudo cargar Grafana en el iframe. Por favor, abre Grafana en una nueva ventana.');
   };
 
@@ -104,22 +107,22 @@ export const GrafanaEmbedded: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 onClick={handleRefresh}
                 disabled={isLoading}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary disabled:opacity-50 transition-colors"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                 Actualizar
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleOpenInNewTab}
                 disabled={!grafanaUrl}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 <ExternalLink className="w-4 h-4" />
                 Abrir en nueva ventana
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -163,12 +166,12 @@ export const GrafanaEmbedded: React.FC = () => {
               <div className="text-center">
                 <AlertTriangle className="w-12 h-12 text-nkz-muted mx-auto mb-4" />
                 <p className="text-gray-600 mb-4">No se pudo cargar Grafana</p>
-                <button
+                <Button
                   onClick={handleRefresh}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   Reintentar
-                </button>
+                </Button>
               </div>
             </div>
           )}

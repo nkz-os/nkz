@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { 
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Plus, Trash2, Clock, ShieldAlert, Layers, X, 
   Save, AlertTriangle
 } from 'lucide-react';
@@ -9,6 +10,7 @@ import {
   LogicalOperator, ComparisonOperator 
 } from '@/types';
 import api from '@/services/api';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface CustomRiskModalProps {
   isOpen: boolean;
@@ -150,9 +152,9 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
               Define reglas multivariable con persistencia temporal para eliminar falsos positivos.
             </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+          <Button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
             <X className="w-6 h-6" />
-          </button>
+          </Button>
         </div>
 
         <div className="p-8 space-y-8 overflow-y-auto">
@@ -160,9 +162,9 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-xs font-black text-nkz-muted uppercase tracking-widest">Nombre del Modelo</label>
-              <input 
+              <Input 
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={(e: any) => setName(e.target.value)}
                 placeholder="Ej: Helada de Radiación Crítica"
                 className="w-full bg-nkz-bg-secondary border-2 border-gray-100 rounded-xl px-4 py-3 font-bold text-gray-700 focus:border-green-500 outline-none transition-all"
               />
@@ -171,7 +173,7 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
               <label className="text-xs font-black text-nkz-muted uppercase tracking-widest">Severidad del Riesgo</label>
               <div className="flex gap-2 p-1 bg-nkz-bg-secondary rounded-xl">
                 {(['low', 'medium', 'high', 'critical'] as const).map(s => (
-                  <button
+                  <Button
                     key={s}
                     onClick={() => setSeverity(s)}
                     className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${
@@ -181,7 +183,7 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
                     }`}
                   >
                     {s}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -189,7 +191,7 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
               <label className="text-xs font-black text-nkz-muted uppercase tracking-widest">Descripción</label>
               <textarea 
                 value={description}
-                onChange={e => setDescription(e.target.value)}
+                onChange={(e: any) => setDescription(e.target.value)}
                 placeholder="Explica cuándo se dispara este riesgo y qué acciones se recomiendan..."
                 className="w-full bg-nkz-bg-secondary border-2 border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-600 focus:border-green-500 outline-none transition-all h-20"
               />
@@ -227,20 +229,20 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
 
         {/* Footer Actions */}
         <div className="p-6 bg-nkz-bg-secondary border-t border-gray-100 flex justify-end gap-4">
-          <button 
+          <Button 
             onClick={onClose}
             className="px-6 py-3 text-nkz-muted font-bold hover:text-gray-700 transition-colors"
           >
             Cancelar
-          </button>
-          <button 
+          </Button>
+          <Button 
             onClick={handleSave}
             disabled={isSaving}
             className="px-8 py-3 bg-green-600 text-white rounded-xl font-black shadow-lg shadow-green-200 hover:bg-green-700 transition-all transform hover:-translate-y-1 flex items-center gap-2 disabled:opacity-50"
           >
             {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
             GUARDAR Y ACTIVAR MODELO
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -269,7 +271,7 @@ const RuleGroupView: React.FC<RuleGroupViewProps> = ({
         <div className="bg-white border-2 border-green-600 rounded-lg px-3 py-1 shadow-sm">
           <select 
             value={group.logical_operator}
-            onChange={(e) => onUpdateGroup(path, { logical_operator: e.target.value as LogicalOperator })}
+            onChange={(e: any) => onUpdateGroup(path, { logical_operator: e.target.value as LogicalOperator })}
             className="text-[10px] font-black text-nkz-success uppercase bg-transparent outline-none cursor-pointer"
           >
             <option value="AND">TODAS SE CUMPLEN (AND)</option>
@@ -295,12 +297,12 @@ const RuleGroupView: React.FC<RuleGroupViewProps> = ({
                   onUpdateCondition={onUpdateCondition}
                   availableAttributes={availableAttributes}
                 />
-                <button 
+                <Button 
                   onClick={() => onRemoveItem(path, idx)}
                   className="absolute -left-2 top-0 bg-white text-gray-300 hover:text-nkz-error p-1 rounded-full shadow-sm border border-gray-100 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                </Button>
               </div>
             );
           }
@@ -317,18 +319,18 @@ const RuleGroupView: React.FC<RuleGroupViewProps> = ({
       </div>
 
       <div className="flex gap-3 pt-2">
-        <button 
+        <Button 
           onClick={() => onAddCondition(path)}
           className="text-[10px] font-black bg-nkz-success-light text-nkz-success px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-200 transition-all active:scale-95"
         >
           <Plus className="w-3.5 h-3.5" /> AÑADIR CONDICIÓN
-        </button>
-        <button 
+        </Button>
+        <Button 
           onClick={() => onAddSubgroup(path)}
           className="text-[10px] font-black bg-nkz-info-light text-nkz-info px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-nkz-info-light transition-all active:scale-95"
         >
           <Layers className="w-3.5 h-3.5" /> AÑADIR SUBGRUPO
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -346,7 +348,7 @@ const ConditionRow: React.FC<ConditionRowProps> = ({ condition, onUpdate, onRemo
     <div className="flex flex-wrap items-center gap-3 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm group hover:border-green-300 transition-all">
       <select 
         value={condition.attribute}
-        onChange={e => onUpdate({ attribute: e.target.value })}
+        onChange={(e: any) => onUpdate({ attribute: e.target.value })}
         className="bg-nkz-bg-secondary border-none rounded-xl text-sm font-bold px-4 py-2 w-full md:w-48 outline-none focus:ring-2 focus:ring-green-500"
       >
         {availableAttributes.map((attr: string) => (
@@ -356,7 +358,7 @@ const ConditionRow: React.FC<ConditionRowProps> = ({ condition, onUpdate, onRemo
 
       <select 
         value={condition.operator}
-        onChange={e => onUpdate({ operator: e.target.value as ComparisonOperator })}
+        onChange={(e: any) => onUpdate({ operator: e.target.value as ComparisonOperator })}
         className="bg-nkz-bg-secondary border-none rounded-xl text-sm font-black px-3 py-2 w-20 text-center outline-none focus:ring-2 focus:ring-green-500"
       >
         <option value="<">&lt;</option>
@@ -367,31 +369,31 @@ const ConditionRow: React.FC<ConditionRowProps> = ({ condition, onUpdate, onRemo
         <option value="!=">!=</option>
       </select>
 
-      <input 
+      <Input 
         type="number" 
         value={condition.value as number}
-        onChange={e => onUpdate({ value: parseFloat(e.target.value) })}
+        onChange={(e: any) => onUpdate({ value: parseFloat(e.target.value) })}
         className="bg-nkz-bg-secondary border-none rounded-xl text-sm font-bold w-full md:w-24 px-4 py-2 outline-none focus:ring-2 focus:ring-green-500" 
       />
 
       <div className="flex items-center gap-3 bg-nkz-info-light/50 px-4 py-2 rounded-xl border border-blue-100 ml-auto w-full md:w-auto">
         <Clock className="w-4 h-4 text-nkz-info" />
         <span className="text-[10px] font-black text-nkz-info uppercase tracking-tighter">Persistencia:</span>
-        <input 
+        <Input 
           type="number" 
           value={condition.duration_minutes}
-          onChange={e => onUpdate({ duration_minutes: parseInt(e.target.value) })}
+          onChange={(e: any) => onUpdate({ duration_minutes: parseInt(e.target.value) })}
           className="bg-transparent border-none w-12 text-sm font-black text-blue-800 text-center focus:ring-0 p-0" 
         />
         <span className="text-[10px] font-bold text-nkz-info">min</span>
       </div>
 
-      <button 
+      <Button 
         onClick={onRemove}
         className="p-2 text-gray-300 hover:text-nkz-error transition-colors"
       >
         <Trash2 className="w-5 h-5" />
-      </button>
+      </Button>
     </div>
   );
 };

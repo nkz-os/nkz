@@ -8,6 +8,8 @@
 import { useState, useCallback } from 'react';
 import api from '@/services/api';
 import { UnifiedAsset } from '@/types/assets';
+import { logger } from '@/utils/logger';
+
 
 // =============================================================================
 // Types
@@ -90,13 +92,13 @@ export const useEntityDependencies = () => {
           }
         } catch (err) {
           // Skip this type if it fails (might not exist or no permissions)
-          console.warn(`[useEntityDependencies] Failed to check ${dependentType}:`, err);
+          logger.warn(`[useEntityDependencies] Failed to check ${dependentType}:`, err);
         }
       }
 
       return dependencies;
     } catch (err: any) {
-      console.error('[useEntityDependencies] Error checking dependencies:', err);
+      logger.error('[useEntityDependencies] Error checking dependencies:', err);
       setError(err.message || 'Error al verificar dependencias');
       return [];
     } finally {
@@ -123,7 +125,7 @@ export const useEntityDependencies = () => {
 
       return allDependencies;
     } catch (err: any) {
-      console.error('[useEntityDependencies] Error in batch check:', err);
+      logger.error('[useEntityDependencies] Error in batch check:', err);
       setError(err.message || 'Error al verificar dependencias');
       return [];
     } finally {

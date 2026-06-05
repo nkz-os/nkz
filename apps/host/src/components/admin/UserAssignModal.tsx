@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, Loader2, Mail } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import client from '@/services/api';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface UserResult {
   id: string;
   email: string;
@@ -125,9 +127,9 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
           <h3 className="text-nkz-lg font-semibold text-nkz-text-primary">
             {t('admin.assign_user_title', { defaultValue: 'Assign Existing User' })}
           </h3>
-          <button onClick={onClose} className="text-nkz-text-muted hover:text-nkz-text-secondary">
+          <Button onClick={onClose} className="text-nkz-text-muted hover:text-nkz-text-secondary">
             <X className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
 
         {error && (
@@ -141,12 +143,12 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
           <>
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-nkz-text-muted" />
-              <input
+              <Input
                 type="text"
                 placeholder={t('admin.search_users_placeholder', { defaultValue: 'Search by name or email...' })}
                 className="w-full pl-9 pr-4 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e: any) => setSearch(e.target.value)}
                 autoFocus
               />
             </div>
@@ -169,7 +171,7 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
                 </div>
               )}
               {results.map((user) => (
-                <button
+                <Button
                   key={user.id}
                   onClick={() => setSelectedUser(user)}
                   className="w-full text-left p-3 hover:bg-nkz-canvas border-b border-nkz-border last:border-b-0 transition-colors"
@@ -192,7 +194,7 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
                       )}
                     </div>
                   </div>
-                </button>
+                </Button>
               ))}
             </div>
           </>
@@ -211,12 +213,12 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
                 </p>
                 <p className="text-nkz-xs text-nkz-text-secondary">{selectedUser.email}</p>
               </div>
-              <button
+              <Button
                 onClick={() => setSelectedUser(null)}
                 className="ml-auto text-nkz-xs text-nkz-info hover:underline"
               >
                 {t('admin.change', { defaultValue: 'Change' })}
-              </button>
+              </Button>
             </div>
 
             <div>
@@ -225,7 +227,7 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
               </label>
               <select
                 value={role}
-                onChange={(e) => setRole(e.target.value)}
+                onChange={(e: any) => setRole(e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface text-nkz-sm"
               >
                 {ASSIGNABLE_ROLES.map((r) => (
@@ -237,21 +239,21 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
         )}
 
         <div className="flex justify-end gap-3 mt-6">
-          <button
+          <Button
             onClick={onClose}
             className="px-4 py-2 text-nkz-text-secondary bg-nkz-surface-sunken rounded-nkz-lg hover:bg-nkz-border transition-colors"
           >
             {t('common.cancel')}
-          </button>
+          </Button>
           {selectedUser && (
-            <button
+            <Button
               onClick={handleAssign}
               disabled={assigning}
               className="px-4 py-2 bg-nkz-accent-base text-nkz-text-on-accent rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               {assigning && <Loader2 className="h-4 w-4 animate-spin" />}
               {t('admin.assign_button', { defaultValue: 'Assign to Tenant' })}
-            </button>
+            </Button>
           )}
         </div>
       </div>

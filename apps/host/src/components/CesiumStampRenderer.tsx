@@ -1,6 +1,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useViewerOptional } from '@/context/ViewerContext';
+import { logger } from '@/utils/logger';
+
 
 /** Resolve relative asset URLs to absolute so CesiumJS can load them */
 function resolveModelUrl(url: string): string {
@@ -119,7 +121,7 @@ export const CesiumStampRenderer: React.FC = () => {
                             modelLoadedCount++;
                         }
                     } catch (e) {
-                        console.warn('[CesiumStampRenderer] Model load failed, using point marker fallback:', e);
+                        logger.warn('[CesiumStampRenderer] Model load failed, using point marker fallback:', e);
                     }
                 }
 

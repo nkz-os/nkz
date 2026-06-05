@@ -11,6 +11,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
 export interface MemberTableRow {
   id: string;
@@ -74,13 +75,13 @@ export const MemberTable: React.FC<MemberTableProps> = ({
         <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
         <p className="text-gray-600 dark:text-nkz-muted mb-4">{t('dashboard.members.no_members')}</p>
         {onEmptyAction ? (
-          <button
+          <Button
             onClick={onEmptyAction}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-200 mx-auto"
           >
             <UserPlus className="w-4 h-4" />
             {emptyActionLabel ?? t('dashboard.members.create_user')}
-          </button>
+          </Button>
         ) : null}
       </div>
     );
@@ -152,31 +153,31 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div className="flex items-center justify-end gap-2">
                     {onEdit ? (
-                      <button
+                      <Button
                         onClick={() => onEdit(member)}
                         className="text-nkz-info hover:text-blue-900"
                         title={t('dashboard.members.action_edit_roles')}
                       >
                         <Edit2 className="w-4 h-4" />
-                      </button>
+                      </Button>
                     ) : null}
                     {onResetPassword ? (
-                      <button
+                      <Button
                         onClick={() => onResetPassword(member)}
                         className="text-orange-600 hover:text-orange-900"
                         title={t('dashboard.members.action_reset_password')}
                       >
                         <Lock className="w-4 h-4" />
-                      </button>
+                      </Button>
                     ) : null}
                     {onDelete ? (
-                      <button
+                      <Button
                         onClick={() => onDelete(member)}
                         className="text-nkz-error hover:text-red-900"
                         title={t('admin.delete_user')}
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
                 </td>

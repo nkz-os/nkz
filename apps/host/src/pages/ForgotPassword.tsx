@@ -7,7 +7,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 import { Mail, ArrowLeft, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const ForgotPassword: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useI18n();
@@ -103,11 +105,11 @@ export const ForgotPassword: React.FC = () => {
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
               {t('forgot_password.email')}
             </label>
-            <input
+            <Input
               id="email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e: any) => setEmail(e.target.value)}
               placeholder={t('forgot_password.email_placeholder')}
               className="w-full px-4 py-3 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
               required
@@ -118,7 +120,7 @@ export const ForgotPassword: React.FC = () => {
             </p>
           </div>
 
-          <button
+          <Button
             type="submit"
             disabled={loading || !email.trim()}
             className="w-full bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -134,7 +136,7 @@ export const ForgotPassword: React.FC = () => {
                 {t('forgot_password.send_link')}
               </>
             )}
-          </button>
+          </Button>
 
           <div className="text-center">
             <Link

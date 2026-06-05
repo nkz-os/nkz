@@ -7,6 +7,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, X } from 'lucide-react';
 import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
 
 interface ModuleErrorBoundaryProps {
     moduleId: string;
@@ -48,7 +49,7 @@ export class ModuleErrorBoundary extends Component<
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         // Log error with module context
-        console.error(`[ModuleErrorBoundary] Module ${this.props.moduleId} failed:`, error, errorInfo);
+        logger.error(`[ModuleErrorBoundary] Module ${this.props.moduleId} failed:`, error, errorInfo);
 
         // Update state with error info
         this.setState({
@@ -96,7 +97,7 @@ export class ModuleErrorBoundary extends Component<
             });
 
             if (hasChanged) {
-                console.log(`[ModuleErrorBoundary] Resetting error state for module ${this.props.moduleId} due to key change`);
+                logger.log(`[ModuleErrorBoundary] Resetting error state for module ${this.props.moduleId} due to key change`);
                 this.handleRetry();
             }
         }
@@ -148,20 +149,20 @@ export class ModuleErrorBoundary extends Component<
                             )}
 
                             <div className="flex gap-2 mt-3">
-                                <button
+                                <Button
                                     onClick={this.handleRetry}
                                     className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
                                 >
                                     <RefreshCw className="w-4 h-4" />
                                     Reintentar
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     onClick={this.handleDismiss}
                                     className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light hover:bg-red-200 rounded-lg transition-colors"
                                 >
                                     <X className="w-4 h-4" />
                                     Ocultar
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </div>

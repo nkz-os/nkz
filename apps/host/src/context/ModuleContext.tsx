@@ -272,7 +272,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         if (!modDef.remoteEntry && modDef.isLocal) continue;
         const apiContract = modDef.apiContract;
         if (!apiContract) {
-          console.debug(
+          logger.debug(
             `[ModuleContext] Module "${modId}" does not declare an API contract. ` +
             'Consider adding api_contract to manifest.json for compatibility guarantees.',
           );

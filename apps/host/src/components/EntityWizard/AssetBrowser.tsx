@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Package, Upload, Check, Search } from 'lucide-react';
 import { Model3DUploader } from './Model3DUploader';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 // Lazy-load model-viewer only when AssetBrowser mounts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 let modelViewerLoaded = false;
 function ensureModelViewer() {
     if (modelViewerLoaded) return;
@@ -84,7 +88,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                 const tenantModels = tenantList.filter(isModel).map((a: any, i: number) => toCard(a, 'My tenant', i));
                 setPublicAssets([...tenantModels, ...publicModels]);
             } catch (err) {
-                console.error('Failed to load assets:', err);
+                logger.error('Failed to load assets:', err);
             } finally {
                 setLoading(false);
             }
@@ -101,7 +105,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
         <div className="space-y-4">
             {/* Tabs */}
             <div className="flex border-b border-nkz-border">
-                <button
+                <Button
                     onClick={() => setActiveTab('library')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'library'
                         ? 'border-blue-500 text-nkz-info'
@@ -112,8 +116,8 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                         <Package className="w-4 h-4" />
                         Librería Pública
                     </div>
-                </button>
-                <button
+                </Button>
+                <Button
                     onClick={() => setActiveTab('upload')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'upload'
                         ? 'border-blue-500 text-nkz-info'
@@ -124,7 +128,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                         <Upload className="w-4 h-4" />
                         Subir Modelo
                     </div>
-                </button>
+                </Button>
             </div>
 
             {/* Content */}
@@ -134,11 +138,11 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                         {/* Search */}
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nkz-muted w-4 h-4" />
-                            <input
+                            <Input
                                 type="text"
                                 placeholder="Buscar activos (olivo, tractor...)"
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e: any) => setSearchTerm(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
@@ -151,7 +155,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                     <p>Cargando modelos...</p>
                                 </div>
                             ) : filteredAssets.map((asset) => (
-                                <button
+                                <Button
                                     key={asset.key}
                                     onClick={() => onSelect(asset.url)}
                                     className={`group relative border-2 rounded-xl text-left transition-all hover:shadow-md flex flex-col overflow-hidden h-[220px] ${selectedUrl === asset.url
@@ -198,7 +202,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                             <span className="bg-nkz-bg-secondary px-1.5 py-0.5 rounded text-[10px]">GLB</span>
                                         </div>
                                     </div>
-                                </button>
+                                </Button>
                             ))}
 
                             {!loading && filteredAssets.length === 0 && (
@@ -234,13 +238,13 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Escala del Modelo: {scale.toFixed(1)}x
                             </label>
-                            <input
+                            <Input
                                 type="range"
                                 min="0.1"
                                 max="10.0"
                                 step="0.1"
                                 value={scale}
-                                onChange={(e) => onScaleChange(parseFloat(e.target.value))}
+                                onChange={(e: any) => onScaleChange(parseFloat(e.target.value))}
                                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                             />
                             <div className="flex justify-between text-xs text-nkz-muted mt-1">
@@ -261,10 +265,10 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                 {['X', 'Y', 'Z'].map((axis, i) => (
                                     <div key={axis}>
                                         <label className="text-xs text-nkz-muted block mb-1">{axis}: {rotation[i]}°</label>
-                                        <input
+                                        <Input
                                             type="number"
                                             value={rotation[i]}
-                                            onChange={(e) => {
+                                            onChange={(e: any) => {
                                                 const newRot = [...rotation] as [number, number, number];
                                                 newRot[i] = parseFloat(e.target.value) || 0;
                                                 onRotationChange(newRot);

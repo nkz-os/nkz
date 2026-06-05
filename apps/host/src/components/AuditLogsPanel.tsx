@@ -7,7 +7,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 import {
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Filter,
   Download,
   RefreshCw,
@@ -97,7 +101,7 @@ export const AuditLogsPanel: React.FC = () => {
       setTableExists(data._meta?.table_exists !== false);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load audit logs');
-      console.error('Error loading audit logs:', err);
+      logger.error('Error loading audit logs:', err);
     } finally {
       setLoading(false);
     }
@@ -186,28 +190,28 @@ export const AuditLogsPanel: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
+          <Button
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition-colors"
           >
             <Filter className="w-4 h-4" />
             Filtros
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={exportLogs}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition-colors"
           >
             <Download className="w-4 h-4" />
             Exportar
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={loadLogs}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Actualizar
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -219,10 +223,10 @@ export const AuditLogsPanel: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tenant ID
               </label>
-              <input
+              <Input
                 type="text"
                 value={filters.tenant_id}
-                onChange={(e) => handleFilterChange('tenant_id', e.target.value)}
+                onChange={(e: any) => handleFilterChange('tenant_id', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Filter by tenant"
               />
@@ -231,10 +235,10 @@ export const AuditLogsPanel: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Module ID
               </label>
-              <input
+              <Input
                 type="text"
                 value={filters.module_id}
-                onChange={(e) => handleFilterChange('module_id', e.target.value)}
+                onChange={(e: any) => handleFilterChange('module_id', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., vegetation-prime, ndvi"
               />
@@ -243,10 +247,10 @@ export const AuditLogsPanel: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 User ID
               </label>
-              <input
+              <Input
                 type="text"
                 value={filters.user_id}
-                onChange={(e) => handleFilterChange('user_id', e.target.value)}
+                onChange={(e: any) => handleFilterChange('user_id', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Filter by user"
               />
@@ -255,10 +259,10 @@ export const AuditLogsPanel: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Action
               </label>
-              <input
+              <Input
                 type="text"
                 value={filters.action}
-                onChange={(e) => handleFilterChange('action', e.target.value)}
+                onChange={(e: any) => handleFilterChange('action', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., module.toggle"
               />
@@ -269,7 +273,7 @@ export const AuditLogsPanel: React.FC = () => {
               </label>
               <select
                 value={filters.event_type}
-                onChange={(e) => handleFilterChange('event_type', e.target.value)}
+                onChange={(e: any) => handleFilterChange('event_type', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">All</option>
@@ -283,10 +287,10 @@ export const AuditLogsPanel: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Date From
               </label>
-              <input
+              <Input
                 type="datetime-local"
                 value={filters.date_from}
-                onChange={(e) => handleFilterChange('date_from', e.target.value)}
+                onChange={(e: any) => handleFilterChange('date_from', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -294,27 +298,27 @@ export const AuditLogsPanel: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Date To
               </label>
-              <input
+              <Input
                 type="datetime-local"
                 value={filters.date_to}
-                onChange={(e) => handleFilterChange('date_to', e.target.value)}
+                onChange={(e: any) => handleFilterChange('date_to', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
           </div>
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={applyFilters}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               Aplicar Filtros
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={clearFilters}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
             >
               Limpiar
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -411,23 +415,23 @@ export const AuditLogsPanel: React.FC = () => {
                   Mostrando {((pagination.page - 1) * pagination.per_page) + 1} - {Math.min(pagination.page * pagination.per_page, pagination.total)} de {pagination.total}
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
                     disabled={pagination.page === 1}
                     className="px-3 py-1 border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronLeft className="w-4 h-4" />
-                  </button>
+                  </Button>
                   <span className="px-3 py-1 text-sm text-gray-700">
                     Página {pagination.page} de {pagination.pages}
                   </span>
-                  <button
+                  <Button
                     onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
                     disabled={pagination.page >= pagination.pages}
                     className="px-3 py-1 border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ChevronRight className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

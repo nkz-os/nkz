@@ -2,7 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import client from '@/services/api';
+import { Button, Input } from '@nekazari/ui-kit';
 import {
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
   normalizeTenantId,
   validateTenantId,
   MIN_TENANT_ID_LENGTH,
@@ -113,12 +116,12 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
           <h3 className="text-nkz-lg font-semibold text-nkz-text-primary">
             {t('admin.create_tenant_title', { defaultValue: 'Create Tenant' })}
           </h3>
-          <button
+          <Button
             onClick={onClose}
             className="text-nkz-text-muted hover:text-nkz-text-secondary"
           >
             <X className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
 
         {error && (
@@ -143,10 +146,10 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
             <label className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
               {t('admin.tenant_name', { defaultValue: 'Tenant Name' })} *
             </label>
-            <input
+            <Input
               type="text"
               value={form.tenant_name}
-              onChange={(e) => setForm({ ...form, tenant_name: e.target.value })}
+              onChange={(e: any) => setForm({ ...form, tenant_name: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               placeholder="My Farm"
               maxLength={64}
@@ -177,10 +180,10 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
             <label className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
               {t('admin.owner_email', { defaultValue: 'Owner Email' })} *
             </label>
-            <input
+            <Input
               type="email"
               value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              onChange={(e: any) => setForm({ ...form, email: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               placeholder="owner@example.com"
             />
@@ -191,7 +194,7 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
             </label>
             <select
               value={form.plan}
-              onChange={(e) => setForm({ ...form, plan: e.target.value })}
+              onChange={(e: any) => setForm({ ...form, plan: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
             >
               <option value="basic">{t('common.basic')}</option>
@@ -206,10 +209,10 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
                 defaultValue: 'Owner Password (optional, auto-generated if empty)',
               })}
             </label>
-            <input
+            <Input
               type="password"
               value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              onChange={(e: any) => setForm({ ...form, password: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               placeholder="Leave empty to auto-generate"
             />
@@ -217,20 +220,20 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <button
+          <Button
             onClick={onClose}
             className="px-4 py-2 text-nkz-text-secondary bg-nkz-surface-sunken rounded-nkz-lg hover:bg-nkz-border transition-colors"
           >
             {t('common.cancel')}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSubmit}
             disabled={loading || !form.tenant_name || !form.email || !previewValid}
             className="px-4 py-2 bg-nkz-accent-base text-nkz-text-on-accent rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {t('admin.create_tenant_button', { defaultValue: 'Create Tenant' })}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

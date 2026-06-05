@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AssetCategory, CATEGORY_REGISTRY } from '@/types/assets';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
 // =============================================================================
 // Icon Map
@@ -127,7 +128,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
           const colors = colorClasses[cat] || colorClasses.all;
           
           return (
-            <button
+            <Button
               key={cat}
               onClick={() => onCategoryChange(isAll ? null : cat as AssetCategory)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
@@ -147,7 +148,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
               }`}>
                 {count}
               </span>
-            </button>
+            </Button>
           );
         })}
       </div>

@@ -10,7 +10,9 @@ import api from '@/services/api';
 import { useI18n } from '@/context/I18nContext';
 import { useTenantMunicipality } from '@/hooks/useTenantMunicipality';
 import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface WeatherData {
   observed_at: string;
   temp_avg?: number;
@@ -499,7 +501,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             </div>
           </div>
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={() => setShowParcelSearch(!showParcelSearch)}
               className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white text-sm flex items-center gap-2"
             >
@@ -507,8 +509,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               {effectiveParcelId
                 ? t('weather.change_parcel')
                 : t('weather.select_parcel')}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => {
                 if (effectiveParcelId) {
                   loadWeatherByParcel(effectiveParcelId);
@@ -524,7 +526,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -534,10 +536,10 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         <div className="p-4 bg-nkz-bg-secondary border-b">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-nkz-muted" />
-            <input
+            <Input
               type="text"
               value={parcelSearchTerm}
-              onChange={(e) => setParcelSearchTerm(e.target.value)}
+              onChange={(e: any) => setParcelSearchTerm(e.target.value)}
               placeholder={t('weather.search_parcel_placeholder')}
               className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
@@ -555,7 +557,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               {parcels
                 .filter(p => !parcelSearchTerm || p.name.toLowerCase().includes(parcelSearchTerm.toLowerCase()))
                 .map((parcel) => (
-                  <button
+                  <Button
                     key={parcel.id}
                     onClick={() => handleParcelSelect(parcel.id, parcel.name)}
                     className={`w-full px-4 py-2 text-left hover:bg-nkz-success-light transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
@@ -564,7 +566,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                   >
                     <MapPin className="w-4 h-4 text-green-500 flex-shrink-0" />
                     <span className="text-sm text-gray-900 truncate">{parcel.name}</span>
-                  </button>
+                  </Button>
                 ))}
               {parcels.filter(p => !parcelSearchTerm || p.name.toLowerCase().includes(parcelSearchTerm.toLowerCase())).length === 0 && (
                 <div className="p-3 text-sm text-nkz-muted text-center">
@@ -747,12 +749,12 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           <div className="text-center py-12">
             <Cloud className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-600 mb-4">{t('weather.no_data')}</p>
-            <button
+            <Button
               onClick={() => setShowParcelSearch(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
             >
               {t('weather.select_parcel')}
-            </button>
+            </Button>
           </div>
         )}
       </div>

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { logger } from '@/utils/logger';
 
 /**
  * Manages 3D Tiles tileset primitives on the Cesium viewer.
@@ -24,7 +25,7 @@ export function use3DTiles(
       try {
         if (viewer.isDestroyed()) return;
 
-        console.log('[CesiumMap] Adding 3D Tiles from:', tilesetUrl);
+        logger.log('[CesiumMap] Adding 3D Tiles from:', tilesetUrl);
         const tileset = viewer.scene.primitives.add(
           new Cesium.Cesium3DTileset({
             url: tilesetUrl,
@@ -34,14 +35,14 @@ export function use3DTiles(
         if (tileset.readyPromise) {
           tileset.readyPromise.then(() => {
             if (!viewer.isDestroyed()) {
-              console.log('[CesiumMap] 3D Tiles loaded successfully');
+              logger.log('[CesiumMap] 3D Tiles loaded successfully');
             }
           }).catch((error: any) => {
-            console.error('[CesiumMap] Error loading 3D Tiles:', error);
+            logger.error('[CesiumMap] Error loading 3D Tiles:', error);
           });
         }
       } catch (error: any) {
-        console.error('[CesiumMap] Error adding 3D Tiles:', error);
+        logger.error('[CesiumMap] Error adding 3D Tiles:', error);
       }
     }
   }, [enable3DTiles, tilesetUrl]);

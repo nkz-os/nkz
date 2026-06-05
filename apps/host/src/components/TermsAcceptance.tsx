@@ -7,6 +7,9 @@ import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 import { FileText, Loader2, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { sanitizeTermsHtml } from '@/utils/sanitize';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 interface TermsAcceptanceProps {
   onAcceptChange: (accepted: boolean) => void;
@@ -45,7 +48,7 @@ export const TermsAcceptance: React.FC<TermsAcceptanceProps> = ({
         setError(t('terms.no_terms'));
       }
     } catch (err: any) {
-      console.error('Error loading terms:', err);
+      logger.error('Error loading terms:', err);
       if (err.response?.status === 404) {
         setError(t('terms.no_terms'));
       } else {
@@ -73,7 +76,7 @@ export const TermsAcceptance: React.FC<TermsAcceptanceProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-3">
-        <input
+        <Input
           type="checkbox"
           id="terms-acceptance"
           checked={accepted}
@@ -95,7 +98,7 @@ export const TermsAcceptance: React.FC<TermsAcceptanceProps> = ({
 
       {termsContent && (
         <div className="border border-nkz-border rounded-lg overflow-hidden">
-          <button
+          <Button
             type="button"
             onClick={() => setShowTerms(!showTerms)}
             className="w-full px-4 py-2 bg-nkz-bg-secondary hover:bg-nkz-bg-secondary transition-colors flex items-center justify-between text-sm font-medium text-gray-700"
@@ -109,7 +112,7 @@ export const TermsAcceptance: React.FC<TermsAcceptanceProps> = ({
             ) : (
               <ChevronDown className="w-4 h-4" />
             )}
-          </button>
+          </Button>
           {showTerms && (
             <div className="p-4 bg-white max-h-64 overflow-y-auto">
               <div

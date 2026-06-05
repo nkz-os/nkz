@@ -6,6 +6,7 @@
 import React from 'react';
 import { Moon, Sun, Monitor } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
+import { Button } from '@nekazari/ui-kit';
 
 interface ThemeToggleProps {
   variant?: 'default' | 'compact';
@@ -38,7 +39,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
 
   if (variant === 'compact') {
     return (
-      <button
+      <Button
         onClick={toggleTheme}
         className={`inline-flex items-center justify-center w-full rounded-md border border-nkz-border dark:border-gray-600 shadow-sm px-3 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-nkz-bg-secondary dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${className}`}
         aria-label={`Cambiar tema (${getLabel()})`}
@@ -46,12 +47,12 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
       >
         {getIcon()}
         <span className="ml-2 text-xs">{getLabel()}</span>
-      </button>
+      </Button>
     );
   }
 
   return (
-    <button
+    <Button
       onClick={toggleTheme}
       className={`relative inline-flex items-center justify-center w-10 h-10 rounded-md border border-nkz-border dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-nkz-bg-secondary dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${className}`}
       aria-label={`Cambiar tema (${getLabel()})`}
@@ -67,7 +68,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
       {theme === 'system' && (
         <span className="absolute -top-1 -right-1 w-2 h-2 bg-nkz-info-light0 rounded-full ring-2 ring-white dark:ring-gray-800" />
       )}
-    </button>
+    </Button>
   );
 };
 

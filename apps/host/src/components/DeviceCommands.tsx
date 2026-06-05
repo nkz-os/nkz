@@ -6,7 +6,11 @@ import React, { useState, useEffect } from 'react';
 import { Send, History, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Command {
   id: string;
   command_type: string;
@@ -61,7 +65,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
         setCommandHistory(data.commands);
       }
     } catch (err: any) {
-      console.error('Error loading command history:', err);
+      logger.error('Error loading command history:', err);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -102,7 +106,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
       }, 1000);
 
     } catch (err: any) {
-      console.error('Error sending command:', err);
+      logger.error('Error sending command:', err);
       setError(err?.response?.data?.error || t('sensors.command_error'));
     } finally {
       setIsLoading(false);
@@ -167,7 +171,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
             </label>
             <select
               value={commandType}
-              onChange={(e) => {
+              onChange={(e: any) => {
                 setCommandType(e.target.value);
                 const cmd = predefinedCommands.find(c => c.type === e.target.value);
                 if (cmd && cmd.type !== 'custom') {
@@ -190,7 +194,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
             </label>
             <textarea
               value={commandPayload}
-              onChange={(e) => setCommandPayload(e.target.value)}
+              onChange={(e: any) => setCommandPayload(e.target.value)}
               rows={6}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder='{"action": "reboot", "delay": 5}'
@@ -208,7 +212,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
             </div>
           )}
 
-          <button
+          <Button
             onClick={handleSendCommand}
             disabled={isLoading}
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -224,7 +228,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
                 <span>{t('sensors.send_command')}</span>
               </>
             )}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -235,14 +239,14 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
             <History className="w-5 h-5" />
             {t('sensors.command_history')}
           </h3>
-          <button
+          <Button
             onClick={loadCommandHistory}
             disabled={isLoadingHistory}
             className="p-2 text-gray-600 hover:text-gray-900 transition disabled:opacity-50"
             title={t('sensors.refresh')}
           >
             <History className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
 
         {isLoadingHistory ? (

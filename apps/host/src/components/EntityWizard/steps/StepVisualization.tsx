@@ -6,6 +6,7 @@ import { DefaultIconSelector } from '../DefaultIconSelector';
 import { useViewer } from '@/context/ViewerContext';
 import type { Geometry, Point } from 'geojson';
 import { useNotification } from '@/hooks/useNotification';
+import { Button } from '@nekazari/ui-kit';
 
 export function StepVisualization() {
   const { showNotification } = useNotification();
@@ -76,7 +77,7 @@ export function StepVisualization() {
                 Escala: {(formData.modelScale ?? 1).toFixed(1)}x · Rot: {formData.modelRotation?.[0] ?? 0}°
               </span>
             </div>
-            <button
+            <Button
               type="button"
               onClick={() => {
                 if (!coords) {
@@ -92,7 +93,7 @@ export function StepVisualization() {
             >
               <MapPin className="w-5 h-5" />
               Previsualizar en el Terreno
-            </button>
+            </Button>
             <p className="text-xs text-nkz-muted text-center mt-2">El wizard se ocultará. Ajusta escala y rotación sobre el mapa.</p>
           </div>
         )}

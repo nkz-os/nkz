@@ -4,7 +4,9 @@ import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 import { getNGSIValue } from '@/types/ngsi-ld';
 import type { NGSAttribute } from '@/types/ngsi-ld';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Props {
   targetType: string;
   currentEntityType: string;
@@ -87,26 +89,26 @@ export const EntitySearchInput: React.FC<Props> = ({
         <div className="flex items-center gap-2 px-3 py-2 bg-nkz-bg-secondary border border-nkz-border rounded-lg text-sm">
           <MapPin className="w-3.5 h-3.5 text-nkz-muted" />
           <span className="flex-1 truncate text-gray-700">{displayName}</span>
-          <button onClick={handleClear} className="text-nkz-muted hover:text-nkz-error">
+          <Button onClick={handleClear} className="text-nkz-muted hover:text-nkz-error">
             <X className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       ) : (
-        <button
+        <Button
           onClick={() => setOpen(true)}
           className="px-3 py-2 border border-dashed border-nkz-border rounded-lg text-sm text-nkz-muted hover:border-blue-400 hover:text-nkz-info text-left"
         >
           {t('editor.select_entity') || 'Seleccionar entidad...'}
-        </button>
+        </Button>
       )}
       {open && (
         <div className="relative mt-1">
           <div className="flex items-center border border-nkz-border rounded-lg overflow-hidden">
             <Search className="w-4 h-4 text-nkz-muted ml-3 flex-shrink-0" />
-            <input
+            <Input
               type="text"
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              onChange={(e: any) => setSearchTerm(e.target.value)}
               placeholder={t('editor.search_entity') || 'Buscar...'}
               className="w-full px-3 py-2 text-sm focus:outline-none"
               autoFocus
@@ -116,7 +118,7 @@ export const EntitySearchInput: React.FC<Props> = ({
           {results.length > 0 && (
             <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-nkz-border rounded-lg shadow-lg">
               {results.map(r => (
-                <button
+                <Button
                   key={r.id}
                   onClick={() => handleSelect(r)}
                   className="w-full px-3 py-2 text-left text-sm hover:bg-nkz-info-light flex items-center gap-2 border-b border-gray-100 last:border-b-0"
@@ -124,7 +126,7 @@ export const EntitySearchInput: React.FC<Props> = ({
                   <MapPin className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
                   <span className="text-gray-900 truncate">{r.name}</span>
                   <span className="text-xs text-nkz-muted ml-auto flex-shrink-0">{r.type}</span>
-                </button>
+                </Button>
               ))}
             </div>
           )}
