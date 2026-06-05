@@ -5,30 +5,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Wind, Droplets, Thermometer, Radio, Cloud } from 'lucide-react';
-import api from '@/services/api';
+import api, { type AgroStatusResponse } from '@/services/api';
 import { logger } from '@/utils/logger';
+import { safeFixed } from '@/utils/format';
 
 
 interface ParcelAgroStatusProps {
   parcelId: string;
   isVisible?: boolean; // For manual control, otherwise uses IntersectionObserver
-}
-
-interface AgroStatus {
-  semaphores: {
-    spraying: 'optimal' | 'caution' | 'not_suitable' | 'unknown';
-    workability: 'optimal' | 'too_wet' | 'too_dry' | 'caution' | 'unknown';
-    irrigation: 'satisfied' | 'alert' | 'deficit' | 'unknown';
-  };
-  source_confidence: string;
-  metrics?: {
-    temperature?: number;
-    humidity?: number;
-    delta_t?: number;
-    water_balance?: number;
-    wind_speed?: number;
-  };
-  timestamp?: string;
 }
 
 const SemaphoreIcon: React.FC<{
@@ -69,7 +53,7 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
   parcelId,
   isVisible: manualVisible,
 }) => {
-  const [status, setStatus] = useState<AgroStatus | null>(null);
+  const [status, setStatus] = useState<AgroStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -184,8 +168,8 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
       : semaphores.spraying === 'caution' 
       ? 'Precaución: condiciones límite' 
       : 'No recomendado';
-    const deltaT = metrics?.delta_t ? `\nΔT: ${metrics.delta_t.toFixed(1)}°C` : '';
-    const wind = metrics?.wind_speed ? `\nViento: ${(metrics.wind_speed * 3.6).toFixed(1)} km/h` : '';
+    const deltaT = metrics?.delta_t != null ? `\nΔT: ${safeFixed(metrics.delta_t, 1)}°C` : '';
+    const wind = metrics?.wind_speed != null ? `\nViento: ${safeFixed(metrics.wind_speed * 3.6, 1)} km/h` : '';
     return `${statusText}${deltaT}${wind}`;
   };
 
@@ -197,7 +181,7 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
       : semaphores.workability === 'too_dry' 
       ? 'Demasiado seco' 
       : 'Precaución';
-    const humidity = metrics?.humidity ? `\nHumedad: ${metrics.humidity.toFixed(0)}%` : '';
+    const humidity = metrics?.humidity != null ? `\nHumedad: ${safeFixed(metrics.humidity, 0)}%` : '';
     return `${statusText}${humidity}`;
   };
 
@@ -207,8 +191,8 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
       : semaphores.irrigation === 'alert' 
       ? 'Alerta: vigilar' 
       : 'Déficit hídrico';
-    const balance = metrics?.water_balance !== undefined
-      ? `\nBalance 3 días: ${metrics.water_balance > 0 ? '+' : ''}${metrics.water_balance.toFixed(1)} mm`
+    const balance = metrics?.water_balance != null
+      ? `\nBalance 3 días: ${metrics.water_balance > 0 ? '+' : ''}${safeFixed(metrics.water_balance)} mm`
       : '';
     return `${statusText}${balance}`;
   };
