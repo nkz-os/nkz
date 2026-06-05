@@ -185,13 +185,18 @@ class ParcelWeatherEngine:
         """Extract (centroid, altitude) from an AgriParcel entity.
 
         Handles Point and Polygon geometries via Shapely centroid.
+        Falls back to elevation service if no altitude stored in entity.
         Returns (None, 0.0) if location is unresolvable.
         """
-        # Altitude
+        # Altitude from entity
         altitude = 0.0
         elev = parcel.get("elevation", {})
-        if isinstance(elev, dict):
-            altitude = float(elev.get("value", 0) or 0)
+        elev_value = elev.get("value", 0) if isinstance(elev, dict) else 0
+        if elev_value:
+            try:
+                altitude = float(elev_value)
+            except (ValueError, TypeError):
+                altitude = 0.0
 
         # Location
         loc_attr = parcel.get("location", {})
@@ -205,20 +210,43 @@ class ParcelWeatherEngine:
         geom_type = loc_value.get("type", "")
         coords = loc_value.get("coordinates", [])
 
+        centroid = None
+
         if geom_type == "Point" and len(coords) >= 2:
-            return (float(coords[0]), float(coords[1])), altitude
-
-        if geom_type in ("Polygon", "MultiPolygon") and coords:
+            centroid = (float(coords[0]), float(coords[1]))
+        elif geom_type in ("Polygon", "MultiPolygon") and coords:
             try:
-                from shapely.geometry import shape  # lazy import — only for polygon centroids
-
+                from shapely.geometry import shape  # lazy import
                 shapely_geom = shape(loc_value)
-                centroid = shapely_geom.centroid
-                return (centroid.x, centroid.y), altitude
+                c = shapely_geom.centroid
+                centroid = (c.x, c.y)
             except Exception as e:
                 logger.warning(f"Error computing centroid: {e}")
 
-        return None, altitude
+        # Fallback: query elevation service if no altitude stored in entity
+        if altitude == 0.0 and centroid is not None:
+            try:
+                elev_url = os.getenv(
+                    "ELEVATION_SERVICE_URL",
+                    "http://elevation-api-service:80/api/elevation"
+                )
+                resp = requests.get(
+                    f"{elev_url}/point",
+                    params={"lat": centroid[1], "lon": centroid[0], "purpose": "weather"},
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    altitude = float(data.get("elevation_m", 0))
+                    logger.info(
+                        "Fetched elevation %.1fm for parcel %s from elevation service",
+                        altitude, parcel.get("id", "unknown")
+                    )
+            except Exception as e:
+                logger.warning("Failed to fetch elevation for parcel %s: %s",
+                               parcel.get("id", "unknown"), e)
+
+        return centroid, altitude
 
     def _haversine_km(
         self, lat1: float, lon1: float, lat2: float, lon2: float
