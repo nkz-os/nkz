@@ -158,7 +158,7 @@ export const ViewerHeader: React.FC = () => {
                 onMouseLeave={handleMouseLeave}
             >
                 {/* Logo Button: click → dashboard, hover opens menu */}
-                <button
+                <Button
                     type="button"
                     onClick={() => {
                         setIsMenuOpen(false);
@@ -175,7 +175,7 @@ export const ViewerHeader: React.FC = () => {
                         className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-300 ${isMenuOpen ? 'rotate-180' : ''
                             }`}
                     />
-                </button>
+                </Button>
 
                 {/* Dropdown Menu */}
                 <div
@@ -236,8 +236,8 @@ export const ViewerHeader: React.FC = () => {
                         onMouseEnter={openLayersSubmenu}
                         onMouseLeave={scheduleLayersSubmenuClose}
                     >
-                        <button
-                            ref={layersTriggerRef}
+                        <span ref={layersTriggerRef}>
+                        <Button
                             type="button"
                             onClick={() => {
                                 if (isLayersSubmenuOpen) {
@@ -264,7 +264,8 @@ export const ViewerHeader: React.FC = () => {
                                     isLayersSubmenuOpen ? 'rotate-90' : ''
                                 }`}
                             />
-                        </button>
+                        </Button>
+                        </span>
 
                         <LayersCascadeSubmenu
                             isOpen={isLayersSubmenuOpen}
