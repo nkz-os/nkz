@@ -2,6 +2,7 @@ import React from 'react';
 import { Tractor, Plus } from 'lucide-react';
 import type { AgriculturalMachine } from '@/types';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
 interface AgriculturalMachinesCardProps {
   machines: AgriculturalMachine[];
@@ -26,13 +27,13 @@ export const AgriculturalMachinesCard: React.FC<AgriculturalMachinesCardProps> =
             <Tractor className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-nkz-muted mb-4">{t('dashboard.machines.no_machines')}</p>
             {canManageDevices && (
-              <button
+              <Button
                 onClick={() => onOpenWizard('ManufacturingMachine')}
                 className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />
                 {t('dashboard.machines.add_machine')}
-              </button>
+              </Button>
             )}
           </div>
         ) : (

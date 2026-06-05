@@ -7,7 +7,9 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, RotateCw } from 'lucide-react';
 import type { AssetType, AssetProperties } from '@/types';
 import { useI18n } from '@/context/I18nContext';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface AssetPropertiesDialogProps {
   isOpen: boolean;
   assetType: AssetType | null;
@@ -78,12 +80,12 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
           <h3 className="text-lg font-semibold text-gray-900">
             Propiedades del Activo
           </h3>
-          <button
+          <Button
             onClick={onCancel}
             className="text-nkz-muted hover:text-gray-600 transition-colors"
           >
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -102,10 +104,10 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nombre <span className="text-nkz-muted">(opcional)</span>
             </label>
-            <input
+            <Input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e: any) => setName(e.target.value)}
               placeholder={suggestedName || 'Se generará automáticamente'}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
@@ -122,22 +124,22 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
               Escala: {scale.toFixed(2)}x
             </label>
             <div className="flex items-center gap-3">
-              <input
+              <Input
                 type="range"
                 min="0.1"
                 max="5.0"
                 step="0.1"
                 value={scale}
-                onChange={(e) => setScale(parseFloat(e.target.value))}
+                onChange={(e: any) => setScale(parseFloat(e.target.value))}
                 className="flex-1"
               />
-              <input
+              <Input
                 type="number"
                 min="0.1"
                 max="5.0"
                 step="0.1"
                 value={scale}
-                onChange={(e) => {
+                onChange={(e: any) => {
                   const val = parseFloat(e.target.value);
                   if (!isNaN(val) && val >= 0.1 && val <= 5.0) {
                     setScale(val);
@@ -159,22 +161,22 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
               </label>
               <div className="flex items-center gap-3">
                 <RotateCw className="w-4 h-4 text-nkz-muted" />
-                <input
+                <Input
                   type="range"
                   min="0"
                   max="360"
                   step="1"
                   value={rotation}
-                  onChange={(e) => setRotation(parseInt(e.target.value))}
+                  onChange={(e: any) => setRotation(parseInt(e.target.value))}
                   className="flex-1"
                 />
-                <input
+                <Input
                   type="number"
                   min="0"
                   max="360"
                   step="1"
                   value={rotation}
-                  onChange={(e) => {
+                  onChange={(e: any) => {
                     const val = parseInt(e.target.value);
                     if (!isNaN(val) && val >= 0 && val <= 360) {
                       setRotation(val);
@@ -205,19 +207,19 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 p-4 border-t border-nkz-border bg-nkz-bg-secondary">
-          <button
+          <Button
             onClick={onCancel}
             className="px-4 py-2 border border-nkz-border rounded-lg text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary transition-colors"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSave}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2"
           >
             <Save className="w-4 h-4" />
             Guardar Activo
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { LayersCascadeSubmenu } from '@/components/viewer/LayersCascadeSubmenu';
 import { computeSubmenuSide, type SubmenuSide } from '@/components/viewer/positionFlip';
+import { Button } from '@nekazari/ui-kit';
 
 // Glassmorphism styling
 const surfaceStyles = {
@@ -158,7 +159,7 @@ export const ViewerHeader: React.FC = () => {
                 onMouseLeave={handleMouseLeave}
             >
                 {/* Logo Button: click → dashboard, hover opens menu */}
-                <button
+                <Button
                     type="button"
                     onClick={() => {
                         setIsMenuOpen(false);
@@ -175,7 +176,7 @@ export const ViewerHeader: React.FC = () => {
                         className={`w-4 h-4 text-slate-500 dark:text-slate-400 transition-transform duration-300 ${isMenuOpen ? 'rotate-180' : ''
                             }`}
                     />
-                </button>
+                </Button>
 
                 {/* Dropdown Menu */}
                 <div
@@ -236,7 +237,7 @@ export const ViewerHeader: React.FC = () => {
                         onMouseEnter={openLayersSubmenu}
                         onMouseLeave={scheduleLayersSubmenuClose}
                     >
-                        <button
+                        <Button
                             ref={layersTriggerRef}
                             type="button"
                             onClick={() => {
@@ -264,7 +265,7 @@ export const ViewerHeader: React.FC = () => {
                                     isLayersSubmenuOpen ? 'rotate-90' : ''
                                 }`}
                             />
-                        </button>
+                        </Button>
 
                         <LayersCascadeSubmenu
                             isOpen={isLayersSubmenuOpen}
@@ -342,18 +343,18 @@ export const ViewerHeader: React.FC = () => {
 
                     {/* Logout */}
                     <div className="py-2 border-t border-slate-200 dark:border-slate-700">
-                        <button
+                        <Button
                             onClick={handleLogout}
                             className="flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg w-[calc(100%-16px)] text-left text-slate-600 dark:text-slate-400 hover:bg-nkz-error-light dark:hover:bg-red-900/20 hover:text-nkz-error dark:hover:text-red-400 transition-all"
                         >
                             <LogOut className="w-5 h-5" />
                             <span className="font-medium">{t('layout.logout', { defaultValue: 'Cerrar sesión' })}</span>
-                        </button>
+                        </Button>
                     </div>
 
                     {/* Controls: Theme + Language */}
                     <div className="flex items-center gap-2 px-3 py-2.5 border-t border-slate-200 dark:border-slate-700">
-                        <button
+                        <Button
                             onClick={toggleTheme}
                             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
@@ -363,7 +364,7 @@ export const ViewerHeader: React.FC = () => {
                                 <Moon className="w-4 h-4" />
                             )}
                             <span>{isLight ? t('viewer.header.theme_light') : t('viewer.header.theme_dark')}</span>
-                        </button>
+                        </Button>
                         <LanguageSelector variant="compact" />
                     </div>
                 </div>

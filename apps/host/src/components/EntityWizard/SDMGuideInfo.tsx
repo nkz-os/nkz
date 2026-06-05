@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { HelpCircle, X, Info, Database, Zap, ShieldCheck } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
 export const SDMGuideInfo: React.FC = () => {
   const { t } = useI18n();
@@ -8,24 +9,24 @@ export const SDMGuideInfo: React.FC = () => {
 
   if (!isOpen) {
     return (
-      <button
+      <Button
         onClick={() => setIsOpen(true)}
         className="flex items-center gap-2 px-3 py-1.5 bg-nkz-info-light text-nkz-info hover:bg-nkz-info-light rounded-full text-xs font-semibold transition-colors border border-blue-200"
       >
         <HelpCircle className="w-4 h-4" />
         {t('wizard.sdm_guide.help_button')}
-      </button>
+      </Button>
     );
   }
 
   return (
     <div className="bg-nkz-info-light border-2 border-blue-200 rounded-xl p-5 relative animate-in fade-in slide-in-from-top-2 duration-200">
-      <button 
+      <Button 
         onClick={() => setIsOpen(false)}
         className="absolute top-3 right-3 text-blue-400 hover:text-nkz-info transition-colors"
       >
         <X className="w-5 h-5" />
-      </button>
+      </Button>
 
       <div className="flex items-center gap-2 mb-4">
         <div className="p-2 bg-blue-600 text-white rounded-lg">

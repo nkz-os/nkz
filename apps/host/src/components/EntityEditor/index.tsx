@@ -13,7 +13,9 @@ import { useEntityEditor } from './EntityEditorContext';
 import { logger } from '@/utils/logger';
 import type { EntityEditorProps } from './types';
 import type { NGSAttribute } from '@/types/ngsi-ld';
+import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 function buildAttributeKeys(entity: any): Record<string, NGSAttribute> {
   const attrs: Record<string, NGSAttribute> = {};
   for (const [key, val] of Object.entries(entity)) {
@@ -72,9 +74,9 @@ const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> =
             </h2>
             <p className="text-xs text-nkz-muted">{entityType} &mdash; {entityId.split(':').pop()}</p>
           </div>
-          <button onClick={handleClose} className="p-1 text-nkz-muted hover:text-gray-600">
+          <Button onClick={handleClose} className="p-1 text-nkz-muted hover:text-gray-600">
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Body */}
@@ -101,20 +103,20 @@ const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> =
             )}
           </div>
           <div className="flex gap-3">
-            <button
+            <Button
               onClick={handleClose}
               className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-lg transition"
             >
               {confirmClose ? (t('editor.confirm_discard') || '¿Descartar cambios?') : (t('common.cancel') || 'Cancelar')}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               disabled={!hasChanges || saving}
               className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {t('common.save') || 'Guardar'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -167,7 +169,7 @@ export const EntityEditorModal: React.FC<EntityEditorProps> = ({ entityId, entit
           <div className="bg-white rounded-2xl p-8 text-center max-w-md">
             <p className="text-nkz-error font-medium mb-2">Error</p>
             <p className="text-gray-600 text-sm">{fetchError}</p>
-            <button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-200 rounded-lg text-sm">Cerrar</button>
+            <Button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-200 rounded-lg text-sm">Cerrar</Button>
           </div>
         </div>
       ) : (

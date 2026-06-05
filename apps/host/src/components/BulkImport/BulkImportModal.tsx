@@ -8,12 +8,14 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   X, Upload, FileText, CheckCircle, AlertTriangle, ChevronRight,
   ChevronLeft, MapPin, Loader2, TriangleAlert,
 } from 'lucide-react';
 import { parseFile } from './parsers';
 import type { ImportRow } from './parsers';
 import api from '@/services/api';
+import { Button, Input } from '@nekazari/ui-kit';
 
 // ── Entity type options for bulk import (point-geometry assets) ───────────────
 const ENTITY_TYPES = [
@@ -162,9 +164,9 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               Importación masiva de entidades
             </h2>
           </div>
-          <button onClick={handleClose} className="text-nkz-muted hover:text-gray-600 transition">
+          <Button onClick={handleClose} className="text-nkz-muted hover:text-gray-600 transition">
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
 
         {/* Step indicator */}
@@ -196,7 +198,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                   Arrastra aquí tu fichero o haz clic para seleccionar
                 </p>
                 <p className="text-sm text-nkz-muted mt-1">CSV · GeoJSON — hasta 500 entidades</p>
-                <input
+                <Input
                   ref={fileRef}
                   type="file"
                   accept=".csv,.geojson,.json,.txt"
@@ -230,7 +232,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                 </label>
                 <select
                   value={entityType}
-                  onChange={e => setEntityType(e.target.value)}
+                  onChange={(e: any) => setEntityType(e.target.value)}
                   disabled={step === 'creating'}
                   className="flex-1 border border-nkz-border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-green-500 outline-none disabled:opacity-50 bg-white dark:bg-gray-700 dark:text-white"
                 >
@@ -245,13 +247,13 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                 <span className="text-gray-600 dark:text-nkz-muted">
                   <span className="font-semibold text-gray-900 dark:text-white">{rows.length}</span> entidades de <span className="font-mono bg-nkz-bg-secondary dark:bg-gray-700 px-1 rounded">{fileName}</span>
                 </span>
-                <button
+                <Button
                   onClick={() => { setStep('upload'); }}
                   disabled={step === 'creating'}
                   className="text-xs text-nkz-info hover:underline disabled:opacity-50"
                 >
                   Cambiar fichero
-                </button>
+                </Button>
               </div>
 
               {/* Spatial preview */}
@@ -352,41 +354,41 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-nkz-border dark:border-gray-700 flex-shrink-0">
-          <button
+          <Button
             onClick={step === 'results' ? handleClose : handleClose}
             className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition"
           >
             {step === 'results' ? 'Cerrar' : 'Cancelar'}
-          </button>
+          </Button>
 
           <div className="flex gap-2">
             {step === 'preview' && (
-              <button
+              <Button
                 onClick={() => setStep('upload')}
                 className="flex items-center gap-1 px-4 py-2 text-sm border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Atrás
-              </button>
+              </Button>
             )}
 
             {step === 'preview' && (
-              <button
+              <Button
                 onClick={handleCreate}
                 className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition shadow-sm"
               >
                 <Upload className="w-4 h-4" />
                 Crear {rows.length} entidades
-              </button>
+              </Button>
             )}
 
             {step === 'results' && results && results.created > 0 && (
-              <button
+              <Button
                 onClick={() => { reset(); }}
                 className="px-4 py-2 text-sm bg-nkz-info-light text-nkz-info border border-blue-200 rounded-lg hover:bg-nkz-info-light transition"
               >
                 Importar otro fichero
-              </button>
+              </Button>
             )}
           </div>
         </div>

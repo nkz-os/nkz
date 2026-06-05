@@ -1,6 +1,8 @@
 import { useWizard } from '../WizardContext';
 import type { FleetFormData } from '../types';
+import { Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const ROBOT_TYPES = ['Wheeled', 'Tracked', 'Aerial', 'Legged', 'Hybrid'] as const;
 
 export function StepFleetConfig() {
@@ -19,10 +21,10 @@ export function StepFleetConfig() {
       {/* Name */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-        <input
+        <Input
           type="text"
           value={data.name}
-          onChange={e => updateFormData({ name: e.target.value })}
+          onChange={(e: any) => updateFormData({ name: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-indigo-500"
           placeholder={isRobot ? 'Ej: Rover Norte-01' : isMachine ? 'Ej: Fendt 516 #3' : 'Nombre de la unidad'}
         />
@@ -33,7 +35,7 @@ export function StepFleetConfig() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
         <textarea
           value={data.description ?? ''}
-          onChange={e => updateFormData({ description: e.target.value })}
+          onChange={(e: any) => updateFormData({ description: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-indigo-500"
           placeholder="Descripción opcional"
           rows={2}
@@ -44,20 +46,20 @@ export function StepFleetConfig() {
       <div className="grid grid-cols-2 gap-3 pt-3 border-t">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Fabricante</label>
-          <input
+          <Input
             type="text"
             value={data.manufacturer ?? ''}
-            onChange={e => updateFormData({ manufacturer: e.target.value })}
+            onChange={(e: any) => updateFormData({ manufacturer: e.target.value })}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
             placeholder={isRobot ? 'Ej: Naio Technologies' : 'Ej: Fendt, John Deere'}
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Número de serie</label>
-          <input
+          <Input
             type="text"
             value={data.serialNumber ?? ''}
-            onChange={e => updateFormData({ serialNumber: e.target.value })}
+            onChange={(e: any) => updateFormData({ serialNumber: e.target.value })}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
             placeholder="S/N"
           />
@@ -73,7 +75,7 @@ export function StepFleetConfig() {
             <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de robot</label>
             <select
               value={data.robotType ?? ''}
-              onChange={e => updateFormData({ robotType: e.target.value })}
+              onChange={(e: any) => updateFormData({ robotType: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
             >
               <option value="">-- Selecciona tipo --</option>
@@ -83,10 +85,10 @@ export function StepFleetConfig() {
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Namespace ROS2</label>
-            <input
+            <Input
               type="text"
               value={data.rosNamespace ?? ''}
-              onChange={e => updateFormData({ rosNamespace: e.target.value })}
+              onChange={(e: any) => updateFormData({ rosNamespace: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
               placeholder="Ej: /robot_norte_01"
             />
@@ -101,11 +103,11 @@ export function StepFleetConfig() {
       {isMachine && (
         <div className="pt-3 border-t">
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="checkbox"
               id="isobus"
               checked={data.isobusCompatible ?? false}
-              onChange={e => updateFormData({ isobusCompatible: e.target.checked })}
+              onChange={(e: any) => updateFormData({ isobusCompatible: e.target.checked })}
               className="w-4 h-4 accent-indigo-600"
             />
             <label htmlFor="isobus" className="text-sm font-medium text-gray-700">

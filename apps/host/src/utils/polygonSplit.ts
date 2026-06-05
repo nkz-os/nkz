@@ -11,6 +11,8 @@ import { booleanValid } from '@turf/boolean-valid';
 import { lineIntersect } from '@turf/line-intersect';
 import { polygonToLine } from '@turf/polygon-to-line';
 import type { GeoPolygon } from '@/types';
+import { logger } from '@/utils/logger';
+
 
 /**
  * Split a polygon using a cutting line
@@ -61,7 +63,7 @@ export function splitPolygonWithLine(
         // Use simple split method (more reliable for our use case)
         return splitPolygonSimple(parcelPolygon, cuttingLine);
     } catch (error) {
-        console.error('[polygonSplit] Error in splitPolygonWithLine:', error);
+        logger.error('[polygonSplit] Error in splitPolygonWithLine:', error);
         // Fallback to simple split method
         return splitPolygonSimple(parcelPolygon, cuttingLine);
     }
@@ -152,7 +154,7 @@ function splitPolygonSimple(
 
         return [];
     } catch (error) {
-        console.error('[polygonSplit] Error in simple split method:', error);
+        logger.error('[polygonSplit] Error in simple split method:', error);
         return [];
     }
 }

@@ -3,11 +3,14 @@
 // =============================================================================
 // Provides a normalized view of all entity types for the asset management UI.
 
+import { logger } from '@/utils/logger';
+
 // =============================================================================
 // Asset Categories
 // =============================================================================
 
 export type AssetCategory = 
+/* eslint-disable @typescript-eslint/no-explicit-any */
   | 'parcels'      // Parcelas y zonas
   | 'sensors'      // Sensores IoT
   | 'fleet'        // Robots y maquinaria
@@ -597,7 +600,7 @@ export function normalizeEntities(entities: Record<string, any[]>): UnifiedAsset
         try {
           assets.push(normalizeToAsset({ ...item, type: item.type || type }));
         } catch (e) {
-          console.warn(`[Assets] Failed to normalize entity:`, item, e);
+          logger.warn(`[Assets] Failed to normalize entity:`, item, e);
         }
       });
     }

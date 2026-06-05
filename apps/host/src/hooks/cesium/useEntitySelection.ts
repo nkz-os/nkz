@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { logger } from '@/utils/logger';
 
 /**
  * Handles entity click selection in view mode.
@@ -24,7 +25,7 @@ export function useEntitySelection(
         const entity = pickedObject.id;
         const entityId: string = entity.id;
 
-        console.log('[CesiumMap] Clicked entity:', entityId);
+        logger.log('[CesiumMap] Clicked entity:', entityId);
 
         if (entityId.startsWith('sensor-')) {
           onEntitySelect({ id: entityId.replace('sensor-', ''), type: 'AgriSensor' });

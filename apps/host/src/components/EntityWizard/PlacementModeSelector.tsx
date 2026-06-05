@@ -1,5 +1,6 @@
 import React from 'react';
 import { MousePointer2, Brush, Grid3x3, AlertTriangle } from 'lucide-react';
+import { Button } from '@nekazari/ui-kit';
 
 export type PlacementMode = 'single' | 'multi' | 'stamp' | 'array' | 'line' | 'polygon';
 
@@ -17,7 +18,7 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Single Mode */}
-            <button
+            <Button
                 type="button"
                 onClick={() => onChange('single')}
                 className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'single'
@@ -36,10 +37,10 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                         </p>
                     </div>
                 </div>
-            </button>
+            </Button>
 
             {/* Stamp Mode */}
-            <button
+            <Button
                 type="button"
                 onClick={() => onChange('stamp')}
                 className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'stamp'
@@ -70,10 +71,10 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                         Este modo está diseñado para vegetación (Árboles/Cultivos).
                     </div>
                 )}
-            </button>
+            </Button>
 
             {/* Array Mode */}
-            <button
+            <Button
                 type="button"
                 onClick={() => onChange('array')}
                 className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'array'
@@ -97,7 +98,7 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                         </p>
                     </div>
                 </div>
-            </button>
+            </Button>
         </div>
     );
 };

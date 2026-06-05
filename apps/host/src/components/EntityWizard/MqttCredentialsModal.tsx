@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import { X, Copy, Check, AlertTriangle, Wifi, Server, Key, FileDown, Radio, Zap } from 'lucide-react';
+import { Button, Input } from '@nekazari/ui-kit';
 
 export interface MqttCredentials {
   host: string;
@@ -120,13 +121,13 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
     <div className="space-y-1">
       <label className="block text-xs font-medium text-gray-700">{label}</label>
       <div className="flex items-center gap-2">
-        <input
+        <Input
           type={sensitive ? 'password' : 'text'}
           value={value}
           readOnly
           className={`flex-1 px-3 py-2 text-sm border border-nkz-border rounded bg-nkz-bg-secondary ${mono ? 'font-mono' : ''}`}
         />
-        <button
+        <Button
           type="button"
           onClick={() => copyToClipboard(value, fieldName)}
           className="px-3 py-2 border border-nkz-border rounded hover:bg-nkz-bg-secondary transition"
@@ -137,7 +138,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           ) : (
             <Copy className="w-4 h-4" />
           )}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -158,12 +159,12 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
               Dispositivo <span className="font-semibold">{deviceName}</span> configurado y listo para enviar datos
             </p>
           </div>
-          <button
+          <Button
             onClick={onClose}
             className="text-white/70 hover:text-white ml-4 p-1"
           >
             <X className="w-6 h-6" />
-          </button>
+          </Button>
         </div>
 
         {/* Warning Banner */}
@@ -180,15 +181,15 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
         <div className="p-6 space-y-5">
           {/* Quick Actions */}
           <div className="grid grid-cols-2 gap-3">
-            <button
+            <Button
               type="button"
               onClick={downloadConfigFile}
               className="flex items-center justify-center gap-2 px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium shadow-sm"
             >
               <FileDown className="w-5 h-5" />
               Descargar Config JSON
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={copyAllCredentials}
               className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition font-medium shadow-sm ${
@@ -208,7 +209,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
                   Copiar Todo
                 </>
               )}
-            </button>
+            </Button>
           </div>
 
           {/* Credentials Sections */}
@@ -311,13 +312,13 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
 
         {/* Footer */}
         <div className="bg-nkz-bg-secondary px-6 py-4 border-t rounded-b-2xl">
-          <button
+          <Button
             type="button"
             onClick={onClose}
             className="w-full px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium"
           >
             He guardado las credenciales
-          </button>
+          </Button>
         </div>
       </div>
     </div>

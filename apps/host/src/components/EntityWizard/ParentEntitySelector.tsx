@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Building, Sprout } from 'lucide-react';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 export interface ParentEntity {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   id: string;
   type: string;
   name: string;
@@ -37,7 +41,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
       const entities = await api.getParentEntities(entityType);
       setParents(entities);
     } catch (error) {
-      console.error('Error loading parent entities:', error);
+      logger.error('Error loading parent entities:', error);
       setParents([]);
     } finally {
       setLoading(false);
@@ -68,7 +72,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
       </label>
       
       <div className="relative">
-        <button
+        <Button
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
@@ -88,18 +92,18 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
             )}
           </span>
           <span className="text-xs text-nkz-muted">▼</span>
-        </button>
+        </Button>
 
         {isOpen && !disabled && (
           <div className="absolute z-50 w-full mt-1 bg-white border border-nkz-border rounded-lg shadow-lg max-h-60 overflow-auto">
             <div className="p-2 border-b">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 w-4 h-4 text-nkz-muted" />
-                <input
+                <Input
                   type="text"
                   placeholder="Search parent entities..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e: any) => setSearchTerm(e.target.value)}
                   className="w-full pl-8 pr-2 py-1.5 text-sm border border-nkz-border rounded focus:ring-2 focus:ring-green-500"
                   autoFocus
                 />
@@ -107,7 +111,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
             </div>
             
             <div className="p-1">
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   onSelect(null);
@@ -119,7 +123,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                 }`}
               >
                 <span className="font-medium">None (independent entity)</span>
-              </button>
+              </Button>
             </div>
 
             {loading ? (
@@ -130,7 +134,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
               </div>
             ) : (
               filteredParents.map((parent) => (
-                <button
+                <Button
                   key={parent.id}
                   type="button"
                   onClick={() => {
@@ -147,7 +151,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                     <div className="font-medium">{parent.name}</div>
                     <div className="text-xs text-nkz-muted">{parent.type}</div>
                   </div>
-                </button>
+                </Button>
               ))
             )}
           </div>

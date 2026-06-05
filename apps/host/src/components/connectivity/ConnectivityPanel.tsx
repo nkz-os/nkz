@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
     BookmarkPlus,
     RefreshCw,
     ChevronDown,
@@ -29,6 +30,9 @@ import {
 } from '@/services/deviceProfilesApi';
 import api from '@/services/api';
 import { MappingEditor } from './MappingEditor';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 // =============================================================================
 // Types
@@ -97,7 +101,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                     setIotDetails(details);
                 }
             } catch (e) {
-                console.warn("Could not load IoT details (maybe not provisioned yet)", e);
+                logger.warn("Could not load IoT details (maybe not provisioned yet)", e);
             }
 
             // Sync current profile
@@ -110,7 +114,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
             }
         } catch (err) {
             setError('Error cargando datos de conectividad');
-            console.error(err);
+            logger.error(err);
         } finally {
             setLoading(false);
         }
@@ -195,7 +199,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
         <div className="space-y-6 h-full flex flex-col">
             {/* Header / Tabs */}
             <div className="flex items-center gap-1 border-b border-gray-700 pb-2 mb-2">
-                <button
+                <Button
                     onClick={() => setActiveTab('status')}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'status'
                         ? 'bg-purple-600 text-white'
@@ -204,8 +208,8 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                 >
                     <Wifi className="w-4 h-4" />
                     Estado y Credenciales
-                </button>
-                <button
+                </Button>
+                <Button
                     onClick={() => setActiveTab('profile')}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'profile'
                         ? 'bg-purple-600 text-white'
@@ -214,7 +218,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                 >
                     <FileCode className="w-4 h-4" />
                     Perfil de Datos
-                </button>
+                </Button>
             </div>
 
             {/* Notifications */}
@@ -293,12 +297,12 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                         <code className="text-xs text-green-400 break-all">
                                             {newlyRegeneratedKey ? iotDetails.topics?.publish_data?.replace('<API_KEY>', newlyRegeneratedKey) : iotDetails.topics?.publish_data}
                                         </code>
-                                        <button
+                                        <Button
                                             onClick={() => copyToClipboard(newlyRegeneratedKey ? iotDetails.topics?.publish_data?.replace('<API_KEY>', newlyRegeneratedKey) : iotDetails.topics?.publish_data)}
                                             className="p-1 hover:bg-gray-700 rounded text-nkz-muted"
                                         >
                                             <Copy className="w-3.5 h-3.5" />
-                                        </button>
+                                        </Button>
                                     </div>
                                 </div>
 
@@ -310,12 +314,12 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                             API Key
                                         </h4>
                                         {!newlyRegeneratedKey && (
-                                            <button
+                                            <Button
                                                 onClick={() => setShowRegenerateConfirm(true)}
                                                 className="text-xs text-red-400 hover:text-red-300 hover:underline"
                                             >
                                                 Regenerar Clave
-                                            </button>
+                                            </Button>
                                         )}
                                     </div>
 
@@ -323,9 +327,9 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                         <div className="p-4 bg-green-900/20 border border-green-500/50 rounded-lg animate-in fade-in slide-in-from-top-2">
                                             <div className="flex justify-between items-start mb-2">
                                                 <label className="text-xs font-bold text-green-400 uppercase">Nueva Clave Generada</label>
-                                                <button onClick={() => copyToClipboard(newlyRegeneratedKey)} className="text-green-400 hover:text-green-300">
+                                                <Button onClick={() => copyToClipboard(newlyRegeneratedKey)} className="text-green-400 hover:text-green-300">
                                                     <Copy className="w-4 h-4" />
-                                                </button>
+                                                </Button>
                                             </div>
                                             <code className="block text-lg font-mono text-white break-all mb-2">
                                                 {newlyRegeneratedKey}
@@ -358,19 +362,19 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                         Esta acción invalidará la clave anterior. El dispositivo dejará de conectar hasta que lo actualices con la nueva clave.
                                     </p>
                                     <div className="flex gap-3 w-full mt-2">
-                                        <button
+                                        <Button
                                             onClick={() => setShowRegenerateConfirm(false)}
                                             className="flex-1 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition"
                                         >
                                             Cancelar
-                                        </button>
-                                        <button
+                                        </Button>
+                                        <Button
                                             onClick={handleRegenerateKey}
                                             disabled={regenerating}
                                             className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center justify-center gap-2"
                                         >
                                             {regenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Sí, regenerar'}
-                                        </button>
+                                        </Button>
                                     </div>
                                 </div>
                             </div>
@@ -389,7 +393,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                         <div className="relative">
                             <select
                                 value={selectedProfileId || ''}
-                                onChange={(e) => handleProfileSelect(e.target.value || null)}
+                                onChange={(e: any) => handleProfileSelect(e.target.value || null)}
                                 disabled={readonly || loading}
                                 className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-lg text-white appearance-none pr-10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-50"
                             >
@@ -414,13 +418,13 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
 
                         {/* Switch to Custom */}
                         {mode === 'profile' && selectedProfileId && !readonly && (
-                            <button
+                            <Button
                                 onClick={() => setMode('custom')}
                                 className="mt-3 text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
                             >
                                 <FileCode className="w-4 h-4" />
                                 Personalizar mapeo...
-                            </button>
+                            </Button>
                         )}
                     </div>
 
@@ -434,13 +438,13 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                     </div>
 
                     {!readonly && mode === 'custom' && customMappings.length > 0 && (
-                        <button
+                        <Button
                             onClick={() => setShowSaveDialog(true)}
                             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
                         >
                             <BookmarkPlus className="w-4 h-4" />
                             Guardar como Nuevo Perfil
-                        </button>
+                        </Button>
                     )}
                 </div>
             )}
@@ -450,19 +454,19 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
                     <div className="bg-gray-900 rounded-xl p-6 w-full max-w-md border border-gray-700">
                         <h3 className="text-lg font-semibold text-white mb-4">Guardar Perfil</h3>
-                        <input
+                        <Input
                             type="text"
                             value={saveAsProfileName}
-                            onChange={(e) => setSaveAsProfileName(e.target.value)}
+                            onChange={(e: any) => setSaveAsProfileName(e.target.value)}
                             placeholder="Nombre del perfil..."
                             className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white mb-4"
                             autoFocus
                         />
                         <div className="flex gap-3">
-                            <button onClick={() => setShowSaveDialog(false)} className="flex-1 py-2 bg-gray-700 text-white rounded-lg">Cancelar</button>
-                            <button onClick={handleSaveAsProfile} disabled={saving} className="flex-1 py-2 bg-purple-600 text-white rounded-lg">
+                            <Button onClick={() => setShowSaveDialog(false)} className="flex-1 py-2 bg-gray-700 text-white rounded-lg">Cancelar</Button>
+                            <Button onClick={handleSaveAsProfile} disabled={saving} className="flex-1 py-2 bg-purple-600 text-white rounded-lg">
                                 {saving ? 'Guardando...' : 'Guardar'}
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </div>

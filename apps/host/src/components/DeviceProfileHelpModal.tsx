@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, FileJson, Download, BookOpen, AlertCircle, HelpCircle, List } from 'lucide-react';
+import { Button } from '@nekazari/ui-kit';
 
 interface DeviceProfileHelpModalProps {
     isOpen: boolean;
@@ -96,12 +97,12 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                             <p className="text-indigo-100 text-sm mt-0.5">Map your IoT data to FIWARE Smart Data Models</p>
                         </div>
                     </div>
-                    <button
+                    <Button
                         onClick={onClose}
                         className="text-white/70 hover:text-white p-1 hover:bg-white/10 rounded-lg transition"
                     >
                         <X className="w-6 h-6" />
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Content */}
@@ -273,14 +274,14 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                             <AlertCircle className="w-4 h-4 text-amber-500" />
                             <span>Need a template to get started?</span>
                         </div>
-                        <button
+                        <Button
                             onClick={downloadTemplate}
                             className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition font-medium shadow-sm w-full md:w-auto justify-center"
                         >
                             <FileJson className="w-4 h-4" />
                             Download JSON Template
                             <Download className="w-4 h-4 ml-1 opacity-70" />
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>

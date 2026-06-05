@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import type { NGSAttribute } from '@/types/ngsi-ld';
 import type { EditorFormState, EntityEditorContextValue } from './types';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const EntityEditorContext = createContext<EntityEditorContextValue | null>(null);
 
 export function useEntityEditor(): EntityEditorContextValue {

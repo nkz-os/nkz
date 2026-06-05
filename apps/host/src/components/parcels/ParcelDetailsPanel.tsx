@@ -9,6 +9,7 @@ import { ParcelAgroStatusDetail } from './ParcelAgroStatusDetail';
 import { ParcelRiskPanel } from './ParcelRiskPanel';
 import type { Parcel } from '@/types';
 import api from '@/services/api';
+import { Button } from '@nekazari/ui-kit';
 
 // Helper function to calculate polygon centroid
 const calculatePolygonCentroid = (coordinates: number[][][]): { lon: number; lat: number } | null => {
@@ -268,13 +269,13 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                             {parcel.id}
                         </p>
                     </div>
-                    <button
+                    <Button
                         onClick={onClose}
                         className="p-1 text-nkz-muted hover:text-gray-600 hover:bg-nkz-bg-secondary rounded transition-colors"
                         title="Cerrar"
                     >
                         <X className="w-5 h-5" />
-                    </button>
+                    </Button>
                 </div>
             </div>
 

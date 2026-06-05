@@ -9,7 +9,11 @@ import { Users, Plus, X } from 'lucide-react';
 import { UserTable, type UserRow } from '@/components/admin/UserTable';
 import { UserEditModal } from '@/components/admin/UserEditModal';
 import { useUserActions } from '@/components/admin/useUserActions';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface TenantUsersManagementProps {
   canManageUsers: boolean;
 }
@@ -53,7 +57,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
       const data = await api.getTenantUsers();
       setTenantUsers(data.users || []);
     } catch (err: unknown) {
-      if (import.meta.env.DEV) console.error('Error loading tenant users:', err);
+      if (import.meta.env.DEV) logger.error('Error loading tenant users:', err);
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status !== 404) {
         setUsersError(t('settings.users.load_error'));
@@ -155,13 +159,13 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
               <p className="text-sm text-gray-600">{t('settings.users.subtitle')}</p>
             </div>
           </div>
-          <button
+          <Button
             onClick={() => setShowCreateUserModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
           >
             <Plus className="w-4 h-4" />
             {t('settings.users.new_user')}
-          </button>
+          </Button>
         </div>
 
         <UserTable
@@ -186,12 +190,12 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">{t('settings.users.create_title')}</h3>
-                <button
+                <Button
                   onClick={() => setShowCreateUserModal(false)}
                   className="text-nkz-muted hover:text-gray-600"
                 >
                   <X className="w-5 h-5" />
-                </button>
+                </Button>
               </div>
 
               <div className="space-y-4">
@@ -199,10 +203,10 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('settings.users.email')} *
                   </label>
-                  <input
+                  <Input
                     type="email"
                     value={newUser.email}
-                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    onChange={(e: any) => setNewUser({ ...newUser, email: e.target.value })}
                     className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="user@example.com"
                   />
@@ -213,10 +217,10 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {t('settings.users.first_name')} *
                     </label>
-                    <input
+                    <Input
                       type="text"
                       value={newUser.firstName}
-                      onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
+                      onChange={(e: any) => setNewUser({ ...newUser, firstName: e.target.value })}
                       className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -224,10 +228,10 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       {t('settings.users.last_name')}
                     </label>
-                    <input
+                    <Input
                       type="text"
                       value={newUser.lastName}
-                      onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
+                      onChange={(e: any) => setNewUser({ ...newUser, lastName: e.target.value })}
                       className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -237,10 +241,10 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('settings.users.temp_password')} *
                   </label>
-                  <input
+                  <Input
                     type="password"
                     value={newUser.password}
-                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    onChange={(e: any) => setNewUser({ ...newUser, password: e.target.value })}
                     className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <p className="mt-1 text-xs text-nkz-muted">
@@ -254,10 +258,10 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                   </label>
                   {TENANT_ASSIGNABLE_ROLES.map((role) => (
                     <label key={role.value} className="flex items-center mb-2">
-                      <input
+                      <Input
                         type="checkbox"
                         checked={newUser.roles.includes(role.value)}
-                        onChange={(e) => {
+                        onChange={(e: any) => {
                           if (e.target.checked) {
                             setNewUser({ ...newUser, roles: [...newUser.roles, role.value] });
                           } else {
@@ -273,19 +277,19 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
               </div>
 
               <div className="flex justify-end space-x-3 mt-6">
-                <button
+                <Button
                   onClick={() => setShowCreateUserModal(false)}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-nkz-bg-secondary rounded-lg hover:bg-gray-200"
                 >
                   {t('settings.cancel')}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleCreateUser}
                   disabled={loadingUsers || !newUser.email || !newUser.password || !newUser.firstName}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loadingUsers ? t('settings.users.creating') : t('settings.users.create_button')}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

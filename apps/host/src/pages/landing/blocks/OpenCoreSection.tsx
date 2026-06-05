@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
 const ossItems = [
   'landing_v2.opencore_oss_1',
@@ -91,13 +92,13 @@ export const OpenCoreSection: React.FC = () => {
                 </li>
               ))}
             </ul>
-            <button
+            <Button
               onClick={() => navigate('/register')}
               className="inline-flex items-center gap-1.5 text-[#1F4D38] font-medium text-sm hover:underline group"
             >
               {t('landing_v2.opencore_cloud_cta')}
               <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-            </button>
+            </Button>
           </div>
         </div>
       </div>

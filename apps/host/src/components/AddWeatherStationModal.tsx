@@ -9,7 +9,11 @@ import { X, Save, MapPin, Cloud, AlertCircle } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { getConfig } from '@/config/environment';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const config = getConfig();
 
 interface AddWeatherStationModalProps {
@@ -124,7 +128,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
       }
       onClose();
     } catch (error: any) {
-      console.error('Error saving weather station:', error);
+      logger.error('Error saving weather station:', error);
       const errorMsg = error.response?.data?.error || (t('weather.save_error'));
       setError(errorMsg);
     } finally {
@@ -142,13 +146,13 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
             <Cloud className="w-6 h-6" />
             {t('weather.title')}
           </h2>
-          <button
+          <Button
             onClick={onClose}
             className="text-white hover:text-gray-200 transition"
             disabled={loading}
           >
             <X className="w-6 h-6" />
-          </button>
+          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -167,10 +171,10 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('weather.name')} *
             </label>
-            <input
+            <Input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
               placeholder={t('weather.name_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               disabled={loading}
@@ -185,11 +189,11 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
                 <MapPin className="w-4 h-4" />
                 {t('weather.latitude')} *
               </label>
-              <input
+              <Input
                 type="number"
                 step="any"
                 value={formData.latitude}
-                onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
+                onChange={(e: any) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('weather.latitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 disabled={loading}
@@ -201,11 +205,11 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
                 <MapPin className="w-4 h-4" />
                 {t('weather.longitude')} *
               </label>
-              <input
+              <Input
                 type="number"
                 step="any"
                 value={formData.longitude}
-                onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
+                onChange={(e: any) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('weather.longitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 disabled={loading}
@@ -219,11 +223,11 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('weather.elevation')}
             </label>
-            <input
+            <Input
               type="number"
               step="0.1"
               value={formData.elevation}
-              onChange={(e) => setFormData({ ...formData, elevation: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, elevation: e.target.value })}
               placeholder={t('weather.elevation_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               disabled={loading}
@@ -236,10 +240,10 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('weather.icon2d')}
               </label>
-              <input
+              <Input
                 type="url"
                 value={formData.icon2d}
-                onChange={(e) => setFormData({ ...formData, icon2d: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, icon2d: e.target.value })}
                 placeholder="https://ejemplo.com/icono.png"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 disabled={loading}
@@ -249,10 +253,10 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('weather.model3d')}
               </label>
-              <input
+              <Input
                 type="url"
                 value={formData.model3d}
-                onChange={(e) => setFormData({ ...formData, model3d: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, model3d: e.target.value })}
                 placeholder="https://ejemplo.com/modelo.glb"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 disabled={loading}
@@ -267,7 +271,7 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
             </label>
             <textarea
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               placeholder={t('weather.notes_placeholder')}
@@ -277,22 +281,22 @@ export const AddWeatherStationModal: React.FC<AddWeatherStationModalProps> = ({
 
           {/* Buttons */}
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
               type="submit"
               disabled={loading}
               className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               {loading ? (t('weather.saving')) : (t('weather.save'))}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={onClose}
               disabled={loading}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('common.cancel')}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

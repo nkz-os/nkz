@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Cloud, 
   Database,
   Droplets, 
@@ -25,6 +26,7 @@ import { parcelApi } from '@/services/parcelApi';
 import { useI18n } from '@/context/I18nContext';
 import { useTenantMunicipality } from '@/hooks/useTenantMunicipality';
 import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface WeatherObservation {
   observed_at: string;
@@ -623,17 +625,17 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
           <div className="flex gap-2">
             {/* Parcel selector */}
             <div className="relative">
-              <button
+              <Button
                 onClick={() => setShowParcelSearch(!showParcelSearch)}
                 className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white text-sm flex items-center gap-2"
               >
                 <MapPin className="w-4 h-4" />
                 {selectedParcelName ? selectedParcelName.substring(0, 20) : t('weather.agro_panel.select_parcel')}
-              </button>
+              </Button>
               {showParcelSearch && parcels.length > 0 && (
                 <div className="absolute right-0 mt-1 w-64 max-h-64 overflow-y-auto bg-white rounded-lg shadow-lg z-50 border border-nkz-border">
                   {parcels.map((p) => (
-                    <button
+                    <Button
                       key={p.id}
                       onClick={() => {
                         setSelectedParcelId(p.id);
@@ -646,26 +648,26 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                     >
                       <MapPin className="w-3 h-3 text-green-500 flex-shrink-0" />
                       <span className="truncate">{p.name}</span>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
             </div>
             {/* Municipality search toggle */}
-            <button
+            <Button
               onClick={() => setShowMunicipalitySearch(!showMunicipalitySearch)}
               className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white text-sm flex items-center gap-2"
               title={t('weather.agro_panel.search')}
             >
               <Search className="w-4 h-4" />
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={loadWeatherData}
               disabled={loading || (!selectedMunicipalityCode && !selectedParcelId)}
               className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition text-white disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -675,10 +677,10 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
         <div className="p-4 bg-nkz-bg-secondary border-b">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-nkz-muted" />
-            <input
+            <Input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e: any) => setSearchTerm(e.target.value)}
               placeholder={t('weather.agro_panel.search_municipality_placeholder')}
               className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
@@ -689,7 +691,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
           {municipalities.length > 0 ? (
             <div className="mt-2 max-h-64 overflow-y-auto border border-nkz-border rounded-lg bg-white shadow-lg">
               {municipalities.map((municipality) => (
-                <button
+                <Button
                   key={municipality.code}
                   onClick={() => {
                     const code = municipality.code;
@@ -717,7 +719,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                   <span className="text-sm font-medium text-gray-900">
                     {municipality.fullName || municipality.name}
                   </span>
-                </button>
+                </Button>
               ))}
             </div>
           ) : searchTerm.length >= 2 ? (
@@ -856,12 +858,12 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
           <div className="text-center py-12">
             <Sprout className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-600 mb-4">{t('weather.agro_panel.no_data_available')}</p>
-            <button
+            <Button
               onClick={() => setShowMunicipalitySearch(true)}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
             >
               {t('weather.agro_panel.select_municipality_button')}
-            </button>
+            </Button>
           </div>
         )}
       </div>

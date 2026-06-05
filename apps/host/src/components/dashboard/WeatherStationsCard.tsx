@@ -2,6 +2,7 @@ import React from 'react';
 import { Cloud, Plus } from 'lucide-react';
 import type { WeatherStation } from '@/types';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
 interface WeatherStationsCardProps {
   weatherStations: WeatherStation[];
@@ -26,13 +27,13 @@ export const WeatherStationsCard: React.FC<WeatherStationsCardProps> = ({ weathe
             <Cloud className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-nkz-muted mb-4">{t('dashboard.weather.no_stations')}</p>
             {canManageDevices && (
-              <button
+              <Button
                 onClick={() => onOpenWizard('WeatherObserved')}
                 className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-4 h-4" />
                 {t('dashboard.weather.add_station')}
-              </button>
+              </Button>
             )}
           </div>
         ) : (

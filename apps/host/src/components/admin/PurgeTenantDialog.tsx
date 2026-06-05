@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { Loader2, Skull } from 'lucide-react';
 import client from '@/services/api';
 import { PurgeProgressBar } from './PurgeProgressBar';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface PhaseResult {
   phase: string;
   ok: boolean;
@@ -94,10 +96,10 @@ export const PurgeTenantDialog: React.FC<Props> = ({ tenantId, tenantName, onClo
                 {t('admin.purge_irreversible_warning')}
               </p>
             </div>
-            <button onClick={() => setStep('confirm')}
+            <Button onClick={() => setStep('confirm')}
               className="w-full mt-4 py-2 bg-nkz-danger text-white rounded">
               {t('admin.purge_continue_button')}
-            </button>
+            </Button>
           </>
         )}
 
@@ -108,25 +110,25 @@ export const PurgeTenantDialog: React.FC<Props> = ({ tenantId, tenantName, onClo
               <p className="text-sm text-nkz-danger mt-2">{t('admin.purge_double_confirm')}</p>
             </div>
             <div className="space-y-4">
-              <input type="text" value={confirmName}
-                onChange={(e) => setConfirmName(e.target.value)}
+              <Input type="text" value={confirmName}
+                onChange={(e: any) => setConfirmName(e.target.value)}
                 className="w-full p-2 border border-nkz-danger rounded bg-nkz-bg text-nkz-text-primary"
                 placeholder={t('admin.purge_type_tenant_id', { id: tenantId })} />
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={confirmedIrreversible}
-                  onChange={(e) => setConfirmedIrreversible(e.target.checked)} />
+                <Input type="checkbox" checked={confirmedIrreversible}
+                  onChange={(e: any) => setConfirmedIrreversible(e.target.checked)} />
                 {t('admin.purge_confirm_irreversible')}
               </label>
             </div>
             <div className="mt-4 flex justify-end gap-3">
-              <button onClick={() => setStep('inventory')} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">
+              <Button onClick={() => setStep('inventory')} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">
                 {t('common.back')}
-              </button>
-              <button onClick={handleStartPurge}
+              </Button>
+              <Button onClick={handleStartPurge}
                 disabled={confirmName !== tenantId || !confirmedIrreversible}
                 className="px-4 py-2 bg-nkz-danger text-white rounded disabled:opacity-50">
                 {t('admin.purge_execute_button')}
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -136,9 +138,9 @@ export const PurgeTenantDialog: React.FC<Props> = ({ tenantId, tenantName, onClo
             <PurgeProgressBar phases={phases} running={running} />
             {step === 'done' && (
               <div className="mt-6 text-center">
-                <button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">
+                <Button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">
                   {t('common.close')}
-                </button>
+                </Button>
               </div>
             )}
           </>

@@ -5,9 +5,11 @@
 // map layers, entity selection, timeline, and module panels.
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useMemo, useEffect } from 'react';
+import { logger } from '@/utils/logger';
 
 // Types for viewer state
 export type LayerType =
+/* eslint-disable @typescript-eslint/no-explicit-any */
     | 'parcels'
     | 'robots'
     | 'sensors'
@@ -232,7 +234,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         // Read selectedEntity param
         const selectedEntity = searchParams.get('selectedEntity');
         if (selectedEntity) {
-            console.log('[ViewerContext] Deep link: selecting entity', selectedEntity);
+            logger.log('[ViewerContext] Deep link: selecting entity', selectedEntity);
             setSelectedEntityId(selectedEntity);
             // Auto-open right panel when entity is selected via URL
             setIsRightPanelOpen(true);
@@ -242,7 +244,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         const activeLayersParam = searchParams.get('activeLayers');
         if (activeLayersParam) {
             const layersToActivate = activeLayersParam.split(',').map(l => l.trim()) as LayerType[];
-            console.log('[ViewerContext] Deep link: activating layers', layersToActivate);
+            logger.log('[ViewerContext] Deep link: activating layers', layersToActivate);
             
             // Set the layers from the URL (merge with defaults or replace)
             setActiveLayers(prev => {

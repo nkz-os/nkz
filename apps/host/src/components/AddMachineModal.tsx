@@ -10,7 +10,11 @@ import { useI18n } from '@/context/I18nContext';
 import { getConfig } from '@/config/environment';
 import api from '@/services/api';
 import type { AgriculturalMachine } from '@/types';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const config = getConfig();
 
 interface AddMachineModalProps {
@@ -158,7 +162,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
       }
       onClose();
     } catch (error: unknown) {
-      console.error('Error saving machine:', error);
+      logger.error('Error saving machine:', error);
       const ax = error as { response?: { data?: { error?: string } } };
       const errorMsg = ax.response?.data?.error || (t('machines.save_error'));
       setError(errorMsg);
@@ -177,13 +181,13 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
             <Tractor className="w-6 h-6" />
             {t('machines.title')}
           </h2>
-          <button
+          <Button
             onClick={onClose}
             className="text-white hover:text-gray-200 transition"
             disabled={loading}
           >
             <X className="w-6 h-6" />
-          </button>
+          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -202,10 +206,10 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('machines.name')} *
             </label>
-            <input
+            <Input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
               placeholder={t('machines.name_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               disabled={loading}
@@ -219,10 +223,10 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('machines.manufacturer')}
               </label>
-              <input
+              <Input
                 type="text"
                 value={formData.manufacturer}
-                onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, manufacturer: e.target.value })}
                 placeholder={t('machines.manufacturer_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
@@ -232,10 +236,10 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('machines.model')}
               </label>
-              <input
+              <Input
                 type="text"
                 value={formData.model}
-                onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, model: e.target.value })}
                 placeholder={t('machines.model_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
@@ -248,10 +252,10 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('machines.serial_number')}
             </label>
-            <input
+            <Input
               type="text"
               value={formData.serialNumber}
-              onChange={(e) => setFormData({ ...formData, serialNumber: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, serialNumber: e.target.value })}
               placeholder={t('machines.serial_number_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               disabled={loading}
@@ -266,7 +270,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               </label>
               <select
                 value={formData.status}
-                onChange={(e) =>
+                onChange={(e: any) =>
                   setFormData({ ...formData, status: e.target.value as typeof formData.status })
                 }
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -284,7 +288,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               </label>
               <select
                 value={formData.operation_type}
-                onChange={(e) =>
+                onChange={(e: any) =>
                   setFormData({
                     ...formData,
                     operation_type: e.target.value as typeof formData.operation_type
@@ -305,11 +309,11 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
 
           {/* ISOBUS Compatibility */}
           <div className="flex items-center">
-            <input
+            <Input
               type="checkbox"
               id="isobus"
               checked={formData.isobusCompatible}
-              onChange={(e) => setFormData({ ...formData, isobusCompatible: e.target.checked })}
+              onChange={(e: any) => setFormData({ ...formData, isobusCompatible: e.target.checked })}
               className="w-4 h-4 text-orange-600 border-nkz-border rounded focus:ring-orange-500"
               disabled={loading}
             />
@@ -324,11 +328,11 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 <MapPin className="w-4 h-4" />
                 Latitud (GPS) *
               </label>
-              <input
+              <Input
                 type="number"
                 step="any"
                 value={formData.latitude}
-                onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
+                onChange={(e: any) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: 42.571493"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
@@ -340,11 +344,11 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 <MapPin className="w-4 h-4" />
                 Longitud (GPS) *
               </label>
-              <input
+              <Input
                 type="number"
                 step="any"
                 value={formData.longitude}
-                onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
+                onChange={(e: any) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: -2.028218"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
@@ -360,11 +364,11 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 <MapPin className="w-4 h-4" />
                 {t('machines.latitude')} *
               </label>
-              <input
+              <Input
                 type="number"
                 step="any"
                 value={formData.latitude}
-                onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
+                onChange={(e: any) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('machines.latitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
@@ -376,11 +380,11 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 <MapPin className="w-4 h-4" />
                 {t('machines.longitude')} *
               </label>
-              <input
+              <Input
                 type="number"
                 step="any"
                 value={formData.longitude}
-                onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
+                onChange={(e: any) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('machines.longitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
@@ -395,10 +399,10 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('machines.icon2d')}
               </label>
-              <input
+              <Input
                 type="url"
                 value={formData.icon2d}
-                onChange={(e) => setFormData({ ...formData, icon2d: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, icon2d: e.target.value })}
                 placeholder="https://ejemplo.com/icono.png"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
@@ -408,10 +412,10 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('machines.model3d')}
               </label>
-              <input
+              <Input
                 type="url"
                 value={formData.model3d}
-                onChange={(e) => setFormData({ ...formData, model3d: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, model3d: e.target.value })}
                 placeholder="https://ejemplo.com/modelo.glb"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 disabled={loading}
@@ -426,7 +430,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
             </label>
             <textarea
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               placeholder={t('machines.notes_placeholder')}
@@ -436,22 +440,22 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
 
           {/* Buttons */}
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
               type="submit"
               disabled={loading}
               className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               {loading ? (t('machines.saving')) : (t('machines.save'))}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={onClose}
               disabled={loading}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('common.cancel')}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

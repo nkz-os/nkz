@@ -2,13 +2,14 @@ import React from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useEntityEditor } from '../EntityEditorContext';
 import type { NGSAttribute } from '@/types/ngsi-ld';
+import { Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const GeometrySection: React.FC = () => {
   const { t } = useI18n();
   const { formState, setField } = useEntityEditor();
   const locationAttr = formState.attributes['location'];
   if (!locationAttr || (locationAttr as any).type !== 'GeoProperty') return null;
-
   const locValue = (locationAttr as any).value;
   const geomType = locValue?.type || 'Point';
   const coords = locValue?.coordinates;
@@ -38,21 +39,21 @@ export const GeometrySection: React.FC = () => {
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-gray-600">Longitud</label>
-              <input
+              <Input
                 type="number"
                 step="0.000001"
                 value={coords[0] ?? ''}
-                onChange={e => handleCoordsChange([Number(e.target.value), coords[1]])}
+                onChange={(e: any) => handleCoordsChange([Number(e.target.value), coords[1]])}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-gray-600">Latitud</label>
-              <input
+              <Input
                 type="number"
                 step="0.000001"
                 value={coords[1] ?? ''}
-                onChange={e => handleCoordsChange([coords[0], Number(e.target.value)])}
+                onChange={(e: any) => handleCoordsChange([coords[0], Number(e.target.value)])}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
               />
             </div>

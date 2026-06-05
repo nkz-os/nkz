@@ -10,8 +10,11 @@ import { useI18n } from '@/context/I18nContext';
 import { detectTerrainProviderFromParcels, getTerrainProviderUrl, getTerrainProviderName, type TerrainProviderType } from '@/utils/terrain';
 import { getNDVIColor } from '@/utils/ndviColors';
 import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
+
 // api y getConfig ya no son necesarios - terrain usa providers externos directamente
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface CadastralParcel {
   id: string;
   cadastral_reference?: string;
@@ -1037,7 +1040,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="flex flex-wrap items-center gap-3">
-        <button
+        <Button
           type="button"
           onClick={startDrawing}
           disabled={isDrawing || disabled}
@@ -1045,15 +1048,15 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
         >
           <Compass className="w-4 h-4 mr-2" />
           {isDrawing ? t('common.drawing') : disabled ? t('common.read_only') : t('common.start_drawing')}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={resetDrawing}
           className="inline-flex items-center px-3 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm hover:bg-gray-300 transition-colors"
         >
           <Eraser className="w-4 h-4 mr-2" />
           {t('common.clear')}
-        </button>
+        </Button>
         {isDrawing && (
           <span className="inline-flex items-center text-sm text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
             <MousePointer2 className="w-4 h-4 mr-2" />
@@ -1070,7 +1073,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       >
         <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
           {/* 3D Toggle */}
-          <button
+          <Button
             type="button"
             onClick={() => setEnable3D(!enable3D)}
             className={`inline-flex items-center justify-center rounded-full p-2 transition ${enable3D
@@ -1081,11 +1084,11 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
             title={enable3D ? 'Desactivar vista 3D' : 'Activar vista 3D'}
           >
             <Mountain className="w-4 h-4" />
-          </button>
+          </Button>
           {/* Terrain Provider Picker */}
           {enable3D && (
             <div className="relative terrain-picker-container">
-              <button
+              <Button
                 type="button"
                 onClick={() => setShowTerrainPicker(!showTerrainPicker)}
                 className="inline-flex items-center justify-center rounded-full bg-black/60 text-white p-2 hover:bg-black/70 transition"
@@ -1093,13 +1096,13 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                 title={`Modelo actual: ${terrainProvider === 'auto' ? 'Auto' : getTerrainProviderName(terrainProvider as 'idena' | 'ign')}`}
               >
                 <Layers className="w-4 h-4" />
-              </button>
+              </Button>
               {showTerrainPicker && (
                 <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-nkz-border min-w-[200px] overflow-hidden z-30">
                   <div className="px-3 py-2 bg-nkz-bg-secondary border-b border-nkz-border">
                     <p className="text-xs font-semibold text-gray-700">Modelo de Elevación</p>
                   </div>
-                  <button
+                  <Button
                     type="button"
                     onClick={() => {
                       setTerrainProvider('auto');
@@ -1110,8 +1113,8 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                   >
                     <div className="font-medium">Auto</div>
                     <div className="text-xs text-nkz-muted mt-0.5">Detectar según ubicación</div>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={() => {
                       setTerrainProvider('idena');
@@ -1122,8 +1125,8 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                   >
                     <div className="font-medium">IDENA</div>
                     <div className="text-xs text-nkz-muted mt-0.5">Navarra (5m resolución)</div>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={() => {
                       setTerrainProvider('ign');
@@ -1134,24 +1137,24 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                   >
                     <div className="font-medium">IGN</div>
                     <div className="text-xs text-nkz-muted mt-0.5">España completa</div>
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
           )}
           {/* Layer Picker */}
           <div className="relative layer-picker-container">
-            <button
+            <Button
               type="button"
               onClick={() => setShowLayerPicker(!showLayerPicker)}
               className="inline-flex items-center justify-center rounded-full bg-black/60 text-white p-2 hover:bg-black/70 transition"
               aria-label="Seleccionar capa base"
             >
               <Layers className="w-4 h-4" />
-            </button>
+            </Button>
             {showLayerPicker && (
               <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-nkz-border min-w-[180px] overflow-hidden z-30">
-                <button
+                <Button
                   type="button"
                   onClick={() => {
                     setBaseLayer('osm');
@@ -1161,8 +1164,8 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                     }`}
                 >
                   OpenStreetMap
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => {
                     setBaseLayer('pnoa');
@@ -1172,8 +1175,8 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                     }`}
                 >
                   PNOA (Ortofoto)
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => {
                     setBaseLayer('cnig');
@@ -1183,19 +1186,19 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                     }`}
                 >
                   CNIG (Relieve)
-                </button>
+                </Button>
               </div>
             )}
           </div>
           {/* Fullscreen Button */}
-          <button
+          <Button
             type="button"
             onClick={toggleFullscreen}
             className="inline-flex items-center justify-center rounded-full bg-black/60 text-white p-2 hover:bg-black/70 transition"
             aria-label={isFullscreen ? t('common.exit_fullscreen') : t('common.fullscreen')}
           >
             {isFullscreen ? <Minimize className="w-4 h-4" /> : <Expand className="w-4 h-4" />}
-          </button>
+          </Button>
         </div>
         <div ref={containerRef} className="w-full h-full" />
       </div>

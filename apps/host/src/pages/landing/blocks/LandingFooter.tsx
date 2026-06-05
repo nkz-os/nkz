@@ -3,7 +3,9 @@ import { Globe } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { NkzAttribution } from '@/components/attribution/NkzAttribution';
 import { useCookieConsent } from '@/context/CookieConsentContext';
+import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Props {
   language: string;
   supportedLanguages: Record<string, string>;
@@ -63,13 +65,13 @@ export const LandingFooter: React.FC<Props> = ({
               <li><a href="https://nkz-os.org/privacy" className="hover:text-[#FAFAF7] transition-colors" target="_blank" rel="noopener noreferrer">{t('landing_v2.footer_col3_3')}</a></li>
               <li><a href="https://nkz-os.org/terms" className="hover:text-[#FAFAF7] transition-colors" target="_blank" rel="noopener noreferrer">{t('landing_v2.footer_col3_4')}</a></li>
               <li>
-                <button
+                <Button
                   type="button"
                   onClick={openPreferences}
                   className="hover:text-[#FAFAF7] transition-colors bg-transparent border-0 cursor-pointer p-0 text-left text-[inherit] font-inherit"
                 >
                   {t('layout.cookie_settings')}
-                </button>
+                </Button>
               </li>
               <li>
                 <a
@@ -92,18 +94,18 @@ export const LandingFooter: React.FC<Props> = ({
           <div className="flex items-center gap-4">
             <NkzAttribution variant="commercial" />
             <div className="relative">
-              <button
+              <Button
                 onClick={() => setShowLanguageMenu(!showLanguageMenu)}
                 className="inline-flex items-center gap-1 text-[#A8B1AC] hover:text-[#FAFAF7] transition-colors"
               >
                 <Globe className="h-3.5 w-3.5" />
                 {supportedLanguages[language] || 'ES'}
-              </button>
+              </Button>
               {showLanguageMenu && (
                 <>
                   <div className="absolute bottom-full right-0 mb-2 w-36 rounded-lg shadow-lg bg-white ring-1 ring-black/5 z-20 overflow-hidden">
                     {Object.entries(supportedLanguages).map(([code, name]) => (
-                      <button
+                      <Button
                         key={code}
                         onClick={() => onLanguageChange(code)}
                         className={`block w-full text-left px-3 py-2 text-xs transition-colors ${
@@ -113,7 +115,7 @@ export const LandingFooter: React.FC<Props> = ({
                         }`}
                       >
                         {name as string}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                   <div className="fixed inset-0 z-10" onClick={() => setShowLanguageMenu(false)} />

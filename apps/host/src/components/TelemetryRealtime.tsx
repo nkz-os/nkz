@@ -6,6 +6,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Activity, Thermometer, Droplets, Gauge, Wind, Sun, Zap, AlertCircle } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+
 
 interface TelemetryValue {
   observed_at: string;
@@ -74,7 +76,7 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
         setIsConnected(false);
       }
     } catch (err: any) {
-      console.error('Error loading telemetry:', err);
+      logger.error('Error loading telemetry:', err);
       setIsConnected(false);
       setError(err?.response?.data?.error || t('sensors.telemetry_error'));
     } finally {

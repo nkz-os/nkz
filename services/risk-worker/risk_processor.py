@@ -404,7 +404,11 @@ class RiskProcessor:
     def _get_telemetry_data(
         self, tenant_id: str, device_id: str, metric_name: str, hours: int = 24
     ) -> Optional[List[Dict[str, Any]]]:
-        """Get latest telemetry data for device"""
+        """Get latest telemetry data for device.
+
+        FIWARE COMPLIANCE: Reads from telemetry_measurements which is
+        populated by NGSI-LD subscription notifications (not direct writes).
+        """
         if not self.postgres:
             return None
 
@@ -414,13 +418,17 @@ class RiskProcessor:
 
             cursor.execute(
                 """
-                SELECT metric_name, value, unit, time, metadata
-                FROM telemetry
+                SELECT attribute_name AS metric_name,
+                       value,
+                       NULL::text AS unit,
+                       observed_at AS time,
+                       '{}'::jsonb AS metadata
+                FROM telemetry_measurements
                 WHERE tenant_id = %s
                   AND device_id = %s
-                  AND metric_name = %s
-                  AND time >= NOW() - INTERVAL '%s hours'
-                ORDER BY time DESC
+                  AND attribute_name = %s
+                  AND observed_at >= NOW() - INTERVAL '%s hours'
+                ORDER BY observed_at DESC
                 LIMIT 100
             """,
                 (tenant_id, device_id, metric_name, hours),

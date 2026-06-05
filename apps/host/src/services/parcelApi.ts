@@ -11,6 +11,7 @@ import { getConfig } from '@/config/environment';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { api } from '@/services/api';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const config = getConfig();
 
 // Function to get current token

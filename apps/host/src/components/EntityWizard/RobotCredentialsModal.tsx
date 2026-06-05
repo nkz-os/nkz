@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, Shield, Server, Wifi } from 'lucide-react';
+import { Button, Input } from '@nekazari/ui-kit';
 
 export interface RobotCredentials {
   robot_uuid: string;
@@ -33,13 +34,13 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
     <div className="space-y-1">
       <label className="block text-xs font-medium text-gray-700">{label}</label>
       <div className="flex items-center gap-2">
-        <input
+        <Input
           type="text"
           value={value}
           readOnly
           className="flex-1 px-3 py-2 text-sm border border-nkz-border rounded bg-nkz-bg-secondary font-mono"
         />
-        <button
+        <Button
           type="button"
           onClick={() => copyToClipboard(value, fieldName)}
           className="px-3 py-2 border border-nkz-border rounded hover:bg-nkz-bg-secondary transition"
@@ -49,7 +50,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
             ? <Check className="w-4 h-4 text-nkz-success" />
             : <Copy className="w-4 h-4" />
           }
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -70,9 +71,9 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/70 hover:text-white p-1">
+          <Button onClick={onClose} className="text-white/70 hover:text-white p-1">
             <X className="w-6 h-6" />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
@@ -112,13 +113,13 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
 
         {/* Footer */}
         <div className="bg-nkz-bg-secondary px-6 py-4 border-t rounded-b-2xl">
-          <button
+          <Button
             type="button"
             onClick={onClose}
             className="w-full px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-medium"
           >
             Done
-          </button>
+          </Button>
         </div>
       </div>
     </div>

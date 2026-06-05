@@ -2,7 +2,9 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
+import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const FinalCTA: React.FC = () => {
   const { t } = useI18n();
   const navigate = useNavigate();
@@ -23,13 +25,13 @@ export const FinalCTA: React.FC = () => {
         </h2>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <button
+          <Button
             onClick={() => navigate('/register')}
             className="inline-flex items-center px-7 py-3.5 bg-white text-[#0E1A14] font-semibold rounded-lg hover:-translate-y-px transition-all duration-200"
             style={{ fontSize: '1rem' }}
           >
             {t('landing_v2.cta_final_primary')}
-          </button>
+          </Button>
           <a
             href={`mailto:${(window as any).__ENV__?.SALES_EMAIL || 'info@nekazari.com'}`}
             className="inline-flex items-center gap-1.5 text-white/70 font-medium hover:text-white transition-colors group"

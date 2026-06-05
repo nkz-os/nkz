@@ -4,7 +4,11 @@
 
 import React, { useState } from 'react';
 import { MapPin, Search, Loader2, Check, AlertCircle } from 'lucide-react';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Polygon {
   type: 'Polygon';
   coordinates: [number, number][][];
@@ -83,7 +87,7 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
       }
     } catch (err) {
       setError('Error al buscar en el catastro. Por favor, inténtalo de nuevo.');
-      console.error('Cadastral search error:', err);
+      logger.error('Cadastral search error:', err);
     } finally {
       setIsSearching(false);
     }
@@ -121,10 +125,10 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
       <form onSubmit={handleSearch} className="mb-4">
         <div className="flex gap-2">
           <div className="flex-1">
-            <input
+            <Input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e: any) => setSearchTerm(e.target.value)}
               placeholder="Ref. Catastral (ej: 48037A02100034)"
               disabled={disabled || isSearching}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-nkz-bg-secondary disabled:cursor-not-allowed"
@@ -134,7 +138,7 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
               Formato: 7 dígitos + 2 letras + 4 dígitos
             </p>
           </div>
-          <button
+          <Button
             type="submit"
             disabled={disabled || isSearching || searchTerm.length < 11}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
@@ -150,7 +154,7 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
                 Buscar
               </>
             )}
-          </button>
+          </Button>
         </div>
       </form>
 
@@ -198,12 +202,12 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
                 {selectedParcel.municipality}, {selectedParcel.province}
               </p>
             </div>
-            <button
+            <Button
               onClick={handleClear}
               className="text-sm text-nkz-success hover:text-green-900 underline"
             >
               Cambiar
-            </button>
+            </Button>
           </div>
         </div>
       )}

@@ -2,14 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { FieldPhotoRecord } from '@/utils/fieldPhotos';
+import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface FieldPhotoCarouselProps {
   photos: FieldPhotoRecord[];
   index: number;
   onIndexChange: (i: number) => void;
   onClose: () => void;
 }
-
 const API = (import.meta as any).env?.VITE_API_URL ?? '';
 
 export const FieldPhotoCarousel: React.FC<FieldPhotoCarouselProps> = ({
@@ -37,21 +38,21 @@ export const FieldPhotoCarousel: React.FC<FieldPhotoCarouselProps> = ({
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 p-4">
-      <button
+      <Button
         type="button" aria-label={t('viewer.fieldPhotos.close')} onClick={onClose}
         className="absolute top-3 right-3 text-white p-2 rounded-nkz-md bg-nkz-surface-sunken/60 hover:bg-nkz-surface-sunken"
       >
         <X className="w-5 h-5" />
-      </button>
+      </Button>
 
       <div className="flex items-center gap-3 max-w-full max-h-full">
-        <button
+        <Button
           type="button" aria-label={t('viewer.fieldPhotos.prev')}
           disabled={index <= 0} onClick={() => onIndexChange(index - 1)}
           className="text-white p-2 rounded-nkz-md bg-nkz-surface-sunken/60 disabled:opacity-30 hover:bg-nkz-surface-sunken"
         >
           <ChevronLeft className="w-6 h-6" />
-        </button>
+        </Button>
 
         {errored ? (
           <div className="max-h-[70vh] max-w-[80vw] rounded-nkz-md flex items-center justify-center bg-nkz-surface-sunken/60 w-64 h-48">
@@ -65,13 +66,13 @@ export const FieldPhotoCarousel: React.FC<FieldPhotoCarouselProps> = ({
           />
         )}
 
-        <button
+        <Button
           type="button" aria-label={t('viewer.fieldPhotos.next')}
           disabled={index >= photos.length - 1} onClick={() => onIndexChange(index + 1)}
           className="text-white p-2 rounded-nkz-md bg-nkz-surface-sunken/60 disabled:opacity-30 hover:bg-nkz-surface-sunken"
         >
           <ChevronRight className="w-6 h-6" />
-        </button>
+        </Button>
       </div>
 
       <div className="mt-3 text-center text-white">

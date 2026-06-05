@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Shield, Sliders, Webhook, RefreshCw,
   ChevronDown, ChevronRight, Zap, Clock, Filter,
 } from 'lucide-react';
@@ -7,6 +8,7 @@ import api from '@/services/api';
 import { SmartRiskPanel } from '@/components/SmartRiskPanel';
 import { RiskWebhooksPanel } from '@/components/RiskWebhooksPanel';
 import type { RiskState, RiskCatalog } from '@/types';
+import { Button } from '@nekazari/ui-kit';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -98,9 +100,9 @@ function RiskRow({ state, catalog }: RiskRowProps) {
         <td className="px-4 py-3 text-xs text-nkz-muted whitespace-nowrap">{formatTimestamp(state.timestamp)}</td>
         <td className="px-4 py-3 text-right">
           {hasDetails && (
-            <button onClick={() => setExpanded(v => !v)} className="text-nkz-muted hover:text-gray-700 transition p-1">
+            <Button onClick={() => setExpanded(v => !v)} className="text-nkz-muted hover:text-gray-700 transition p-1">
               {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-            </button>
+            </Button>
           )}
         </td>
       </tr>
@@ -151,7 +153,7 @@ function ParcelGroup({ entityId, states, catalog }: ParcelGroupProps) {
   return (
     <div className="bg-white rounded-xl border border-nkz-border overflow-hidden shadow-sm mb-4">
       {/* Header / Accordion trigger */}
-      <button 
+      <Button 
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center justify-between p-4 hover:bg-nkz-bg-secondary transition-colors text-left border-b border-gray-100"
       >
@@ -174,7 +176,7 @@ function ParcelGroup({ entityId, states, catalog }: ParcelGroupProps) {
           </div>
           {isExpanded ? <ChevronDown className="w-5 h-5 text-nkz-muted" /> : <ChevronRight className="w-5 h-5 text-nkz-muted" />}
         </div>
-      </button>
+      </Button>
 
       {/* Risks table */}
       {isExpanded && (
@@ -292,7 +294,7 @@ function MonitorTab() {
           const cfg = SEVERITY_CONFIG[sev];
           const count = severityCounts[sev] ?? 0;
           return (
-            <button
+            <Button
               key={sev}
               onClick={() => setFilterSeverity(filterSeverity === sev ? 'all' : sev)}
               className={`rounded-xl border-2 p-4 text-left transition-all ${
@@ -303,7 +305,7 @@ function MonitorTab() {
             >
               <div className={`text-3xl font-bold ${filterSeverity === sev ? cfg.text : 'text-gray-900'}`}>{count}</div>
               <div className={`text-sm font-medium mt-1 ${filterSeverity === sev ? cfg.text : 'text-nkz-muted'}`}>{cfg.label}</div>
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -311,7 +313,7 @@ function MonitorTab() {
       {/* Trigger evaluation + refresh */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <button
+          <Button
             onClick={handleTrigger}
             disabled={triggering}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition"
@@ -320,15 +322,15 @@ function MonitorTab() {
               ? <><RefreshCw className="w-4 h-4 animate-spin" /> Evaluando...</>
               : <><Zap className="w-4 h-4" /> Disparar evaluación</>
             }
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => { setLoading(true); loadStates(); }}
             disabled={loading}
             className="p-2 text-nkz-muted hover:text-gray-700 hover:bg-nkz-bg-secondary rounded-lg transition"
             title="Actualizar"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
+          </Button>
         </div>
         <div className="flex items-center gap-1 text-xs text-nkz-muted">
           <Clock className="w-3 h-3" />
@@ -347,7 +349,7 @@ function MonitorTab() {
         <Filter className="w-4 h-4 text-nkz-muted" />
         <select
           value={filterCode}
-          onChange={e => setFilterCode(e.target.value)}
+          onChange={(e: any) => setFilterCode(e.target.value)}
           className="text-sm border border-nkz-border rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-green-500 outline-none"
         >
           <option value="all">Todos los riesgos</option>
@@ -356,12 +358,12 @@ function MonitorTab() {
           ))}
         </select>
         {filterSeverity !== 'all' && (
-          <button
+          <Button
             onClick={() => setFilterSeverity('all')}
             className="text-xs text-nkz-muted hover:text-gray-700 underline"
           >
             Quitar filtro de severidad
-          </button>
+          </Button>
         )}
         <span className="text-xs text-nkz-muted ml-auto">{filtered.length} riesgos detectados</span>
       </div>
@@ -420,7 +422,7 @@ export const Risks: React.FC = () => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
-            <button
+            <Button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
@@ -431,7 +433,7 @@ export const Risks: React.FC = () => {
             >
               <Icon className="w-4 h-4" />
               {tab.label}
-            </button>
+            </Button>
           );
         })}
       </div>
