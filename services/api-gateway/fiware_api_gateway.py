@@ -159,6 +159,9 @@ BIOORCHESTRATOR_API_URL = os.getenv(
 CROP_HEALTH_API_URL = os.getenv(
     "CROP_HEALTH_API_URL", "http://crop-health-api-service:8000"
 )
+CARBON_API_URL = os.getenv(
+    "CARBON_API_URL", "http://carbon-api-service:8000"
+)
 ROBOTICS_API_URL = os.getenv("ROBOTICS_API_URL", "http://robotics-api-service:80")
 RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
 ROUTING_API_URL = os.getenv(
@@ -3958,6 +3961,14 @@ def bioorchestrator_proxy(path):
 )
 def crop_health_proxy(path):
     return generic_proxy(CROP_HEALTH_API_URL, f"api/crop-health/{path}")
+
+
+@app.route(
+    "/api/carbon/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+)
+def carbon_proxy(path):
+    return generic_proxy(CARBON_API_URL, f"api/carbon/{path}")
 
 
 @app.route(
