@@ -1,14 +1,17 @@
 # Multi-stage build for MODULE_DISPLAY_NAME Frontend
 # Stage 1: Build with Vite
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# Enable pnpm via Corepack
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
 # Copy package files
-COPY package.json package-lock.json* ./
+COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN pnpm install --frozen-lockfile
 
 # Copy all necessary files for build
 COPY src/ ./src/
@@ -21,7 +24,7 @@ COPY postcss.config.js ./
 COPY manifest.json ./
 
 # Build application
-RUN npm run build
+RUN pnpm run build
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
