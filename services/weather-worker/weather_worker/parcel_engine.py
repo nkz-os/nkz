@@ -17,7 +17,6 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-from shapely.geometry import shape
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +210,8 @@ class ParcelWeatherEngine:
 
         if geom_type in ("Polygon", "MultiPolygon") and coords:
             try:
+                from shapely.geometry import shape  # lazy import — only for polygon centroids
+
                 shapely_geom = shape(loc_value)
                 centroid = shapely_geom.centroid
                 return (centroid.x, centroid.y), altitude
