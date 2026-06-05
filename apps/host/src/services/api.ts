@@ -44,6 +44,68 @@ export interface TenantUsersResponse {
   [key: string]: unknown;
 }
 
+/** Response shape for /api/weather/parcel/:id/agro-status */
+export interface AgroStatusResponse {
+  parcel_id: string;
+  parcel_name: string;
+  centroid: { latitude: number; longitude: number };
+  semaphores: {
+    spraying: 'optimal' | 'caution' | 'not_suitable' | 'unknown';
+    workability: 'optimal' | 'too_wet' | 'too_dry' | 'caution' | 'unknown';
+    irrigation: 'satisfied' | 'alert' | 'deficit' | 'unknown';
+  };
+  weather: {
+    temperature: number | null;
+    humidity: number | null;
+    wind_speed: number | null;
+    wind_direction: number | null;
+    pressure: number | null;
+    precipitation: number;
+    precipitation_3d: number;
+    eto_today: number | null;
+    eto_3d: number | null;
+    wind_gusts: number | null;
+    water_balance: number | null;
+    observed_at: string | null;
+    sources: Record<string, string>;
+    source_confidence: string;
+    sensor?: {
+      external_id: string;
+      name: string;
+      distance_m: number;
+      last_observation: string;
+    };
+  };
+  metrics?: {
+    temperature: number | null;
+    humidity: number | null;
+    delta_t: number | null;
+    water_balance: number | null;
+    wind_speed: number | null;
+    wind_gusts: number | null;
+    precip_probability: number | null;
+    spraying_reason: string | null;
+    moisture: number | null;
+  };
+  soil?: {
+    texture_applied: boolean;
+    texture_class?: string;
+    field_capacity?: number;
+    wilting_point?: number;
+    ksat?: number;
+    hydrologic_group?: string;
+    source?: string;
+  };
+  crop?: {
+    stage?: string;
+    spraying_sensitivity?: string;
+  };
+  inversion_risk: boolean;
+  source_confidence: string;
+  downscaling: string;
+  timestamp: string;
+}
+
 // Internal Keycloak instance reference for token refresh / cookie update.
 // Set via setKeycloakRef() from KeycloakAuthContext — never exposed to modules.
 let _keycloakRef: { token?: string; updateToken: (minValidity: number) => Promise<boolean> } | null = null;
@@ -1354,65 +1416,7 @@ class ApiService {
     }
   }
 
-  async getParcelAgroStatus(parcelId: string): Promise<{
-    parcel_id: string;
-    parcel_name: string;
-    centroid: { latitude: number; longitude: number };
-    semaphores: {
-      spraying: 'optimal' | 'caution' | 'not_suitable' | 'unknown';
-      workability: 'optimal' | 'too_wet' | 'too_dry' | 'caution' | 'unknown';
-      irrigation: 'satisfied' | 'alert' | 'deficit' | 'unknown';
-    };
-    weather: {
-      temperature?: number;
-      humidity?: number;
-      wind_speed?: number;
-      wind_direction?: number;
-      pressure?: number;
-      precipitation: number;
-      precipitation_3d: number;
-      eto_today?: number;
-      eto_3d?: number;
-      wind_gusts?: number;
-      water_balance?: number;
-      observed_at?: string;
-      sources: Record<string, string>;
-      source_confidence: string;
-      sensor?: {
-        external_id: string;
-        name: string;
-        distance_m: number;
-        last_observation: string;
-      };
-    };
-    metrics?: {
-      temperature?: number;
-      humidity?: number;
-      delta_t?: number;
-      water_balance?: number;
-      wind_speed?: number;
-      wind_gusts?: number;
-      precip_probability?: number;
-      spraying_reason?: string;
-    };
-    soil?: {
-      texture_applied: boolean;
-      texture_class?: string;
-      field_capacity?: number;
-      wilting_point?: number;
-      ksat?: number;
-      hydrologic_group?: string;
-      source?: string;
-    };
-    crop?: {
-      stage?: string;
-      spraying_sensitivity?: string;
-    };
-    inversion_risk: boolean;
-    source_confidence: string;
-    downscaling: string;
-    timestamp: string;
-  }> {
+  async getParcelAgroStatus(parcelId: string): Promise<AgroStatusResponse> {
     try {
       const response = await this.client.get(`/api/weather/parcel/${parcelId}/agro-status`);
       return response.data;

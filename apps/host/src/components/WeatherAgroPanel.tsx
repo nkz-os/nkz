@@ -21,7 +21,7 @@ import {
   MapPin,
   Search
 } from 'lucide-react';
-import api from '@/services/api';
+import api, { type AgroStatusResponse } from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
 import { useI18n } from '@/context/I18nContext';
 import { useTenantHomeLocation } from '@/hooks/useTenantHomeLocation';
@@ -60,40 +60,6 @@ interface ParcelSensor {
   };
 }
 
-interface AgroStatusSemaphore {
-  semaphores: {
-    spraying: SprayingCondition;
-    workability: WorkabilityCondition;
-    irrigation: IrrigationCondition;
-  };
-  source_confidence: string;
-  metrics?: {
-    temperature?: number;
-    humidity?: number;
-    delta_t?: number;
-    water_balance?: number;
-    wind_speed?: number;
-    wind_gusts?: number;
-    precip_probability?: number;
-    spraying_reason?: string;
-  };
-  downscaling?: string;
-  soil?: {
-    texture_applied: boolean;
-    texture_class?: string;
-    field_capacity?: number;
-    wilting_point?: number;
-    ksat?: number;
-    hydrologic_group?: string;
-    source?: string;
-  };
-  crop?: {
-    stage?: string;
-    spraying_sensitivity?: string;
-  };
-  inversion_risk?: boolean;
-  timestamp?: string;
-}
 
 interface WeatherAgroPanelProps {
   municipalityCode?: string;
@@ -171,7 +137,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   const [currentWeather, setCurrentWeather] = useState<WeatherObservation | null>(null);
   const [historicalWeather, setHistoricalWeather] = useState<WeatherObservation[]>([]);
   const [parcelSensors, setParcelSensors] = useState<ParcelSensor[]>([]);
-  const [agroStatus, setAgroStatus] = useState<AgroStatusSemaphore | null>(null);
+  const [agroStatus, setAgroStatus] = useState<AgroStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMunicipalitySearch, setShowMunicipalitySearch] = useState(false);

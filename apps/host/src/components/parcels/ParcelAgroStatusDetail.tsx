@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Wind, Droplets, Thermometer, Radio, Cloud, AlertCircle, Loader2, Sprout } from 'lucide-react';
-import api from '@/services/api';
+import api, { type AgroStatusResponse } from '@/services/api';
 import { logger } from '@/utils/logger';
+import { safeFixed } from '@/utils/format';
 
 
 interface ParcelAgroStatusDetailProps {
@@ -18,23 +19,6 @@ type Semaphore =
   | 'alert'
   | 'deficit'
   | 'unknown';
-
-interface AgroStatus {
-  semaphores: {
-    spraying: Semaphore;
-    workability: Semaphore;
-    irrigation: Semaphore;
-  };
-  source_confidence: string;
-  metrics?: {
-    temperature?: number;
-    humidity?: number;
-    delta_t?: number;
-    water_balance?: number;
-    moisture?: number;
-  };
-  timestamp?: string;
-}
 
 const statusLabel = (type: 'spraying' | 'workability' | 'irrigation', value: Semaphore) => {
   const map: Record<typeof type, Record<Semaphore, string>> = {
@@ -94,7 +78,7 @@ const badgeColor = (value: Semaphore) => {
 };
 
 export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ parcelId }) => {
-  const [status, setStatus] = useState<AgroStatus | null>(null);
+  const [status, setStatus] = useState<AgroStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -199,7 +183,7 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
           statusLabel('spraying', semaphores.spraying),
           <Wind className="w-5 h-5" />,
           badgeColor(semaphores.spraying),
-          metrics?.delta_t !== undefined ? `ΔT: ${metrics.delta_t.toFixed(1)}°C` : undefined
+          metrics?.delta_t != null ? `ΔT: ${safeFixed(metrics.delta_t, 1)}°C` : undefined
         )}
 
         {detailRow(
@@ -207,7 +191,7 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
           statusLabel('workability', semaphores.workability),
           <Droplets className="w-5 h-5" />,
           badgeColor(semaphores.workability),
-          metrics?.moisture !== undefined ? `Humedad suelo: ${metrics.moisture.toFixed(1)}%` : undefined
+          metrics?.moisture != null ? `Humedad suelo: ${safeFixed(metrics.moisture, 1)}%` : undefined
         )}
 
         {detailRow(
@@ -215,40 +199,40 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
           statusLabel('irrigation', semaphores.irrigation),
           <Thermometer className="w-5 h-5" />,
           badgeColor(semaphores.irrigation),
-          metrics?.water_balance !== undefined
-            ? `Balance hídrico 3 días: ${metrics.water_balance > 0 ? '+' : ''}${metrics.water_balance.toFixed(1)} mm`
+          metrics?.water_balance != null
+            ? `Balance hídrico 3 días: ${metrics.water_balance > 0 ? '+' : ''}${safeFixed(metrics.water_balance)} mm`
             : undefined
         )}
       </div>
 
       {/* Detailed metrics section */}
-      {(metrics?.temperature !== undefined || metrics?.humidity !== undefined || metrics?.delta_t !== undefined || metrics?.water_balance !== undefined) && (
+      {(metrics?.temperature != null || metrics?.humidity != null || metrics?.delta_t != null || metrics?.water_balance != null) && (
         <div className="bg-white/60 rounded-lg p-3 border border-nkz-border">
           <p className="text-xs font-semibold text-gray-700 mb-2">Métricas detalladas</p>
           <div className="grid grid-cols-2 gap-2 text-xs">
-            {metrics?.temperature !== undefined && (
+            {metrics?.temperature != null && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Temperatura:</span>
-                <span className="font-semibold text-gray-900">{metrics.temperature.toFixed(1)}°C</span>
+                <span className="font-semibold text-gray-900">{safeFixed(metrics.temperature, 1)}°C</span>
               </div>
             )}
-            {metrics?.humidity !== undefined && (
+            {metrics?.humidity != null && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Humedad:</span>
-                <span className="font-semibold text-gray-900">{metrics.humidity.toFixed(0)}%</span>
+                <span className="font-semibold text-gray-900">{safeFixed(metrics.humidity, 0)}%</span>
               </div>
             )}
-            {metrics?.delta_t !== undefined && (
+            {metrics?.delta_t != null && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Delta T:</span>
-                <span className="font-semibold text-gray-900">{metrics.delta_t.toFixed(1)}°C</span>
+                <span className="font-semibold text-gray-900">{safeFixed(metrics.delta_t, 1)}°C</span>
               </div>
             )}
-            {metrics?.water_balance !== undefined && (
+            {metrics?.water_balance != null && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Balance hídrico:</span>
                 <span className={`font-semibold ${metrics.water_balance >= 0 ? 'text-nkz-success' : 'text-nkz-error'}`}>
-                  {metrics.water_balance > 0 ? '+' : ''}{metrics.water_balance.toFixed(1)} mm
+                  {metrics.water_balance > 0 ? '+' : ''}{safeFixed(metrics.water_balance)} mm
                 </span>
               </div>
             )}
