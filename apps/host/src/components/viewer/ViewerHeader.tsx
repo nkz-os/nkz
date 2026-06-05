@@ -237,7 +237,7 @@ export const ViewerHeader: React.FC = () => {
                         onMouseEnter={openLayersSubmenu}
                         onMouseLeave={scheduleLayersSubmenuClose}
                     >
-                        <span ref={layersTriggerRef}>
+                        <span ref={layersTriggerRef} className="inline-flex">
                         <Button
                             type="button"
                             onClick={() => {
