@@ -260,138 +260,18 @@ class TimescaleDBWriter:
         alerts: List[Dict[str, Any]],
         tenant_id: str
     ) -> int:
+        """DEPRECATED: alerts now flow through AemetAlertsEngine → Orion-LD →
+        telemetry-worker subscription → TimescaleDB.
+
+        This method is kept as a no-op stub for backward compatibility.
+        Callers should be migrated to the new event-driven pipeline.
         """
-        Write weather alerts to database
-        
-        Args:
-            alerts: List of alert dictionaries
-            tenant_id: Tenant ID
-        
-        Returns:
-            Number of alerts written
-        """
-        if not alerts:
-            return 0
-        
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
-                
-                # Set tenant context for RLS (with error handling)
-                try:
-                    cursor.execute("SELECT set_current_tenant(%s)", (tenant_id,))
-                except Exception as tenant_error:
-                    logger.warning(f"Error setting tenant context (may not exist): {tenant_error}")
-                    # Try fallback method
-                    try:
-                        cursor.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
-                    except Exception as fallback_error:
-                        logger.warning(f"Fallback tenant context also failed: {fallback_error}")
-                        conn.rollback()
-                        # Continue anyway - RLS may not be enabled for this table
-                
-                insert_query = """
-                    INSERT INTO weather_alerts (
-                        tenant_id, municipality_code,
-                        alert_type, alert_category,
-                        effective_from, effective_to,
-                        description, aemet_alert_id, aemet_zone_id,
-                        metadata
-                    ) VALUES %s
-                    ON CONFLICT (tenant_id, municipality_code, aemet_alert_id, effective_from)
-                    DO UPDATE SET
-                        alert_type = EXCLUDED.alert_type,
-                        alert_category = EXCLUDED.alert_category,
-                        effective_to = EXCLUDED.effective_to,
-                        description = EXCLUDED.description,
-                        metadata = EXCLUDED.metadata
-                """
-                
-                values = []
-                for alert in alerts:
-                    if not alert:
-                        continue
-                    
-                    values.append((
-                        tenant_id,
-                        alert['municipality_code'],
-                        alert['alert_type'],
-                        alert['alert_category'],
-                        alert['effective_from'],
-                        alert['effective_to'],
-                        alert.get('description'),
-                        alert.get('aemet_alert_id'),
-                        alert.get('aemet_zone_id'),
-                        Json(alert.get('metadata', {}))
-                    ))
-                
-                if values:
-                    execute_values(cursor, insert_query, values)
-                    conn.commit()
-                    logger.info(f"Inserted {len(values)} weather alerts for tenant {tenant_id}")
+        logger.debug(
+            "write_alerts() is deprecated — alerts flow through "
+            "AemetAlertsEngine → Orion-LD → telemetry-worker"
+        )
+        return 0
 
-                    # Emit webhook event for automation (N8N, Zulip)
-                    self._emit_alert_webhook(tenant_id, alerts)
-                    return len(values)
-                else:
-                    logger.warning("No valid alerts to insert")
-                    return 0
-
-        except Exception as e:
-            logger.error(f"Error writing alerts: {e}")
-            if conn:
-                conn.rollback()
-
-    def _emit_alert_webhook(
-        self, tenant_id: str, alerts: List[Dict[str, Any]]
-    ) -> None:
-        """
-        Emit webhook events for weather alerts so automation tools
-        (N8N, Zulip) can pick them up.
-
-        The platform uses N8N as the automation hub — configure a webhook
-        trigger in N8N pointing at any URL, then set WEATHER_ALERT_WEBHOOK_URL
-        to that endpoint. From N8N you can route to Zulip channels, email,
-        SMS, or any other action.
-
-        Without a configured webhook URL, alerts are still visible in the
-        app UI (WeatherWidget alert banners) and via GET /api/weather/alerts.
-        """
-        webhook_url = os.getenv('WEATHER_ALERT_WEBHOOK_URL', '').strip()
-        if not webhook_url:
-            return
-
-        high_severity = [a for a in alerts if a.get('alert_type') in ('ORANGE', 'RED')]
-        if not high_severity:
-            return
-
-        try:
-            import requests as req
-
-            payload = {
-                'event': 'weather_alert',
-                'tenant_id': tenant_id,
-                'alerts': [
-                    {
-                        'alert_type': a.get('alert_type'),
-                        'alert_category': a.get('alert_category'),
-                        'municipality_code': a.get('municipality_code'),
-                        'effective_from': str(a.get('effective_from', '')),
-                        'effective_to': str(a.get('effective_to', '')),
-                        'description': a.get('description', ''),
-                    }
-                    for a in high_severity
-                ],
-            }
-            resp = req.post(webhook_url, json=payload, timeout=10)
-            logger.info(
-                f'Weather alert webhook dispatched: {len(high_severity)} alerts, '
-                f'status={resp.status_code}'
-            )
-        except Exception as exc:
-            logger.debug(f'Weather alert webhook failed (non-fatal): {exc}')
-            raise
-    
     def get_tenant_weather_locations(self) -> List[Dict[str, Any]]:
         """
         Get all active tenant weather locations
