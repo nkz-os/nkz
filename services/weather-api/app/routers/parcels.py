@@ -10,7 +10,7 @@ from typing import Optional
 import requests
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
-from psycopg2.extras import RealDictCursor, Json
+from psycopg2.extras import RealDictCursor
 
 from app.auth import require_auth, require_auth_optional
 from app.config import settings
@@ -154,64 +154,6 @@ def _persist_agro_status_to_orion(tenant_id: str, parcel_id: str, result: dict):
             logger.debug(f"Orion agroStatus persist returned {resp.status_code}")
     except Exception as e:
         logger.debug(f"Could not persist agroStatus to Orion: {e}")
-
-
-def _persist_agro_status_to_db(
-    tenant_id: str, parcel_id: str, result: dict, sensor_data: Optional[dict]
-):
-    """Write agro-status calculation to agro_status_log for historical queries."""
-    try:
-        conn = get_db_connection(tenant_id)
-        try:
-            cur = conn.cursor()
-            semaphores = result.get("semaphores", {})
-            metrics = result.get("metrics", {})
-            soil = result.get("soil") or {}
-
-            cur.execute(
-                """
-                INSERT INTO agro_status_log (
-                    tenant_id, parcel_id, calculated_at,
-                    spraying, workability, irrigation,
-                    source_confidence, soil_texture,
-                    field_capacity, wilting_point,
-                    delta_t, water_balance,
-                    downscaling_applied, sensor_count, metadata
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    tenant_id,
-                    parcel_id,
-                    result.get("timestamp"),
-                    semaphores.get("spraying"),
-                    semaphores.get("workability"),
-                    semaphores.get("irrigation"),
-                    result.get("source_confidence"),
-                    soil.get("texture_class"),
-                    soil.get("field_capacity"),
-                    soil.get("wilting_point"),
-                    metrics.get("delta_t"),
-                    metrics.get("water_balance"),
-                    result.get("downscaling") == "applied",
-                    sensor_data.get("validation", {}).get("total_sensors", 1)
-                    if sensor_data
-                    else 0,
-                    Json(
-                        {
-                            "sensor_validation": sensor_data.get("validation")
-                            if sensor_data
-                            else None,
-                            "spraying_reason": metrics.get("spraying_reason"),
-                        }
-                    ),
-                ),
-            )
-            conn.commit()
-        finally:
-            cur.close()
-            conn.close()
-    except Exception as e:
-        logger.debug(f"Could not persist agroStatus to DB: {e}")
 
 
 def _orion_headers(tenant_id: str) -> dict:
@@ -795,7 +737,6 @@ def get_parcel_agro_status(
 
         # 7. Persist agroStatus to Orion-LD and PostgreSQL (non-blocking, best-effort)
         _persist_agro_status_to_orion(tenant_id, parcel_id, result)
-        _persist_agro_status_to_db(tenant_id, parcel_id, result, sensor_data)
 
         return result
 
