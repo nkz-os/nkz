@@ -745,3 +745,133 @@ def get_parcel_agro_status(
     except Exception as e:
         logger.error(f"Error in get_parcel_agro_status: {e}", exc_info=True)
         return JSONResponse({"error": "Internal server error"}, status_code=500)
+
+
+@router.get("/parcel/{parcel_id}/forecast")
+def get_parcel_forecast(
+    parcel_id: str,
+    tenant_id: str = Depends(require_auth),
+    days: int = Query(7, le=14, description="Forecast days (max 14)"),
+):
+    """
+    Direct Open-Meteo forecast for a parcel's exact centroid.
+
+    Resolves the AgriParcel from Orion-LD, extracts the centroid from its
+    location geometry (Point or Polygon), and fetches a forecast from
+    Open-Meteo for that precise point. No DB dependency, no municipality
+    catalog — pure coordinates.
+
+    Use this for the dashboard forecast card with parcel dropdown.
+    """
+    try:
+        # 1. Resolve parcel from Orion-LD
+        headers = _orion_headers(tenant_id)
+        parcel_resp = requests.get(
+            f"{settings.orion_url}/ngsi-ld/v1/entities/{parcel_id}",
+            headers=headers,
+            timeout=10,
+        )
+        if parcel_resp.status_code != 200:
+            return JSONResponse(
+                {"error": f"Parcel not found: {parcel_resp.status_code}"},
+                status_code=404,
+            )
+
+        parcel = parcel_resp.json()
+
+        # 2. Extract centroid from location
+        loc = _resolve_parcel_location(parcel)
+        if loc is None:
+            return JSONResponse(
+                {"error": "Parcel has no resolvable location"},
+                status_code=400,
+            )
+        parcel_lon, parcel_lat = loc
+
+        # 3. Get parcel display name
+        name_attr = parcel.get("name", {})
+        parcel_name = (
+            name_attr.get("value", "")
+            if isinstance(name_attr, dict)
+            else str(name_attr or "")
+        )
+
+        # 4. Fetch forecast from Open-Meteo
+        from datetime import datetime, timedelta
+
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        end = (datetime.utcnow() + timedelta(days=days)).strftime("%Y-%m-%d")
+
+        params = {
+            "latitude": parcel_lat,
+            "longitude": parcel_lon,
+            "start_date": today,
+            "end_date": end,
+            "daily": [
+                "temperature_2m_max",
+                "temperature_2m_min",
+                "weather_code",
+                "precipitation_sum",
+                "precipitation_probability_max",
+                "wind_speed_10m_max",
+                "wind_direction_10m_dominant",
+                "et0_fao_evapotranspiration",
+                "shortwave_radiation_sum",
+            ],
+            "timezone": "auto",
+        }
+
+        resp = requests.get("https://api.open-meteo.com/v1/forecast", params=params, timeout=10)
+        if resp.status_code != 200:
+            return JSONResponse(
+                {"error": f"Open-Meteo returned {resp.status_code}"},
+                status_code=502,
+            )
+
+        raw = resp.json()
+        daily = raw.get("daily", {})
+        dates = daily.get("time", [])
+
+        # 5. Build forecast response
+        forecast = []
+        for i, date_str in enumerate(dates):
+            forecast.append(
+                {
+                    "date": date_str,
+                    "temp_max": _safe_idx(daily, "temperature_2m_max", i),
+                    "temp_min": _safe_idx(daily, "temperature_2m_min", i),
+                    "weather_code": _safe_idx(daily, "weather_code", i),
+                    "precip_mm": _safe_idx(daily, "precipitation_sum", i),
+                    "precip_probability": _safe_idx(
+                        daily, "precipitation_probability_max", i
+                    ),
+                    "wind_speed_ms": _safe_idx(daily, "wind_speed_10m_max", i),
+                    "wind_direction_deg": _safe_idx(
+                        daily, "wind_direction_10m_dominant", i
+                    ),
+                    "eto_mm": _safe_idx(daily, "et0_fao_evapotranspiration", i),
+                    "solar_rad_w_m2": _div_if(
+                        _safe_idx(daily, "shortwave_radiation_sum", i), 0.0864
+                    ),
+                }
+            )
+
+        return {
+            "parcel_id": parcel_id,
+            "parcel_name": parcel_name or parcel_id,
+            "coordinates": {"latitude": parcel_lat, "longitude": parcel_lon},
+            "elevation_m": raw.get("elevation"),
+            "forecast_days": days,
+            "forecast": forecast,
+            "source": "OPEN-METEO",
+        }
+
+    except requests.exceptions.Timeout:
+        return JSONResponse(
+            {"error": "Open-Meteo request timed out"}, status_code=504
+        )
+    except Exception as e:
+        logger.error(f"Error in get_parcel_forecast: {e}", exc_info=True)
+        return JSONResponse(
+            {"error": "Failed to fetch parcel forecast"}, status_code=500
+        )
