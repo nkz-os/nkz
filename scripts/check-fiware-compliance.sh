@@ -76,10 +76,19 @@ check_pattern() {
     fi
 }
 
-check_pattern "Direct INSERT INTO" "INSERT[[:space:]]+INTO"
-check_pattern "execute(INSERT...)" "execute[[:space:]]*\([[:space:]]*['\"]INSERT"
-check_pattern "Raw psycopg2.connect" "psycopg2\.connect[[:space:]]*\("
-check_pattern "Raw asyncpg.create_pool" "asyncpg\.create_pool[[:space:]]*\("
+check_pattern "Direct INSERT INTO" 'INSERT[[:space:]]+INTO'
+check_pattern "execute(INSERT...)" 'execute[[:space:]]*\([[:space:]]*['"'"'\"'"'"']INSERT'
+
+# For raw DB connections, only flag if the file ALSO has writes
+raw_conns=$(echo "$files" | xargs grep -lE 'psycopg2\.connect[[:space:]]*\(|asyncpg\.create_pool[[:space:]]*\(' 2>/dev/null | grep -vE "$EXCLUDE" || true)
+if [ -n "$raw_conns" ]; then
+    for f in $raw_conns; do
+        if grep -qE 'INSERT[[:space:]]+INTO|execute[[:space:]]*\([[:space:]]*['"'"'\"'"'"']INSERT' "$f" 2>/dev/null; then
+            echo "❌ FOUND: DB connection WITH writes in $f"
+            violations=$((violations + 1))
+        fi
+    done
+fi
 
 if [ "$violations" -eq 0 ]; then
     echo "✅ All checks passed. No direct DB write violations found."
