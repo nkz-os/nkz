@@ -24,7 +24,7 @@ import {
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
 import { useI18n } from '@/context/I18nContext';
-import { useTenantMunicipality } from '@/hooks/useTenantMunicipality';
+import { useTenantHomeLocation } from '@/hooks/useTenantHomeLocation';
 import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
 
@@ -114,7 +114,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
 }) => {
   const { t } = useI18n();
 
-  const { municipality: tenantMunicipality, loading: _loadingTenantMunicipality } = useTenantMunicipality();
+  const { location: homeLocation, loading: _loadingHomeLocation } = useTenantHomeLocation();
   
   // Load saved municipality from localStorage on mount
   const getSavedMunicipality = (): { code?: string; name?: string } => {
@@ -133,10 +133,10 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   
   // Priority: prop > saved > tenant municipality
   const [selectedMunicipalityCode, setSelectedMunicipalityCode] = useState<string | undefined>(
-    municipalityCode || savedMunicipality.code || tenantMunicipality?.code
+    municipalityCode || savedMunicipality.code || homeLocation?.municipalityCode
   );
   const [selectedMunicipalityName, setSelectedMunicipalityName] = useState<string | undefined>(
-    municipalityName || savedMunicipality.name || tenantMunicipality?.name
+    municipalityName || savedMunicipality.name || homeLocation?.name
   );
 
   // Parcel state — preferred over municipality for per-parcel virtual weather stations
@@ -197,18 +197,18 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   useEffect(() => {
     if (municipalityCode) {
       setSelectedMunicipalityCode(municipalityCode);
-    } else if (tenantMunicipality && !selectedMunicipalityCode) {
-      // Auto-set from tenant if no prop provided
-      setSelectedMunicipalityCode(tenantMunicipality.code);
+    } else if (homeLocation && !selectedMunicipalityCode) {
+      // Auto-set from tenant home location if no prop provided
+      setSelectedMunicipalityCode(homeLocation.municipalityCode || '');
     }
     
     if (municipalityName) {
       setSelectedMunicipalityName(municipalityName);
-    } else if (tenantMunicipality && !selectedMunicipalityName) {
-      // Auto-set from tenant if no prop provided
-      setSelectedMunicipalityName(tenantMunicipality.name);
+    } else if (homeLocation && !selectedMunicipalityName) {
+      // Auto-set from tenant home location if no prop provided
+      setSelectedMunicipalityName(homeLocation.name || null);
     }
-  }, [municipalityCode, municipalityName, tenantMunicipality]);
+  }, [municipalityCode, municipalityName, homeLocation]);
 
   // Load weather data
   useEffect(() => {

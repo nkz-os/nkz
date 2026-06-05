@@ -3,7 +3,9 @@ Weather API — standalone FastAPI service for all weather endpoints.
 Extracted from entity-manager (blueprints/weather.py).
 
 Routes:
-  GET  /api/weather/municipality/{ine_code}/forecast  (direct Open-Meteo, stateless)
+  GET  /api/weather/coordinates?lat=&lon=             (Open-Meteo, no DB, international)
+  GET  /api/weather/municipality/{ine_code}/forecast  (DEPRECATED — use /coordinates)
+  GET  /api/weather/parcel/{parcel_id}/forecast       (per-parcel centroid forecast)
   GET  /api/weather/municipalities/search
   GET  /api/weather/locations
   POST /api/weather/locations
@@ -25,6 +27,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.routers import (
     alerts,
+    coordinates,
     locations,
     municipalities,
     municipality_forecast,
@@ -55,6 +58,7 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(coordinates.router)
 app.include_router(municipalities.router)
 app.include_router(municipality_forecast.router)
 app.include_router(locations.router)
