@@ -984,17 +984,35 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
       logger.debug('[Auth] SDK requested token refresh via nekazari:token:expired');
       const kc = keycloak;
       kc.updateToken(30).then((refreshed) => {
-        if (refreshed && kc.token) {
-          api.setSession(kc.token).then(() => {
-            logger.debug('[Auth] Token refreshed — dispatching nekazari:token:refreshed');
-            window.dispatchEvent(new CustomEvent('nekazari:token:refreshed'));
-          }).catch(() => {
-            logger.warn('[Auth] Cookie update failed, but token is fresh');
-            window.dispatchEvent(new CustomEvent('nekazari:token:refreshed'));
-          });
+        if (refreshed) {
+          // Token was actually refreshed — update the httpOnly cookie
+          if (kc.token) {
+            api.setSession(kc.token).then(() => {
+              logger.debug('[Auth] Token refreshed — dispatching nekazari:token:refreshed');
+              window.dispatchEvent(new CustomEvent('nekazari:token:refreshed'));
+            }).catch(() => {
+              logger.warn('[Auth] Cookie update failed after refresh');
+              window.dispatchEvent(new CustomEvent('nekazari:token:refreshed'));
+            });
+          } else {
+            logger.warn('[Auth] Token refreshed but kc.token is null');
+            window.dispatchEvent(new CustomEvent('nekazari:session:expired'));
+          }
         } else {
-          logger.warn('[Auth] Token refresh returned no new token');
-          window.dispatchEvent(new CustomEvent('nekazari:session:expired'));
+          // updateToken returned false: token is still valid (>30s).
+          // The 401 was likely a cookie-transport issue, not expiry.
+          // Re-set the cookie and let the caller retry.
+          logger.debug('[Auth] Token still valid, re-setting cookie for retry');
+          if (kc.token) {
+            api.setSession(kc.token).then(() => {
+              window.dispatchEvent(new CustomEvent('nekazari:token:refreshed'));
+            }).catch(() => {
+              window.dispatchEvent(new CustomEvent('nekazari:token:refreshed'));
+            });
+          } else {
+            logger.warn('[Auth] Token valid but kc.token missing — session expired');
+            window.dispatchEvent(new CustomEvent('nekazari:session:expired'));
+          }
         }
       }).catch((err) => {
         logger.warn('[Auth] Token refresh failed:', err);

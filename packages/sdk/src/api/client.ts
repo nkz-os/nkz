@@ -99,6 +99,7 @@ export class NKZClient {
     path: string,
     init: RequestInit,
     method: string,
+    _retryCount: number = 0,
   ): Promise<T> {
     const token = this.getToken?.();
     const tenant = this.getTenantId?.();
@@ -125,7 +126,8 @@ export class NKZClient {
     });
 
     // ── 401: Event-based refresh orchestration with host ──
-    if (response.status === 401 && typeof window !== 'undefined') {
+    // Only attempt refresh ONCE per request to prevent infinite loops.
+    if (response.status === 401 && typeof window !== 'undefined' && _retryCount === 0) {
       return this._handle401<T>(path, init, method);
     }
 
@@ -159,13 +161,14 @@ export class NKZClient {
     path: string,
     init: RequestInit,
     method: string,
+    _retryCount: number = 0,
   ): Promise<T> {
     // If another request is already refreshing, queue this one
     if (isRefreshing) {
       return new Promise<T>((resolve, reject) => {
         failedQueue.push({
           resolve: () => {
-            this._doRequest<T>(path, init, method).then(resolve, reject);
+            this._doRequest<T>(path, init, method, _retryCount + 1).then(resolve, reject);
           },
           reject,
         });
@@ -186,8 +189,8 @@ export class NKZClient {
       processQueue(true);
       isRefreshing = false;
 
-      // Retry the original request with fresh cookie
-      return this._doRequest<T>(path, init, method);
+      // Retry the original request with fresh cookie (retryCount=1 prevents loops)
+      return this._doRequest<T>(path, init, method, _retryCount + 1);
     } catch (err) {
       // Refresh failed — reject all queued requests
       processQueue(false);
