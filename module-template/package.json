@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "MODULE_DISPLAY_NAME — Nekazari Platform Module",
   "license": "AGPL-3.0",
+  "packageManager": "pnpm@9.0.0",
   "type": "module",
   "main": "./src/moduleEntry.ts",
   "scripts": {
