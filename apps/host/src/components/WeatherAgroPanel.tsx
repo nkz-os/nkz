@@ -206,7 +206,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
       setSelectedMunicipalityName(municipalityName);
     } else if (homeLocation && !selectedMunicipalityName) {
       // Auto-set from tenant home location if no prop provided
-      setSelectedMunicipalityName(homeLocation.name || null);
+      setSelectedMunicipalityName(homeLocation.name || undefined);
     }
   }, [municipalityCode, municipalityName, homeLocation]);
 

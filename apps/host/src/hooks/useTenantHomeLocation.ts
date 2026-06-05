@@ -14,7 +14,6 @@
 import { useState, useEffect } from 'react';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
-import { useAuth } from '@/context/KeycloakAuthContext';
 import { logger } from '@/utils/logger';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -30,7 +29,6 @@ export const useTenantHomeLocation = () => {
   const [location, setLocation] = useState<HomeLocation | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { tenantId } = useAuth();
 
   useEffect(() => {
     const loadHomeLocation = async () => {
@@ -71,8 +69,8 @@ export const useTenantHomeLocation = () => {
             const centroid = extractCentroid(firstParcel);
             if (centroid) {
               const parcelName =
-                (firstParcel.name?.value) ||
-                firstParcel.name ||
+                (firstParcel.name && typeof firstParcel.name === 'object' ? (firstParcel.name as any).value : null) ||
+                (typeof firstParcel.name === 'string' ? firstParcel.name : null) ||
                 firstParcel.id?.split(':').pop() ||
                 'Parcel';
 

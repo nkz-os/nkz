@@ -95,8 +95,6 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   
   // Determine which location to use (priority: prop > tenant home location)
   const effectiveMunicipalityCode = municipalityCode || homeLocation?.municipalityCode;
-  const effectiveLat = _latitude || homeLocation?.lat;
-  const effectiveLon = _longitude || homeLocation?.lon;
   const effectiveParcelId = parcelId || localParcelId;
 
   // Fetch parcels on mount
@@ -132,14 +130,14 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     } else if (effectiveMunicipalityCode) {
       loadWeatherByMunicipality(
         effectiveMunicipalityCode,
-        municipalityName || tenantMunicipality?.name,
-        tenantMunicipality?.province
+        municipalityName || homeLocation?.name,
+        homeLocation?.municipalityCode
       );
     } else {
       loadWeatherFromPrimaryLocation();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveParcelId, effectiveMunicipalityCode, municipalityCode, tenantMunicipality]);
+  }, [effectiveParcelId, effectiveMunicipalityCode, municipalityCode, homeLocation]);
 
   const loadWeatherFromPrimaryLocation = async () => {
     setLoading(true);
@@ -270,8 +268,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
       if (effectiveMunicipalityCode) {
         await loadWeatherByMunicipality(
           effectiveMunicipalityCode,
-          municipalityName || tenantMunicipality?.name,
-          tenantMunicipality?.province
+          municipalityName || homeLocation?.name,
+          homeLocation?.municipalityCode
         );
       }
     } finally {
@@ -497,8 +495,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               <p className="text-sm text-blue-100">
                 {localParcelName
                   ? `${localParcelName}`
-                  : selectedMunicipalityName || municipalityName || tenantMunicipality?.name || t('weather.widget_subtitle_select')}
-                {!localParcelName && tenantMunicipality?.province ? ` (${tenantMunicipality?.province})` : ''}
+                  : selectedMunicipalityName || municipalityName || homeLocation?.name || t('weather.widget_subtitle_select')}
+                {!localParcelName && homeLocation?.municipalityCode ? ` (${homeLocation.municipalityCode})` : ''}
               </p>
             </div>
           </div>
@@ -519,8 +517,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 } else if (effectiveMunicipalityCode) {
                   loadWeatherByMunicipality(
                     effectiveMunicipalityCode,
-                    municipalityName || tenantMunicipality?.name,
-                    tenantMunicipality?.province
+                    municipalityName || homeLocation?.name,
+                    homeLocation?.municipalityCode
                   );
                 }
               }}
