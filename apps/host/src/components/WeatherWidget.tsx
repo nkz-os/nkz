@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { Cloud, Thermometer, Droplets, Wind, MapPin, Search, Loader2, AlertCircle, RefreshCw, Sprout } from 'lucide-react';
 import api from '@/services/api';
 import { useI18n } from '@/context/I18nContext';
-import { useTenantMunicipality } from '@/hooks/useTenantMunicipality';
+import { useTenantHomeLocation } from '@/hooks/useTenantHomeLocation';
 import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
 
@@ -66,8 +66,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
 }) => {
   const { t } = useI18n();
   
-  // Auto-detect municipality from tenant if not provided
-  const { municipality: tenantMunicipality } = useTenantMunicipality();
+  // Auto-detect home location from tenant if not provided
+  const { location: homeLocation } = useTenantHomeLocation();
   
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [forecast, setForecast] = useState<ForecastData[]>([]);
@@ -82,7 +82,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     description: string;
   }>>([]);
   const [selectedMunicipalityName, setSelectedMunicipalityName] = useState<string | null>(
-    municipalityName || tenantMunicipality?.name || null
+    municipalityName || homeLocation?.name || null
   );
 
   // Parcel state
@@ -93,8 +93,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   const [localParcelId, setLocalParcelId] = useState<string | undefined>(undefined);
   const [localParcelName, setLocalParcelName] = useState<string | null>(null);
   
-  // Determine which municipality code to use (priority: prop > tenant)
-  const effectiveMunicipalityCode = municipalityCode || tenantMunicipality?.code;
+  // Determine which location to use (priority: prop > tenant home location)
+  const effectiveMunicipalityCode = municipalityCode || homeLocation?.municipalityCode;
   const effectiveParcelId = parcelId || localParcelId;
 
   // Fetch parcels on mount
@@ -130,14 +130,14 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     } else if (effectiveMunicipalityCode) {
       loadWeatherByMunicipality(
         effectiveMunicipalityCode,
-        municipalityName || tenantMunicipality?.name,
-        tenantMunicipality?.province
+        municipalityName || homeLocation?.name,
+        homeLocation?.municipalityCode
       );
     } else {
       loadWeatherFromPrimaryLocation();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveParcelId, effectiveMunicipalityCode, municipalityCode, tenantMunicipality]);
+  }, [effectiveParcelId, effectiveMunicipalityCode, municipalityCode, homeLocation]);
 
   const loadWeatherFromPrimaryLocation = async () => {
     setLoading(true);
@@ -268,8 +268,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
       if (effectiveMunicipalityCode) {
         await loadWeatherByMunicipality(
           effectiveMunicipalityCode,
-          municipalityName || tenantMunicipality?.name,
-          tenantMunicipality?.province
+          municipalityName || homeLocation?.name,
+          homeLocation?.municipalityCode
         );
       }
     } finally {
@@ -495,8 +495,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               <p className="text-sm text-blue-100">
                 {localParcelName
                   ? `${localParcelName}`
-                  : selectedMunicipalityName || municipalityName || tenantMunicipality?.name || t('weather.widget_subtitle_select')}
-                {!localParcelName && tenantMunicipality?.province ? ` (${tenantMunicipality?.province})` : ''}
+                  : selectedMunicipalityName || municipalityName || homeLocation?.name || t('weather.widget_subtitle_select')}
+                {!localParcelName && homeLocation?.municipalityCode ? ` (${homeLocation.municipalityCode})` : ''}
               </p>
             </div>
           </div>
@@ -517,8 +517,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 } else if (effectiveMunicipalityCode) {
                   loadWeatherByMunicipality(
                     effectiveMunicipalityCode,
-                    municipalityName || tenantMunicipality?.name,
-                    tenantMunicipality?.province
+                    municipalityName || homeLocation?.name,
+                    homeLocation?.municipalityCode
                   );
                 }
               }}
@@ -594,7 +594,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
           </div>
         )}
 
-        {/* AEMET Weather Alerts */}
+        {/* Weather Alerts (MeteoAlarm EU) */}
         {alerts.length > 0 && (
           <div className="mb-4 space-y-2">
             {alerts.map((alert, idx) => {

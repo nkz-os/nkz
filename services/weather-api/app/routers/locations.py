@@ -37,15 +37,16 @@ def get_weather_locations(
                 SELECT
                     twl.id,
                     twl.municipality_code,
-                    cm.name as municipality_name,
-                    cm.latitude,
-                    cm.longitude,
+                    COALESCE(twl.location_name, cm.name) as municipality_name,
+                    COALESCE(twl.latitude, cm.latitude) as latitude,
+                    COALESCE(twl.longitude, cm.longitude) as longitude,
+                    twl.location_name,
                     twl.station_id,
                     twl.label,
                     twl.is_primary,
                     twl.metadata
                 FROM tenant_weather_locations twl
-                JOIN catalog_municipalities cm ON cm.ine_code = twl.municipality_code
+                LEFT JOIN catalog_municipalities cm ON cm.ine_code = twl.municipality_code
                 WHERE twl.tenant_id = %s
                 ORDER BY twl.is_primary DESC, twl.created_at DESC
                 """,
@@ -119,7 +120,14 @@ def create_weather_location(
     request: Request,
     tenant_id: str = Depends(require_auth),
 ):
-    """Create a new weather location for the tenant."""
+    """Create a new weather location for the tenant.
+
+    Accepts either:
+    - municipality_code (legacy, Spain-only)
+    - latitude + longitude + location_name (international)
+
+    At least one variant must be provided.
+    """
     try:
         data = request.json()
     except Exception:
@@ -128,70 +136,38 @@ def create_weather_location(
         )
 
     municipality_code = data.get("municipality_code")
-    if not municipality_code:
-        return JSONResponse(
-            {"error": "municipality_code is required"}, status_code=400
-        )
-
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
+    location_name = data.get("location_name")
     is_primary = data.get("is_primary", False)
-    label = data.get("label")
+    label = data.get("label") or location_name
     station_id = data.get("station_id")
     metadata = data.get("metadata", {})
+
+    # Validate: at least one location variant
+    has_coords = latitude is not None and longitude is not None
+    if not municipality_code and not has_coords:
+        return JSONResponse(
+            {"error": "Either municipality_code or (latitude, longitude) is required"},
+            status_code=400,
+        )
 
     try:
         with get_db_connection(tenant_id) as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Verify municipality exists in catalog
-            cur.execute(
-                "SELECT ine_code, name FROM catalog_municipalities WHERE ine_code = %s",
-                (municipality_code,),
-            )
-            municipality = cur.fetchone()
-
-            if not municipality:
-                # Try on-demand creation with known codes
-                common_municipalities = {
-                    "31001": {"name": "Pamplona", "province": "Navarra", "latitude": 42.8169, "longitude": -1.6432},
-                    "28079": {"name": "Madrid", "province": "Madrid", "latitude": 40.4168, "longitude": -3.7038},
-                    "08019": {"name": "Barcelona", "province": "Barcelona", "latitude": 41.3851, "longitude": 2.1734},
-                    "41091": {"name": "Sevilla", "province": "Sevilla", "latitude": 37.3891, "longitude": -5.9845},
-                    "46015": {"name": "Valencia", "province": "Valencia", "latitude": 39.4699, "longitude": -0.3763},
-                }
-                mun_data = common_municipalities.get(municipality_code)
-                if mun_data:
-                    cur.execute(
-                        """
-                        INSERT INTO catalog_municipalities
-                        (ine_code, name, province, latitude, longitude, geom)
-                        VALUES (%s, %s, %s, %s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326))
-                        ON CONFLICT (ine_code) DO NOTHING
-                        """,
-                        (
-                            municipality_code, mun_data["name"], mun_data["province"],
-                            mun_data["longitude"], mun_data["latitude"],
-                            mun_data["longitude"], mun_data["latitude"],
-                        ),
-                    )
-                    logger.info(f"Created municipality {municipality_code} ({mun_data['name']}) in catalog")
-                else:
-                    cur.execute(
-                        """
-                        INSERT INTO catalog_municipalities
-                        (ine_code, name, latitude, longitude, geom)
-                        VALUES (%s, %s, NULL, NULL, NULL)
-                        ON CONFLICT (ine_code) DO NOTHING
-                        """,
-                        (municipality_code, f"Municipality {municipality_code}"),
-                    )
-                    logger.warning(f"Created municipality {municipality_code} with minimal info")
-
-                # Re-fetch municipality
+            # Resolve location_name from catalog if only municipality_code given
+            if municipality_code and not location_name:
                 cur.execute(
-                    "SELECT ine_code, name FROM catalog_municipalities WHERE ine_code = %s",
+                    "SELECT name, latitude, longitude FROM catalog_municipalities WHERE ine_code = %s",
                     (municipality_code,),
                 )
-                municipality = cur.fetchone()
+                muni = cur.fetchone()
+                if muni:
+                    location_name = location_name or muni.get("name")
+                    if not has_coords:
+                        latitude = muni.get("latitude")
+                        longitude = muni.get("longitude")
 
             # If setting as primary, unset other primary locations
             if is_primary:
@@ -200,50 +176,59 @@ def create_weather_location(
                     (tenant_id,),
                 )
 
-            # Insert new location
-            cur.execute(
-                """
-                INSERT INTO tenant_weather_locations
-                (tenant_id, municipality_code, station_id, label, is_primary, metadata)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (tenant_id, municipality_code)
-                DO UPDATE SET
-                    station_id = EXCLUDED.station_id,
-                    label = EXCLUDED.label,
-                    is_primary = EXCLUDED.is_primary,
-                    metadata = EXCLUDED.metadata,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING id, municipality_code, station_id, label, is_primary, metadata, created_at, updated_at
-                """,
-                (tenant_id, municipality_code, station_id, label, is_primary, json.dumps(metadata)),
-            )
+            # Insert new location (handle nullable municipality_code in ON CONFLICT)
+            if municipality_code:
+                cur.execute(
+                    """
+                    INSERT INTO tenant_weather_locations
+                    (tenant_id, municipality_code, latitude, longitude,
+                     location_name, station_id, label, is_primary, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (tenant_id, municipality_code)
+                    DO UPDATE SET
+                        latitude = EXCLUDED.latitude,
+                        longitude = EXCLUDED.longitude,
+                        location_name = EXCLUDED.location_name,
+                        station_id = EXCLUDED.station_id,
+                        label = EXCLUDED.label,
+                        is_primary = EXCLUDED.is_primary,
+                        metadata = EXCLUDED.metadata,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING id, municipality_code, latitude, longitude,
+                              location_name, station_id, label, is_primary,
+                              metadata, created_at, updated_at
+                    """,
+                    (
+                        tenant_id, municipality_code, latitude, longitude,
+                        location_name, station_id, label, is_primary,
+                        json.dumps(metadata),
+                    ),
+                )
+            else:
+                # Coordinate-only location — no municipality_code, no conflict target
+                cur.execute(
+                    """
+                    INSERT INTO tenant_weather_locations
+                    (tenant_id, latitude, longitude, location_name,
+                     station_id, label, is_primary, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id, municipality_code, latitude, longitude,
+                              location_name, station_id, label, is_primary,
+                              metadata, created_at, updated_at
+                    """,
+                    (
+                        tenant_id, latitude, longitude, location_name,
+                        station_id, label, is_primary, json.dumps(metadata),
+                    ),
+                )
+
             result = cur.fetchone()
             conn.commit()
 
             if not result:
                 return JSONResponse({"error": "Failed to create location"}, status_code=500)
 
-            # Get full location with municipality name
-            cur.execute(
-                """
-                SELECT
-                    twl.id, twl.municipality_code,
-                    cm.name as municipality_name,
-                    cm.latitude, cm.longitude,
-                    twl.station_id, twl.label, twl.is_primary, twl.metadata
-                FROM tenant_weather_locations twl
-                JOIN catalog_municipalities cm ON cm.ine_code = twl.municipality_code
-                WHERE twl.id = %s
-                """,
-                (result["id"],),
-            )
-            location = cur.fetchone()
-            cur.close()
-
-            if not location:
-                return JSONResponse({"error": "Location created but not found"}, status_code=500)
-
-            return JSONResponse({"location": dict(location)}, status_code=201)
+            return JSONResponse({"location": dict(result)}, status_code=201)
 
     except Exception as e:
         logger.error(f"Error creating weather location: {e}")

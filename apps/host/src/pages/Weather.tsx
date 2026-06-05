@@ -10,31 +10,31 @@ import { WeatherWidget } from '@/components/WeatherWidget';
 import { WeatherAgroPanel } from '@/components/WeatherAgroPanel';
 import { WeatherStationsList } from '@/components/WeatherStationsList';
 import { useI18n } from '@/context/I18nContext';
-import { useTenantMunicipality } from '@/hooks/useTenantMunicipality';
+import { useTenantHomeLocation } from '@/hooks/useTenantHomeLocation';
 
 export const Weather: React.FC = () => {
   const { t } = useI18n();
-  const { municipality: tenantMunicipality } = useTenantMunicipality();
+  const { location: tenantHome } = useTenantHomeLocation();
 
   // Shared municipality state
   const [municipalityCode, setMunicipalityCode] = useState<string | undefined>(
-    tenantMunicipality?.code
+    tenantHome?.municipalityCode
   );
   const [municipalityName, setMunicipalityName] = useState<string | undefined>(
-    tenantMunicipality?.name
+    tenantHome?.name
   );
 
   // Parcel state (synced from widget, used by WeatherAgroPanel)
   const [selectedParcelId, setSelectedParcelId] = useState<string | undefined>();
   const [, setSelectedParcelName] = useState<string | undefined>();
 
-  // Sync from tenant municipality
+  // Sync from tenant home location
   useEffect(() => {
-    if (tenantMunicipality?.code && !municipalityCode) {
-      setMunicipalityCode(tenantMunicipality.code);
-      setMunicipalityName(tenantMunicipality.name);
+    if (tenantHome?.municipalityCode && !municipalityCode) {
+      setMunicipalityCode(tenantHome.municipalityCode);
+      setMunicipalityName(tenantHome.name || '');
     }
-  }, [tenantMunicipality]);
+  }, [tenantHome]);
 
   const handleMunicipalitySelect = useCallback((code: string, name: string) => {
     setMunicipalityCode(code);
