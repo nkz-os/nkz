@@ -1272,6 +1272,18 @@ class ApiService {
     }
   }
 
+  async getCoordinatesForecast(lat: number, lon: number, name?: string): Promise<any> {
+    try {
+      const params: any = { lat, lon };
+      if (name) params.name = name;
+      const response = await this.client.get('/api/weather/coordinates', { params });
+      return response.data;
+    } catch (error) {
+      logger.warn('Error fetching coordinates forecast:', error);
+      return { forecast: [] };
+    }
+  }
+
   async getWeatherObservations(params?: {
     municipality_code?: string;
     source?: string;

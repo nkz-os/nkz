@@ -123,7 +123,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     return () => { cancelled = true; };
   }, []);
 
-  // Load weather data (parcel priority > municipality)
+  // Load weather data (parcel > municipality > coordinates > primary location)
   useEffect(() => {
     if (effectiveParcelId) {
       loadWeatherByParcel(effectiveParcelId);
@@ -133,6 +133,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         municipalityName || homeLocation?.name,
         homeLocation?.municipalityCode
       );
+    } else if (homeLocation?.lat && homeLocation?.lon) {
+      loadWeatherByCoordinates(homeLocation.lat, homeLocation.lon, homeLocation.name);
     } else {
       loadWeatherFromPrimaryLocation();
     }
@@ -149,7 +151,16 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
       const primaryLocation = locations.find((loc: any) => loc.is_primary) || locations[0];
       
       if (primaryLocation) {
-        await loadWeatherByMunicipality(primaryLocation.municipality_code, primaryLocation.municipality_name);
+        // Prefer coordinates (international) over municipality code (legacy Spain)
+        if (primaryLocation.latitude != null && primaryLocation.longitude != null) {
+          await loadWeatherByCoordinates(
+            primaryLocation.latitude,
+            primaryLocation.longitude,
+            primaryLocation.location_name || primaryLocation.municipality_name
+          );
+        } else if (primaryLocation.municipality_code) {
+          await loadWeatherByMunicipality(primaryLocation.municipality_code, primaryLocation.municipality_name);
+        }
       } else {
         // No error if no location - just show empty state
         setError(null);
@@ -158,14 +169,64 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
       }
     } catch (err: any) {
       logger.error('Error loading weather from primary location:', err);
-      // Don't show error if it's just that there's no location configured
       if (err.response?.status !== 404) {
-      setError(err.message || t('weather.error_loading'));
+        setError(err.message || t('weather.error_loading'));
       } else {
         setError(null);
         setWeatherData(null);
         setForecast([]);
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadWeatherByCoordinates = async (lat: number, lon: number, name?: string) => {
+    setLoading(true);
+    setError(null);
+    setDownscaling(null);
+
+    try {
+      const data = await api.getCoordinatesForecast(lat, lon, name);
+
+      if (name) setSelectedMunicipalityName(name);
+
+      const forecastDays = data?.forecast || [];
+
+      // First forecast day as current weather
+      if (forecastDays.length > 0) {
+        const today = forecastDays[0];
+        setWeatherData({
+          observed_at: today.date,
+          temp_avg: today.temp_max != null && today.temp_min != null
+            ? Math.round(((today.temp_max + today.temp_min) / 2) * 10) / 10
+            : undefined,
+          temp_min: today.temp_min,
+          temp_max: today.temp_max,
+          humidity_avg: undefined,  // Open-Meteo daily doesn't include humidity
+          precip_mm: today.precip_mm,
+          pressure_hpa: undefined,
+          viento: {
+            direccion: today.wind_direction_deg ? `${today.wind_direction_deg}°` : 'N',
+            velocidad: today.wind_speed_ms ? Math.round(today.wind_speed_ms * 3.6) : 0,
+          },
+        });
+      } else {
+        setWeatherData(null);
+      }
+
+      // Map forecast to widget format
+      const mapped: ForecastData[] = forecastDays.map((d: any) => ({
+        fecha: d.date,
+        t_maxima: d.temp_max,
+        t_minima: d.temp_min,
+        estado_cielo: d.weather_code != null ? String(d.weather_code) : undefined,
+        precipitacion_proba: d.precip_probability,
+      }));
+      setForecast(mapped);
+    } catch (err: any) {
+      logger.error('Error loading weather by coordinates:', err);
+      setError(err.message || t('weather.error_loading'));
     } finally {
       setLoading(false);
     }
