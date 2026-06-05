@@ -237,8 +237,8 @@ export const ViewerHeader: React.FC = () => {
                         onMouseEnter={openLayersSubmenu}
                         onMouseLeave={scheduleLayersSubmenuClose}
                     >
+                        <span ref={layersTriggerRef}>
                         <Button
-                            ref={layersTriggerRef}
                             type="button"
                             onClick={() => {
                                 if (isLayersSubmenuOpen) {
@@ -266,6 +266,7 @@ export const ViewerHeader: React.FC = () => {
                                 }`}
                             />
                         </Button>
+                        </span>
 
                         <LayersCascadeSubmenu
                             isOpen={isLayersSubmenuOpen}

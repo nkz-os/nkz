@@ -1,22 +1,5 @@
 /// <reference types="vite/client" />
 
-// @nekazari/ui-kit does not ship .d.ts files yet
-declare module '@nekazari/ui-kit' {
-  import { FC, ReactNode } from 'react';
-  type PassthroughProps = { [key: string]: unknown };
-  export const Card: FC<{ children?: ReactNode; className?: string } & PassthroughProps>;
-  export const Button: FC<{ children?: ReactNode; className?: string; onClick?: () => void } & PassthroughProps>;
-  export const Input: FC<PassthroughProps>;
-  export const Badge: FC<{ children?: ReactNode } & PassthroughProps>;
-  export const Dialog: FC<{ children?: ReactNode } & PassthroughProps>;
-  export const Tabs: FC<{ children?: ReactNode } & PassthroughProps>;
-  export const TabsList: FC<{ children?: ReactNode } & PassthroughProps>;
-  export const TabsTrigger: FC<{ children?: ReactNode; value: string } & PassthroughProps>;
-  export const TabsContent: FC<{ children?: ReactNode; value: string } & PassthroughProps>;
-  const _default: Record<string, unknown>;
-  export default _default;
-}
-
 /** Vite / build-time and runtime-injectable env vars (see config/environment.ts) */
 interface ImportMetaEnv {
   readonly MODE: string;
