@@ -249,6 +249,21 @@ def _resolve_parcel_location(parcel_entity: dict) -> Optional[tuple]:
     return None
 
 
+def _safe_idx(daily: dict, key: str, index: int) -> Optional[float]:
+    """Safely get a value from Open-Meteo daily dict by index."""
+    arr = daily.get(key, [])
+    if arr and index < len(arr) and arr[index] is not None:
+        return float(arr[index])
+    return None
+
+
+def _div_if(value: Optional[float], divisor: float) -> Optional[float]:
+    """Divide value by divisor if not None."""
+    if value is None:
+        return None
+    return round(value / divisor, 2)
+
+
 @router.get("/parcel/{parcel_id}")
 def get_parcel_weather(
     parcel_id: str,
@@ -307,83 +322,147 @@ def get_parcel_weather(
         if isinstance(ts, dict):
             parcel_slope = float(ts.get("value", 0) or 0)
 
-        # Step 4: Find nearest municipality with weather data
-        conn = get_db_connection(tenant_id)
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT
-                    wo.municipality_code,
-                    cm.name as municipality_name,
-                    ST_Y(wo.location) as station_lat,
-                    ST_X(wo.location) as station_lon,
-                    ST_Distance(
-                        wo.location,
-                        ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                    ) as distance_m
-                FROM weather_observations wo
-                LEFT JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
-                WHERE wo.tenant_id = %s
-                  AND wo.location IS NOT NULL
-                ORDER BY wo.location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                LIMIT 1
-                """,
-                (parcel_lon, parcel_lat, tenant_id, parcel_lon, parcel_lat),
-            )
-            municipality = cur.fetchone()
-            if not municipality:
-                return JSONResponse(
-                    {"error": "No municipality with weather data found near parcel"},
-                    status_code=404,
-                )
+        # Step 4: Try to find linked WeatherObserved entity in Orion-LD
+        wo_resp = requests.get(
+            f"{settings.orion_url}/ngsi-ld/v1/entities",
+            params={
+                "type": "WeatherObserved",
+                "q": f'refParcel=="{parcel_id}"',
+                "limit": 1,
+            },
+            headers=headers,
+            timeout=10,
+        )
 
-            muni_code = municipality["municipality_code"]
+        wo_entity = None
+        if wo_resp.status_code == 200:
+            wo_data = wo_resp.json()
+            if isinstance(wo_data, list) and len(wo_data) > 0:
+                wo_entity = wo_data[0]
+            elif isinstance(wo_data, dict) and wo_data.get("id"):
+                wo_entity = wo_data
 
-            # Step 5: Get weather observations for this municipality
-            cur.execute(
-                """
-                SELECT
-                    observed_at, temp_avg, temp_min, temp_max,
-                    humidity_avg, precip_mm,
-                    solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
-                    eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
-                    wind_speed_ms, wind_direction_deg, pressure_hpa,
-                    gdd_accumulated, delta_t,
-                    source, data_type, metadata
-                FROM weather_observations
-                WHERE tenant_id = %s
-                  AND municipality_code = %s
-                  AND source = %s
-                  AND data_type = %s
-                ORDER BY observed_at DESC
-                LIMIT %s
-                """,
-                (tenant_id, muni_code, source, data_type, limit),
+        if wo_entity:
+            # Normalize to same schema as on-the-fly response
+            wo_attrs = wo_entity if isinstance(wo_entity, dict) else {}
+            temp = wo_attrs.get("temperature", {})
+            humidity = wo_attrs.get("relativeHumidity", {})
+            wind = wo_attrs.get("windSpeed", {})
+            precip = wo_attrs.get("precipitation", {})
+            pressure = wo_attrs.get("atmosphericPressure", {})
+            et0 = wo_attrs.get("et0", {})
+            delta_t = wo_attrs.get("deltaT", {})
+            date_obs = wo_attrs.get("dateObserved", {})
+
+            normalized_obs = {
+                "observed_at": (
+                    date_obs.get("value", {}).get("@value", "")
+                    if isinstance(date_obs, dict)
+                    else ""
+                ),
+                "temp_avg": temp.get("value") if isinstance(temp, dict) else None,
+                "temp_max": None,
+                "temp_min": None,
+                "humidity_avg": humidity.get("value") if isinstance(humidity, dict) else None,
+                "precip_mm": precip.get("value") if isinstance(precip, dict) else None,
+                "wind_speed_ms": wind.get("value") if isinstance(wind, dict) else None,
+                "pressure_hpa": pressure.get("value") if isinstance(pressure, dict) else None,
+                "eto_mm": et0.get("value") if isinstance(et0, dict) else None,
+                "delta_t": delta_t.get("value") if isinstance(delta_t, dict) else None,
+                "source": wo_attrs.get("sourceConfidence", {}).get("value", "OPEN-METEO")
+                if isinstance(wo_attrs.get("sourceConfidence"), dict)
+                else "OPEN-METEO",
+                "data_type": "HISTORY",
+            }
+
+            return {
+                "parcel_id": parcel_id,
+                "source": "orion-cache",
+                "observations": [normalized_obs],
+            }
+
+        # Step 5: Cache miss — fetch from Open-Meteo directly + downscaling
+        from datetime import datetime, timedelta
+
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        end = (datetime.utcnow() + timedelta(days=min(limit, 14))).strftime("%Y-%m-%d")
+
+        om_resp = requests.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": parcel_lat,
+                "longitude": parcel_lon,
+                "start_date": today,
+                "end_date": end,
+                "daily": [
+                    "temperature_2m_max",
+                    "temperature_2m_min",
+                    "temperature_2m_mean",
+                    "relative_humidity_2m_mean",
+                    "precipitation_sum",
+                    "precipitation_probability_max",
+                    "wind_speed_10m_max",
+                    "wind_direction_10m_dominant",
+                    "et0_fao_evapotranspiration",
+                    "shortwave_radiation_sum",
+                    "soil_moisture_0_to_10cm_mean",
+                    "soil_moisture_10_to_40cm_mean",
+                    "surface_pressure_mean",
+                ],
+                "timezone": "Europe/Madrid",
+            },
+            timeout=10,
+        )
+
+        if om_resp.status_code != 200:
+            return JSONResponse(
+                {"error": f"Open-Meteo returned {om_resp.status_code}"},
+                status_code=502,
             )
-            observations = [dict(row) for row in cur.fetchall()]
-        finally:
-            cur.close()
-            conn.close()
+
+        raw = om_resp.json()
+        station_elevation = raw.get("elevation", 0.0)
+        daily = raw.get("daily", {})
+        dates = daily.get("time", [])
+
+        # Parse Open-Meteo response to observation dicts
+        observations = []
+        for i, date_str in enumerate(dates):
+            obs = {
+                "observed_at": date_str,
+                "temp_max": _safe_idx(daily, "temperature_2m_max", i),
+                "temp_min": _safe_idx(daily, "temperature_2m_min", i),
+                "temp_avg": _safe_idx(daily, "temperature_2m_mean", i),
+                "humidity_avg": _safe_idx(daily, "relative_humidity_2m_mean", i),
+                "precip_mm": _safe_idx(daily, "precipitation_sum", i),
+                "precip_probability": _safe_idx(daily, "precipitation_probability_max", i),
+                "wind_speed_ms": _safe_idx(daily, "wind_speed_10m_max", i),
+                "wind_direction_deg": _safe_idx(daily, "wind_direction_10m_dominant", i),
+                "pressure_hpa": _safe_idx(daily, "surface_pressure_mean", i),
+                "eto_mm": _safe_idx(daily, "et0_fao_evapotranspiration", i),
+                "solar_rad_w_m2": _div_if(
+                    _safe_idx(daily, "shortwave_radiation_sum", i), 0.0864
+                ),
+                "soil_moisture_0_10cm": _safe_idx(
+                    daily, "soil_moisture_0_to_10cm_mean", i
+                ),
+                "soil_moisture_10_40cm": _safe_idx(
+                    daily, "soil_moisture_10_to_40cm_mean", i
+                ),
+            }
+            observations.append(obs)
 
         if not observations:
             return JSONResponse(
                 {
                     "parcel_id": parcel_id,
-                    "municipality_code": muni_code,
-                    "municipality_name": municipality.get("municipality_name"),
+                    "source": "on-the-fly",
                     "downscaling": "unavailable",
                     "observations": [],
                 }
             )
 
-        # Step 6: Extract station elevation from observation metadata
-        station_altitude = 0.0
-        meta = observations[0].get("metadata") or {}
-        if isinstance(meta, dict):
-            station_altitude = float(meta.get("station_elevation_m", 0) or 0)
-
-        # Step 7: Apply spatial downscaling
+        # Step 6: Apply spatial downscaling
         downscaling_applied = False
         try:
             from common.weather_utils.spatial_downscaler import (
@@ -392,24 +471,27 @@ def get_parcel_weather(
 
             corrected_observations = []
             for obs in observations:
-                obs_dt = obs.get("observed_at")
-                doy = (
-                    obs_dt.timetuple().tm_yday if hasattr(obs_dt, "timetuple") else None
-                )
+                obs_dt_str = obs.get("observed_at")
+                doy = None
+                if obs_dt_str and isinstance(obs_dt_str, str):
+                    try:
+                        doy = datetime.fromisoformat(obs_dt_str).timetuple().tm_yday
+                    except (ValueError, TypeError):
+                        pass
 
                 corrected = downscale_for_parcel(
                     weather_data=obs,
                     parcel_lat=parcel_lat,
                     parcel_lon=parcel_lon,
                     parcel_altitude_m=parcel_altitude,
-                    station_altitude_m=station_altitude,
+                    station_altitude_m=station_elevation,
                     parcel_aspect_deg=parcel_aspect,
                     parcel_slope_deg=parcel_slope,
                     doy=doy,
                 )
-                for key in ("observed_at", "source", "data_type", "municipality_code"):
-                    if key in obs:
-                        corrected[key] = obs[key]
+                corrected["observed_at"] = obs.get("observed_at")
+                corrected["source"] = "OPEN-METEO"
+                corrected["data_type"] = data_type
                 corrected_observations.append(corrected)
 
             observations = corrected_observations
@@ -424,10 +506,9 @@ def get_parcel_weather(
 
         return {
             "parcel_id": parcel_id,
-            "municipality_code": muni_code,
-            "municipality_name": municipality.get("municipality_name"),
+            "source": "on-the-fly",
             "parcel_altitude_m": parcel_altitude,
-            "station_altitude_m": station_altitude,
+            "station_altitude_m": station_elevation,
             "parcel_aspect_deg": parcel_aspect,
             "parcel_slope_deg": parcel_slope,
             "downscaling": "applied" if downscaling_applied else "unavailable",

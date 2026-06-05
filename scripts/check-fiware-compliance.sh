@@ -89,6 +89,6 @@ else
     echo ""
     echo "Fix: Data must flow through Orion-LD. Use NGSI-LD entity operations,"
     echo "     then let subscriptions feed the database via notification handlers."
-    echo "     See .ai/RULES.md for details."
+    echo "     See AGENTS.md for architecture rules."
     exit 1
 fi

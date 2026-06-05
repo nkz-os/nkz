@@ -51,7 +51,7 @@ jobs:
           if [ "$violations" -gt 0 ]; then
             echo "❌ Found $violations file(s) with direct DB writes."
             echo "Allowed exceptions: notification_handler.py, subscription_manager.py, ingest/, migrations/"
-            echo "See .ai/RULES.md for the architecture rules."
+            echo "See AGENTS.md for the architecture rules."
             exit 1
           fi
 

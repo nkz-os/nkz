@@ -32,15 +32,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Import Orion writer for dual write
-try:
-    from weather_worker.storage.orion_writer import sync_weather_to_orion
-    ORION_SYNC_ENABLED = os.getenv('WEATHER_ORION_SYNC_ENABLED', 'true').lower() == 'true'
-except ImportError as e:
-    logger.warning(f"Orion writer not available - Orion-LD sync disabled: {e}")
-    ORION_SYNC_ENABLED = False
-    def sync_weather_to_orion(*args, **kwargs):
-        return 0
+# NOTE: Orion-LD sync for parcel weather is now handled by ParcelWeatherEngine.
+# The old try/except import of sync_weather_to_orion has been removed.
+# See: weather_worker/parcel_engine.py
 
 
 class TimescaleDBWriter:
@@ -112,22 +106,12 @@ class TimescaleDBWriter:
     ) -> int:
         """Write weather observations to TimescaleDB.
 
-        FIWARE COMPLIANCE NOTE: Writes directly to weather_observations table,
-        then syncs back to Orion-LD via sync_weather_to_orion().
-        The dual-write pattern (DB then Orion) is deliberate: weather data must
-        be available for TimescaleDB continuous aggregates immediately, while
-        Orion-LD entity updates are asynchronous.
+        DEPRECATED: ParcelWeatherEngine now writes WeatherObserved to Orion-LD.
+        The telemetry-worker subscription pipeline handles TimescaleDB persistence.
 
-        TODO (FIWARE certification): Reverse the order — write to Orion-LD first,
-        use subscription notification to populate TimescaleDB. The subscription
-        infrastructure already exists (telemetry-worker subscription_manager.py).
-
-        Args:
-            observations: List of observation dictionaries
-            tenant_id: Tenant ID
-
-        Returns:
-            Number of observations written
+        This method remains ONLY for MUNICIPALITY_WORKER_ENABLED=true backward
+        compatibility. It will be removed when the municipality worker is fully
+        decommissioned.
         """
         if not observations:
             return 0
@@ -254,62 +238,12 @@ class TimescaleDBWriter:
                     execute_values(cursor, insert_query, values)
                     conn.commit()
                     logger.info(f"Inserted {len(values)} weather observations for tenant {tenant_id}")
-                    
-                    # Sync to Orion-LD (dual write)
-                    if ORION_SYNC_ENABLED:
-                        try:
-                            # Get location from first observation (all should be same location for batch)
-                            first_obs = observations[0] if observations else None
-                            if first_obs:
-                                # Get location from weather_observations or catalog_municipalities
-                                cursor.execute("""
-                                    SELECT ST_Y(wo.location) as latitude, ST_X(wo.location) as longitude
-                                    FROM weather_observations wo
-                                    WHERE wo.municipality_code = %s
-                                      AND wo.location IS NOT NULL
-                                    LIMIT 1
-                                """, (first_obs.get('municipality_code'),))
-                                loc_row = cursor.fetchone()
-                                
-                                if loc_row and loc_row.get('latitude') and loc_row.get('longitude'):
-                                    lat = float(loc_row['latitude'])
-                                    lon = float(loc_row['longitude'])
-                                    
-                                    # Sync each observation to Orion-LD
-                                    # Group by observed_at to avoid duplicate syncs
-                                    synced_timestamps = set()
-                                    for obs in observations:
-                                        obs_timestamp = obs.get('observed_at')
-                                        if obs_timestamp and obs_timestamp not in synced_timestamps:
-                                            synced_timestamps.add(obs_timestamp)
-                                            
-                                            # Convert datetime if needed
-                                            if isinstance(obs_timestamp, str):
-                                                obs_timestamp = datetime.fromisoformat(obs_timestamp.replace('Z', '+00:00'))
-                                            
-                                            # Sync to Orion-LD with spatial downscaling
-                                            station_alt = float(
-                                                (obs.get('metadata') or {})
-                                                .get('station_elevation_m', 0) or 0
-                                            )
-                                            synced = sync_weather_to_orion(
-                                                tenant_id=tenant_id,
-                                                latitude=lat,
-                                                longitude=lon,
-                                                weather_data=obs,
-                                                observed_at=obs_timestamp if isinstance(obs_timestamp, datetime) else None,
-                                                radius_km=10.0,
-                                                station_altitude_m=station_alt,
-                                                municipality_code=first_obs.get("municipality_code"),
-                                            )
-                                            if synced > 0:
-                                                logger.debug(f"Synced {synced} WeatherObserved entities to Orion-LD for timestamp {obs_timestamp}")
-                                else:
-                                    logger.warning(f"Could not find location for municipality {first_obs.get('municipality_code')} - skipping Orion-LD sync")
-                        except Exception as orion_error:
-                            # Don't fail the entire write if Orion sync fails
-                            logger.error(f"Error syncing to Orion-LD (non-fatal): {orion_error}", exc_info=True)
-                    
+
+                    # NOTE: Orion-LD sync is now handled by ParcelWeatherEngine
+                    # (parcel-driven, per-parcel downscaling). The municipality
+                    # worker no longer writes WeatherObserved entities.
+                    # See: weather_worker/parcel_engine.py
+
                     return len(values)
                 else:
                     logger.warning("No valid observations to insert")
@@ -458,120 +392,6 @@ class TimescaleDBWriter:
             logger.debug(f'Weather alert webhook failed (non-fatal): {exc}')
             raise
     
-    def _discover_locations_from_parcels(
-        self, conn, cursor, tenant_id: str
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Query Orion-LD for AgriParcel entities belonging to this tenant,
-        resolve each parcel's municipality via PostGIS nearest-neighbor,
-        and auto-insert into tenant_weather_locations so the system learns
-        where the tenant actually farms.
-
-        Returns a single discovered location dict or None.
-        """
-        ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
-        try:
-            import requests
-
-            from weather_worker.storage.orion_writer import _make_headers
-            headers = _make_headers(tenant_id)
-            params = {
-                "type": "AgriParcel",
-                "attrs": "location",
-                "limit": 50,
-            }
-            resp = requests.get(
-                f"{ORION_URL}/ngsi-ld/v1/entities",
-                params=params,
-                headers=headers,
-                timeout=10,
-            )
-            if resp.status_code != 200:
-                logger.debug(
-                    f"Orion-LD returned {resp.status_code} for tenant {tenant_id} — skipping parcel discovery"
-                )
-                return None
-
-            entities = resp.json()
-            if not isinstance(entities, list) or len(entities) == 0:
-                return None
-
-            for entity in entities:
-                loc = entity.get("location", {})
-                if isinstance(loc, dict):
-                    loc_val = loc.get("value", {})
-                else:
-                    loc_val = loc
-
-                coords = None
-                if isinstance(loc_val, dict):
-                    if loc_val.get("type") == "Point":
-                        coords = loc_val.get("coordinates", [])
-                    elif loc_val.get("type") in ("Polygon", "MultiPolygon"):
-                        # Use centroid via PostGIS
-                        try:
-                            from weather_worker.geo_utils import calculate_centroid
-
-                            centroid = calculate_centroid(loc_val)
-                            if centroid:
-                                coords = [centroid[0], centroid[1]]
-                        except ImportError:
-                            pass
-
-                if not coords or len(coords) < 2:
-                    continue
-
-                lon, lat = float(coords[0]), float(coords[1])
-
-                # Find municipality that contains or is nearest to this parcel
-                try:
-                    cursor.execute("""
-                        SELECT
-                            %s as tenant_id,
-                            wo.municipality_code,
-                            ST_Y(wo.location) as latitude,
-                            ST_X(wo.location) as longitude,
-                            NULL as station_id,
-                            cm.name as label
-                        FROM weather_observations wo
-                        LEFT JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
-                        WHERE wo.location IS NOT NULL
-                        ORDER BY wo.location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                        LIMIT 1
-                    """, (tenant_id, lon, lat))
-                    row = cursor.fetchone()
-                    if row:
-                        discovered = dict(row)
-                        # Auto-insert so we don't query Orion-LD every cycle
-                        try:
-                            cursor.execute("""
-                                INSERT INTO tenant_weather_locations
-                                    (tenant_id, municipality_code, label, is_primary)
-                                VALUES (%s, %s, %s, true)
-                                ON CONFLICT (tenant_id, municipality_code) DO NOTHING
-                            """, (tenant_id, discovered['municipality_code'],
-                                  discovered.get('label', '')))
-                            conn.commit()
-                        except Exception:
-                            conn.rollback()
-                        logger.info(
-                            f"Auto-discovered weather location for tenant {tenant_id} "
-                            f"from parcel at ({lat:.4f}, {lon:.4f}): "
-                            f"{discovered['municipality_code']} ({discovered.get('label')})"
-                        )
-                        return discovered
-                except Exception as point_err:
-                    logger.debug(f"PostGIS lookup failed for point ({lat},{lon}): {point_err}")
-                    conn.rollback()
-                    continue
-
-        except ImportError:
-            logger.debug("requests not available in weather-worker — skipping Orion-LD discovery")
-        except Exception as exc:
-            logger.warning(f"Parcel discovery error for tenant {tenant_id}: {exc}")
-
-        return None
-
     def get_tenant_weather_locations(self) -> List[Dict[str, Any]]:
         """
         Get all active tenant weather locations
@@ -637,17 +457,9 @@ class TimescaleDBWriter:
                 for tenant_id in tenants:
                     discovered = None
 
-                    # [PRIORITY 1] Discover from Orion-LD: find AgriParcel entities
-                    # for this tenant and resolve their municipalities via PostGIS.
-                    try:
-                        discovered = self._discover_locations_from_parcels(
-                            conn, cursor, tenant_id
-                        )
-                    except Exception as parcel_err:
-                        logger.warning(
-                            f"Parcel discovery failed for tenant {tenant_id}: {parcel_err}"
-                        )
-                        conn.rollback()
+                    # [PRIORITY 1] REMOVED — Parcel discovery now handled by
+                    # ParcelWeatherEngine. Municipality worker no longer
+                    # writes to tenant_weather_locations.
 
                     # [PRIORITY 2] Reuse municipalities from previous weather ingestions
                     if not discovered:
