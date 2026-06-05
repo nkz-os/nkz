@@ -5,6 +5,7 @@ import client from '@/services/api';
 import { Button, Input } from '@nekazari/ui-kit';
 import {
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
   normalizeTenantId,
   validateTenantId,
   MIN_TENANT_ID_LENGTH,
@@ -148,7 +149,6 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
             <Input
               type="text"
               value={form.tenant_name}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm({ ...form, tenant_name: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               placeholder="My Farm"
@@ -183,7 +183,6 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
             <Input
               type="email"
               value={form.email}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm({ ...form, email: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               placeholder="owner@example.com"
@@ -195,7 +194,6 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
             </label>
             <select
               value={form.plan}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm({ ...form, plan: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
             >
@@ -214,7 +212,6 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
             <Input
               type="password"
               value={form.password}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm({ ...form, password: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               placeholder="Leave empty to auto-generate"

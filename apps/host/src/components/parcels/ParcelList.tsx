@@ -10,6 +10,7 @@ import type { Parcel } from '@/types';
 import { ParcelAgroStatus } from './ParcelAgroStatus';
 import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ParcelListProps {
     parcels: Parcel[];
     isLoading: boolean;
@@ -161,11 +162,9 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                     <div className="flex items-center gap-2">
                         {isParent && zonesCount > 0 && (
                             <Button
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 onClick={((e: any) => {
                                     e.stopPropagation();
                                     toggleExpand(parcel.id);
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 }) as any}
                                 className="text-nkz-muted hover:text-gray-600"
                             >
@@ -229,11 +228,9 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                 <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-2 flex-wrap">
                         <Button
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             onClick={((e: any) => {
                                 e.stopPropagation();
                                 onEdit(parcel);
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             }) as any}
                             className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-success bg-nkz-success-light rounded-md hover:bg-nkz-success-light transition-colors"
                             title="Editar"
@@ -243,14 +240,12 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         </Button>
                         {isZone && onDeleteZone ? (
                             <Button
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 onClick={((e: any) => {
                                     e.stopPropagation();
                                     const parent = parcels.find(p => p.id === parcel.refParent);
                                     if (parent) {
                                         onDeleteZone(parcel, parent);
                                     }
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 }) as any}
                                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light rounded-md hover:bg-nkz-error-light transition-colors"
                                 title="Eliminar zona"
@@ -260,11 +255,9 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                             </Button>
                         ) : (
                             <Button
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 onClick={((e: any) => {
                                     e.stopPropagation();
                                     onDelete(parcel);
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 }) as any}
                                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light rounded-md hover:bg-nkz-error-light transition-colors"
                                 title="Eliminar parcela"

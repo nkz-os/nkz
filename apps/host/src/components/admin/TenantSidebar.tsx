@@ -3,6 +3,7 @@ import { Search, Plus, Building2 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Tenant {
   tenant_id: string;
   tenant_name: string;
@@ -78,7 +79,6 @@ export const TenantSidebar: React.FC<TenantSidebarProps> = ({
             placeholder={t('admin.search_tenants', { defaultValue: 'Search tenants...' })}
             className="w-full pl-9 pr-3 py-2 text-nkz-sm border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
             value={search}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setSearch(e.target.value)}
           />
         </div>

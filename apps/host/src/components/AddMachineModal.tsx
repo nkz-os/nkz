@@ -14,6 +14,7 @@ import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
 
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const config = getConfig();
 
 interface AddMachineModalProps {
@@ -208,7 +209,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
             <Input
               type="text"
               value={formData.name}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
               placeholder={t('machines.name_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -226,7 +226,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               <Input
                 type="text"
                 value={formData.manufacturer}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, manufacturer: e.target.value })}
                 placeholder={t('machines.manufacturer_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -240,7 +239,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               <Input
                 type="text"
                 value={formData.model}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, model: e.target.value })}
                 placeholder={t('machines.model_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -257,7 +255,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
             <Input
               type="text"
               value={formData.serialNumber}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, serialNumber: e.target.value })}
               placeholder={t('machines.serial_number_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -273,7 +270,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               </label>
               <select
                 value={formData.status}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) =>
                   setFormData({ ...formData, status: e.target.value as typeof formData.status })
                 }
@@ -292,7 +288,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               </label>
               <select
                 value={formData.operation_type}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) =>
                   setFormData({
                     ...formData,
@@ -318,7 +313,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               type="checkbox"
               id="isobus"
               checked={formData.isobusCompatible}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, isobusCompatible: e.target.checked })}
               className="w-4 h-4 text-orange-600 border-nkz-border rounded focus:ring-orange-500"
               disabled={loading}
@@ -338,7 +332,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 type="number"
                 step="any"
                 value={formData.latitude}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: 42.571493"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -355,7 +348,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 type="number"
                 step="any"
                 value={formData.longitude}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder="Ej: -2.028218"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -376,7 +368,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 type="number"
                 step="any"
                 value={formData.latitude}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('machines.latitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -393,7 +384,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
                 type="number"
                 step="any"
                 value={formData.longitude}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('machines.longitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -412,7 +402,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               <Input
                 type="url"
                 value={formData.icon2d}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, icon2d: e.target.value })}
                 placeholder="https://ejemplo.com/icono.png"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -426,7 +415,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
               <Input
                 type="url"
                 value={formData.model3d}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, model3d: e.target.value })}
                 placeholder="https://ejemplo.com/modelo.glb"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
@@ -442,7 +430,6 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
             </label>
             <textarea
               value={formData.notes}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"

@@ -4,6 +4,7 @@ import { RotateCcw, Loader2 } from 'lucide-react';
 import client from '@/services/api';
 import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Props {
   tenantId: string;
   onRestored: () => void;
@@ -19,7 +20,6 @@ export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) =
     try {
       await client.post(`/api/admin/tenants/${tenantId}/restore`);
       onRestored();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       alert(e?.response?.data?.error || 'Restore failed');
     } finally {

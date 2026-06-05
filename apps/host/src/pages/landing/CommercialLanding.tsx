@@ -14,6 +14,7 @@ import { OpenStandards } from './blocks/OpenStandards';
 import { FinalCTA } from './blocks/FinalCTA';
 import { LandingFooter } from './blocks/LandingFooter';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const CommercialLanding: React.FC = () => {
   const { setLanguage, language, supportedLanguages } = useI18n();
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);

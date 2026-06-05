@@ -134,7 +134,6 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
     lastName: u.lastName,
     roles: u.roles || [],
     enabled: u.enabled !== false,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     createdAt: typeof (u as any).createdAt === 'number' ? (u as any).createdAt : undefined,
   }));
 
@@ -207,7 +206,6 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                   <Input
                     type="email"
                     value={newUser.email}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => setNewUser({ ...newUser, email: e.target.value })}
                     className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="user@example.com"
@@ -222,7 +220,6 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                     <Input
                       type="text"
                       value={newUser.firstName}
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onChange={(e: any) => setNewUser({ ...newUser, firstName: e.target.value })}
                       className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
@@ -234,7 +231,6 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                     <Input
                       type="text"
                       value={newUser.lastName}
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onChange={(e: any) => setNewUser({ ...newUser, lastName: e.target.value })}
                       className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
@@ -248,7 +244,6 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                   <Input
                     type="password"
                     value={newUser.password}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => setNewUser({ ...newUser, password: e.target.value })}
                     className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
@@ -266,7 +261,6 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
                       <Input
                         type="checkbox"
                         checked={newUser.roles.includes(role.value)}
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(e: any) => {
                           if (e.target.checked) {
                             setNewUser({ ...newUser, roles: [...newUser.roles, role.value] });

@@ -7,7 +7,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTelemetry, UseTelemetryOptions, UseTelemetryReturn, TelemetryValue } from './useTelemetry';
 import {
-/* eslint-disable @typescript-eslint/no-explicit-any */
     DeviceProfile,
     MappingEntry,
     getDeviceProfile,

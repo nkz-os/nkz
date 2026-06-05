@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // =============================================================================
 // API Service - HTTP Client for Nekazari Backend
 // =============================================================================
 
 import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import type {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Robot,
   Sensor,
   Parcel,

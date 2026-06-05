@@ -11,7 +11,6 @@
 /**
  * NGSI-LD Property - Represents a property value with metadata
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface NGSIProperty {
   type: 'Property';
   value: string | number | boolean | object | null;

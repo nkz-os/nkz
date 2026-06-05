@@ -4,6 +4,7 @@ import { Loader2, UserCheck } from 'lucide-react';
 import client from '@/services/api';
 import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Props {
   userId: string;
   username: string;
@@ -38,7 +39,6 @@ export const ReassignTenantDialog: React.FC<Props> = ({
     try {
       await client.put(`/api/admin/users/${userId}/tenant`, { tenant_id: selectedTenantId });
       onReassigned();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       alert(e?.response?.data?.error || 'Reassign failed');
     } finally {
@@ -61,7 +61,6 @@ export const ReassignTenantDialog: React.FC<Props> = ({
           <Loader2 className="h-6 w-6 animate-spin mx-auto mt-4" />
         ) : (
           <select value={selectedTenantId}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setSelectedTenantId(e.target.value)}
             className="mt-4 w-full p-2 border border-nkz-border rounded bg-nkz-bg text-nkz-text-primary">
             <option value="">{t('admin.select_tenant')}</option>

@@ -9,8 +9,8 @@ import { formatAuthError } from '@/utils/keycloakHelpers';
 import { logger } from '@/utils/logger';
 import { api, setKeycloakRef } from '@/services/api';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export interface KeycloakUser {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   id: string;
   username: string;
   email: string;

@@ -5,6 +5,7 @@ import { TermsAcceptance } from '@/components/TermsAcceptance';
 import type { WizardFormData } from './RegistrationWizard';
 import { Eye, EyeOff, Check, Minus } from 'lucide-react';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface StepSecurityProps {
   formData: WizardFormData;
   updateField: (field: keyof WizardFormData, value: string) => void;
@@ -107,7 +108,6 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
             id="reg-password"
             type={showPassword ? 'text' : 'password'}
             value={formData.password}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => updateField('password', e.target.value)}
             placeholder={t('activation.password_placeholder') || '••••••••'}
             required
@@ -156,7 +156,6 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
             id="reg-confirm"
             type={showConfirm ? 'text' : 'password'}
             value={formData.confirmPassword}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => updateField('confirmPassword', e.target.value)}
             placeholder={t('activation.password_placeholder') || '••••••••'}
             required

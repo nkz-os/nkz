@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
 
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ParcelEditModalProps {
     isOpen: boolean;
     parcel: Parcel | null;
@@ -108,7 +109,6 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                         <Input
                             type="text"
                             value={formData.name}
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             onChange={(e: any) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                             className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                             placeholder="Nombre de la parcela"
@@ -121,7 +121,6 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                         </label>
                         <select
                             value={formData.cropType}
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             onChange={(e: any) => setFormData(prev => ({ ...prev, cropType: e.target.value }))}
                             className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                         >
@@ -149,7 +148,6 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                         </label>
                         <textarea
                             value={formData.notes}
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             onChange={(e: any) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                             className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                             rows={3}

@@ -684,7 +684,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
                   <Input
                     type="date"
                     value={dateRange.start}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => setDateRange({ ...dateRange, start: e.target.value })}
                     className="w-full px-2 py-1 text-sm border border-nkz-border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
@@ -694,7 +693,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
                   <Input
                     type="date"
                     value={dateRange.end}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => setDateRange({ ...dateRange, end: e.target.value })}
                     className="w-full px-2 py-1 text-sm border border-nkz-border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />

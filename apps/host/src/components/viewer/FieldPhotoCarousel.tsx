@@ -4,14 +4,13 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { FieldPhotoRecord } from '@/utils/fieldPhotos';
 import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface FieldPhotoCarouselProps {
   photos: FieldPhotoRecord[];
   index: number;
   onIndexChange: (i: number) => void;
   onClose: () => void;
 }
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const API = (import.meta as any).env?.VITE_API_URL ?? '';
 
 export const FieldPhotoCarousel: React.FC<FieldPhotoCarouselProps> = ({

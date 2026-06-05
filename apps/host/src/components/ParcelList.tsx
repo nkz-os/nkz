@@ -8,6 +8,7 @@ import { useI18n } from '@/context/I18nContext';
 import { Button, Input } from '@nekazari/ui-kit';
 
 export interface SelectedParcel {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   id: string;
   name: string;
   areaHectares: number;
@@ -82,11 +83,9 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                     <Input
                       type="text"
                       value={editValue}
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onChange={(e: any) => setEditValue(e.target.value)}
                       className="flex-1 px-2 py-1 border border-emerald-500 rounded text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       autoFocus
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       onKeyDown={(e: any) => {
                         if (e.key === 'Enter') {
                           handleSaveEdit(parcel.id);

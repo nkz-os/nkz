@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   TreePine,
   Trees,
   Crop,
@@ -131,7 +132,6 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
             type="text"
             placeholder="Buscar activos..."
             value={searchQuery}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />

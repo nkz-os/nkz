@@ -236,7 +236,6 @@ export const SlotRenderer: React.FC<SlotRendererProps> = ({
     const slotRegistry = useSlotRegistryOptional();
     const { modules } = useModules();
     const { tenantProfile } = useAuth();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tenantPlan = tenantProfile?.plan_type as any;
 
     const widgets = slotRegistry ? slotRegistry.getVisibleWidgets(slot) : [];

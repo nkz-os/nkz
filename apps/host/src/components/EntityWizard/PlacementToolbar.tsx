@@ -12,6 +12,7 @@ import { Check, X, RotateCw, Maximize2, Paintbrush, Grid } from 'lucide-react';
 import { useViewer } from '@/context/ViewerContext';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface PlacementToolbarProps {
     onConfirm?: () => void;
     onCancel?: () => void;
@@ -108,7 +109,6 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                         max="5"
                         step="0.1"
                         value={isPreviewMode ? (modelPlacement?.scale ?? 1) : 1}
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         onChange={(e: any) => handleScaleChange(parseFloat(e.target.value))}
                         className="w-20 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
                         disabled={!isPreviewMode}
@@ -128,7 +128,6 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                             max="360"
                             step="15"
                             value={modelPlacement?.rotation[0] ?? 0}
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             onChange={(e: any) => handleRotationChange(parseFloat(e.target.value))}
                             className="w-20 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
                         />
@@ -150,7 +149,6 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                                 max="1"
                                 step="0.1"
                                 value={stampOptions.density}
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 onChange={(e: any) => handleDensityChange(parseFloat(e.target.value))}
                                 className="w-16 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-green-600"
                             />
@@ -168,7 +166,6 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                                 max="20"
                                 step="1"
                                 value={stampOptions.brushSize}
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 onChange={(e: any) => handleBrushSizeChange(parseFloat(e.target.value))}
                                 className="w-16 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-green-600"
                             />

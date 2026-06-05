@@ -10,6 +10,7 @@ import { useViewer } from '@/context/ViewerContext';
 import type { FieldPhotoRecord } from '@/utils/fieldPhotos';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Props {
     /** Used only to derive the scrub input's min/max date span. */
     photos: FieldPhotoRecord[];
@@ -42,7 +43,6 @@ export const CoreTimelineControls: React.FC<Props> = ({ photos }) => {
                     value={toDateInput(currentDate)}
                     min={min}
                     max={max}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => { if (e.target.value) setCurrentDate(new Date(e.target.value)); }}
                     className="bg-slate-100 dark:bg-slate-700 rounded-lg px-2 py-1 text-xs"
                 />

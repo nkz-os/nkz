@@ -10,7 +10,6 @@ import { useI18n } from '@/context/I18nContext';
 import type { Point } from 'geojson';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 interface MapDrawingOverlayProps {
     /** Callback when drawing is complete */
     onComplete: (geometry: any, areaHectares: number | null) => void;

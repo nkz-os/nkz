@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   X,
   AlertTriangle,
   Loader2,
@@ -114,7 +115,6 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
     >
       <div
         className="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col"
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onClick={((e: any) => e.stopPropagation()) as any}
       >
         {/* Header */}
@@ -242,9 +242,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
               <Input
                 type="text"
                 value={confirmText}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setConfirmText(e.target.value)}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onKeyDown={(e: any) => {
                   if (e.key === 'Enter' && isConfirmEnabled) {
                     handleConfirm();

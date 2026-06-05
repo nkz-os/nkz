@@ -17,6 +17,7 @@ import { isLocalAddon, getLocalAddon } from '@/config/localAddons';
 import { logger } from '@/utils/logger';
 
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface RemoteModuleLoaderProps {
   module: ModuleDefinition;
   fallback?: React.ReactNode;
@@ -223,7 +224,6 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
             moduleId={module.id}
             apiBasePath={module.api?.basePath}
             queryClient={module.queryClient}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             tenantPlan={tenantProfile?.plan_type as any}
           >
             <Component />

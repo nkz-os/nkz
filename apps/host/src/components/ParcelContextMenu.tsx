@@ -9,6 +9,7 @@ import type { GeoPolygon } from '@/types';
 import { useI18n } from '@/context/I18nContext';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ParcelContextMenuProps {
   isOpen: boolean;
   position: { x: number; y: number };
@@ -120,12 +121,10 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
           <Input
             type="text"
             value={parcelName}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setParcelName(e.target.value)}
             placeholder={t('parcels.parcel_name_placeholder')}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
             autoFocus
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onKeyDown={(e: any) => {
               if (e.key === 'Enter' && parcelName.trim()) {
                 handleSave();
@@ -140,7 +139,6 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
           </label>
           <textarea
             value={description}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setDescription(e.target.value)}
             placeholder={t('parcels.description_placeholder')}
             rows={3}

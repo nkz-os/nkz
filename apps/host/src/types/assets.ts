@@ -561,7 +561,6 @@ export function normalizeToAsset(entity: any): UnifiedAsset {
     healthScore: entity.batteryLevel?.value || undefined,
     hasLocation: !!coordinates,
     coordinates,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     geometryType: location?.type as any,
     municipality: entity.municipality || entity.address?.municipality,
     parentId: entity.refParent?.object || entity.refParent,

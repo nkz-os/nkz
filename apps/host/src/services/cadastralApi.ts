@@ -5,7 +5,6 @@
 
 import { api } from './api';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 class CadastralApiService {
   private get client() { return api; }
 

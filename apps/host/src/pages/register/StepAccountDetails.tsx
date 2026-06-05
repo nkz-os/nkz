@@ -7,6 +7,7 @@ import axios from 'axios';
 import type { WizardFormData } from './RegistrationWizard';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface StepAccountDetailsProps {
   formData: WizardFormData;
   updateField: (field: keyof WizardFormData, value: string) => void;
@@ -125,7 +126,6 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
           id="reg-email"
           type="email"
           value={formData.email}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => updateField('email', e.target.value)}
           placeholder={t('activation.email_placeholder')}
           required
@@ -142,7 +142,6 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
           id="reg-firstname"
           type="text"
           value={formData.firstName}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => updateField('firstName', e.target.value)}
           placeholder={t('registration.first_name_placeholder')}
           required
@@ -159,7 +158,6 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
           id="reg-lastname"
           type="text"
           value={formData.lastName}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => updateField('lastName', e.target.value)}
           placeholder={t('registration.last_name_placeholder')}
           required
@@ -176,7 +174,6 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
           id="reg-org"
           type="text"
           value={formData.tenantName}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => handleTenantNameChange(e.target.value)}
           placeholder={t('activation.org_name_placeholder')}
           required

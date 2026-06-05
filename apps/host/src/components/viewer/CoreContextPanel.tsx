@@ -561,7 +561,6 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
         if (!attr) return null;
         if (typeof attr === 'number') return attr;
         if (typeof attr === 'object' && attr !== null && 'value' in attr) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const v = (attr as any).value;
             if (typeof v === 'number') return v;
             if (typeof v === 'string') { const n = parseFloat(v); return isNaN(n) ? null : n; }
@@ -586,9 +585,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
         if (!entityData) return null;
         let latest: string | null = null;
         for (const val of Object.values(entityData)) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (val && typeof val === 'object' && 'observedAt' in (val as any) && (val as any).observedAt) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const ts = (val as any).observedAt;
                 if (!latest || ts > latest) latest = ts;
             }

@@ -5,6 +5,7 @@ import { Save, MapPin, Globe, Clock, Banknote } from 'lucide-react';
 import api from '@/services/api';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const TenantProfileEditor: React.FC = () => {
   const { tenantProfile, refreshTenantProfile, hasRole } = useAuth();
   const { t } = useI18n();
@@ -127,7 +128,6 @@ export const TenantProfileEditor: React.FC = () => {
           <Input
             type="text"
             value={form.tenant_name}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setForm(f => ({ ...f, tenant_name: e.target.value }))}
             maxLength={100}
             className="w-full px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -143,7 +143,6 @@ export const TenantProfileEditor: React.FC = () => {
             </label>
             <select
               value={form.timezone}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm(f => ({ ...f, timezone: e.target.value }))}
               className="w-full px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
@@ -161,7 +160,6 @@ export const TenantProfileEditor: React.FC = () => {
             </label>
             <select
               value={form.locale}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm(f => ({ ...f, locale: e.target.value }))}
               className="w-full px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
@@ -179,7 +177,6 @@ export const TenantProfileEditor: React.FC = () => {
             </label>
             <select
               value={form.currency}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm(f => ({ ...f, currency: e.target.value }))}
               className="w-full px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
@@ -202,7 +199,6 @@ export const TenantProfileEditor: React.FC = () => {
               step="0.0001"
               placeholder={t('settings.latitude')}
               value={form.default_lat}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm(f => ({ ...f, default_lat: e.target.value }))}
               className="px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             />
@@ -211,7 +207,6 @@ export const TenantProfileEditor: React.FC = () => {
               step="0.0001"
               placeholder={t('settings.longitude')}
               value={form.default_lon}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm(f => ({ ...f, default_lon: e.target.value }))}
               className="px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             />
@@ -232,7 +227,6 @@ export const TenantProfileEditor: React.FC = () => {
               <Input
                 type="text"
                 value={form.nif}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setForm(f => ({ ...f, nif: e.target.value }))}
                 maxLength={20}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -245,7 +239,6 @@ export const TenantProfileEditor: React.FC = () => {
               <Input
                 type="text"
                 value={form.regepa}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setForm(f => ({ ...f, regepa: e.target.value }))}
                 maxLength={30}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -258,7 +251,6 @@ export const TenantProfileEditor: React.FC = () => {
               <Input
                 type="text"
                 value={form.address_municipio}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setForm(f => ({ ...f, address_municipio: e.target.value }))}
                 maxLength={100}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -271,7 +263,6 @@ export const TenantProfileEditor: React.FC = () => {
               <Input
                 type="text"
                 value={form.address_provincia}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setForm(f => ({ ...f, address_provincia: e.target.value }))}
                 maxLength={50}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -284,7 +275,6 @@ export const TenantProfileEditor: React.FC = () => {
               <Input
                 type="text"
                 value={form.address_cp}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setForm(f => ({ ...f, address_cp: e.target.value }))}
                 maxLength={10}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

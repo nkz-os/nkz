@@ -7,7 +7,6 @@ import { Globe, Maximize2 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import { Button } from '@nekazari/ui-kit';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 interface CesiumMapPlaceholderProps {
   title?: string;
   height?: string;

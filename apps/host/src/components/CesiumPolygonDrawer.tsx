@@ -986,7 +986,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     }
 
     // Reset all other parcel colors
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     viewer.entities.values.forEach((e: any) => {
       if (e.id && e.id.startsWith('parcel-') && e.id !== entityId && e.polygon) {
         e.polygon.material = e.polygon._originalMaterial || Cesium.Color.fromCssColorString('#4ade80').withAlpha(0.4);

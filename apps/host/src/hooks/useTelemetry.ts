@@ -14,7 +14,6 @@ import { logger } from '@/utils/logger';
 // =============================================================================
 
 export interface TelemetryValue {
-/* eslint-disable @typescript-eslint/no-explicit-any */
   observed_at: string;
   payload: Record<string, any>;
   metadata?: Record<string, any>;

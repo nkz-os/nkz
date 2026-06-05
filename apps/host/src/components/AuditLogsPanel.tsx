@@ -11,6 +11,7 @@ import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
 import {
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Filter,
   Download,
   RefreshCw,
@@ -225,7 +226,6 @@ export const AuditLogsPanel: React.FC = () => {
               <Input
                 type="text"
                 value={filters.tenant_id}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleFilterChange('tenant_id', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Filter by tenant"
@@ -238,7 +238,6 @@ export const AuditLogsPanel: React.FC = () => {
               <Input
                 type="text"
                 value={filters.module_id}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleFilterChange('module_id', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., vegetation-prime, ndvi"
@@ -251,7 +250,6 @@ export const AuditLogsPanel: React.FC = () => {
               <Input
                 type="text"
                 value={filters.user_id}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleFilterChange('user_id', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Filter by user"
@@ -264,7 +262,6 @@ export const AuditLogsPanel: React.FC = () => {
               <Input
                 type="text"
                 value={filters.action}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleFilterChange('action', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., module.toggle"
@@ -276,7 +273,6 @@ export const AuditLogsPanel: React.FC = () => {
               </label>
               <select
                 value={filters.event_type}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleFilterChange('event_type', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
@@ -294,7 +290,6 @@ export const AuditLogsPanel: React.FC = () => {
               <Input
                 type="datetime-local"
                 value={filters.date_from}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleFilterChange('date_from', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
@@ -306,7 +301,6 @@ export const AuditLogsPanel: React.FC = () => {
               <Input
                 type="datetime-local"
                 value={filters.date_to}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => handleFilterChange('date_to', e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />

@@ -5,6 +5,7 @@ import { NkzAttribution } from '@/components/attribution/NkzAttribution';
 import { useCookieConsent } from '@/context/CookieConsentContext';
 import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Props {
   language: string;
   supportedLanguages: Record<string, string>;
@@ -60,7 +61,6 @@ export const LandingFooter: React.FC<Props> = ({
             <h4 className="text-[#FAFAF7] font-medium text-sm mb-4">{t('landing_v2.footer_col3_title')}</h4>
             <ul className="space-y-2 text-sm">
               <li><a href="https://nkz-os.org/about" className="hover:text-[#FAFAF7] transition-colors" target="_blank" rel="noopener noreferrer">{t('landing_v2.footer_col3_1')}</a></li>
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               <li><a href={`mailto:${(window as any).__ENV__?.SUPPORT_EMAIL || 'info@nekazari.com'}`} className="hover:text-[#FAFAF7] transition-colors">{t('landing_v2.footer_col3_2')}</a></li>
               <li><a href="https://nkz-os.org/privacy" className="hover:text-[#FAFAF7] transition-colors" target="_blank" rel="noopener noreferrer">{t('landing_v2.footer_col3_3')}</a></li>
               <li><a href="https://nkz-os.org/terms" className="hover:text-[#FAFAF7] transition-colors" target="_blank" rel="noopener noreferrer">{t('landing_v2.footer_col3_4')}</a></li>

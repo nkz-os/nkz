@@ -200,7 +200,6 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
           text: `${measurementLabel || measurementKey} ${unit ? `(${unit})` : ''}`
         }
       }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any
   };
 
@@ -257,7 +256,6 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         <div className="flex items-center gap-2">
           <select
             value={selectedTimeRange}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => setSelectedTimeRange(e.target.value as any)}
             className="px-3 py-1 text-sm border border-nkz-border rounded-lg bg-white"
           >

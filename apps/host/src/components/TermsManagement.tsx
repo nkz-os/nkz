@@ -11,6 +11,7 @@ import { logger } from '@/utils/logger';
 import { Button } from '@nekazari/ui-kit';
 
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const SUPPORTED_LANGUAGES = {
   es: 'Español',
   en: 'English',
@@ -105,7 +106,6 @@ export const TermsManagement: React.FC = () => {
             </label>
             <select
               value={selectedLanguage}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setSelectedLanguage(e.target.value)}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             >
@@ -154,7 +154,6 @@ export const TermsManagement: React.FC = () => {
             </label>
             <textarea
               value={termsContent}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setTermsContent(e.target.value)}
               placeholder={t('admin.terms_placeholder')}
               rows={15}

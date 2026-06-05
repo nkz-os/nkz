@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Shield, Sliders, Webhook, RefreshCw,
   ChevronDown, ChevronRight, Zap, Clock, Filter,
 } from 'lucide-react';
@@ -348,7 +349,6 @@ function MonitorTab() {
         <Filter className="w-4 h-4 text-nkz-muted" />
         <select
           value={filterCode}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => setFilterCode(e.target.value)}
           className="text-sm border border-nkz-border rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-green-500 outline-none"
         >

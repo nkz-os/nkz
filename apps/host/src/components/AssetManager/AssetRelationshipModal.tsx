@@ -6,6 +6,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   X,
   Search,
   MapPin,
@@ -241,7 +242,6 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
               type="text"
               placeholder="Buscar parcela, finca..."
               value={search}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />

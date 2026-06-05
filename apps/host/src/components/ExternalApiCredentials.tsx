@@ -306,7 +306,6 @@ export const ExternalApiCredentials: React.FC = () => {
               <Input
                 type="text"
                 value={formData.service_name}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, service_name: e.target.value })}
                 placeholder="sentinel-hub, aemet, catastro"
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -324,7 +323,6 @@ export const ExternalApiCredentials: React.FC = () => {
               <Input
                 type="url"
                 value={formData.service_url}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, service_url: e.target.value })}
                 placeholder="https://services.sentinel-hub.com"
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -341,7 +339,6 @@ export const ExternalApiCredentials: React.FC = () => {
               </label>
               <select
                 value={formData.auth_type}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, auth_type: e.target.value as any })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
@@ -361,7 +358,6 @@ export const ExternalApiCredentials: React.FC = () => {
                   <Input
                     type="text"
                     value={formData.username || ''}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => setFormData({ ...formData, username: e.target.value })}
                     placeholder="usuario"
                     className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -374,7 +370,6 @@ export const ExternalApiCredentials: React.FC = () => {
                   <Input
                     type="password"
                     value={formData.password || ''}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     onChange={(e: any) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="••••••••"
                     className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -394,7 +389,6 @@ export const ExternalApiCredentials: React.FC = () => {
                 <Input
                   type="password"
                   value={formData.api_key || ''}
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   onChange={(e: any) => setFormData({ ...formData, api_key: e.target.value })}
                   placeholder="••••••••"
                   className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -411,7 +405,6 @@ export const ExternalApiCredentials: React.FC = () => {
               </label>
               <textarea
                 value={formData.description || ''}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, description: e.target.value })}
                 placeholder={t('settings.external_apis.description_placeholder')}
                 rows={3}
@@ -424,7 +417,6 @@ export const ExternalApiCredentials: React.FC = () => {
                 type="checkbox"
                 id="is_active"
                 checked={formData.is_active}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setFormData({ ...formData, is_active: e.target.checked })}
                 className="w-4 h-4 text-nkz-info border-nkz-border rounded focus:ring-blue-500"
               />

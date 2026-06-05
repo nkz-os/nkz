@@ -30,7 +30,6 @@ import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay';
 import { useViewerProfile } from '@/context/ThemeContext';
 import { ThemeProvider } from '@nekazari/design-tokens';
 import { SidebarShell } from '@nekazari/viewer-kit';
-/* eslint-disable @typescript-eslint/no-explicit-any */
 type SidebarState = 'closed' | 'compact' | 'expanded';
 import '@nekazari/design-tokens/css';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';

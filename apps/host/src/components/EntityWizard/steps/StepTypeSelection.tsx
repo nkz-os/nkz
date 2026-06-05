@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { SDMGuideInfo } from '../SDMGuideInfo';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const COLOR_MAP: Record<string, { border: string; bg: string }> = {
   green:  { border: '#22c55e', bg: '#f0fdf4' },
   teal:   { border: '#14b8a6', bg: '#f0fdfa' },
@@ -99,7 +100,6 @@ export function StepTypeSelection() {
         <Input
           type="text"
           value={searchTerm}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => setSearchTerm(e.target.value)}
           placeholder="Buscar: tractor, sensor humedad, Davis, John Deere..."
           className="w-full pl-12 pr-4 py-3 border-2 border-nkz-border rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base"

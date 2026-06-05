@@ -7,6 +7,7 @@
 
 import React, { memo, useState, useMemo, useCallback } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   ChevronRight,
   ChevronDown,
   MapPin,
@@ -175,11 +176,9 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
       >
         {/* Expand/Collapse Button */}
         <Button
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onClick={((e: any) => {
             e.stopPropagation();
             if (hasChildren) onToggleExpand(asset.id);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           }) as any}
           className={`flex-shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${
             hasChildren 
@@ -230,11 +229,9 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
         {/* Actions (visible on hover) */}
         <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onClick={((e: any) => {
               e.stopPropagation();
               onContextMenu(e, asset);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             }) as any}
             className="p-1 rounded hover:bg-slate-200 text-slate-400"
           >

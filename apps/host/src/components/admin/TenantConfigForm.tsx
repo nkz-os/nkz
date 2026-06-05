@@ -3,6 +3,7 @@ import { useI18n } from '@/context/I18nContext';
 import client from '@/services/api';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface TenantConfig {
   tenant_id: string;
   tenant_name: string;
@@ -74,7 +75,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
           plan_type: String(tdata.plan_type ?? tdata.plan ?? 'basic'),
           status: String(tdata.status ?? 'active'),
           expires_at: String(tdata.expires_at ?? ''),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           metadata: (tdata as any).metadata || {},
         };
         setConfig(c);
@@ -82,9 +82,7 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
         setPlanType(c.plan_type);
         setStatus(c.status);
         setExpiresAt(c.expires_at ? c.expires_at.slice(0, 10) : '');
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setContactEmail(String((c.metadata as any)?.primary_email || (c.metadata as any)?.contact_email || ''));
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setContactPhone(String((c.metadata as any)?.phone || ''));
       }
 
@@ -159,7 +157,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
       <Input
         type="number"
         value={value ?? ''}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onChange={(e: any) => {
           const v = e.target.value;
           setter(v === '' ? null : parseInt(v, 10));
@@ -193,7 +190,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
             <Input
               type="text"
               value={tenantName}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setTenantName(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             />
@@ -204,7 +200,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
             </label>
             <select
               value={planType}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setPlanType(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             >
@@ -220,7 +215,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
             </label>
             <select
               value={status}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setStatus(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             >
@@ -238,7 +232,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
             <Input
               type="date"
               value={expiresAt}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setExpiresAt(e.target.value)}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
             />
@@ -258,7 +251,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
               <Input
                 type="email"
                 value={contactEmail}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setContactEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
               />
@@ -270,7 +262,6 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
               <Input
                 type="text"
                 value={contactPhone}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setContactPhone(e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
               />

@@ -5,7 +5,6 @@ import { logger } from '@/utils/logger';
 
 
 /** Resolve relative asset URLs to absolute so CesiumJS can load them */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 function resolveModelUrl(url: string): string {
     if (!url) return url;
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;

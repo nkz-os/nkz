@@ -8,6 +8,7 @@ import { Layout } from '@/components/Layout';
 import { AlertTriangle, ArrowLeft, Home, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ServerErrorProps {
   error?: Error;
   resetError?: () => void;
@@ -103,7 +104,6 @@ export const ServerError: React.FC<ServerErrorProps> = ({ error, resetError }) =
           <div className="mt-12 pt-8 border-t border-nkz-border">
             <p className="text-sm text-nkz-muted">
               Si el problema persiste, contacta con{' '}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               <a href={`mailto:${(window as any).__ENV__?.SUPPORT_EMAIL || 'support'}`} className="text-nkz-success hover:text-nkz-success">
                 soporte técnico
               </a>

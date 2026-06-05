@@ -31,6 +31,7 @@ import { Button } from '@nekazari/ui-kit';
 
 // ─── Step router ──────────────────────────────────────────────────────────────
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface StepRouterProps {
   stepId: StepId;
   placementState: ReturnType<typeof placementReducer>;
@@ -150,7 +151,6 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   }, [reset, onClose]);
 
   const handleNext = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const err = validateStep(currentStep.id, entityType, formData as any, placementState);
     if (err) { setError(err); return; }
     goNext();

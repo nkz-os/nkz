@@ -15,6 +15,7 @@ import type { EntityEditorProps } from './types';
 import type { NGSAttribute } from '@/types/ngsi-ld';
 import { Button } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 function buildAttributeKeys(entity: any): Record<string, NGSAttribute> {
   const attrs: Record<string, NGSAttribute> = {};
   for (const [key, val] of Object.entries(entity)) {
@@ -207,6 +208,5 @@ export function openEntityEditor(entityId: string, entityType: string): void {
 
 // Expose globally for SDK access
 if (typeof window !== 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (window as any).__NKZ__OPEN_ENTITY_EDITOR__ = openEntityEditor;
 }

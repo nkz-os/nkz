@@ -244,12 +244,10 @@ export const MobileViewer: React.FC = () => {
 
         // Listen on both for compatibility
         window.addEventListener('message', handleMessage);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         document.addEventListener('message', handleMessage as any);
 
         return () => {
             window.removeEventListener('message', handleMessage);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             document.removeEventListener('message', handleMessage as any);
         };
     }, [isReady]); // Re-bind if viewer recreates (unlikely but safe)

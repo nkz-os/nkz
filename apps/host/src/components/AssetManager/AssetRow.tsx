@@ -4,6 +4,7 @@
 
 import React, { memo } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   CheckSquare,
   Square,
   MapPin,
@@ -129,11 +130,9 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
     >
       {/* Checkbox */}
       <Button
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onClick={((e: any) => {
           e.stopPropagation();
           onSelect();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }) as any}
         className="flex-shrink-0 p-1 rounded hover:bg-slate-200"
       >
@@ -208,11 +207,9 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
       
       {/* Actions */}
       <Button
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onClick={((e: any) => {
           e.stopPropagation();
           onContextMenu?.(e);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }) as any}
         className="flex-shrink-0 p-1 rounded hover:bg-white/10 text-white/40 hover:text-white/70"
       >

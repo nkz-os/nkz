@@ -669,7 +669,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const heightRef = useRef<any>(undefined);
 
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     heightRef.current = enable3DTerrain
@@ -685,7 +684,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -743,7 +741,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -875,7 +872,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -926,7 +922,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -1007,7 +1002,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -1086,7 +1080,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -1163,7 +1156,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -1185,7 +1177,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
         if (geomType === 'Polygon') {
           const coords = coordinates[0];
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const hierarchy = (coords as any[]).map((c: any) => Cesium.Cartesian3.fromDegrees(c[0], c[1]));
 
           const entity = viewer.entities.add({
@@ -1238,7 +1229,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -1259,7 +1249,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
         if (geomType === 'Polygon') {
           const coords = coordinates[0];
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const hierarchy = (coords as any[]).map((c: any) => Cesium.Cartesian3.fromDegrees(c[0], c[1]));
 
           const entity = viewer.entities.add({
@@ -1312,7 +1301,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -1366,7 +1354,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -1466,7 +1453,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     const hr = heightRef.current || (enable3DTerrain
@@ -1577,7 +1563,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !isViewerReady) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const Cesium = (window as any).Cesium;
     if (!Cesium) return;
     entityRefs.current.parcel.forEach(e => viewer.entities.remove(e));

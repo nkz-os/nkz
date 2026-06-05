@@ -13,6 +13,7 @@ import type { PlacementState, PlacementAction } from '@/machines/placementMachin
 import { useI18n } from '@/context/I18nContext';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface ArrayToolProps {
   modelUrl?: string;
   onInstancesChange: (instances: PlacementState['stampedInstances']) => void;
@@ -154,7 +155,6 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             min={1}
             max={100}
             value={settings.rows}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => updateSetting('rows', Math.max(1, parseInt(e.target.value) || 1))}
             className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
           />
@@ -166,7 +166,6 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             min={1}
             max={100}
             value={settings.columns}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => updateSetting('columns', Math.max(1, parseInt(e.target.value) || 1))}
             className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
           />
@@ -179,7 +178,6 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             max={500}
             step={0.5}
             value={settings.rowSpacing}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => updateSetting('rowSpacing', Math.max(0.5, parseFloat(e.target.value) || 5))}
             className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
           />
@@ -192,7 +190,6 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             max={500}
             step={0.5}
             value={settings.colSpacing}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => updateSetting('colSpacing', Math.max(0.5, parseFloat(e.target.value) || 5))}
             className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
           />
@@ -207,7 +204,6 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             min={0}
             max={359}
             value={settings.bearing}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => updateSetting('bearing', parseInt(e.target.value))}
             className="w-full mt-1 h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-purple-600"
           />
@@ -235,7 +231,6 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
               max={settings.maxScale}
               step={0.05}
               value={settings.minScale}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateSetting('minScale', Math.max(0.1, parseFloat(e.target.value) || 0.9))}
               className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
             />
@@ -248,7 +243,6 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
               max={5}
               step={0.05}
               value={settings.maxScale}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateSetting('maxScale', Math.max(settings.minScale, parseFloat(e.target.value) || 1.1))}
               className="w-full mt-1 px-2 py-1.5 border border-nkz-border rounded text-sm"
             />
@@ -258,7 +252,6 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
           <Input
             type="checkbox"
             checked={settings.randomRotation}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             onChange={(e: any) => dispatchPlacement({
               type: 'UPDATE_ARRAY_SETTINGS',
               payload: { randomRotation: e.target.checked },
@@ -285,7 +278,6 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
               min={0}
               max={90}
               value={settings.tilt}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => updateSetting('tilt', parseInt(e.target.value))}
               className="w-full mt-1 h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-yellow-500"
             />
@@ -307,7 +299,6 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
                 max={10000}
                 step={50}
                 value={settings.nominalPower}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => updateSetting('nominalPower', Math.max(50, parseInt(e.target.value) || 500))}
                 className="w-full px-2 py-1.5 border border-nkz-border rounded text-sm"
               />

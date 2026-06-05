@@ -4,6 +4,7 @@ import { useI18n } from '@/context/I18nContext';
 import client from '@/services/api';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface UserResult {
   id: string;
   email: string;
@@ -147,7 +148,6 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
                 placeholder={t('admin.search_users_placeholder', { defaultValue: 'Search by name or email...' })}
                 className="w-full pl-9 pr-4 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none text-nkz-sm bg-nkz-surface"
                 value={search}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setSearch(e.target.value)}
                 autoFocus
               />
@@ -227,7 +227,6 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
               </label>
               <select
                 value={role}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setRole(e.target.value)}
                 className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface text-nkz-sm"
               >

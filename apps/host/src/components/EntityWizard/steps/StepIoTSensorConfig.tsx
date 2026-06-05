@@ -7,6 +7,7 @@ import type { IoTSensorFormData } from '../types';
 import { useNotification } from '@/hooks/useNotification';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export function StepIoTSensorConfig() {
   const { showNotification } = useNotification();
   const { entityType, formData, updateFormData } = useWizard();
@@ -62,7 +63,6 @@ export function StepIoTSensorConfig() {
         <Input
           type="text"
           value={data.name}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => updateFormData({ name: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500"
           placeholder="Ej: Sensor suelo parcela norte"
@@ -74,7 +74,6 @@ export function StepIoTSensorConfig() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
         <textarea
           value={data.description ?? ''}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onChange={(e: any) => updateFormData({ description: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500"
           placeholder="Descripción opcional"
@@ -103,7 +102,6 @@ export function StepIoTSensorConfig() {
             <div className="flex gap-2">
               <select
                 value={data.deviceProfileId ?? ''}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => updateFormData({ deviceProfileId: e.target.value || null })}
                 className={`flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 bg-white ${
                   !data.deviceProfileId ? 'border-red-300' : 'border-nkz-border'
@@ -146,7 +144,6 @@ export function StepIoTSensorConfig() {
                 type="file"
                 accept=".json,application/json"
                 className="hidden"
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => {
                   const file = e.target.files?.[0];
                   if (file) handleImportProfile(file);

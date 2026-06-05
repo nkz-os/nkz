@@ -4,6 +4,7 @@ import { useI18n } from '@/context/I18nContext';
 import client from '@/services/api';
 import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface UserCreateModalProps {
   tenantId: string;
   onClose: () => void;
@@ -94,7 +95,6 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
             <Input
               type="email"
               value={form.email}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm({ ...form, email: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               placeholder="user@example.com"
@@ -108,7 +108,6 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
               <Input
                 type="text"
                 value={form.firstName}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setForm({ ...form, firstName: e.target.value })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               />
@@ -120,7 +119,6 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
               <Input
                 type="text"
                 value={form.lastName}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onChange={(e: any) => setForm({ ...form, lastName: e.target.value })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               />
@@ -133,7 +131,6 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
             <Input
               type="password"
               value={form.password}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onChange={(e: any) => setForm({ ...form, password: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
             />
