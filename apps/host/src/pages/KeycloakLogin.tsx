@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { Lock } from 'lucide-react';
 import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
 
 const KeycloakLogin: React.FC = () => {
   logger.debug('[KeycloakLogin] Component mounted/re-rendered');
@@ -92,7 +93,7 @@ const KeycloakLogin: React.FC = () => {
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600"></div>
         </div>
         <div className="flex flex-col items-center gap-3">
-          <button
+          <Button
             onClick={async () => {
               loginInitiatedRef.current = false; // Reset flag para permitir reintentar
               setStatus('Reintentando inicio de sesión…');
@@ -106,7 +107,7 @@ const KeycloakLogin: React.FC = () => {
             className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
           >
             Reintentar inicio de sesión
-          </button>
+          </Button>
           <Link
             to="/forgot-password"
             className="text-sm text-gray-600 hover:text-gray-900 transition underline"

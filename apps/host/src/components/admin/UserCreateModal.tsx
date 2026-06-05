@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import client from '@/services/api';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface UserCreateModalProps {
   tenantId: string;
   onClose: () => void;
@@ -74,9 +76,9 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
           <h3 className="text-nkz-lg font-semibold text-nkz-text-primary">
             {t('admin.create_user_title', { defaultValue: 'Create New User' })}
           </h3>
-          <button onClick={onClose} className="text-nkz-text-muted hover:text-nkz-text-secondary">
+          <Button onClick={onClose} className="text-nkz-text-muted hover:text-nkz-text-secondary">
             <X className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
 
         {error && (
@@ -90,10 +92,10 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
             <label className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
               {t('settings.users.email')} *
             </label>
-            <input
+            <Input
               type="email"
               value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              onChange={(e: any) => setForm({ ...form, email: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               placeholder="user@example.com"
             />
@@ -103,10 +105,10 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
               <label className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
                 {t('settings.users.first_name')} *
               </label>
-              <input
+              <Input
                 type="text"
                 value={form.firstName}
-                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                onChange={(e: any) => setForm({ ...form, firstName: e.target.value })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               />
             </div>
@@ -114,10 +116,10 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
               <label className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
                 {t('settings.users.last_name')}
               </label>
-              <input
+              <Input
                 type="text"
                 value={form.lastName}
-                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                onChange={(e: any) => setForm({ ...form, lastName: e.target.value })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
               />
             </div>
@@ -126,10 +128,10 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
             <label className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1">
               {t('settings.users.temp_password')} *
             </label>
-            <input
+            <Input
               type="password"
               value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              onChange={(e: any) => setForm({ ...form, password: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
             />
           </div>
@@ -140,7 +142,7 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
             <div className="space-y-2 max-h-40 overflow-y-auto">
               {ASSIGNABLE_ROLES.map((role) => (
                 <label key={role.value} className="flex items-center gap-2 cursor-pointer">
-                  <input
+                  <Input
                     type="checkbox"
                     checked={form.roles.includes(role.value)}
                     onChange={() => toggleRole(role.value)}
@@ -154,20 +156,20 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <button
+          <Button
             onClick={onClose}
             className="px-4 py-2 text-nkz-text-secondary bg-nkz-surface-sunken rounded-nkz-lg hover:bg-nkz-border transition-colors"
           >
             {t('common.cancel')}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSubmit}
             disabled={loading || !form.email || !form.firstName || !form.password}
             className="px-4 py-2 bg-nkz-accent-base text-nkz-text-on-accent rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {t('admin.create_user_button', { defaultValue: 'Create User' })}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

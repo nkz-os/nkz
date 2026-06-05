@@ -17,7 +17,11 @@ import { getConfig } from '@/config/environment';
 import { TenantProfileEditor } from '@/components/settings/TenantProfileEditor';
 import { Copy, Check, Edit2, Save, X } from 'lucide-react';
 import { useCookieConsent } from '@/context/CookieConsentContext';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const Settings: React.FC = () => {
   const { user, tenantId, tenantName, tenantProfile, hasRole, hasAnyRole } = useAuth();
   const { t } = useI18n();
@@ -93,7 +97,7 @@ export const Settings: React.FC = () => {
     } catch (err: any) {
       const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err?.message || t('settings.profile.name_error');
       setNameError(errorMessage);
-      if (import.meta.env.DEV) console.error('Error updating user name:', err);
+      if (import.meta.env.DEV) logger.error('Error updating user name:', err);
     } finally {
       setSavingName(false);
     }
@@ -114,13 +118,13 @@ export const Settings: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">{t('settings.cookies_title')}</h2>
           <p className="text-sm text-gray-600 mb-4">{t('settings.cookies_description')}</p>
-          <button
+          <Button
             type="button"
             onClick={openPreferences}
             className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
           >
             {t('settings.cookies_manage')}
-          </button>
+          </Button>
         </div>
 
         {/* User Profile Card */}
@@ -142,40 +146,40 @@ export const Settings: React.FC = () => {
               {isEditingName ? (
                 <div className="space-y-2">
                   <div className="flex gap-2">
-                    <input
+                    <Input
                       type="text"
                       value={editedFirstName}
-                      onChange={(e) => setEditedFirstName(e.target.value)}
+                      onChange={(e: any) => setEditedFirstName(e.target.value)}
                       placeholder={t('settings.profile.first_name')}
                       className="flex-1 px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       disabled={savingName}
                     />
-                    <input
+                    <Input
                       type="text"
                       value={editedLastName}
-                      onChange={(e) => setEditedLastName(e.target.value)}
+                      onChange={(e: any) => setEditedLastName(e.target.value)}
                       placeholder={t('settings.profile.last_name')}
                       className="flex-1 px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       disabled={savingName}
                     />
                   </div>
                   <div className="flex gap-2">
-                    <button
+                    <Button
                       onClick={handleSaveName}
                       disabled={savingName}
                       className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
                     >
                       <Save className="w-4 h-4" />
                       {savingName ? t('settings.saving') : t('settings.save')}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={handleCancelEditName}
                       disabled={savingName}
                       className="flex items-center gap-2 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50 text-sm"
                     >
                       <X className="w-4 h-4" />
                       {t('settings.cancel')}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : (
@@ -185,14 +189,14 @@ export const Settings: React.FC = () => {
                       ? `${user?.firstName || editedFirstName || ''} ${user?.lastName || editedLastName || ''}`
                       : (user?.firstName || editedFirstName || user?.lastName || editedLastName || t('settings.profile.not_set'))}
                   </p>
-                  <button
+                  <Button
                     onClick={handleStartEditName}
                     className="flex items-center gap-1 text-nkz-info hover:text-nkz-info transition text-sm font-medium"
                     title={t('settings.profile.edit_name')}
                   >
                     <Edit2 className="w-4 h-4" />
                     {t('settings.profile.edit')}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -209,7 +213,7 @@ export const Settings: React.FC = () => {
               <div className="flex items-center gap-2">
                 <p className="text-gray-900 font-mono text-sm flex-1">{currentTenantId}</p>
                 {currentTenantId !== 'N/A' && (
-                  <button
+                  <Button
                     onClick={handleCopyTenantId}
                     className="text-nkz-muted hover:text-gray-600 transition"
                     title={t('settings.copy_tenant_id')}
@@ -219,7 +223,7 @@ export const Settings: React.FC = () => {
                     ) : (
                       <Copy className="w-4 h-4" />
                     )}
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

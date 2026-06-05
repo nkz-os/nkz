@@ -5,7 +5,9 @@ import React, { useState, useEffect } from 'react';
 import { X, Mail, AlertTriangle } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import type { UserRow } from './UserTable';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface UserEditModalProps {
   user: UserRow;
   /** Roles available for assignment in this context */
@@ -64,9 +66,9 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
             <h3 className="text-lg font-medium text-gray-900">
               {t('settings.users.edit_title')}: {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}
             </h3>
-            <button onClick={onClose} className="text-nkz-muted hover:text-gray-600">
+            <Button onClick={onClose} className="text-nkz-muted hover:text-gray-600">
               <X className="w-5 h-5" />
-            </button>
+            </Button>
           </div>
 
           <div className="space-y-4">
@@ -81,10 +83,10 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('settings.users.first_name')}
                   </label>
-                  <input
+                  <Input
                     type="text"
                     value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
+                    onChange={(e: any) => setFirstName(e.target.value)}
                     className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -92,10 +94,10 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('settings.users.last_name')}
                   </label>
-                  <input
+                  <Input
                     type="text"
                     value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
+                    onChange={(e: any) => setLastName(e.target.value)}
                     className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -108,7 +110,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
               </label>
               {availableRoles.map((role) => (
                 <label key={role.value} className="flex items-center mb-2 cursor-pointer">
-                  <input
+                  <Input
                     type="checkbox"
                     checked={selectedRoles.includes(role.value)}
                     onChange={() => toggleRole(role.value)}
@@ -137,19 +139,19 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
           </div>
 
           <div className="flex justify-end space-x-3 mt-6">
-            <button
+            <Button
               onClick={onClose}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-nkz-bg-secondary rounded-lg hover:bg-gray-200"
             >
               {t('settings.cancel')}
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               disabled={loading}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? t('settings.saving') : t('settings.save_changes')}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

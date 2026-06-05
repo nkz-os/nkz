@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger';
 import { api, setKeycloakRef } from '@/services/api';
 
 export interface KeycloakUser {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   id: string;
   username: string;
   email: string;

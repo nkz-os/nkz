@@ -7,6 +7,7 @@
 
 import React, { memo, useState, useMemo, useCallback } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   ChevronRight,
   ChevronDown,
   MapPin,
@@ -19,6 +20,7 @@ import {
   FolderTree,
 } from 'lucide-react';
 import { UnifiedAsset, ASSET_TYPE_REGISTRY } from '@/types/assets';
+import { Button } from '@nekazari/ui-kit';
 
 // =============================================================================
 // Types
@@ -173,11 +175,11 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
         onContextMenu={(e) => onContextMenu(e, asset)}
       >
         {/* Expand/Collapse Button */}
-        <button
-          onClick={(e) => {
+        <Button
+          onClick={((e: any) => {
             e.stopPropagation();
             if (hasChildren) onToggleExpand(asset.id);
-          }}
+          }) as any}
           className={`flex-shrink-0 w-5 h-5 flex items-center justify-center rounded transition-colors ${
             hasChildren 
               ? 'hover:bg-slate-200 text-slate-500' 
@@ -189,7 +191,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
               ? <ChevronDown className="w-4 h-4" />
               : <ChevronRight className="w-4 h-4" />
           )}
-        </button>
+        </Button>
         
         {/* Icon */}
         <div className="flex-shrink-0">
@@ -226,15 +228,15 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
         
         {/* Actions (visible on hover) */}
         <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => {
+          <Button
+            onClick={((e: any) => {
               e.stopPropagation();
               onContextMenu(e, asset);
-            }}
+            }) as any}
             className="p-1 rounded hover:bg-slate-200 text-slate-400"
           >
             <MoreVertical className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       </div>
       
@@ -332,18 +334,18 @@ export const AssetTreeView: React.FC<AssetTreeViewProps> = ({
           )}
         </div>
         <div className="flex items-center gap-1">
-          <button
+          <Button
             onClick={handleExpandAll}
             className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100"
           >
             Expandir
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleCollapseAll}
             className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100"
           >
             Colapsar
-          </button>
+          </Button>
         </div>
       </div>
       

@@ -27,9 +27,11 @@ import { submitIoTSensor } from './submission/submitIoTSensor';
 import { submitFleet } from './submission/submitFleet';
 import type { EntityWizardProps, GeoAssetFormData, IoTSensorFormData, FleetFormData } from './types';
 import type { StepId } from './types';
+import { Button } from '@nekazari/ui-kit';
 
 // ─── Step router ──────────────────────────────────────────────────────────────
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface StepRouterProps {
   stepId: StepId;
   placementState: ReturnType<typeof placementReducer>;
@@ -217,9 +219,9 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
               <h2 className="text-xl font-bold text-gray-900">Crear Nueva Entidad</h2>
               <StepperIndicator />
             </div>
-            <button onClick={handleClose} className="text-nkz-muted hover:text-gray-600">
+            <Button onClick={handleClose} className="text-nkz-muted hover:text-gray-600">
               <X className="w-6 h-6" />
-            </button>
+            </Button>
           </div>
 
           {/* Content */}
@@ -238,7 +240,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
 
           {/* Footer */}
           <div className="bg-nkz-bg-secondary px-6 py-4 border-t flex justify-between items-center rounded-b-2xl">
-            <button
+            <Button
               onClick={goBack}
               disabled={isFirstStep || loading}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
@@ -246,24 +248,24 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
               }`}
             >
               <ArrowLeft className="w-4 h-4" /> Atrás
-            </button>
+            </Button>
 
             {isLastStep ? (
-              <button
+              <Button
                 onClick={handleSubmit}
                 disabled={loading}
                 className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Creando...</> : <>Crear Entidad <Check className="w-4 h-4" /></>}
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 onClick={handleNext}
                 disabled={loading}
                 className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
               >
                 Siguiente <ArrowRight className="w-4 h-4" />
-              </button>
+              </Button>
             )}
           </div>
         </div>

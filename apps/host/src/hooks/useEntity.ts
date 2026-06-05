@@ -6,6 +6,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+
 
 export interface UseEntityOptions {
   /** Entity type (e.g., 'AgriSensor', 'AutonomousMobileRobot') */
@@ -75,7 +77,7 @@ export function useEntity(options: UseEntityOptions): UseEntityReturn {
       const errorMessage = err.response?.data?.error || err.message || 'Failed to fetch entity';
       setError(errorMessage);
       setEntity(null);
-      console.error('[useEntity] Error fetching entity:', err);
+      logger.error('[useEntity] Error fetching entity:', err);
     } finally {
       setIsLoading(false);
     }

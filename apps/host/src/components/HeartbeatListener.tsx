@@ -8,6 +8,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Wifi, WifiOff, Loader2, Check, AlertCircle } from 'lucide-react';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+
 
 export type ConnectionStatus = 'waiting' | 'connecting' | 'connected' | 'error';
 
@@ -91,7 +93,7 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
         setStatus('waiting');
       }
     } catch (error) {
-      console.error('Heartbeat check error:', error);
+      logger.error('Heartbeat check error:', error);
       setStatus('waiting'); // Keep waiting, don't show error for transient failures
     }
   }, [entityId, entityType, status, onConnected]);

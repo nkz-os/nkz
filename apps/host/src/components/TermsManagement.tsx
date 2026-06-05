@@ -7,7 +7,11 @@ import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 import { FileText, Save, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { sanitizeTermsHtml } from '@/utils/sanitize';
+import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const SUPPORTED_LANGUAGES = {
   es: 'Español',
   en: 'English',
@@ -68,7 +72,7 @@ export const TermsManagement: React.FC = () => {
         setMessage({ type: 'error', text: t('admin.save_error') });
       }
     } catch (err: any) {
-      console.error('Error saving terms:', err);
+      logger.error('Error saving terms:', err);
       setMessage({ type: 'error', text: t('admin.save_error') });
     } finally {
       setSaving(false);
@@ -102,7 +106,7 @@ export const TermsManagement: React.FC = () => {
             </label>
             <select
               value={selectedLanguage}
-              onChange={(e) => setSelectedLanguage(e.target.value)}
+              onChange={(e: any) => setSelectedLanguage(e.target.value)}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
             >
               {Object.entries(SUPPORTED_LANGUAGES).map(([code, name]) => (
@@ -150,7 +154,7 @@ export const TermsManagement: React.FC = () => {
             </label>
             <textarea
               value={termsContent}
-              onChange={(e) => setTermsContent(e.target.value)}
+              onChange={(e: any) => setTermsContent(e.target.value)}
               placeholder={t('admin.terms_placeholder')}
               rows={15}
               className="w-full px-4 py-3 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono text-sm"
@@ -180,7 +184,7 @@ export const TermsManagement: React.FC = () => {
 
           {/* Save Button */}
           <div className="flex justify-end">
-            <button
+            <Button
               onClick={handleSave}
               disabled={saving || loading}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -196,7 +200,7 @@ export const TermsManagement: React.FC = () => {
                   {t('admin.save_terms')}
                 </>
               )}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

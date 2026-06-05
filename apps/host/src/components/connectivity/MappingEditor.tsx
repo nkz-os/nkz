@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
     Plus,
     Trash2,
     AlertCircle,
@@ -13,7 +14,10 @@ import {
     Info,
     Sparkles
 } from 'lucide-react';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 import {
+
     MappingEntry,
     SDMAttribute,
     getSDMAttributes
@@ -84,7 +88,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
             const attrs = await getSDMAttributes(sdmEntityType);
             setSdmAttributes(attrs);
         } catch (error) {
-            console.error('Error loading SDM attributes:', error);
+            logger.error('Error loading SDM attributes:', error);
         } finally {
             setLoading(false);
         }
@@ -152,13 +156,13 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                     <h3 className="text-white font-medium">Mapeo de Datos</h3>
                 </div>
                 {!readonly && (
-                    <button
+                    <Button
                         onClick={addMapping}
                         className="flex items-center gap-1 px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
                     >
                         <Plus className="w-4 h-4" />
                         Añadir
-                    </button>
+                    </Button>
                 )}
             </div>
 
@@ -191,10 +195,10 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                     <label className="block text-xs text-nkz-muted mb-1">
                                         Origen (clave del sensor)
                                     </label>
-                                    <input
+                                    <Input
                                         type="text"
                                         value={mapping.incoming_key}
-                                        onChange={(e) => updateMapping(index, 'incoming_key', e.target.value)}
+                                        onChange={(e: any) => updateMapping(index, 'incoming_key', e.target.value)}
                                         placeholder="temp_out"
                                         disabled={readonly}
                                         className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-50"
@@ -209,7 +213,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                     </label>
                                     <select
                                         value={mapping.target_attribute}
-                                        onChange={(e) => updateMapping(index, 'target_attribute', e.target.value)}
+                                        onChange={(e: any) => updateMapping(index, 'target_attribute', e.target.value)}
                                         disabled={readonly || loading}
                                         className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-50"
                                     >
@@ -223,13 +227,13 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                 </div>
 
                                 {!readonly && (
-                                    <button
+                                    <Button
                                         onClick={() => removeMapping(index)}
                                         className="mt-5 p-2 text-red-400 hover:text-red-300 hover:bg-nkz-error-light0/10 rounded-lg transition-colors"
                                         title="Eliminar mapeo"
                                     >
                                         <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    </Button>
                                 )}
                             </div>
 
@@ -240,10 +244,10 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                         Transformación (JEXL)
                                     </label>
                                     <div className="flex gap-2">
-                                        <input
+                                        <Input
                                             type="text"
                                             value={mapping.transformation || 'val'}
-                                            onChange={(e) => updateMapping(index, 'transformation', e.target.value)}
+                                            onChange={(e: any) => updateMapping(index, 'transformation', e.target.value)}
                                             placeholder="val"
                                             disabled={readonly}
                                             className={`flex-1 px-3 py-2 bg-gray-900 border rounded-lg text-white text-sm font-mono placeholder-gray-500 focus:ring-1 disabled:opacity-50 ${errors[index]
@@ -253,7 +257,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                         />
                                         <select
                                             value=""
-                                            onChange={(e) => updateMapping(index, 'transformation', e.target.value)}
+                                            onChange={(e: any) => updateMapping(index, 'transformation', e.target.value)}
                                             disabled={readonly}
                                             className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-nkz-muted text-sm"
                                         >
@@ -277,10 +281,10 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                     <label className="block text-xs text-nkz-muted mb-1">
                                         Unidad
                                     </label>
-                                    <input
+                                    <Input
                                         type="text"
                                         value={mapping.unitCode || ''}
-                                        onChange={(e) => updateMapping(index, 'unitCode', e.target.value)}
+                                        onChange={(e: any) => updateMapping(index, 'unitCode', e.target.value)}
                                         placeholder="CEL"
                                         disabled={readonly}
                                         className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 disabled:opacity-50"

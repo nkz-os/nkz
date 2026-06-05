@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
     Save,
     Trash2,
     AlertTriangle,
@@ -10,6 +11,8 @@ import {
 } from 'lucide-react';
 import api from '@/services/api';
 import { useI18n } from '@/context/I18nContext';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 
 
 
@@ -57,7 +60,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                 setSchema(entitySchema);
 
             } catch (err) {
-                console.warn('Could not load schema for management:', err);
+                logger.warn('Could not load schema for management:', err);
             }
         };
 
@@ -112,7 +115,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
             setTimeout(() => setSuccess(null), 3000);
 
         } catch (err: any) {
-            console.error('Error updating entity:', err);
+            logger.error('Error updating entity:', err);
             setError(err.response?.data?.error || err.message || 'Error al guardar');
         } finally {
             setLoading(false);
@@ -125,7 +128,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
             await api.deleteSDMEntity(entity.type, entity.id);
             if (onDelete) onDelete();
         } catch (err: any) {
-            console.error('Error deleting entity:', err);
+            logger.error('Error deleting entity:', err);
             setError(err.response?.data?.error || err.message || 'Error al eliminar');
             setLoading(false);
             setShowDeleteConfirm(false);
@@ -156,11 +159,11 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
         if (type === 'Boolean' || typeof value === 'boolean') {
             return (
                 <div key={key} className="flex items-center py-3 border-b border-gray-100">
-                    <input
+                    <Input
                         type="checkbox"
                         id={`field-${key}`}
                         checked={!!formData[key]}
-                        onChange={e => setFormData({ ...formData, [key]: e.target.checked })}
+                        onChange={(e: any) => setFormData({ ...formData, [key]: e.target.checked })}
                         className="w-4 h-4 text-orange-600 rounded border-nkz-border focus:ring-orange-500"
                     />
                     <label htmlFor={`field-${key}`} className="ml-3 text-sm font-medium text-gray-700">
@@ -175,10 +178,10 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
             return (
                 <div key={key} className="py-2">
                     <label className="block text-xs font-semibold text-nkz-muted uppercase mb-1">{label}</label>
-                    <input
+                    <Input
                         type="number"
                         value={formData[key] || ''}
-                        onChange={e => setFormData({ ...formData, [key]: parseFloat(e.target.value) })}
+                        onChange={(e: any) => setFormData({ ...formData, [key]: parseFloat(e.target.value) })}
                         className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-shadow text-sm"
                     />
                 </div>
@@ -189,10 +192,10 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
         return (
             <div key={key} className="py-2">
                 <label className="block text-xs font-semibold text-nkz-muted uppercase mb-1">{label}</label>
-                <input
+                <Input
                     type="text"
                     value={formData[key] || ''}
-                    onChange={e => setFormData({ ...formData, [key]: e.target.value })}
+                    onChange={(e: any) => setFormData({ ...formData, [key]: e.target.value })}
                     className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-shadow text-sm"
                 />
             </div>
@@ -226,15 +229,15 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                             Propiedades
                         </h3>
                         {!isEditing ? (
-                            <button
+                            <Button
                                 onClick={() => setIsEditing(true)}
                                 className="text-sm text-orange-600 hover:text-orange-700 font-medium px-3 py-1 hover:bg-orange-50 rounded-md transition-colors"
                             >
                                 Editar
-                            </button>
+                            </Button>
                         ) : (
                             <div className="flex gap-2">
-                                <button
+                                <Button
                                     onClick={() => {
                                         setIsEditing(false);
                                         // Reset form
@@ -244,15 +247,15 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                                     title="Cancelar"
                                 >
                                     <X className="w-4 h-4" />
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     onClick={handleSave}
                                     disabled={loading}
                                     className="p-1 text-nkz-success hover:text-nkz-success hover:bg-nkz-success-light rounded"
                                     title="Guardar"
                                 >
                                     <Save className="w-4 h-4" />
-                                </button>
+                                </Button>
                             </div>
                         )}
                     </div>
@@ -279,13 +282,13 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
             {/* Danger Zone */}
             <div className="p-4 border-t border-nkz-border bg-white">
                 {!showDeleteConfirm ? (
-                    <button
+                    <Button
                         onClick={() => setShowDeleteConfirm(true)}
                         className="w-full flex items-center justify-center gap-2 px-4 py-3 text-nkz-error bg-nkz-error-light hover:bg-nkz-error-light rounded-lg border border-red-200 transition-colors font-medium"
                     >
                         <Trash2 className="w-4 h-4" />
                         Eliminar Entidad
-                    </button>
+                    </Button>
                 ) : (
                     <div className="bg-nkz-error-light rounded-lg border border-red-200 p-4 animate-in zoom-in-95 duration-200">
                         <h4 className="font-bold text-red-900 mb-2 flex items-center gap-2">
@@ -296,20 +299,20 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                             Esta acción eliminará <strong>{entity.name}</strong> permanentemente. No se puede deshacer.
                         </p>
                         <div className="flex gap-3">
-                            <button
+                            <Button
                                 onClick={() => setShowDeleteConfirm(false)}
                                 className="flex-1 px-3 py-2 bg-white text-gray-700 border border-nkz-border rounded-md hover:bg-nkz-bg-secondary font-medium transition-colors"
                             >
                                 Cancelar
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 onClick={handleDelete}
                                 disabled={loading}
                                 className="flex-1 px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 shadow-sm font-medium transition-colors flex justify-center items-center gap-2"
                             >
                                 {loading ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                 Confirmar
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}

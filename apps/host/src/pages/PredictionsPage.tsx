@@ -3,6 +3,9 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { parcelApi } from '@/services/parcelApi';
 import { Parcel } from '@/types';
 import { Brain, TrendingUp, Battery, Sprout, Bug } from 'lucide-react';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
 
 interface Algorithm {
     id: string;
@@ -31,7 +34,7 @@ export const PredictionsPage: React.FC = () => {
                 const data = await parcelApi.getParcels();
                 setParcels(data);
             } catch (error) {
-                console.error('Error loading parcels:', error);
+                logger.error('Error loading parcels:', error);
             } finally {
                 setLoading(false);
             }
@@ -56,7 +59,7 @@ export const PredictionsPage: React.FC = () => {
                         <h2 className="text-lg font-semibold text-gray-700">Algoritmos Disponibles</h2>
                         <div className="space-y-2">
                             {ALGORITHMS.map((algo) => (
-                                <button
+                                <Button
                                     key={algo.id}
                                     onClick={() => setSelectedAlgo(algo.id)}
                                     className={`w-full text-left p-4 rounded-xl border transition-all ${selectedAlgo === algo.id
@@ -73,7 +76,7 @@ export const PredictionsPage: React.FC = () => {
                                     </div>
                                     <h3 className={`font-medium ${selectedAlgo === algo.id ? 'text-purple-900' : 'text-gray-900'}`}>{algo.name}</h3>
                                     <p className="text-xs text-nkz-muted mt-1 line-clamp-2">{algo.description}</p>
-                                </button>
+                                </Button>
                             ))}
                         </div>
                     </div>
@@ -87,9 +90,9 @@ export const PredictionsPage: React.FC = () => {
                                         <h2 className="text-xl font-bold text-gray-800">
                                             {ALGORITHMS.find(a => a.id === selectedAlgo)?.name}
                                         </h2>
-                                        <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                                        <Button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
                                             Ejecutar Modelo
-                                        </button>
+                                        </Button>
                                     </div>
 
                                     {/* Mock Visualization Area */}
@@ -120,7 +123,7 @@ export const PredictionsPage: React.FC = () => {
                                         </div>
                                         <div className="p-4 bg-nkz-bg-secondary rounded-lg">
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Sensibilidad</label>
-                                            <input type="range" className="w-full accent-purple-600" />
+                                            <Input type="range" className="w-full accent-purple-600" />
                                         </div>
                                     </div>
                                 </div>

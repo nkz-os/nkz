@@ -16,7 +16,10 @@ import type { SlotType, SlotWidgetDefinition } from '@nekazari/sdk';
 import { useModules, ModuleDefinition } from '@/context/ModuleContext';
 import { Loader2 } from 'lucide-react';
 import { ModuleErrorBoundary } from './ModuleErrorBoundary';
+import { logger } from '@/utils/logger';
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface SlotRendererProps {
     /** Which slot to render */
     slot: SlotType;
@@ -152,7 +155,7 @@ const RemoteSlotWidget: React.FC<{
             moduleId={moduleId}
             moduleName={moduleName}
             resetKeys={resetKeys}
-            onError={(e, info) => console.error(`[SlotRenderer] Remote widget ${widget.id} failed:`, e, info)}
+            onError={(e, info) => logger.error(`[SlotRenderer] Remote widget ${widget.id} failed:`, e, info)}
         >
             <Suspense fallback={<WidgetLoadingFallback />}>
                 <Component {...widgetProps} />
@@ -188,7 +191,7 @@ const WidgetRenderer: React.FC<{
                 moduleName={moduleName}
                 resetKeys={resetKeys}
                 onError={(error, errorInfo) => {
-                    console.error(`[WidgetRenderer] Widget ${widget.id} failed:`, error, errorInfo);
+                    logger.error(`[WidgetRenderer] Widget ${widget.id} failed:`, error, errorInfo);
                 }}
             >
                 <Suspense fallback={<WidgetLoadingFallback />}>

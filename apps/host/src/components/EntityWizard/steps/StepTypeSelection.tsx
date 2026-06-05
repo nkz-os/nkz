@@ -4,7 +4,9 @@ import { useWizard } from '../WizardContext';
 import { ENTITY_TYPE_METADATA, MACRO_CATEGORIES, ENTITY_CATEGORIES } from '../entityTypes';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { SDMGuideInfo } from '../SDMGuideInfo';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const COLOR_MAP: Record<string, { border: string; bg: string }> = {
   green:  { border: '#22c55e', bg: '#f0fdf4' },
   teal:   { border: '#14b8a6', bg: '#f0fdfa' },
@@ -70,7 +72,7 @@ export function StepTypeSelection() {
       {/* Quick actions — most common entities */}
       <div>
         <p className="text-xs font-medium text-nkz-muted uppercase tracking-wide mb-2">Acceso rápido</p>
-        <button
+        <Button
           onClick={() => handleQuickCreate('AgriParcel')}
           className="w-full flex items-center justify-between px-5 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-sm"
         >
@@ -82,7 +84,7 @@ export function StepTypeSelection() {
             </div>
           </div>
           <ArrowRight className="w-5 h-5 flex-shrink-0" />
-        </button>
+        </Button>
       </div>
 
       <SDMGuideInfo />
@@ -95,17 +97,17 @@ export function StepTypeSelection() {
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-nkz-muted w-5 h-5" />
-        <input
+        <Input
           type="text"
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
+          onChange={(e: any) => setSearchTerm(e.target.value)}
           placeholder="Buscar: tractor, sensor humedad, Davis, John Deere..."
           className="w-full pl-12 pr-4 py-3 border-2 border-nkz-border rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base"
         />
         {searchTerm && (
-          <button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600">
+          <Button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600">
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -115,7 +117,7 @@ export function StepTypeSelection() {
           const Icon = macro.icon;
           const isActive = activeMacro === key;
           return (
-            <button
+            <Button
               key={key}
               onClick={() => setActiveMacro(isActive ? null : key)}
               style={isActive ? getColorStyle(macro.color, true) : {}}
@@ -124,7 +126,7 @@ export function StepTypeSelection() {
               <Icon className="w-6 h-6 mb-2 text-nkz-muted" style={isActive ? getColorStyle(macro.color, true) : {}} />
               <div className="font-semibold text-sm">{macro.label}</div>
               <div className="text-xs text-nkz-muted mt-0.5">{macro.description}</div>
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -148,7 +150,7 @@ export function StepTypeSelection() {
         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
           {Object.entries(groupedTypes).map(([cat, types]) => (
             <div key={cat} className="border border-nkz-border rounded-lg overflow-hidden">
-              <button
+              <Button
                 onClick={() => toggleCategory(cat)}
                 className="w-full px-4 py-3 flex items-center justify-between bg-nkz-bg-secondary hover:bg-nkz-bg-secondary transition"
               >
@@ -159,7 +161,7 @@ export function StepTypeSelection() {
                     ? <ChevronDown className="w-4 h-4 text-nkz-muted" />
                     : <ChevronRight className="w-4 h-4 text-nkz-muted" />}
                 </div>
-              </button>
+              </Button>
               {expandedCategories.has(cat) && (
                 <div className="p-2 grid grid-cols-2 gap-2 bg-white">
                   {types.map(type => <TypeCard key={type} type={type} selected={entityType === type} onSelect={setEntityType} compact />)}
@@ -205,7 +207,7 @@ function TypeCard({ type, selected, onSelect, compact = false }: TypeCardProps) 
   const borderClass = selected ? '' : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary';
 
   return (
-    <button
+    <Button
       key={type}
       onClick={() => onSelect(type)}
       style={style}
@@ -216,6 +218,6 @@ function TypeCard({ type, selected, onSelect, compact = false }: TypeCardProps) 
         <div className={`font-medium text-${compact ? 'xs' : 'sm'} truncate`}>{type}</div>
         {!compact && <div className="text-xs text-nkz-muted truncate">{meta?.description}</div>}
       </div>
-    </button>
+    </Button>
   );
 }

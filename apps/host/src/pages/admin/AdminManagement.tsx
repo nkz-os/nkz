@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Users, Ticket, Search, Plus,
   Trash2, ShieldCheck, RefreshCcw,
   Settings2, Shield, Key, ScrollText,
@@ -10,6 +11,7 @@ import client from '@/services/api';
 import { format } from 'date-fns';
 import { useModules } from '@/context/ModuleContext';
 import { SlotRenderer } from '@/components/SlotRenderer';
+import { Button, Input } from '@nekazari/ui-kit';
 import { UserTable, type UserRow } from '@/components/admin/UserTable';
 import { UserEditModal } from '@/components/admin/UserEditModal';
 import { useUserActions } from '@/components/admin/useUserActions';
@@ -29,6 +31,8 @@ import { PlatformApiCredentials } from '@/components/PlatformApiCredentials';
 import { AuditLogsPanel } from '@/components/AuditLogsPanel';
 import { GlobalAssetManager } from '@/components/Admin/GlobalAssetManager';
 import { useNotification } from '@/hooks/useNotification';
+import { logger } from '@/utils/logger';
+
 
 interface Tenant {
   tenant_id: string;
@@ -191,7 +195,7 @@ export const AdminManagement: React.FC = () => {
         }))
       );
     } catch (error) {
-      console.error('Error loading tenants:', error);
+      logger.error('Error loading tenants:', error);
     } finally {
       setTenantsLoading(false);
     }
@@ -204,7 +208,7 @@ export const AdminManagement: React.FC = () => {
       const data = response.data;
       setActivations(Array.isArray(data) ? data : (data.activations || data.codes || []));
     } catch (error) {
-      console.error('Error loading activations:', error);
+      logger.error('Error loading activations:', error);
     } finally {
       setActivationsLoading(false);
     }
@@ -460,50 +464,54 @@ export const AdminManagement: React.FC = () => {
           <Shield className="text-nkz-accent-base h-6 w-6" />
           Nekazari Control Center
         </h1>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="Refrescar datos"
           onClick={handleRefresh}
-          className="p-2 text-nkz-text-secondary hover:bg-nkz-surface-sunken rounded-nkz-lg transition-colors"
-          title="Refrescar datos"
+          className="!px-2 !py-2"
         >
           <RefreshCcw className={`h-5 w-5 ${showLoading ? 'animate-spin' : ''}`} />
-        </button>
+        </Button>
       </div>
 
       {/* -- Global tabs -- */}
       <div className="flex border-b border-nkz-border overflow-x-auto no-scrollbar bg-nkz-surface shrink-0">
         {globalTabs.map((tab) => (
-          <button
+          <Button
             key={String(tab.id)}
+            variant="ghost"
             onClick={() => {
               setGlobalTab(tab.id);
               if (tab.id !== null) {
                 setSelectedTenantId(null);
               }
             }}
-            className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${
+            className={`px-6 py-3 border-b-2 -mb-[2px] whitespace-nowrap rounded-none ${
               globalTab === tab.id
                 ? 'border-nkz-accent-base text-nkz-accent-base'
-                : 'border-transparent text-nkz-text-secondary hover:text-nkz-text-primary'
+                : 'border-transparent text-nkz-text-secondary'
             }`}
           >
             <tab.icon className="h-5 w-5" />
             {tab.label}
-          </button>
+          </Button>
         ))}
         {/* Module-contributed admin tabs */}
         {adminTabModules.map((module) => (
-          <button
+          <Button
             key={`module-tab-${module.id}`}
+            variant="ghost"
             onClick={() => setGlobalTab(`module-${module.id}`)}
-            className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors border-b-2 -mb-[2px] whitespace-nowrap ${
+            className={`px-6 py-3 border-b-2 -mb-[2px] whitespace-nowrap rounded-none ${
               globalTab === `module-${module.id}`
                 ? 'border-nkz-info text-nkz-info'
-                : 'border-transparent text-nkz-text-secondary hover:text-nkz-text-primary'
+                : 'border-transparent text-nkz-text-secondary'
             }`}
           >
             <Puzzle className="h-5 w-5" />
             {module.displayName || module.name}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -550,21 +558,24 @@ export const AdminManagement: React.FC = () => {
                               tenantId={selectedTenant.tenant_id}
                               onRestored={() => { loadTenants(); }}
                             />
-                            <button
+                            <Button
+                              variant="danger"
+                              size="sm"
                               onClick={() => setPurgeDialogOpen(true)}
-                              className="text-xs px-3 py-1 bg-nkz-danger text-white rounded hover:bg-nkz-danger-strong"
                             >
                               {t('admin.purge_tenant_button')}
-                            </button>
+                            </Button>
                           </div>
                         ) : (
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={t('admin.suspend_tenant_button')}
                             onClick={() => setSuspendDialogOpen(true)}
-                            className="p-2 text-nkz-text-muted hover:text-nkz-warning-strong transition-colors"
-                            title={t('admin.suspend_tenant_button')}
+                            className="!px-2 !py-2"
                           >
                             <Trash2 className="h-5 w-5" />
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -572,28 +583,30 @@ export const AdminManagement: React.FC = () => {
 
                   {/* Tenant tabs */}
                   <div className="flex border-b border-nkz-border bg-nkz-surface px-6">
-                    <button
+                    <Button
+                      variant="ghost"
                       onClick={() => setTenantTab('users')}
-                      className={`flex items-center gap-2 px-4 py-3 font-medium text-nkz-sm transition-colors border-b-2 -mb-[2px] ${
+                      className={`px-4 py-3 text-nkz-sm border-b-2 -mb-[2px] rounded-none ${
                         tenantTab === 'users'
                           ? 'border-nkz-accent-base text-nkz-accent-base'
-                          : 'border-transparent text-nkz-text-secondary hover:text-nkz-text-primary'
+                          : 'border-transparent text-nkz-text-secondary'
                       }`}
                     >
                       <Users className="h-4 w-4" />
                       {t('admin.users_tab', { defaultValue: 'Usuarios' })}
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
                       onClick={() => setTenantTab('config')}
-                      className={`flex items-center gap-2 px-4 py-3 font-medium text-nkz-sm transition-colors border-b-2 -mb-[2px] ${
+                      className={`px-4 py-3 text-nkz-sm border-b-2 -mb-[2px] rounded-none ${
                         tenantTab === 'config'
                           ? 'border-nkz-accent-base text-nkz-accent-base'
-                          : 'border-transparent text-nkz-text-secondary hover:text-nkz-text-primary'
+                          : 'border-transparent text-nkz-text-secondary'
                       }`}
                     >
                       <Settings2 className="h-4 w-4" />
                       {t('admin.config_tab', { defaultValue: 'Config' })}
-                    </button>
+                    </Button>
                   </div>
 
                   {/* Tenant tab content */}
@@ -602,20 +615,23 @@ export const AdminManagement: React.FC = () => {
                       <div>
                         {/* Create / Assign buttons */}
                         <div className="flex gap-3 mb-4">
-                          <button
+                          <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => setShowCreateUser(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-nkz-accent-base text-nkz-text-on-accent font-semibold rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors text-sm"
                           >
                             <UserPlus className="h-4 w-4" />
                             {t('admin.create_user_button', { defaultValue: 'Create User' })}
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => setShowAssignUser(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-nkz-info text-nkz-text-on-accent font-semibold rounded-nkz-lg hover:bg-nkz-info-strong transition-colors text-sm"
+                            className="bg-nkz-info hover:bg-nkz-info-strong"
                           >
                             <UserCheck className="h-4 w-4" />
                             {t('admin.assign_user_button', { defaultValue: 'Assign User' })}
-                          </button>
+                          </Button>
                         </div>
 
                         {/* Users table */}
@@ -646,14 +662,13 @@ export const AdminManagement: React.FC = () => {
                               />
                               {userHasMore && (
                                 <div className="p-4 border-t border-nkz-border flex justify-center bg-nkz-surface-sunken">
-                                  <button
-                                    type="button"
+                                  <Button
+                                    variant="secondary"
                                     onClick={() => void handleLoadMoreUsers()}
                                     disabled={loadingMoreUsers}
-                                    className="px-4 py-2 text-sm font-medium rounded-nkz-lg bg-nkz-surface border border-nkz-border text-nkz-text-primary hover:bg-nkz-surface-sunken disabled:opacity-50"
                                   >
                                     {loadingMoreUsers ? 'Cargando...' : 'Cargar mas usuarios'}
-                                  </button>
+                                  </Button>
                                 </div>
                               )}
                               {displayUsers.length === 0 && !usersLoading && (
@@ -691,12 +706,12 @@ export const AdminManagement: React.FC = () => {
                   <div className="bg-nkz-surface p-4 rounded-nkz-xl shadow-nkz-sm border border-nkz-border mb-6">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-nkz-text-muted" />
-                      <input
+                      <Input
                         type="text"
                         placeholder={t('admin.search_users', { defaultValue: 'Search users...' })}
                         className="w-full pl-10 pr-4 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none"
                         value={usersSearch}
-                        onChange={(e) => setUsersSearch(e.target.value)}
+                        onChange={(e: any) => setUsersSearch(e.target.value)}
                       />
                     </div>
                   </div>
@@ -729,14 +744,13 @@ export const AdminManagement: React.FC = () => {
                         />
                         {userHasMore && (
                           <div className="p-4 border-t border-nkz-border flex justify-center bg-nkz-surface-sunken">
-                            <button
-                              type="button"
+                            <Button
+                              variant="secondary"
                               onClick={() => void handleLoadMoreUsers()}
                               disabled={loadingMoreUsers}
-                              className="px-4 py-2 text-sm font-medium rounded-nkz-lg bg-nkz-surface border border-nkz-border text-nkz-text-primary hover:bg-nkz-surface-sunken disabled:opacity-50"
                             >
                               {loadingMoreUsers ? 'Cargando...' : 'Cargar mas usuarios'}
-                            </button>
+                            </Button>
                           </div>
                         )}
                         {displayUsers.length === 0 && !usersLoading && (
@@ -764,13 +778,13 @@ export const AdminManagement: React.FC = () => {
                   <h2 className="text-lg font-bold text-nkz-text-primary">
                     {t('admin.activation_codes', { defaultValue: 'Activation Codes' })}
                   </h2>
-                  <button
+                  <Button
+                    variant="primary"
                     onClick={() => setShowCodeModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-nkz-accent-base text-nkz-text-on-accent font-semibold rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors"
                   >
                     <Plus className="h-5 w-5" />
                     {t('admin.generate_code')}
-                  </button>
+                  </Button>
                 </div>
 
                 {/* Activations table */}
@@ -815,13 +829,15 @@ export const AdminManagement: React.FC = () => {
                               {format(new Date(activation.expires_at), 'dd/MM/yyyy')}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <button
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label={t('admin.revoke_code')}
                                 onClick={() => handleRevokeCode(activation.id)}
-                                className="p-2 text-nkz-text-muted hover:text-nkz-danger transition-colors"
-                                title={t('admin.revoke_code')}
+                                className="!px-2 !py-2"
                               >
                                 <Trash2 className="h-5 w-5" />
-                              </button>
+                              </Button>
                             </td>
                           </tr>
                         ))}
@@ -874,13 +890,13 @@ export const AdminManagement: React.FC = () => {
                         standard = OSS landing, commercial = branded/commercial landing
                       </p>
                     </div>
-                    <button
+                    <Button
+                      variant="primary"
                       onClick={handleLandingModeToggle}
                       disabled={landingModeLoading || landingModeSaving}
-                      className="px-4 py-2 rounded-nkz-lg bg-nkz-accent-base text-nkz-text-on-accent text-sm font-semibold hover:bg-nkz-accent-strong disabled:opacity-60"
                     >
                       {landingModeSaving ? 'Saving...' : `Switch to ${landingMode === 'standard' ? 'commercial' : 'standard'}`}
-                    </button>
+                    </Button>
                   </div>
                   {landingMessage && (
                     <p className="mt-3 text-sm text-nkz-text-primary">{landingMessage}</p>
@@ -974,10 +990,10 @@ export const AdminManagement: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-nkz-text-primary mb-1">{t('admin.email_prompt')}</label>
-                <input
+                <Input
                   type="email"
                   value={codeForm.email}
-                  onChange={e => setCodeForm(f => ({ ...f, email: e.target.value }))}
+                  onChange={(e: any) => setCodeForm(f => ({ ...f, email: e.target.value }))}
                   className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none"
                   placeholder="user@example.com"
                 />
@@ -986,7 +1002,7 @@ export const AdminManagement: React.FC = () => {
                 <label className="block text-sm font-medium text-nkz-text-primary mb-1">{t('admin.plan_type')}</label>
                 <select
                   value={codeForm.plan}
-                  onChange={e => setCodeForm(f => ({ ...f, plan: e.target.value }))}
+                  onChange={(e: any) => setCodeForm(f => ({ ...f, plan: e.target.value }))}
                   className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
                 >
                   <option value="premium">Premium</option>
@@ -995,19 +1011,19 @@ export const AdminManagement: React.FC = () => {
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setShowCodeModal(false)}
-                className="px-4 py-2 text-nkz-text-primary bg-nkz-surface-sunken rounded-nkz-lg hover:bg-nkz-border transition-colors"
               >
                 {t('common.cancel')}
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 onClick={handleGenerateCode}
                 disabled={!codeForm.email || activationsLoading}
-                className="px-4 py-2 bg-nkz-accent-base text-nkz-text-on-accent rounded-nkz-lg hover:bg-nkz-accent-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {activationsLoading ? t('common.loading') : t('admin.generate_code')}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

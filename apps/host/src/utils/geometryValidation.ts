@@ -7,6 +7,8 @@
 
 import { booleanContains } from '@turf/boolean-contains';
 import { Polygon, Point, LineString, MultiPolygon, MultiLineString, Geometry } from 'geojson';
+import { logger } from '@/utils/logger';
+
 
 export interface ValidationResult {
   valid: boolean;
@@ -120,7 +122,7 @@ export function validateGeometryWithinParent(
 
     return { valid: true };
   } catch (error: any) {
-    console.error('Error validating geometry:', error);
+    logger.error('Error validating geometry:', error);
     return {
       valid: false,
       error: `Validation error: ${error.message}`

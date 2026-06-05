@@ -2,6 +2,7 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { ParcelForm } from './ParcelForm';
 import type { Parcel } from '@/types';
+import { Button } from '@nekazari/ui-kit';
 
 interface ParcelCreationModalProps {
     isOpen: boolean;
@@ -47,12 +48,12 @@ export const ParcelCreationModal: React.FC<ParcelCreationModalProps> = ({
                             </p>
                         )}
                     </div>
-                    <button
+                    <Button
                         onClick={onCancel}
                         className="text-nkz-muted hover:text-gray-600 transition-colors"
                     >
                         <X className="w-6 h-6" />
-                    </button>
+                    </Button>
                 </div>
 
                 <ParcelForm

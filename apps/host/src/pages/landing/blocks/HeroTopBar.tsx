@@ -3,6 +3,7 @@ import { Globe } from 'lucide-react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '@nekazari/ui-kit';
 
 interface Props {
   isScrolled: boolean;
@@ -65,19 +66,19 @@ export const HeroTopBar: React.FC<Props> = ({
         />
         <div className="flex items-center gap-4">
           <div className="relative">
-            <button
+            <Button
               type="button"
               onClick={() => setShowLanguageMenu(!showLanguageMenu)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${textColor} hover:opacity-70`}
             >
               <Globe className="h-4 w-4" />
               {supportedLanguages[language] || 'ES'}
-            </button>
+            </Button>
             {showLanguageMenu && (
               <>
                 <div className="absolute right-0 mt-2 w-40 rounded-lg shadow-lg bg-white ring-1 ring-black/5 z-20 overflow-hidden">
                   {Object.entries(supportedLanguages).map(([code, name]) => (
-                    <button
+                    <Button
                       key={code}
                       onClick={() => onLanguageChange(code)}
                       className={`block w-full text-left px-4 py-2 text-sm transition-colors ${
@@ -87,19 +88,19 @@ export const HeroTopBar: React.FC<Props> = ({
                       }`}
                     >
                       {name as string}
-                    </button>
+                    </Button>
                   ))}
                 </div>
                 <div className="fixed inset-0 z-10" onClick={() => setShowLanguageMenu(false)} />
               </>
             )}
           </div>
-          <button
+          <Button
             onClick={handleLogin}
             className={`text-sm font-medium transition-colors duration-300 ${textColor} hover:opacity-70`}
           >
             {t('landing_v2.sign_in') || 'Iniciar sesión'}
-          </button>
+          </Button>
         </div>
       </div>
     </nav>

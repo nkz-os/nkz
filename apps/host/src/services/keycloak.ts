@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { getConfig } from '@/config/environment';
+import { logger } from '@/utils/logger';
 import { api } from './api';
 
 const config = getConfig();
@@ -35,7 +36,7 @@ class KeycloakAuthService {
         });
 
         if (authenticated) {
-          console.log('User authenticated with Keycloak');
+          logger.log('User authenticated with Keycloak');
           // Set httpOnly cookie via API gateway
           if (this.keycloak.token) {
             api.setSession(this.keycloak.token).catch(() => {});
@@ -50,7 +51,7 @@ class KeycloakAuthService {
 
         resolve(authenticated);
       } catch (error) {
-        console.error('Keycloak initialization failed:', error);
+        logger.error('Keycloak initialization failed:', error);
         resolve(false);
       }
       })();
@@ -110,7 +111,7 @@ class KeycloakAuthService {
       }
       return refreshed;
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      logger.error('Token refresh failed:', error);
       return false;
     }
   }

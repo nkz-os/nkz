@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
@@ -22,6 +23,9 @@ import { es } from 'date-fns/locale';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
+
 
 // Registrar componentes de Chart.js
 ChartJS.register(
@@ -113,7 +117,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         setTelemetryData([]);
       }
     } catch (err: any) {
-      console.error('Error loading telemetry:', err);
+      logger.error('Error loading telemetry:', err);
       setError(err?.response?.data?.error || t('sensors.telemetry_error'));
       setTelemetryData([]);
     } finally {
@@ -252,20 +256,20 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
         <div className="flex items-center gap-2">
           <select
             value={selectedTimeRange}
-            onChange={(e) => setSelectedTimeRange(e.target.value as any)}
+            onChange={(e: any) => setSelectedTimeRange(e.target.value as any)}
             className="px-3 py-1 text-sm border border-nkz-border rounded-lg bg-white"
           >
             {timeRangeOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <button
+          <Button
             onClick={loadTelemetryData}
             className="p-1 text-gray-600 hover:text-gray-900 transition"
             title={t('sensors.refresh')}
           >
             <RefreshCw className="w-4 h-4" />
-          </button>
+          </Button>
         </div>
       </div>
 

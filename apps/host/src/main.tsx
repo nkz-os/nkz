@@ -5,10 +5,13 @@ import './index.css';
 
 // Expose React globally for SDK hooks (useViewer) that access window.React.
 // Required for backward compatibility with @nekazari/sdk pre-MF-native hooks.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 (window as any).React = React;
 // Cesium CSS is imported by Cesium-using components (CesiumMap, MobileViewer) via lazy chunks
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initHostI18n } from './i18n/init';
+import { logger } from '@/utils/logger';
+
 
 // =============================================================================
 // Global Error Handlers
@@ -19,11 +22,11 @@ window.onerror = (message, source, lineno, colno, error) => {
   if (typeof message === 'string' && message.includes('ResizeObserver loop')) {
     return true;
   }
-  console.error('[NKZ] Uncaught error:', message, { source, lineno, colno, error });
+  logger.error('[NKZ] Uncaught error:', message, { source, lineno, colno, error });
   return false;
 };
 window.onunhandledrejection = (event) => {
-  console.error('[NKZ] Unhandled rejection:', event.reason);
+  logger.error('[NKZ] Unhandled rejection:', event.reason);
 };
 
 // =============================================================================

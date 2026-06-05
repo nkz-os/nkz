@@ -13,7 +13,9 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
+import { Button, Input } from '@nekazari/ui-kit';
 import { 
+/* eslint-disable @typescript-eslint/no-explicit-any */
   RotateCw, ZoomIn, ZoomOut, RefreshCw, Move,
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
   Eye, EyeOff
@@ -172,7 +174,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
           Vista Previa 3D
         </label>
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
             onClick={() => setAutoRotate(!autoRotate)}
             className={`p-1.5 rounded transition ${
@@ -181,15 +183,15 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
             title={autoRotate ? 'Detener rotación' : 'Auto-rotar'}
           >
             <RefreshCw className={`w-4 h-4 ${autoRotate ? 'animate-spin' : ''}`} style={{ animationDuration: '3s' }} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => setShowControls(!showControls)}
             className="p-1.5 rounded bg-nkz-bg-secondary text-nkz-muted hover:bg-gray-200 transition"
             title={showControls ? 'Ocultar controles' : 'Mostrar controles'}
           >
             {showControls ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -246,33 +248,33 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
               Escala
             </label>
             <div className="flex items-center gap-3">
-              <button
+              <Button
                 type="button"
                 onClick={() => handleScaleChange(-0.1)}
                 className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
               >
                 <ZoomOut className="w-4 h-4" />
-              </button>
+              </Button>
               
               <div className="flex-1">
-                <input
+                <Input
                   type="range"
                   min="0.1"
                   max="5"
                   step="0.1"
                   value={scale}
-                  onChange={(e) => onScaleChange(parseFloat(e.target.value))}
+                  onChange={(e: any) => onScaleChange(parseFloat(e.target.value))}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-500"
                 />
               </div>
               
-              <button
+              <Button
                 type="button"
                 onClick={() => handleScaleChange(0.1)}
                 className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
               >
                 <ZoomIn className="w-4 h-4" />
-              </button>
+              </Button>
               
               <span className="w-16 text-center text-sm font-mono bg-white border border-nkz-border rounded px-2 py-1">
                 {scale.toFixed(2)}
@@ -286,33 +288,33 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
               Rotación (Heading)
             </label>
             <div className="flex items-center gap-3">
-              <button
+              <Button
                 type="button"
                 onClick={() => handleRotationChange(0, -15)}
                 className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
               >
                 <ChevronLeft className="w-4 h-4" />
-              </button>
+              </Button>
               
               <div className="flex-1">
-                <input
+                <Input
                   type="range"
                   min="0"
                   max="360"
                   step="15"
                   value={rotation[0]}
-                  onChange={(e) => onRotationChange([parseFloat(e.target.value), rotation[1], rotation[2]])}
+                  onChange={(e: any) => onRotationChange([parseFloat(e.target.value), rotation[1], rotation[2]])}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
               </div>
               
-              <button
+              <Button
                 type="button"
                 onClick={() => handleRotationChange(0, 15)}
                 className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
               >
                 <ChevronRight className="w-4 h-4" />
-              </button>
+              </Button>
               
               <span className="w-16 text-center text-sm font-mono bg-white border border-nkz-border rounded px-2 py-1">
                 {rotation[0]}°
@@ -328,33 +330,33 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
                   Inclinación (Pitch)
                 </label>
                 <div className="flex items-center gap-3">
-                  <button
+                  <Button
                     type="button"
                     onClick={() => handleRotationChange(1, -15)}
                     className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
                   >
                     <ChevronDown className="w-4 h-4" />
-                  </button>
+                  </Button>
                   
                   <div className="flex-1">
-                    <input
+                    <Input
                       type="range"
                       min="-90"
                       max="90"
                       step="15"
                       value={rotation[1]}
-                      onChange={(e) => onRotationChange([rotation[0], parseFloat(e.target.value), rotation[2]])}
+                      onChange={(e: any) => onRotationChange([rotation[0], parseFloat(e.target.value), rotation[2]])}
                       className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500"
                     />
                   </div>
                   
-                  <button
+                  <Button
                     type="button"
                     onClick={() => handleRotationChange(1, 15)}
                     className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
                   >
                     <ChevronUp className="w-4 h-4" />
-                  </button>
+                  </Button>
                   
                   <span className="w-16 text-center text-sm font-mono bg-white border border-nkz-border rounded px-2 py-1">
                     {rotation[1]}°
@@ -367,33 +369,33 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
                   Alabeo (Roll)
                 </label>
                 <div className="flex items-center gap-3">
-                  <button
+                  <Button
                     type="button"
                     onClick={() => handleRotationChange(2, -15)}
                     className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
                   >
                     <RotateCw className="w-4 h-4 -scale-x-100" />
-                  </button>
+                  </Button>
                   
                   <div className="flex-1">
-                    <input
+                    <Input
                       type="range"
                       min="-180"
                       max="180"
                       step="15"
                       value={rotation[2]}
-                      onChange={(e) => onRotationChange([rotation[0], rotation[1], parseFloat(e.target.value)])}
+                      onChange={(e: any) => onRotationChange([rotation[0], rotation[1], parseFloat(e.target.value)])}
                       className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500"
                     />
                   </div>
                   
-                  <button
+                  <Button
                     type="button"
                     onClick={() => handleRotationChange(2, 15)}
                     className="p-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary transition"
                   >
                     <RotateCw className="w-4 h-4" />
-                  </button>
+                  </Button>
                   
                   <span className="w-16 text-center text-sm font-mono bg-white border border-nkz-border rounded px-2 py-1">
                     {rotation[2]}°
@@ -405,14 +407,14 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
 
           {/* Reset button */}
           <div className="flex justify-end pt-2">
-            <button
+            <Button
               type="button"
               onClick={resetTransform}
               className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition"
             >
               <RefreshCw className="w-4 h-4" />
               Restablecer
-            </button>
+            </Button>
           </div>
         </div>
       )}

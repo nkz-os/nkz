@@ -3,6 +3,7 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import { Button } from '@nekazari/ui-kit';
 
 type VisibilityRules = Record<string, { hiddenRoles: string[] }>;
 
@@ -196,7 +197,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
                     const hidden = rule.hiddenRoles.includes(role);
                     return (
                       <td key={role} className="text-center px-3 py-2">
-                        <button
+                        <Button
                           type="button"
                           disabled={saving || isReadOnly}
                           onClick={() => toggleRoleVisibility(mod.id, role)}
@@ -218,7 +219,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
                           {hidden
                             ? t('settings.module_visibility.hidden_short', { defaultValue: 'Off' })
                             : t('settings.module_visibility.visible_short', { defaultValue: 'On' })}
-                        </button>
+                        </Button>
                       </td>
                     );
                   })}
@@ -243,7 +244,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
 
       {!isReadOnly && (
         <div className="mt-4 flex justify-end">
-          <button
+          <Button
             type="button"
             onClick={handleSave}
             disabled={saving}
@@ -252,7 +253,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
             {saving
               ? t('settings.saving', { defaultValue: 'Saving…' })
               : t('settings.save', { defaultValue: 'Save' })}
-          </button>
+          </Button>
         </div>
       )}
     </div>

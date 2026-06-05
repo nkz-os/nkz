@@ -10,6 +10,8 @@
  */
 
 import { useMemo } from 'react';
+import { logger } from '@/utils/logger';
+
 
 export interface CesiumLayerResult {
   /** Cesium ImageryProvider instance (null if not ready) */
@@ -113,7 +115,7 @@ export function createCesiumLayerHook<T extends Record<string, any>>(config: {
           error: null,
         };
       } catch (error) {
-        console.error('[createCesiumLayerHook] Error creating imagery provider:', error);
+        logger.error('[createCesiumLayerHook] Error creating imagery provider:', error);
         return {
           imageryProvider: null,
           isReady: false,

@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
 import { useAuth } from '@/context/KeycloakAuthContext';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface Municipality {
   code: string;
   name: string;

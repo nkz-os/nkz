@@ -4,6 +4,7 @@
 import React from 'react';
 import { Mail, Trash2, Edit2, Key } from 'lucide-react';
 import { format } from 'date-fns';
+import { Button } from '@nekazari/ui-kit';
 
 export interface UserRow {
   id: string;
@@ -148,31 +149,31 @@ export const UserTable: React.FC<UserTableProps> = ({
               <td className="px-6 py-4 text-right">
                 <div className="flex justify-end gap-2">
                   {actions.editRoles && onEditRoles && (
-                    <button
+                    <Button
                       onClick={() => onEditRoles(user)}
                       className="p-2 text-nkz-text-muted hover:text-nkz-info transition-colors"
                       title="Edit roles"
                     >
                       <Edit2 className="h-4 w-4" />
-                    </button>
+                    </Button>
                   )}
                   {actions.resetPassword && onResetPassword && (
-                    <button
+                    <Button
                       onClick={() => onResetPassword(user.id)}
                       className="p-2 text-nkz-text-muted hover:text-nkz-warning transition-colors"
                       title="Reset password"
                     >
                       <Key className="h-4 w-4" />
-                    </button>
+                    </Button>
                   )}
                   {actions.deleteUser && onDeleteUser && (
-                    <button
+                    <Button
                       onClick={() => onDeleteUser(user.id, user.email)}
                       className="p-2 text-nkz-text-muted hover:text-nkz-danger transition-colors"
                       title="Delete user"
                     >
                       <Trash2 className="h-4 w-4" />
-                    </button>
+                    </Button>
                   )}
                 </div>
               </td>

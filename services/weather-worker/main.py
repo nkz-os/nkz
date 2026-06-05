@@ -8,6 +8,7 @@ import sys
 import logging
 import signal
 import time
+import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
@@ -184,32 +185,12 @@ class WeatherWorker:
                             status='success'
                         ).inc(count)
             
-            # 3. Ingest AEMET alerts (if configured)
-            if self.aemet:
-                logger.info(f"Ingesting AEMET alerts for {municipality_code}")
-                try:
-                    alerts = self.aemet.get_weather_alerts(municipality_code)
-                    
-                    if alerts:
-                        transformed_alerts = []
-                        for alert in alerts:
-                            transformed = self.data_transformer.transform_alert(alert, tenant_id)
-                            if transformed:
-                                transformed_alerts.append(transformed)
-                        
-                        if transformed_alerts:
-                            count = self.storage.write_alerts(transformed_alerts, tenant_id)
-                            result['alerts'] = count
-                            
-                            for alert in transformed_alerts:
-                                WEATHER_ALERTS_TOTAL.labels(
-                                    alert_type=alert['alert_type'],
-                                    status='success'
-                                ).inc()
-                
-                except Exception as e:
-                    logger.error(f"Error ingesting AEMET alerts: {e}")
-                    result['errors'].append(f"AEMET alerts: {str(e)}")
+            # 3. AEMET alerts are now handled by AemetAlertsEngine
+            #    (independent engine → Orion-LD → subscription → TimescaleDB).
+            #    The municipality worker no longer writes alerts directly.
+            logger.debug(
+                f"AEMET alerts for {municipality_code} handled by AemetAlertsEngine"
+            )
             
             logger.info(f"Completed ingestion for {municipality_code}: {result}")
             return result
@@ -278,30 +259,130 @@ class WeatherWorker:
         finally:
             WEATHER_INGESTION_IN_PROGRESS.set(0)
     
+    def _run_parcel_engine_loop(self):
+        """Run parcel-driven weather engine in a background thread."""
+        if not self.config.PARCEL_ENGINE_ENABLED:
+            logger.info("ParcelWeatherEngine disabled via PARCEL_ENGINE_ENABLED=false")
+            return
+
+        logger.info(
+            f"ParcelWeatherEngine starting: interval={self.config.PARCEL_ENGINE_INTERVAL_HOURS}h, "
+            f"cluster_radius={self.config.PARCEL_ENGINE_CLUSTER_RADIUS_KM}km"
+        )
+
+        # Wait for initial DB connection and first municipality cycle
+        time.sleep(10)
+
+        from weather_worker.parcel_engine import ParcelWeatherEngine
+
+        parcel_engine = ParcelWeatherEngine(
+            orion_url=os.getenv("ORION_URL", "http://orion-ld-service:1026"),
+            openmeteo_url=self.config.OPENMETEO_API_URL,
+            postgres_url=self.postgres_url,
+            forecast_days=self.config.FORECAST_DAYS,
+            cluster_radius_km=self.config.PARCEL_ENGINE_CLUSTER_RADIUS_KM,
+            max_parcels=self.config.PARCEL_ENGINE_MAX_PARCELS,
+        )
+
+        interval_seconds = self.config.PARCEL_ENGINE_INTERVAL_HOURS * 3600
+
+        while True:
+            try:
+                logger.info("ParcelWeatherEngine: starting cycle")
+                stats = parcel_engine.run_once()
+                logger.info(f"ParcelWeatherEngine cycle stats: {stats}")
+            except Exception as e:
+                logger.error(f"ParcelWeatherEngine cycle failed: {e}", exc_info=True)
+
+            time.sleep(interval_seconds)
+
+    def _run_aemet_alerts_loop(self):
+        """Run AEMET alerts engine in a background thread."""
+        if not self.config.AEMET_ALERTS_ENABLED:
+            logger.info("AemetAlertsEngine disabled via AEMET_ALERTS_ENABLED=false")
+            return
+
+        if not self.config.AEMET_API_KEY:
+            logger.info(
+                "AemetAlertsEngine: no AEMET_API_KEY configured — skipping"
+            )
+            return
+
+        logger.info(
+            f"AemetAlertsEngine starting: interval={self.config.AEMET_ALERTS_INTERVAL_HOURS}h"
+        )
+
+        # Small delay to let DB connection settle
+        time.sleep(5)
+
+        from weather_worker.aemet_alerts_engine import AemetAlertsEngine
+
+        engine = AemetAlertsEngine(
+            orion_url=os.getenv("ORION_URL", "http://orion-ld-service:1026"),
+            aemet_api_key=self.config.AEMET_API_KEY,
+            aemet_api_url=self.config.AEMET_API_URL,
+            interval_hours=self.config.AEMET_ALERTS_INTERVAL_HOURS,
+        )
+
+        engine.run_loop()
+
     def run(self):
-        """Run worker in continuous mode"""
+        """Run worker in continuous mode.
+
+        ParcelWeatherEngine always runs (handles the agronomic heart).
+        AemetAlertsEngine always runs (handles official weather alerts).
+        Municipality worker is OFF by default — forecast data is ephemeral.
+        """
         logger.info("Weather Worker starting in continuous mode")
-        
-        # Initial connection
-        self.storage.connect()
-        
-        # Run initial ingestion
-        self.run_ingestion_cycle()
-        
-        # Schedule periodic ingestion
-        interval_seconds = self.config.WEATHER_INGESTION_INTERVAL_HOURS * 3600
-        
-        logger.info(f"Scheduling ingestion every {self.config.WEATHER_INGESTION_INTERVAL_HOURS} hours")
-        
-        try:
-            while True:
-                time.sleep(interval_seconds)
-                self.run_ingestion_cycle()
-                
-        except KeyboardInterrupt:
-            logger.info("Weather Worker stopped by user")
-        finally:
-            self.storage.close()
+
+        # Start parcel engine in background thread (always on)
+        if self.config.PARCEL_ENGINE_ENABLED:
+            self.storage.connect()
+            parcel_thread = threading.Thread(
+                target=self._run_parcel_engine_loop,
+                daemon=True,
+                name="parcel-engine",
+            )
+            parcel_thread.start()
+            logger.info("ParcelWeatherEngine thread started")
+
+        # Start AEMET alerts engine in background thread (always on)
+        if self.config.AEMET_ALERTS_ENABLED and self.config.AEMET_API_KEY:
+            alerts_thread = threading.Thread(
+                target=self._run_aemet_alerts_loop,
+                daemon=True,
+                name="aemet-alerts-engine",
+            )
+            alerts_thread.start()
+            logger.info("AemetAlertsEngine thread started")
+
+        # Municipality worker is OFF by default
+        if self.config.MUNICIPALITY_WORKER_ENABLED:
+            logger.info("Municipality worker enabled (legacy mode)")
+            self.run_ingestion_cycle()
+            interval_seconds = self.config.WEATHER_INGESTION_INTERVAL_HOURS * 3600
+            logger.info(
+                f"Scheduling municipality ingestion every "
+                f"{self.config.WEATHER_INGESTION_INTERVAL_HOURS} hours"
+            )
+            try:
+                while True:
+                    time.sleep(interval_seconds)
+                    self.run_ingestion_cycle()
+            except KeyboardInterrupt:
+                logger.info("Weather Worker stopped by user")
+            finally:
+                self.storage.close()
+        else:
+            logger.info(
+                "Municipality worker disabled — parcel engine only. "
+                "Municipality forecasts are served statelessly by weather-api."
+            )
+            try:
+                while True:
+                    time.sleep(60)  # keep main thread alive
+            except KeyboardInterrupt:
+                logger.info("Weather Worker stopped by user")
 
 
 def main():

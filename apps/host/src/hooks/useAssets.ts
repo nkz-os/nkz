@@ -4,6 +4,7 @@
 // Provides centralized state management for all assets in the platform.
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { logger } from '@/utils/logger';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
 import {
@@ -152,7 +153,7 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
             try {
               allAssets.push(normalizeToAsset({ ...entity, type: entity.type || type }));
             } catch (e) {
-              console.warn(`[useAssets] Failed to normalize ${type}:`, entity.id, e);
+              logger.warn(`[useAssets] Failed to normalize ${type}:`, entity.id, e);
             }
           });
         }
@@ -177,11 +178,11 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
       addEntities(energyTrackersRes, 'AgriEnergyTracker');
       addEntities(pvInstallationsRes, 'PhotovoltaicInstallation');
 
-      console.log(`[useAssets] Loaded ${allAssets.length} assets`);
+      logger.log(`[useAssets] Loaded ${allAssets.length} assets`);
       setAssets(allAssets);
       
     } catch (err: any) {
-      console.error('[useAssets] Error fetching assets:', err);
+      logger.error('[useAssets] Error fetching assets:', err);
       setError(err.message || 'Error al cargar los assets');
     } finally {
       setIsLoading(false);
@@ -327,7 +328,7 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
       });
       
     } catch (err: any) {
-      console.error('[useAssets] Error deleting assets:', err);
+      logger.error('[useAssets] Error deleting assets:', err);
       setError(err.message || 'Error al eliminar assets');
       throw err; // Re-throw so caller can handle it
     } finally {

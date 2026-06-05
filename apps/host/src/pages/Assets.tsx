@@ -13,6 +13,9 @@ import type { AssetType, AssetCreationPayload, GeoPolygon } from '@/types';
 import { Layers, AlertCircle, CheckCircle2, Expand, Minimize } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
+import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
+
 
 export const Assets: React.FC = () => {
   const { t: _t } = useI18n();
@@ -34,7 +37,7 @@ export const Assets: React.FC = () => {
     // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) {
-      console.warn('[Assets] Cesium not available');
+      logger.warn('[Assets] Cesium not available');
       return;
     }
 
@@ -105,9 +108,9 @@ export const Assets: React.FC = () => {
     const element = wrapperRef.current;
     if (!element) return;
     if (document.fullscreenElement === element) {
-      document.exitFullscreen?.().catch((err) => console.warn('[Assets] exitFullscreen failed', err));
+      document.exitFullscreen?.().catch((err) => logger.warn('[Assets] exitFullscreen failed', err));
     } else {
-      element.requestFullscreen?.().catch((err) => console.warn('[Assets] requestFullscreen failed', err));
+      element.requestFullscreen?.().catch((err) => logger.warn('[Assets] requestFullscreen failed', err));
     }
   };
 
@@ -156,7 +159,7 @@ export const Assets: React.FC = () => {
       }, 2000);
 
     } catch (error: any) {
-      console.error('[Assets] Error creating asset:', error);
+      logger.error('[Assets] Error creating asset:', error);
       setSaveError(error.response?.data?.error || error.message || 'Error al guardar el activo');
     } finally {
       setIsSaving(false);
@@ -226,14 +229,14 @@ export const Assets: React.FC = () => {
 
                 {/* Fullscreen Button */}
                 <div className="absolute top-4 right-4 z-10">
-                  <button
+                  <Button
                     type="button"
                     onClick={toggleFullscreen}
                     className="inline-flex items-center justify-center rounded-full bg-black/60 text-white p-2 hover:bg-black/70 transition"
                     aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
                   >
                     {isFullscreen ? <Minimize className="w-4 h-4" /> : <Expand className="w-4 h-4" />}
-                  </button>
+                  </Button>
                 </div>
 
                 {/* Cesium Container */}

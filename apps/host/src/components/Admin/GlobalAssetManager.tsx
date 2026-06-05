@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Upload, Trash2, FileIcon, Box, Loader2, AlertCircle, CheckCircle, Globe, Building2 } from 'lucide-react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import api from '@/services/api';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface Asset {
     key: string;
@@ -234,33 +235,33 @@ export const GlobalAssetManager: React.FC = () => {
                             {activeTab === 'public' ? 'Public models and icons (all tenants).' : 'Your tenant’s models and icons.'}
                         </p>
                     </div>
-                    <button
+                    <Button
                         onClick={loadAssets}
                         disabled={isLoading}
                         className="p-2 text-nkz-muted hover:text-nkz-info transition-colors"
                         title="Refresh"
                     >
                         <Loader2 className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Tabs */}
                 <div className="flex border-b border-nkz-border mb-4">
-                    <button
+                    <Button
                         onClick={() => { setActiveTab('public'); setError(null); setSuccess(null); }}
                         className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'public' ? 'border-blue-500 text-nkz-info' : 'border-transparent text-nkz-muted hover:text-gray-700'}`}
                     >
                         <Globe className="w-4 h-4" />
                         Public
-                    </button>
+                    </Button>
                     {canManageTenant && (
-                        <button
+                        <Button
                             onClick={() => { setActiveTab('tenant'); setError(null); setSuccess(null); }}
                             className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'tenant' ? 'border-blue-500 text-nkz-info' : 'border-transparent text-nkz-muted hover:text-gray-700'}`}
                         >
                             <Building2 className="w-4 h-4" />
                             My tenant models
-                        </button>
+                        </Button>
                     )}
                 </div>
 
@@ -273,7 +274,7 @@ export const GlobalAssetManager: React.FC = () => {
                         onDragOver={handleDrag}
                         onDrop={handleDrop}
                     >
-                        <input
+                        <Input
                             type="file"
                             id="file-upload"
                             className="hidden"
@@ -342,13 +343,13 @@ export const GlobalAssetManager: React.FC = () => {
                                             Download
                                         </a>
                                     )}
-                                    <button
+                                    <Button
                                         onClick={() => activeTab === 'public' ? handleDeletePublic(asset.key) : handleDeleteTenant(asset)}
                                         className="p-2 text-nkz-muted hover:text-nkz-error transition-colors rounded-full hover:bg-nkz-error-light"
                                         title="Delete"
                                     >
                                         <Trash2 className="w-5 h-5" />
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                         ))}

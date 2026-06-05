@@ -10,7 +10,11 @@ import { useI18n } from '@/context/I18nContext';
 import { getConfig } from '@/config/environment';
 import api from '@/services/api';
 import type { LivestockAnimal } from '@/types';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
 
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 const config = getConfig();
 
 interface AddLivestockModalProps {
@@ -157,7 +161,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
       }
       onClose();
     } catch (error: unknown) {
-      console.error('Error saving livestock:', error);
+      logger.error('Error saving livestock:', error);
       const ax = error as { response?: { data?: { error?: string } } };
       const errorMsg = ax.response?.data?.error || (t('livestock.save_error'));
       setError(errorMsg);
@@ -176,13 +180,13 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
             <Heart className="w-6 h-6" />
             {t('livestock.title')}
           </h2>
-          <button
+          <Button
             onClick={onClose}
             className="text-white hover:text-gray-200 transition"
             disabled={loading}
           >
             <X className="w-6 h-6" />
-          </button>
+          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -201,10 +205,10 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('livestock.name')} *
             </label>
-            <input
+            <Input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, name: e.target.value })}
               placeholder={t('livestock.name_placeholder')}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               disabled={loading}
@@ -220,7 +224,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               </label>
               <select
                 value={formData.species}
-                onChange={(e) =>
+                onChange={(e: any) =>
                   setFormData({ ...formData, species: e.target.value as typeof formData.species })
                 }
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -238,10 +242,10 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('livestock.breed')}
               </label>
-              <input
+              <Input
                 type="text"
                 value={formData.breed}
-                onChange={(e) => setFormData({ ...formData, breed: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, breed: e.target.value })}
                 placeholder={t('livestock.breed_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
@@ -255,10 +259,10 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('livestock.herd_id')}
               </label>
-              <input
+              <Input
                 type="text"
                 value={formData.herdId}
-                onChange={(e) => setFormData({ ...formData, herdId: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, herdId: e.target.value })}
                 placeholder={t('livestock.herd_id_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
@@ -270,7 +274,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               </label>
               <select
                 value={formData.activity}
-                onChange={(e) =>
+                onChange={(e: any) =>
                   setFormData({ ...formData, activity: e.target.value as typeof formData.activity })
                 }
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -290,10 +294,10 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('livestock.birth_date')}
               </label>
-              <input
+              <Input
                 type="date"
                 value={formData.birthDate}
-                onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, birthDate: e.target.value })}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
               />
@@ -302,11 +306,11 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('livestock.weight')}
               </label>
-              <input
+              <Input
                 type="number"
                 step="0.1"
                 value={formData.weight}
-                onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, weight: e.target.value })}
                 placeholder={t('livestock.weight_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
@@ -321,11 +325,11 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
                 <MapPin className="w-4 h-4" />
                 {t('livestock.latitude')} *
               </label>
-              <input
+              <Input
                 type="number"
                 step="any"
                 value={formData.latitude}
-                onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
+                onChange={(e: any) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('livestock.latitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
@@ -337,11 +341,11 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
                 <MapPin className="w-4 h-4" />
                 {t('livestock.longitude')} *
               </label>
-              <input
+              <Input
                 type="number"
                 step="any"
                 value={formData.longitude}
-                onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
+                onChange={(e: any) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || 0 })}
                 placeholder={t('livestock.longitude_placeholder')}
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
@@ -356,10 +360,10 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('livestock.icon2d')}
               </label>
-              <input
+              <Input
                 type="url"
                 value={formData.icon2d}
-                onChange={(e) => setFormData({ ...formData, icon2d: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, icon2d: e.target.value })}
                 placeholder="https://ejemplo.com/icono.png"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
@@ -369,10 +373,10 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('livestock.model3d')}
               </label>
-              <input
+              <Input
                 type="url"
                 value={formData.model3d}
-                onChange={(e) => setFormData({ ...formData, model3d: e.target.value })}
+                onChange={(e: any) => setFormData({ ...formData, model3d: e.target.value })}
                 placeholder="https://ejemplo.com/modelo.glb"
                 className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 disabled={loading}
@@ -387,7 +391,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
             </label>
             <textarea
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              onChange={(e: any) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               placeholder={t('livestock.notes_placeholder')}
@@ -397,22 +401,22 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
 
           {/* Buttons */}
           <div className="flex gap-3 pt-4">
-            <button
+            <Button
               type="submit"
               disabled={loading}
               className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Save className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               {loading ? (t('livestock.saving')) : (t('livestock.save'))}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={onClose}
               disabled={loading}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {t('common.cancel')}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

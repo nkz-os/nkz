@@ -4,6 +4,7 @@ import { useEntityEditor } from '../EntityEditorContext';
 import { EntitySearchInput } from '../EntitySearchInput';
 import { getSchemasForType } from '../attributeSchemas';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const RelationshipSection: React.FC = () => {
   const { t } = useI18n();
   const { formState, setField, entityType, entityId } = useEntityEditor();

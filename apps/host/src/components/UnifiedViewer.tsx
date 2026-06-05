@@ -34,7 +34,9 @@ type SidebarState = 'closed' | 'compact' | 'expanded';
 import '@nekazari/design-tokens/css';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';
 import { useNotification } from '@/hooks/useNotification';
+import { Button } from '@nekazari/ui-kit';
 import {
+
     ChevronDown,
     ChevronUp,
     Loader2,
@@ -450,12 +452,12 @@ const UnifiedViewerInner: React.FC = () => {
                 <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50">
                     <div className={`${overlayPanel.base} px-6 py-3 rounded-full flex items-center gap-4`}>
                         <p className="text-slate-700 dark:text-slate-100 font-medium">{t('viewer.drawing.pick_location')}</p>
-                        <button
+                        <Button
                             onClick={cancelPicking}
                             className="bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-100 px-3 py-1 rounded-full text-sm font-medium transition-colors"
                         >
                             {t('cancel')}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             )}
@@ -609,13 +611,13 @@ const UnifiedViewerInner: React.FC = () => {
                     marginRight: rightSidebarState === 'expanded' ? '600px' : rightSidebarState === 'compact' ? '400px' : '0px',
                 }}
             >
-                <button
+                <Button
                     onClick={toggleBottomPanel}
                     className={`absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full z-40 px-4 py-1 rounded-t-lg ${overlayPanel.base} hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1`}
                 >
                     {isBottomPanelOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
                     {t('viewer.timeline.button')}
-                </button>
+                </Button>
 
                 {isBottomPanelOpen && (
                     <div className={`h-24 mb-4 rounded-xl ${overlayPanel.base} flex items-center justify-center`}>

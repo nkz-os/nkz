@@ -16,6 +16,9 @@ import type { Geometry, Polygon, Point, LineString, MultiLineString } from 'geoj
 import { useViewer } from '@/context/ViewerContext';
 import { validateGeometryWithinParent } from '@/utils/geometryValidation';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
+import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
+
 // NOTE: CesiumMap import removed - all geometry types now use global viewer via startDrawing
 
 interface ParentGeometry {
@@ -65,7 +68,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
     // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) {
-      console.warn('[GeometryEditor] Cesium not available');
+      logger.warn('[GeometryEditor] Cesium not available');
       return;
     }
 
@@ -663,7 +666,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
             </div>
 
             <div className="flex gap-3">
-              <button
+              <Button
                 onClick={() => {
                   startDrawing(geometryType, (geom) => {
                     setCurrentGeometry(geom);
@@ -696,10 +699,10 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                     {currentGeometry ? 'Redraw Geometry' : 'Start Drawing'}
                   </>
                 )}
-              </button>
+              </Button>
 
               {currentGeometry && (
-                <button
+                <Button
                   onClick={() => {
                     setCurrentGeometry(null);
                     onGeometryChange(null);
@@ -710,7 +713,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                 >
                   <Eraser className="w-4 h-4" />
                   Clear
-                </button>
+                </Button>
               )}
             </div>
 
@@ -780,7 +783,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
         {/* Tools */}
         <div className="absolute top-4 right-4 flex gap-2 z-10">
           {isDrawing && (
-            <button
+            <Button
               type="button"
               onClick={handleUndo}
               disabled={disabled || pointsRef.current.length === 0}
@@ -788,10 +791,10 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
               title="Undo last point"
             >
               <RotateCcw className="w-4 h-4" />
-            </button>
+            </Button>
           )}
           {currentGeometry && (
-            <button
+            <Button
               type="button"
               onClick={handleClear}
               disabled={disabled}
@@ -799,7 +802,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
               title="Clear geometry"
             >
               <Eraser className="w-4 h-4" />
-            </button>
+            </Button>
           )}
         </div>
       </div>

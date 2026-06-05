@@ -5,6 +5,8 @@
 // values according to DeviceProfile mappings.
 
 import { MappingEntry } from '@/services/deviceProfilesApi';
+import { logger } from '@/utils/logger';
+
 
 /**
  * Safe evaluation of simple JEXL-like expressions
@@ -24,7 +26,7 @@ export function evaluateExpression(expression: string, value: number): number {
     const lowerExpr = expression.toLowerCase();
     for (const d of dangerous) {
         if (lowerExpr.includes(d)) {
-            console.warn(`[JEXL] Blocked dangerous expression: ${expression}`);
+            logger.warn(`[JEXL] Blocked dangerous expression: ${expression}`);
             return value;
         }
     }
@@ -35,7 +37,7 @@ export function evaluateExpression(expression: string, value: number): number {
 
         // Only allow safe characters: digits, operators, parentheses, spaces, decimal points
         if (!/^[\d\s+\-*/().]+$/.test(expr)) {
-            console.warn(`[JEXL] Expression contains invalid characters: ${expression}`);
+            logger.warn(`[JEXL] Expression contains invalid characters: ${expression}`);
             return value;
         }
 
@@ -44,13 +46,13 @@ export function evaluateExpression(expression: string, value: number): number {
         const result = new Function(`return ${expr}`)();
 
         if (typeof result !== 'number' || !isFinite(result)) {
-            console.warn(`[JEXL] Expression returned invalid result: ${expression} → ${result}`);
+            logger.warn(`[JEXL] Expression returned invalid result: ${expression} → ${result}`);
             return value;
         }
 
         return result;
     } catch (err) {
-        console.warn(`[JEXL] Error evaluating expression: ${expression}`, err);
+        logger.warn(`[JEXL] Error evaluating expression: ${expression}`, err);
         return value;
     }
 }

@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Shield, Users, Database, BarChart3, Smartphone, Lock, ArrowRight, 
   Zap, Globe, Mail, ExternalLink, Sparkles
 } from 'lucide-react';
@@ -14,6 +15,7 @@ import { CookieBanner } from '@/components/CookieBanner';
 import { useCookieConsent } from '@/context/CookieConsentContext';
 import { NkzAttribution } from '@/components/attribution/NkzAttribution';
 import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
 
 export const OSSLanding: React.FC = () => {
   const navigate = useNavigate();
@@ -103,7 +105,7 @@ export const OSSLanding: React.FC = () => {
       {/* Language Selector - Fixed Top Right */}
       <div className="fixed top-4 right-4 z-50">
         <div className="relative inline-block text-left">
-          <button
+          <Button
             type="button"
             onClick={() => setShowLanguageMenu(!showLanguageMenu)}
             className={`inline-flex items-center justify-center w-full rounded-lg border transition-all ${
@@ -114,12 +116,12 @@ export const OSSLanding: React.FC = () => {
           >
             <Globe className="h-4 w-4 mr-2" />
             {supportedLanguages[language] || supportedLanguages['es']}
-          </button>
+          </Button>
           {showLanguageMenu && (
             <>
               <div className="absolute right-0 mt-2 w-48 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
                 {Object.entries(supportedLanguages).map(([code, name]) => (
-                  <button
+                  <Button
                     key={code}
                     onClick={() => handleLanguageChange(code)}
                     className={`block w-full text-left px-4 py-2 text-sm transition-colors ${
@@ -129,7 +131,7 @@ export const OSSLanding: React.FC = () => {
                     }`}
                   >
                     {name}
-                  </button>
+                  </Button>
                 ))}
               </div>
               <div 
@@ -184,25 +186,25 @@ export const OSSLanding: React.FC = () => {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row items-stretch justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4 pt-6">
-                <button
+                <Button
                   onClick={() => navigate('/register')}
                   className="group relative inline-flex items-center justify-center px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white text-lg font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
                 >
                   <span>{t('landing.try_free')}</span>
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={handleLogin}
                   className="inline-flex items-center justify-center px-8 py-4 bg-white text-nkz-success text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
                 >
                   {t('landing.access')}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => navigate('/activate')}
                   className="inline-flex items-center justify-center px-8 py-4 bg-nkz-bg-secondary text-gray-600 text-lg font-medium rounded-xl border border-nkz-border hover:bg-nkz-bg-secondary transition-all duration-300 sm:w-auto"
                 >
                   {t('landing.register_with_code')}
-                </button>
+                </Button>
               </div>
 
               {/* Trust Badges - Perfectly aligned to left on desktop */}
@@ -277,7 +279,7 @@ export const OSSLanding: React.FC = () => {
           <p className="text-xl text-green-50 mb-10 max-w-2xl mx-auto">
             {t('landing.cta_section_subtitle')}
           </p>
-          <button
+          <Button
             onClick={handleLogin}
             className="inline-flex items-center px-10 py-5 bg-white text-nkz-success text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
           >
@@ -285,7 +287,7 @@ export const OSSLanding: React.FC = () => {
               {t('landing.cta_section_button') || t('landing.cta') || 'Empezar'}
               <ArrowRight className="ml-2 h-5 w-5" />
             </span>
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -343,13 +345,13 @@ export const OSSLanding: React.FC = () => {
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm space-y-3">
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-nkz-muted">
-              <button
+              <Button
                 type="button"
                 onClick={openPreferences}
                 className="underline hover:text-green-400 bg-transparent border-0 cursor-pointer text-sm"
               >
                 {t('layout.cookie_settings')}
-              </button>
+              </Button>
               <span aria-hidden>·</span>
               <a
                 href={t('cookies.policy_href')}

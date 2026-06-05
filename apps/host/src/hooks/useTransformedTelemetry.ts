@@ -12,6 +12,7 @@ import {
     getDeviceProfile,
     listDeviceProfiles
 } from '@/services/deviceProfilesApi';
+import { logger } from '@/utils/logger';
 import {
     transformPayload,
     getTransformedAttributeInfo,
@@ -97,7 +98,7 @@ export function useTransformedTelemetry(
                 const loadedProfile = await getDeviceProfile(profileId);
                 setProfile(loadedProfile);
             } catch (err: any) {
-                console.warn('[useTransformedTelemetry] Error loading profile:', err);
+                logger.warn('[useTransformedTelemetry] Error loading profile:', err);
                 setProfileError(err.message || 'Error loading profile');
                 setProfile(null);
             } finally {
@@ -117,7 +118,7 @@ export function useTransformedTelemetry(
                 const anyProfile = profiles[0];
                 setProfile(officialProfile || anyProfile || null);
             } catch (err: any) {
-                console.warn('[useTransformedTelemetry] Error finding profile:', err);
+                logger.warn('[useTransformedTelemetry] Error finding profile:', err);
                 setProfileError(err.message || 'Error finding profile');
                 setProfile(null);
             } finally {

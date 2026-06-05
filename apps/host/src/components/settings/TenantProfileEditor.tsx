@@ -3,7 +3,9 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { Save, MapPin, Globe, Clock, Banknote } from 'lucide-react';
 import api from '@/services/api';
+import { Button, Input } from '@nekazari/ui-kit';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const TenantProfileEditor: React.FC = () => {
   const { tenantProfile, refreshTenantProfile, hasRole } = useAuth();
   const { t } = useI18n();
@@ -123,10 +125,10 @@ export const TenantProfileEditor: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {t('settings.farm_name')}
           </label>
-          <input
+          <Input
             type="text"
             value={form.tenant_name}
-            onChange={e => setForm(f => ({ ...f, tenant_name: e.target.value }))}
+            onChange={(e: any) => setForm(f => ({ ...f, tenant_name: e.target.value }))}
             maxLength={100}
             className="w-full px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
@@ -141,7 +143,7 @@ export const TenantProfileEditor: React.FC = () => {
             </label>
             <select
               value={form.timezone}
-              onChange={e => setForm(f => ({ ...f, timezone: e.target.value }))}
+              onChange={(e: any) => setForm(f => ({ ...f, timezone: e.target.value }))}
               className="w-full px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
               {timezones.map(tz => (
@@ -158,7 +160,7 @@ export const TenantProfileEditor: React.FC = () => {
             </label>
             <select
               value={form.locale}
-              onChange={e => setForm(f => ({ ...f, locale: e.target.value }))}
+              onChange={(e: any) => setForm(f => ({ ...f, locale: e.target.value }))}
               className="w-full px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
               {locales.map(l => (
@@ -175,7 +177,7 @@ export const TenantProfileEditor: React.FC = () => {
             </label>
             <select
               value={form.currency}
-              onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
+              onChange={(e: any) => setForm(f => ({ ...f, currency: e.target.value }))}
               className="w-full px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             >
               {currencies.map(c => (
@@ -192,20 +194,20 @@ export const TenantProfileEditor: React.FC = () => {
             {t('settings.default_location')}
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <input
+            <Input
               type="number"
               step="0.0001"
               placeholder={t('settings.latitude')}
               value={form.default_lat}
-              onChange={e => setForm(f => ({ ...f, default_lat: e.target.value }))}
+              onChange={(e: any) => setForm(f => ({ ...f, default_lat: e.target.value }))}
               className="px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             />
-            <input
+            <Input
               type="number"
               step="0.0001"
               placeholder={t('settings.longitude')}
               value={form.default_lon}
-              onChange={e => setForm(f => ({ ...f, default_lon: e.target.value }))}
+              onChange={(e: any) => setForm(f => ({ ...f, default_lon: e.target.value }))}
               className="px-3 py-2 border border-nkz-border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
             />
           </div>
@@ -222,10 +224,10 @@ export const TenantProfileEditor: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('settings.nif', { defaultValue: 'NIF/CIF (Tax ID)' })}
               </label>
-              <input
+              <Input
                 type="text"
                 value={form.nif}
-                onChange={e => setForm(f => ({ ...f, nif: e.target.value }))}
+                onChange={(e: any) => setForm(f => ({ ...f, nif: e.target.value }))}
                 maxLength={20}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -234,10 +236,10 @@ export const TenantProfileEditor: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('settings.regepa', { defaultValue: 'REGEPA' })}
               </label>
-              <input
+              <Input
                 type="text"
                 value={form.regepa}
-                onChange={e => setForm(f => ({ ...f, regepa: e.target.value }))}
+                onChange={(e: any) => setForm(f => ({ ...f, regepa: e.target.value }))}
                 maxLength={30}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -246,10 +248,10 @@ export const TenantProfileEditor: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('settings.address_municipio', { defaultValue: 'Municipio' })}
               </label>
-              <input
+              <Input
                 type="text"
                 value={form.address_municipio}
-                onChange={e => setForm(f => ({ ...f, address_municipio: e.target.value }))}
+                onChange={(e: any) => setForm(f => ({ ...f, address_municipio: e.target.value }))}
                 maxLength={100}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -258,10 +260,10 @@ export const TenantProfileEditor: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('settings.address_provincia', { defaultValue: 'Provincia' })}
               </label>
-              <input
+              <Input
                 type="text"
                 value={form.address_provincia}
-                onChange={e => setForm(f => ({ ...f, address_provincia: e.target.value }))}
+                onChange={(e: any) => setForm(f => ({ ...f, address_provincia: e.target.value }))}
                 maxLength={50}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -270,10 +272,10 @@ export const TenantProfileEditor: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {t('settings.address_cp', { defaultValue: 'Código Postal' })}
               </label>
-              <input
+              <Input
                 type="text"
                 value={form.address_cp}
-                onChange={e => setForm(f => ({ ...f, address_cp: e.target.value }))}
+                onChange={(e: any) => setForm(f => ({ ...f, address_cp: e.target.value }))}
                 maxLength={10}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -283,14 +285,14 @@ export const TenantProfileEditor: React.FC = () => {
 
         {/* Save Button + Message */}
         <div className="flex items-center gap-4 pt-2">
-          <button
+          <Button
             onClick={handleSave}
             disabled={saving || !form.tenant_name.trim()}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
           >
             <Save className="w-4 h-4" />
             {saving ? t('common.saving') : t('common.save')}
-          </button>
+          </Button>
 
           {message && (
             <span className={`text-sm ${message.type === 'success' ? 'text-nkz-success' : 'text-nkz-error'}`}>

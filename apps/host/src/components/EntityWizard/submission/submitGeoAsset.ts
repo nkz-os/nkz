@@ -3,6 +3,7 @@ import api from '@/services/api';
 import type { GeoAssetFormData } from '../types';
 import type { PlacementState } from '@/machines/placementMachine';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export async function submitGeoAsset(
   entityType: string,
   formData: GeoAssetFormData,

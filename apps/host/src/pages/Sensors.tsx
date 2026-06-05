@@ -14,6 +14,7 @@ import { useToastContext } from '@/context/ToastContext';
 import { logger } from '@/utils/logger';
 import { UnifiedAsset } from '@/types/assets';
 import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
   Gauge,
   Plus,
   Search,
@@ -33,6 +34,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { es, enUS, eu } from 'date-fns/locale';
+import { Button, Input } from '@nekazari/ui-kit';
 
 interface SensorEntity {
   id: string;
@@ -256,21 +258,21 @@ export const Sensors: React.FC = () => {
           </p>
         </div>
         <div className="flex gap-3">
-          <button
+          <Button
             onClick={loadSensors}
             className="px-4 py-2.5 bg-nkz-bg-secondary text-gray-700 rounded-xl hover:bg-nkz-bg-secondary transition flex items-center gap-2 border border-nkz-border font-medium"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             {t('common.refresh')}
-          </button>
+          </Button>
           {canEdit && (
-            <button
+            <Button
               onClick={() => setShowWizard(true)}
               className="px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition flex items-center gap-2 shadow-lg shadow-teal-600/20 font-medium"
             >
               <Plus className="w-5 h-5" />
               {t('sensors.new_sensor')}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -315,11 +317,11 @@ export const Sensors: React.FC = () => {
         <div className="p-4 border-b border-nkz-border flex justify-between items-center bg-nkz-bg-secondary/50">
           <div className="relative max-w-md w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nkz-muted w-4 h-4" />
-            <input
+            <Input
               type="text"
               placeholder={t('common.search')}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e: any) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
             />
           </div>
@@ -374,13 +376,13 @@ export const Sensors: React.FC = () => {
                       {t('sensors.empty_subtitle')}
                     </p>
                     {canEdit && (
-                      <button
+                      <Button
                         onClick={() => setShowWizard(true)}
                         className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition text-sm font-medium inline-flex items-center gap-2"
                       >
                         <Plus className="w-4 h-4" />
                         {t('sensors.new_sensor')}
-                      </button>
+                      </Button>
                     )}
                   </td>
                 </tr>
@@ -477,21 +479,21 @@ export const Sensors: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <button
+                            <Button
                               onClick={() => navigate(`/entities?focus=${encodeURIComponent(sensor.id)}`)}
                               className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-800 transition px-3 py-1.5 rounded-lg hover:bg-teal-50"
                               title={t('sensors.view_on_map')}
                             >
                               <MapPin className="w-4 h-4" />
-                            </button>
+                            </Button>
                             {canEdit && (
-                              <button
+                              <Button
                                 onClick={() => handleDelete(sensor)}
                                 className="inline-flex items-center gap-1 text-sm font-medium text-nkz-error hover:text-red-800 transition px-3 py-1.5 rounded-lg hover:bg-nkz-error-light"
                                 title={t('common.delete')}
                               >
                                 <Trash2 className="w-4 h-4" />
-                              </button>
+                              </Button>
                             )}
                           </div>
                         </td>
@@ -506,20 +508,20 @@ export const Sensors: React.FC = () => {
         {/* Pagination Controls */}
         <div className="bg-white border-t border-nkz-border px-6 py-4 flex items-center justify-between">
           <div className="flex-1 flex justify-between sm:hidden">
-            <button
+            <Button
               onClick={() => setPage(page > 0 ? page - 1 : 0)}
               disabled={page === 0}
               className="relative inline-flex items-center px-4 py-2 border border-nkz-border text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-nkz-bg-secondary disabled:opacity-50"
             >
               Anterior
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setPage(page + 1)}
               disabled={(page + 1) * pageSize >= totalCount}
               className="ml-3 relative inline-flex items-center px-4 py-2 border border-nkz-border text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-nkz-bg-secondary disabled:opacity-50"
             >
               Siguiente
-            </button>
+            </Button>
           </div>
           <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
             <div>
@@ -529,26 +531,26 @@ export const Sensors: React.FC = () => {
             </div>
             <div>
               <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                <button
+                <Button
                   onClick={() => setPage(page > 0 ? page - 1 : 0)}
                   disabled={page === 0}
                   className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-nkz-border bg-white text-sm font-medium text-nkz-muted hover:bg-nkz-bg-secondary disabled:opacity-50"
                 >
                   <span className="sr-only">Anterior</span>
                   <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-                </button>
+                </Button>
                 {/* Simplified page numbers - just show current */}
                 <span className="relative inline-flex items-center px-4 py-2 border border-nkz-border bg-white text-sm font-medium text-gray-700">
                   Página {page + 1}
                 </span>
-                <button
+                <Button
                   onClick={() => setPage(page + 1)}
                   disabled={(page + 1) * pageSize >= totalCount}
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-nkz-border bg-white text-sm font-medium text-nkz-muted hover:bg-nkz-bg-secondary disabled:opacity-50"
                 >
                   <span className="sr-only">Siguiente</span>
                   <ChevronRight className="h-5 w-5" aria-hidden="true" />
-                </button>
+                </Button>
               </nav>
             </div>
           </div>
