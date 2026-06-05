@@ -711,6 +711,75 @@ def get_parcel_agro_status(
         except Exception as e:
             logger.warning(f"Could not fetch weather observations: {e}")
 
+        # 5d. Fallback: if no PG data, query WeatherObserved directly from Orion-LD
+        if not weather_observation:
+            try:
+                wo_resp = requests.get(
+                    f"{settings.orion_url}/ngsi-ld/v1/entities",
+                    params={
+                        "type": "WeatherObserved",
+                        "q": f'refParcel=="{parcel_id}"',
+                        "limit": 1,
+                    },
+                    headers=headers,
+                    timeout=10,
+                )
+                if wo_resp.status_code == 200:
+                    wo_data = wo_resp.json()
+                    wo_entities = (
+                        wo_data
+                        if isinstance(wo_data, list)
+                        else [wo_data]
+                        if wo_data.get("id")
+                        else []
+                    )
+                    if wo_entities:
+                        wo = wo_entities[0]
+                        # Normalize NGSI-LD attribute names → internal format
+                        def _attr(entity, key, default=None):
+                            a = entity.get(key, {})
+                            return a.get("value") if isinstance(a, dict) else a or default
+
+                        date_obs = wo.get("dateObserved", {})
+                        obs_at = (
+                            date_obs.get("value", {}).get("@value", "")
+                            if isinstance(date_obs, dict)
+                            else ""
+                        )
+                        weather_observation = {
+                            "observed_at": obs_at,
+                            "temp_avg": _attr(wo, "temperature"),
+                            "temp_min": None,
+                            "temp_max": None,
+                            "humidity_avg": _attr(wo, "relativeHumidity"),
+                            "precip_mm": _attr(wo, "precipitation"),
+                            "precip_probability": None,
+                            "wind_speed_ms": _attr(wo, "windSpeed"),
+                            "wind_gusts_ms": None,
+                            "wind_direction_deg": _attr(wo, "windDirection"),
+                            "pressure_hpa": _attr(wo, "atmosphericPressure"),
+                            "solar_rad_w_m2": None,
+                            "solar_rad_ghi_w_m2": None,
+                            "solar_rad_dni_w_m2": None,
+                            "eto_mm": _attr(wo, "et0"),
+                            "soil_moisture_0_10cm": None,
+                            "soil_moisture_10_40cm": None,
+                            "gdd_accumulated": None,
+                            "delta_t": _attr(wo, "deltaT"),
+                            "source": _attr(wo, "sourceConfidence", "OPEN-METEO"),
+                            "data_type": "HISTORY",
+                            "municipality_code": _attr(wo, "municipalityCode"),
+                            "station_elevation_m": _attr(wo, "stationElevation"),
+                        }
+                        station_altitude = float(
+                            _attr(wo, "stationElevation") or 0
+                        )
+                        logger.info(
+                            f"Orion WeatherObserved fallback for parcel {parcel_id}"
+                        )
+            except Exception as e:
+                logger.warning(f"Orion WeatherObserved fallback failed: {e}")
+
         if not weather_observation:
             return JSONResponse(
                 {
