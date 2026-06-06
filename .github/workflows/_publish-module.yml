@@ -24,13 +24,13 @@ jobs:
       MODULE: ${{ inputs.module_id }}
       # Required by @nekazari/module-builder manifest-emit step (replaces import.meta.env.VITE_API_URL)
       VITE_API_URL: https://nkz.robotika.cloud
+      # pnpm v11+ blocks build scripts by default; esbuild is required by Vite
+      PNPM_ONLY_BUILT_DEPENDENCIES: esbuild
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
       - uses: pnpm/action-setup@v4
-        with:
-          version: "10"
       - name: Install deps
         run: pnpm install --frozen-lockfile
         working-directory: ${{ inputs.working_dir }}
