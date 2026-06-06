@@ -3,7 +3,7 @@
 // =============================================================================
 // Utilities for detecting and selecting terrain providers based on location
 
-export type TerrainProviderType = 'idena' | 'ign' | 'auto';
+export type TerrainProviderType = 'idena' | 'ign' | 'cesium_world' | 'auto';
 
 type PointCoordinates = [number, number];
 type PolygonCoordinates = number[][] | number[][][];
@@ -17,20 +17,17 @@ type GeometryLike = {
 };
 
 // Terrain provider URLs
-export const TERRAIN_PROVIDERS = {
+export const TERRAIN_PROVIDERS: Record<string, string> = {
   idena: 'https://idena.navarra.es/cesiumTerrain/2017/epsg4326/5m/layer.json',
   ign: 'https://qm-mdt.idee.es/1.0.0/terrain/layer.json',
-} as const;
+  cesium_world: 'cesium_world', // Special value — handled by Cesium.createWorldTerrain()
+};
 
 // Navarra bounding box (approximate)
-// Longitude: -2.5° to -1.0° (West to East)
-// Latitude: 42.0° to 43.5° (South to North)
-const NAVARRA_BOUNDS = {
-  minLon: -2.5,
-  maxLon: -1.0,
-  minLat: 42.0,
-  maxLat: 43.5,
-};
+const NAVARRA_BOUNDS = { minLon: -2.5, maxLon: -1.0, minLat: 42.0, maxLat: 43.5 };
+
+// Spain bounding box (approximate — covers peninsula + islands)
+const SPAIN_BOUNDS = { minLon: -18.5, maxLon: 5.0, minLat: 27.0, maxLat: 44.0 };
 
 /**
  * Check if coordinates are within Navarra bounds
@@ -44,17 +41,28 @@ export function isInNavarra(longitude: number, latitude: number): boolean {
   );
 }
 
+function isInSpain(longitude: number, latitude: number): boolean {
+  return (
+    longitude >= SPAIN_BOUNDS.minLon &&
+    longitude <= SPAIN_BOUNDS.maxLon &&
+    latitude >= SPAIN_BOUNDS.minLat &&
+    latitude <= SPAIN_BOUNDS.maxLat
+  );
+}
+
 /**
- * Detect terrain provider based on coordinates
- * @param longitude Longitude in degrees
- * @param latitude Latitude in degrees
- * @returns 'idena' if in Navarra, 'ign' otherwise
+ * Detect terrain provider based on coordinates.
+ * - Navarra → IDENA (5m)
+ * - Spain → IGN
+ * - Rest of the world → Cesium World Terrain (global, free)
  */
 export function detectTerrainProvider(
   longitude: number,
   latitude: number
-): 'idena' | 'ign' {
-  return isInNavarra(longitude, latitude) ? 'idena' : 'ign';
+): TerrainProviderType {
+  if (isInNavarra(longitude, latitude)) return 'idena';
+  if (isInSpain(longitude, latitude)) return 'ign';
+  return 'cesium_world';
 }
 
 /**
@@ -66,7 +74,7 @@ export function detectTerrainProvider(
 export function detectTerrainProviderFromParcels(
   parcels: Array<{ geometry?: GeometryLike }>,
   cameraPosition?: [number, number]
-): 'idena' | 'ign' {
+): TerrainProviderType {
   // If camera position provided, use it
   if (cameraPosition) {
     return detectTerrainProvider(cameraPosition[0], cameraPosition[1]);
@@ -103,38 +111,37 @@ export function detectTerrainProviderFromParcels(
     }
   }
 
-  // Default to IGN (covers all of Spain)
-  return 'ign';
+  // Default to Cesium World Terrain (global)
+  return 'cesium_world';
 }
 
 /**
  * Get terrain provider URL
  */
 export function getTerrainProviderUrl(provider: TerrainProviderType | string): string {
-  if (provider === 'idena') {
-    return TERRAIN_PROVIDERS.idena;
-  } else if (provider === 'ign') {
-    return TERRAIN_PROVIDERS.ign;
-  } else if (provider.startsWith('http')) {
+  if (provider in TERRAIN_PROVIDERS) {
+    return TERRAIN_PROVIDERS[provider];
+  }
+  if (typeof provider === 'string' && provider.startsWith('http')) {
     return provider;
   }
-  // Default to IGN
-  return TERRAIN_PROVIDERS.ign;
+  return TERRAIN_PROVIDERS.cesium_world;
 }
 
 /**
  * Get terrain provider display name
  */
-export function getTerrainProviderName(provider: 'idena' | 'ign'): string {
-  return provider === 'idena' ? 'IDENA (Navarra)' : 'IGN (España)';
+export function getTerrainProviderName(provider: TerrainProviderType): string {
+  if (provider === 'idena') return 'IDENA (Navarra)';
+  if (provider === 'ign') return 'IGN (España)';
+  if (provider === 'cesium_world') return 'Cesium World Terrain (Global)';
+  return String(provider);
 }
 
-/**
- * Get terrain provider description
- */
-export function getTerrainProviderDescription(provider: 'idena' | 'ign'): string {
-  return provider === 'idena'
-    ? 'Modelo Digital de Terreno de Navarra (5m resolución)'
-    : 'Modelo Digital de Terreno del IGN (España completa)';
+export function getTerrainProviderDescription(provider: TerrainProviderType): string {
+  if (provider === 'idena') return 'Modelo Digital de Terreno de Navarra (5m resolución)';
+  if (provider === 'ign') return 'Modelo Digital de Terreno del IGN (España completa)';
+  if (provider === 'cesium_world') return 'Cesium World Terrain (~30m, global) — gratuito';
+  return String(provider);
 }
 

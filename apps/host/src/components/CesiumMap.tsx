@@ -1801,7 +1801,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                       {[
                         { id: 'auto', name: 'Automático (Detectar)', desc: 'Selecciona según ubicación' },
                         { id: 'idena', name: 'IDENA (Navarra)', desc: 'Alta precisión (MDT05)' },
-                        { id: 'ign', name: 'IGN (España)', desc: 'Cobertura nacional (MDT25)' }
+                        { id: 'ign', name: 'IGN (España)', desc: 'Cobertura nacional (MDT25)' },
+                        { id: 'cesium_world', name: 'Cesium World (Global)', desc: 'Terreno mundial (~30m)' }
                       ].map((provider) => (
                         <Button
                           key={provider.id}

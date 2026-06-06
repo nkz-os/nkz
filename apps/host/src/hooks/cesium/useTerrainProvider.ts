@@ -28,6 +28,18 @@ export function useTerrainProvider(
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
+    // If a module (elevation, lidar, etc.) has already set a real terrain provider,
+    // don't override it. Only interfere if the current provider is Ellipsoid (flat)
+    // or if the user explicitly selected a host-managed provider (idena, ign).
+    const currentProvider = viewer.terrainProvider;
+    const isModuleManaged = currentProvider &&
+        !(currentProvider instanceof Cesium.EllipsoidTerrainProvider) &&
+        currentTerrainProvider === 'auto';
+    if (isModuleManaged) {
+        logger.debug('[CesiumMap] Terrain already set by module, skipping host override');
+        return;
+    }
+
     try {
       let terrainUrlToUse: string | null = null;
       let providerName = 'custom';
@@ -43,14 +55,48 @@ export function useTerrainProvider(
           geometry: p.location?.value || undefined
         }));
         const detected = detectTerrainProviderFromParcels(parcelsForDetection);
-        terrainUrlToUse = TERRAIN_PROVIDERS[detected];
-        providerName = detected.toUpperCase();
+        if (detected === 'cesium_world') {
+          providerName = 'Cesium World';
+          // Use Cesium's built-in world terrain (no URL needed)
+          try {
+            if (typeof Cesium.createWorldTerrain === 'function') {
+              viewer.terrainProvider = Cesium.createWorldTerrain({
+                requestVertexNormals: true,
+                requestWaterMask: false,
+              });
+              logger.debug('[CesiumMap] Terrain provider activated: Cesium World Terrain');
+            } else {
+              viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+              logger.warn('[CesiumMap] createWorldTerrain not available, using ellipsoid');
+            }
+          } catch (e) {
+            logger.warn('[CesiumMap] Failed to create Cesium World Terrain:', e);
+            viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+          }
+          return; // Skip the fromUrl logic below
+        } else {
+          terrainUrlToUse = TERRAIN_PROVIDERS[detected];
+          providerName = detected.toUpperCase();
+        }
         logger.debug('[CesiumMap] Auto-detected terrain provider:', detected);
       } else if (currentTerrainProvider && currentTerrainProvider.startsWith('http')) {
         terrainUrlToUse = currentTerrainProvider;
-      } else {
-        terrainUrlToUse = TERRAIN_PROVIDERS.ign;
-        providerName = 'IGN';
+      } else if (currentTerrainProvider === 'cesium_world') {
+        providerName = 'Cesium World';
+        try {
+          if (typeof Cesium.createWorldTerrain === 'function') {
+            viewer.terrainProvider = Cesium.createWorldTerrain({
+              requestVertexNormals: true,
+              requestWaterMask: false,
+            });
+            logger.debug('[CesiumMap] Terrain provider activated: Cesium World Terrain');
+          } else {
+            viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+          }
+        } catch (e) {
+          viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+        }
+        return;
       }
 
       if (terrainUrlToUse) {
