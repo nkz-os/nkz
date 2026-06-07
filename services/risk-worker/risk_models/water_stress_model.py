@@ -77,7 +77,7 @@ class WaterStressRiskModel(BaseRiskModel):
                 f"{ORION_URL}/ngsi-ld/v1/entities",
                 params={
                     "type": "CropHealthAssessment",
-                    "q": f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{entity_id}"',
+                    "q": f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{entity_id}"',
                     "limit": 1,
                     "options": "keyValues",
                 },

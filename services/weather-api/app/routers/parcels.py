@@ -269,7 +269,7 @@ def get_parcel_weather(
             f"{settings.orion_url}/ngsi-ld/v1/entities",
             params={
                 "type": "WeatherObserved",
-                "q": f'refParcel=="{parcel_id}"',
+                "q": f'locatedAt=="{parcel_id}"',
                 "limit": 1,
             },
             headers=headers,
@@ -604,7 +604,7 @@ def get_parcel_agro_status(
                 f"{settings.orion_url}/ngsi-ld/v1/entities",
                 params={
                     "type": "AgriSoil",
-                    "q": f"refAgriParcel=={parcel_id}",
+                    "q": f"hasAgriParcel=={parcel_id}",
                     "limit": 1,
                 },
                 headers=soil_headers,
@@ -718,7 +718,7 @@ def get_parcel_agro_status(
                     f"{settings.orion_url}/ngsi-ld/v1/entities",
                     params={
                         "type": "WeatherObserved",
-                        "q": f'refParcel=="{parcel_id}"',
+                        "q": f'locatedAt=="{parcel_id}"',
                         "limit": 1,
                     },
                     headers=headers,

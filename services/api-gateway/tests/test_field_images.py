@@ -100,7 +100,7 @@ def test_upload_creates_agriparcelrecord_with_parcel(client, app):
     assert body["image_url"].startswith("/api/field-images/")
     ent = captured["entity"]
     assert ent["type"] == "AgriParcelRecord"
-    assert ent["refAgriParcel"]["object"] == "urn:ngsi-ld:AgriParcel:P9"
+    assert ent["hasAgriParcel"]["object"] == "urn:ngsi-ld:AgriParcel:P9"
     assert ent["note"]["value"] == "leaf spot"
     # Orion POST must carry tenant header
     assert captured["post_headers"]["NGSILD-Tenant"] == "acme"
@@ -138,7 +138,7 @@ def test_upload_omits_parcel_when_none(client, app):
             content_type="multipart/form-data",
         )
     assert resp.status_code == 200
-    assert "refAgriParcel" not in sent["entity"]
+    assert "hasAgriParcel" not in sent["entity"]
 
 
 def test_upload_502_when_minio_fails(client, app):

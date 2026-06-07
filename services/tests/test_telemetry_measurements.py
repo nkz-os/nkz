@@ -25,11 +25,11 @@ _ENTITY_METADATA_KEYS = frozenset(
         "seeAlso",
         "ownedBy",
         "address",
-        "refDeviceProfile",
-        "refDevice",
-        "refAgriParcel",
-        "refParcel",
-        "refWeatherStation",
+        "hasDeviceProfile",
+        "hasDevice",
+        "hasAgriParcel",
+        "locatedAt",
+        "observes",
     }
 )
 
@@ -72,18 +72,18 @@ def test_extract_measurements_skips_relationships():
         "id": "urn:ngsi-ld:AgriSensor:test:device1",
         "type": "AgriSensor",
         "temperature": {"type": "Property", "value": 23.5},
-        "refDeviceProfile": {
+        "hasDeviceProfile": {
             "type": "Relationship",
             "object": "urn:ngsi-ld:DeviceProfile:test:soil-sensor",
         },
-        "refDevice": {
+        "hasDevice": {
             "type": "Relationship",
             "object": "urn:ngsi-ld:Device:test:device1",
         },
     }
     m = _extract_measurements(entity)
-    assert "refDeviceProfile" not in m
-    assert "refDevice" not in m
+    assert "hasDeviceProfile" not in m
+    assert "hasDevice" not in m
     assert m == {"temperature": 23.5}
 
 
@@ -147,7 +147,7 @@ def test_extract_measurements_empty_entity():
         "id": "urn:ngsi-ld:AgriSensor:test:device1",
         "type": "AgriSensor",
         "name": {"type": "Property", "value": "Empty Sensor"},
-        "refDeviceProfile": {
+        "hasDeviceProfile": {
             "type": "Relationship",
             "object": "urn:ngsi-ld:DeviceProfile:test:basic",
         },
@@ -167,7 +167,7 @@ def test_source_code_matches():
     with open(source_path) as f:
         src = f.read()
     assert "_ENTITY_METADATA_KEYS" in src
-    assert "refDeviceProfile" in src
+    assert "hasDeviceProfile" in src
     assert "not isinstance(val, (dict, list))" in src
     # Must NOT contain old logic that stored Relationships/GeoProperties
     assert 'measurements[key] = attr.get("object")' not in src

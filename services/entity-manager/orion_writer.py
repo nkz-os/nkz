@@ -79,7 +79,7 @@ def create_weather_observed_entity(
                     "@value": datetime.utcnow().isoformat() + "Z",
                 },
             },
-            "refParcel": {"type": "Relationship", "object": parcel_id},
+            "locatedAt": {"type": "Relationship", "object": parcel_id},
         }
 
         # Add weather properties

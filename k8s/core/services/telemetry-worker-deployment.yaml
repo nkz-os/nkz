@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: telemetry-worker
-          image: ghcr.io/nkz-os/nkz/telemetry-worker@sha256:abc9b6731648016704af32bb49dcd164f2dc836dc8188745f6ad5b19da8be184
+          image: ghcr.io/nkz-os/nkz/telemetry-worker@sha256:c5c531f0355285faf40fabc95ec68aa3456a9d6a74721dbe3b7f127f44948042  # ref<Type> -> FIWARE-standard relationships
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

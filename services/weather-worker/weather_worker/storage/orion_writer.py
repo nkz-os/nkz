@@ -296,7 +296,7 @@ def create_weather_observed_entity(
                 "type": "Property",
                 "value": {"@type": "DateTime", "@value": observed_at.isoformat() + "Z"},
             },
-            "refParcel": {"type": "Relationship", "object": parcel_id},
+            "locatedAt": {"type": "Relationship", "object": parcel_id},
         }
 
         # Self-describing: carry municipality code for direct timeseries resolution
@@ -496,14 +496,14 @@ def update_weather_observed_entity(
                 "unitCode": "CEL",
             }
 
-        # If add_parcel_ref is provided, we should add it to refParcel
+        # If add_parcel_ref is provided, we should add it to locatedAt
         # Note: NGSI-LD relationships can be arrays, but for simplicity we'll just update
-        # In a more complex implementation, we'd check if the parcel is already in refParcel
+        # In a more complex implementation, we'd check if the parcel is already in locatedAt
         # and only add it if not present
         if add_parcel_ref:
-            # For now, we'll just log it - in production you might want to merge refParcel arrays
+            # For now, we'll just log it - in production you might want to merge locatedAt arrays
             logger.debug(
-                f"Would add parcel {add_parcel_ref} to refParcel of {entity_id} (not implemented)"
+                f"Would add parcel {add_parcel_ref} to locatedAt of {entity_id} (not implemented)"
             )
 
         # Prepare headers

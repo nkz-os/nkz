@@ -397,6 +397,34 @@ Every service must use: `CONTEXT_URL = os.getenv("CONTEXT_URL", "http://api-gate
 - IoT types (`AgriSensor`, `Sensor`, `Actuator`, `WeatherStation`, `AgriculturalTractor`, `LivestockAnimal`, `AgriculturalMachine`) automatically get MQTT credentials provisioned on creation.
 - **Never** hardcode context URLs — always use the `CONTEXT_URL` env var.
 
+### Relationship Naming (NGSI-LD `type: "Relationship"`)
+
+All Relationship-type attributes in NGSI-LD entities MUST follow these rules:
+
+1. **Use FIWARE Smart Data Model standard names** when the relationship exists in an SDM:
+   - `hasAgriParcel` — AgriParcelOperation → AgriParcel
+   - `hasAgriCrop` — AgriParcel → AgriCrop
+   - `hasDevice` — DeviceModel → Device (SAREF)
+
+2. **Use descriptive verb+noun** for custom relationships without an SDM equivalent:
+   - `locatedAt` — e.g., WeatherObserved → AgriParcel
+   - `belongsTo` — e.g., DeviceProfile → Tenant
+   - `observedBy` — e.g., Measurement → WeatherStation
+   - `hasDeviceProfile` — e.g., AgriSensor → DeviceProfile
+   - `hasTrialSite` — e.g., VarietyTrial → TrialSite
+   - `hasArticleSource` — e.g., VarietyTrial → ArticleSource
+
+3. **NEVER use `ref<Type>` for new entities.**
+   - This was a legacy (pre-audit) convention that deviates from FIWARE standards.
+   - Existing `ref*` attributes in Orion-LD are backward-compatible via `@context` aliases in `nkz/config/ngsi-ld-context.json`.
+   - Both old (`refAgriParcel`) and new (`hasAgriParcel`) names resolve to the same URI.
+
+4. **Backward compatibility in code:** When reading entities, use fallback patterns:
+   ```python
+   ref = entity.get("locatedAt") or entity.get("refParcel")  # new first, legacy fallback
+   ```
+   This ensures code works with both new entities and old ones still in Orion-LD.
+
 ---
 
 ## 7. Units of Measurement (unitCode)

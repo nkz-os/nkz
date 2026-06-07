@@ -290,8 +290,9 @@ def _resolve_urn_to_weather_key(
             if isinstance(muni_val, str) and muni_val.strip():
                 return (muni_val.strip(), "municipality")
 
-        # Fallback: legacy chain via refParcel -> parcel -> address
-        ref_parcel = entity.get("refParcel")
+        # Fallback: legacy chain via locatedAt -> parcel -> address
+        # (Also checks old "refParcel" key for backward compatibility with existing Orion-LD entities)
+        ref_parcel = entity.get("locatedAt") or entity.get("refParcel")
         if ref_parcel:
             parcel_urn = (
                 ref_parcel.get("object") if isinstance(ref_parcel, dict) else ref_parcel
