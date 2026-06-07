@@ -62,7 +62,8 @@ export function detectTerrainProvider(
 ): TerrainProviderType {
   if (isInNavarra(longitude, latitude)) return 'idena';
   if (isInSpain(longitude, latitude)) return 'ign';
-  return 'cesium_world';
+  // Non-Spain: fall back to IGN (safe, no Cesium Ion token required)
+  return 'ign';
 }
 
 /**
@@ -111,21 +112,26 @@ export function detectTerrainProviderFromParcels(
     }
   }
 
-  // Default to Cesium World Terrain (global)
-  return 'cesium_world';
+  // Default to IGN (Spain) — no Cesium Ion token required
+  return 'ign';
 }
 
 /**
  * Get terrain provider URL
  */
 export function getTerrainProviderUrl(provider: TerrainProviderType | string): string {
+  if (provider === 'cesium_world') {
+    // Cesium World Terrain requires Ion token — not available without tenant config.
+    // Fall back to IGN (España).
+    return TERRAIN_PROVIDERS.ign;
+  }
   if (provider in TERRAIN_PROVIDERS) {
     return TERRAIN_PROVIDERS[provider];
   }
   if (typeof provider === 'string' && provider.startsWith('http')) {
     return provider;
   }
-  return TERRAIN_PROVIDERS.cesium_world;
+  return TERRAIN_PROVIDERS.ign;
 }
 
 /**

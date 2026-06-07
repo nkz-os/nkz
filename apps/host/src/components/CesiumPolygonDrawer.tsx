@@ -349,7 +349,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     try {
       if (enable3D) {
         // Determine which provider to use
-        let providerToUse: TerrainProviderType = 'cesium_world';
+        let providerToUse: TerrainProviderType = 'ign';
 
         if (terrainProvider === 'idena') {
           providerToUse = 'idena';
@@ -368,7 +368,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
               const lat = Cesium.Math.toDegrees(cartographic.latitude);
               providerToUse = detectTerrainProviderFromParcels([], [lon, lat]);
             } catch {
-              providerToUse = 'cesium_world';
+              providerToUse = 'ign';
             }
           }
         }

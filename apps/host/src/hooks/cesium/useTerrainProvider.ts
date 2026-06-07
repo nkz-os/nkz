@@ -56,24 +56,29 @@ export function useTerrainProvider(
         }));
         const detected = detectTerrainProviderFromParcels(parcelsForDetection);
         if (detected === 'cesium_world') {
-          providerName = 'Cesium World';
-          // Use Cesium's built-in world terrain (no URL needed)
-          try {
-            if (typeof Cesium.createWorldTerrain === 'function') {
-              viewer.terrainProvider = Cesium.createWorldTerrain({
-                requestVertexNormals: true,
-                requestWaterMask: false,
-              });
-              logger.debug('[CesiumMap] Terrain provider activated: Cesium World Terrain');
-            } else {
+          if (import.meta.env.VITE_CESIUM_ION_TOKEN || (window as any).__ENV__?.VITE_CESIUM_TOKEN) {
+            providerName = 'Cesium World';
+            try {
+              if (typeof Cesium.createWorldTerrain === 'function') {
+                Cesium.Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN || (window as any).__ENV__?.VITE_CESIUM_TOKEN;
+                viewer.terrainProvider = Cesium.createWorldTerrain({
+                  requestVertexNormals: true,
+                  requestWaterMask: false,
+                });
+                logger.debug('[CesiumMap] Terrain provider activated: Cesium World Terrain');
+              } else {
+                viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+                logger.warn('[CesiumMap] createWorldTerrain not available, using ellipsoid');
+              }
+            } catch (e) {
+              logger.warn('[CesiumMap] Failed to create Cesium World Terrain:', e);
               viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
-              logger.warn('[CesiumMap] createWorldTerrain not available, using ellipsoid');
             }
-          } catch (e) {
-            logger.warn('[CesiumMap] Failed to create Cesium World Terrain:', e);
-            viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+            return;
           }
-          return; // Skip the fromUrl logic below
+          logger.warn('[CesiumMap] No Cesium Ion token — falling back to IGN (España)');
+          terrainUrlToUse = TERRAIN_PROVIDERS.ign;
+          providerName = 'IGN (fallback)';
         } else {
           terrainUrlToUse = TERRAIN_PROVIDERS[detected];
           providerName = detected.toUpperCase();
@@ -82,21 +87,27 @@ export function useTerrainProvider(
       } else if (currentTerrainProvider && currentTerrainProvider.startsWith('http')) {
         terrainUrlToUse = currentTerrainProvider;
       } else if (currentTerrainProvider === 'cesium_world') {
-        providerName = 'Cesium World';
-        try {
-          if (typeof Cesium.createWorldTerrain === 'function') {
-            viewer.terrainProvider = Cesium.createWorldTerrain({
-              requestVertexNormals: true,
-              requestWaterMask: false,
-            });
-            logger.debug('[CesiumMap] Terrain provider activated: Cesium World Terrain');
-          } else {
+        if (import.meta.env.VITE_CESIUM_ION_TOKEN || (window as any).__ENV__?.VITE_CESIUM_TOKEN) {
+          providerName = 'Cesium World';
+          try {
+            if (typeof Cesium.createWorldTerrain === 'function') {
+              Cesium.Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN || (window as any).__ENV__?.VITE_CESIUM_TOKEN;
+              viewer.terrainProvider = Cesium.createWorldTerrain({
+                requestVertexNormals: true,
+                requestWaterMask: false,
+              });
+              logger.debug('[CesiumMap] Terrain provider activated: Cesium World Terrain');
+            } else {
+              viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+            }
+          } catch (e) {
             viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
           }
-        } catch (e) {
-          viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+          return;
         }
-        return;
+        logger.warn('[CesiumMap] No Cesium Ion token — falling back to IGN (España)');
+        terrainUrlToUse = TERRAIN_PROVIDERS.ign;
+        providerName = 'IGN (fallback)';
       }
 
       if (terrainUrlToUse) {
