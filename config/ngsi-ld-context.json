@@ -358,6 +358,15 @@
     "refVegetationIndex": "https://nekazari.io/vocab/hasVegetationIndex",
     "hasVegetationIndex": "https://nekazari.io/vocab/hasVegetationIndex",
 
+    "AgriCrop": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/schema.json",
+    "hasAgriParcel": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/hasAgriParcel",
+    "plantingDate": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/plantingDate",
+    "harvestDate": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/harvestDate",
+    "seedingRate": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/seedingRate",
+    "eppoCode": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/agroVocConcept",
+    "inputMethod": "https://nekazari.io/vocab/inputMethod",
+    "refAgriCrop": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/schema.json",
+
       "Point": "schema:GeoCoordinates",
       "coordinates": "schema:geo"
     }
