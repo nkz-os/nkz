@@ -128,6 +128,12 @@ _VALID_TELEMETRY_BASE = frozenset(
         "humidity",
         "temperature",
         "panelInclination",
+        # WeatherObserved NGSI-LD measurement keys (telemetry_events payload.measurements)
+        "precipitation",
+        "et0",
+        "deltaT",
+        "sourceConfidence",
+        "municipalityCode",
         # Crop Health Assessment attributes
         "cwsiValue",
         "mdsValue",
@@ -142,8 +148,25 @@ _VALID_TELEMETRY_BASE = frozenset(
 
 # NGSI-LD / provisioning typos vs Smart Data Models: UI may show these names but
 # telemetry_events.measurements uses the canonical JSON key (right-hand side).
+# Also maps DB column names (from weather_observations legacy) to NGSI-LD keys.
 _TELEMETRY_MEASUREMENT_UI_ALIASES: Dict[str, str] = {
     "sensorsinsolation": "solarRadiation",
+    # DB column → NGSI-LD measurement key (weather_observations → telemetry_events migration)
+    "temp_avg": "temperature",
+    "temp_min": "temperature",
+    "temp_max": "temperature",
+    "humidity_avg": "relativeHumidity",
+    "wind_speed_ms": "windSpeed",
+    "wind_direction_deg": "windDirection",
+    "pressure_hpa": "atmosphericPressure",
+    "precip_mm": "precipitation",
+    "eto_mm": "et0",
+    "solar_rad_w_m2": "solarRadiation",
+    "solar_rad_ghi_w_m2": "solarRadiation",
+    "solar_rad_dni_w_m2": "solarRadiation",
+    "soil_moisture_0_10cm": "soilMoisture",
+    "soil_moisture_10_40cm": "soilMoisture",
+    "gdd_accumulated": "gddAccumulated",
 }
 
 
