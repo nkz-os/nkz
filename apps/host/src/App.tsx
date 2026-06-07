@@ -29,6 +29,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AdminRoute, FarmerRoute, ModulesRoute } from '@/components/KeycloakProtectedRoute';
 import { RemoteModuleLoader } from '@/components/RemoteModuleLoader';
 import { Layout } from '@/components/Layout';
+import { useVersionCheck } from '@/hooks/useVersionCheck';
 const UnifiedViewer = React.lazy(() => import('@/components/UnifiedViewer').then(m => ({ default: m.UnifiedViewer })));
 
 // CORE Pages (essential for platform operation)
@@ -56,6 +57,12 @@ import { EntityEditorModal, initEntityEditorListener, type EditorEventDetail } f
 import { logger } from '@/utils/logger';
 import { Button } from '@nekazari/ui-kit';
 
+
+// Version check wrapper — placed inside ToastProvider to use toast notifications
+const VersionCheckWrapper: React.FC = () => {
+  useVersionCheck();
+  return null;
+};
 
 // Dynamic routes component that includes remote modules
 const DynamicRoutes = () => {
@@ -335,6 +342,7 @@ function App() {
                           <ThemeProvider>
                             <ErrorBoundary componentName="ToastProvider" fallback={renderFallback}>
                               <ToastProvider>
+                                <VersionCheckWrapper />
                                 <ErrorBoundary componentName="AppInitializer" fallback={renderFallback}>
                                   <AppInitializer />
                                 </ErrorBoundary>
