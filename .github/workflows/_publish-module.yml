@@ -2,10 +2,11 @@ name: Publish Module (reusable)
 on:
   workflow_call:
     inputs:
-      module_id:   { required: true, type: string }
-      build_cmd:   { required: false, type: string, default: "pnpm run build:module" }
-      dist_dir:    { required: false, type: string, default: "dist" }
-      working_dir: { required: false, type: string, default: "." }
+      module_id:          { required: true, type: string }
+      build_cmd:          { required: false, type: string, default: "pnpm run build:module" }
+      dist_dir:           { required: false, type: string, default: "dist" }
+      working_dir:        { required: false, type: string, default: "." }
+      package_json_file:  { required: false, type: string, default: "package.json" }
     secrets:
       # Defense-in-depth header validated by entity-manager.
       # Primary auth: GitHub OIDC JWT (validated by api-gateway).
@@ -31,6 +32,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
       - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: ${{ inputs.package_json_file }}
       - name: Install deps
         run: pnpm install --frozen-lockfile
         working-directory: ${{ inputs.working_dir }}
