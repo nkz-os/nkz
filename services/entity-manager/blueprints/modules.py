@@ -1447,6 +1447,7 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
 
     bucket = os.getenv('S3_BUCKET', 'nekazari-frontend')
     prefix = f'modules/{module_id}/{version_hash}/' if version_hash else f'modules/{module_id}/'
+    root_prefix = f'modules/{module_id}/'
     uploaded = 0
 
     for f in files:
@@ -1456,12 +1457,13 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
         s3_key = prefix + f.filename.lstrip('/')
         content_type = _guess_dist_content_type(f.filename)
         f.stream.seek(0)
+        body = f.stream.read()
 
         try:
             s3_client.put_object(
                 Bucket=bucket,
                 Key=s3_key,
-                Body=f.stream.read(),
+                Body=body,
                 ContentType=content_type,
             )
             uploaded += 1
@@ -1471,6 +1473,25 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
                 'error': f'Failed to upload {f.filename} to storage.',
                 'details': str(e),
             }
+
+        # Also upload to root path so Module Federation's publicPath resolution works.
+        # Without this, the root mf-manifest.json references chunks that only exist
+        # in the versioned prefix → 404 → MIME type error → viewer crash.
+        if version_hash and root_prefix != prefix:
+            root_key = root_prefix + f.filename.lstrip('/')
+            try:
+                s3_client.put_object(
+                    Bucket=bucket,
+                    Key=root_key,
+                    Body=body,
+                    ContentType=content_type,
+                )
+            except ClientError as e:
+                logger.error(f"S3 root upload failed for {root_key}: {e}")
+                return 500, {
+                    'error': f'Failed to upload {f.filename} to root storage.',
+                    'details': str(e),
+                }
 
     logger.info(f"Deployed {module_id} v{manifest['version']}: {uploaded} files to {bucket}/{prefix}")
 
@@ -1499,7 +1520,11 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
         required_plan_level = 0
     scope = module_id.replace('-', '_')
     exposed_module = './Module'
-    remote_entry_url = f'/modules/{module_id}/{version_hash}/mf-manifest.json' if version_hash else f'/modules/{module_id}/mf-manifest.json'
+    # Always use root path for remote_entry_url.
+    # The mf-manifest.json has publicPath pointing to root (/modules/<id>/).
+    # Module Federation resolves chunks against publicPath, not the manifest location.
+    # Using a versioned path would cause chunk 404s when version_hash differs from publicPath.
+    remote_entry_url = f'/modules/{module_id}/mf-manifest.json'
 
     description_i18n = manifest.get('description_i18n', None)
     metadata = json.dumps({
