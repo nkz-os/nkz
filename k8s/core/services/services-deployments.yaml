@@ -42,7 +42,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api-gateway
-          image: ghcr.io/nkz-os/nkz/api-gateway@sha256:414e35eaf2a6f83682822b06a6f40667008ba61eaeb6d4f8b221e10ca49d3991  # add /api/carbon proxy route + CARBON_API_URL
+          image: ghcr.io/nkz-os/nkz/api-gateway@sha256:c38eecac30ca5d9f1396cf8044a41ffef1ea4b4deb3aaa831cc0e29c79b24c14  # ref<Type> -> FIWARE-standard relationships + @context
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
@@ -240,7 +240,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: entity-manager
-          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:e25080720efce0c4ad97e3de01f73ea8cbfd9c5cbbe98dfa5b256fa54313d18f  # FIWARE: DeviceCommand via Orion-LD + notification handler for AgriSensor/RiskAssessment/DeviceCommand
+          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:e8f3b76d459060cbaaf35a4279ce498d4902de0b77dfb9e4d23e2b5bc97262c5  # ref<Type> -> FIWARE-standard relationships
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false

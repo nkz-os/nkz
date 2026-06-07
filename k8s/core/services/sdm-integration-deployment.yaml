@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sdm-integration
-          image: ghcr.io/nkz-os/nkz/sdm-integration@sha256:298e4208abb40ba51a4fe2ab6ea1c72d400858465243c64b9f7e31cd85894051
+          image: ghcr.io/nkz-os/nkz/sdm-integration@sha256:10b305cf7f468f8c51b2935476e6f93db374794706fee963a67bfb4a08b8ade6  # ref<Type> -> FIWARE-standard relationships
           imagePullPolicy: Always
           args: ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "1", "--timeout", "300", "--access-logfile", "-", "--error-logfile", "-", "sdm_api:app"]
           securityContext:
