@@ -781,12 +781,31 @@ def get_parcel_agro_status(
                 logger.warning(f"Orion WeatherObserved fallback failed: {e}")
 
         if not weather_observation:
+            # Graceful degradation: return parcel metadata + sensor data
+            # without weather semaphores, rather than 503.
+            parcel_name = "Unnamed"
+            name_attr = parcel_entity.get("name", {})
+            if isinstance(name_attr, dict):
+                parcel_name = name_attr.get("value", "Unnamed")
             return JSONResponse(
                 {
-                    "error": "No weather data available for this location",
-                    "details": "Weather data has not been ingested yet for this area",
+                    "parcel_id": parcel_id,
+                    "parcel_name": parcel_name,
+                    "centroid": {"latitude": lat, "longitude": lon},
+                    "weather": None,
+                    "semaphores": {
+                        "spraying": "no_data",
+                        "workability": "no_data",
+                        "irrigation": "no_data",
+                    },
+                    "metrics": None,
+                    "soil": None,
+                    "crop": None,
+                    "source_confidence": None,
+                    "downscaling": "unavailable",
+                    "no_data_reason": "Weather data has not been ingested yet for this area. The weather-worker processes parcels periodically — data should appear within the next hour.",
+                    "timestamp": __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
                 },
-                status_code=503,
             )
 
         # 6. Calculate agronomic status
