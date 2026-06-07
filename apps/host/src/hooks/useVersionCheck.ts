@@ -30,7 +30,11 @@ async function fetchVersion(): Promise<string | null> {
     });
     if (!resp.ok) return null;
     const data = await resp.json();
-    return data?.version || data?.buildTime || null;
+    // Prefer buildTime over version: CI Docker builds have no git history,
+    // so 'version' is always 'unknown'. buildTime is always unique per build.
+    if (data?.buildTime) return data.buildTime;
+    if (data?.version && data.version !== 'unknown') return data.version;
+    return null;
   } catch {
     return null;
   }
