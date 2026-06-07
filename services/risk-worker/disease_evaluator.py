@@ -161,7 +161,7 @@ def _publish_disease_risk(
             entity["lwdMethod"] = {"type": "Property", "value": result.lwd_method}
 
         if parcel_id:
-            entity["refAgriParcel"] = {
+            entity["hasAgriParcel"] = {
                 "type": "Relationship",
                 "object": f"urn:ngsi-ld:AgriParcel:{parcel_id}",
             }

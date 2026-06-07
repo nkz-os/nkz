@@ -117,7 +117,7 @@ def test_resolve_urn_weather_key_direct_municipality_code():
         "id": "urn:ngsi-ld:WeatherObserved:test:parcel-p1",
         "type": "WeatherObserved",
         "municipalityCode": {"type": "Property", "value": "31012"},
-        "refParcel": {
+        "locatedAt": {
             "type": "Relationship",
             "object": "urn:ngsi-ld:AgriParcel:test:p1",
         },
@@ -140,13 +140,13 @@ def test_resolve_urn_weather_key_direct_municipality_code():
 
 
 def test_resolve_urn_weather_key_falls_back_without_municipality_code():
-    """WeatherObserved without municipalityCode falls back to refParcel chain."""
+    """WeatherObserved without municipalityCode falls back to locatedAt chain (legacy refParcel)."""
     from unittest.mock import patch as _patch
 
     entity = {
         "id": "urn:ngsi-ld:WeatherObserved:test:parcel-p1",
         "type": "WeatherObserved",
-        "refParcel": {
+        "locatedAt": {
             "type": "Relationship",
             "object": "urn:ngsi-ld:AgriParcel:test:p1",
         },

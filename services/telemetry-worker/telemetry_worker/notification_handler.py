@@ -165,12 +165,12 @@ _ENTITY_METADATA_KEYS = frozenset(
         "seeAlso",
         "ownedBy",
         "address",
-        # Relationships (not measurements)
-        "refDeviceProfile",
-        "refDevice",
-        "refAgriParcel",
-        "refParcel",
-        "refWeatherStation",
+        # Relationships (not measurements) — standard names + legacy ref<Type> aliases
+        "hasDeviceProfile", "refDeviceProfile",
+        "hasDevice", "refDevice",
+        "hasAgriParcel", "refAgriParcel",
+        "locatedAt", "refParcel",
+        "observes", "refWeatherStation",
     }
 )
 

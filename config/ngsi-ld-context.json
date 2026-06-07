@@ -353,7 +353,10 @@
     "hasSoilSample": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#hasSoilSample",
     "refSoilSample": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#hasSoilSample",
     "hasSoilSurvey": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#hasSoilSurvey",
-    "refSoilSurvey": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#hasSoilSurvey",
+    "refSourceOperation": "https://nekazari.io/vocab/derivedFrom",
+    "derivedFrom": "https://nekazari.io/vocab/derivedFrom",
+    "refVegetationIndex": "https://nekazari.io/vocab/hasVegetationIndex",
+    "hasVegetationIndex": "https://nekazari.io/vocab/hasVegetationIndex",
 
       "Point": "schema:GeoCoordinates",
       "coordinates": "schema:geo"

@@ -599,9 +599,10 @@ def _resolve_urn_to_timeseries_entity_id(tenant_id: str, entity_id: str) -> tupl
     entity = resp.json()
     etype = (entity.get('type') or '').strip()
 
-    # WeatherObserved: resolve refParcel -> parcel -> municipality_code
+    # WeatherObserved: resolve locatedAt -> parcel -> municipality_code
+    # (Also checks old "refParcel" key for backward compatibility)
     if etype == 'WeatherObserved':
-        ref_parcel = entity.get('refParcel')
+        ref_parcel = entity.get('locatedAt') or entity.get('refParcel')
         if not ref_parcel:
             return (None, 'no_location')
         parcel_urn = ref_parcel.get('object') if isinstance(ref_parcel, dict) else ref_parcel

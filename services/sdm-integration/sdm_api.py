@@ -369,7 +369,7 @@ def get_sdm_entities():
                 "location": {"type": "geo:json", "description": "Sensor location"},
                 "sensorType": {"type": "Text", "description": "Type of sensor"},
                 "controlledProperty": {"type": "List", "description": "Properties measured by this sensor"},
-                "refDeviceProfile": {"type": "Relationship", "description": "Link to DeviceProfile"},
+                "hasDeviceProfile": {"type": "Relationship", "description": "Link to DeviceProfile"},
                 # Meteorological / environmental measurements
                 "airTemperature": {"type": "Number", "description": "Air temperature (CEL)"},
                 "relativeHumidity": {"type": "Number", "description": "Relative humidity (P1)"},
@@ -854,8 +854,8 @@ def create_entity_instance(entity_type):
 
                 # Extract Profile ID from Relationship (mandatory for IoT types)
                 profile_id = None
-                if 'refDeviceProfile' in data:
-                    ref = data['refDeviceProfile']
+                if 'hasDeviceProfile' in data:
+                    ref = data['hasDeviceProfile']
                     if isinstance(ref, dict) and 'object' in ref:
                          ref_obj = ref['object']
                          profile_id = ref_obj.split(':')[-1] if ':' in ref_obj else ref_obj
@@ -863,7 +863,7 @@ def create_entity_instance(entity_type):
                 if not profile_id:
                     return jsonify({
                         'error': f'DeviceProfile is required for IoT entity type {entity_type}. '
-                                 'Provide refDeviceProfile as a Relationship with a valid profile ID.'
+                                 'Provide hasDeviceProfile as a Relationship with a valid profile ID.'
                     }), 400
 
                 # Provision in IoT Agent

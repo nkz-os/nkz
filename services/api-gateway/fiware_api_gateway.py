@@ -2444,13 +2444,13 @@ def field_image_upload():
                 "value": {"type": "Point", "coordinates": [lng, lat]},
             },
             "dateObserved": {"type": "Property", "value": captured_at},
-            "refTenant": {
+            "belongsTo": {
                 "type": "Relationship",
                 "object": f"urn:ngsi-ld:Tenant:{tenant}",
             },
         }
         if parcel_id:
-            ngsi_entity["refAgriParcel"] = {"type": "Relationship", "object": parcel_id}
+            ngsi_entity["hasAgriParcel"] = {"type": "Relationship", "object": parcel_id}
         if note:
             ngsi_entity["note"] = {"type": "Property", "value": note}
         if accuracy is not None:
