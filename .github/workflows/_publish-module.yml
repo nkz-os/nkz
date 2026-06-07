@@ -42,6 +42,32 @@ jobs:
         working-directory: ${{ inputs.working_dir }}
         env:
           NKZ_VERSION_HASH: ${{ github.sha }}
+      - name: Pin publicPath to immutable version
+        working-directory: ${{ inputs.working_dir }}
+        env:
+          DIST: ${{ inputs.dist_dir }}
+        run: |
+          set -euo pipefail
+          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
+          MF="$DIST/mf-manifest.json"
+          if [ -f "$MF" ]; then
+            node -e "
+              const fs=require('fs');
+              const mf=JSON.parse(fs.readFileSync('$MF','utf8'));
+              const pub=mf.metaData?.publicPath||'';
+              if(!pub) throw new Error('mf-manifest.json missing metaData.publicPath');
+              const unversioned=/^(\/modules\/[^/]+)\/$/;
+              const match=pub.match(unversioned);
+              if(match){
+                const next=match[1]+'/$SHA/';
+                mf.metaData.publicPath=next;
+                fs.writeFileSync('$MF',JSON.stringify(mf));
+                console.log('publicPath:',pub,'→',next);
+              } else {
+                console.log('publicPath already versioned:',pub);
+              }
+            "
+          fi
       - name: Get GitHub OIDC token
         run: |
           OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
