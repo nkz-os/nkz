@@ -281,36 +281,10 @@ def _resolve_urn_to_weather_key(
         return _find_nearest_weather_municipality(tenant_id, lat, lon)
 
     if etype_short == "WeatherObserved" or etype.endswith("WeatherObserved"):
-        # Direct resolution: entity carries its own municipality code
-        muni_prop = entity.get("municipalityCode")
-        if muni_prop:
-            muni_val = (
-                muni_prop.get("value") if isinstance(muni_prop, dict) else muni_prop
-            )
-            if isinstance(muni_val, str) and muni_val.strip():
-                return (muni_val.strip(), "municipality")
-
-        # Fallback: legacy chain via locatedAt -> parcel -> address
-        # (Also checks old "refParcel" key for backward compatibility with existing Orion-LD entities)
-        ref_parcel = entity.get("locatedAt") or entity.get("refParcel")
-        if ref_parcel:
-            parcel_urn = (
-                ref_parcel.get("object") if isinstance(ref_parcel, dict) else ref_parcel
-            )
-            if parcel_urn:
-                parcel_urn = str(parcel_urn).strip()
-                parcel_entity = fetch_orion_entity(tenant_id, parcel_urn)
-                if parcel_entity:
-                    res = _parcel_urn_to_municipality_code(tenant_id, parcel_urn, parcel_entity)
-                    if res is not None:
-                        return res
-
-        # Spatial fallback: use entity location to find nearest weather data
-        spatial = _resolve_by_location(entity)
-        if spatial is not None:
-            return spatial
-
-        return None, "no_location"
+        # WeatherObserved data now flows through Orion-LD → telemetry_events (NGSI-LD
+        # subscription pipeline). The legacy weather_observations table is deprecated.
+        # Return mode="telemetry" so the reader queries telemetry_events by entity URN.
+        return None, "prefer_telemetry"
 
     if etype_short in PARCEL_ENTITY_TYPES or "parcel" in etype_short.lower():
         res = _parcel_urn_to_municipality_code(tenant_id, entity_id, entity)
