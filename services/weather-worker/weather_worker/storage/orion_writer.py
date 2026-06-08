@@ -325,7 +325,21 @@ def create_weather_observed_entity(
             entity["windSpeed"] = {
                 "type": "Property",
                 "value": float(weather_data["wind_speed_ms"]),
-                "unitCode": "MTS",  # Meters per second
+                "unitCode": "MTS",  # Meters per second — latest hour mean
+            }
+
+        if weather_data.get("wind_speed_max") is not None:
+            entity["windSpeedMax"] = {
+                "type": "Property",
+                "value": float(weather_data["wind_speed_max"]),
+                "unitCode": "MTS",
+            }
+
+        if weather_data.get("wind_gusts_ms") is not None:
+            entity["windGusts"] = {
+                "type": "Property",
+                "value": float(weather_data["wind_gusts_ms"]),
+                "unitCode": "MTS",
             }
 
         if weather_data.get("wind_direction_deg") is not None:
@@ -365,6 +379,20 @@ def create_weather_observed_entity(
             entity["deltaT"] = {
                 "type": "Property",
                 "value": float(weather_data["delta_t"]),
+                "unitCode": "CEL",
+            }
+
+        if weather_data.get("gdd_accumulated") is not None:
+            entity["gddAccumulated"] = {
+                "type": "Property",
+                "value": float(weather_data["gdd_accumulated"]),
+                "unitCode": "DD",  # Degree-days (base 10°C)
+            }
+
+        if weather_data.get("temp_current") is not None:
+            entity["tempCurrent"] = {
+                "type": "Property",
+                "value": float(weather_data["temp_current"]),
                 "unitCode": "CEL",
             }
 
@@ -458,6 +486,20 @@ def update_weather_observed_entity(
                 "unitCode": "MTS",
             }
 
+        if weather_data.get("wind_speed_max") is not None:
+            update_payload["windSpeedMax"] = {
+                "type": "Property",
+                "value": float(weather_data["wind_speed_max"]),
+                "unitCode": "MTS",
+            }
+
+        if weather_data.get("wind_gusts_ms") is not None:
+            update_payload["windGusts"] = {
+                "type": "Property",
+                "value": float(weather_data["wind_gusts_ms"]),
+                "unitCode": "MTS",
+            }
+
         if weather_data.get("wind_direction_deg") is not None:
             update_payload["windDirection"] = {
                 "type": "Property",
@@ -493,6 +535,20 @@ def update_weather_observed_entity(
             update_payload["deltaT"] = {
                 "type": "Property",
                 "value": float(weather_data["delta_t"]),
+                "unitCode": "CEL",
+            }
+
+        if weather_data.get("gdd_accumulated") is not None:
+            update_payload["gddAccumulated"] = {
+                "type": "Property",
+                "value": float(weather_data["gdd_accumulated"]),
+                "unitCode": "DD",
+            }
+
+        if weather_data.get("temp_current") is not None:
+            update_payload["tempCurrent"] = {
+                "type": "Property",
+                "value": float(weather_data["temp_current"]),
                 "unitCode": "CEL",
             }
 

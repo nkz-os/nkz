@@ -402,14 +402,21 @@ class ParcelWeatherEngine:
                     "relative_humidity_2m_mean",
                     "precipitation_sum",
                     "precipitation_probability_max",
-                    "wind_speed_10m_max",
-                    "wind_gusts_10m_max",
-                    "wind_direction_10m_dominant",
                     "et0_fao_evapotranspiration",
                     "shortwave_radiation_sum",
                     "soil_moisture_0_to_7cm_mean",
                     "soil_moisture_7_to_28cm_mean",
                     "surface_pressure_mean",
+                ],
+                # Hourly data — for accurate agronomic metrics (GDD, Delta-T,
+                # disease pressure, frost hours) plus wind mean/max/gusts.
+                "hourly": [
+                    "temperature_2m",
+                    "relative_humidity_2m",
+                    "precipitation",
+                    "wind_speed_10m",
+                    "wind_gusts_10m",
+                    "wind_direction_10m",
                 ],
                 "timezone": "Europe/Madrid",
             }
@@ -434,17 +441,64 @@ class ParcelWeatherEngine:
         latitude: float,
         longitude: float,
     ) -> List[Dict[str, Any]]:
-        """Parse Open-Meteo daily response into observation dicts."""
+        """Parse Open-Meteo response into observation dicts.
+
+        Uses daily for temperature/humidity/precip/ET0/pressure/soil.
+        Uses hourly for wind — computes per-day aggregates from hourly data:
+          - wind_speed_ms:     latest available hour mean (for current conditions)
+          - wind_speed_max:    max of today's hourly means (for context)
+          - wind_gusts_ms:     max of today's hourly gusts
+          - wind_direction_deg: latest available hour direction
+        """
         daily = data.get("daily", {})
         dates = daily.get("time", [])
         if not dates:
             return []
 
         station_elevation = data.get("elevation", 0.0)
+        hourly = data.get("hourly", {})
+        hourly_times = hourly.get("time", [])
+
+        # Pre-group hourly data by date for per-day aggregation
+        hourly_by_date: dict = {}
+        if hourly_times:
+            temps = hourly.get("temperature_2m", [])
+            hums = hourly.get("relative_humidity_2m", [])
+            precips = hourly.get("precipitation", [])
+            wind_speeds = hourly.get("wind_speed_10m", [])
+            wind_gusts = hourly.get("wind_gusts_10m", [])
+            wind_dirs = hourly.get("wind_direction_10m", [])
+            for hi, ht in enumerate(hourly_times):
+                day = ht[:10]  # "2026-06-08"
+                if day not in hourly_by_date:
+                    hourly_by_date[day] = {
+                        "temps": [],
+                        "hums": [],
+                        "precips": [],
+                        "speeds": [],
+                        "gusts": [],
+                        "dirs": [],
+                        "last_dir": None,
+                    }
+                hd = hourly_by_date[day]
+                if hi < len(temps) and temps[hi] is not None:
+                    hd["temps"].append(float(temps[hi]))
+                if hi < len(hums) and hums[hi] is not None:
+                    hd["hums"].append(float(hums[hi]))
+                if hi < len(precips) and precips[hi] is not None:
+                    hd["precips"].append(float(precips[hi]))
+                if hi < len(wind_speeds) and wind_speeds[hi] is not None:
+                    hd["speeds"].append(float(wind_speeds[hi]))
+                if hi < len(wind_gusts) and wind_gusts[hi] is not None:
+                    hd["gusts"].append(float(wind_gusts[hi]))
+                if hi < len(wind_dirs) and wind_dirs[hi] is not None:
+                    hd["dirs"].append(float(wind_dirs[hi]))
+                    hd["last_dir"] = float(wind_dirs[hi])
 
         observations = []
         for i, date_str in enumerate(dates):
-            obs = {
+            # ── Daily (non-wind) parameters from daily endpoint ──
+            obs: dict = {
                 "observed_at": date_str,
                 "temp_min": self._safe_get(daily, "temperature_2m_min", i),
                 "temp_max": self._safe_get(daily, "temperature_2m_max", i),
@@ -455,17 +509,6 @@ class ParcelWeatherEngine:
                 "precip_mm": self._safe_get(daily, "precipitation_sum", i),
                 "precip_probability": self._safe_get(
                     daily, "precipitation_probability_max", i
-                ),
-                # Open-Meteo returns wind_gusts_10m_max in km/h — convert to m/s
-                "wind_gusts_ms": self._div_if(
-                    self._safe_get(daily, "wind_gusts_10m_max", i), 3.6
-                ),
-                # Open-Meteo returns wind_speed_10m_max in km/h — convert to m/s
-                "wind_speed_ms": self._div_if(
-                    self._safe_get(daily, "wind_speed_10m_max", i), 3.6
-                ),
-                "wind_direction_deg": self._safe_get(
-                    daily, "wind_direction_10m_dominant", i
                 ),
                 "pressure_hpa": self._safe_get(
                     daily, "surface_pressure_mean", i
@@ -485,13 +528,48 @@ class ParcelWeatherEngine:
                 ),
                 "station_elevation_m": station_elevation,
             }
+
+            # ── Hourly wind → per-day aggregates ──
+            hday = hourly_by_date.get(date_str, {})
+            speeds = hday.get("speeds", [])
+            gusts = hday.get("gusts", [])
+
+            if speeds:
+                # Open-Meteo hourly wind is in km/h — convert to m/s
+                obs["wind_speed_ms"] = round(speeds[-1] / 3.6, 1)      # latest hour (current)
+                obs["wind_speed_max"] = round(max(speeds) / 3.6, 1)    # max hourly mean today
+                obs["wind_direction_deg"] = hday.get("last_dir")
+            if gusts:
+                obs["wind_gusts_ms"] = round(max(gusts) / 3.6, 1)
+
+            # ── Hourly agronomic metrics (for crop-health / GDD / disease models) ──
+            htemps = hday.get("temps", [])
+            hhums = hday.get("hums", [])
+            hprecips = hday.get("precips", [])
+
+            if htemps:
+                # Store current (latest hour) for Delta-T / spraying
+                obs["temp_current"] = round(htemps[-1], 1)
+                obs["humidity_current"] = round(hhums[-1], 1) if hhums else None
+                # Growing Degree Days (base 10°C) from hourly integration
+                gdd = sum(max(t - 10.0, 0.0) for t in htemps) / 24.0
+                obs["gdd_accumulated"] = round(gdd, 1)
+                # Delta-T from latest hour (wet-bulb depression)
+                if hhums:
+                    from common.weather_utils.psychrometrics import calculate_delta_t
+                    obs["delta_t"] = calculate_delta_t(htemps[-1], hhums[-1])
+
+            if hprecips:
+                # Hourly precipitation sum (should match daily, but self-consistent)
+                obs["precip_mm"] = round(sum(hprecips), 1)
+
             observations.append(obs)
 
         return observations
 
     @staticmethod
     def _safe_get(daily: dict, key: str, index: int) -> Optional[float]:
-        """Safely get a value from Open-Meteo daily dict."""
+        """Safely get a value from Open-Meteo daily dict by index."""
         arr = daily.get(key, [])
         if arr and index < len(arr) and arr[index] is not None:
             return float(arr[index])
