@@ -403,6 +403,7 @@ class ParcelWeatherEngine:
                     "precipitation_sum",
                     "precipitation_probability_max",
                     "wind_speed_10m_max",
+                    "wind_gusts_10m_max",
                     "wind_direction_10m_dominant",
                     "et0_fao_evapotranspiration",
                     "shortwave_radiation_sum",
@@ -455,7 +456,14 @@ class ParcelWeatherEngine:
                 "precip_probability": self._safe_get(
                     daily, "precipitation_probability_max", i
                 ),
-                "wind_speed_ms": self._safe_get(daily, "wind_speed_10m_max", i),
+                # Open-Meteo returns wind_gusts_10m_max in km/h — convert to m/s
+                "wind_gusts_ms": self._div_if(
+                    self._safe_get(daily, "wind_gusts_10m_max", i), 3.6
+                ),
+                # Open-Meteo returns wind_speed_10m_max in km/h — convert to m/s
+                "wind_speed_ms": self._div_if(
+                    self._safe_get(daily, "wind_speed_10m_max", i), 3.6
+                ),
                 "wind_direction_deg": self._safe_get(
                     daily, "wind_direction_10m_dominant", i
                 ),

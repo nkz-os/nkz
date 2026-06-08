@@ -378,7 +378,10 @@ def get_parcel_weather(
                 "humidity_avg": _safe_idx(daily, "relative_humidity_2m_mean", i),
                 "precip_mm": _safe_idx(daily, "precipitation_sum", i),
                 "precip_probability": _safe_idx(daily, "precipitation_probability_max", i),
-                "wind_speed_ms": _safe_idx(daily, "wind_speed_10m_max", i),
+                # Open-Meteo returns wind_speed_10m_max in km/h — convert to m/s
+                "wind_speed_ms": _div_if(
+                    _safe_idx(daily, "wind_speed_10m_max", i), 3.6
+                ),
                 "wind_direction_deg": _safe_idx(daily, "wind_direction_10m_dominant", i),
                 "pressure_hpa": _safe_idx(daily, "surface_pressure_mean", i),
                 "eto_mm": _safe_idx(daily, "et0_fao_evapotranspiration", i),
@@ -948,7 +951,10 @@ def get_parcel_forecast(
                     "precip_probability": _safe_idx(
                         daily, "precipitation_probability_max", i
                     ),
-                    "wind_speed_ms": _safe_idx(daily, "wind_speed_10m_max", i),
+                    # Open-Meteo returns wind_speed_10m_max in km/h — convert to m/s
+                    "wind_speed_ms": _div_if(
+                        _safe_idx(daily, "wind_speed_10m_max", i), 3.6
+                    ),
                     "wind_direction_deg": _safe_idx(
                         daily, "wind_direction_10m_dominant", i
                     ),
