@@ -284,7 +284,10 @@ def get_parcel_weather(
             elif isinstance(wo_data, dict) and wo_data.get("id"):
                 wo_entity = wo_data
 
-        if wo_entity:
+        if wo_entity and data_type != "FORECAST":
+            # Use cached WeatherObserved for HISTORY only.
+            # FORECAST must reach Open-Meteo for future predictions —
+            # the WeatherObserved entity only stores current conditions.
             # Normalize to same schema as on-the-fly response
             wo_attrs = wo_entity if isinstance(wo_entity, dict) else {}
 
@@ -322,7 +325,7 @@ def get_parcel_weather(
                 "observations": [normalized_obs],
             }
 
-        # Step 5: Cache miss — fetch from Open-Meteo directly + downscaling
+        # Step 5: Fetch from Open-Meteo directly (FORECAST always, HISTORY on cache miss)
         from datetime import datetime, timedelta
 
         today = datetime.utcnow().strftime("%Y-%m-%d")
