@@ -284,7 +284,10 @@ def get_parcel_weather(
             elif isinstance(wo_data, dict) and wo_data.get("id"):
                 wo_entity = wo_data
 
-        if wo_entity:
+        if wo_entity and data_type != "FORECAST":
+            # Use cached WeatherObserved for HISTORY only.
+            # FORECAST must reach Open-Meteo for future predictions —
+            # the WeatherObserved entity only stores current conditions.
             # Normalize to same schema as on-the-fly response
             wo_attrs = wo_entity if isinstance(wo_entity, dict) else {}
 
@@ -322,7 +325,7 @@ def get_parcel_weather(
                 "observations": [normalized_obs],
             }
 
-        # Step 5: Cache miss — fetch from Open-Meteo directly + downscaling
+        # Step 5: Fetch from Open-Meteo directly (FORECAST always, HISTORY on cache miss)
         from datetime import datetime, timedelta
 
         today = datetime.utcnow().strftime("%Y-%m-%d")
@@ -787,7 +790,8 @@ def get_parcel_agro_status(
                             "precip_mm": _attr(wo, "precipitation"),
                             "precip_probability": None,
                             "wind_speed_ms": _attr(wo, "windSpeed"),
-                            "wind_gusts_ms": None,
+                            "wind_speed_max": _attr(wo, "windSpeedMax"),
+                            "wind_gusts_ms": _attr(wo, "windGusts"),
                             "wind_direction_deg": _attr(wo, "windDirection"),
                             "pressure_hpa": _attr(wo, "atmosphericPressure"),
                             "solar_rad_w_m2": None,
@@ -811,6 +815,45 @@ def get_parcel_agro_status(
                         )
             except Exception as e:
                 logger.warning(f"Orion WeatherObserved fallback failed: {e}")
+
+        # 5e. Fallback for 3-day history: query telemetry_events for water balance
+        if not weather_3d:
+            try:
+                conn = get_db_connection(tenant_id)
+                try:
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
+                    cur.execute(
+                        """
+                        SELECT
+                            observed_at,
+                            payload #>> '{measurements,precipitation}' as precip_mm,
+                            payload #>> '{measurements,et0}' as eto_mm
+                        FROM telemetry_events
+                        WHERE tenant_id = %s
+                          AND entity_type = 'WeatherObserved'
+                          AND entity_id LIKE %s
+                          AND observed_at >= NOW() - INTERVAL '3 days'
+                        ORDER BY observed_at DESC
+                        """,
+                        (tenant_id, f"%{parcel_id.split(':')[-1]}%"),
+                    )
+                    rows = cur.fetchall()
+                    for row in rows:
+                        precip = float(row["precip_mm"]) if row["precip_mm"] else 0.0
+                        eto = float(row["eto_mm"]) if row["eto_mm"] else 0.0
+                        weather_3d.append({
+                            "observed_at": row["observed_at"],
+                            "precip_mm": precip,
+                            "eto_mm": eto,
+                        })
+                    logger.debug(
+                        f"Telemetry 3d fallback for {parcel_id}: {len(weather_3d)} rows"
+                    )
+                finally:
+                    cur.close()
+                    conn.close()
+            except Exception as e:
+                logger.warning(f"Telemetry 3d fallback failed: {e}")
 
         if not weather_observation:
             # Graceful degradation: return parcel metadata + sensor data
