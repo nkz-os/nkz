@@ -298,6 +298,113 @@ class ParcelWeatherEngine:
 
         return centroid, altitude
 
+    # ------------------------------------------------------------------
+    # Terrain attributes (aspect, slope) from elevation service
+    # ------------------------------------------------------------------
+
+    def _compute_terrain_attributes(
+        self,
+        centroid: tuple,
+    ) -> tuple:
+        """Compute slope (deg) and aspect (deg) from elevation-api 5-point query."""
+        import math
+
+        elev_url = os.getenv("ELEVATION_SERVICE_URL", "").strip()
+        if not elev_url:
+            return 0.0, 0.0
+
+        cx, cy = centroid  # lon, lat
+        d_lat = 30.0 / 111320.0
+        d_lon = 30.0 / (111320.0 * 0.766)
+
+        points = {
+            "center": (cy, cx),
+            "north":  (cy + d_lat, cx),
+            "south":  (cy - d_lat, cx),
+            "east":   (cy, cx + d_lon),
+            "west":   (cy, cx - d_lon),
+        }
+
+        elevations = {}
+        for name, (lat, lon) in points.items():
+            try:
+                resp = requests.get(
+                    f"{elev_url}/api/elevation/point",
+                    params={"lat": round(lat, 6), "lon": round(lon, 6), "purpose": "weather"},
+                    timeout=5,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    elevations[name] = float(data.get("elevation_m", 0))
+            except Exception:
+                pass
+
+        if len(elevations) < 3:
+            return 0.0, 0.0
+
+        center_z = elevations.get("center", 0.0)
+        n = elevations.get("north", center_z)
+        s = elevations.get("south", center_z)
+        e = elevations.get("east", center_z)
+        w = elevations.get("west", center_z)
+
+        cell_size_m = 30.0
+        dz_dx = (e - w) / (2.0 * cell_size_m)
+        dz_dy = (n - s) / (2.0 * cell_size_m)
+
+        slope_rad = math.atan(math.sqrt(dz_dx * dz_dx + dz_dy * dz_dy))
+        slope_deg = round(math.degrees(slope_rad), 1)
+
+        if slope_deg < 0.5:
+            aspect_deg = 0.0
+        else:
+            aspect_rad = math.atan2(-dz_dx, -dz_dy)
+            aspect_deg = round((math.degrees(aspect_rad) + 360) % 360, 1)
+
+        return aspect_deg, slope_deg
+
+    def _persist_terrain_attributes(
+        self,
+        parcel,
+        aspect_deg: float,
+        slope_deg: float,
+        altitude: float,
+    ):
+        """Persist terrainAspect, terrainSlope, elevation to AgriParcel."""
+        parcel_id = parcel.get("id", "")
+        tenant_id = parcel.get("_tenant", "default")
+        if not parcel_id:
+            return
+
+        try:
+            hdrs = self._make_headers(tenant_id)
+            hdrs["Content-Type"] = "application/ld+json"
+            hdrs.pop("Link", None)
+            body = {
+                "@context": [self.context_url] if self.context_url else [],
+            }
+            if altitude > 0:
+                body["elevation"] = {
+                    "type": "Property", "value": round(altitude, 1), "unitCode": "MTR"
+                }
+            if slope_deg >= 0:
+                body["terrainSlope"] = {
+                    "type": "Property", "value": slope_deg, "unitCode": "DD"
+                }
+            if aspect_deg >= 0:
+                body["terrainAspect"] = {
+                    "type": "Property", "value": aspect_deg, "unitCode": "DD"
+                }
+
+            resp = requests.patch(
+                f"{self.orion_url}/ngsi-ld/v1/entities/{parcel_id}/attrs",
+                headers=hdrs, json=body, timeout=5,
+            )
+            if resp.status_code not in (200, 204):
+                logger.debug(f"Terrain persist: {resp.status_code} {resp.text[:200]}")
+        except Exception as e:
+            logger.debug(f"Terrain persist failed: {e}")
+
     def _haversine_km(
         self, lat1: float, lon1: float, lat2: float, lon2: float
     ) -> float:
@@ -664,6 +771,21 @@ class ParcelWeatherEngine:
                     try:
                         parcel_lon, parcel_lat = parcel["_centroid"]
                         parcel_altitude = parcel.get("_altitude", 0.0)
+
+                        # Compute terrain aspect/slope from elevation service
+                        aspect, slope = self._compute_terrain_attributes(
+                            (parcel_lon, parcel_lat)
+                        )
+                        if aspect > 0 or slope > 0:
+                            self._persist_terrain_attributes(
+                                parcel, aspect, slope, parcel_altitude
+                            )
+                        # Inject into parcel dict so downscaling uses them
+                        if "elevation" not in parcel:
+                            parcel["elevation"] = {"type": "Property", "value": parcel_altitude}
+                        if slope > 0:
+                            parcel["terrainSlope"] = {"type": "Property", "value": slope}
+                            parcel["terrainAspect"] = {"type": "Property", "value": aspect}
 
                         # Apply spatial downscaling per parcel
                         corrected_observations = self._downscale_observations(
