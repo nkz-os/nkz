@@ -370,18 +370,46 @@ class ParcelWeatherEngine:
         slope_deg: float,
         altitude: float,
     ):
-        """Persist terrainAspect, terrainSlope, elevation to AgriParcel in Orion-LD."""
+        """Persist terrainAspect, terrainSlope, elevation to AgriParcel.
+
+        Uses upsert with merger: fetches existing entity to preserve all
+        attributes (name, location, category, etc.) while adding terrain.
+        """
         parcel_id = parcel.get("id", "")
         tenant_id = parcel.get("_tenant", "default")
         if not parcel_id:
             return
 
         try:
-            headers = self._make_headers(tenant_id)
-            headers["Content-Type"] = "application/json"
-            body = {
-                "@context": [self.context_url] if self.context_url else [],
-            }
+            hdrs = self._make_headers(tenant_id)
+            hdrs["Content-Type"] = "application/ld+json"
+            hdrs.pop("Link", None)
+
+            # Fetch existing entity to merge with terrain attrs
+            existing = {}
+            try:
+                fetch_hdrs = {k: v for k, v in hdrs.items()
+                              if k != "Content-Type"}
+                fetch_hdrs["Accept"] = "application/ld+json"
+                r = requests.get(
+                    f"{self.orion_url}/ngsi-ld/v1/entities/{parcel_id}",
+                    headers=fetch_hdrs, timeout=5,
+                )
+                if r.status_code == 200:
+                    raw = r.json()
+                    existing = {
+                        k: v for k, v in raw.items()
+                        if k not in ("@context", "id", "type")
+                        and isinstance(v, dict) and "type" in v
+                    }
+            except Exception:
+                pass
+
+            body = existing.copy()
+            body["@context"] = [self.context_url] if self.context_url else []
+            body["id"] = parcel_id
+            body["type"] = "AgriParcel"
+
             if altitude > 0:
                 body["elevation"] = {
                     "type": "Property", "value": round(altitude, 1), "unitCode": "MTR"
@@ -395,11 +423,11 @@ class ParcelWeatherEngine:
                     "type": "Property", "value": aspect_deg, "unitCode": "DD"
                 }
 
-            resp = requests.patch(
-                f"{self.orion_url}/ngsi-ld/v1/entities/{parcel_id}/attrs",
-                headers=headers, json=body, timeout=5,
+            resp = requests.post(
+                f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert",
+                headers=hdrs, json=[body], timeout=5,
             )
-            if resp.status_code not in (200, 204):
+            if resp.status_code not in (200, 201, 204):
                 logger.debug(f"Terrain persist: {resp.status_code}")
         except Exception as e:
             logger.debug(f"Terrain persist failed: {e}")
