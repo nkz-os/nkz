@@ -27,45 +27,18 @@ _limits_cache_ts: dict = {}
 _LIMITS_TTL_SECONDS = 60
 
 
-def _ensure_tenant_limits_table():
-    """Create tenant_limits table if it does not exist (PostgreSQL, not Orion-LD)."""
-    conn = get_db_connection_simple()
-    if not conn:
-        return
-    try:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS admin_platform.tenant_limits (
-                tenant_id VARCHAR(128) PRIMARY KEY,
-                plan_type VARCHAR(64),
-                max_users INTEGER,
-                max_robots INTEGER,
-                max_sensors INTEGER,
-                max_area_hectares REAL,
-                updated_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        conn.commit()
-        cursor.close()
-    except Exception as e:
-        logging.getLogger(__name__).warning(f"tenant_limits table init: {e}")
-    finally:
-        return_db_connection(conn)
-
-
 def _get_limits_from_db(tenant: str):
-    """Read tenant limits from PostgreSQL (admin_platform.tenant_limits + tenants)."""
+    """Read tenant limits from PostgreSQL (tenants table — single source of truth)."""
     conn = get_db_connection_simple()
     if not conn:
         return None
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT tl.plan_type, tl.max_users, tl.max_robots, tl.max_sensors,
-                   tl.max_area_hectares, t.max_parcels, t.max_entities_total
-            FROM admin_platform.tenant_limits tl
-            LEFT JOIN tenants t ON t.tenant_id = tl.tenant_id
-            WHERE tl.tenant_id = %s
+            SELECT plan_type, max_users, max_robots, max_sensors,
+                   max_area_hectares, max_parcels, max_entities_total
+            FROM tenants
+            WHERE tenant_id = %s
         """, (tenant,))
         row = cursor.fetchone()
         cursor.close()
@@ -98,29 +71,31 @@ def get_limits_for_tenant(tenant: str):
 
 
 def upsert_limits_in_orion(tenant: str, limits: dict):
-    """Upsert tenant limits in PostgreSQL (name kept for backward compatibility with callers)."""
+    """Upsert tenant limits in PostgreSQL (tenants table — single source of truth).
+
+    Function name kept for backward compatibility with callers.
+    """
     conn = get_db_connection_simple()
     if not conn:
         return False
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO admin_platform.tenant_limits (tenant_id, plan_type, max_users, max_robots, max_sensors, max_area_hectares, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, NOW())
-            ON CONFLICT (tenant_id) DO UPDATE SET
-                plan_type = COALESCE(EXCLUDED.plan_type, admin_platform.tenant_limits.plan_type),
-                max_users = COALESCE(EXCLUDED.max_users, admin_platform.tenant_limits.max_users),
-                max_robots = COALESCE(EXCLUDED.max_robots, admin_platform.tenant_limits.max_robots),
-                max_sensors = COALESCE(EXCLUDED.max_sensors, admin_platform.tenant_limits.max_sensors),
-                max_area_hectares = COALESCE(EXCLUDED.max_area_hectares, admin_platform.tenant_limits.max_area_hectares),
+            UPDATE tenants SET
+                plan_type = COALESCE(%s, plan_type),
+                max_users = COALESCE(%s, max_users),
+                max_robots = COALESCE(%s, max_robots),
+                max_sensors = COALESCE(%s, max_sensors),
+                max_area_hectares = COALESCE(%s, max_area_hectares),
                 updated_at = NOW()
+            WHERE tenant_id = %s
         """, (
-            tenant,
             limits.get('planType'),
             limits.get('maxUsers'),
             limits.get('maxRobots'),
             limits.get('maxSensors'),
             limits.get('maxAreaHectares'),
+            tenant,
         ))
         conn.commit()
         cursor.close()
