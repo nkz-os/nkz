@@ -1506,17 +1506,24 @@ def get_v2_entity_timeseries(entity_urn: str):
         if not _SAFE_WEATHER_ENTITY_KEY.match(str(wkey).strip()):
             return jsonify({"error": "Invalid weather timeseries key"}), 400
 
+        # Resolve weather attributes. Unresolvable attributes for weather mode
+        # are NOT fatal — they may be telemetry-only (e.g. dateObserved, sourceConfidence).
+        # If weather_observations has no data, we fall back to telemetry_events.
+        weather_attrs: Optional[List[str]] = None
+        unresolved_for_weather: List[str] = []
         if attrs_list:
-            resolved_attrs = []
+            resolved_w = []
             for a in attrs_list:
                 resolved = _resolve_weather_attribute(a)
-                if resolved is None:
-                    return jsonify({"error": f"Unknown weather attribute: {a}"}), 400
-                resolved_attrs.append(resolved)
-            attrs_list = resolved_attrs
+                if resolved is not None:
+                    resolved_w.append(resolved)
+                else:
+                    unresolved_for_weather.append(a)
+            if resolved_w:
+                weather_attrs = resolved_w
 
         col = _weather_query_columnar(
-            conn, tenant_id, wkey, start_dt, end_dt, attrs_list, limit
+            conn, tenant_id, wkey, start_dt, end_dt, weather_attrs, limit
         )
 
         # Fallback: if weather_observations has no data for this tenant (deprecated
@@ -1533,14 +1540,7 @@ def get_v2_entity_timeseries(entity_urn: str):
             if attrs_list:
                 resolved_attrs = []
                 for a in attrs_list:
-                    # Map weather column names back to NGSI-LD measurement keys
-                    # (weather_observations columns → telemetry_events payload.measurements keys)
                     sk = _resolve_telemetry_measurement_key(a)
-                    if sk is None:
-                        # Reverse lookup: weather column like 'temp_avg' might map to 'temperature'
-                        rev = _TELEMETRY_MEASUREMENT_UI_ALIASES.get(a)
-                        if rev:
-                            sk = rev if rev in _telemetry_measurement_whitelist() else None
                     if sk is None:
                         return jsonify(
                             {"error": f"Unknown telemetry attribute: {a}"}
@@ -1554,6 +1554,12 @@ def get_v2_entity_timeseries(entity_urn: str):
             col = _build_telemetry_columnar(telemetry_rows, telemetry_attrs)
             # Override series_kind for the response
             plan["mode"] = "telemetry_fallback"
+        elif unresolved_for_weather:
+            # Weather has data but some attributes couldn't be resolved for weather mode.
+            # Report the first unresolved attribute as an error.
+            return jsonify(
+                {"error": f"Unknown weather attribute: {unresolved_for_weather[0]}"}
+            ), 400
 
         if want_arrow:
             if not HAS_PYARROW:
