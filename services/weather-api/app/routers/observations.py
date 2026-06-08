@@ -68,10 +68,12 @@ def get_latest_weather_observations(
     try:
         observations = _fetch_for_tenant(tenant_id)
         if not observations and tenant_id != "default":
+            # Do NOT fall back to default tenant — serves wrong-location data.
+            # Instead, return empty so the frontend shows a clean empty state
+            # rather than garbage wind/temperature from a different municipality.
             logger.info(
-                f"No observations for tenant {tenant_id}, falling back to default"
+                f"No observations for tenant {tenant_id}, returning empty"
             )
-            observations = _fetch_for_tenant("default")
         return {"observations": [dict(obs) for obs in observations]}
     except Exception as e:
         logger.error(f"Error getting latest weather observations: {e}")
