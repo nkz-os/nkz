@@ -824,7 +824,7 @@ def get_parcel_agro_status(
                     cur = conn.cursor(cursor_factory=RealDictCursor)
                     cur.execute(
                         """
-                        SELECT
+                        SELECT DISTINCT ON (DATE(observed_at))
                             observed_at,
                             payload #>> '{measurements,precipitation}' as precip_mm,
                             payload #>> '{measurements,et0}' as eto_mm
@@ -833,7 +833,7 @@ def get_parcel_agro_status(
                           AND entity_type = 'WeatherObserved'
                           AND entity_id LIKE %s
                           AND observed_at >= NOW() - INTERVAL '3 days'
-                        ORDER BY observed_at DESC
+                        ORDER BY DATE(observed_at) DESC
                         """,
                         (tenant_id, f"%{parcel_id.split(':')[-1]}%"),
                     )
