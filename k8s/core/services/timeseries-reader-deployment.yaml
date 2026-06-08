@@ -28,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: timeseries-reader
-          image: ghcr.io/nkz-os/nkz/timeseries-reader@sha256:8cf99502021198caccf35dd84ec4c37572f05ea15ba67ef73678378e43912058  # WeatherObserved telemetry fallback
+          image: ghcr.io/nkz-os/nkz/timeseries-reader@sha256:617256affc08e8a7b0243345b66a3bbfba765ce99eb7d4bb321b581536da5a1c  # defer weather attr validation + telemetry fallback
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
