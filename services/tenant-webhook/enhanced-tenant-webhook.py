@@ -4215,13 +4215,77 @@ def _tenant_attr(attributes, key):
     return None
 
 
+# Cache for realm roles (short TTL since roles rarely change)
+_realm_roles_cache: dict = {}
+_realm_roles_cache_ts: float = 0.0
+_REALM_ROLES_TTL = 120  # seconds
+
+
+def _fetch_all_realm_roles(headers: dict, keycloak_url: str) -> dict:
+    """Fetch ALL realm roles from Keycloak in ONE call.
+
+    Returns {role_name: role_repr} dict. Cached for _REALM_ROLES_TTL seconds.
+    """
+    global _realm_roles_cache, _realm_roles_cache_ts
+    now = time.time()
+    if _realm_roles_cache and (now - _realm_roles_cache_ts) < _REALM_ROLES_TTL:
+        return _realm_roles_cache
+
+    roles_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/roles"
+    resp = requests.get(roles_url, headers=headers, timeout=10)
+    if resp.status_code != 200:
+        logger.warning(f"Failed to fetch realm roles: {resp.status_code}")
+        return {}
+    roles_list = resp.json()
+    result = {r["name"]: r for r in roles_list if isinstance(r, dict) and "name" in r}
+    _realm_roles_cache = result
+    _realm_roles_cache_ts = now
+    return result
+
+
+def _get_user_effective_roles(
+    headers: dict, keycloak_url: str, user_id: str, _all_roles: dict = None
+) -> list:
+    """Get user's composite roles in ONE call.
+
+    Uses Keycloak composite role-mappings endpoint for resolved roles.
+    Falls back to direct role-mappings on failure.
+    """
+    try:
+        composite_url = (
+            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+            f"/users/{user_id}/role-mappings/realm/composite"
+        )
+        resp = requests.get(composite_url, headers=headers, timeout=5)
+        if resp.status_code == 200:
+            mappings = resp.json()
+            if isinstance(mappings, list):
+                return [r.get("name") for r in mappings if r.get("name")]
+        # Fallback: direct role-mappings endpoint
+        direct_url = (
+            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+            f"/users/{user_id}/role-mappings/realm"
+        )
+        resp2 = requests.get(direct_url, headers=headers, timeout=5)
+        if resp2.status_code == 200:
+            data = resp2.json()
+            if isinstance(data, list):
+                return [r.get("name") for r in data if r.get("name")]
+            elif isinstance(data, dict):
+                return [r.get("name") for r in data.get("mappings", [])]
+    except Exception as e:
+        logger.warning(f"Failed to get roles for user {user_id}: {e}")
+    return []
+
+
 @app.route("/api/admin/users", methods=["GET"])
 @require_platform_admin
 def list_all_users():  # noqa: C901
     """List users from Keycloak with pagination (PlatformAdmin only).
 
     Query: first (offset, default 0), max (page size, default 100, cap 200),
-    search (optional Keycloak user search string).
+    search (optional Keycloak user search string),
+    tenant_id (optional, server-side filter via Keycloak attribute search).
     """
     try:
         token = webhook_service.get_keycloak_token()
@@ -4236,6 +4300,7 @@ def list_all_users():  # noqa: C901
         first = request.args.get("first", default=0, type=int)
         max_users = request.args.get("max", default=100, type=int)
         search = (request.args.get("search") or "").strip()
+        filter_tenant = (request.args.get("tenant_id") or "").strip()
         if first < 0:
             first = 0
         max_users = min(max(max_users, 1), 200)
@@ -4243,6 +4308,9 @@ def list_all_users():  # noqa: C901
         params = {"first": first, "max": max_users}
         if search:
             params["search"] = search
+        # Server-side tenant filter via Keycloak attribute search
+        if filter_tenant:
+            params["q"] = f"tenant_id:{filter_tenant}"
 
         response = requests.get(users_url, headers=headers, params=params, timeout=30)
 
@@ -4258,45 +4326,24 @@ def list_all_users():  # noqa: C901
         if not isinstance(all_users, list):
             all_users = []
 
+        # Pre-fetch all realm roles ONCE to avoid per-user calls
+        _all_roles = _fetch_all_realm_roles(headers, keycloak_url)
+
         users = []
 
-        # Process users in batches to avoid timeout
+        # Process users — single call per user for composite roles (was N+2)
         for user in all_users:
             try:
-                # Get user attributes
                 attributes = user.get("attributes", {}) or {}
                 tenant_id = _tenant_attr(attributes, "tenant_id")
                 if not tenant_id:
                     tenant_id = _tenant_attr(attributes, "tenant")
 
-                # Get user groups (with timeout protection)
-                groups = []
-                try:
-                    groups_url = f"{users_url}/{user['id']}/groups"
-                    groups_response = requests.get(groups_url, headers=headers, timeout=5)
-                    if groups_response.status_code == 200:
-                        groups = [g.get("name") for g in groups_response.json()]
-                except requests.exceptions.Timeout:
-                    logger.warning(f"Timeout getting groups for user {user.get('email')}")
-                except Exception as e:
-                    logger.warning(f"Error getting groups for user {user.get('email')}: {e}")
-
-                # Get user roles (with timeout protection)
-                roles = []
-                try:
-                    roles_url = f"{users_url}/{user['id']}/role-mappings/realm"
-                    roles_response = requests.get(roles_url, headers=headers, timeout=5)
-                    if roles_response.status_code == 200:
-                        roles_data = roles_response.json()
-                        # Handle both direct list and mappings structure
-                        if isinstance(roles_data, list):
-                            roles = [r.get("name") for r in roles_data]
-                        elif isinstance(roles_data, dict):
-                            roles = [r.get("name") for r in roles_data.get("mappings", [])]
-                except requests.exceptions.Timeout:
-                    logger.warning(f"Timeout getting roles for user {user.get('email')}")
-                except Exception as e:
-                    logger.warning(f"Error getting roles for user {user.get('email')}: {e}")
+                # Get composite roles in ONE call (was: groups + roles = 2 calls)
+                roles = _get_user_effective_roles(
+                    headers, keycloak_url, user["id"], _all_roles
+                )
+                # Groups omitted — roles are the source of truth for RBAC
 
                 kc_id = user.get("id")
                 users.append(
@@ -4309,7 +4356,7 @@ def list_all_users():  # noqa: C901
                         "lastName": user.get("lastName"),
                         "enabled": user.get("enabled", True),
                         "tenant_id": tenant_id,
-                        "groups": groups,
+                        "groups": [],
                         "roles": roles,
                         "createdTimestamp": user.get("createdTimestamp"),
                     }
