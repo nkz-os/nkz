@@ -244,56 +244,89 @@ def health():
 @app.route('/api/tenant/users', methods=['GET'])
 @validate_tenant_admin
 def list_team_members(user_info: Dict[str, Any], tenant: str):
-    """List all users in the tenant"""
+    """List all users in the tenant using Keycloak attribute search (avoids N+1)."""
     try:
         admin_token = keycloak.get_admin_token()
         if not admin_token:
             return jsonify({'error': 'Failed to get admin token'}), 500
-        
-        # Get all users from Keycloak realm
+
+        # Use Keycloak attribute search to get ONLY users for this tenant
         users_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
+        params = {'q': f'tenant_id:{tenant}', 'max': 500, 'briefRepresentation': 'false'}
         response = requests.get(
             users_url,
             headers={'Authorization': f'Bearer {admin_token}'},
+            params=params,
+            timeout=15
+        )
+        if response.status_code != 200:
+            logger.error(f"Keycloak user search failed: {response.status_code}")
+            return jsonify({'error': 'Failed to fetch users'}), 500
+
+        users = response.json()
+        if not isinstance(users, list):
+            users = []
+
+        is_platform_admin = 'PlatformAdmin' in user_info.get('roles', [])
+
+        # Fetch all realm roles ONCE for batch resolution (not per-user)
+        roles_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/roles"
+        roles_resp = requests.get(
+            roles_url,
+            headers={'Authorization': f'Bearer {admin_token}'},
             timeout=10
         )
-        response.raise_for_status()
-        users = response.json()
-        
-        # Filter users by tenant
+        all_roles_map = {}
+        if roles_resp.status_code == 200:
+            for r in roles_resp.json():
+                if isinstance(r, dict) and 'name' in r:
+                    all_roles_map[r['name']] = r
+
         filtered_users = []
         for user in users:
-            attrs = user.get('attributes', {})
-            user_tenant = (attrs.get('tenant_id', [''])[0] if attrs.get('tenant_id') else '') or (attrs.get('tenant', [''])[0] if attrs.get('tenant') else '')
-
-            # Only show users from the same tenant (or all if PlatformAdmin)
-            if user_tenant == tenant or 'PlatformAdmin' in user_info.get('roles', []):
-                # Get user's roles
-                user_id = user['id']
-                roles_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm"
-                roles_response = requests.get(
-                    roles_url,
-                    headers={'Authorization': f'Bearer {admin_token}'},
-                    timeout=10
+            # Double-check tenant_id for non-platform admins (belt and suspenders)
+            if not is_platform_admin:
+                attrs = user.get('attributes', {}) or {}
+                user_tenant = (
+                    (attrs.get('tenant_id', [''])[0] if attrs.get('tenant_id') else '')
+                    or (attrs.get('tenant', [''])[0] if attrs.get('tenant') else '')
                 )
-                
-                roles = []
-                if roles_response.status_code == 200:
-                    roles_data = roles_response.json()
-                    roles = [r['name'] for r in roles_data]
-                
-                filtered_users.append({
-                    'id': user_id,
-                    'email': user.get('email', ''),
-                    'firstName': user.get('firstName', ''),
-                    'lastName': user.get('lastName', ''),
-                    'roles': roles,
-                    'createdAt': user.get('createdTimestamp', 0),
-                    'enabled': user.get('enabled', False)
-                })
-        
+                if user_tenant != tenant:
+                    continue
+
+            user_id = user['id']
+
+            # Get composite roles in ONE call per user (instead of fetching each role)
+            roles = []
+            try:
+                composite_url = (
+                    f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}"
+                    f"/users/{user_id}/role-mappings/realm/composite"
+                )
+                roles_resp = requests.get(
+                    composite_url,
+                    headers={'Authorization': f'Bearer {admin_token}'},
+                    timeout=5
+                )
+                if roles_resp.status_code == 200:
+                    roles_data = roles_resp.json()
+                    if isinstance(roles_data, list):
+                        roles = [r.get('name') for r in roles_data if r.get('name')]
+            except Exception:
+                pass
+
+            filtered_users.append({
+                'id': user_id,
+                'email': user.get('email', ''),
+                'firstName': user.get('firstName', ''),
+                'lastName': user.get('lastName', ''),
+                'roles': roles,
+                'createdAt': user.get('createdTimestamp', 0),
+                'enabled': user.get('enabled', True)
+            })
+
         return jsonify({'users': filtered_users}), 200
-        
+
     except Exception as e:
         logger.error(f"Error listing users: {e}")
         return jsonify({'error': str(e)}), 500

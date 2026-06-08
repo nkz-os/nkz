@@ -270,6 +270,10 @@ export const AdminManagement: React.FC = () => {
         if (usersSearchDebounced) {
           params.set('search', usersSearchDebounced);
         }
+        // Server-side tenant filter — avoids loading all platform users
+        if (selectedTenantId) {
+          params.set('tenant_id', selectedTenantId);
+        }
         const response = await client.get(`/api/admin/users?${params.toString()}`);
         if (cancelled) return;
         if (!response.data?.success) {
@@ -296,7 +300,7 @@ export const AdminManagement: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [globalTab, usersSearchDebounced, usersRefreshNonce]);
+  }, [globalTab, usersSearchDebounced, usersRefreshNonce, selectedTenantId]);
 
   // --- User actions ---
 
@@ -313,6 +317,10 @@ export const AdminManagement: React.FC = () => {
 
       if (usersSearchDebounced) {
         params.set('search', usersSearchDebounced);
+      }
+      // Server-side tenant filter
+      if (selectedTenantId) {
+        params.set('tenant_id', selectedTenantId);
       }
       const response = await client.get(`/api/admin/users?${params.toString()}`);
       if (!response.data?.success) {
@@ -425,11 +433,8 @@ export const AdminManagement: React.FC = () => {
     }
   };
 
-  // --- Filtered users (when a tenant is selected) ---
-
-  const displayUsers = selectedTenantId
-    ? users.filter(u => u.tenant === selectedTenantId)
-    : users;
+  // Users already filtered server-side via ?tenant_id=X — no client-side filter needed
+  const displayUsers = users;
 
   const selectedTenant = selectedTenantId
     ? tenants.find(t => t.tenant_id === selectedTenantId) ?? null
