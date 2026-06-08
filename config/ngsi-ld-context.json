@@ -305,6 +305,8 @@
     "pitch": "https://nekazari.io/vocab/pitch",
     "roll": "https://nekazari.io/vocab/roll",
     "altitude": "https://nekazari.io/vocab/altitude",
+    "terrainAspect": "nkz:terrainAspect",
+    "terrainSlope": "nkz:terrainSlope",
     "minBounds": "https://nekazari.io/vocab/minBounds",
     "maxBounds": "https://nekazari.io/vocab/maxBounds",
     "connectivityStatus": "https://nekazari.io/vocab/connectivityStatus",

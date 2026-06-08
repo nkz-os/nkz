@@ -304,8 +304,8 @@ class ParcelWeatherEngine:
 
     def _compute_terrain_attributes(
         self,
-        centroid: tuple,
-    ) -> tuple:
+        centroid: Tuple[float, float],
+    ) -> Tuple[float, float]:
         """Compute slope (deg) and aspect (deg) from elevation-api 5-point query."""
         import math
 
@@ -315,7 +315,7 @@ class ParcelWeatherEngine:
 
         cx, cy = centroid  # lon, lat
         d_lat = 30.0 / 111320.0
-        d_lon = 30.0 / (111320.0 * 0.766)
+        d_lon = 30.0 / (111320.0 * 0.766)  # cos(40°)
 
         points = {
             "center": (cy, cx),
@@ -325,7 +325,7 @@ class ParcelWeatherEngine:
             "west":   (cy, cx - d_lon),
         }
 
-        elevations = {}
+        elevations: dict = {}
         for name, (lat, lon) in points.items():
             try:
                 resp = requests.get(
@@ -365,21 +365,20 @@ class ParcelWeatherEngine:
 
     def _persist_terrain_attributes(
         self,
-        parcel,
+        parcel: Dict[str, Any],
         aspect_deg: float,
         slope_deg: float,
         altitude: float,
     ):
-        """Persist terrainAspect, terrainSlope, elevation to AgriParcel."""
+        """Persist terrainAspect, terrainSlope, elevation to AgriParcel in Orion-LD."""
         parcel_id = parcel.get("id", "")
         tenant_id = parcel.get("_tenant", "default")
         if not parcel_id:
             return
 
         try:
-            hdrs = self._make_headers(tenant_id)
-            hdrs["Content-Type"] = "application/ld+json"
-            hdrs.pop("Link", None)
+            headers = self._make_headers(tenant_id)
+            headers["Content-Type"] = "application/json"
             body = {
                 "@context": [self.context_url] if self.context_url else [],
             }
@@ -396,12 +395,12 @@ class ParcelWeatherEngine:
                     "type": "Property", "value": aspect_deg, "unitCode": "DD"
                 }
 
-            resp = requests.post(
-                f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert",
-                headers=hdrs, json=[body], timeout=5,
+            resp = requests.patch(
+                f"{self.orion_url}/ngsi-ld/v1/entities/{parcel_id}/attrs",
+                headers=headers, json=body, timeout=5,
             )
-            if resp.status_code not in (200, 201, 204):
-                logger.debug(f"Terrain persist: {resp.status_code} {resp.text[:200]}")
+            if resp.status_code not in (200, 204):
+                logger.debug(f"Terrain persist: {resp.status_code}")
         except Exception as e:
             logger.debug(f"Terrain persist failed: {e}")
 
@@ -773,6 +772,7 @@ class ParcelWeatherEngine:
                         parcel_altitude = parcel.get("_altitude", 0.0)
 
                         # Compute terrain aspect/slope from elevation service
+                        # (best-effort, cached in AgriParcel for future cycles)
                         aspect, slope = self._compute_terrain_attributes(
                             (parcel_lon, parcel_lat)
                         )
@@ -780,7 +780,7 @@ class ParcelWeatherEngine:
                             self._persist_terrain_attributes(
                                 parcel, aspect, slope, parcel_altitude
                             )
-                        # Inject into parcel dict so downscaling uses them
+                        # Inject into parcel dict so downscaling can use them
                         if "elevation" not in parcel:
                             parcel["elevation"] = {"type": "Property", "value": parcel_altitude}
                         if slope > 0:
