@@ -121,7 +121,6 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     };
     loadParcels();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-select first parcel if none selected and parcels are loaded
