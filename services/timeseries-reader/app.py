@@ -128,6 +128,12 @@ _VALID_TELEMETRY_BASE = frozenset(
         "humidity",
         "temperature",
         "panelInclination",
+        # WeatherObserved NGSI-LD measurement keys (telemetry_events payload.measurements)
+        "precipitation",
+        "et0",
+        "deltaT",
+        "sourceConfidence",
+        "municipalityCode",
         # Crop Health Assessment attributes
         "cwsiValue",
         "mdsValue",
@@ -142,8 +148,26 @@ _VALID_TELEMETRY_BASE = frozenset(
 
 # NGSI-LD / provisioning typos vs Smart Data Models: UI may show these names but
 # telemetry_events.measurements uses the canonical JSON key (right-hand side).
+# Also maps DB column names (from weather_observations legacy) to NGSI-LD keys.
 _TELEMETRY_MEASUREMENT_UI_ALIASES: Dict[str, str] = {
     "sensorsinsolation": "solarRadiation",
+    # DB column → NGSI-LD measurement key (weather_observations → telemetry_events migration)
+    "temp_avg": "temperature",
+    "temp_min": "temperature",
+    "temp_max": "temperature",
+    "humidity_avg": "relativeHumidity",
+    "wind_speed_ms": "windSpeed",
+    "wind_direction_deg": "windDirection",
+    "pressure_hpa": "atmosphericPressure",
+    "precip_mm": "precipitation",
+    "eto_mm": "et0",
+    "solar_rad_w_m2": "solarRadiation",
+    "solar_rad_ghi_w_m2": "solarRadiation",
+    "solar_rad_dni_w_m2": "solarRadiation",
+    "soil_moisture_0_10cm": "soilMoisture",
+    "soil_moisture_10_40cm": "soilMoisture",
+    "gdd_accumulated": "gddAccumulated",
+    "delta_t": "deltaT",
 }
 
 
@@ -1495,6 +1519,42 @@ def get_v2_entity_timeseries(entity_urn: str):
             conn, tenant_id, wkey, start_dt, end_dt, attrs_list, limit
         )
 
+        # Fallback: if weather_observations has no data for this tenant (deprecated
+        # table no longer populated by weather-worker), retry with telemetry_events
+        # which receives data via Orion-LD → NGSI-LD subscription pipeline.
+        if not col["timestamps"]:
+            logger.info(
+                "weather_fallback_to_telemetry",
+                extra={"entity_urn": entity_urn, "tenant_id": tenant_id, "weather_key": wkey},
+            )
+            # Retry with telemetry mode using entity URN as candidate
+            device_candidates = plan.get("device_candidates") or [entity_urn]
+            telemetry_attrs: Optional[List[str]] = None
+            if attrs_list:
+                resolved_attrs = []
+                for a in attrs_list:
+                    # Map weather column names back to NGSI-LD measurement keys
+                    # (weather_observations columns → telemetry_events payload.measurements keys)
+                    sk = _resolve_telemetry_measurement_key(a)
+                    if sk is None:
+                        # Reverse lookup: weather column like 'temp_avg' might map to 'temperature'
+                        rev = _TELEMETRY_MEASUREMENT_UI_ALIASES.get(a)
+                        if rev:
+                            sk = rev if rev in _telemetry_measurement_whitelist() else None
+                    if sk is None:
+                        return jsonify(
+                            {"error": f"Unknown telemetry attribute: {a}"}
+                        ), 400
+                    resolved_attrs.append(sk)
+                telemetry_attrs = list(dict.fromkeys(resolved_attrs))
+
+            telemetry_rows = _fetch_telemetry_rows(
+                conn, tenant_id, device_candidates, start_dt, end_dt, limit
+            )
+            col = _build_telemetry_columnar(telemetry_rows, telemetry_attrs)
+            # Override series_kind for the response
+            plan["mode"] = "telemetry_fallback"
+
         if want_arrow:
             if not HAS_PYARROW:
                 return jsonify({"error": "Arrow format not available"}), 503
@@ -1538,7 +1598,7 @@ def get_v2_entity_timeseries(entity_urn: str):
         return jsonify(
             {
                 "entity_urn": entity_urn,
-                "series_kind": "weather",
+                "series_kind": plan.get("mode", "weather"),
                 "timeseries_key": wkey,
                 "weather_source": plan.get("weather_source"),
                 "timestamps": col["timestamps"],
