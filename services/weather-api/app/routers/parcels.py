@@ -287,13 +287,11 @@ def get_parcel_weather(
         if wo_entity:
             # Normalize to same schema as on-the-fly response
             wo_attrs = wo_entity if isinstance(wo_entity, dict) else {}
-            temp = wo_attrs.get("temperature", {})
-            humidity = wo_attrs.get("relativeHumidity", {})
-            wind = wo_attrs.get("windSpeed", {})
-            precip = wo_attrs.get("precipitation", {})
-            pressure = wo_attrs.get("atmosphericPressure", {})
-            et0 = wo_attrs.get("et0", {})
-            delta_t = wo_attrs.get("deltaT", {})
+
+            def _attr(entity, key, default=None):
+                a = entity.get(key, {})
+                return a.get("value") if isinstance(a, dict) else (a or default)
+
             date_obs = wo_attrs.get("dateObserved", {})
 
             normalized_obs = {
@@ -302,18 +300,19 @@ def get_parcel_weather(
                     if isinstance(date_obs, dict)
                     else ""
                 ),
-                "temp_avg": temp.get("value") if isinstance(temp, dict) else None,
+                "temp_avg": _attr(wo_attrs, "temperature"),
                 "temp_max": None,
                 "temp_min": None,
-                "humidity_avg": humidity.get("value") if isinstance(humidity, dict) else None,
-                "precip_mm": precip.get("value") if isinstance(precip, dict) else None,
-                "wind_speed_ms": wind.get("value") if isinstance(wind, dict) else None,
-                "pressure_hpa": pressure.get("value") if isinstance(pressure, dict) else None,
-                "eto_mm": et0.get("value") if isinstance(et0, dict) else None,
-                "delta_t": delta_t.get("value") if isinstance(delta_t, dict) else None,
-                "source": wo_attrs.get("sourceConfidence", {}).get("value", "OPEN-METEO")
-                if isinstance(wo_attrs.get("sourceConfidence"), dict)
-                else "OPEN-METEO",
+                "humidity_avg": _attr(wo_attrs, "relativeHumidity"),
+                "precip_mm": _attr(wo_attrs, "precipitation"),
+                "wind_speed_ms": _attr(wo_attrs, "windSpeed"),       # current (latest hour mean)
+                "wind_speed_max": _attr(wo_attrs, "windSpeedMax"),   # max of hourly means today
+                "wind_gusts_ms": _attr(wo_attrs, "windGusts"),       # max gust today
+                "wind_direction_deg": _attr(wo_attrs, "windDirection"),
+                "pressure_hpa": _attr(wo_attrs, "atmosphericPressure"),
+                "eto_mm": _attr(wo_attrs, "et0"),
+                "delta_t": _attr(wo_attrs, "deltaT"),
+                "source": _attr(wo_attrs, "sourceConfidence", "OPEN-METEO"),
                 "data_type": "HISTORY",
             }
 
@@ -343,13 +342,16 @@ def get_parcel_weather(
                     "relative_humidity_2m_mean",
                     "precipitation_sum",
                     "precipitation_probability_max",
-                    "wind_speed_10m_max",
-                    "wind_direction_10m_dominant",
                     "et0_fao_evapotranspiration",
                     "shortwave_radiation_sum",
                     "soil_moisture_0_to_7cm_mean",
                     "soil_moisture_7_to_28cm_mean",
                     "surface_pressure_mean",
+                ],
+                "hourly": [
+                    "wind_speed_10m",
+                    "wind_gusts_10m",
+                    "wind_direction_10m",
                 ],
                 "timezone": "Europe/Madrid",
             },
@@ -366,6 +368,26 @@ def get_parcel_weather(
         station_elevation = raw.get("elevation", 0.0)
         daily = raw.get("daily", {})
         dates = daily.get("time", [])
+        hourly = raw.get("hourly", {})
+
+        # Pre-group hourly wind by date
+        hourly_by_date: dict = {}
+        hourly_times = hourly.get("time", [])
+        if hourly_times:
+            speeds = hourly.get("wind_speed_10m", [])
+            gusts = hourly.get("wind_gusts_10m", [])
+            dirs = hourly.get("wind_direction_10m", [])
+            for hi, ht in enumerate(hourly_times):
+                day = ht[:10]
+                if day not in hourly_by_date:
+                    hourly_by_date[day] = {"speeds": [], "gusts": [], "last_dir": None}
+                hd = hourly_by_date[day]
+                if hi < len(speeds) and speeds[hi] is not None:
+                    hd["speeds"].append(float(speeds[hi]))
+                if hi < len(gusts) and gusts[hi] is not None:
+                    hd["gusts"].append(float(gusts[hi]))
+                if hi < len(dirs) and dirs[hi] is not None:
+                    hd["last_dir"] = float(dirs[hi])
 
         # Parse Open-Meteo response to observation dicts
         observations = []
@@ -378,8 +400,6 @@ def get_parcel_weather(
                 "humidity_avg": _safe_idx(daily, "relative_humidity_2m_mean", i),
                 "precip_mm": _safe_idx(daily, "precipitation_sum", i),
                 "precip_probability": _safe_idx(daily, "precipitation_probability_max", i),
-                "wind_speed_ms": _safe_idx(daily, "wind_speed_10m_max", i),
-                "wind_direction_deg": _safe_idx(daily, "wind_direction_10m_dominant", i),
                 "pressure_hpa": _safe_idx(daily, "surface_pressure_mean", i),
                 "eto_mm": _safe_idx(daily, "et0_fao_evapotranspiration", i),
                 "solar_rad_w_m2": _div_if(
@@ -392,6 +412,18 @@ def get_parcel_weather(
                     daily, "soil_moisture_7_to_28cm_mean", i
                 ),
             }
+
+            # Hourly wind — km/h → m/s
+            hday = hourly_by_date.get(date_str, {})
+            hspeeds = hday.get("speeds", [])
+            hgusts = hday.get("gusts", [])
+            if hspeeds:
+                obs["wind_speed_ms"] = round(hspeeds[-1] / 3.6, 1)     # current
+                obs["wind_speed_max"] = round(max(hspeeds) / 3.6, 1)   # max today
+                obs["wind_direction_deg"] = hday.get("last_dir")
+            if hgusts:
+                obs["wind_gusts_ms"] = round(max(hgusts) / 3.6, 1)
+
             observations.append(obs)
 
         if not observations:
@@ -948,7 +980,10 @@ def get_parcel_forecast(
                     "precip_probability": _safe_idx(
                         daily, "precipitation_probability_max", i
                     ),
-                    "wind_speed_ms": _safe_idx(daily, "wind_speed_10m_max", i),
+                    # Open-Meteo returns wind_speed_10m_max in km/h — convert to m/s
+                    "wind_speed_ms": _div_if(
+                        _safe_idx(daily, "wind_speed_10m_max", i), 3.6
+                    ),
                     "wind_direction_deg": _safe_idx(
                         daily, "wind_direction_10m_dominant", i
                     ),
