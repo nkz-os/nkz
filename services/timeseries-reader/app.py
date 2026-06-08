@@ -167,6 +167,7 @@ _TELEMETRY_MEASUREMENT_UI_ALIASES: Dict[str, str] = {
     "soil_moisture_0_10cm": "soilMoisture",
     "soil_moisture_10_40cm": "soilMoisture",
     "gdd_accumulated": "gddAccumulated",
+    "delta_t": "deltaT",
 }
 
 
