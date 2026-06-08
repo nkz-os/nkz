@@ -18,7 +18,8 @@ type Semaphore =
   | 'satisfied'
   | 'alert'
   | 'deficit'
-  | 'unknown';
+  | 'unknown'
+  | 'no_data';
 
 const statusLabel = (type: 'spraying' | 'workability' | 'irrigation', value: Semaphore) => {
   const map: Record<typeof type, Record<Semaphore, string>> = {
@@ -32,6 +33,7 @@ const statusLabel = (type: 'spraying' | 'workability' | 'irrigation', value: Sem
       alert: 'No aplica',
       deficit: 'No aplica',
       unknown: 'Sin datos',
+      no_data: 'Sin datos climatológicos',
     },
     workability: {
       optimal: 'Suelo en buen tempero',
@@ -43,6 +45,7 @@ const statusLabel = (type: 'spraying' | 'workability' | 'irrigation', value: Sem
       alert: 'No aplica',
       deficit: 'No aplica',
       unknown: 'Sin datos',
+      no_data: 'Sin datos climatológicos',
     },
     irrigation: {
       satisfied: 'Riego satisfecho',
@@ -54,6 +57,7 @@ const statusLabel = (type: 'spraying' | 'workability' | 'irrigation', value: Sem
       too_wet: 'Alerta: vigilar',
       too_dry: 'Déficit hídrico',
       unknown: 'Sin datos',
+      no_data: 'Sin datos climatológicos',
     },
   };
   return map[type][value] || 'Sin datos';
