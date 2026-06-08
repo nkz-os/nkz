@@ -97,7 +97,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   const effectiveMunicipalityCode = municipalityCode || homeLocation?.municipalityCode;
   const effectiveParcelId = parcelId || localParcelId;
 
-  // Fetch parcels on mount
+  // Fetch parcels on mount + auto-select first if none selected
   useEffect(() => {
     let cancelled = false;
     const loadParcels = async () => {
@@ -122,6 +122,18 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     loadParcels();
     return () => { cancelled = true; };
   }, []);
+
+  // Auto-select first parcel if none selected and parcels are loaded
+  useEffect(() => {
+    if (parcels.length > 0 && !parcelId && !localParcelId) {
+      const first = parcels[0];
+      setLocalParcelId(first.id);
+      setLocalParcelName(first.name);
+      if (onParcelSelect) {
+        onParcelSelect(first.id, first.name);
+      }
+    }
+  }, [parcels, parcelId, localParcelId, onParcelSelect]);
 
   // Load weather data (parcel priority > municipality)
   useEffect(() => {
