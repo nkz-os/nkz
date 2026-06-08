@@ -234,13 +234,18 @@ class ParcelWeatherEngine:
         Falls back to elevation service if no altitude stored in entity.
         Returns (None, 0.0) if location is unresolvable.
         """
-        # Altitude from entity
+        # Altitude from entity (already stored during parcel creation from
+        # IGN layers or user input). No fallback to external elevation APIs
+        # — the eu-elevation module is optional and should not be required
+        # for basic weather ingestion.
         altitude = 0.0
+        has_explicit_elevation = False
         elev = parcel.get("elevation", {})
         elev_value = elev.get("value", 0) if isinstance(elev, dict) else 0
         if elev_value:
             try:
                 altitude = float(elev_value)
+                has_explicit_elevation = True
             except (ValueError, TypeError):
                 altitude = 0.0
 
@@ -269,15 +274,14 @@ class ParcelWeatherEngine:
             except Exception as e:
                 logger.warning(f"Error computing centroid: {e}")
 
-        # Fallback: query elevation service if no altitude stored in entity
-        if altitude == 0.0 and centroid is not None:
+        # Optional: query elevation service only if explicitly configured.
+        # Core parcels should store elevation in the entity (from IGN, user
+        # input, or terrain layers). Open-Meteo works fine without altitude.
+        elev_service_url = os.getenv("ELEVATION_SERVICE_URL", "").strip()
+        if not has_explicit_elevation and elev_service_url and centroid is not None:
             try:
-                elev_url = os.getenv(
-                    "ELEVATION_SERVICE_URL",
-                    "http://elevation-api-service:80/api/elevation"
-                )
                 resp = requests.get(
-                    f"{elev_url}/point",
+                    f"{elev_service_url}/point",
                     params={"lat": centroid[1], "lon": centroid[0], "purpose": "weather"},
                     timeout=10,
                 )
