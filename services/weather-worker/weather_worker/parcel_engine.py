@@ -396,11 +396,11 @@ class ParcelWeatherEngine:
                     "type": "Property", "value": aspect_deg, "unitCode": "DD"
                 }
 
-            resp = requests.patch(
-                f"{self.orion_url}/ngsi-ld/v1/entities/{parcel_id}/attrs",
-                headers=hdrs, json=body, timeout=5,
+            resp = requests.post(
+                f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert",
+                headers=hdrs, json=[body], timeout=5,
             )
-            if resp.status_code not in (200, 204):
+            if resp.status_code not in (200, 201, 204):
                 logger.debug(f"Terrain persist: {resp.status_code} {resp.text[:200]}")
         except Exception as e:
             logger.debug(f"Terrain persist failed: {e}")
