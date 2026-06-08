@@ -82,18 +82,64 @@ class ParcelWeatherEngine:
             )
         return headers
 
+    def _discover_tenants_from_db(self) -> List[str]:
+        """Discover active tenants from the admin platform database.
+
+        Queries tenant_limits for all tenants that have been active.
+        Uses POSTGRES_URL or individual POSTGRES_* env vars.
+        """
+        try:
+            postgres_url = os.getenv("POSTGRES_URL", "").strip()
+            if not postgres_url:
+                host = os.getenv("POSTGRES_HOST", "postgresql-service")
+                port = os.getenv("POSTGRES_PORT", "5432")
+                db = os.getenv("POSTGRES_DB", "nekazari")
+                user = os.getenv("POSTGRES_USER", "postgres")
+                password = os.getenv("POSTGRES_PASSWORD", "")
+                if not password:
+                    logger.debug("POSTGRES_PASSWORD not set, skipping DB tenant discovery")
+                    return []
+                postgres_url = f"postgresql://{user}:{password}@{host}:{port}/{db}"
+            import psycopg2
+            conn = psycopg2.connect(postgres_url)
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT DISTINCT tenant_id FROM tenant_limits "
+                    "WHERE tenant_id IS NOT NULL AND tenant_id != '' "
+                    "ORDER BY tenant_id"
+                )
+                tenants = [row[0] for row in cur.fetchall()]
+                cur.close()
+                if tenants:
+                    logger.info(
+                        f"Discovered {len(tenants)} tenants from DB: {tenants}"
+                    )
+                return tenants
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Could not discover tenants from DB: {e}")
+            return []
+
     def _get_active_tenants(self) -> List[str]:
         """Get all active tenant IDs.
 
         Priority:
         1. PARCEL_ENGINE_TENANTS env var (comma-separated)
-        2. Discover from Orion-LD by listing entity types per tenant scope
-        3. Fallback to ['default']
+        2. Discover from admin platform DB (tenant_limits table)
+        3. Discover from Orion-LD by listing entity types per tenant scope
+        4. Fallback to ['default']
         """
         # Priority 1: explicit env var
         env_tenants = os.getenv("PARCEL_ENGINE_TENANTS", "").strip()
         if env_tenants:
             return [t.strip() for t in env_tenants.split(",") if t.strip()]
+
+        # Priority 2: discover from admin platform DB
+        db_tenants = self._discover_tenants_from_db()
+        if db_tenants:
+            return db_tenants
 
         # Priority 2: discover from Orion-LD by querying without tenant scope
         # (returns entities regardless of tenant)
