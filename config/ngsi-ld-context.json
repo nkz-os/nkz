@@ -23,9 +23,9 @@
       "_comment": "Platform extension — SAREF4AGRI has no AgriSensor class (only specific sensor types like Pluviometer, Thermometer). Legacy mapping: saref4agri:AgriSensor."
     },
     "AgriParcel": {
-      "@id": "nkz:AgriParcel",
+      "@id": "https://saref.etsi.org/saref4agri/AgriParcel",
       "@type": "@id",
-      "_comment": "Platform extension — SAREF4AGRI uses s4agri:Parcel, not AgriParcel. Legacy mapping: saref4agri:AgriParcel."
+      "_comment": "SAREF4AGRI AgriParcel — canonical type used by GIS-Routing for parcel creation. Legacy mapping: nkz:AgriParcel."
     },
     "AgriOperation": {
       "@id": "nkz:AgriOperation",
