@@ -72,6 +72,11 @@
       "@type": "@id",
       "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:VegetationIndex."
     },
+    "EOProduct": {
+      "@id": "https://smart-data-models.github.io/dataModel.SatelliteImagery/EOProduct/schema.json",
+      "@type": "@id",
+      "_comment": "FIWARE Smart Data Model — Earth Observation product (Sentinel-1 GRD, Sentinel-2 NDVI, etc.). Properties: productType, hasAgriParcel, backscatterVV, backscatterVH, ndviValue, dateObserved."
+    },
     "LivestockAnimal": {
       "@id": "nkz:LivestockAnimal",
       "@type": "@id",
