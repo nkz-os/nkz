@@ -1,0 +1,35 @@
+{
+  "name": "@nekazari/cli",
+  "version": "0.2.0",
+  "description": "Nekazari Platform CLI — module development toolkit",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "nkz": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "zod": "^3.23.0",
+    "chalk": "^5.3.0",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "@types/prompts": "^2.4.9",
+    "typescript": "^5.5.0"
+  }
+}

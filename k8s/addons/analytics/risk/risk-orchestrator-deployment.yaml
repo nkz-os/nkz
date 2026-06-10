@@ -1,0 +1,122 @@
+# =============================================================================
+# Risk Orchestrator Deployment
+# =============================================================================
+# Consumes risk events from Redis Streams and updates Orion-LD
+# Runs continuously as a service
+# Publishes risk states to NGSI-LD context broker
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risk-orchestrator
+  namespace: nekazari
+  labels:
+    app: risk-orchestrator
+    component: risk-management
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: risk-orchestrator
+  template:
+    metadata:
+      labels:
+        app: risk-orchestrator
+        component: risk-management
+    spec:
+      serviceAccountName: risk-orchestrator-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: risk-orchestrator
+        image: ghcr.io/nkz-os/nkz/risk-orchestrator@sha256:c5fe79405730c9ddf214fcb70e51a0c3742d0f9665296cea79c32c2373a30bb6
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+        env:
+        # Orion-LD Configuration
+        - name: ORION_URL
+          value: "http://orion-ld-service:1026"
+        - name: CONTEXT_URL
+          value: "http://api-gateway-service:5000/ngsi-ld-context.json"
+        # Redis Configuration (for event streaming)
+        - name: REDIS_URL
+          value: "redis://redis-service:6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: password
+              optional: true
+        # Stream Configuration
+        - name: REDIS_STREAM_NAME
+          value: "risk_events"
+        - name: REDIS_CONSUMER_GROUP
+          value: "risk_orchestrator"
+        # Worker Configuration
+        - name: HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: LOG_LEVEL
+          value: "INFO"
+        # PostgreSQL Configuration (for webhook dispatch)
+        - name: POSTGRES_HOST
+          value: "postgresql-service"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: "nekazari"
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          exec:
+            command:
+              - pgrep
+              - -f
+              - "risk_orchestrator.py"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+              - pgrep
+              - -f
+              - "risk_orchestrator.py"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+      restartPolicy: Always
+
+---
+# ServiceAccount for Risk Orchestrator
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: risk-orchestrator-sa
+  namespace: nekazari
+  labels:
+    app: risk-orchestrator
+

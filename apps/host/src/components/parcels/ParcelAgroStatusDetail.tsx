@@ -1,0 +1,254 @@
+import React, { useEffect, useState } from 'react';
+import { Wind, Droplets, Thermometer, Radio, Cloud, AlertCircle, Loader2, Sprout } from 'lucide-react';
+import api, { type AgroStatusResponse } from '@/services/api';
+import { logger } from '@/utils/logger';
+import { safeFixed } from '@/utils/format';
+
+
+interface ParcelAgroStatusDetailProps {
+  parcelId: string;
+}
+
+type Semaphore =
+  | 'optimal'
+  | 'caution'
+  | 'not_suitable'
+  | 'too_wet'
+  | 'too_dry'
+  | 'satisfied'
+  | 'alert'
+  | 'deficit'
+  | 'unknown'
+  | 'no_data';
+
+const statusLabel = (type: 'spraying' | 'workability' | 'irrigation', value: Semaphore) => {
+  const map: Record<typeof type, Record<Semaphore, string>> = {
+    spraying: {
+      optimal: 'Óptimo para pulverizar',
+      caution: 'Precaución: condiciones límite',
+      not_suitable: 'No recomendado',
+      too_wet: 'No aplica',
+      too_dry: 'No aplica',
+      satisfied: 'No aplica',
+      alert: 'No aplica',
+      deficit: 'No aplica',
+      unknown: 'Sin datos',
+      no_data: 'Sin datos climatológicos',
+    },
+    workability: {
+      optimal: 'Suelo en buen tempero',
+      too_wet: 'Suelo demasiado húmedo',
+      too_dry: 'Suelo demasiado seco',
+      caution: 'Precaución',
+      not_suitable: 'No aplica',
+      satisfied: 'No aplica',
+      alert: 'No aplica',
+      deficit: 'No aplica',
+      unknown: 'Sin datos',
+      no_data: 'Sin datos climatológicos',
+    },
+    irrigation: {
+      satisfied: 'Riego satisfecho',
+      alert: 'Alerta: vigilar',
+      deficit: 'Déficit hídrico',
+      optimal: 'Riego satisfecho',
+      caution: 'Alerta: vigilar',
+      not_suitable: 'Déficit hídrico',
+      too_wet: 'Alerta: vigilar',
+      too_dry: 'Déficit hídrico',
+      unknown: 'Sin datos',
+      no_data: 'Sin datos climatológicos',
+    },
+  };
+  return map[type][value] || 'Sin datos';
+};
+
+const badgeColor = (value: Semaphore) => {
+  switch (value) {
+    case 'optimal':
+    case 'satisfied':
+      return 'bg-nkz-success-light text-nkz-success border-green-200';
+    case 'caution':
+    case 'alert':
+      return 'bg-nkz-warning-light text-nkz-warning border-yellow-200';
+    case 'not_suitable':
+    case 'too_wet':
+    case 'too_dry':
+    case 'deficit':
+      return 'bg-nkz-error-light text-nkz-error border-red-200';
+    default:
+      return 'bg-nkz-bg-secondary text-gray-600 border-nkz-border';
+  }
+};
+
+export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ parcelId }) => {
+  const [status, setStatus] = useState<AgroStatusResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!parcelId) return;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const resp = await api.getParcelAgroStatus(parcelId);
+        setStatus(resp);
+      } catch (err: any) {
+        logger.error('Error loading parcel agro status:', err);
+        setError(
+          err?.response?.data?.error ||
+            err?.message ||
+            'No se pudo cargar el estado agronómico de la parcela'
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [parcelId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-nkz-muted text-sm">
+        <Loader2 className="w-4 h-4 animate-spin" />
+        Cargando estado agronómico...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-nkz-error bg-nkz-error-light border border-red-200 rounded px-3 py-2">
+        <AlertCircle className="w-4 h-4" />
+        <span>{error}</span>
+      </div>
+    );
+  }
+
+  if (!status) {
+    return (
+      <div className="text-sm text-nkz-muted bg-nkz-bg-secondary border border-nkz-border rounded px-3 py-2">
+        Sin datos agronómicos para esta parcela.
+      </div>
+    );
+  }
+
+  const { semaphores, source_confidence, metrics } = status;
+
+  const detailRow = (
+    title: string,
+    label: string,
+    icon: React.ReactNode,
+    badgeClass: string,
+    extra?: string
+  ) => (
+    <div className="flex items-start gap-3">
+      <div className={`w-9 h-9 rounded-full border flex items-center justify-center ${badgeClass}`}>
+        {icon}
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-gray-900">{title}</p>
+        <p className="text-sm text-gray-700">{label}</p>
+        {extra && <p className="text-xs text-nkz-muted mt-1">{extra}</p>}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="bg-gradient-to-br from-green-50 to-blue-50 border border-nkz-border rounded-lg p-5 space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-base font-bold text-gray-900 flex items-center gap-2">
+          <Sprout className="w-5 h-5 text-nkz-success" />
+          Condiciones agronómicas
+        </h4>
+        <div
+          className="flex items-center gap-1 text-xs text-gray-600 bg-white/80 px-2 py-1 rounded-full"
+          title={source_confidence === 'SENSOR_REAL' ? 'Datos de sensor real' : 'Datos de modelo meteorológico'}
+        >
+          {source_confidence === 'SENSOR_REAL' ? (
+            <>
+              <Radio className="w-3 h-3 text-nkz-info" />
+              <span>Sensor</span>
+            </>
+          ) : (
+            <>
+              <Cloud className="w-3 h-3 text-nkz-muted" />
+              <span>Modelo</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded metrics grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        {detailRow(
+          'Pulverización',
+          statusLabel('spraying', semaphores.spraying),
+          <Wind className="w-5 h-5" />,
+          badgeColor(semaphores.spraying),
+          metrics?.delta_t != null ? `ΔT: ${safeFixed(metrics.delta_t, 1)}°C` : undefined
+        )}
+
+        {detailRow(
+          'Tempero',
+          statusLabel('workability', semaphores.workability),
+          <Droplets className="w-5 h-5" />,
+          badgeColor(semaphores.workability),
+          metrics?.moisture != null ? `Humedad suelo: ${safeFixed(metrics.moisture, 1)}%` : undefined
+        )}
+
+        {detailRow(
+          'Riego',
+          statusLabel('irrigation', semaphores.irrigation),
+          <Thermometer className="w-5 h-5" />,
+          badgeColor(semaphores.irrigation),
+          metrics?.water_balance != null
+            ? `Balance hídrico 3 días: ${metrics.water_balance > 0 ? '+' : ''}${safeFixed(metrics.water_balance)} mm`
+            : undefined
+        )}
+      </div>
+
+      {/* Detailed metrics section */}
+      {(metrics?.temperature != null || metrics?.humidity != null || metrics?.delta_t != null || metrics?.water_balance != null) && (
+        <div className="bg-white/60 rounded-lg p-3 border border-nkz-border">
+          <p className="text-xs font-semibold text-gray-700 mb-2">Métricas detalladas</p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            {metrics?.temperature != null && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Temperatura:</span>
+                <span className="font-semibold text-gray-900">{safeFixed(metrics.temperature, 1)}°C</span>
+              </div>
+            )}
+            {metrics?.humidity != null && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Humedad:</span>
+                <span className="font-semibold text-gray-900">{safeFixed(metrics.humidity, 0)}%</span>
+              </div>
+            )}
+            {metrics?.delta_t != null && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Delta T:</span>
+                <span className="font-semibold text-gray-900">{safeFixed(metrics.delta_t, 1)}°C</span>
+              </div>
+            )}
+            {metrics?.water_balance != null && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Balance hídrico:</span>
+                <span className={`font-semibold ${metrics.water_balance >= 0 ? 'text-nkz-success' : 'text-nkz-error'}`}>
+                  {metrics.water_balance > 0 ? '+' : ''}{safeFixed(metrics.water_balance)} mm
+                </span>
+              </div>
+            )}
+          </div>
+          {status.timestamp && (
+            <p className="text-xs text-nkz-muted mt-2 text-right">
+              Actualizado: {new Date(status.timestamp).toLocaleString('es-ES')}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+

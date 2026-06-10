@@ -1,0 +1,22 @@
+{
+  "entities": "Entidades",
+  "control_center": "Centro de control",
+  "robots": "Robots",
+  "sensors": "Sensores",
+  "parcels": "Parcelas",
+  "analytics": "Analíticas",
+  "settings": "Configuración",
+  "admin": "Administración",
+  "map3d": "Mapa 3D",
+  "ndvi": "NDVI",
+  "admin_badge": "Admin",
+  "weather": "Meteorología",
+  "simulation": "Simulación",
+  "risks": "Riesgos",
+  "alerts": "Alertas",
+  "modules": "Módulos",
+  "manage_modules": "Gestionar módulos",
+  "section_core": "Principal",
+  "section_modules": "Módulos",
+  "section_admin": "Administración"
+}

@@ -1,0 +1,332 @@
+// =============================================================================
+// Slot Renderer - Dynamic Widget Rendering
+// =============================================================================
+// Renders widgets registered for a specific slot in the Unified Viewer.
+// Local widgets render their bundled component directly. Remote widgets
+// resolve via the Module Federation runtime: loadRemote('<alias>/Module')
+// returns the module's defineModule(...) result, from which we extract the
+// requested widget by id.
+
+import React, { Suspense, useMemo, useState, useEffect } from 'react';
+import { loadRemote } from '@module-federation/runtime';
+import { toNKZRegistration, NKZProvider } from '@nekazari/module-kit';
+import { useSlotRegistryOptional } from '@/context/SlotRegistry';
+import { useAuth } from '@/context/KeycloakAuthContext';
+import type { SlotType, SlotWidgetDefinition } from '@nekazari/sdk';
+import { useModules, ModuleDefinition } from '@/context/ModuleContext';
+import { Loader2 } from 'lucide-react';
+import { ModuleErrorBoundary } from './ModuleErrorBoundary';
+import { logger } from '@/utils/logger';
+
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface SlotRendererProps {
+    /** Which slot to render */
+    slot: SlotType;
+    /** Optional className for the container */
+    className?: string;
+    /** If true, renders widgets inline without a wrapper */
+    inline?: boolean;
+    /** Additional props passed to all widgets */
+    additionalProps?: Record<string, any>;
+    /** Optional keys to trigger error boundary reset */
+    resetKeys?: any[];
+}
+
+/** Loading fallback for lazy-loaded widgets */
+const WidgetLoadingFallback: React.FC = () => (
+    <div className="flex items-center justify-center p-4">
+        <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+    </div>
+);
+
+// Error boundary moved to ModuleErrorBoundary.tsx for better isolation
+
+/** 
+ * Get module ID from a widget definition.
+ * 
+ * Priority:
+ * 1. Use widget.moduleId if explicitly set (recommended for all modules)
+ * 2. Fallback: Infer from widget ID pattern (legacy support)
+ * 
+ * The fallback uses these rules:
+ * - Known single-word modules (core, weather, etc): use first segment
+ * - Compound modules (vegetation-prime): use first two segments
+ */
+const getModuleIdFromWidget = (widget: SlotWidgetDefinition): string => {
+    // Prefer explicit moduleId (professional approach)
+    if (widget.moduleId) {
+        return widget.moduleId;
+    }
+
+    // Legacy fallback: infer from widget ID
+    const widgetId = widget.id;
+    const parts = widgetId.split('-');
+    if (parts.length >= 2) {
+        // Known single-word module prefixes (local/bundled modules and external single-word modules)
+        const singleWordModules = ['core', 'weather', 'risk', 'parcels', 'intelligence', 'ornito', 'lidar'];
+        if (singleWordModules.includes(parts[0])) {
+            return parts[0];
+        }
+        // For external modules, use compound ID (first two parts)
+        // e.g., 'vegetation-prime-config' -> 'vegetation-prime'
+        if (parts.length >= 3) {
+            const compoundId = `${parts[0]}-${parts[1]}`;
+            return compoundId;
+        }
+        // Fallback to first part
+        return parts[0];
+    }
+    return 'unknown';
+};
+
+/** Get module display name from widget */
+const getModuleNameFromWidget = (widget: SlotWidgetDefinition): string => {
+    const moduleId = getModuleIdFromWidget(widget);
+    const moduleNames: Record<string, string> = {
+        'core': 'Core',
+    };
+    return moduleNames[moduleId] || moduleId;
+};
+
+/**
+ * Loads a slot widget from a federated remote. Calls loadRemote('<alias>/Module')
+ * to retrieve the module's defineModule result, runs toNKZRegistration to
+ * materialize component refs, then locates the widget by id within its slot.
+ */
+const RemoteSlotWidget: React.FC<{
+    module: ModuleDefinition;
+    widget: SlotWidgetDefinition;
+    widgetProps: Record<string, any>;
+    slot: SlotType;
+    moduleId: string;
+    moduleName: string;
+    resetKeys?: any[];
+}> = ({ module, widget, widgetProps, slot, moduleId, moduleName, resetKeys }) => {
+    const [Component, setComponent] = useState<React.ComponentType<any> | null>(null);
+    const [error, setError] = useState<Error | null>(null);
+    const { aliasFor, applyModuleRegistration } = useModules();
+
+    useEffect(() => {
+        let cancelled = false;
+        const alias = aliasFor(module.id);
+
+        loadRemote<{ default?: unknown }>(`${alias}/Module`)
+            .then((exposed) => {
+                if (!exposed) throw new Error(`loadRemote returned null for "${alias}/Module"`);
+                const moduleDef = (exposed as { default?: unknown }).default ?? exposed;
+                if (!moduleDef || typeof moduleDef !== 'object') {
+                    throw new Error(`Module "${module.id}" did not default-export a defineModule result`);
+                }
+                const registration = toNKZRegistration(
+                    moduleDef as Parameters<typeof toNKZRegistration>[0],
+                );
+                applyModuleRegistration(module.id, registration);
+                const slotWidgets = registration.viewerSlots?.[slot];
+                const match = slotWidgets?.find((w: { id: string }) => w.id === widget.id);
+                const Comp = match?.localComponent as React.ComponentType<any> | undefined;
+                if (!Comp) {
+                    throw new Error(
+                        `Widget "${widget.id}" not found in slot "${slot}" of module "${module.id}"`,
+                    );
+                }
+                if (!cancelled) setComponent(() => Comp);
+            })
+            .catch((err) => {
+                if (!cancelled) setError(err instanceof Error ? err : new Error(String(err)));
+            });
+        return () => { cancelled = true; };
+    }, [module.id, slot, widget.id, aliasFor, applyModuleRegistration]);
+
+    if (error) {
+        return (
+            <ModuleErrorBoundary moduleId={moduleId} moduleName={moduleName}>
+                <div className="p-3 bg-nkz-error-light border border-red-200 rounded-lg text-sm text-nkz-error">
+                    Failed to load {widget.component}: {error.message}
+                </div>
+            </ModuleErrorBoundary>
+        );
+    }
+    if (!Component) {
+        return <WidgetLoadingFallback />;
+    }
+    return (
+        <ModuleErrorBoundary
+            moduleId={moduleId}
+            moduleName={moduleName}
+            resetKeys={resetKeys}
+            onError={(e, info) => logger.error(`[SlotRenderer] Remote widget ${widget.id} failed:`, e, info)}
+        >
+            <Suspense fallback={<WidgetLoadingFallback />}>
+                <Component {...widgetProps} />
+            </Suspense>
+        </ModuleErrorBoundary>
+    );
+};
+
+/** Renders a single widget with error boundary and lazy loading */
+const WidgetRenderer: React.FC<{
+    widget: SlotWidgetDefinition;
+    slot: SlotType;
+    module?: ModuleDefinition | null;
+    additionalProps?: Record<string, any>;
+    resetKeys?: any[];
+}> = ({ widget, slot, module, additionalProps, resetKeys }) => {
+    const moduleId = useMemo(() => getModuleIdFromWidget(widget), [widget]);
+    const moduleName = useMemo(() => getModuleNameFromWidget(widget), [widget]);
+
+    // Combine props - don't pass viewer context here, let components use useViewer() directly
+    // This avoids the issue of SlotRenderer needing ViewerProvider
+    const widgetProps = {
+        ...widget.defaultProps,
+        ...additionalProps,
+    };
+
+    // If it's a local component (bundled), render it with error boundary
+    if (widget.localComponent) {
+        const Component = widget.localComponent;
+        return (
+            <ModuleErrorBoundary
+                moduleId={moduleId}
+                moduleName={moduleName}
+                resetKeys={resetKeys}
+                onError={(error, errorInfo) => {
+                    logger.error(`[WidgetRenderer] Widget ${widget.id} failed:`, error, errorInfo);
+                }}
+            >
+                <Suspense fallback={<WidgetLoadingFallback />}>
+                    <Component {...widgetProps} />
+                </Suspense>
+            </ModuleErrorBoundary>
+        );
+    }
+
+    // Remote module: localComponent was not yet hydrated by RemoteModuleLoader.
+    // Load the federated module on demand and pull the widget by id.
+    if (module?.remoteEntry && widget.component) {
+        return (
+            <RemoteSlotWidget
+                module={module}
+                widget={widget}
+                widgetProps={widgetProps}
+                slot={slot}
+                moduleId={moduleId}
+                moduleName={moduleName}
+                resetKeys={resetKeys}
+            />
+        );
+    }
+
+    return (
+        <ModuleErrorBoundary moduleId={moduleId} moduleName={moduleName}>
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                Remote widget: {widget.component} (module or component name missing)
+            </div>
+        </ModuleErrorBoundary>
+    );
+};
+
+export const SlotRenderer: React.FC<SlotRendererProps> = ({
+    slot,
+    className,
+    inline = false,
+    additionalProps,
+    resetKeys,
+}) => {
+    const slotRegistry = useSlotRegistryOptional();
+    const { modules } = useModules();
+    const { tenantProfile } = useAuth();
+    const tenantPlan = tenantProfile?.plan_type as any;
+
+    const widgets = slotRegistry ? slotRegistry.getVisibleWidgets(slot) : [];
+
+    // Group widgets by module (hook must run before any early return)
+    const widgetsByModule = useMemo(() => {
+        const grouped = new Map<string, {
+            widgets: SlotWidgetDefinition[];
+            moduleId: string;
+            module?: ModuleDefinition | null;
+            moduleProvider?: React.ComponentType<{ children: React.ReactNode }>;
+        }>();
+
+        widgets.forEach(widget => {
+            const moduleId = getModuleIdFromWidget(widget);
+            const module = modules.find(m => m.id === moduleId);
+            const moduleProvider = module && !module.isLocal && module.remoteEntry
+                ? module.viewerSlots?.moduleProvider
+                : undefined;
+
+            if (!grouped.has(moduleId)) {
+                grouped.set(moduleId, {
+                    widgets: [],
+                    moduleId,
+                    module,
+                    moduleProvider,
+                });
+            }
+
+            grouped.get(moduleId)!.widgets.push(widget);
+        });
+
+        return Array.from(grouped.values());
+    }, [widgets, modules]);
+
+    if (!slotRegistry || widgets.length === 0) {
+        return null;
+    }
+
+    // Render widgets grouped by module, with shared provider when needed
+    const content = widgetsByModule.map(({ widgets: moduleWidgets, moduleId, module, moduleProvider }) => {
+        const widgetsContent = moduleWidgets.map(widget => (
+            <WidgetRenderer
+                key={widget.id}
+                widget={widget}
+                slot={slot}
+                module={module}
+                additionalProps={additionalProps}
+                resetKeys={resetKeys}
+            />
+        ));
+
+        let contentToWrap = (
+            <React.Fragment key={`frag-${moduleId}`}>
+                {widgetsContent}
+            </React.Fragment>
+        );
+
+        // If module has a provider (remote modules), wrap all widgets from that module
+        // with a SINGLE instance of the provider to avoid state synchronization issues
+        if (moduleProvider) {
+            const ModuleProvider = moduleProvider;
+            contentToWrap = (
+                <ModuleProvider key={`prov-${moduleId}`}>
+                    {widgetsContent}
+                </ModuleProvider>
+            );
+        }
+
+        return (
+            <NKZProvider
+                key={moduleId}
+                moduleId={moduleId}
+                apiBasePath={module?.api?.basePath}
+                queryClient={module?.queryClient}
+                tenantPlan={tenantPlan}
+            >
+                {contentToWrap}
+            </NKZProvider>
+        );
+    });
+
+    if (inline) {
+        return <>{content}</>;
+    }
+
+    return (
+        <div className={className}>
+            {content}
+        </div>
+    );
+};
+
+export default SlotRenderer;

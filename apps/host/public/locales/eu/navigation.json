@@ -1,0 +1,22 @@
+{
+  "entities": "Entitateak",
+  "control_center": "Kontrol zentroa",
+  "robots": "Robotak",
+  "sensors": "Sentsoreak",
+  "parcels": "Lursailak",
+  "analytics": "Analitikak",
+  "settings": "Ezarpenak",
+  "admin": "Administrazioa",
+  "map3d": "3D Mapa",
+  "ndvi": "NDVI",
+  "admin_badge": "Admin",
+  "weather": "Eguraldia",
+  "simulation": "Simulazioa",
+  "risks": "Arriskuak",
+  "alerts": "Alertak",
+  "modules": "Moduluak",
+  "manage_modules": "Moduluak kudeatu",
+  "section_core": "Nagusia",
+  "section_modules": "Moduluak",
+  "section_admin": "Administrazioa"
+}

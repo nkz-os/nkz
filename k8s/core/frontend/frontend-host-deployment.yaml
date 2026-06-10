@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-host
+  namespace: nekazari
+  labels:
+    app: frontend-host
+    layer: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend-host
+  template:
+    metadata:
+      labels:
+        app: frontend-host
+    spec:
+      containers:
+      - name: host
+        # WARNING: Pin by SHA in production overlays, never :latest.
+        # Rolling update with hashed assets causes 404s when old/new pods coexist.
+        # See incident 2026-05-26: :latest caused complete landing page outage.
+        image: ghcr.io/nkz-os/nkz/host:latest  # DEV ONLY — override in production
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: COMPANY_URL
+          value: "https://YOUR_DOMAIN"
+        - name: COMPANY_NAME
+          value: "Example Corp."
+        - name: SUPPORT_EMAIL
+          value: "kate@example.com"
+        - name: SALES_EMAIL
+          value: "kate@example.com"
+        - name: PARTNERS_JSON
+          value: '[{"name":"Example Corp.","url":"https://YOUR_DOMAIN/","logo":"/modules/assets/logo-robotika.svg"},{"name":"Biosasun","url":"https://biosasun.eu/","logo":"/modules/assets/logo-biosasun.png"},{"name":"Allotarra","url":"https://allotarra.eu/","logo":"/modules/assets/logo-allotarra.webp"},{"name":"Artotxiki","url":"https://artotxiki.com/","logo":"/modules/assets/logo-artotxiki.png"}]'
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "300m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-host-service
+  namespace: nekazari
+spec:
+  selector:
+    app: frontend-host
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80

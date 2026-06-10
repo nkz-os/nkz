@@ -1,0 +1,140 @@
+name: Tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  frontend-tests:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+    env:
+      # GitHub Actions: opt into Node 24 for JS actions before the 2026-06 default (deprecation of Node 20 runtime).
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    defaults:
+      run:
+        working-directory: apps/host
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Build internal packages (design order)
+        run: |
+          pnpm --filter @nekazari/design-tokens build
+          pnpm --filter @nekazari/ui-kit build
+          pnpm --filter @nekazari/viewer-kit build
+          pnpm --filter @nekazari/sdk build
+          pnpm --filter @nekazari/module-kit build
+        working-directory: .
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: TypeScript check
+        run: pnpm typecheck
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Run tests with coverage
+        run: pnpm test:coverage
+
+  backend-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: |
+          pip install -r requirements-test.txt
+          pip install -r api-gateway/requirements.txt
+          pip install -r common/requirements.txt 2>/dev/null || true
+
+      - name: Run pytest
+        run: pytest tests/ -v --tb=short
+
+      - name: tenant_utils.py byte-equality
+        # tenant-user-api ships its own copy of services/common/tenant_utils.py
+        # because the Dockerfile only COPYs services/tenant-user-api/. The two
+        # MUST stay byte-identical so the canonical tenant_id contract is the
+        # same on both sides of the API gateway. Sync any change to
+        # services/common/tenant_utils.py into the tenant-user-api copy.
+        run: |
+          if ! diff -q common/tenant_utils.py tenant-user-api/common/tenant_utils.py; then
+            echo "ERROR: services/common/tenant_utils.py and services/tenant-user-api/common/tenant_utils.py have drifted."
+            echo "       Run: cp services/common/tenant_utils.py services/tenant-user-api/common/tenant_utils.py"
+            diff common/tenant_utils.py tenant-user-api/common/tenant_utils.py || true
+            exit 1
+          fi
+
+  production-domain-check:
+    name: Production Domain Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Check for new production domain references
+        run: |
+          set +e
+          BASE="${GITHUB_BASE_REF:-main}"
+          if ! git fetch origin "$BASE" --depth=1 2>/dev/null; then
+            if ! git fetch origin main --depth=1 2>/dev/null; then
+              echo "Could not fetch base branch; skipping check."
+              exit 0
+            fi
+            BASE="main"
+          fi
+          DIFF=$(git diff "origin/$BASE...HEAD" -- \
+            ':(exclude)*.md' \
+            ':(exclude)*.svg' \
+            ':(exclude)*.png' \
+            ':(exclude)*.jpg' \
+            ':(exclude)*.gif' \
+            ':(exclude)*.ico' \
+            ':(exclude)*.lock' \
+            ':(exclude)pnpm-lock.yaml' \
+            ':(exclude)package.json' \
+            ':(exclude).github/workflows/test.yml' \
+            ':(exclude)scripts/pre-commit-check.sh' \
+            2>/dev/null || true)
+          if [ -z "$DIFF" ]; then
+            echo "No diff to check — skipping."
+            exit 0
+          fi
+          RESULTS=$(echo "$DIFF" | grep -n '^+' | grep 'robotika\.cloud' | grep -v '^+[+][+]' || true)
+          if [ -n "$RESULTS" ]; then
+            # Scan ALL commits in the PR range (not just HEAD — on PR events HEAD is the
+            # auto-generated merge commit which never carries our ack tag). For push
+            # events the range collapses to the single new commit, so this still works.
+            COMMIT_MSG=$(git log "origin/$BASE..HEAD" --format=%s%n%b 2>/dev/null || true)
+            if echo "$COMMIT_MSG" | grep -qF '[prod-refs-ack]'; then
+              echo "Acknowledged via [prod-refs-ack]:"
+              echo "$RESULTS"
+              exit 0
+            fi
+            echo "::error title=Production Domain Detected::New reference to robotika.cloud found in diff. Production URLs belong in the private gitops-config repo, not in public repos. If intentional, include [prod-refs-ack] in the commit message."
+            echo "=== Detected additions ==="
+            echo "$RESULTS"
+            exit 1
+          fi
+          echo "OK: No new production domain references."

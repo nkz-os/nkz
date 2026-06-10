@@ -1,0 +1,118 @@
+# Per-service NetworkPolicies — Database Tier
+# Uses existing "app" labels (NOT "layer" — most deployments lack it).
+# Safe to apply without default-deny: these only ADD allow rules.
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgresql-access
+  namespace: nekazari
+  labels:
+    app: nekazari
+    policy-type: service
+spec:
+  podSelector:
+    matchLabels:
+      app: postgresql
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    # Core platform
+    - podSelector:
+        matchLabels:
+          app: tenant-webhook
+    - podSelector:
+        matchLabels:
+          app: tenant-user-api
+    - podSelector:
+        matchLabels:
+          app: entity-manager
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    - podSelector:
+        matchLabels:
+          app: email-service
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    - podSelector:
+        matchLabels:
+          app: monitoring-grafana
+    # Workers
+    - podSelector:
+        matchLabels:
+          app: weather-worker
+    - podSelector:
+        matchLabels:
+          app: weather-api
+    - podSelector:
+        matchLabels:
+          app: telemetry-worker
+    - podSelector:
+        matchLabels:
+          app: timeseries-reader
+    - podSelector:
+        matchLabels:
+          app: risk-api
+    - podSelector:
+        matchLabels:
+          app: risk-orchestrator
+    - podSelector:
+        matchLabels:
+          app: risk-worker
+    # Modules
+    - podSelector:
+        matchLabels:
+          app: datahub-api
+    - podSelector:
+        matchLabels:
+          app: cue-backend
+    - podSelector:
+        matchLabels:
+          app: n8n-nkz-backend
+    - podSelector:
+        matchLabels:
+          app: zulip
+    - podSelector:
+        matchLabels:
+          app: zulip-provisioner
+    - podSelector:
+        matchLabels:
+          app: intelligence-backend
+    - podSelector:
+        matchLabels:
+          app: vegetation-prime-api
+    - podSelector:
+        matchLabels:
+          app: crop-health-backend
+    - podSelector:
+        matchLabels:
+          app: agrienergy-backend
+    - podSelector:
+        matchLabels:
+          app: carbon-api
+    - podSelector:
+        matchLabels:
+          app: lidar-api
+    - podSelector:
+        matchLabels:
+          app: odoo-backend
+    - podSelector:
+        matchLabels:
+          app: soil-module-api
+    - podSelector:
+        matchLabels:
+          app: nkz-billing-module-backend
+    # Odoo external
+    - podSelector:
+        matchLabels:
+          app: odoo
+    - podSelector:
+        matchLabels:
+          app: postgres-odoo
+    ports:
+    - protocol: TCP
+      port: 5432

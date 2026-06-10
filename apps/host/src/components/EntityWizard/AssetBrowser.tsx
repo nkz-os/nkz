@@ -1,0 +1,287 @@
+import React, { useState, useEffect } from 'react';
+import { Package, Upload, Check, Search } from 'lucide-react';
+import { Model3DUploader } from './Model3DUploader';
+import api from '@/services/api';
+import { logger } from '@/utils/logger';
+import { Button, Input } from '@nekazari/ui-kit';
+
+
+// Lazy-load model-viewer only when AssetBrowser mounts
+/* eslint-disable @typescript-eslint/no-explicit-any */
+let modelViewerLoaded = false;
+function ensureModelViewer() {
+    if (modelViewerLoaded) return;
+    if (document.querySelector('script[data-model-viewer]')) { modelViewerLoaded = true; return; }
+    const s = document.createElement('script');
+    s.type = 'module';
+    s.src = 'https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js';
+    s.dataset.modelViewer = '1';
+    document.head.appendChild(s);
+    modelViewerLoaded = true;
+}
+
+/** Extract a human-readable short name from asset metadata */
+function shortName(asset: { name?: string; filename?: string; key?: string; url?: string }): string {
+    const raw = asset.filename || asset.name || asset.key || asset.url || '';
+    // Take last path segment, strip extension and common prefixes
+    const base = raw.split('/').pop() || raw;
+    return base.replace(/\.(glb|gltf)$/i, '').replace(/[_-]/g, ' ');
+}
+
+
+interface AssetBrowserProps {
+    onSelect: (url: string) => void;
+    selectedUrl?: string;
+    onScaleChange?: (scale: number) => void;
+    scale?: number;
+    onRotationChange?: (rotation: [number, number, number]) => void;
+    rotation?: [number, number, number];
+}
+
+type Tab = 'library' | 'upload';
+
+export const AssetBrowser: React.FC<AssetBrowserProps> = ({
+    onSelect,
+    selectedUrl,
+    onScaleChange,
+    scale = 1.0,
+    onRotationChange,
+    rotation = [0, 0, 0]
+}) => {
+    const [activeTab, setActiveTab] = useState<Tab>('library');
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const [_selectedCategory, _setSelectedCategory] = useState<string>('all');
+    const [publicAssets, setPublicAssets] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    // Lazy-load model-viewer script on first render
+    useEffect(() => { ensureModelViewer(); }, []);
+
+    const isModel = (a: { name?: string; filename?: string; asset_type?: string; id?: string }) => {
+        const t = a.asset_type;
+        if (t === 'model' || t === 'icon') return t === 'model';
+        const n = (a.filename || a.name || a.id || '').toLowerCase();
+        return n.endsWith('.glb') || n.endsWith('.gltf');
+    };
+
+    React.useEffect(() => {
+        const fetchAssets = async () => {
+            try {
+                setLoading(true);
+                const [publicRes, tenantRes] = await Promise.allSettled([
+                    api.get('/api/assets/public'),
+                    api.get('/api/assets/tenant').catch(() => ({ data: { assets: [] } })),
+                ]);
+                const publicList = publicRes.status === 'fulfilled' ? (publicRes.value.data.assets || []) : [];
+                const tenantList = tenantRes.status === 'fulfilled' ? (tenantRes.value.data?.assets || []) : [];
+
+                const toCard = (a: any, category: string, index: number) => ({
+                    key: `${category}-${a.key || a.id || index}`,
+                    url: a.url,
+                    thumbnail: '/assets/icons/default-model.png',
+                    name: a.filename || a.name || (a.id || '').split('/').pop() || '',
+                    category,
+                });
+
+                const publicModels = publicList.filter(isModel).map((a: any, i: number) => toCard(a, 'Public', i));
+                const tenantModels = tenantList.filter(isModel).map((a: any, i: number) => toCard(a, 'My tenant', i));
+                setPublicAssets([...tenantModels, ...publicModels]);
+            } catch (err) {
+                logger.error('Failed to load assets:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchAssets();
+    }, []);
+
+    const filteredAssets = publicAssets.filter(asset =>
+        asset.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        asset.key?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return (
+        <div className="space-y-4">
+            {/* Tabs */}
+            <div className="flex border-b border-nkz-border">
+                <Button
+                    onClick={() => setActiveTab('library')}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'library'
+                        ? 'border-blue-500 text-nkz-info'
+                        : 'border-transparent text-nkz-muted hover:text-gray-700'
+                        }`}
+                >
+                    <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4" />
+                        Librería Pública
+                    </div>
+                </Button>
+                <Button
+                    onClick={() => setActiveTab('upload')}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'upload'
+                        ? 'border-blue-500 text-nkz-info'
+                        : 'border-transparent text-nkz-muted hover:text-gray-700'
+                        }`}
+                >
+                    <div className="flex items-center gap-2">
+                        <Upload className="w-4 h-4" />
+                        Subir Modelo
+                    </div>
+                </Button>
+            </div>
+
+            {/* Content */}
+            <div className="min-h-[300px]">
+                {activeTab === 'library' ? (
+                    <div className="space-y-4">
+                        {/* Search */}
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nkz-muted w-4 h-4" />
+                            <Input
+                                type="text"
+                                placeholder="Buscar activos (olivo, tractor...)"
+                                value={searchTerm}
+                                onChange={(e: any) => setSearchTerm(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+
+                        {/* Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto p-1">
+                            {loading ? (
+                                <div className="col-span-full py-8 text-center text-nkz-muted">
+                                    <Package className="w-8 h-8 mx-auto mb-2 text-nkz-muted animate-pulse" />
+                                    <p>Cargando modelos...</p>
+                                </div>
+                            ) : filteredAssets.map((asset) => (
+                                <Button
+                                    key={asset.key}
+                                    onClick={() => onSelect(asset.url)}
+                                    className={`group relative border-2 rounded-xl text-left transition-all hover:shadow-md flex flex-col overflow-hidden h-[220px] ${selectedUrl === asset.url
+                                        ? 'border-blue-500 ring-2 ring-blue-200'
+                                        : 'border-nkz-border hover:border-blue-300'
+                                        }`}
+                                >
+                                    {/* 3D Preview */}
+                                    <div className="flex-1 w-full bg-nkz-bg-secondary relative">
+                                        {/* @ts-ignore */}
+                                        <model-viewer
+                                            src={asset.url}
+                                            poster="/assets/icons/default-model.png"
+                                            alt={asset.name}
+                                            auto-rotate
+                                            camera-controls
+                                            disable-zoom
+                                            disable-pan
+                                            shadow-intensity="1"
+                                            background-color="#f9fafb"
+                                            style={{ width: '100%', height: '100%' }}
+                                        >
+                                            <div slot="poster" className="flex items-center justify-center w-full h-full text-nkz-muted">
+                                                <Package className="w-8 h-8 opacity-50" />
+                                            </div>
+                                            {/* @ts-ignore */}
+                                        </model-viewer>
+
+                                        {/* Selection Checkmark */}
+                                        {selectedUrl === asset.url && (
+                                            <div className="absolute top-2 right-2 z-10 p-1.5 bg-blue-600 rounded-full text-white shadow-md">
+                                                <Check className="w-4 h-4" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Asset Info */}
+                                    <div className="p-3 bg-white w-full border-t border-gray-100">
+                                        <div className="font-medium text-sm text-gray-900 capitalize truncate" title={asset.name}>
+                                            {shortName(asset)}
+                                        </div>
+                                        <div className="text-xs text-nkz-muted capitalize flex justify-between items-center mt-1">
+                                            <span>{asset.category}</span>
+                                            <span className="bg-nkz-bg-secondary px-1.5 py-0.5 rounded text-[10px]">GLB</span>
+                                        </div>
+                                    </div>
+                                </Button>
+                            ))}
+
+                            {!loading && filteredAssets.length === 0 && (
+                                <div className="col-span-full py-8 text-center text-nkz-muted bg-nkz-bg-secondary rounded-lg border border-dashed border-nkz-border">
+                                    <Package className="w-8 h-8 mx-auto mb-2 text-nkz-muted" />
+                                    <p>No se encontraron activos</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="p-4">
+                        <Model3DUploader
+                            onUpload={(url) => {
+                                onSelect(url);
+                                // Optionally switch back to library or show success
+                            }}
+                            onScaleChange={(s) => onScaleChange?.(s)}
+                            onRotationChange={(r) => onRotationChange?.(r)}
+                            modelScale={scale}
+                            modelRotation={rotation}
+                        />
+                    </div>
+                )}
+            </div>
+
+            {/* Scale & Rotation Controls (Shared for Library Selection) */}
+            {activeTab === 'library' && selectedUrl && (
+                <div className="p-4 bg-nkz-bg-secondary rounded-lg border border-nkz-border space-y-4">
+                    {/* Scale */}
+                    {onScaleChange && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Escala del Modelo: {scale.toFixed(1)}x
+                            </label>
+                            <Input
+                                type="range"
+                                min="0.1"
+                                max="10.0"
+                                step="0.1"
+                                value={scale}
+                                onChange={(e: any) => onScaleChange(parseFloat(e.target.value))}
+                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                            />
+                            <div className="flex justify-between text-xs text-nkz-muted mt-1">
+                                <span>0.1x</span>
+                                <span>1.0x</span>
+                                <span>10.0x</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Rotation */}
+                    {onRotationChange && rotation && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Rotación (X, Y, Z)
+                            </label>
+                            <div className="grid grid-cols-3 gap-2">
+                                {['X', 'Y', 'Z'].map((axis, i) => (
+                                    <div key={axis}>
+                                        <label className="text-xs text-nkz-muted block mb-1">{axis}: {rotation[i]}°</label>
+                                        <Input
+                                            type="number"
+                                            value={rotation[i]}
+                                            onChange={(e: any) => {
+                                                const newRot = [...rotation] as [number, number, number];
+                                                newRot[i] = parseFloat(e.target.value) || 0;
+                                                onRotationChange(newRot);
+                                            }}
+                                            className="w-full px-2 py-1 text-sm border border-nkz-border rounded focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};

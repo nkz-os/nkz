@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timeseries-reader
+  namespace: nekazari
+  labels:
+    app: timeseries-reader
+    layer: backend
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: timeseries-reader
+  template:
+    metadata:
+      labels:
+        app: timeseries-reader
+        layer: backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: timeseries-reader
+          image: ghcr.io/nkz-os/nkz/timeseries-reader@sha256:617256affc08e8a7b0243345b66a3bbfba765ce99eb7d4bb321b581536da5a1c  # defer weather attr validation + telemetry fallback
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - containerPort: 5000
+          env:
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: postgres-url
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: KEYCLOAK_URL
+              value: "http://keycloak-service:8080"
+            - name: KEYCLOAK_PUBLIC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: core-timeseries-reader-config
+                  key: KEYCLOAK_URL
+            - name: KEYCLOAK_HOSTNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: core-timeseries-reader-config
+                  key: KEYCLOAK_HOSTNAME
+            - name: KEYCLOAK_REALM
+              value: "nekazari"
+            - name: ORION_URL
+              value: "http://orion-ld-service:1026"
+            - name: TIMESERIES_STATS_ENGINE
+              value: "v2"
+            - name: TIMESERIES_USE_TENANT_LOCAL_DAILY
+              value: "true"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "10m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timeseries-reader-service
+  namespace: nekazari
+  labels:
+    app: timeseries-reader
+spec:
+  selector:
+    app: timeseries-reader
+  ports:
+    - port: 5000
+      targetPort: 5000
+  type: ClusterIP

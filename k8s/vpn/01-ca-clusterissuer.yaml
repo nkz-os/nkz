@@ -1,0 +1,30 @@
+# =============================================================================
+# IoT Private CA — cert-manager ClusterIssuer
+# =============================================================================
+# Una CA privada que firma certificados para DOS usos:
+#   1. Zenoh TLS (robots KLinux — autenticación mTLS al router)
+#   2. MQTT mTLS (ESP32 — autenticación por certificado X.509 en puerto 8883)
+#
+# PRE-REQUISITO: El Secret 'nekazari-iot-ca-secret' debe existir ANTES de
+# aplicar este manifiesto. Crear a mano (no en Git):
+#   kubectl create secret tls nekazari-iot-ca-secret \
+#     --cert=iot-ca.crt --key=iot-ca.key \
+#     -n cert-manager
+# Ver README.md sección "Generar CA IoT".
+#
+# NOTA: cert-manager ya está instalado en el cluster (gestiona Let's Encrypt).
+# =============================================================================
+
+---
+# ClusterIssuer: CA privada IoT de Nekazari
+# Disponible en todos los namespaces del cluster.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: nekazari-iot-ca
+  labels:
+    app: nekazari-iot-pki
+    component: clusterissuer
+spec:
+  ca:
+    secretName: nekazari-iot-ca-secret

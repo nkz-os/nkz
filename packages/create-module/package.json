@@ -1,0 +1,24 @@
+{
+  "name": "@nekazari/create-module",
+  "version": "0.1.0",
+  "description": "Scaffold a new Nekazari platform module in seconds",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nkz-os/nkz.git"
+  },
+  "type": "module",
+  "bin": {
+    "create-module": "./bin/create-module.mjs"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prepublishOnly": "echo 'No build step — native ESM'"
+  }
+}

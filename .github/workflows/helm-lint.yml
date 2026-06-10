@@ -1,0 +1,32 @@
+name: Helm Chart Lint
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'charts/**'
+      - '.github/workflows/helm-lint.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'charts/**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v3.14.4
+
+      - name: Update dependencies
+        run: helm dependency update charts/nekazari/
+
+      - name: Lint
+        run: helm lint charts/nekazari/ --strict
+
+      - name: Template dry-run
+        run: helm template nekazari charts/nekazari/ > /dev/null

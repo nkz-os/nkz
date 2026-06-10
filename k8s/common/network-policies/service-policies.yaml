@@ -1,0 +1,892 @@
+# =============================================================================
+# Network Policies - Servicios Específicos
+# =============================================================================
+# Políticas de red detalladas para cada servicio de Nekazari
+# Basadas en el principio de mínimo privilegio
+# =============================================================================
+
+---
+# =============================================================================
+# 1. Nginx Ingress Controller - Puerta de Entrada 🚪
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nginx-ingress-policy
+  namespace: nekazari
+  labels:
+    app: nginx
+    component: ingress-controller
+    layer: reverse-proxy
+spec:
+  podSelector:
+    matchLabels:
+      app: nginx
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Acepta tráfico de Internet (cualquier origen)
+  - from:
+    - podSelector: {}  # Cualquier pod
+    - namespaceSelector: {}  # Cualquier namespace
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Conexión a Orion Context Broker
+  - to:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    ports:
+    - protocol: TCP
+      port: 1026
+  
+  # Conexión a Grafana
+  - to:
+    - podSelector:
+        matchLabels:
+          app: grafana
+    ports:
+    - protocol: TCP
+      port: 3000
+  
+  # Conexión a Keycloak
+  - to:
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # Conexión a Frontend
+  - to:
+    - podSelector:
+        matchLabels:
+          app: frontend
+    ports:
+    - protocol: TCP
+      port: 80
+  
+  # Conexión a API Gateway
+  - to:
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    ports:
+    - protocol: TCP
+      port: 5000
+  
+  # Conexión a Prometheus
+  - to:
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 9090
+
+---
+# =============================================================================
+# 2. Orion Context Broker - Cerebro de FIWARE 🧠
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orion-ld-policy
+  namespace: nekazari
+  labels:
+    app: orion-ld
+    component: context-broker
+    layer: apis
+spec:
+  podSelector:
+    matchLabels:
+      app: orion-ld
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Desde Nginx Ingress Controller
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nginx
+    ports:
+    - protocol: TCP
+      port: 1026
+  
+  # Desde API Gateway
+  - from:
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    ports:
+    - protocol: TCP
+      port: 1026
+  
+  # Desde Entity Manager
+  - from:
+    - podSelector:
+        matchLabels:
+          app: entity-manager
+    ports:
+    - protocol: TCP
+      port: 1026
+  
+  # Desde Agentes IoT (cuando se añadan)
+  - from:
+    - podSelector:
+        matchLabels:
+          component: iot-agent
+    ports:
+    - protocol: TCP
+      port: 1026
+  
+  # Desde ROS2 Bridge (cuando se añada)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: ros2-bridge
+    ports:
+    - protocol: TCP
+      port: 1026
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Conexión a MongoDB
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mongodb
+    ports:
+    - protocol: TCP
+      port: 27017
+  
+  # Conexión a Mosquitto (para notificaciones)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mosquitto
+    ports:
+    - protocol: TCP
+      port: 1883
+  
+  # Conexión a Keycloak (validación de tokens)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# =============================================================================
+# 3. Mosquitto - Broker MQTT 📡
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mosquitto-policy
+  namespace: nekazari
+  labels:
+    app: mosquitto
+    component: mqtt-broker
+    layer: apis
+spec:
+  podSelector:
+    matchLabels:
+      app: mosquitto
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Desde Orion Context Broker (notificaciones)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    ports:
+    - protocol: TCP
+      port: 1883
+  
+  # Desde Agentes IoT
+  - from:
+    - podSelector:
+        matchLabels:
+          component: iot-agent
+    ports:
+    - protocol: TCP
+      port: 1883
+    - protocol: TCP
+      port: 8883  # MQTT SSL
+  
+  # Desde ROS2 Bridge
+  - from:
+    - podSelector:
+        matchLabels:
+          app: ros2-bridge
+    ports:
+    - protocol: TCP
+      port: 1883
+  
+  # Desde dispositivos de campo vía Tailscale SDN (100.64.0.0/10)
+  # Gestionado por Headscale + NetworkPolicies en updated-policies.yaml
+
+  # WebSocket para clientes web
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nginx
+    ports:
+    - protocol: TCP
+      port: 9001
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Solo necesita DNS, no inicia conexiones (modo bridge deshabilitado)
+
+---
+# =============================================================================
+# 4. Prometheus - Sistema de Monitorización 📊
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-policy
+  namespace: nekazari
+  labels:
+    app: prometheus
+    component: monitoring
+    layer: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Desde Grafana (consultas)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: grafana
+    ports:
+    - protocol: TCP
+      port: 9090
+  
+  # Desde Nginx (acceso web)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nginx
+    ports:
+    - protocol: TCP
+      port: 9090
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Scraping: Puede conectarse a TODOS los servicios en puerto /metrics
+  # Orion Context Broker
+  - to:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    ports:
+    - protocol: TCP
+      port: 1026  # Endpoint /metrics
+  
+  # Nginx
+  - to:
+    - podSelector:
+        matchLabels:
+          app: nginx
+    ports:
+    - protocol: TCP
+      port: 9113  # nginx-exporter
+  
+  # Mosquitto
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mosquitto
+    ports:
+    - protocol: TCP
+      port: 9234  # mosquitto-exporter
+  
+  # Keycloak
+  - to:
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    ports:
+    - protocol: TCP
+      port: 8080  # /metrics
+  
+  # PostgreSQL Exporter
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgresql-exporter
+    ports:
+    - protocol: TCP
+      port: 9187
+  
+  # MongoDB Exporter
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mongodb-exporter
+    ports:
+    - protocol: TCP
+      port: 9216
+  
+  # Node Exporter
+  - to:
+    - podSelector:
+        matchLabels:
+          app: node-exporter
+    ports:
+    - protocol: TCP
+      port: 9100
+  
+  # cAdvisor
+  - to:
+    - podSelector:
+        matchLabels:
+          app: cadvisor
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # APIs propias
+  - to:
+    - podSelector:
+        matchLabels:
+          layer: apis
+    ports:
+    - protocol: TCP
+      port: 5000  # Métricas en /metrics
+
+---
+# =============================================================================
+# 5. Grafana - Visualización 📈
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: grafana-policy
+  namespace: nekazari
+  labels:
+    app: grafana
+    component: monitoring
+    layer: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app: grafana
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Desde Nginx (acceso web)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nginx
+    ports:
+    - protocol: TCP
+      port: 80
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Conexión a Prometheus
+  - to:
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 9090
+  
+  # Conexión a Keycloak (autenticación)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # Conexión a PostgreSQL (datasource)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgresql
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Conexión a TimescaleDB (datasource)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: timescaledb
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# =============================================================================
+# 6. Keycloak - Gestión de Identidad 🔐
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: keycloak-policy
+  namespace: nekazari
+  labels:
+    app: keycloak
+    component: identity-management
+    layer: auth
+spec:
+  podSelector:
+    matchLabels:
+      app: keycloak
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Desde Nginx (interfaz web y API)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # Desde todos los servicios que validan tokens
+  - from:
+    - podSelector:
+        matchLabels:
+          layer: apis
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  - from:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  - from:
+    - podSelector:
+        matchLabels:
+          app: grafana
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  
+  # Conexión a PostgreSQL
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgresql
+    ports:
+    - protocol: TCP
+      port: 5432
+
+---
+# =============================================================================
+# 7. PostgreSQL - Base de Datos 🗄️
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgresql-policy
+  namespace: nekazari
+  labels:
+    app: postgresql
+    component: database
+    layer: database
+spec:
+  podSelector:
+    matchLabels:
+      app: postgresql
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Solo desde Keycloak
+  - from:
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Desde Grafana (datasource)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: grafana
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Desde APIs que usan PostgreSQL
+  - from:
+    - podSelector:
+        matchLabels:
+          app: api-validator
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  - from:
+    - podSelector:
+        matchLabels:
+          app: activation-codes
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Desde PostgreSQL Exporter (métricas)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: postgresql-exporter
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  egress:
+  # PostgreSQL generalmente no necesita egress
+  # Solo DNS para posible replicación
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# =============================================================================
+# 8. MongoDB - Base de Datos de Orion 🍃
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mongodb-policy
+  namespace: nekazari
+  labels:
+    app: mongodb
+    component: database
+    layer: database
+spec:
+  podSelector:
+    matchLabels:
+      app: mongodb
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # SOLO desde Orion Context Broker
+  - from:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    ports:
+    - protocol: TCP
+      port: 27017
+  
+  # Desde MongoDB Exporter (métricas)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: mongodb-exporter
+    ports:
+    - protocol: TCP
+      port: 27017
+  
+  egress:
+  # MongoDB generalmente no necesita egress
+  # Solo DNS para posible replicación
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# =============================================================================
+# 9. API Gateway - Gateway de APIs 🚀
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-gateway-policy
+  namespace: nekazari
+  labels:
+    app: api-gateway
+    component: gateway
+    layer: apis
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Desde Nginx
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nginx
+    ports:
+    - protocol: TCP
+      port: 5000
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  
+  # Acceso a PyPI para instalar dependencias Python
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS para PyPI
+    - protocol: TCP
+      port: 80   # HTTP para PyPI (redirección)
+  
+  # Puede conectarse a todos los servicios backend
+  - to:
+    - podSelector:
+        matchLabels:
+          layer: apis
+    ports:
+    - protocol: TCP
+      port: 5000
+  
+  - to:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    ports:
+    - protocol: TCP
+      port: 1026
+  
+  - to:
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# =============================================================================
+# 10. Servicios de APIs (API Validator, Farmer Auth, etc.)
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: apis-layer-policy
+  namespace: nekazari
+  labels:
+    layer: apis
+    component: microservices
+spec:
+  podSelector:
+    matchLabels:
+      layer: apis
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Desde API Gateway
+  - from:
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    ports:
+    - protocol: TCP
+      port: 5000
+  
+  # Desde Nginx (directo)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: nginx
+    ports:
+    - protocol: TCP
+      port: 5000
+  
+  # Entre ellos mismos
+  - from:
+    - podSelector:
+        matchLabels:
+          layer: apis
+    ports:
+    - protocol: TCP
+      port: 5000
+  
+  # Desde Prometheus (métricas)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 5000
+  
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  
+  # Acceso a PyPI para instalar dependencias Python
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS para PyPI
+    - protocol: TCP
+      port: 80   # HTTP para PyPI (redirección)
+  
+  # PostgreSQL
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgresql
+    ports:
+    - protocol: TCP
+      port: 5432
+  
+  # Keycloak (validación)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: keycloak
+    ports:
+    - protocol: TCP
+      port: 8080
+  
+  # Orion
+  - to:
+    - podSelector:
+        matchLabels:
+          app: orion-ld
+    ports:
+    - protocol: TCP
+      port: 1026
+  
+  # Entre APIs
+  - to:
+    - podSelector:
+        matchLabels:
+          layer: apis
+    ports:
+    - protocol: TCP
+      port: 5000

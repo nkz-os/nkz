@@ -1,0 +1,91 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: weather-api-config
+  namespace: nekazari
+  labels:
+    app: weather-api
+data:
+  CORS_ORIGINS: "https://YOUR_DOMAIN,https://YOUR_API_DOMAIN"
+  LOG_LEVEL: "INFO"
+  SOIL_API_URL: "http://soil-module-service:8000"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-api
+  namespace: nekazari
+  labels:
+    app: weather-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weather-api
+  template:
+    metadata:
+      labels:
+        app: weather-api
+    spec:
+      serviceAccountName: weather-worker-sa
+      containers:
+        - name: weather-api
+          image: ghcr.io/nkz-os/nkz/weather-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: weather-api-config
+          env:
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: postgres-url
+            - name: ORION_URL
+              value: "http://orion-ld-service:1026"
+            - name: CONTEXT_URL
+              value: "http://api-gateway-service:5000/ngsi-ld-context.json"
+            - name: AEMET_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aemet-secret
+                  key: api-key
+                  optional: true
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "512Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health/deep
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 60
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-api-service
+  namespace: nekazari
+  labels:
+    app: weather-api
+spec:
+  selector:
+    app: weather-api
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
