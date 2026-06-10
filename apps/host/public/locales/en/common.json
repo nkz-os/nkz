@@ -1167,7 +1167,7 @@
       "hasDevice": "Device",
       "observes": "Observed by",
       "hasTrialSite": "Trial site",
-      "hasArticleSource": "Article source"
+      "hasArticleSource": "Article source",
       "refDeviceProfile": "Device profile",
       "refParent": "Parent entity",
       "icon2d": "2D icon",
