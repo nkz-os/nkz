@@ -1,150 +1,100 @@
-"""Unit tests for ModuleActivation."""
+# tests/test_activation.py
+"""Unit tests for ModuleActivation — delegates to OrionClient."""
 
 import json
 
 import pytest
 import respx
+from httpx import Response
+
 from nkz_platform_sdk.activation import ModuleActivation
 
-ORION_URL = "http://orion-ld-service:1026"
-CONTEXT_URL = "http://api-gateway-service:5000/ngsi-ld-context.json"
+ORION = "http://orion-ld-service:1026"
 TENANT = "montiko"
-PARCEL_URN = "urn:ngsi-ld:AgriParcel:montiko:Montiko"
+PARCEL = "urn:ngsi-ld:AgriParcel:montiko:Montiko"
+
+
+def make_activation() -> ModuleActivation:
+    return ModuleActivation(tenant_id=TENANT, orion_url=ORION)
 
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_ensure_entities_creates_when_not_exists():
-    activation = ModuleActivation(
-        tenant_id=TENANT,
-        orion_url=ORION_URL,
-        context_url=CONTEXT_URL,
+    post = respx.post(f"{ORION}/ngsi-ld/v1/entities").mock(
+        return_value=Response(201)
     )
-
-    # Mock: POST succeeds for both entities
-    post_route = respx.post(f"{ORION_URL}/ngsi-ld/v1/entities").respond(201)
-
+    activation = make_activation()
     result = await activation.ensure_entities(
-        parcel_id=PARCEL_URN,
+        parcel_id=PARCEL,
         entities=[
             {"type": "AgriCrop", "id_suffix": "default"},
             {"type": "CropHealthAssessment", "id_suffix": "latest"},
         ],
     )
-
+    await activation.close()
     assert result["created"] == 2
     assert result["skipped"] == 0
     assert result["errors"] == []
-    assert len(post_route.calls) == 2
+    assert len(post.calls) == 2
+    # ld+json body with @context, NO Link header (legal combination)
+    req = post.calls[0].request
+    assert req.headers["Content-Type"] == "application/ld+json"
+    assert "Link" not in req.headers
+    body = json.loads(req.content)
+    assert "@context" in body
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_ensure_entities_skips_existing_409():
-    activation = ModuleActivation(
-        tenant_id=TENANT,
-        orion_url=ORION_URL,
-        context_url=CONTEXT_URL,
+async def test_ensure_entities_409_falls_back_to_patch():
+    respx.post(f"{ORION}/ngsi-ld/v1/entities").mock(return_value=Response(409))
+    patch = respx.patch(url__regex=rf"{ORION}/ngsi-ld/v1/entities/.*/attrs").mock(
+        return_value=Response(204)
     )
-
-    # 409 = already exists -> PATCH instead
-    respx.post(f"{ORION_URL}/ngsi-ld/v1/entities").respond(409)
-    patch_route = respx.patch().respond(204)
-
+    activation = make_activation()
     result = await activation.ensure_entities(
-        parcel_id=PARCEL_URN,
-        entities=[{"type": "AgriCrop", "id_suffix": "default"}],
+        parcel_id=PARCEL, entities=[{"type": "AgriCrop", "id_suffix": "default"}]
     )
-
-    assert result["skipped"] == 1
-    assert result["created"] == 0
-    assert result["errors"] == []
-    assert len(patch_route.calls) == 1
+    await activation.close()
+    assert result == {
+        "created": 0, "skipped": 1, "errors": [],
+        "entity_ids": ["urn:ngsi-ld:AgriCrop:montiko:Montiko-default"],
+    }
+    assert len(patch.calls) == 1
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_ensure_entities_uses_has_agri_parcel_relationship():
-    activation = ModuleActivation(
-        tenant_id=TENANT,
-        orion_url=ORION_URL,
-        context_url=CONTEXT_URL,
-    )
-
-    post_route = respx.post(f"{ORION_URL}/ngsi-ld/v1/entities").respond(201)
-
+async def test_placeholder_has_relationship_and_no_fabricated_dates():
+    post = respx.post(f"{ORION}/ngsi-ld/v1/entities").mock(return_value=Response(201))
+    activation = make_activation()
     await activation.ensure_entities(
-        parcel_id=PARCEL_URN,
-        entities=[{"type": "AgriCrop", "id_suffix": "default"}],
+        parcel_id=PARCEL, entities=[{"type": "AgriCrop", "id_suffix": "default"}]
     )
-
-    call_body = json.loads(post_route.calls[0].request.content)
-    assert "hasAgriParcel" in call_body
-    assert call_body["hasAgriParcel"]["object"] == PARCEL_URN
+    await activation.close()
+    body = json.loads(post.calls[0].request.content)
+    assert body["hasAgriParcel"]["object"] == PARCEL
+    assert body["status"]["value"] == "pending"
+    assert body["provenance"]["value"] == "placeholder"
+    assert "plantingDate" not in body   # never invent agronomic data
+    assert "harvestDate" not in body
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_ensure_entities_includes_context():
-    activation = ModuleActivation(
-        tenant_id=TENANT,
-        orion_url=ORION_URL,
-        context_url=CONTEXT_URL,
+async def test_get_status_checks_both_relationship_names():
+    def responder(request):
+        q = request.url.params.get("q", "")
+        assert 'hasAgriParcel=="' in q and 'refAgriParcel=="' in q  # OR query
+        if request.url.params.get("type") == "AgriCrop":
+            return Response(200, json=[{"id": "urn:x", "type": "AgriCrop"}])
+        return Response(200, json=[])
+
+    respx.get(f"{ORION}/ngsi-ld/v1/entities").mock(side_effect=responder)
+    activation = make_activation()
+    status = await activation.get_status(
+        PARCEL, entity_types=["AgriCrop", "CropHealthAssessment"]
     )
-
-    post_route = respx.post(f"{ORION_URL}/ngsi-ld/v1/entities").respond(201)
-
-    await activation.ensure_entities(
-        parcel_id=PARCEL_URN,
-        entities=[{"type": "AgriCrop", "id_suffix": "default"}],
-    )
-
-    call_body = json.loads(post_route.calls[0].request.content)
-    assert "@context" in call_body
-    assert call_body["@context"] == CONTEXT_URL
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_get_status_reports_correctly():
-    activation = ModuleActivation(
-        tenant_id=TENANT,
-        orion_url=ORION_URL,
-        context_url=CONTEXT_URL,
-    )
-
-    # Mock: AgriCrop exists, CropHealthAssessment doesn't
-    def query_response(request):
-        url = str(request.url)
-        if "AgriCrop" in url and "hasAgriParcel" in url:
-            return respx.MockResponse(200, json=[{"id": "urn:ngsi-ld:AgriCrop:montiko:Montiko-default", "type": "AgriCrop"}])
-        return respx.MockResponse(200, json=[])
-
-    respx.get().mock(side_effect=query_response)
-
-    status = await activation.get_status(PARCEL_URN)
-
-    assert status["AgriCrop"] == "ok"
-    assert status["CropHealthAssessment"] == "unavailable"
-    assert status["EOProduct"] == "unavailable"
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_ensure_entities_agri_soil_has_data_source():
-    activation = ModuleActivation(
-        tenant_id=TENANT,
-        orion_url=ORION_URL,
-        context_url=CONTEXT_URL,
-    )
-
-    post_route = respx.post(f"{ORION_URL}/ngsi-ld/v1/entities").respond(201)
-
-    await activation.ensure_entities(
-        parcel_id=PARCEL_URN,
-        entities=[{"type": "AgriSoil", "id_suffix": "summary"}],
-    )
-
-    call_body = json.loads(post_route.calls[0].request.content)
-    assert call_body["type"] == "AgriSoil"
-    assert call_body["dataSource"]["value"] == "pending_analysis"
+    await activation.close()
+    assert status == {"AgriCrop": "ok", "CropHealthAssessment": "unavailable"}

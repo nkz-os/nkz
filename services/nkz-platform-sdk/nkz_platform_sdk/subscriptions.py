@@ -1,18 +1,18 @@
-# nkz_platform_sdk/subscriptions.py
 """SubscriptionRegistrar — declarative Orion-LD subscription management.
 
-Registers NGSI-LD subscriptions at service startup and auto-heals
-them periodically. One subscription per entity type per tenant
-(not per parcel — filtering happens in the notification handler).
+One subscription per entity type per tenant (not per parcel — filtering
+happens in the module's notification handler). Idempotent by `description`.
+All Orion-LD I/O goes through OrionClient (NGSI-LD compliance at SDK level).
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-import httpx
+from nkz_platform_sdk.orion import OrionClient
 
 logger = logging.getLogger(__name__)
 
@@ -31,18 +31,13 @@ class SubscriptionRegistrar:
     Usage at service startup::
 
         registrar = SubscriptionRegistrar(
-            orion_url="http://orion-ld-service:1026",
-            notification_url="http://my-backend:8000/api/my-module/webhooks/orion",
-            subscriptions=[
-                {"type": "EOProduct", "throttling": 30},
-                {"type": "WeatherObserved", "throttling": 60},
-            ],
-            module_name="my-module",
+            orion_url=settings.orion_ld_url,
+            notification_url="http://crop-health-api-service:8000/api/crop-health/webhooks/orion",
+            subscriptions=[{"type": "EOProduct", "throttling": 30}],
+            module_name="crop-health",
         )
-        await registrar.ensure_all(tenant_ids)
-
-        # Optional auto-heal
-        asyncio.create_task(registrar.periodic_heal(tenant_ids, interval_minutes=60))
+        await registrar.ensure_all(["tenant-a", "tenant-b"])
+        asyncio.create_task(registrar.periodic_heal(get_tenants, interval_minutes=60))
     """
 
     def __init__(
@@ -50,104 +45,83 @@ class SubscriptionRegistrar:
         orion_url: str,
         notification_url: str,
         subscriptions: list[dict],
+        module_name: str,
         context_url: str | None = None,
-        module_name: str = "unknown",
     ):
         self.orion_url = orion_url.rstrip("/")
         self.notification_url = notification_url
-        self.context_url = context_url or "http://api-gateway-service:5000/ngsi-ld-context.json"
+        self.context_url = context_url
         self.module_name = module_name
         self._subs: list[SubscriptionDef] = [
             SubscriptionDef(**s) if isinstance(s, dict) else s for s in subscriptions
         ]
 
-    def _make_headers(self, tenant_id: str, content_type: str = "application/json") -> dict[str, str]:
-        headers: dict[str, str] = {
-            "Content-Type": content_type,
-            "NGSILD-Tenant": tenant_id,
-            "Fiware-Service": tenant_id,
-            "Fiware-ServicePath": "/",
-        }
-        headers["Link"] = (
-            f'<{self.context_url}>; rel="http://www.w3.org/ns/json-ld#context";'
-            f' type="application/ld+json"'
-        )
-        return headers
-
-    def _sub_description(self, sub: SubscriptionDef) -> str:
+    def _description(self, sub: SubscriptionDef) -> str:
         return f"{DESCRIPTION_PREFIX}: {sub.type} -> {self.module_name}"
 
+    def _body(self, sub: SubscriptionDef) -> dict:
+        return {
+            "type": "Subscription",
+            "description": self._description(sub),
+            "entities": [{"type": sub.type}],
+            "notification": {
+                "endpoint": {"uri": self.notification_url, "accept": "application/json"},
+                "format": "normalized",
+            },
+            "throttling": sub.throttling,
+            "isActive": True,
+        }
+
     async def ensure_all(self, tenant_ids: list[str]) -> dict:
-        """Ensure subscriptions exist for all tenants. Idempotent."""
-        created = 0
-        skipped = 0
-        errors: list[str] = []
-
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            for tenant_id in tenant_ids:
-                hdrs = self._make_headers(tenant_id)
-                try:
-                    # List existing subscriptions
-                    resp = await client.get(
-                        f"{self.orion_url}/ngsi-ld/v1/subscriptions",
-                        headers=hdrs,
-                    )
-                    resp.raise_for_status()
-                    existing = resp.json() if isinstance(resp.json(), list) else []
-                    existing_descriptions = {s.get("description", "") for s in existing}
-
-                    # Create missing ones
-                    for sub in self._subs:
-                        desc = self._sub_description(sub)
-                        if desc in existing_descriptions:
-                            skipped += 1
-                            logger.debug("Subscription exists: %s for %s", desc, tenant_id)
-                            continue
-
-                        body = {
-                            "type": "Subscription",
-                            "description": desc,
-                            "entities": [{"type": sub.type}],
-                            "notification": {
-                                "endpoint": {
-                                    "uri": self.notification_url,
-                                    "accept": "application/json",
-                                },
-                                "format": "normalized",
-                            },
-                            "throttling": sub.throttling,
-                            "isActive": True,
-                        }
-
-                        post_resp = await client.post(
-                            f"{self.orion_url}/ngsi-ld/v1/subscriptions",
-                            json=body,
-                            headers=self._make_headers(tenant_id, "application/ld+json"),
+        """Ensure subscriptions exist for all tenants. Idempotent, never raises."""
+        created, skipped, errors = 0, 0, []
+        for tenant_id in tenant_ids:
+            client = OrionClient(
+                tenant_id, base_url=self.orion_url, context_url=self.context_url
+            )
+            try:
+                existing = await client.query_subscriptions(limit=500)
+                descriptions = {s.get("description", "") for s in existing}
+                for sub in self._subs:
+                    if self._description(sub) in descriptions:
+                        skipped += 1
+                        continue
+                    try:
+                        await client.create_subscription(self._body(sub))
+                        created += 1
+                        logger.info(
+                            "Subscription created: %s (tenant=%s)",
+                            self._description(sub), tenant_id,
                         )
-                        if post_resp.status_code in (200, 201):
-                            created += 1
-                            logger.info("Subscription created: %s for tenant %s", desc, tenant_id)
-                        else:
-                            error_msg = f"{desc}: HTTP {post_resp.status_code} {post_resp.text[:200]}"
-                            errors.append(error_msg)
-                            logger.error("Subscription failed: %s", error_msg)
-                except Exception as e:
-                    error_msg = f"tenant {tenant_id}: {e}"
-                    errors.append(error_msg)
-                    logger.warning("Subscription check failed for tenant %s: %s", tenant_id, e)
-
+                    except Exception as e:
+                        errors.append(f"{tenant_id}/{sub.type}: {e}")
+                        logger.error("Subscription create failed: %s", errors[-1])
+            except Exception as e:
+                errors.append(f"tenant {tenant_id}: {e}")
+                logger.warning("Subscription check failed for %s: %s", tenant_id, e)
+            finally:
+                await client.close()
         return {"created": created, "skipped": skipped, "errors": errors}
 
     async def periodic_heal(
         self,
-        tenant_ids: list[str],
+        tenant_provider: Callable[[], Awaitable[list[str]]] | list[str],
         interval_minutes: int = 60,
     ) -> None:
-        """Reconcile subscriptions periodically. Never exits."""
+        """Reconcile subscriptions periodically. Never exits, never raises.
+
+        `tenant_provider` may be a static list or an async callable returning
+        the current tenant list (so tenants activated after startup are healed).
+        """
         while True:
             await asyncio.sleep(interval_minutes * 60)
             try:
-                result = await self.ensure_all(tenant_ids)
+                tenants = (
+                    await tenant_provider()
+                    if callable(tenant_provider)
+                    else tenant_provider
+                )
+                result = await self.ensure_all(tenants)
                 logger.info(
                     "Subscription heal: created=%d skipped=%d errors=%d",
                     result["created"], result["skipped"], len(result["errors"]),
