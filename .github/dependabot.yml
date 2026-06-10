@@ -15,6 +15,28 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # Major bumps of Module Federation shared singletons and the build
+    # toolchain are deliberate platform migrations, not routine updates.
+    # NOTE: `ignore` also suppresses Dependabot security PRs for these
+    # majors — security advisories still surface as alerts and must be
+    # handled manually for these packages.
+    ignore:
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-router"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-router-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "i18next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
 
   # Python backend services (one manifest per service)
   - package-ecosystem: "pip"
