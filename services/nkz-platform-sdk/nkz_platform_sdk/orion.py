@@ -149,10 +149,12 @@ class OrionClient:
         return {"created": 0, "errors": [], "entity_ids": []}
 
     async def update_entity_attrs(self, entity_id: str, attrs: dict[str, Any]) -> None:
+        # attrs fragments carry no @context, so the legal NGSI-LD combination
+        # is application/json + Link header (ld+json without @context is a 400).
         resp = await self._client.patch(
             self._url(f"/ngsi-ld/v1/entities/{entity_id}/attrs"),
             json=attrs,
-            headers=self._headers("application/ld+json"),
+            headers=self._headers("application/json"),
         )
         resp.raise_for_status()
 
