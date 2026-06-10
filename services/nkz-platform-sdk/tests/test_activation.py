@@ -62,6 +62,14 @@ async def test_ensure_entities_409_falls_back_to_patch():
         "entity_ids": ["urn:ngsi-ld:AgriCrop:montiko:Montiko-default"],
     }
     assert len(patch.calls) == 1
+    # PATCH /attrs must be the LEGAL combination: json + Link, no @context,
+    # and must not refresh dateCreated on idempotent re-runs.
+    preq = patch.calls[0].request
+    assert preq.headers["Content-Type"] == "application/json"
+    assert "Link" in preq.headers
+    pbody = json.loads(preq.content)
+    assert "@context" not in pbody
+    assert "dateCreated" not in pbody
 
 
 @pytest.mark.asyncio
