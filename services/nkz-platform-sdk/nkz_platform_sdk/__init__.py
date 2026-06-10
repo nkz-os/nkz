@@ -19,6 +19,8 @@ from nkz_platform_sdk.orion import OrionClient, SyncOrionClient
 from nkz_platform_sdk.timescale import TimescaleClient
 from nkz_platform_sdk.lifecycle import ModuleLifecycle, LifecycleResult
 from nkz_platform_sdk.config import ModuleConfig
+from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
+from nkz_platform_sdk.activation import ModuleActivation
 
 __all__ = [
     "ModuleApp",
@@ -30,4 +32,6 @@ __all__ = [
     "ModuleLifecycle",
     "LifecycleResult",
     "ModuleConfig",
+    "SubscriptionRegistrar",
+    "ModuleActivation",
 ]
