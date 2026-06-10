@@ -67,6 +67,13 @@ _common_mock.inject_fiware_headers = lambda h, t=None, **kw: h
 sys.modules["common"] = _common_mock
 sys.modules["common.auth_middleware"] = _common_mock
 sys.modules["common.config_manager"] = MagicMock()
+# parcel_activation.py imports common.tier_quotas at module level; the parent
+# "common" stub is a plain MagicMock (not a package), so the submodule must be
+# pre-seeded for `from common.tier_quotas import ...` to resolve.
+_tier_quotas_mock = MagicMock()
+_tier_quotas_mock.LEVEL_TO_TIER = {0: "free"}
+_tier_quotas_mock.quotas_for_tier = lambda tier: {"max_parcels": 0}
+sys.modules["common.tier_quotas"] = _tier_quotas_mock
 
 # Heavy / infrastructure dependencies
 sys.modules["db_helper"] = MagicMock()

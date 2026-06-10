@@ -10,7 +10,16 @@ from unittest.mock import MagicMock
 _services_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if _services_dir not in sys.path:
     sys.path.insert(0, _services_dir)
-import common.tier_quotas as _tq_module  # noqa: E402
+# Load by file path: sys.modules["common"]/"common.tier_quotas" may already be
+# stubbed by other test modules in the same pytest process (e.g.
+# test_module_publish.py), so a regular import could return a MagicMock.
+import importlib.util  # noqa: E402
+
+_tq_spec = importlib.util.spec_from_file_location(
+    "_real_tier_quotas", os.path.join(_services_dir, "common", "tier_quotas.py")
+)
+_tq_module = importlib.util.module_from_spec(_tq_spec)
+_tq_spec.loader.exec_module(_tq_module)
 
 _TQ_PLAN_LEVELS = _tq_module.PLAN_LEVELS
 _TQ_LEVEL_TO_TIER = _tq_module.LEVEL_TO_TIER
@@ -68,6 +77,12 @@ _common_mock.require_auth = _require_auth
 _common_mock.inject_fiware_headers = lambda h, t=None, **kw: h
 sys.modules["common"] = _common_mock
 sys.modules["common.auth_middleware"] = _common_mock
+# parcel_activation.py imports common.tier_quotas at module level; pre-seed
+# the submodule because the parent "common" stub is not a package.
+_tier_quotas_mock = MagicMock()
+_tier_quotas_mock.LEVEL_TO_TIER = {0: "free"}
+_tier_quotas_mock.quotas_for_tier = lambda tier: {"max_parcels": 0}
+sys.modules["common.tier_quotas"] = _tier_quotas_mock
 
 # Mock other optional dependencies
 sys.modules["parcel_sync"] = MagicMock()
