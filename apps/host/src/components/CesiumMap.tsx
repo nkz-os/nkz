@@ -442,11 +442,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             logger.warn('[CesiumMap] Could not set up Cesium Ion:', cesiumError);
           }
 
-          // Apply initial visibility.  OSM is always visible as the bottom-
-          // most fallback so the globe never renders blank (PNOA has regional
-          // outages — e.g. 502 for Navarra tiles).  PNOA/Esri/Cesium layers
-          // are optional overlays on top.
-          if (osmLayer) osmLayer.show = true; // Always-on fallback
+          // Apply initial visibility
+          if (osmLayer) osmLayer.show = baseLayer === 'osm'; // Default
+          if (pnoaLayerRef.current) pnoaLayerRef.current.show = baseLayer === 'pnoa'; // Hidden by default
           if (esriLayerRef.current) esriLayerRef.current.show = baseLayer === 'esri';
           viewer.scene.requestRender?.();
         } catch (error) {
@@ -537,15 +535,12 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   // Handle Terrain Updates (extracted hook)
   useTerrainProvider(viewerRef, enable3DTerrain, currentTerrainProvider, parcels);
 
-  // Handle Base Layer Updates.
-  // OSM is always visible as the bottom fallback so the globe never renders
-  // blank (PNOA has regional outages, e.g. 502 for Navarra).  PNOA/Esri/
-  // Cesium layers are optional overlays on top.
+  // Handle Base Layer Updates
   useEffect(() => {
     if (!isViewerReady) return;
 
     if (osmLayerRef.current) {
-      osmLayerRef.current.show = true; // Always-on fallback
+      osmLayerRef.current.show = baseLayer === 'osm';
     }
 
     if (pnoaLayerRef.current) {
