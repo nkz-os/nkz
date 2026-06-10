@@ -21,3 +21,18 @@ CREATE INDEX IF NOT EXISTS idx_tpm_tenant
     ON tenant_parcel_modules(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_tpm_parcel
     ON tenant_parcel_modules(tenant_id, parcel_id);
+
+-- Idempotent upgrade for databases that received the v1 shape of this table
+-- (created without setup_status/last_error during early plan execution).
+ALTER TABLE tenant_parcel_modules
+    ADD COLUMN IF NOT EXISTS setup_status VARCHAR(16) NOT NULL DEFAULT 'pending';
+ALTER TABLE tenant_parcel_modules
+    ADD COLUMN IF NOT EXISTS last_error TEXT;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tpm_setup_status_check') THEN
+        ALTER TABLE tenant_parcel_modules
+            ADD CONSTRAINT tpm_setup_status_check
+            CHECK (setup_status IN ('pending', 'ok', 'error'));
+    END IF;
+END $$;
