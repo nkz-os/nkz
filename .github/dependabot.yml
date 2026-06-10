@@ -37,6 +37,11 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "vite"
         update-types: ["version-update:semver-major"]
+      # 0.5.0 dropped legacy .eslintrc support (flat-config only); the host
+      # still uses .eslintrc.cjs. Remove this once ESLint flat-config
+      # migration lands in apps/host.
+      - dependency-name: "eslint-plugin-react-refresh"
+        versions: [">=0.5.0"]
 
   # Python backend services (one manifest per service)
   - package-ecosystem: "pip"
