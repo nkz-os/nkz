@@ -1,119 +1,100 @@
-"""Unit tests for SubscriptionRegistrar."""
+# tests/test_subscriptions.py
+"""Unit tests for SubscriptionRegistrar — delegates to OrionClient."""
+
+import json
 
 import pytest
 import respx
+from httpx import Response
+
 from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
 
-ORION_URL = "http://orion-ld-service:1026"
-NOTIFY_URL = "http://crop-health-backend:8000/api/crop-health/webhooks/orion"
-CONTEXT_URL = "http://api-gateway-service:5000/ngsi-ld-context.json"
+ORION = "http://orion-ld-service:1026"
+NOTIFY = "http://crop-health-api-service:8000/api/crop-health/webhooks/orion"
 
-SUBSCRIPTIONS_DEF = [
+SUBS = [
     {"type": "EOProduct", "throttling": 30},
     {"type": "WeatherObserved", "throttling": 60},
 ]
 
 
-@pytest.mark.asyncio
-@respx.mock
-async def test_ensure_all_creates_missing_subscriptions():
-    registrar = SubscriptionRegistrar(
-        orion_url=ORION_URL,
-        notification_url=NOTIFY_URL,
-        context_url=CONTEXT_URL,
-        subscriptions=SUBSCRIPTIONS_DEF,
+def make_registrar() -> SubscriptionRegistrar:
+    return SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=SUBS,
         module_name="crop-health",
     )
 
-    # Mock: no existing subscriptions
-    respx.get(f"{ORION_URL}/ngsi-ld/v1/subscriptions").respond(
-        200, json=[]
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_creates_missing_subscriptions():
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=[])
     )
-    # Mock: POST returns 201 for each
-    post_route = respx.post(f"{ORION_URL}/ngsi-ld/v1/subscriptions").respond(201)
-
-    result = await registrar.ensure_all(["montiko"])
-
-    assert result["created"] == 2
-    assert result["skipped"] == 0
-    assert result["errors"] == []
-    assert len(post_route.calls) == 2
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/ngsi-ld/v1/subscriptions/urn:x"})
+    )
+    result = await make_registrar().ensure_all(["montiko"])
+    assert result == {"created": 2, "skipped": 0, "errors": []}
+    assert len(post.calls) == 2
 
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_ensure_all_skips_existing_by_description():
-    registrar = SubscriptionRegistrar(
-        orion_url=ORION_URL,
-        notification_url=NOTIFY_URL,
-        context_url=CONTEXT_URL,
-        subscriptions=SUBSCRIPTIONS_DEF,
-        module_name="crop-health",
+    existing = [{
+        "id": "urn:ngsi-ld:Subscription:existing-1",
+        "type": "Subscription",
+        "description": "nkz-module: EOProduct -> crop-health",
+    }]
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=existing)
     )
-
-    # Mock: EOProduct subscription already exists
-    existing = [
-        {
-            "id": "urn:ngsi-ld:Subscription:existing-1",
-            "description": "nkz-module: EOProduct -> crop-health",
-            "type": "Subscription",
-        }
-    ]
-    respx.get(f"{ORION_URL}/ngsi-ld/v1/subscriptions").respond(200, json=existing)
-    post_route = respx.post(f"{ORION_URL}/ngsi-ld/v1/subscriptions").respond(201)
-
-    result = await registrar.ensure_all(["montiko"])
-
-    assert result["created"] == 1  # only WeatherObserved
-    assert result["skipped"] == 1  # EOProduct already exists
-    assert result["errors"] == []
-    assert len(post_route.calls) == 1
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+    result = await make_registrar().ensure_all(["montiko"])
+    assert result["created"] == 1   # only WeatherObserved
+    assert result["skipped"] == 1
+    assert len(post.calls) == 1
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_ensure_all_uses_correct_headers():
-    registrar = SubscriptionRegistrar(
-        orion_url=ORION_URL,
-        notification_url=NOTIFY_URL,
-        context_url=CONTEXT_URL,
+async def test_subscription_body_and_headers_are_ngsild_compliant():
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=[])
+    )
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+    await SubscriptionRegistrar(
+        orion_url=ORION, notification_url=NOTIFY,
         subscriptions=[{"type": "EOProduct", "throttling": 30}],
         module_name="crop-health",
-    )
+    ).ensure_all(["montiko"])
 
-    respx.get(f"{ORION_URL}/ngsi-ld/v1/subscriptions").respond(200, json=[])
-    post_route = respx.post(f"{ORION_URL}/ngsi-ld/v1/subscriptions").respond(201)
-
-    await registrar.ensure_all(["montiko"])
-
-    call = post_route.calls[0]
-    assert call.request.headers["NGSILD-Tenant"] == "montiko"
-    assert call.request.headers["Fiware-Service"] == "montiko"
-    assert "Link" in call.request.headers
-    body = call.request.content  # respx stores content as bytes
-    import json
-    parsed = json.loads(body)
-    assert parsed["description"] == "nkz-module: EOProduct -> crop-health"
-    assert parsed["entities"] == [{"type": "EOProduct"}]
-    assert parsed["throttling"] == 30
+    req = post.calls[0].request
+    # Legal NGSI-LD combination: application/json + Link, no @context in body
+    assert req.headers["Content-Type"] == "application/json"
+    assert "Link" in req.headers
+    assert req.headers["NGSILD-Tenant"] == "montiko"
+    body = json.loads(req.content)
+    assert "@context" not in body
+    assert body["description"] == "nkz-module: EOProduct -> crop-health"
+    assert body["entities"] == [{"type": "EOProduct"}]
+    assert body["throttling"] == 30
+    assert body["notification"]["endpoint"]["uri"] == NOTIFY
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_ensure_all_multi_tenant():
-    registrar = SubscriptionRegistrar(
-        orion_url=ORION_URL,
-        notification_url=NOTIFY_URL,
-        context_url=CONTEXT_URL,
-        subscriptions=[{"type": "EOProduct", "throttling": 30}],
-        module_name="crop-health",
+async def test_ensure_all_collects_errors_without_raising():
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(500, text="boom")
     )
-
-    respx.get(f"{ORION_URL}/ngsi-ld/v1/subscriptions").respond(200, json=[])
-    post_route = respx.post(f"{ORION_URL}/ngsi-ld/v1/subscriptions").respond(201)
-
-    result = await registrar.ensure_all(["montiko", "platform"])
-
-    assert result["created"] == 2  # one per tenant
-    assert result["skipped"] == 0
-    assert len(post_route.calls) == 2
+    result = await make_registrar().ensure_all(["montiko"])
+    assert result["created"] == 0
+    assert len(result["errors"]) == 1
