@@ -1,0 +1,208 @@
+# =============================================================================
+# Intelligence Module - External Module Deployment (V2)
+# =============================================================================
+# This module is now deployed from: https://github.com/nkz-os/nekazari-module-intelligence
+# Image: ghcr.io/nkz-os/nekazari-module-intelligence/intelligence-backend:latest
+# V2: API backend + Celery worker (async task processing via Redis)
+# =============================================================================
+
+---
+# Deployment: Intelligence Module Backend Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intelligence-backend
+  namespace: nekazari
+  labels:
+    app: intelligence-backend
+    component: backend
+    module: intelligence
+    nekazari.io/profile: addon
+spec:
+  replicas: 1  # single-node cluster; increase when CPU headroom allows
+  selector:
+    matchLabels:
+      app: intelligence-backend
+  template:
+    metadata:
+      labels:
+        app: intelligence-backend
+        component: backend
+        module: intelligence
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backend
+          image: ghcr.io/nkz-os/nekazari-module-intelligence/intelligence-backend@sha256:0c1472df4d512cf6caab73efaa89b91691c3de38decfe00406ee69645fe91fbf
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: APP_NAME
+              value: "Intelligence Module"
+            - name: DEBUG
+              value: "false"
+            - name: API_PREFIX
+              value: "/api/intelligence"
+            # Redis Configuration
+            - name: REDIS_HOST
+              value: "redis-service"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+            # Orion-LD Configuration
+            - name: ORION_URL
+              value: "http://orion-ld-service:1026"
+            - name: CONTEXT_URL
+              value: "http://api-gateway-service:5000/ngsi-ld-context.json"
+            # Keycloak Configuration (optional)
+            - name: KEYCLOAK_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: core-intelligence-config
+                  key: KEYCLOAK_URL
+            - name: KEYCLOAK_REALM
+              value: "nekazari"
+            - name: JWT_AUDIENCE
+              value: "account"
+            # Platform integration — metadata-only predict fetches historical data internally
+            - name: TIMESERIES_READER_URL
+              value: "http://timeseries-reader-service:5000"
+            # CORS — explicit origin whitelist (never *)
+            - name: CORS_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: core-intelligence-config
+                  key: CORS_ORIGINS
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 40
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+
+---
+# Deployment: Intelligence Module Celery Worker (V2)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: intelligence-worker
+  namespace: nekazari
+  labels:
+    app: intelligence-backend
+    component: worker
+    module: intelligence
+    nekazari.io/profile: addon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: intelligence-backend
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: intelligence-backend
+        component: worker
+        module: intelligence
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: ghcr.io/nkz-os/nekazari-module-intelligence/intelligence-backend@sha256:0c1472df4d512cf6caab73efaa89b91691c3de38decfe00406ee69645fe91fbf
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - celery
+            - -A
+            - app.celery_app
+            - worker
+            - --loglevel=info
+            - --include
+            - app.tasks
+          env:
+            - name: REDIS_HOST
+              value: "redis-service"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          # No HTTP port; no probes (worker has no /health)
+      restartPolicy: Always
+
+---
+# Service: Intelligence Module Backend API
+apiVersion: v1
+kind: Service
+metadata:
+  name: intelligence-api-service
+  namespace: nekazari
+  labels:
+    app: intelligence-backend
+    module: intelligence
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: intelligence-backend

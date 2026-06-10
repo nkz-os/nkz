@@ -1,0 +1,20 @@
+# =============================================================================
+# Certificate Resource para auth.YOUR_DOMAIN
+# =============================================================================
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: auth-tls
+  namespace: nekazari
+spec:
+  secretName: auth-tls
+  duration: 2160h # 90 días
+  renewBefore: 360h # 15 días antes de expirar
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: auth.YOUR_DOMAIN
+  dnsNames:
+    - auth.YOUR_DOMAIN
+

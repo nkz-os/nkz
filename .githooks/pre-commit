@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Pre-commit hook: FIWARE compliance check
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+echo "Running FIWARE compliance check..."
+if bash "$REPO_ROOT/scripts/check-fiware-compliance.sh"; then
+    echo "✅ FIWARE compliance check passed."
+    exit 0
+else
+    echo ""
+    echo "❌ Commit blocked: FIWARE compliance violations detected."
+    echo "   See AGENTS.md for the architecture rules."
+    echo "   To override (EMERGENCY ONLY): git commit --no-verify"
+    exit 1
+fi

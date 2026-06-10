@@ -1,0 +1,108 @@
+name: Publish Module (reusable)
+on:
+  workflow_call:
+    inputs:
+      module_id:          { required: true, type: string }
+      build_cmd:          { required: false, type: string, default: "pnpm run build:module" }
+      dist_dir:           { required: false, type: string, default: "dist" }
+      working_dir:        { required: false, type: string, default: "." }
+      package_json_file:  { required: false, type: string, default: "package.json" }
+    secrets:
+      # Defense-in-depth header validated by entity-manager.
+      # Primary auth: GitHub OIDC JWT (validated by api-gateway).
+      INTERNAL_SERVICE_SECRET: { required: true }
+
+jobs:
+  publish:
+    # GitHub-hosted runner. Auth: OIDC JWT from token.actions.githubusercontent.com
+    # validated by api-gateway against GitHub's JWKS.
+    runs-on: ubuntu-latest
+    env:
+      # Public API endpoint. api-gateway validates OIDC JWT before forwarding.
+      EM: https://nkz.robotika.cloud
+      # Modules are served from the frontend-static domain (public).
+      STATIC: https://nekazari.robotika.cloud
+      MODULE: ${{ inputs.module_id }}
+      # Required by @nekazari/module-builder manifest-emit step (replaces import.meta.env.VITE_API_URL)
+      VITE_API_URL: https://nkz.robotika.cloud
+      # pnpm v11+ blocks build scripts by default; esbuild is required by Vite
+      PNPM_ONLY_BUILT_DEPENDENCIES: esbuild
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ${{ inputs.package_json_file }}
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+        working-directory: ${{ inputs.working_dir }}
+      - name: Build module
+        run: ${{ inputs.build_cmd }}
+        working-directory: ${{ inputs.working_dir }}
+        env:
+          NKZ_VERSION_HASH: ${{ github.sha }}
+      - name: Pin publicPath to immutable version
+        working-directory: ${{ inputs.working_dir }}
+        env:
+          DIST: ${{ inputs.dist_dir }}
+        run: |
+          set -euo pipefail
+          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
+          MF="$DIST/mf-manifest.json"
+          if [ -f "$MF" ]; then
+            node -e "
+              const fs=require('fs');
+              const mf=JSON.parse(fs.readFileSync('$MF','utf8'));
+              const pub=mf.metaData?.publicPath||'';
+              if(!pub) throw new Error('mf-manifest.json missing metaData.publicPath');
+              const unversioned=/^(\/modules\/[^/]+)\/$/;
+              const match=pub.match(unversioned);
+              if(match){
+                const next=match[1]+'/$SHA/';
+                mf.metaData.publicPath=next;
+                fs.writeFileSync('$MF',JSON.stringify(mf));
+                console.log('publicPath:',pub,'→',next);
+              } else {
+                console.log('publicPath already versioned:',pub);
+              }
+            "
+          fi
+      - name: Get GitHub OIDC token
+        run: |
+          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=nkz-publish" | jq -r .value)
+          echo "OIDC_TOKEN=${OIDC_TOKEN}" >> $GITHUB_ENV
+      - name: Publish to entity-manager (immutable <sha>/ + activate)
+        working-directory: ${{ inputs.working_dir }}
+        env:
+          SECRET: ${{ secrets.INTERNAL_SERVICE_SECRET }}
+          DIST: ${{ inputs.dist_dir }}
+        run: |
+          set -euo pipefail
+          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
+          args=$(cd "$DIST" && find . -type f -printf '-F file=@%p;filename=%P ')
+          # shellcheck disable=SC2086
+          code=$(cd "$DIST" && curl -sS -o /tmp/pub.json -w '%{http_code}' \
+                 -H "X-Internal-Service-Secret: $SECRET" \
+                 -H "X-OIDC-Token: $OIDC_TOKEN" \
+                 -F "version_hash=$SHA" $args \
+                 "$EM/api/internal/modules/$MODULE/publish")
+          echo "publish HTTP $code"; cat /tmp/pub.json; echo
+          case "$code" in 200|201) ;; *) echo "::error::publish failed (HTTP $code)"; exit 1;; esac
+      - name: Verify pointer flipped + manifest served
+        run: |
+          set -euo pipefail
+          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
+          # 1) Pointer flip: resolve-url returns the active deployed_version.
+          curl -sS -o /tmp/resolve.json -w 'resolve HTTP %{http_code}\n' \
+               "$EM/api/internal/modules/$MODULE/resolve-url"
+          cat /tmp/resolve.json; echo
+          active=$(node -e "console.log(require('/tmp/resolve.json').version||'')")
+          [ "$active" = "$SHA" ] || { echo "::error::pointer not flipped (active=$active, expected=$SHA)"; exit 1; }
+          # 2) Bytes served from the immutable <sha>/ path (public).
+          murl="$STATIC/modules/$MODULE/$SHA/mf-manifest.json"
+          code=$(curl -sS -o /tmp/mf.json -w '%{http_code}' "$murl")
+          bytes=$(wc -c < /tmp/mf.json)
+          echo "served manifest $murl -> HTTP $code, $bytes bytes"
+          [ "$code" = "200" ] && [ "$bytes" -gt 0 ] || { echo "::error::manifest not served"; exit 1; }

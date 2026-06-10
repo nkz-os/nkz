@@ -1,0 +1,20 @@
+# DataHub production config overlay — source of truth: nkz repo (GitOps strict).
+# Applies ConfigMap with PLATFORM_API_URL so no manual kubectl patch is needed.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: datahub-config
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nkz-os/gitops-config
+    targetRevision: HEAD
+    path: overlays/modules/datahub
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nekazari
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

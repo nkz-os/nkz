@@ -1,0 +1,19 @@
+# =============================================================================
+# Nekazari Local Network Override Example
+# =============================================================================
+# Use this to access the platform from other devices in your LAN.
+#
+# Usage:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   Replace 192.168.1.X with your PC local IP.
+# =============================================================================
+
+services:
+  keycloak:
+    environment:
+      KC_HOSTNAME_URL: http://192.168.1.X:3000/auth
+
+  frontend:
+    environment:
+      VITE_API_URL: http://192.168.1.X:3000
+      VITE_KEYCLOAK_URL: http://192.168.1.X:3000/auth

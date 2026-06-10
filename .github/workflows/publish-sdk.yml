@@ -1,0 +1,118 @@
+name: Publish Packages to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Packages to publish (space-separated, default: all)"
+        required: false
+        default: "sdk ui-kit viewer-kit design-tokens module-builder"
+  push:
+    branches:
+      - main
+    paths:
+      - "packages/sdk/**"
+      - "packages/ui-kit/**"
+      - "packages/viewer-kit/**"
+      - "packages/design-tokens/**"
+      - "packages/module-builder/**"
+      - "packages/module-kit/**"
+      - ".github/workflows/publish-sdk.yml"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - sdk
+          - ui-kit
+          - viewer-kit
+          - design-tokens
+          - module-builder
+          - module-kit
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all workspace packages strictly sequentially
+        # The @nekazari/* packages form a compile-time dep chain
+        # (design-tokens → sdk/ui-kit/viewer-kit → module-kit → module-builder).
+        # Restrict the recursive build to `packages/**` so the heavyweight
+        # `apps/host` build (which has an unrelated Vite/Rollup resolution
+        # bug with @remix-run/router) doesn't break this workflow. The
+        # @nekazari/cli is also inside packages/ but only does `tsc` so it
+        # adds <2 s.
+        # --workspace-concurrency=1 forces strictly serial execution: tsup
+        # spawns dts in a worker thread and exits the main process before
+        # the worker completes, so without this flag downstream packages
+        # would start building before their dependency's .d.ts exists.
+        run: pnpm --filter './packages/**' --workspace-concurrency=1 run build
+
+      - name: Check if version is already published
+        id: check
+        run: |
+          PKG_NAME=$(node -p "require('./packages/${{ matrix.package }}/package.json').name")
+          PKG_VERSION=$(node -p "require('./packages/${{ matrix.package }}/package.json').version")
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version 2>/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "${PKG_NAME}@${PKG_VERSION} already published, skipping"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "${PKG_NAME}@${PKG_VERSION} not found on npm, will publish"
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to npm (Trusted Publishing + provenance)
+        if: steps.check.outputs.exists == 'false'
+        # Trusted Publishing is configured per package on npmjs.com
+        # (Settings → Trusted Publishers → GitHub Actions, repo=nkz-os/nkz,
+        # workflow=publish-sdk.yml, no environment). With it, npm derives
+        # the publish identity from the workflow's OIDC token at runtime.
+        # --provenance signs the release with a public SLSA attestation.
+        #
+        # We must use `npm publish` (not `pnpm publish`) for the OIDC flow:
+        # only npm CLI v11.5+ exchanges the ACTIONS_ID_TOKEN_REQUEST_* env
+        # for a short-lived npm publish token. Node 22 ships npm 10.x, so
+        # we invoke the latest npm via `npx -p npm@latest -y` rather than
+        # upgrading the global npm (which fails with MODULE_NOT_FOUND while
+        # rebuilding itself in-place).
+        #
+        # NODE_AUTH_TOKEN cleared so the .npmrc placeholder resolves to
+        # empty; npm then takes the OIDC path because id-token: write is
+        # granted on this job.
+        #
+        # npm 11+ rejects publishing a prerelease (1.2.3-alpha.0) without an
+        # explicit --tag, to prevent accidentally tagging it as `latest` and
+        # poisoning npm install. Derive the dist-tag from the version: a
+        # prerelease (contains '-') uses its pre-id (`alpha`, `beta`, ...),
+        # a stable version uses `latest`.
+        working-directory: packages/${{ matrix.package }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            TAG=$(echo "$VERSION" | sed -E 's/^[^-]+-([a-zA-Z]+).*/\1/')
+          else
+            TAG="latest"
+          fi
+          echo "Publishing $VERSION with dist-tag '$TAG'"
+          npx -p npm@latest -y npm publish --access=public --provenance --tag "$TAG"
+        env:
+          NODE_AUTH_TOKEN: ""

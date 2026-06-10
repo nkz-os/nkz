@@ -1,0 +1,142 @@
+{
+  "name": "Crop Health Alerts — LLM Analysis → Zulip",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crop-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook — Crop Event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract event data from webhook payload\nconst payload = $input.first().json;\nconst isCropEvent = payload.body?.event_type?.startsWith('crop');\nconst isRiskEvent = payload.body?.event_type === 'risk_evaluation';\n\nconst event = payload.body || payload;\n\n// Build context for LLM\nlet context = '';\nif (isCropEvent) {\n  context = `Crop Health Event:\n- Parcel: ${event.parcel_id || 'unknown'}\n- CWSI: ${event.cwsi || 'N/A'}\n- MDS Severity: ${event.mds_severity || 'N/A'}\n- Water Balance: ${event.water_balance_mm || 'N/A'}mm\n- Overall Severity: ${event.overall_severity || 'unknown'}\n- Recommended Action: ${event.recommended_action || 'none'}\n- Phenology Source: ${event.phenology_source || 'default'}\n- Timestamp: ${event.timestamp || ''}`;\n} else if (isRiskEvent) {\n  context = `Risk Evaluation Event:\n- Entity: ${event.entity_id || 'unknown'}\n- Risk Code: ${event.risk_code || 'unknown'}\n- Probability: ${event.probability_score || 0}%\n- Severity: ${event.severity || 'low'}\n- Timestamp: ${event.timestamp || ''}`;\n} else {\n  context = JSON.stringify(event, null, 2);\n}\n\nreturn {\n  tenant_id: event.tenant_id || '',\n  parcel_id: event.parcel_id || event.entity_id || '',\n  severity: event.overall_severity || event.severity || 'low',\n  context: context,\n  raw: event\n};"
+      },
+      "id": "code-parser",
+      "name": "Parse Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst severity = item.severity?.toLowerCase() || 'low';\n\n// Only analyze HIGH or CRITICAL events\nif (severity !== 'high' && severity !== 'critical') {\n  return { skip: true, reason: 'Severity below threshold' };\n}\n\nreturn item;"
+      },
+      "id": "filter-severity",
+      "name": "Filter HIGH/CRITICAL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\n// Build the LLM prompt\nreturn {\n  systemPrompt: `Eres un experto agrónomo analizando datos de salud de cultivo en tiempo real para agricultores.\n\nAnaliza el siguiente evento y proporciona:\n1. Interpretación en lenguaje claro y sencillo para el agricultor\n2. Contexto agronómico adicional (¿qué significa este valor para este cultivo?)\n3. Recomendación concreta, priorizada y accionable\n4. Si es crítico, indica la urgencia y las posibles consecuencias de no actuar\n\nResponde en ESPAÑOL. Tono profesional pero cercano. Máximo 3 párrafos. Formatea para Zulip (usa **negrita** y saltos de línea).`,\n  userMessage: item.context\n};"
+      },
+      "id": "prompt-builder",
+      "name": "Build LLM Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "claude-sonnet-4-20250514",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.systemPrompt }}"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.userMessage }}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 400,
+          "temperature": 0.7
+        }
+      },
+      "id": "llm-analyzer",
+      "name": "LLM — Anthropic Claude",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const llmResponse = $input.first().json;\nconst eventData = $('Parse Event').first().json;\n\nreturn {\n  tenant_id: eventData.tenant_id,\n  parcel_id: eventData.parcel_id,\n  severity: eventData.severity,\n  analysis: llmResponse.content || JSON.stringify(llmResponse),\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "response-builder",
+      "name": "Build Zulip Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://zulip-service/api/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Content-Type", "value": "application/x-www-form-urlencoded"}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {"name": "type", "value": "stream"},
+            {"name": "to", "value": "={{ 'tenant-' + $json.tenant_id + '-alerts' }}"},
+            {"name": "topic", "value": "Crop Health"},
+            {"name": "content", "value": "={{ '🔴 **Alerta de Salud de Cultivo**\\n\\n' + $json.analysis + '\\n\\n---\\n📊 *Severidad: ' + $json.severity?.toUpperCase() + ' | Parcela: ' + $json.parcel_id + ' | ' + $json.timestamp + '*\\n[Ver en el visor 3D](https://nekazari.robotika.cloud/entities) | [Ver parámetros](https://nekazari.robotika.cloud/bioorchestrator?tab=phenology)' }}"}
+          ]
+        },
+        "options": {}
+      },
+      "id": "zulip-sender",
+      "name": "Zulip — Send Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 300],
+      "credentials": {
+        "httpBasicAuth": "zulip-bot"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook — Crop Event": {
+      "main": [[{"node": "Parse Event", "type": "main", "index": 0}]]
+    },
+    "Parse Event": {
+      "main": [[{"node": "Filter HIGH/CRITICAL", "type": "main", "index": 0}]]
+    },
+    "Filter HIGH/CRITICAL": {
+      "main": [[{"node": "Build LLM Prompt", "type": "main", "index": 0}]]
+    },
+    "Build LLM Prompt": {
+      "main": [[{"node": "LLM — Anthropic Claude", "type": "main", "index": 0}]]
+    },
+    "LLM — Anthropic Claude": {
+      "main": [[{"node": "Build Zulip Message", "type": "main", "index": 0}]]
+    },
+    "Build Zulip Message": {
+      "main": [[{"node": "Zulip — Send Message", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "1.0.0",
+  "active": true
+}

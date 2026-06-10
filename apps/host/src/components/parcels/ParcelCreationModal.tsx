@@ -1,0 +1,69 @@
+import React from 'react';
+import { X } from 'lucide-react';
+import { ParcelForm } from './ParcelForm';
+import type { Parcel } from '@/types';
+import { Button } from '@nekazari/ui-kit';
+
+interface ParcelCreationModalProps {
+    isOpen: boolean;
+    geometry: any;
+    onSave: (data: Partial<Parcel>) => void;
+    onCancel: () => void;
+    cadastralData?: {
+        reference: string;
+        municipality?: string;
+        province?: string;
+        address?: string;
+    };
+}
+
+export const ParcelCreationModal: React.FC<ParcelCreationModalProps> = ({
+    isOpen,
+    geometry,
+    onSave,
+    onCancel,
+    cadastralData,
+}) => {
+    if (!isOpen) return null;
+
+    // Build initial data from cadastral data if available
+    const initialData = cadastralData ? {
+        cadastralReference: cadastralData.reference,
+        municipality: cadastralData.municipality || '',
+        province: cadastralData.province || '',
+        name: cadastralData.reference, // Use reference as default name
+    } as Partial<Parcel> : null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between p-6 border-b border-nkz-border">
+                    <div>
+                        <h3 className="text-xl font-bold text-gray-900">
+                            Nueva Parcela
+                        </h3>
+                        {cadastralData && (
+                            <p className="text-sm text-gray-600 mt-1">
+                                Datos catastrales encontrados: {cadastralData.reference}
+                            </p>
+                        )}
+                    </div>
+                    <Button
+                        onClick={onCancel}
+                        className="text-nkz-muted hover:text-gray-600 transition-colors"
+                    >
+                        <X className="w-6 h-6" />
+                    </Button>
+                </div>
+
+                <ParcelForm
+                    initialData={initialData}
+                    geometry={geometry}
+                    onSave={onSave}
+                    onCancel={onCancel}
+                    mode="create"
+                />
+            </div>
+        </div>
+    );
+};

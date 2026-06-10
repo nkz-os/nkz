@@ -1,0 +1,1207 @@
+#!/usr/bin/env python3
+# =============================================================================
+# SDM Integration API - Production Service
+# =============================================================================
+
+import os
+import sys
+import json
+import logging
+import secrets
+import hashlib
+import uuid
+from flask import Flask, request, jsonify, g
+from flask_cors import CORS
+import requests
+from datetime import datetime
+import pymongo
+from pymongo import MongoClient
+
+# Add common directory to path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common'))
+from auth_middleware import require_auth, inject_fiware_headers, log_entity_operation, require_entity_ownership
+from entity_utils import generate_entity_id
+
+# Configure logging to stdout for kubernetes
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+app = Flask(__name__)
+_cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
+CORS(app, origins=_cors_origins, supports_credentials=True)
+
+# Register Device Profiles blueprint
+from device_profiles import device_profiles_bp
+app.register_blueprint(device_profiles_bp)
+
+# Configuration - All environment variables are REQUIRED for security
+ORION_URL = os.getenv('ORION_URL')
+if not ORION_URL:
+    raise ValueError("ORION_URL environment variable is required")
+
+MONGODB_URL = os.getenv('MONGODB_URL')
+if not MONGODB_URL:
+    raise ValueError("MONGODB_URL environment variable is required")
+
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+
+# IoT Agent Configuration for device provisioning
+IOT_AGENT_URL = os.getenv('IOT_AGENT_URL', 'http://iot-agent-json-service:4041')
+MQTT_HOST = os.getenv('MQTT_EXTERNAL_HOST', '')  # External hostname for devices — must be set via env
+MQTT_PORT = int(os.getenv('MQTT_EXTERNAL_PORT', '8883'))  # External TLS port
+MQTT_INTERNAL_HOST = os.getenv('MQTT_HOST', 'mosquitto-service')
+
+# Types that require IoT provisioning
+IOT_ENTITY_TYPES = {'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'ManufacturingMachine', 'LivestockAnimal', 'AgriculturalMachine'}
+
+# SOTA: Use local unified context from API Gateway
+CONTEXT_URL = os.getenv('CONTEXT_URL', 'http://api-gateway-service:5000/ngsi-ld-context.json')
+PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "http://api-gateway-service:5000").rstrip("/")
+SOTA_CONTEXT = CONTEXT_URL
+
+# Tenant Limits
+MAX_SENSORS_PER_TENANT = int(os.getenv('MAX_SENSORS_PER_TENANT', '100'))
+MAX_ROBOTS_PER_TENANT = int(os.getenv('MAX_ROBOTS_PER_TENANT', '5'))
+
+
+# Set logging level
+logging.getLogger().setLevel(getattr(logging, LOG_LEVEL))
+
+def get_mongodb_connection():
+    """Get MongoDB connection"""
+    try:
+        client = MongoClient(MONGODB_URL)
+        return client
+    except Exception as e:
+        logger.error(f"MongoDB connection error: {e}")
+        return None
+
+
+def _generate_tenant_apikey() -> str:
+    """Generate a random API key for a tenant service group."""
+    return f"nkz_iot_{secrets.token_hex(16)}"
+
+
+def get_or_create_service_group(tenant_id: str) -> str | None:
+    """
+    Get or create the FIWARE IoT Agent service group for a tenant.
+
+    FIWARE standard provisioning flow (IoT Agent multi-tenant mode):
+      1. One service group per tenant — the apikey identifies the tenant
+         in MQTT topics: /<tenant_apikey>/<device_id>/attrs
+      2. All devices within the tenant share this apikey
+      3. The device_id differentiates individual devices
+
+    Returns the tenant's apikey on success, None on failure.
+    """
+    headers = {
+        'Content-Type': 'application/json',
+        'Fiware-Service': tenant_id,
+        'Fiware-ServicePath': '/'
+    }
+
+    try:
+        # Check if a service group already exists for this tenant
+        resp = requests.get(
+            f'{IOT_AGENT_URL}/iot/services',
+            headers=headers,
+            timeout=5
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            services = data.get('services', [])
+            if services:
+                existing_apikey = services[0].get('apikey')
+                logger.debug(f"Service group exists for tenant '{tenant_id}', apikey={existing_apikey[:20]}...")
+                return existing_apikey
+
+        # Create a new service group with a tenant-level apikey
+        tenant_apikey = _generate_tenant_apikey()
+        service_group = {
+            'services': [{
+                'resource': '/iot/json',
+                'apikey': tenant_apikey,
+                'cbroker': ORION_URL,
+                'entity_type': 'Device',
+                'attributes': [],
+                'lazy': [],
+                'commands': [],
+                'static_attributes': []
+            }]
+        }
+
+        resp = requests.post(
+            f'{IOT_AGENT_URL}/iot/services',
+            json=service_group,
+            headers=headers,
+            timeout=5
+        )
+
+        if resp.status_code in [200, 201]:
+            logger.info(f"Created service group for tenant '{tenant_id}' with apikey={tenant_apikey[:20]}...")
+            return tenant_apikey
+        elif resp.status_code == 409:
+            # Race condition: another request created it first — retrieve it
+            resp2 = requests.get(f'{IOT_AGENT_URL}/iot/services', headers=headers, timeout=5)
+            if resp2.status_code == 200:
+                services = resp2.json().get('services', [])
+                if services:
+                    return services[0].get('apikey')
+            logger.warning(f"Service group 409 but cannot retrieve for tenant '{tenant_id}'")
+            return None
+        else:
+            logger.error(f"Failed to create service group for tenant '{tenant_id}': "
+                         f"{resp.status_code} - {resp.text[:200]}")
+            return None
+
+    except Exception as e:
+        logger.error(f"Error in get_or_create_service_group for tenant '{tenant_id}': {e}")
+        return None
+
+
+def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
+                         device_name: str, location: dict = None,
+                         profile_id: str = None) -> dict:
+    """
+    Provision an IoT device in the IoT Agent.
+    Returns provisioning result with MQTT credentials.
+
+    Requires a valid DeviceProfile with attribute mappings.
+    Provision without profile is rejected for IoT entity types.
+    """
+    result = {
+        'provisioned': False,
+        'api_key': None,
+        'mqtt': None,
+        'error': None,
+        'profile_used': None
+    }
+
+    try:
+        # Extract device_id from entity_id (e.g., urn:ngsi-ld:AgriSensor:sensor001 -> sensor001)
+        device_id = entity_id.split(':')[-1] if ':' in entity_id else entity_id
+
+        # FIWARE standard: one apikey per tenant (service group).
+        # The apikey identifies the tenant in MQTT topics: /<apikey>/<device_id>/attrs
+        # The device_id differentiates individual devices within the tenant.
+        api_key = get_or_create_service_group(tenant_id)
+        if not api_key:
+            result['error'] = "Failed to get/create IoT Agent service group for tenant"
+            return result
+
+        # Build IoT Agent device configuration
+        # Topic pattern: /{api_key}/{device_id}/attrs for data
+        attributes = []
+        
+        # Try to load attributes from DeviceProfile if profile_id is provided
+        if profile_id:
+            try:
+                from device_profiles import get_profiles_collection
+                from bson import ObjectId
+                
+                collection = get_profiles_collection()
+                profile = collection.find_one({'_id': ObjectId(profile_id)})
+                
+                if profile and profile.get('mappings'):
+                    result['profile_used'] = profile.get('name')
+                    for mapping in profile.get('mappings', []):
+                        attr = {
+                            'object_id': mapping.get('incoming_key', ''),
+                            'name': mapping.get('target_attribute'),
+                            'type': mapping.get('type', 'Number')
+                        }
+                        # Add JEXL expression if transformation is defined
+                        if mapping.get('transformation') and mapping['transformation'] != 'val':
+                            # IoT Agent uses 'expression' field for JEXL
+                            expr = mapping['transformation'].replace('val', '${@value}')
+                            attr['expression'] = expr
+                        attributes.append(attr)
+                    logger.info(f"Loaded {len(attributes)} attributes from profile '{profile.get('name')}'")
+            except Exception as e:
+                logger.warning(f"Failed to load profile {profile_id}: {e}, using defaults")
+        
+        # Reject provisioning without valid profile mappings
+        if not attributes:
+            result['error'] = "No valid DeviceProfile with attribute mappings. IoT devices require a profile for SDM-compliant provisioning."
+            return result
+        
+        device_config = {
+            'devices': [{
+                'device_id': device_id,
+                'entity_name': entity_id,
+                'entity_type': entity_type,
+                'protocol': 'IoTA-JSON',
+                'transport': 'MQTT',
+                'apikey': api_key,
+                'attributes': attributes,
+                'lazy': [],
+                'commands': [],
+                'static_attributes': []
+            }]
+        }
+        
+        # Add location as static attribute if provided
+        if location:
+            device_config['devices'][0]['static_attributes'].append({
+                'name': 'location',
+                'type': 'GeoProperty',
+                'value': location
+            })
+        
+        # Register device in IoT Agent
+        iot_headers = {
+            'Content-Type': 'application/json',
+            'Fiware-Service': tenant_id,
+            'Fiware-ServicePath': '/'
+        }
+        
+        logger.info(f"Provisioning device {device_id} in IoT Agent...")
+        logger.debug(f"Device config: {json.dumps(device_config, indent=2)}")
+        
+        iot_response = requests.post(
+            f'{IOT_AGENT_URL}/iot/devices',
+            json=device_config,
+            headers=iot_headers,
+            timeout=10
+        )
+        
+        if iot_response.status_code in [200, 201]:
+            result['provisioned'] = True
+            result['api_key'] = api_key
+            result['mqtt'] = {
+                'host': MQTT_HOST,
+                'port': MQTT_PORT,
+                'protocol': 'mqtts' if MQTT_PORT == 8883 else 'mqtt',
+                'api_key': api_key,
+                'device_id': device_id,
+                'topics': {
+                    'publish_data': f'/{api_key}/{device_id}/attrs',
+                    'publish_data_json': f'/json/{api_key}/{device_id}/attrs',
+                    'commands': f'/{api_key}/{device_id}/cmd'
+                },
+                'example_payload': {
+                    'temperature': 22.5,
+                    'humidity': 65,
+                    'batteryLevel': 85
+                },
+                'warning': '⚠️ GUARDA ESTA INFORMACIÓN. La API Key no se puede recuperar después.'
+            }
+            logger.info(f"Successfully provisioned device {device_id}")
+        else:
+            result['error'] = f"IoT Agent error: {iot_response.status_code} - {iot_response.text[:200]}"
+            logger.warning(f"Failed to provision device: {result['error']}")
+            
+    except requests.exceptions.Timeout:
+        result['error'] = "IoT Agent timeout - device not provisioned"
+        logger.error(result['error'])
+    except requests.exceptions.ConnectionError:
+        result['error'] = "Cannot connect to IoT Agent - device not provisioned"
+        logger.error(result['error'])
+    except Exception as e:
+        result['error'] = f"Provisioning error: {str(e)}"
+        logger.error(result['error'], exc_info=True)
+    
+    return result
+
+def _check_tenant_limits(tenant_id: str, entity_type: str) -> bool:
+    """Check if tenant has reached the limit for the given entity type"""
+    limit = 0
+    if entity_type in ['AgriSensor', 'Sensor', 'Device', 'WeatherStation', 'LivestockAnimal']:
+        limit = MAX_SENSORS_PER_TENANT
+    elif entity_type in ['AutonomousMobileRobot', 'ManufacturingMachine', 'AgriculturalMachine']:
+        limit = MAX_ROBOTS_PER_TENANT
+    else:
+        # No specific limit for other types
+        return True
+    
+    try:
+        # Query Orion-LD count
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
+        params = {
+            'type': entity_type,
+            'options': 'count',
+            'limit': 1  # We only need the count header
+        }
+        headers = inject_fiware_headers({}, tenant_id)
+        
+        response = requests.get(orion_url, params=params, headers=headers, timeout=5)
+        
+        if response.status_code == 200:
+            count = int(response.headers.get('NGSILD-Results-Count', 0))
+            if count >= limit:
+                logger.warning(f"Tenant {tenant_id} reached limit for {entity_type}: {count}/{limit}")
+                return False
+            return True
+        elif response.status_code == 404:
+            # First entity of this type
+            return True
+        else:
+            logger.warning(f"Failed to check limits: {response.status_code}")
+            return True # Fail open to avoid blocking reliable users on temporary errors
+            
+    except Exception as e:
+        logger.error(f"Error checking tenant limits: {e}")
+        return True
+
+def get_sdm_entities():
+    """Get available SDM entities"""
+    return {
+        "AutonomousMobileRobot": {
+            "description": "A robot used in agricultural operations",
+            "attributes": {
+                "name": {"type": "Text", "description": "Robot name"},
+                "status": {"type": "Text", "description": "Current status"},
+                "location": {"type": "geo:json", "description": "Robot location"},
+                "batteryLevel": {"type": "Number", "description": "Battery level percentage"},
+                "currentTask": {"type": "Text", "description": "Current task being performed"}
+            }
+        },
+        "AgriSensor": {
+            "description": "Agricultural sensor device (SAREF4AGRI)",
+            "attributes": {
+                "name": {"type": "Text", "description": "Sensor name"},
+                "description": {"type": "Text", "description": "Sensor description"},
+                "location": {"type": "geo:json", "description": "Sensor location"},
+                "sensorType": {"type": "Text", "description": "Type of sensor"},
+                "controlledProperty": {"type": "List", "description": "Properties measured by this sensor"},
+                "hasDeviceProfile": {"type": "Relationship", "description": "Link to DeviceProfile"},
+                # Meteorological / environmental measurements
+                "airTemperature": {"type": "Number", "description": "Air temperature (CEL)"},
+                "relativeHumidity": {"type": "Number", "description": "Relative humidity (P1)"},
+                "atmosphericPressure": {"type": "Number", "description": "Atmospheric pressure (HPA)"},
+                "solarRadiation": {"type": "Number", "description": "Solar radiation (WM2)"},
+                "windSpeed": {"type": "Number", "description": "Wind speed (MTS)"},
+                "windDirection": {"type": "Number", "description": "Wind direction (DD)"},
+                "precipitation": {"type": "Number", "description": "Precipitation (MMT)"},
+                # Soil measurements
+                "soilMoisture": {"type": "Number", "description": "Soil volumetric water content (P1)"},
+                "soilTemperature": {"type": "Number", "description": "Soil temperature (CEL)"},
+                "soilConductivity": {"type": "Number", "description": "Soil electrical conductivity"},
+                # Plant measurements
+                "leafTemperature": {"type": "Number", "description": "Leaf temperature (CEL)"},
+                "leafWetness": {"type": "Number", "description": "Leaf wetness (P1)"},
+                "dendrometerValue": {"type": "Number", "description": "Dendrometer trunk diameter variation"},
+                "photosyntheticallyActiveRadiation": {"type": "Number", "description": "PAR (UMOL/M2S)"},
+                # Energy / agrivoltaic
+                "panelTemperature": {"type": "Number", "description": "PV panel temperature (CEL)"},
+                "energyProduction": {"type": "Number", "description": "Energy production (KWH)"},
+                "panelInclination": {"type": "Number", "description": "Panel tilt angle (DD)"},
+                # Device health
+                "batteryLevel": {"type": "Number", "description": "Battery level (P1)"},
+                "rssi": {"type": "Number", "description": "Signal strength (DBM)"},
+                # Legacy / generic
+                "measurement": {"type": "Number", "description": "Generic measurement value"},
+                "unit": {"type": "Text", "description": "Measurement unit (UNECE code)"},
+            }
+        },
+        "AgriParcel": {
+            "description": "Agricultural parcel or field",
+            "attributes": {
+                "name": {"type": "Text", "description": "Parcel name"},
+                "location": {"type": "geo:json", "description": "Parcel boundaries"},
+                "area": {"type": "Number", "description": "Parcel area"},
+                "cropType": {"type": "Text", "description": "Type of crop"},
+                "soilType": {"type": "Text", "description": "Type of soil"}
+            }
+        },
+        "AgriOperation": {
+            "description": "Agricultural operation or task",
+            "attributes": {
+                "name": {"type": "Text", "description": "Operation name"},
+                "operationType": {"type": "Text", "description": "Type of operation"},
+                "status": {"type": "Text", "description": "Operation status"},
+                "startDate": {"type": "DateTime", "description": "Operation start date"},
+                "endDate": {"type": "DateTime", "description": "Operation end date"},
+                "location": {"type": "geo:json", "description": "Operation location"}
+            }
+        },
+        "ManufacturingMachine": {
+            "description": "Agricultural machinery (tractor or implement per category property)",
+            "attributes": {
+                "name": {"type": "Text", "description": "Machine name"},
+                "category": {"type": "Text", "description": "Machine category: tractor, implement, harvester, sprayer, spreader, drill"},
+                "status": {"type": "Text", "description": "Current status"},
+                "location": {"type": "geo:json", "description": "Machine location"},
+                "operationType": {"type": "Text", "description": "Type of operation"},
+                "manufacturer": {"type": "Text", "description": "Manufacturer name"},
+                "model": {"type": "Text", "description": "Model name"},
+                "serialNumber": {"type": "Text", "description": "Serial number"},
+                "implementType": {"type": "Text", "description": "Type of implement (if category=implement)"},
+                "isobusCompatible": {"type": "Boolean", "description": "ISOBUS compatibility"}
+            }
+        },
+        "LivestockAnimal": {
+            "description": "Livestock animal with GPS tracking",
+            "attributes": {
+                "name": {"type": "Text", "description": "Animal name"},
+                "species": {"type": "Text", "description": "Animal species"},
+                "breed": {"type": "Text", "description": "Animal breed"},
+                "location": {"type": "geo:json", "description": "Animal location"},
+                "activity": {"type": "Text", "description": "Current activity"},
+                "herdId": {"type": "Text", "description": "Herd identifier"},
+                "birthDate": {"type": "DateTime", "description": "Birth date"},
+                "weight": {"type": "Number", "description": "Animal weight"}
+            }
+        },
+        "WeatherObserved": {
+            "description": "Weather observation station",
+            "attributes": {
+                "name": {"type": "Text", "description": "Station name"},
+                "location": {"type": "geo:json", "description": "Station location"},
+                "temperature": {"type": "Number", "description": "Temperature"},
+                "humidity": {"type": "Number", "description": "Humidity percentage"},
+                "pressure": {"type": "Number", "description": "Atmospheric pressure"},
+                "windSpeed": {"type": "Number", "description": "Wind speed"},
+                "windDirection": {"type": "Number", "description": "Wind direction"},
+                "precipitation": {"type": "Number", "description": "Precipitation"},
+                "observedAt": {"type": "DateTime", "description": "Observation timestamp"}
+            }
+        },
+        # === Additional Entity Types ===
+        "Vineyard": {
+            "description": "Vineyard agricultural area",
+            "attributes": {
+                "name": {"type": "Text", "description": "Vineyard name"},
+                "location": {"type": "geo:json", "description": "Vineyard boundaries"},
+                "area": {"type": "Number", "description": "Area in hectares"},
+                "grapeVariety": {"type": "Text", "description": "Grape variety"}
+            }
+        },
+        "OliveGrove": {
+            "description": "Olive grove area",
+            "attributes": {
+                "name": {"type": "Text", "description": "Olive grove name"},
+                "location": {"type": "geo:json", "description": "Grove boundaries"},
+                "area": {"type": "Number", "description": "Area in hectares"},
+                "treeCount": {"type": "Number", "description": "Number of trees"}
+            }
+        },
+        "AgriCrop": {
+            "description": "Agricultural crop",
+            "attributes": {
+                "name": {"type": "Text", "description": "Crop name"},
+                "location": {"type": "geo:json", "description": "Crop location"},
+                "cropType": {"type": "Text", "description": "Type of crop"},
+                "plantingDate": {"type": "DateTime", "description": "Planting date"}
+            }
+        },
+        "AgriTree": {
+            "description": "Individual agricultural tree",
+            "attributes": {
+                "name": {"type": "Text", "description": "Tree identifier"},
+                "location": {"type": "geo:json", "description": "Tree location"},
+                "species": {"type": "Text", "description": "Tree species"}
+            }
+        },
+        "OliveTree": {
+            "description": "Individual olive tree",
+            "attributes": {
+                "name": {"type": "Text", "description": "Tree identifier"},
+                "location": {"type": "geo:json", "description": "Tree location"},
+                "age": {"type": "Number", "description": "Tree age in years"}
+            }
+        },
+        "Vine": {
+            "description": "Individual vine plant",
+            "attributes": {
+                "name": {"type": "Text", "description": "Vine identifier"},
+                "location": {"type": "geo:json", "description": "Vine location"},
+                "variety": {"type": "Text", "description": "Grape variety"}
+            }
+        },
+        "FruitTree": {
+            "description": "Fruit tree",
+            "attributes": {
+                "name": {"type": "Text", "description": "Tree identifier"},
+                "location": {"type": "geo:json", "description": "Tree location"},
+                "species": {"type": "Text", "description": "Fruit species"}
+            }
+        },
+        "AgriBuilding": {
+            "description": "Agricultural building or structure",
+            "attributes": {
+                "name": {"type": "Text", "description": "Building name"},
+                "location": {"type": "geo:json", "description": "Building location"},
+                "buildingType": {"type": "Text", "description": "Type of building"},
+                "area": {"type": "Number", "description": "Floor area"}
+            }
+        },
+        "WaterSource": {
+            "description": "Water source for irrigation",
+            "attributes": {
+                "name": {"type": "Text", "description": "Source name"},
+                "location": {"type": "geo:json", "description": "Source location"},
+                "sourceType": {"type": "Text", "description": "Type of source"},
+                "capacity": {"type": "Number", "description": "Capacity in liters"}
+            }
+        },
+        "Well": {
+            "description": "Water well",
+            "attributes": {
+                "name": {"type": "Text", "description": "Well name"},
+                "location": {"type": "geo:json", "description": "Well location"},
+                "depth": {"type": "Number", "description": "Well depth"},
+                "flowRate": {"type": "Number", "description": "Flow rate L/min"}
+            }
+        },
+        "IrrigationOutlet": {
+            "description": "Irrigation outlet point",
+            "attributes": {
+                "name": {"type": "Text", "description": "Outlet identifier"},
+                "location": {"type": "geo:json", "description": "Outlet location"},
+                "outletType": {"type": "Text", "description": "Type of outlet"}
+            }
+        },
+        "Spring": {
+            "description": "Natural water spring",
+            "attributes": {
+                "name": {"type": "Text", "description": "Spring name"},
+                "location": {"type": "geo:json", "description": "Spring location"},
+                "flowRate": {"type": "Number", "description": "Flow rate L/min"}
+            }
+        },
+        "Pond": {
+            "description": "Water pond or reservoir",
+            "attributes": {
+                "name": {"type": "Text", "description": "Pond name"},
+                "location": {"type": "geo:json", "description": "Pond boundaries"},
+                "capacity": {"type": "Number", "description": "Capacity in m³"}
+            }
+        },
+        "IrrigationSystem": {
+            "description": "Irrigation system",
+            "attributes": {
+                "name": {"type": "Text", "description": "System name"},
+                "location": {"type": "geo:json", "description": "System coverage"},
+                "systemType": {"type": "Text", "description": "Type of system"}
+            }
+        },
+        "PhotovoltaicInstallation": {
+            "description": "Photovoltaic solar installation",
+            "attributes": {
+                "name": {"type": "Text", "description": "Installation name"},
+                "location": {"type": "geo:json", "description": "Installation location"},
+                "capacity": {"type": "Number", "description": "Capacity in kW"},
+                "panelCount": {"type": "Number", "description": "Number of panels"}
+            }
+        },
+        "EnergyStorageSystem": {
+            "description": "Energy storage system (battery)",
+            "attributes": {
+                "name": {"type": "Text", "description": "System name"},
+                "location": {"type": "geo:json", "description": "System location"},
+                "capacity": {"type": "Number", "description": "Capacity in kWh"},
+                "technology": {"type": "Text", "description": "Battery technology"}
+            }
+        },
+        "Device": {
+            "description": "Generic IoT device (legacy — prefer AgriSensor)",
+            "attributes": {
+                "name": {"type": "Text", "description": "Device name"},
+                "location": {"type": "geo:json", "description": "Device location"},
+                "deviceType": {"type": "Text", "description": "Type of device"}
+            }
+        },
+        "LivestockGroup": {
+            "description": "Group of livestock animals",
+            "attributes": {
+                "name": {"type": "Text", "description": "Group name"},
+                "location": {"type": "geo:json", "description": "Group location"},
+                "species": {"type": "Text", "description": "Animal species"},
+                "count": {"type": "Number", "description": "Number of animals"}
+            }
+        },
+        "LivestockFarm": {
+            "description": "Livestock farm",
+            "attributes": {
+                "name": {"type": "Text", "description": "Farm name"},
+                "location": {"type": "geo:json", "description": "Farm boundaries"},
+                "farmType": {"type": "Text", "description": "Type of farm"}
+            }
+        },
+    }
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.utcnow().isoformat(),
+        'service': 'sdm-integration'
+    })
+
+@app.route('/sdm/entities', methods=['GET'])
+@require_auth
+def list_sdm_entities():
+    """List available SDM entity types"""
+    try:
+        entities = get_sdm_entities()
+        return jsonify({
+            'entities': entities,
+            'count': len(entities),
+            'tenant': g.tenant
+        })
+    except Exception as e:
+        logger.error(f"Error listing SDM entities: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/sdm/entities/<entity_type>', methods=['GET'])
+@require_auth
+def get_sdm_entity_schema(entity_type):
+    """Get SDM entity schema"""
+    try:
+        entities = get_sdm_entities()
+        if entity_type not in entities:
+           return jsonify({'error': 'Entity type not found'}), 404
+        
+        return jsonify({
+            'entityType': entity_type,
+            'schema': entities[entity_type],
+            'tenant': g.tenant
+        })
+    except Exception as e:
+        logger.error(f"Error getting SDM entity schema: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/sdm/entities/<entity_type>/instances', methods=['GET'])
+@require_auth
+def list_entity_instances(entity_type):
+    """List instances of a specific entity type"""
+    try:
+        # Query Orion-LD for entities of this type
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
+        params = {
+            'type': entity_type,
+            'options': 'count'
+        }
+        
+        # Add pagination support
+        limit = request.args.get('limit', type=int)
+        offset = request.args.get('offset', type=int)
+        
+        if limit is not None:
+            params['limit'] = limit
+        if offset is not None:
+            params['offset'] = offset
+        
+        headers = {
+            'Accept': 'application/ld+json'
+        }
+        headers = inject_fiware_headers(headers, g.tenant)
+        
+        response = requests.get(orion_url, params=params, headers=headers, timeout=10)
+        
+        # Handle tenant not found (404) - return empty list instead of error
+        if response.status_code == 404:
+            logger.info(f"Tenant {g.tenant} not found in Orion-LD for {entity_type}, returning empty list")
+            return jsonify({
+                'entityType': entity_type,
+                'instances': [],
+                'count': 0,
+                'tenant': g.tenant
+            }), 200
+        
+        if response.status_code != 200:
+            logger.error(f"Failed to query Orion for {entity_type}: {response.status_code} - {response.text}")
+            return jsonify({'error': 'Failed to query Orion'}), 500
+            
+        # Get total count from header
+        total_count = int(response.headers.get('NGSILD-Results-Count', 0))
+        
+        # Get actual entities
+        params.pop('options')
+        response = requests.get(orion_url, params=params, headers=headers, timeout=10)
+        
+        # Handle tenant not found (404) - return empty list instead of error
+        if response.status_code == 404:
+            logger.info(f"Tenant {g.tenant} not found in Orion-LD for {entity_type}, returning empty list")
+            return jsonify({
+                'entityType': entity_type,
+                'instances': [],
+                'count': 0,
+                'tenant': g.tenant
+            }), 200
+        
+        if response.status_code != 200:
+            logger.error(f"Failed to get entities from Orion for {entity_type}: {response.status_code} - {response.text}")
+            return jsonify({'error': 'Failed to get entities from Orion'}), 500
+        
+        entities = response.json()
+        
+        # Ensure entities is a list (Orion-LD may return a single object or a list)
+        if not isinstance(entities, list):
+            entities = [entities] if entities else []
+        
+        # Log the operation
+        log_entity_operation('list', None, entity_type, g.tenant, g.farmer_id, 
+                           {'count': len(entities)})
+        
+        return jsonify({
+            'entityType': entity_type,
+            'instances': entities,
+            'count': len(entities),
+            'total': total_count,
+            'tenant': g.tenant
+        })
+    
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout querying Orion-LD for {entity_type}")
+        return jsonify({'error': 'Timeout querying Orion-LD'}), 500
+    except Exception as e:
+        logger.error(f"Error listing entity instances for {entity_type}: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/sdm/entities/<entity_type>/instances', methods=['POST'])
+@require_auth
+def create_entity_instance(entity_type):
+    """Create a new entity instance using SDM"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Validate entity type against allowed schemas if necessary, or just rely on Orion
+        # if entity_type not in ALLOWED_ENTITY_TYPES: # If we had such a list
+        #    return jsonify({'error': 'Entity type not found'}), 404
+            
+        # Check tenant limits
+        if not _check_tenant_limits(g.tenant, entity_type):
+            return jsonify({
+                'error': f'Tenant limit reached for {entity_type}. Please upgrade your plan.'
+            }), 403
+        
+        # Add type and ID to entity
+        entity_id = data.get('id') or generate_entity_id(entity_type)
+        
+        # Ensure proper URN format
+        if not entity_id.startswith('urn:ngsi-ld:'):
+            entity_id = f"urn:ngsi-ld:{entity_type}:{entity_id}"
+        
+        # Build NGSI-LD compliant entity with unified SOTA context
+        entity_data = {
+            '@context': SOTA_CONTEXT,
+            'id': entity_id,
+            'type': entity_type
+        }
+        
+        # Add properties from data (convert to NGSI-LD Property format)
+        for key, value in data.items():
+            if key in ['id', 'type', '@context']:
+                continue
+            if isinstance(value, dict) and 'type' in value:
+                # Already in NGSI-LD format
+                entity_data[key] = value
+            else:
+                # Convert to NGSI-LD Property format
+                entity_data[key] = {
+                    'type': 'Property',
+                    'value': value
+                }
+        
+        # Send to Orion-LD
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
+        headers = {
+            'Content-Type': 'application/ld+json'
+        }
+        headers = inject_fiware_headers(headers, g.tenant)
+        
+        logger.info(f"Creating entity {entity_id} of type {entity_type} for tenant {g.tenant}")
+        logger.debug(f"Entity data: {entity_data}")
+        logger.debug(f"Orion URL: {orion_url}")
+        
+        response = requests.post(orion_url, json=entity_data, headers=headers)
+        logger.info(f"Orion response status: {response.status_code}")
+        
+        if response.status_code in [200, 201]:
+            # Log the operation
+            log_entity_operation('create', entity_id, entity_type, g.tenant, g.farmer_id, 
+                               {'attributes': list(entity_data.keys())})
+            
+            # Build response
+            response_data = {
+                'message': 'Entity created successfully',
+                'entity': entity_data,
+                'entity_id': entity_id,
+                'tenant': g.tenant
+            }
+            
+            # =================================================================
+            # IoT PROVISIONING: For Device/Sensor types, provision in IoT Agent
+            # =================================================================
+            if entity_type in IOT_ENTITY_TYPES:
+                logger.info(f"Entity type {entity_type} requires IoT provisioning")
+                
+                # Extract location if present
+                location = None
+                if 'location' in data:
+                    loc = data['location']
+                    if isinstance(loc, dict) and 'coordinates' in loc:
+                        location = loc
+                    elif isinstance(loc, dict) and 'value' in loc:
+                        location = loc['value']
+                
+                # Extract controlled properties if present
+                # Get device name
+                device_name = data.get('name', entity_id)
+                if isinstance(device_name, dict):
+                    device_name = device_name.get('value', entity_id)
+
+                # Extract Profile ID from Relationship (mandatory for IoT types)
+                profile_id = None
+                if 'hasDeviceProfile' in data:
+                    ref = data['hasDeviceProfile']
+                    if isinstance(ref, dict) and 'object' in ref:
+                         ref_obj = ref['object']
+                         profile_id = ref_obj.split(':')[-1] if ':' in ref_obj else ref_obj
+
+                if not profile_id:
+                    return jsonify({
+                        'error': f'DeviceProfile is required for IoT entity type {entity_type}. '
+                                 'Provide hasDeviceProfile as a Relationship with a valid profile ID.'
+                    }), 400
+
+                # Provision in IoT Agent
+                iot_result = provision_iot_device(
+                    entity_id=entity_id,
+                    entity_type=entity_type,
+                    tenant_id=g.tenant,
+                    device_name=device_name,
+                    location=location,
+                    profile_id=profile_id
+                )
+                
+                # Add IoT provisioning result to response
+                response_data['iot_provisioning'] = {
+                    'provisioned': iot_result['provisioned'],
+                    'status': 'ready' if iot_result['provisioned'] else 'failed'
+                }
+                
+                if iot_result['provisioned']:
+                    # Include MQTT credentials (shown ONLY ONCE)
+                    response_data['mqtt_credentials'] = iot_result['mqtt']
+                    response_data['message'] = 'Entity created and IoT device provisioned successfully'
+                    response_data['mqtt_credentials'] = iot_result['mqtt']
+                    # Also include credentials at the top level for easier access in Success Modal
+                    response_data['api_key'] = iot_result['api_key']
+                    response_data['mqtt_topics'] = iot_result['mqtt']['topics'] if iot_result['mqtt'] else None
+                    response_data['message'] = 'Entity created and IoT device provisioned successfully'
+                    logger.info(f"IoT provisioning successful for {entity_id}")
+                else:
+                    response_data['iot_provisioning']['error'] = iot_result['error']
+                    response_data['message'] = 'Entity created but IoT provisioning failed'
+                    logger.warning(f"IoT provisioning failed for {entity_id}: {iot_result['error']}")
+            
+            return jsonify(response_data), 201
+        else:
+            logger.error(f"Orion error: {response.status_code} - {response.text}")
+            return jsonify({
+                'error': 'Failed to create entity in Orion',
+                'orion_status': response.status_code,
+                'orion_response': response.text[:500] if response.text else None
+            }), 500
+    
+    except Exception as e:
+        logger.error(f"Error creating entity instance: {e}", exc_info=True)
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+
+@app.route('/sdm/entities/<entity_type>/instances/<entity_id>', methods=['GET'])
+@require_auth
+@require_entity_ownership
+def get_sdm_entity_instance(entity_type, entity_id):
+    """Get specific SDM entity instance"""
+    try:
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
+        headers = {
+            'Accept': 'application/ld+json'
+        }
+        headers = inject_fiware_headers(headers, g.tenant)
+        
+        response = requests.get(orion_url, headers=headers)
+        if response.status_code == 200:
+            entity = response.json()
+            return jsonify({
+                'entity': entity,
+                'tenant': g.tenant
+            })
+        elif response.status_code == 404:
+            return jsonify({'error': 'Entity not found'}), 404
+        else:
+            return jsonify({'error': 'Failed to get entity from Orion'}), 500
+    
+    except Exception as e:
+        logger.error(f"Error getting SDM entity instance: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/sdm/entities/<entity_type>/instances/<entity_id>', methods=['PATCH'])
+@require_auth
+@require_entity_ownership
+def update_sdm_entity_instance(entity_type, entity_id):
+    """Update specific SDM entity instance attributes"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
+        headers = {
+            'Content-Type': 'application/ld+json'
+        }
+        headers = inject_fiware_headers(headers, g.tenant)
+        
+        response = requests.patch(orion_url, json=data, headers=headers)
+        if response.status_code in [200, 204]:
+            # Log the operation
+            log_entity_operation('update', entity_id, entity_type, g.tenant, g.farmer_id, 
+                               {'updated_attributes': list(data.keys())})
+            
+            return jsonify({
+                'message': 'SDM entity updated successfully',
+                'entity_id': entity_id,
+                'updated_attributes': list(data.keys()),
+                'tenant': g.tenant
+            })
+        elif response.status_code == 404:
+            return jsonify({'error': 'Entity not found'}), 404
+        else:
+            return jsonify({'error': 'Failed to update entity in Orion'}), 500
+    
+    except Exception as e:
+        logger.error(f"Error updating SDM entity instance: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/sdm/entities/<entity_type>/instances/<entity_id>', methods=['DELETE'])
+@require_auth
+@require_entity_ownership
+def delete_sdm_entity_instance(entity_type, entity_id):
+    """Delete specific SDM entity instance"""
+    try:
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
+        headers = {}
+        headers = inject_fiware_headers(headers, g.tenant)
+        
+        response = requests.delete(orion_url, headers=headers)
+        if response.status_code in [200, 204]:
+            # Log the operation
+            log_entity_operation('delete', entity_id, entity_type, g.tenant, g.farmer_id)
+            
+            return jsonify({
+                'message': 'SDM entity deleted successfully',
+                'entity_id': entity_id,
+                'tenant': g.tenant
+            })
+        elif response.status_code == 404:
+            return jsonify({'error': 'Entity not found'}), 404
+        else:
+            return jsonify({'error': 'Failed to delete entity from Orion'}), 500
+    
+    except Exception as e:
+        logger.error(f"Error deleting SDM entity instance: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/sdm/entities/<entity_type>/batch', methods=['POST'])
+@require_auth
+def create_entity_batch(entity_type):
+    """
+    Batch create entities of <entity_type> from a simplified list of records.
+
+    Body: { "entities": [ { "name": str, "lat": float, "lng": float, ... }, ... ] }
+    Response 201: { "created": N, "errors": [], "entity_ids": [...] }
+    Response 207: { "created": N, "errors": [...], "entity_ids": [...] }
+
+    Skips IoT provisioning — intended for static assets (trees, crop elements,
+    structural assets) imported from GPS surveys or GeoJSON/CSV files.
+    Maximum 500 entities per request.
+    """
+    try:
+        data = request.get_json()
+        if not data or 'entities' not in data:
+            return jsonify({'error': 'Body must contain an "entities" array'}), 400
+
+        rows = data['entities']
+        if not isinstance(rows, list) or len(rows) == 0:
+            return jsonify({'error': '"entities" must be a non-empty array'}), 400
+
+        MAX_BATCH = 500
+        if len(rows) > MAX_BATCH:
+            return jsonify({'error': f'Maximum {MAX_BATCH} entities per batch request'}), 400
+
+        RESERVED = {'name', 'lat', 'lng', 'latitude', 'longitude', 'description', 'id'}
+
+        ngsi_entities = []
+        for i, row in enumerate(rows):
+            name = row.get('name') or f'{entity_type}_{i + 1}'
+            lat  = row.get('lat') or row.get('latitude')
+            lng  = row.get('lng') or row.get('longitude')
+
+            entity_id = f"urn:ngsi-ld:{entity_type}:{uuid.uuid4().hex[:16]}"
+
+            entity: dict = {
+                '@context': SOTA_CONTEXT,
+                'id': entity_id,
+                'type': entity_type,
+                'name': {'type': 'Property', 'value': name},
+            }
+
+            if row.get('description'):
+                entity['description'] = {'type': 'Property', 'value': row['description']}
+
+            if lat is not None and lng is not None:
+                entity['location'] = {
+                    'type': 'GeoProperty',
+                    'value': {'type': 'Point', 'coordinates': [float(lng), float(lat)]},
+                }
+
+            # Forward any extra columns as Properties
+            for k, v in row.items():
+                if k in RESERVED or v is None or v == '':
+                    continue
+                entity[k] = {'type': 'Property', 'value': v}
+
+            ngsi_entities.append(entity)
+
+        # Orion-LD batch create endpoint
+        batch_url = f"{ORION_URL}/ngsi-ld/v1/entityOperations/create"
+        headers = {'Content-Type': 'application/ld+json'}
+        headers = inject_fiware_headers(headers, g.tenant)
+
+        response = requests.post(batch_url, json=ngsi_entities, headers=headers)
+
+        entity_ids = [e['id'] for e in ngsi_entities]
+
+        if response.status_code in [200, 201, 204]:
+            log_entity_operation(
+                'batch_create', entity_type, entity_type, g.tenant, g.farmer_id,
+                {'count': len(ngsi_entities)}
+            )
+            return jsonify({'created': len(ngsi_entities), 'errors': [], 'entity_ids': entity_ids}), 201
+
+        # 207 Multi-Status: Orion returns partial success
+        if response.status_code == 207:
+            result = response.json() if response.content else {}
+            success_ids = result.get('success', entity_ids)
+            errors = result.get('errors', [])
+            log_entity_operation(
+                'batch_create', entity_type, entity_type, g.tenant, g.farmer_id,
+                {'count': len(success_ids), 'errors': len(errors)}
+            )
+            return jsonify({'created': len(success_ids), 'errors': errors, 'entity_ids': success_ids}), 207
+
+        logger.error(f"Orion batch create failed {response.status_code}: {response.text[:300]}")
+        return jsonify({'error': 'Batch create failed', 'detail': response.text[:300]}), 500
+
+    except Exception as e:
+        logger.error(f"Error in batch create ({entity_type}): {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/version', methods=['GET'])
+def version():
+    """Get service version"""
+    return jsonify({
+        'service': 'sdm-integration',
+        'version': '1.0.0',
+        'timestamp': datetime.utcnow().isoformat()
+    })
+
+if __name__ == '__main__':
+    port = int(os.getenv('PORT', 5000))
+    debug = LOG_LEVEL == 'DEBUG'
+    
+    logger.info(f"Starting SDM Integration API on port {port}")
+    app.run(host='0.0.0.0', port=port, debug=debug)
+
+
+@app.route('/sdm/entities/<entity_id>/iot/regenerate-key', methods=['POST'])
+@require_auth
+@require_entity_ownership
+def regenerate_iot_key(entity_id):
+    """Regenerate IoT Agent API Key for a device"""
+    try:
+        # Get entity type from Orion to confirm it's an IoT device
+        orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
+        headers = inject_fiware_headers({'Accept': 'application/ld+json'}, g.tenant)
+        response = requests.get(orion_url, headers=headers)
+        
+        if response.status_code != 200:
+            return jsonify({'error': 'Entity not found'}), 404
+            
+        entity = response.json()
+        entity_type = entity['type']
+        
+        if entity_type not in IOT_ENTITY_TYPES:
+             return jsonify({'error': f'Entity type {entity_type} does not support IoT provisioning'}), 400
+             
+        # Extract name for device naming consistency
+        device_name = entity_id.split(':')[-1]
+        if 'name' in entity:
+             val = entity['name']
+             device_name = val['value'] if isinstance(val, dict) and 'value' in val else val
+
+        # Extract profile_id from refDeviceProfile Relationship
+        profile_id = None
+        if 'refDeviceProfile' in entity:
+            ref = entity['refDeviceProfile']
+            if isinstance(ref, dict) and 'object' in ref:
+                ref_obj = ref['object']
+                profile_id = ref_obj.split(':')[-1] if ':' in ref_obj else ref_obj
+
+        if not profile_id:
+            return jsonify({
+                'error': 'Entity has no refDeviceProfile. Cannot regenerate key without a valid DeviceProfile. '
+                         'Re-provision the sensor with a profile first.'
+            }), 400
+
+        # Re-provision with profile (generates a new key)
+        result = provision_iot_device(
+            entity_id=entity_id,
+            entity_type=entity_type,
+            tenant_id=g.tenant,
+            device_name=device_name,
+            profile_id=profile_id
+        )
+        
+        if result['provisioned']:
+            return jsonify({
+                'message': 'API Key regenerated successfully',
+                'api_key': result['api_key'],
+                'mqtt': result['mqtt']
+            })
+        else:
+            return jsonify({'error': result['error']}), 500
+            
+    except Exception as e:
+        logger.error(f"Error regenerating key for {entity_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/sdm/entities/<entity_id>/iot/details', methods=['GET'])
+@require_auth
+@require_entity_ownership
+def get_iot_details(entity_id):
+    """Get IoT connection details (excluding sensitive key)"""
+    try:
+        # Generate the topic structure deterministically based on ID
+        # Note: We can't show the full topic because we don't know the API Key 
+        # (it's hashed in IoTA). We show a placeholder.
+        
+        device_id = entity_id.split(':')[-1]
+        
+        return jsonify({
+            'mqtt_host': MQTT_HOST,
+            'mqtt_port': MQTT_PORT,
+            'protocol': 'mqtts' if MQTT_PORT == 8883 else 'mqtt',
+            'device_id': device_id,
+            'topics': {
+                'publish_data': f'/<API_KEY>/{device_id}/attrs',
+                'commands': f'/<API_KEY>/{device_id}/cmd'
+            },
+            'note': 'API Key is hidden. Regenerate if lost.'
+        })
+    except Exception as e:
+        logger.error(f"Error getting IoT details for {entity_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500

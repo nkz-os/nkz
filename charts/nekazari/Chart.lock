@@ -1,0 +1,30 @@
+dependencies:
+- name: postgresql
+  repository: ""
+  version: 1.0.0
+- name: mongodb
+  repository: ""
+  version: 1.0.0
+- name: redis
+  repository: ""
+  version: 1.0.0
+- name: minio
+  repository: ""
+  version: 1.0.0
+- name: keycloak
+  repository: ""
+  version: 1.0.0
+- name: orion-ld
+  repository: ""
+  version: 1.0.0
+- name: api-gateway
+  repository: ""
+  version: 1.0.0
+- name: entity-manager
+  repository: ""
+  version: 1.0.0
+- name: frontend
+  repository: ""
+  version: 1.0.0
+digest: sha256:a690d9c10e70afa1da6be856906e2a091aeabea01552fbc9485ec00ce86dcb3c
+generated: "2026-05-18T23:09:46.695459508+02:00"

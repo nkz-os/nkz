@@ -1,0 +1,585 @@
+// =============================================================================
+// Sensors Management Page - Health Data Grid (Orion-Native)
+// =============================================================================
+
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useI18n } from '@/context/I18nContext';
+import { useAuth } from '@/context/KeycloakAuthContext';
+import api from '@/services/api';
+import { EntityWizard } from '@/components/EntityWizard';
+import { DeleteConfirmationModal } from '@/components/AssetManager/DeleteConfirmationModal';
+import { useEntityDependencies } from '@/hooks/useEntityDependencies';
+import { useToastContext } from '@/context/ToastContext';
+import { logger } from '@/utils/logger';
+import { UnifiedAsset } from '@/types/assets';
+import {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+  Gauge,
+  Plus,
+  Search,
+  RefreshCw,
+  Activity,
+  Battery,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+  MapPin,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  HelpCircle,
+  Thermometer,
+} from 'lucide-react';
+import { formatDistanceToNow, parseISO } from 'date-fns';
+import { es, enUS, eu } from 'date-fns/locale';
+import { Button, Input } from '@nekazari/ui-kit';
+
+interface SensorEntity {
+  id: string;
+  type: string;
+  name?: { value: string };
+  description?: { value: string };
+  batteryLevel?: { value: number; observedAt?: string };
+  location?: { value: any };
+  observedAt?: string;
+  // Dynamic attributes
+  [key: string]: any;
+}
+
+export const Sensors: React.FC = () => {
+  const navigate = useNavigate();
+  const { t, language } = useI18n();
+  const { hasAnyRole } = useAuth();
+
+  // Auth state
+  const canEdit = hasAnyRole(['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant']);
+
+  // Data state
+  const [sensors, setSensors] = useState<SensorEntity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Pagination state
+  const [page, setPage] = useState(0);
+  const [pageSize] = useState(25);
+
+  // Wizard state
+  const [showWizard, setShowWizard] = useState(false);
+
+  // Search state (client-side filtering for now, or could be passed to API if supported)
+  // Note: Current SDM API doesn't support search text, so we might only filter loaded page 
+  // or add search support to backend later. For now, basic client filter on current page.
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    entities: UnifiedAsset[];
+    dependencies: any[];
+    isBlocked: boolean;
+  } | null>(null);
+  
+  // Hooks
+  const { success: toastSuccess, error: toastError } = useToastContext();
+  const { checkDependenciesBatch, shouldBlockDeletion, isChecking: isCheckingDependencies } = useEntityDependencies();
+
+  // Initial load
+  useEffect(() => {
+    loadSensors();
+  }, [page, pageSize]);
+
+  const loadSensors = async () => {
+    setLoading(true);
+    try {
+      const offset = page * pageSize;
+      const response = await api.getSDMEntityInstancesPaginated('AgriSensor', {
+        limit: pageSize,
+        offset
+      });
+
+      if (response && response.instances) {
+        setSensors(response.instances);
+        setTotalCount(response.total || response.count || 0);
+      } else {
+        setSensors([]);
+        setTotalCount(0);
+      }
+    } catch (error) {
+      logger.error('Error loading sensors:', error);
+      // Fallback for empty state
+      setSensors([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper to get locale for dates
+  const getDateLocale = () => {
+    switch (language) {
+      case 'eu': return eu;
+      case 'es': return es;
+      default: return enUS;
+    }
+  };
+
+  // Status calculation
+  const getStatus = (sensor: SensorEntity) => {
+    // NGSI-LD has observedAt per-attribute, NOT at entity root level.
+    // Iterate all attributes to find the most recent observedAt.
+    let lastActivityStr: string | undefined;
+
+    for (const val of Object.values(sensor)) {
+      if (val && typeof val === 'object' && 'observedAt' in val && val.observedAt) {
+        if (!lastActivityStr || val.observedAt > lastActivityStr) {
+          lastActivityStr = val.observedAt;
+        }
+      }
+    }
+
+    if (!lastActivityStr) return 'unknown';
+
+    try {
+      const lastActivity = parseISO(lastActivityStr);
+      const now = new Date();
+      const diffMinutes = (now.getTime() - lastActivity.getTime()) / (1000 * 60);
+
+      if (diffMinutes < 15) return 'online'; // < 15 mins
+      if (diffMinutes < 60) return 'warning'; // < 1 hour
+      return 'offline';
+    } catch (e) {
+      return 'unknown';
+    }
+  };
+
+  // Health summary computed from loaded sensors
+  const healthSummary = React.useMemo(() => {
+    const counts = { online: 0, warning: 0, offline: 0, unknown: 0 };
+    sensors.forEach(s => {
+      const st = getStatus(s);
+      counts[st as keyof typeof counts] = (counts[st as keyof typeof counts] || 0) + 1;
+    });
+    return counts;
+  }, [sensors]);
+
+  // Extract dynamic measurement attributes (skip structural NGSI-LD fields)
+  const SKIP_KEYS = new Set([
+    'id', 'type', '@context', 'name', 'description', 'location', 'batteryLevel',
+    'observedAt', 'dateCreated', 'dateModified', 'refDeviceModel', 'refDeviceProfile',
+    'owner', 'source', 'dataProvider', 'seeAlso', 'controlledProperty',
+  ]);
+
+  const getDynamicAttrs = (sensor: SensorEntity): { key: string; value: any; observedAt?: string }[] => {
+    const attrs: { key: string; value: any; observedAt?: string }[] = [];
+    for (const [key, val] of Object.entries(sensor)) {
+      if (SKIP_KEYS.has(key)) continue;
+      if (val && typeof val === 'object' && 'value' in val) {
+        attrs.push({ key, value: val.value, observedAt: val.observedAt });
+      }
+    }
+    return attrs.slice(0, 3); // Show max 3 dynamic attributes
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-nkz-success-light text-green-800 border-green-200';
+      case 'warning': return 'bg-nkz-warning-light text-yellow-800 border-yellow-200';
+      case 'offline': return 'bg-nkz-error-light text-red-800 border-red-200';
+      default: return 'bg-nkz-bg-secondary text-gray-800 border-nkz-border';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'online': return t('common.online');
+      case 'warning': return t('common.warning');
+      case 'offline': return t('common.offline');
+      default: return t('common.unknown');
+    }
+  };
+  
+  // Convert SensorEntity to UnifiedAsset for modal compatibility
+  const sensorToUnifiedAsset = (sensor: SensorEntity): UnifiedAsset => {
+    return {
+      id: sensor.id,
+      type: sensor.type || 'AgriSensor',
+      name: sensor.name?.value || sensor.id.split(':').pop() || 'Sensor',
+      category: 'sensors',
+      status: getStatus(sensor) as any,
+      rawEntity: sensor,
+      hasLocation: !!sensor.location,
+    };
+  };
+  
+  // Handle delete
+  const handleDelete = async (sensor: SensorEntity) => {
+    const unifiedAsset = sensorToUnifiedAsset(sensor);
+    
+    // Check dependencies
+    const dependencies = await checkDependenciesBatch([unifiedAsset]);
+    const isBlocked = shouldBlockDeletion(dependencies);
+    
+    setDeleteModal({
+      entities: [unifiedAsset],
+      dependencies,
+      isBlocked,
+    });
+  };
+  
+  const handleDeleteConfirm = async () => {
+    if (!deleteModal) return;
+    
+    try {
+      for (const entity of deleteModal.entities) {
+        await api.deleteSDMEntity(entity.type, entity.id);
+      }
+      
+      toastSuccess(`${deleteModal.entities.length} sensor(es) eliminado(s) correctamente`);
+      setDeleteModal(null);
+      loadSensors(); // Reload list
+    } catch (err: any) {
+      toastError(err.message || 'Error al eliminar sensor(es)');
+      // Don't close modal on error so user can retry
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+            <Activity className="w-8 h-8 text-teal-600" />
+            {t('sensors.title')}
+          </h1>
+          <p className="text-nkz-muted mt-1">
+            {t('sensors.subtitle')}
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button
+            onClick={loadSensors}
+            className="px-4 py-2.5 bg-nkz-bg-secondary text-gray-700 rounded-xl hover:bg-nkz-bg-secondary transition flex items-center gap-2 border border-nkz-border font-medium"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            {t('common.refresh')}
+          </Button>
+          {canEdit && (
+            <Button
+              onClick={() => setShowWizard(true)}
+              className="px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition flex items-center gap-2 shadow-lg shadow-teal-600/20 font-medium"
+            >
+              <Plus className="w-5 h-5" />
+              {t('sensors.new_sensor')}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Health Summary Bar */}
+      {!loading && sensors.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
+            <div className="p-2 bg-nkz-success-light rounded-lg"><Wifi className="w-5 h-5 text-nkz-success" /></div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{healthSummary.online}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.online')}</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
+            <div className="p-2 bg-nkz-warning-light rounded-lg"><AlertTriangle className="w-5 h-5 text-nkz-warning" /></div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{healthSummary.warning}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.intermittent')}</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
+            <div className="p-2 bg-nkz-error-light rounded-lg"><WifiOff className="w-5 h-5 text-nkz-error" /></div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{healthSummary.offline}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.offline')}</div>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
+            <div className="p-2 bg-nkz-bg-secondary rounded-lg"><HelpCircle className="w-5 h-5 text-nkz-muted" /></div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{healthSummary.unknown}</div>
+              <div className="text-xs text-nkz-muted">{t('sensors.no_signal')}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Grid */}
+      <div className="bg-white rounded-2xl shadow-sm border border-nkz-border overflow-hidden">
+        {/* Toolbar */}
+        <div className="p-4 border-b border-nkz-border flex justify-between items-center bg-nkz-bg-secondary/50">
+          <div className="relative max-w-md w-full">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nkz-muted w-4 h-4" />
+            <Input
+              type="text"
+              placeholder={t('common.search')}
+              value={searchTerm}
+              onChange={(e: any) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-4 text-sm text-nkz-muted">
+            <span>Total: <strong>{totalCount}</strong> {t('sensors.devices')}</span>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-nkz-bg-secondary border-b border-nkz-border">
+              <tr>
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
+                  {t('sensors.device')}
+                </th>
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
+                  {t('sensors.status')}
+                </th>
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
+                  {t('sensors.readings')}
+                </th>
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
+                  {t('sensors.battery')}
+                </th>
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider">
+                  {t('sensors.last_signal')}
+                </th>
+                <th className="px-6 py-3 text-xs font-semibold text-nkz-muted uppercase tracking-wider text-right">
+                  {t('common.actions')}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading && sensors.length === 0 ? (
+                [...Array(5)].map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td className="px-6 py-4"></td>
+                  </tr>
+                ))
+              ) : sensors.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-16 text-center text-nkz-muted">
+                    <Gauge className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="font-medium">{t('sensors.empty_title')}</p>
+                    <p className="text-sm mt-1 max-w-md mx-auto">
+                      {t('sensors.empty_subtitle')}
+                    </p>
+                    {canEdit && (
+                      <Button
+                        onClick={() => setShowWizard(true)}
+                        className="mt-4 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition text-sm font-medium inline-flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {t('sensors.new_sensor')}
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                sensors
+                  .filter(s => !searchTerm || (s.name?.value || s.id).toLowerCase().includes(searchTerm.toLowerCase()))
+                  .map((sensor) => {
+                    const status = getStatus(sensor);
+                    const battery = sensor.batteryLevel?.value;
+                    // Find most recent observedAt from any NGSI-LD attribute
+                    let lastSignalDate: string | undefined;
+                    for (const val of Object.values(sensor)) {
+                      if (val && typeof val === 'object' && 'observedAt' in val && val.observedAt) {
+                        if (!lastSignalDate || val.observedAt > lastSignalDate) {
+                          lastSignalDate = val.observedAt;
+                        }
+                      }
+                    }
+                    const dynamicAttrs = getDynamicAttrs(sensor);
+
+                    return (
+                      <tr key={sensor.id} className="hover:bg-nkz-bg-secondary transition group">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-teal-50 text-teal-600 rounded-lg group-hover:bg-teal-100 transition">
+                              <Gauge className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                {sensor.name?.value || t('sensors.unnamed')}
+                              </div>
+                              <div className="text-xs text-nkz-muted font-mono mt-0.5" title={sensor.id}>
+                                {sensor.id.split(':').pop()?.substring(0, 16)}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(status)}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${status === 'online' ? 'bg-nkz-success-light0 animate-pulse' :
+                                status === 'warning' ? 'bg-nkz-warning-light0' : 'bg-gray-400'
+                              }`}></span>
+                            {getStatusLabel(status)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {dynamicAttrs.length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                              {dynamicAttrs.map(attr => (
+                                <div key={attr.key} className="flex items-center gap-1.5 text-xs">
+                                  <Thermometer className="w-3 h-3 text-nkz-muted flex-shrink-0" />
+                                  <span className="text-nkz-muted truncate max-w-[80px]" title={attr.key}>{attr.key}:</span>
+                                  <span className="font-medium text-gray-800">
+                                    {typeof attr.value === 'number' ? attr.value.toFixed(1) : String(attr.value)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-nkz-muted text-xs italic">{t('sensors.no_data')}</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {battery !== undefined ? (
+                            <div className="flex items-center gap-2">
+                              <Battery className={`w-4 h-4 ${battery > 50 ? 'text-green-500' :
+                                  battery > 20 ? 'text-yellow-500' : 'text-nkz-error'
+                                }`} />
+                              <span className="text-sm font-medium text-gray-700">{battery}%</span>
+                              <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${battery > 50 ? 'bg-nkz-success-light0' :
+                                      battery > 20 ? 'bg-nkz-warning-light0' : 'bg-nkz-error-light0'
+                                    }`}
+                                  style={{ width: `${Math.min(100, Math.max(0, battery))}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-nkz-muted text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {lastSignalDate ? (
+                            <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                              <Calendar className="w-3.5 h-3.5 text-nkz-muted" />
+                              <span title={parseISO(lastSignalDate).toLocaleString()}>
+                                {formatDistanceToNow(parseISO(lastSignalDate), { addSuffix: true, locale: getDateLocale() })}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-nkz-muted text-xs italic">{t('sensors.never')}</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              onClick={() => navigate(`/entities?focus=${encodeURIComponent(sensor.id)}`)}
+                              className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-800 transition px-3 py-1.5 rounded-lg hover:bg-teal-50"
+                              title={t('sensors.view_on_map')}
+                            >
+                              <MapPin className="w-4 h-4" />
+                            </Button>
+                            {canEdit && (
+                              <Button
+                                onClick={() => handleDelete(sensor)}
+                                className="inline-flex items-center gap-1 text-sm font-medium text-nkz-error hover:text-red-800 transition px-3 py-1.5 rounded-lg hover:bg-nkz-error-light"
+                                title={t('common.delete')}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Controls */}
+        <div className="bg-white border-t border-nkz-border px-6 py-4 flex items-center justify-between">
+          <div className="flex-1 flex justify-between sm:hidden">
+            <Button
+              onClick={() => setPage(page > 0 ? page - 1 : 0)}
+              disabled={page === 0}
+              className="relative inline-flex items-center px-4 py-2 border border-nkz-border text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-nkz-bg-secondary disabled:opacity-50"
+            >
+              Anterior
+            </Button>
+            <Button
+              onClick={() => setPage(page + 1)}
+              disabled={(page + 1) * pageSize >= totalCount}
+              className="ml-3 relative inline-flex items-center px-4 py-2 border border-nkz-border text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-nkz-bg-secondary disabled:opacity-50"
+            >
+              Siguiente
+            </Button>
+          </div>
+          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-gray-700">
+                Mostrando <span className="font-medium">{page * pageSize + 1}</span> a <span className="font-medium">{Math.min((page + 1) * pageSize, totalCount)}</span> de <span className="font-medium">{totalCount}</span> resultados
+              </p>
+            </div>
+            <div>
+              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <Button
+                  onClick={() => setPage(page > 0 ? page - 1 : 0)}
+                  disabled={page === 0}
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-nkz-border bg-white text-sm font-medium text-nkz-muted hover:bg-nkz-bg-secondary disabled:opacity-50"
+                >
+                  <span className="sr-only">Anterior</span>
+                  <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                </Button>
+                {/* Simplified page numbers - just show current */}
+                <span className="relative inline-flex items-center px-4 py-2 border border-nkz-border bg-white text-sm font-medium text-gray-700">
+                  Página {page + 1}
+                </span>
+                <Button
+                  onClick={() => setPage(page + 1)}
+                  disabled={(page + 1) * pageSize >= totalCount}
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-nkz-border bg-white text-sm font-medium text-nkz-muted hover:bg-nkz-bg-secondary disabled:opacity-50"
+                >
+                  <span className="sr-only">Siguiente</span>
+                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                </Button>
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Entity Wizard (Unified Creation Flow) */}
+      <EntityWizard
+        isOpen={showWizard}
+        onClose={() => setShowWizard(false)}
+        onSuccess={() => {
+          // Reload list to show new sensor
+          loadSensors();
+        }}
+        initialEntityType="AgriSensor"
+      />
+      
+      {/* Delete Confirmation Modal */}
+      {deleteModal && (
+        <DeleteConfirmationModal
+          entities={deleteModal.entities}
+          dependencies={deleteModal.dependencies}
+          isBlockedByDependencies={deleteModal.isBlocked}
+          isCheckingDependencies={isCheckingDependencies}
+          isOpen={!!deleteModal}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteModal(null)}
+        />
+      )}
+    </div>
+  );
+};

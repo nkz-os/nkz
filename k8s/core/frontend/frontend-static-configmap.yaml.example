@@ -1,0 +1,194 @@
+# =============================================================================
+# Frontend Static Nginx Configuration (TEMPLATE)
+# =============================================================================
+# Copy to frontend-static-configmap.yaml and replace YOUR_* placeholders
+# with production values before applying:
+#   cp frontend-static-configmap.yaml.example frontend-static-configmap.yaml
+#   sed -i 's|YOUR_KEYCLOAK_URL|https://auth.example.com/auth|g' frontend-static-configmap.yaml
+#   sed -i 's|YOUR_API_URL|https://api.example.com|g' frontend-static-configmap.yaml
+#   sed -i 's|YOUR_KEYCLOAK_REALM|your-realm|g' frontend-static-configmap.yaml
+#   sed -i 's|YOUR_KEYCLOAK_CLIENT_ID|your-client-id|g' frontend-static-configmap.yaml
+#   kubectl apply -f frontend-static-configmap.yaml
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+    name: frontend-nginx-config
+    namespace: nekazari
+    labels:
+        app: frontend-static
+        component: frontend
+data:
+    default.conf: |
+        server {
+            listen 80;
+            server_name _;
+
+            # GZIP compression for faster loading
+            gzip on;
+            gzip_vary on;
+            gzip_proxied any;
+            gzip_comp_level 6;
+            gzip_types text/plain text/css text/xml application/json application/javascript
+                       application/xml application/xml+rss text/javascript application/x-javascript
+                       application/wasm;
+
+            # Health check endpoint
+            location /health {
+                access_log off;
+                return 200 'ok';
+                add_header Content-Type text/plain;
+            }
+
+            # 3D Assets (GLB/GLTF models) from assets-3d bucket
+            # These are uploaded via GlobalAssetManager and need CORS for model-viewer
+            location /assets/assets-3d/ {
+                proxy_pass http://minio-service:9000/assets-3d/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+
+                # CORS headers for model-viewer and Cesium
+                add_header Access-Control-Allow-Origin "*" always;
+                add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                add_header Access-Control-Allow-Headers "*" always;
+
+                # Cache for 1 day (models don't change often)
+                add_header Cache-Control "public, max-age=86400";
+            }
+
+            # Frontend build assets with hash in filename → Cache forever (immutable)
+            location /assets/ {
+                proxy_pass http://minio-service:9000/nekazari-frontend/host/assets/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+
+                # Aggressive caching - assets have content hash, so they're immutable
+                add_header Cache-Control "public, max-age=31536000, immutable";
+            }
+
+            # Cesium assets (large, also cacheable)
+            location /cesium/ {
+                proxy_pass http://minio-service:9000/nekazari-frontend/host/cesium/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+
+                add_header Cache-Control "public, max-age=86400";
+            }
+
+            # =================================================================
+            # JupyterLite Scientific Lab (static WASM distribution)
+            # =================================================================
+            # Serves Pyodide/JupyterLite from MinIO. NO SPA fallback — JupyterLite
+            # has its own routing via Service Worker.
+            # Cache-Control headers are set per-file-type at the MinIO level by the
+            # CI upload workflow (3600s HTML/JS, immutable WASM, 86400s wheels).
+            # We do NOT add_header here so MinIO's headers pass through cleanly.
+            location /jupyterlite/ {
+                proxy_pass http://minio-service:9000/nekazari-frontend/jupyterlite/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+            }
+
+            # =================================================================
+            # Versioned Module Federation assets (immutable — cache 1 year)
+            # =================================================================
+            # Regex location takes precedence over the /modules/ prefix location.
+            # Git SHAs are 7-40 hex characters.
+            location ~ ^/modules/([^/]+)/([a-f0-9]{7,40})/ {
+                set $module_id $1;
+                set $version_hash $2;
+
+                proxy_pass http://minio-service:9000/nekazari-frontend/modules/$module_id/$version_hash/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+
+                add_header Access-Control-Allow-Origin "*" always;
+                add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range" always;
+
+                if ($request_method = 'OPTIONS') {
+                    add_header Access-Control-Allow-Origin "*" always;
+                    add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                    add_header Access-Control-Max-Age 1728000;
+                    add_header Content-Type "text/plain; charset=utf-8";
+                    add_header Content-Length 0;
+                    return 204;
+                }
+
+                # Versioned content is immutable — content hash baked into path
+                add_header Cache-Control "public, max-age=31536000, immutable";
+            }
+
+            # =================================================================
+            # IIFE module bundles from MinIO (nkz-module.js per module)
+            # =================================================================
+            # Serves module bundles. Use must-revalidate so cached wrong responses (e.g. index.html)
+            # are revalidated and real JS is served (CLAUDE.md: wrong MIME breaks register()).
+            location /modules/ {
+                proxy_pass http://minio-service:9000/nekazari-frontend/modules/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+
+                add_header Access-Control-Allow-Origin "*" always;
+                add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                add_header Access-Control-Allow-Headers "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range" always;
+
+                if ($request_method = 'OPTIONS') {
+                    add_header Access-Control-Allow-Origin "*" always;
+                    add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS" always;
+                    add_header Access-Control-Max-Age 1728000;
+                    add_header Content-Type "text/plain; charset=utf-8";
+                    add_header Content-Length 0;
+                    return 204;
+                }
+
+                # No cache for module bundles so deploys are visible immediately (no stale JS)
+                add_header Cache-Control "no-cache, must-revalidate";
+            }
+
+            # Explicit index.html handler (for SPA fallback)
+            location = /index.html {
+                proxy_pass http://minio-service:9000/nekazari-frontend/host/index.html;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+
+                # Never cache index.html - always get fresh version
+                add_header Cache-Control "no-cache, no-store, must-revalidate";
+                add_header Pragma "no-cache";
+                add_header Expires "0";
+
+                # CRITICAL: Inject Runtime Configuration (window.__ENV__)
+                # This fixes the Keycloak URL without rebuilding the static assets in MinIO
+                # VITE_NKZ_EDITION: empty = OSS landing; set to "commercial" for commercial landing (no rebuild).
+                sub_filter '</head>' '<script>window.__ENV__ = { VITE_KEYCLOAK_URL: "YOUR_KEYCLOAK_URL", VITE_API_URL: "YOUR_API_URL", VITE_KEYCLOAK_REALM: "YOUR_KEYCLOAK_REALM", VITE_KEYCLOAK_CLIENT_ID: "YOUR_KEYCLOAK_CLIENT_ID", VITE_NKZ_EDITION: "" };</script></head>';
+                sub_filter_once on;
+            }
+
+            # All other requests → Proxy to MinIO with SPA fallback
+            location / {
+                proxy_pass http://minio-service:9000/nekazari-frontend/host/;
+                proxy_set_header Host minio-service:9000;
+                proxy_hide_header x-amz-id-2;
+                proxy_hide_header x-amz-request-id;
+
+                # CRITICAL: Intercept MinIO 404 errors to handle SPA routing
+                # Without this, F5 on /ndvi returns MinIO's 404 XML instead of index.html
+                proxy_intercept_errors on;
+                error_page 404 = /index.html;
+
+                # Don't cache dynamic routes
+                add_header Cache-Control "no-cache, no-store, must-revalidate";
+
+                # CRITICAL: Inject Runtime Configuration (for SPA deep links)
+                sub_filter '</head>' '<script>window.__ENV__ = { VITE_KEYCLOAK_URL: "YOUR_KEYCLOAK_URL", VITE_API_URL: "YOUR_API_URL", VITE_KEYCLOAK_REALM: "YOUR_KEYCLOAK_REALM", VITE_KEYCLOAK_CLIENT_ID: "YOUR_KEYCLOAK_CLIENT_ID", VITE_NKZ_EDITION: "" };</script></head>';
+                sub_filter_once on;
+            }
+        }

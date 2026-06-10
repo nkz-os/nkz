@@ -1,0 +1,998 @@
+#!/usr/bin/env python3
+# =============================================================================
+# Tenant User API - Gestión de Usuarios por TenantAdmin
+# =============================================================================
+# Permite a TenantAdmin gestionar usuarios de su tenant desde el dashboard
+
+import os
+import json
+import logging
+import requests
+import secrets
+import jwt
+import psycopg2
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from typing import Dict, Any, Optional, List
+from functools import wraps
+from common.tenant_utils import normalize_tenant_id
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+_cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
+CORS(app, origins=_cors_origins, supports_credentials=True)
+
+# Configuration from environment
+KEYCLOAK_URL = os.getenv('KEYCLOAK_URL', 'http://keycloak-service:8080')
+KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
+KEYCLOAK_CLIENT_ID = os.getenv('KEYCLOAK_CLIENT_ID', 'nekazari-api-gateway')
+KEYCLOAK_CLIENT_SECRET = os.getenv('KEYCLOAK_CLIENT_SECRET', '')
+POSTGRES_URL = os.getenv('POSTGRES_URL', '')
+
+# Roles that TenantAdmin can assign
+TENANT_ADMIN_ASSIGNABLE_ROLES = ['Farmer', 'TechnicalConsultant']
+# Roles that only PlatformAdmin can assign
+PLATFORM_ONLY_ROLES = ['PlatformAdmin', 'TenantAdmin', 'GestorCUE']
+
+
+class KeycloakService:
+    def __init__(self):
+        self.token = None
+    
+    def get_admin_token(self) -> Optional[str]:
+        """Get admin access token from Keycloak using password grant (admin credentials)"""
+        try:
+            token_url = f"{KEYCLOAK_URL}/realms/master/protocol/openid-connect/token"
+            data = {
+                'grant_type': 'password',
+                'client_id': 'admin-cli',
+                'username': os.getenv('KEYCLOAK_ADMIN_USER', 'admin'),
+                'password': os.getenv('KEYCLOAK_ADMIN_PASSWORD', ''),
+            }
+
+            response = requests.post(token_url, data=data, timeout=10)
+            response.raise_for_status()
+
+            token_data = response.json()
+            self.token = token_data['access_token']
+            return self.token
+
+        except Exception as e:
+            logger.error(f"Failed to get admin token: {e}")
+            return None
+
+
+keycloak = KeycloakService()
+
+
+def validate_tenant_admin(f):
+    """Decorator to validate that the user is a TenantAdmin"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Get token from Authorization header
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # Validate token and get user info
+        try:
+            userinfo_url = f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/userinfo"
+            response = requests.get(userinfo_url, headers={'Authorization': f'Bearer {token}'}, timeout=10)
+            response.raise_for_status()
+            user_info = response.json()
+            
+            # Check if user has TenantAdmin or PlatformAdmin role
+            # Roles can be in different places in userinfo response
+            roles = user_info.get('roles', [])
+            if not roles:
+                # Try realm_access.roles
+                realm_access = user_info.get('realm_access', {})
+                roles = realm_access.get('roles', [])
+            
+            is_tenant_admin = 'TenantAdmin' in roles or 'PlatformAdmin' in roles
+            
+            if not is_tenant_admin:
+                return jsonify({'error': 'Only TenantAdmin or PlatformAdmin can manage users'}), 403
+            
+            # Get tenant from user attributes
+            raw_tenant = user_info.get('tenant_id') or ''
+            # Temporary fallback (remove after 2026-04-02)
+            if not raw_tenant:
+                legacy = user_info.get('tenant-id')
+                if legacy:
+                    logger.warning("userinfo uses deprecated 'tenant-id'. Migrate Keycloak mapper to 'tenant_id'.")
+                    raw_tenant = legacy
+
+            # If tenant is still empty, try to get from user attributes
+            if not raw_tenant:
+                attributes = user_info.get('attributes', {})
+                if isinstance(attributes, dict):
+                    attr_val = attributes.get('tenant_id') or attributes.get('tenant')
+                    if isinstance(attr_val, list):
+                        raw_tenant = attr_val[0] if attr_val else ''
+                    elif isinstance(attr_val, str):
+                        raw_tenant = attr_val
+            
+            # CRITICAL SOTA: Always normalize tenant ID before use
+            try:
+                tenant = normalize_tenant_id(raw_tenant) if raw_tenant else ''
+            except ValueError:
+                tenant = raw_tenant.lower().replace('-', '_') if raw_tenant else ''
+            
+            return f(user_info, tenant, *args, **kwargs)
+            
+        except Exception as e:
+            logger.error(f"Token validation error: {e}")
+            return jsonify({'error': 'Invalid token'}), 401
+    
+    return decorated_function
+
+
+def validate_authenticated_user(f):
+    """Decorator to validate that the user is authenticated (any user, not just TenantAdmin)
+    
+    Decodes JWT token directly without calling userinfo endpoint (which may not be available).
+    The token is already validated by the API Gateway before reaching this service.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Get token from Authorization header
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        try:
+            # Decode token directly (token is already validated by API Gateway)
+            # We only decode to extract user ID, not to validate (API Gateway already did that)
+            decoded = jwt.decode(token, options={"verify_signature": False, "verify_exp": True})
+            
+            # Log decoded token structure for debugging
+            logger.debug(f"Decoded token keys: {list(decoded.keys())}")
+            
+            # Extract user ID from 'sub' claim (standard JWT claim)
+            # Keycloak tokens should always have 'sub', but if missing, try alternatives
+            # Note: 'sid' (session ID) is not a reliable user identifier, but we'll use it as last resort
+            user_id = decoded.get('sub')
+            
+            # If sub is missing, this is unusual - log warning
+            if not user_id:
+                logger.warning(f"Token missing 'sub' claim. Available claims: {list(decoded.keys())}")
+                # Try to get user ID from Keycloak Admin API using session info
+                # For now, return error - we need 'sub' to identify the user
+                logger.error(f"Could not extract user ID (sub) from token. Token structure: {list(decoded.keys())}")
+                return jsonify({'error': 'Token missing user identifier. Please log out and log in again.'}), 401
+            
+            # Create a minimal user_info dict for compatibility with existing code
+            user_info = {
+                'sub': user_id,
+                'id': user_id,
+                'email': decoded.get('email', ''),
+                'username': decoded.get('preferred_username', ''),
+                'firstName': decoded.get('given_name', ''),
+                'lastName': decoded.get('family_name', ''),
+            }
+            
+            logger.debug(f"Authenticated user: {user_id}")
+            return f(user_info, user_id, *args, **kwargs)
+            
+        except jwt.ExpiredSignatureError:
+            logger.error("Token has expired")
+            return jsonify({'error': 'Token has expired'}), 401
+        except jwt.DecodeError as e:
+            logger.error(f"Token decode error: {e}")
+            return jsonify({'error': 'Invalid token format'}), 401
+        except Exception as e:
+            logger.error(f"Token validation error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return jsonify({'error': 'Invalid token'}), 401
+    
+    return decorated_function
+
+
+def filter_roles(roles: List[str], user_is_platform_admin: bool) -> List[str]:
+    """Filter roles based on user permissions"""
+    if user_is_platform_admin:
+        return roles
+    
+    # TenantAdmin can only assign Farmer and TechnicalConsultant
+    return [role for role in roles if role in TENANT_ADMIN_ASSIGNABLE_ROLES]
+
+
+def count_users_for_tenant(tenant_id: str) -> int:
+    """Count Keycloak users with tenant_id attribute matching the given tenant.
+
+    Uses the q parameter for attribute-based search (Keycloak 15+).
+    Returns 0 on failure (fail-open) — better to allow creation than falsely block.
+    """
+    admin_token = keycloak.get_admin_token()
+    if not admin_token:
+        raise Exception("Failed to get Keycloak admin token")
+
+    search_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
+    params = {'q': f'tenant_id:{tenant_id}', 'max': 2000, 'briefRepresentation': 'true'}
+    response = requests.get(
+        search_url,
+        headers={'Authorization': f'Bearer {admin_token}'},
+        params=params,
+        timeout=10
+    )
+    if response.status_code != 200:
+        logger.warning(f"Keycloak user search for tenant {tenant_id} returned {response.status_code}")
+        return 0  # fail-open
+
+    users = response.json()
+    return len(users)
+
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    return jsonify({'status': 'healthy', 'service': 'tenant-user-api'}), 200
+
+
+@app.route('/api/tenant/users', methods=['GET'])
+@validate_tenant_admin
+def list_team_members(user_info: Dict[str, Any], tenant: str):
+    """List all users in the tenant using Keycloak attribute search (avoids N+1)."""
+    try:
+        admin_token = keycloak.get_admin_token()
+        if not admin_token:
+            return jsonify({'error': 'Failed to get admin token'}), 500
+
+        # Use Keycloak attribute search to get ONLY users for this tenant
+        users_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
+        params = {'q': f'tenant_id:{tenant}', 'max': 500, 'briefRepresentation': 'false'}
+        response = requests.get(
+            users_url,
+            headers={'Authorization': f'Bearer {admin_token}'},
+            params=params,
+            timeout=15
+        )
+        if response.status_code != 200:
+            logger.error(f"Keycloak user search failed: {response.status_code}")
+            return jsonify({'error': 'Failed to fetch users'}), 500
+
+        users = response.json()
+        if not isinstance(users, list):
+            users = []
+
+        is_platform_admin = 'PlatformAdmin' in user_info.get('roles', [])
+
+        # Fetch all realm roles ONCE for batch resolution (not per-user)
+        roles_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/roles"
+        roles_resp = requests.get(
+            roles_url,
+            headers={'Authorization': f'Bearer {admin_token}'},
+            timeout=10
+        )
+        all_roles_map = {}
+        if roles_resp.status_code == 200:
+            for r in roles_resp.json():
+                if isinstance(r, dict) and 'name' in r:
+                    all_roles_map[r['name']] = r
+
+        filtered_users = []
+        for user in users:
+            # Double-check tenant_id for non-platform admins (belt and suspenders)
+            if not is_platform_admin:
+                attrs = user.get('attributes', {}) or {}
+                user_tenant = (
+                    (attrs.get('tenant_id', [''])[0] if attrs.get('tenant_id') else '')
+                    or (attrs.get('tenant', [''])[0] if attrs.get('tenant') else '')
+                )
+                if user_tenant != tenant:
+                    continue
+
+            user_id = user['id']
+
+            # Get composite roles in ONE call per user (instead of fetching each role)
+            roles = []
+            try:
+                composite_url = (
+                    f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}"
+                    f"/users/{user_id}/role-mappings/realm/composite"
+                )
+                roles_resp = requests.get(
+                    composite_url,
+                    headers={'Authorization': f'Bearer {admin_token}'},
+                    timeout=5
+                )
+                if roles_resp.status_code == 200:
+                    roles_data = roles_resp.json()
+                    if isinstance(roles_data, list):
+                        roles = [r.get('name') for r in roles_data if r.get('name')]
+            except Exception:
+                pass
+
+            filtered_users.append({
+                'id': user_id,
+                'email': user.get('email', ''),
+                'firstName': user.get('firstName', ''),
+                'lastName': user.get('lastName', ''),
+                'roles': roles,
+                'createdAt': user.get('createdTimestamp', 0),
+                'enabled': user.get('enabled', True)
+            })
+
+        return jsonify({'users': filtered_users}), 200
+
+    except Exception as e:
+        logger.error(f"Error listing users: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tenant/users', methods=['POST'])
+@validate_tenant_admin
+def create_user(user_info: Dict[str, Any], tenant: str):
+    """Create a new user in the tenant"""
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        firstName = data.get('firstName')
+        lastName = data.get('lastName')
+        password = data.get('password')
+        roles = data.get('roles', ['Farmer'])
+        temporary = data.get('temporary', True)
+        
+        if not all([email, password]):
+            return jsonify({'error': 'Email and password are required'}), 400
+        
+        # Filter roles based on permissions
+        is_platform_admin = 'PlatformAdmin' in user_info.get('roles', [])
+        filtered_roles = filter_roles(roles, is_platform_admin)
+        
+        if not filtered_roles:
+            return jsonify({'error': 'No valid roles specified. You can only assign Farmer and TechnicalConsultant roles.'}), 400
+        
+        # Check max_users quota before creating
+        try:
+            conn = psycopg2.connect(POSTGRES_URL)
+            try:
+                cur = conn.cursor()
+                cur.execute("SELECT max_users FROM tenants WHERE tenant_id = %s", (tenant,))
+                row = cur.fetchone()
+                cur.close()
+                max_users = row[0] if row else None
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.warning(f"Failed to query max_users for tenant {tenant}: {e}")
+            max_users = None
+
+        # If max_users is NULL (Enterprise/unlimited), skip check
+        if max_users is not None:
+            try:
+                current_count = count_users_for_tenant(tenant)
+            except Exception as e:
+                logger.warning(f"Failed to count users for tenant {tenant}: {e}")
+                current_count = 0  # fail-open -- don't block if we can't count
+
+            if current_count >= int(max_users):
+                return jsonify({
+                    'error': 'User limit exceeded',
+                    'error_en': 'User limit exceeded',
+                    'limit': int(max_users),
+                    'current': current_count,
+                    'message': f'Has alcanzado el máximo de usuarios de tu plan ({max_users}). Actualiza tu plan para añadir más.',
+                    'message_en': f'You have reached the user limit for your plan ({max_users}). Upgrade your plan to add more users.',
+                }), 403
+
+        admin_token = keycloak.get_admin_token()
+        if not admin_token:
+            return jsonify({'error': 'Failed to get admin token'}), 500
+        
+        # Create user in Keycloak
+        create_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
+        user_data = {
+            'email': email,
+            'firstName': firstName,
+            'lastName': lastName,
+            'username': email,
+            'enabled': True,
+            'emailVerified': False,
+            'credentials': [{
+                'type': 'password',
+                'value': password,
+                'temporary': temporary
+            }],
+            'attributes': {
+                'tenant_id': [tenant]
+            }
+        }
+        
+        response = requests.post(
+            create_url,
+            headers={
+                'Authorization': f'Bearer {admin_token}',
+                'Content-Type': 'application/json'
+            },
+            json=user_data,
+            timeout=10
+        )
+        
+        if response.status_code != 201:
+            error_msg = response.json().get('errorMessage', 'Failed to create user')
+            return jsonify({'error': error_msg}), 400
+        
+        # Get created user ID from Location header
+        location = response.headers.get('Location', '')
+        user_id = location.split('/')[-1]
+        
+        # Assign roles to user
+        for role_name in filtered_roles:
+            # Get role ID
+            role_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/roles/{role_name}"
+            role_response = requests.get(
+                role_url,
+                headers={'Authorization': f'Bearer {admin_token}'},
+                timeout=10
+            )
+            
+            if role_response.status_code == 200:
+                role_data = role_response.json()
+                
+                # Assign role to user
+                mapping_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm"
+                requests.post(
+                    mapping_url,
+                    headers={
+                        'Authorization': f'Bearer {admin_token}',
+                        'Content-Type': 'application/json'
+                    },
+                    json=[role_data],
+                    timeout=10
+                )
+        
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user_id,
+                'email': email,
+                'firstName': firstName,
+                'lastName': lastName,
+                'roles': filtered_roles,
+                'tenant_id': tenant
+            }
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tenant/users/<user_id>/roles', methods=['PUT'])
+@validate_tenant_admin
+def update_user_roles(user_info: Dict[str, Any], tenant: str, user_id: str):
+    """Update roles for a user"""
+    try:
+        data = request.get_json()
+        new_roles = data.get('roles', [])
+        
+        # Filter roles based on permissions
+        is_platform_admin = 'PlatformAdmin' in user_info.get('roles', [])
+        filtered_roles = filter_roles(new_roles, is_platform_admin)
+        
+        if not filtered_roles:
+            return jsonify({'error': 'No valid roles specified'}), 400
+        
+        admin_token = keycloak.get_admin_token()
+        if not admin_token:
+            return jsonify({'error': 'Failed to get admin token'}), 500
+        
+        # Get current roles
+        current_roles_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm"
+        current_response = requests.get(
+            current_roles_url,
+            headers={'Authorization': f'Bearer {admin_token}'},
+            timeout=10
+        )
+        
+        current_roles = []
+        if current_response.status_code == 200:
+            current_roles = current_response.json()
+        
+        # Remove all current roles
+        if current_roles:
+            requests.delete(
+                current_roles_url,
+                headers={
+                    'Authorization': f'Bearer {admin_token}',
+                    'Content-Type': 'application/json'
+                },
+                json=current_roles,
+                timeout=10
+            )
+        
+        # Add new roles
+        for role_name in filtered_roles:
+            role_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/roles/{role_name}"
+            role_response = requests.get(
+                role_url,
+                headers={'Authorization': f'Bearer {admin_token}'},
+                timeout=10
+            )
+            
+            if role_response.status_code == 200:
+                role_data = role_response.json()
+                mapping_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}/role-mappings/realm"
+                requests.post(
+                    mapping_url,
+                    headers={
+                        'Authorization': f'Bearer {admin_token}',
+                        'Content-Type': 'application/json'
+                    },
+                    json=[role_data],
+                    timeout=10
+                )
+        
+        return jsonify({'success': True}), 200
+        
+    except Exception as e:
+        logger.error(f"Error updating user roles: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tenant/users/<user_id>', methods=['DELETE'])
+@validate_tenant_admin
+def delete_user(user_info: Dict[str, Any], tenant: str, user_id: str):
+    """Delete a user"""
+    try:
+        admin_token = keycloak.get_admin_token()
+        if not admin_token:
+            return jsonify({'error': 'Failed to get admin token'}), 500
+        
+        # Verify user belongs to the same tenant
+        user_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
+        user_response = requests.get(
+            user_url,
+            headers={'Authorization': f'Bearer {admin_token}'},
+            timeout=10
+        )
+        
+        if user_response.status_code != 200:
+            return jsonify({'error': 'User not found'}), 404
+        
+        user_data = user_response.json()
+        attrs = user_data.get('attributes', {})
+        user_tenant = (attrs.get('tenant_id', [''])[0] if attrs.get('tenant_id') else '') or (attrs.get('tenant', [''])[0] if attrs.get('tenant') else '')
+
+        # PlatformAdmin can delete any user, TenantAdmin only from their tenant
+        is_platform_admin = 'PlatformAdmin' in user_info.get('roles', [])
+        if not is_platform_admin and user_tenant != tenant:
+            return jsonify({'error': 'Cannot delete users from other tenants'}), 403
+        
+        # Delete user
+        requests.delete(
+            user_url,
+            headers={'Authorization': f'Bearer {admin_token}'},
+            timeout=10
+        )
+        
+        return jsonify({'success': True}), 200
+        
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tenant/users/<user_id>/reset-password', methods=['POST'])
+@validate_tenant_admin
+def reset_password(user_info: Dict[str, Any], tenant: str, user_id: str):
+    """Reset user password"""
+    try:
+        admin_token = keycloak.get_admin_token()
+        if not admin_token:
+            return jsonify({'error': 'Failed to get admin token'}), 500
+        
+        # Generate temporary password
+        temp_password = secrets.token_urlsafe(12)
+        
+        # Reset password
+        reset_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}/reset-password"
+        reset_data = {
+            'type': 'password',
+            'value': temp_password,
+            'temporary': True
+        }
+        
+        response = requests.put(
+            reset_url,
+            headers={
+                'Authorization': f'Bearer {admin_token}',
+                'Content-Type': 'application/json'
+            },
+            json=reset_data,
+            timeout=10
+        )
+        
+        if response.status_code != 204:
+            return jsonify({'error': 'Failed to reset password'}), 500
+        
+        return jsonify({
+            'success': True,
+            'temporaryPassword': temp_password
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error resetting password: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tenant/users/me', methods=['PUT'])
+@validate_authenticated_user
+def update_my_profile(user_info: Dict[str, Any], user_id: str):
+    """
+    Update current user's profile (firstName, lastName)
+    Users can only update their own profile
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+        
+        firstName = data.get('firstName')
+        lastName = data.get('lastName')
+        
+        # Validate that at least firstName is provided
+        if firstName is None:
+            return jsonify({'error': 'firstName is required'}), 400
+        
+        # Validate data types and length
+        if firstName is not None and not isinstance(firstName, str):
+            return jsonify({'error': 'firstName must be a string'}), 400
+        if lastName is not None and not isinstance(lastName, str):
+            return jsonify({'error': 'lastName must be a string'}), 400
+        
+        # Trim whitespace
+        firstName = firstName.strip() if firstName else ''
+        lastName = lastName.strip() if lastName else ''
+        
+        if not firstName:
+            return jsonify({'error': 'firstName cannot be empty'}), 400
+        
+        # Get admin token to update user in Keycloak
+        admin_token = keycloak.get_admin_token()
+        if not admin_token:
+            return jsonify({'error': 'Failed to get admin token'}), 500
+        
+        # Verify user exists and get current data
+        user_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
+        user_response = requests.get(
+            user_url,
+            headers={'Authorization': f'Bearer {admin_token}'},
+            timeout=10
+        )
+        
+        if user_response.status_code != 200:
+            logger.error(f"User not found in Keycloak: {user_id}, status: {user_response.status_code}")
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Get current user data to preserve all fields
+        current_user_data = user_response.json()
+        
+        # Keycloak Admin API PUT requires all required fields
+        # Prepare update payload preserving all existing data
+        update_payload = current_user_data.copy()
+        
+        # Update only firstName and lastName
+        update_payload['firstName'] = firstName
+        update_payload['lastName'] = lastName
+
+        # Update locale in user attributes if provided
+        if 'locale' in data:
+            locale = data['locale']
+            valid_locales = {'es', 'en', 'ca', 'eu', 'fr', 'pt'}
+            if locale not in valid_locales:
+                return jsonify({'error': f'Invalid locale. Valid: {", ".join(sorted(valid_locales))}'}), 400
+            if 'attributes' not in update_payload:
+                update_payload['attributes'] = {}
+            update_payload['attributes']['locale'] = [locale]
+
+        # Ensure we don't accidentally modify critical fields
+        # Remove fields that shouldn't be sent in update (read-only or managed by Keycloak)
+        fields_to_remove = ['id', 'createdTimestamp', 'totp', 'notBefore', 'access']
+        for field in fields_to_remove:
+            update_payload.pop(field, None)
+        
+        # Update user in Keycloak using PUT
+        update_response = requests.put(
+            user_url,
+            headers={
+                'Authorization': f'Bearer {admin_token}',
+                'Content-Type': 'application/json'
+            },
+            json=update_payload,
+            timeout=10
+        )
+        
+        if update_response.status_code not in [204, 200]:
+            error_msg = 'Failed to update profile'
+            try:
+                error_data = update_response.json()
+                error_msg = error_data.get('errorMessage', error_msg)
+            except:
+                error_msg = update_response.text or error_msg
+            
+            logger.error(f"Failed to update user profile in Keycloak: {update_response.status_code} - {error_msg}")
+            return jsonify({'error': error_msg}), update_response.status_code
+        
+        logger.info(f"Successfully updated profile for user {user_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Profile updated successfully',
+            'user': {
+                'id': user_id,
+                'firstName': firstName,
+                'lastName': lastName
+            }
+        }), 200
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error updating user profile: {e}")
+        return jsonify({'error': f'Failed to update profile: {str(e)}'}), 500
+    except Exception as e:
+        logger.error(f"Error updating user profile: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@app.route('/api/tenant/users/stats', methods=['GET'])
+@validate_tenant_admin
+def get_user_stats(user_info: Dict[str, Any], tenant: str):
+    """Get user statistics for the tenant"""
+    try:
+        admin_token = keycloak.get_admin_token()
+        if not admin_token:
+            return jsonify({'error': 'Failed to get admin token'}), 500
+        
+        # Get all users from Keycloak realm
+        users_url = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
+        response = requests.get(
+            users_url,
+            headers={'Authorization': f'Bearer {admin_token}'},
+            timeout=10
+        )
+        response.raise_for_status()
+        users = response.json()
+        
+        count = 0
+        for user in users:
+            attrs = user.get('attributes', {})
+            user_tenant = (attrs.get('tenant_id', [''])[0] if attrs.get('tenant_id') else '') or (attrs.get('tenant', [''])[0] if attrs.get('tenant') else '')
+
+            # Only count users from the same tenant (or all if PlatformAdmin)
+            if user_tenant == tenant or 'PlatformAdmin' in user_info.get('roles', []):
+                count += 1
+        
+        return jsonify({'total': count}), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting user stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tenant/profile', methods=['GET'])
+@validate_authenticated_user
+def get_tenant_profile(user_info: Dict[str, Any], user_id: str):
+    """Get tenant profile for the authenticated user"""
+    try:
+        # Extract tenant_id from token
+        auth_header = request.headers.get('Authorization', '')
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else ''
+
+        decoded = jwt.decode(token, options={"verify_signature": False, "verify_exp": False})
+        tenant_id = decoded.get('tenant_id') or decoded.get('tenant-id') or ''
+
+        if not tenant_id:
+            return jsonify({'error': 'No tenant_id in token'}), 400
+
+        # Normalize
+        try:
+            tenant_id = normalize_tenant_id(tenant_id)
+        except ValueError:
+            pass
+
+        if not POSTGRES_URL:
+            return jsonify({
+                'tenant_id': tenant_id,
+                'tenant_name': tenant_id,
+                'plan_type': 'basic',
+                'status': 'active',
+                'timezone': 'Europe/Madrid',
+                'locale': 'es',
+                'currency': 'EUR',
+                'default_location': None,
+            })
+
+        conn = psycopg2.connect(POSTGRES_URL)
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT tenant_name, plan_type, status, metadata, expires_at, max_users, max_robots, max_sensors FROM tenants WHERE tenant_id = %s",
+                (tenant_id,)
+            )
+            row = cur.fetchone()
+            cur.close()
+
+            if row:
+                metadata = row[3] or {}
+                expires_at = row[4]
+                return jsonify({
+                    'tenant_id': tenant_id,
+                    'tenant_name': row[0] or tenant_id,
+                    'plan_type': row[1] or 'basic',
+                    'status': row[2] or 'active',
+                    'expires_at': expires_at.isoformat() if expires_at else None,
+                    'max_users': row[5] or 1,
+                    'max_robots': row[6] or 3,
+                    'max_sensors': row[7] or 10,
+                    'timezone': metadata.get('timezone', 'Europe/Madrid'),
+                    'locale': metadata.get('locale', 'es'),
+                    'currency': metadata.get('currency', 'EUR'),
+                    'default_location': metadata.get('default_location'),
+                    'nif': metadata.get('nif'),
+                    'regepa': metadata.get('regepa'),
+                    'address_municipio': metadata.get('address_municipio'),
+                    'address_provincia': metadata.get('address_provincia'),
+                    'address_cp': metadata.get('address_cp'),
+                })
+            else:
+                return jsonify({
+                    'tenant_id': tenant_id,
+                    'tenant_name': tenant_id,
+                    'plan_type': 'basic',
+                    'status': 'active',
+                    'expires_at': None,
+                    'max_users': 1,
+                    'max_robots': 3,
+                    'max_sensors': 10,
+                    'timezone': 'Europe/Madrid',
+                    'locale': 'es',
+                    'currency': 'EUR',
+                    'default_location': None,
+                    'nif': None,
+                    'regepa': None,
+                    'address_municipio': None,
+                    'address_provincia': None,
+                    'address_cp': None,
+                })
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error(f"Error fetching tenant profile: {e}")
+        return jsonify({'error': 'Failed to fetch tenant profile'}), 500
+
+
+@app.route('/api/tenant/profile', methods=['PATCH'])
+@validate_tenant_admin
+def update_tenant_profile(user_info: Dict[str, Any], tenant: str):
+    """Update tenant profile (TenantAdmin or PlatformAdmin only)"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        if not POSTGRES_URL:
+            return jsonify({'error': 'Database not configured'}), 503
+
+        # Validate fields
+        allowed_fields = {
+            'tenant_name', 'timezone', 'locale', 'currency', 'default_location',
+            'nif', 'regepa', 'address_municipio', 'address_provincia', 'address_cp',
+        }
+        unknown = set(data.keys()) - allowed_fields
+        if unknown:
+            return jsonify({'error': f'Unknown fields: {", ".join(unknown)}'}), 400
+
+        conn = psycopg2.connect(POSTGRES_URL)
+        try:
+            cur = conn.cursor()
+
+            # Validate tenant_name if provided
+            if 'tenant_name' in data:
+                name = data['tenant_name'].strip()
+                if not name or len(name) > 100:
+                    return jsonify({'error': 'tenant_name must be 1-100 characters'}), 400
+
+                cur.execute(
+                    "UPDATE tenants SET tenant_name = %s, updated_at = NOW() WHERE tenant_id = %s",
+                    (name, tenant)
+                )
+
+            # Store timezone, locale, currency, default_location in metadata JSONB
+            metadata_updates = {}
+            if 'timezone' in data:
+                tz = data['timezone']
+                if not isinstance(tz, str) or len(tz) > 50:
+                    return jsonify({'error': 'Invalid timezone'}), 400
+                metadata_updates['timezone'] = tz
+
+            if 'locale' in data:
+                locale = data['locale']
+                valid_locales = {'es', 'en', 'ca', 'eu', 'fr', 'pt'}
+                if locale not in valid_locales:
+                    return jsonify({'error': f'Invalid locale. Valid: {", ".join(sorted(valid_locales))}'}), 400
+                metadata_updates['locale'] = locale
+
+            if 'currency' in data:
+                currency = data['currency'].upper()
+                valid_currencies = {'EUR', 'GBP', 'USD'}
+                if currency not in valid_currencies:
+                    return jsonify({'error': f'Invalid currency. Valid: {", ".join(sorted(valid_currencies))}'}), 400
+                metadata_updates['currency'] = currency
+
+            if 'default_location' in data:
+                loc = data['default_location']
+                if loc is not None:
+                    if not isinstance(loc, dict) or 'lat' not in loc or 'lon' not in loc:
+                        return jsonify({'error': 'default_location must be {lat, lon} or null'}), 400
+                    if not (-90 <= loc['lat'] <= 90) or not (-180 <= loc['lon'] <= 180):
+                        return jsonify({'error': 'Invalid coordinates'}), 400
+                metadata_updates['default_location'] = loc
+
+            # SIEX / CUE fields — stored in metadata JSONB
+            if 'nif' in data:
+                nif = str(data['nif']).strip()
+                if len(nif) > 20:
+                    return jsonify({'error': 'nif must be 20 characters max'}), 400
+                metadata_updates['nif'] = nif
+
+            if 'regepa' in data:
+                regepa = str(data['regepa']).strip()
+                if len(regepa) > 30:
+                    return jsonify({'error': 'regepa must be 30 characters max'}), 400
+                metadata_updates['regepa'] = regepa
+
+            if 'address_municipio' in data:
+                val = str(data['address_municipio']).strip()
+                if len(val) > 100:
+                    return jsonify({'error': 'address_municipio must be 100 characters max'}), 400
+                metadata_updates['address_municipio'] = val
+
+            if 'address_provincia' in data:
+                val = str(data['address_provincia']).strip()
+                if len(val) > 50:
+                    return jsonify({'error': 'address_provincia must be 50 characters max'}), 400
+                metadata_updates['address_provincia'] = val
+
+            if 'address_cp' in data:
+                val = str(data['address_cp']).strip()
+                if len(val) > 10:
+                    return jsonify({'error': 'address_cp must be 10 characters max'}), 400
+                metadata_updates['address_cp'] = val
+
+            if metadata_updates:
+                # Merge into existing metadata using jsonb || operator
+                cur.execute(
+                    "UPDATE tenants SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb, updated_at = NOW() WHERE tenant_id = %s",
+                    (json.dumps(metadata_updates), tenant)
+                )
+
+            conn.commit()
+            cur.close()
+
+            return jsonify({'success': True, 'updated': list(data.keys())})
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logger.error(f"Error updating tenant profile: {e}")
+        return jsonify({'error': 'Failed to update tenant profile'}), 500
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+

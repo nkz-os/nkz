@@ -1,0 +1,387 @@
+{
+  "@context": [
+    "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
+    "https://smart-data-models.github.io/dataModel.Agrifood/context.jsonld",
+    {
+      "_comment": "Nekazari Platform NGSI-LD @context — canonical namespace mappings. Types prefixed 'nkz:' are platform extensions (no SDM/SAREF4AGRI equivalent per FIWARE Smart Data Models catalog audit 2026-05-03). Types prefixed 'saref4agri:' are legacy — retained for backward compatibility with existing Orion-LD entities; new entities SHOULD use 'nkz:' variants.",
+
+      "schema": "https://schema.org/",
+      "ngsi-ld": "https://uri.etsi.org/ngsi-ld/",
+      "iot": "https://iot.schema.org/",
+      "saref": "https://saref.etsi.org/core/",
+      "saref4agri": "https://saref.etsi.org/saref4agri/",
+      "nkz": "https://nekazari.robotika.cloud/ngsi-ld/",
+
+      "AgriculturalRobot": {
+      "@id": "nkz:AgriculturalRobot",
+      "@type": "@id",
+      "_comment": "Platform extension — no equivalent in SAREF4AGRI or any SDM catalog. Alias: AgriRobot (robotics module) maps to same nkz:AgriculturalRobot URI. Legacy mapping: saref4agri:AgriculturalRobot."
+    },
+    "AgriSensor": {
+      "@id": "nkz:AgriSensor",
+      "@type": "@id",
+      "_comment": "Platform extension — SAREF4AGRI has no AgriSensor class (only specific sensor types like Pluviometer, Thermometer). Legacy mapping: saref4agri:AgriSensor."
+    },
+    "AgriParcel": {
+      "@id": "https://saref.etsi.org/saref4agri/AgriParcel",
+      "@type": "@id",
+      "_comment": "SAREF4AGRI AgriParcel — canonical type used by GIS-Routing for parcel creation. Legacy mapping: nkz:AgriParcel."
+    },
+    "AgriOperation": {
+      "@id": "nkz:AgriOperation",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:AgriOperation."
+    },
+    "AgriculturalTractor": {
+      "@id": "nkz:AgriculturalTractor",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM type exists for agricultural tractors. Closest: ManufacturingMachine. Legacy mapping: saref4agri:AgriculturalTractor."
+    },
+    "AgriculturalImplement": {
+      "@id": "nkz:AgriculturalImplement",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM type exists for agricultural implements. Legacy mapping: saref4agri:AgriculturalImplement."
+    },
+    "AgriEquipment": {
+      "@id": "nkz:AgriEquipment",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM type exists for generic agricultural equipment. Used as parent type for tractors and implements."
+    },
+    "AgriParcelOperation": {
+      "@id": "nkz:AgriParcelOperation",
+      "@type": "@id",
+      "_comment": "Platform extension — SDM AgriParcelOperation lacks agricultural machinery kinematics properties. Platform extends with A-B lines and VRA fields."
+    },
+    "AgriCropObservation": {
+      "@id": "nkz:AgriCropObservation",
+      "@type": "@id",
+      "_comment": "Platform extension of SDM AgriCrop (which lacks observation/image capture semantics)."
+    },
+    "WeatherObserved": {
+      "@id": "nkz:WeatherObserved",
+      "@type": "@id",
+      "_comment": "Platform extension — SAREF4AGRI has no WeatherObserved. SDM WeatherObserved exists in dataModel.Weather. Legacy mapping: saref4agri:WeatherObserved."
+    },
+    "SatelliteImageObservation": {
+      "@id": "nkz:SatelliteImageObservation",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:SatelliteImageObservation."
+    },
+    "VegetationIndex": {
+      "@id": "nkz:VegetationIndex",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:VegetationIndex."
+    },
+    "EOProduct": {
+      "@id": "https://smart-data-models.github.io/dataModel.SatelliteImagery/EOProduct/schema.json",
+      "@type": "@id",
+      "_comment": "FIWARE Smart Data Model — Earth Observation product (Sentinel-1 GRD, Sentinel-2 NDVI, etc.). Properties: productType, hasAgriParcel, backscatterVV, backscatterVH, ndviValue, dateObserved."
+    },
+    "LivestockAnimal": {
+      "@id": "nkz:LivestockAnimal",
+      "@type": "@id",
+      "_comment": "Platform extension — SAREF4AGRI has no LivestockAnimal class. Legacy mapping: saref4agri:LivestockAnimal."
+    },
+    "LivestockGroup": {
+      "@id": "nkz:LivestockGroup",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:LivestockGroup."
+    },
+    "LivestockFarm": {
+      "@id": "nkz:LivestockFarm",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:LivestockFarm."
+    },
+    "LivestockProduction": {
+      "@id": "nkz:LivestockProduction",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:LivestockProduction."
+    },
+    "PhotovoltaicInstallation": {
+      "@id": "nkz:PhotovoltaicInstallation",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:PhotovoltaicInstallation."
+    },
+    "EnergyStorageSystem": {
+      "@id": "nkz:EnergyStorageSystem",
+      "@type": "@id",
+      "_comment": "Platform extension — no SAREF4AGRI equivalent. Legacy mapping: saref4agri:EnergyStorageSystem."
+    },
+    "CropHealthAssessment": {
+      "@id": "nkz:CropHealthAssessment",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Proposed for FIWARE Smart Data Models AgriFood domain (P1). Crop health evaluation result from epidemiological models."
+    },
+    "DiseaseRiskAssessment": {
+      "@id": "nkz:DiseaseRiskAssessment",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Proposed for FIWARE Smart Data Models AgriFood domain (P1). Daily disease risk evaluation per parcel."
+    },
+    "RiskAssessment": {
+      "@id": "nkz:RiskAssessment",
+      "@type": "@id",
+      "_comment": "Platform extension — generic risk evaluation result for batch-evaluated risks (robotic, energy, livestock, agronomic). Disease-specific risks use DiseaseRiskAssessment."
+    },
+    "DeviceCommand": {
+      "@id": "nkz:DeviceCommand",
+      "@type": "@id",
+      "_comment": "Platform extension — MQTT device command tracking. Records command lifecycle (pending -> sent/failed) for IoT device management."
+    },
+    "CarbonStock": {
+      "@id": "nkz:CarbonStock",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Soil organic carbon stock assessment per parcel."
+    },
+    "DigitalAsset": {
+      "@id": "nkz:DigitalAsset",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. LiDAR point cloud and 3D model assets."
+    },
+    "AgriEnergyTracker": {
+      "@id": "nkz:AgriEnergyTracker",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Energy production/consumption tracking for agricultural installations."
+    },
+    "EnergyMeter": {
+      "@id": "nkz:EnergyMeter",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Energy metering device for Odoo ERP integration."
+    },
+    "AgriDevice": {
+      "@id": "nkz:AgriDevice",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Legacy device type used by DaTaK setup scripts. Prefer AgriSensor for new entities."
+    },
+    "AgriculturalMachine": {
+      "@id": "nkz:AgriculturalMachine",
+      "@type": "@id",
+      "_comment": "Platform extension — no SDM equivalent. Generic agricultural machinery parent type for tractors and implements."
+    },
+    "AgriRobot": {
+      "@id": "nkz:AgriculturalRobot",
+      "@type": "@id",
+      "_comment": "Alias for AgriculturalRobot — both resolve to nkz:AgriculturalRobot. Robotics module uses AgriRobot as entity type. Standardized 2026-05-08."
+    },
+
+    "AgriSoilExtended": {
+      "@id": "https://nkz-os.org/sdm-proposals/AgriSoilExtended",
+      "@type": "@id",
+      "_comment": "SDM-001 Proposal: Extension of AgriSoil with soil horizon data and pedotransfer function properties (LUCAS/SoilGrids integration)"
+    },
+    "SoilSamplingPoint": {
+      "@id": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint",
+      "@type": "@id",
+      "_comment": "SDM-002 Proposal: Point sample location with laboratory analysis results and spatial reference"
+    },
+    "SoilSurvey": {
+      "@id": "https://nkz-os.org/sdm-proposals/SoilSurvey",
+      "@type": "@id",
+      "_comment": "SDM-003 Proposal: Survey campaign metadata (instrumentation, point count, spatial coverage)"
+    },
+    "SoilDerivedRaster": {
+      "@id": "https://nkz-os.org/sdm-proposals/SoilDerivedRaster",
+      "@type": "@id",
+      "_comment": "SDM-004 Proposal: Raster derived from point samples or gridded soil models (COG/NetCDF storage)"
+    },
+
+    "horizons": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#horizons",
+    "hydrologicGroup": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#hydrologicGroup",
+    "parcelVersionId": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#parcelVersionId",
+    "uncertainty": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#uncertainty",
+    "dataSource": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#dataSource",
+
+    "samplingDate": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#samplingDate",
+    "laboratoryReference": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#laboratoryReference",
+    "refSoilSurvey": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#refSoilSurvey",
+
+    "surveyType": "https://nkz-os.org/sdm-proposals/SoilSurvey#surveyType",
+    "instrumentation": "https://nkz-os.org/sdm-proposals/SoilSurvey#instrumentation",
+    "pointCount": "https://nkz-os.org/sdm-proposals/SoilSurvey#pointCount",
+
+    "soilProperty": "https://nkz-os.org/sdm-proposals/SoilDerivedRaster#soilProperty",
+    "storageUri": "https://nkz-os.org/sdm-proposals/SoilDerivedRaster#storageUri",
+
+    "providedBy": "https://uri.etsi.org/ngsi-ld/providedBy",
+    "license": "https://uri.etsi.org/ngsi-ld/license",
+    "confidenceInterval": "https://uri.etsi.org/ngsi-ld/confidenceInterval",
+    "derivedBy": "https://uri.etsi.org/ngsi-ld/derivedBy",
+
+    "name": "schema:name",
+    "description": "schema:description",
+    "location": "schema:location",
+    "status": "schema:status",
+    "batteryLevel": "saref:BatteryLevel",
+    "currentTask": "nkz:currentTask",
+    "speed": "saref:Speed",
+    "payload": "nkz:payload",
+    "engineSpeed": "nkz:engineSpeed",
+    "fuelLevel": "nkz:fuelLevel",
+    "engineHours": "nkz:engineHours",
+    "seedingRate": "nkz:seedingRate",
+    "harvestedWeight": "nkz:harvestedWeight",
+    "tankLevel": "nkz:tankLevel",
+    "sprayRate": "nkz:sprayRate",
+    "moisture": "nkz:moisture",
+    "ph": "nkz:ph",
+    "temperature": "saref:Temperature",
+    "airTemperature": "saref:Temperature",
+    "relativeHumidity": "saref:Humidity",
+    "humidity": "saref:Humidity",
+    "pressure": "saref:Pressure",
+    "solarRadiation": "https://smartdatamodels.org/dataModel.Weather/solarRadiation",
+    "sensorsinsolation": "https://nekazari.io/vocab/sensorsinsolation",
+    "illuminance": "saref:Illuminance",
+    "soilMoisture": "nkz:soilMoisture",
+    "soilTemperature": "https://smartdatamodels.org/dataModel.Weather/soilTemperature",
+    "windSpeed": "nkz:windSpeed",
+    "windSpeedMax": "nkz:windSpeedMax",
+    "windGusts": "nkz:windGusts",
+    "windDirection": "https://smartdatamodels.org/dataModel.Weather/windDirection",
+    "precipitation": "https://smartdatamodels.org/dataModel.Weather/precipitation",
+    "atmosphericPressure": "https://smartdatamodels.org/dataModel.Weather/atmosphericPressure",
+    "dewPoint": "https://smartdatamodels.org/dataModel.Weather/dewPoint",
+    "deltaT": "nkz:deltaT",
+    "gddAccumulated": "nkz:gddAccumulated",
+    "tempCurrent": "nkz:tempCurrent",
+    "humidityCurrent": "nkz:humidityCurrent",
+    "co2": "https://smartdatamodels.org/dataModel.Environment/co2",
+    "uvIndex": "https://smartdatamodels.org/dataModel.Weather/uvIndex",
+    "leafWetness": "https://nekazari.io/vocab/leafWetness",
+    "area": "nkz:area",
+    "treeCount": "nkz:treeCount",
+    "variety": "nkz:variety",
+    "plantingDate": "nkz:plantingDate",
+    "rowCount": "nkz:rowCount",
+    "operationType": "nkz:operationType",
+    "startDate": "schema:startDate",
+    "endDate": "schema:endDate",
+    "sensorType": "saref:SensorType",
+    "measurement": "saref:Measurement",
+    "unit": "saref:Unit",
+    "cropType": "nkz:cropType",
+    "soilType": "nkz:soilType",
+    "commandType": "nkz:commandType",
+    "mqttTopic": "nkz:mqttTopic",
+    "sentAt": "nkz:sentAt",
+    "executedAt": "nkz:executedAt",
+    "response": "nkz:commandResponse",
+    "targetDeviceId": "nkz:targetDeviceId",
+    "riskCode": "nkz:riskCode",
+    "probabilityScore": "nkz:probabilityScore",
+    "evaluationData": "nkz:evaluationData",
+    "evaluatedBy": "nkz:evaluatedBy",
+    "evaluationVersion": "nkz:evaluationVersion",
+    "severity": "nkz:severity",
+    "targetEntityId": "nkz:targetEntityId",
+    "targetEntityType": "nkz:targetEntityType",
+    "observedAt": "ngsi-ld:observedAt",
+    "createdAt": "ngsi-ld:createdAt",
+    "modifiedAt": "ngsi-ld:modifiedAt",
+    "ref3DModel": "nkz:ref3DModel",
+    "modelScale": "nkz:modelScale",
+    "modelRotation": "nkz:modelRotation",
+
+    "visualRepresentation": {
+      "@id": "https://nekazari.io/vocab/visualRepresentation",
+      "@type": "@id"
+    },
+    "modelMatrix": {
+      "@id": "https://nekazari.io/vocab/modelMatrix",
+      "@type": "@id"
+    },
+    "boundingBox": {
+      "@id": "https://nekazari.io/vocab/boundingBox",
+      "@type": "@id"
+    },
+    "icon": {
+      "@id": "https://nekazari.io/vocab/icon",
+      "@type": "@id"
+    },
+    "assetUrl": "https://nekazari.io/vocab/assetUrl",
+    "assetFormat": "https://nekazari.io/vocab/assetFormat",
+    "assetHash": "https://nekazari.io/vocab/assetHash",
+    "compressionType": "https://nekazari.io/vocab/compressionType",
+    "heading": "https://nekazari.io/vocab/heading",
+    "pitch": "https://nekazari.io/vocab/pitch",
+    "roll": "https://nekazari.io/vocab/roll",
+    "altitude": "https://nekazari.io/vocab/altitude",
+    "terrainAspect": "nkz:terrainAspect",
+    "terrainSlope": "nkz:terrainSlope",
+    "minBounds": "https://nekazari.io/vocab/minBounds",
+    "maxBounds": "https://nekazari.io/vocab/maxBounds",
+    "connectivityStatus": "https://nekazari.io/vocab/connectivityStatus",
+    "lastHeartbeat": "https://nekazari.io/vocab/lastHeartbeat",
+
+    "ndviMean": "https://nekazari.io/vocab/ndviMean",
+    "ndviMin": "https://nekazari.io/vocab/ndviMin",
+    "ndviMax": "https://nekazari.io/vocab/ndviMax",
+    "ndviStdDev": "https://nekazari.io/vocab/ndviStdDev",
+    "eviMean": "https://nekazari.io/vocab/eviMean",
+    "eviMin": "https://nekazari.io/vocab/eviMin",
+    "eviMax": "https://nekazari.io/vocab/eviMax",
+    "eviStdDev": "https://nekazari.io/vocab/eviStdDev",
+    "saviMean": "https://nekazari.io/vocab/saviMean",
+    "saviMin": "https://nekazari.io/vocab/saviMin",
+    "saviMax": "https://nekazari.io/vocab/saviMax",
+    "saviStdDev": "https://nekazari.io/vocab/saviStdDev",
+    "gndviMean": "https://nekazari.io/vocab/gndviMean",
+    "gndviMin": "https://nekazari.io/vocab/gndviMin",
+    "gndviMax": "https://nekazari.io/vocab/gndviMax",
+    "gndviStdDev": "https://nekazari.io/vocab/gndviStdDev",
+    "ndreMean": "https://nekazari.io/vocab/ndreMean",
+    "ndreMin": "https://nekazari.io/vocab/ndreMin",
+    "ndreMax": "https://nekazari.io/vocab/ndreMax",
+    "ndreStdDev": "https://nekazari.io/vocab/ndreStdDev",
+    "ndwiMean": "https://nekazari.io/vocab/ndwiMean",
+    "ndwiMin": "https://nekazari.io/vocab/ndwiMin",
+    "ndwiMax": "https://nekazari.io/vocab/ndwiMax",
+    "ndwiStdDev": "https://nekazari.io/vocab/ndwiStdDev",
+    "rasterUrl": "https://nekazari.io/vocab/rasterUrl",
+    "sensingDate": "https://nekazari.io/vocab/sensingDate",
+    "pixelCount": "https://nekazari.io/vocab/pixelCount",
+    "refAgriParcel": "https://smartdatamodels.org/dataModel.Agrifood/hasAgriParcel",
+    "hasAgriParcel": "https://smartdatamodels.org/dataModel.Agrifood/hasAgriParcel",
+    "hasAgriCrop": "https://smartdatamodels.org/dataModel.Agrifood/hasAgriCrop",
+    "hasDevice": "https://smartdatamodels.org/dataModel.Device/hasDevice",
+
+    "locatedAt": "https://nekazari.io/vocab/locatedAt",
+    "refParcel": "https://nekazari.io/vocab/locatedAt",
+    "belongsTo": "https://nekazari.io/vocab/belongsTo",
+    "refTenant": "https://nekazari.io/vocab/belongsTo",
+    "hasDeviceProfile": "https://nekazari.io/vocab/hasDeviceProfile",
+    "refDeviceProfile": "https://nekazari.io/vocab/hasDeviceProfile",
+    "refDevice": "https://smartdatamodels.org/dataModel.Device/hasDevice",
+    "refWeatherStation": "https://nekazari.io/vocab/observes",
+    "observes": "https://nekazari.io/vocab/observes",
+    "usesEquipment": "https://nekazari.io/vocab/usesEquipment",
+    "refEquipment": "https://nekazari.io/vocab/usesEquipment",
+    "usesTractor": "https://nekazari.io/vocab/usesTractor",
+    "refTractor": "https://nekazari.io/vocab/usesTractor",
+    "usesImplement": "https://nekazari.io/vocab/usesImplement",
+    "refImplement": "https://nekazari.io/vocab/usesImplement",
+    "hasTrialSite": "https://nekazari.io/vocab/hasTrialSite",
+    "refTrialSite": "https://nekazari.io/vocab/hasTrialSite",
+    "hasArticleSource": "https://nekazari.io/vocab/hasArticleSource",
+    "refArticleSource": "https://nekazari.io/vocab/hasArticleSource",
+    "hasSoilSample": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#hasSoilSample",
+    "refSoilSample": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#hasSoilSample",
+    "hasSoilSurvey": "https://nkz-os.org/sdm-proposals/SoilSamplingPoint#hasSoilSurvey",
+    "refSourceOperation": "https://nekazari.io/vocab/derivedFrom",
+    "derivedFrom": "https://nekazari.io/vocab/derivedFrom",
+    "refVegetationIndex": "https://nekazari.io/vocab/hasVegetationIndex",
+    "hasVegetationIndex": "https://nekazari.io/vocab/hasVegetationIndex",
+
+    "AgriCrop": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/schema.json",
+    "hasAgriParcel": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/hasAgriParcel",
+    "plantingDate": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/plantingDate",
+    "harvestDate": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/harvestDate",
+    "seedingRate": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/seedingRate",
+    "eppoCode": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/agroVocConcept",
+    "inputMethod": "https://nekazari.io/vocab/inputMethod",
+    "refAgriCrop": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/schema.json",
+
+      "Point": "schema:GeoCoordinates",
+      "coordinates": "schema:geo"
+    }
+  ]
+}

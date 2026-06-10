@@ -1,0 +1,1664 @@
+// =============================================================================
+// API Service - HTTP Client for Nekazari Backend
+// =============================================================================
+
+import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
+import type {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+  Robot,
+  Sensor,
+  Parcel,
+  AgriculturalMachine,
+  LivestockAnimal,
+  WeatherStation,
+  AssetCreationPayload,
+  TenantLimits,
+  TenantUsageSummary,
+  GrafanaLink,
+  RiskCatalog,
+  RiskSubscription,
+  RiskState,
+  RiskWebhook,
+  EntityInventory,
+} from '@/types';
+import { getConfig } from '@/config/environment';
+import { logger } from '@/utils/logger';
+
+const config = getConfig();
+const API_BASE_URL = config.api.baseUrl;
+
+/** Tenant user as returned by /api/tenant/users */
+export interface TenantUser {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  roles?: string[];
+  username?: string;
+  enabled?: boolean;
+}
+
+/** Response shape for /api/tenant/users (list) */
+export interface TenantUsersResponse {
+  users?: TenantUser[];
+  [key: string]: unknown;
+}
+
+/** Response shape for /api/weather/parcel/:id/agro-status */
+export interface AgroStatusResponse {
+  parcel_id: string;
+  parcel_name: string;
+  centroid: { latitude: number; longitude: number };
+  semaphores: {
+    spraying: 'optimal' | 'caution' | 'not_suitable' | 'unknown';
+    workability: 'optimal' | 'too_wet' | 'too_dry' | 'caution' | 'unknown';
+    irrigation: 'satisfied' | 'alert' | 'deficit' | 'unknown';
+  };
+  weather: {
+    temperature: number | null;
+    humidity: number | null;
+    wind_speed: number | null;
+    wind_direction: number | null;
+    pressure: number | null;
+    precipitation: number;
+    precipitation_3d: number;
+    eto_today: number | null;
+    eto_3d: number | null;
+    wind_gusts: number | null;
+    water_balance: number | null;
+    observed_at: string | null;
+    sources: Record<string, string>;
+    source_confidence: string;
+    sensor?: {
+      external_id: string;
+      name: string;
+      distance_m: number;
+      last_observation: string;
+    };
+  };
+  metrics?: {
+    temperature: number | null;
+    humidity: number | null;
+    delta_t: number | null;
+    water_balance: number | null;
+    wind_speed: number | null;
+    wind_gusts: number | null;
+    precip_probability: number | null;
+    spraying_reason: string | null;
+    moisture: number | null;
+  };
+  soil?: {
+    texture_applied: boolean;
+    texture_class?: string;
+    field_capacity?: number;
+    wilting_point?: number;
+    ksat?: number;
+    hydrologic_group?: string;
+    source?: string;
+  };
+  crop?: {
+    stage?: string;
+    spraying_sensitivity?: string;
+  };
+  inversion_risk: boolean;
+  source_confidence: string;
+  downscaling: string;
+  timestamp: string;
+}
+
+// Internal Keycloak instance reference for token refresh / cookie update.
+// Set via setKeycloakRef() from KeycloakAuthContext — never exposed to modules.
+let _keycloakRef: { token?: string; updateToken: (minValidity: number) => Promise<boolean> } | null = null;
+
+/** Called by KeycloakAuthContext to share the Keycloak instance with api.ts */
+export const setKeycloakRef = (kc: typeof _keycloakRef) => { _keycloakRef = kc; };
+
+// Internal helper — token is used only for refresh logic and X-Tenant-ID extraction,
+// never sent as Authorization header (httpOnly cookie handles auth).
+const getAuthToken = (): string | null => {
+  return _keycloakRef?.token ?? null;
+};
+
+// =============================================================================
+// Simple in-memory cache for API responses
+// =============================================================================
+
+interface CacheEntry<T = unknown> {
+  data: T;
+  timestamp: number;
+  ttl: number;
+}
+
+class SimpleCache {
+  private cache = new Map<string, CacheEntry>();
+  private readonly defaultTTL = 60000;
+
+  get<T = unknown>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.data as T;
+  }
+
+  set<T = unknown>(key: string, data: T, ttl: number = this.defaultTTL): void {
+    this.cache.set(key, { data, timestamp: Date.now(), ttl });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  delete(key: string): void {
+    this.cache.delete(key);
+  }
+}
+
+// =============================================================================
+// Retry utility
+// =============================================================================
+
+async function retryRequest<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: unknown) {
+      lastError = error;
+      const err = error as { response?: { status?: number } };
+
+      if (err.response && err.response.status !== null && err.response.status !== undefined && err.response.status >= 400 && err.response.status < 500) {
+        throw error;
+      }
+
+      // Don't retry on last attempt
+      if (attempt === maxRetries) {
+        break;
+      }
+
+      // Exponential backoff
+      const waitTime = delay * Math.pow(2, attempt);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+
+  throw lastError;
+}
+
+class ApiService {
+  private client: AxiosInstance;
+  private cache: SimpleCache;
+
+  constructor() {
+    this.cache = new SimpleCache();
+    this.client = axios.create({
+      baseURL: API_BASE_URL,
+      timeout: config.api.timeout,
+      withCredentials: true,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Request interceptor — auth is handled by httpOnly cookie (withCredentials: true).
+    // We still proactively refresh the token so the cookie stays fresh, and extract
+    // X-Tenant-ID from the in-memory token for legacy services.
+    this.client.interceptors.request.use(
+      async (requestConfig) => {
+        // Proactively refresh token if close to expiry (updates httpOnly cookie)
+        if (_keycloakRef?.token) {
+          try {
+            const decoded = JSON.parse(atob(_keycloakRef.token.split('.')[1]));
+            const timeUntilExpiry = decoded.exp * 1000 - Date.now();
+            if (timeUntilExpiry < 60000) {
+              logger.debug('[API] Token expiring soon, refreshing for cookie update...');
+              try {
+                await _keycloakRef.updateToken(60);
+                if (_keycloakRef.token) {
+                  // setSession is called by KeycloakAuthContext's onTokenExpired,
+                  // but also call here as a safety net for proactive refresh
+                  this.setSession(_keycloakRef.token).catch(() => {});
+                }
+              } catch (e) {
+                logger.warn('[API] Token refresh failed:', e);
+              }
+            }
+          } catch (e) {
+            logger.warn('[API] Error checking token expiry:', e);
+          }
+        }
+
+        // Send Bearer token when available so auth works even if cookie is missing (e.g. cross-origin, timing).
+        // Gateway accepts Authorization first, then nkz_token cookie.
+        const token = getAuthToken();
+        if (token) {
+          requestConfig.headers['Authorization'] = `Bearer ${token}`;
+          try {
+            const decoded = JSON.parse(atob(token.split('.')[1]));
+            const tenantId = decoded['tenant-id'] || decoded.tenant_id || decoded.tenantId || decoded.tenant || '';
+            if (tenantId) {
+              requestConfig.headers['X-Tenant-ID'] = tenantId;
+            }
+          } catch (e) {
+            logger.warn('[API] Could not extract tenant from token for X-Tenant-ID header');
+          }
+        }
+
+        return requestConfig;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor for error handling and token refresh
+    this.client.interceptors.response.use(
+      (response) => {
+        // Log successful responses for debugging
+        return response;
+      },
+      async (error: AxiosError) => {
+        // Handle empty responses or non-JSON responses
+        if (error.response && typeof error.response.data === 'string' && error.response.data.trim() === '') {
+          logger.warn('[API] Empty response received, converting to error object');
+          error.response.data = { error: 'Empty response from server' };
+        }
+
+        // Handle JSON parse errors
+        if (error.message && error.message.includes('JSON')) {
+          logger.warn('[API] JSON parse error:', error.message);
+          if (error.response) {
+            try {
+              // Try to parse the response as text first
+              const text = typeof error.response.data === 'string'
+                ? error.response.data
+                : JSON.stringify(error.response.data);
+              error.response.data = { error: text || 'Invalid response format' };
+            } catch (e) {
+              error.response.data = { error: 'Failed to parse server response' };
+            }
+          }
+        }
+
+        if (error.response?.status === 401) {
+          // Prevent infinite refresh loops
+          const retryCount = (error.config as any)?._retryCount || 0;
+          const MAX_RETRY_ATTEMPTS = 2;
+
+          if (retryCount >= MAX_RETRY_ATTEMPTS) {
+            logger.error('[API] Max retry attempts reached for 401.', { url: error.config?.url });
+            return Promise.reject(error);
+          }
+
+          // Try to refresh token → updates httpOnly cookie, then retry
+          if (_keycloakRef) {
+            try {
+              logger.debug(`[API] 401 — refreshing token (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
+              await _keycloakRef.updateToken(30);
+              if (_keycloakRef.token) {
+                // Update cookie with fresh token
+                this.setSession(_keycloakRef.token).catch(() => {});
+                logger.debug('[API] Token refreshed, retrying with updated cookie...');
+                const originalRequest = error.config;
+                if (originalRequest) {
+                  (originalRequest as AxiosRequestConfig & { _retryCount?: number })._retryCount = retryCount + 1;
+                  // No Bearer header — cookie is sent automatically via withCredentials
+                  delete originalRequest.transformRequest;
+                  delete originalRequest.transformResponse;
+                  return this.client.request(originalRequest);
+                }
+              }
+            } catch (refreshError: unknown) {
+              logger.warn('[API] Token refresh failed on 401:', refreshError);
+            }
+          } else {
+            logger.warn('[API] 401 error but no Keycloak ref available');
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  // =============================================================================
+  // HTTP Methods
+  // =============================================================================
+
+  async get(url: string, config?: AxiosRequestConfig) {
+    return this.client.get(url, config);
+  }
+
+  async post(url: string, data?: unknown, config?: AxiosRequestConfig) {
+    return this.client.post(url, data, config);
+  }
+
+  async put(url: string, data?: unknown, config?: AxiosRequestConfig) {
+    return this.client.put(url, data, config);
+  }
+
+  async patch(url: string, data?: unknown, config?: AxiosRequestConfig) {
+    return this.client.patch(url, data, config);
+  }
+
+  async delete(url: string, config?: AxiosRequestConfig) {
+    return this.client.delete(url, config);
+  }
+
+  // --- httpOnly cookie session management ---
+
+  async setSession(token: string): Promise<void> {
+    await this.client.post('/api/auth/session', { token });
+  }
+
+  async clearSession(): Promise<void> {
+    await this.client.delete('/api/auth/session');
+  }
+
+  // I18N is now handled entirely in the frontend via I18nContext
+  // Translations are loaded from /locales/*.json files
+  // No backend service needed
+
+  async updateUserProfile(firstName: string, lastName?: string): Promise<TenantUser | unknown> {
+    const response = await this.client.put('/api/tenant/users/me', {
+      firstName: firstName.trim(),
+      lastName: lastName?.trim() || ''
+    });
+    return response.data as TenantUser;
+  }
+
+  async getTenantUsers(): Promise<TenantUsersResponse> {
+    const response = await this.client.get('/api/tenant/users');
+    return response.data as TenantUsersResponse;
+  }
+
+  async createTenantUser(userData: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    roles: string[];
+    password: string;
+    temporary?: boolean;
+  }): Promise<TenantUser | unknown> {
+    const response = await this.client.post('/api/tenant/users', userData);
+    return response.data as TenantUser;
+  }
+
+  async updateTenantUser(userId: string, updates: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }): Promise<TenantUser | unknown> {
+    const response = await this.client.put(`/api/tenant/users/${userId}`, updates);
+    return response.data as TenantUser;
+  }
+
+  async deleteTenantUser(userId: string): Promise<unknown> {
+    const response = await this.client.delete(`/api/tenant/users/${userId}`);
+    return response.data;
+  }
+
+  async resetTenantUserPassword(userId: string): Promise<unknown> {
+    const response = await this.client.post(`/api/tenant/users/${userId}/reset-password`);
+    return response.data;
+  }
+
+  async updateTenantUserRoles(userId: string, roles: string[]): Promise<unknown> {
+    const response = await this.client.put(`/api/tenant/users/${userId}/roles`, { roles });
+    return response.data;
+  }
+
+  // Tenant Admin (PlatformAdmin only)
+  async updateTenant(tenantId: string, data: {
+    tenant_name?: string;
+    metadata?: Record<string, any>;
+  }): Promise<unknown> {
+    const response = await this.client.patch(`/api/admin/tenants/${tenantId}`, data);
+    return response.data;
+  }
+
+  async createActivationCode(data: {
+    email: string;
+    plan?: string;
+    duration_days?: number;
+    notes?: string;
+    tenant_name?: string;
+  }): Promise<unknown> {
+    const response = await this.client.post('/api/admin/activations', data);
+    return response.data;
+  }
+
+  // Entities - Robots
+  async getRobots(): Promise<Robot[]> {
+    try {
+      const response = await this.client.get('/ngsi-ld/v1/entities', {
+        params: { type: 'AutonomousMobileRobot' },
+        headers: { 'Accept': 'application/ld+json' },
+      });
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      logger.warn('Error fetching robots:', error);
+      return [];
+    }
+  }
+
+  async createRobot(robot: Partial<Robot>): Promise<Robot> {
+    const response = await this.client.post('/ngsi-ld/v1/entities', robot, {
+      headers: {
+        'Content-Type': 'application/ld+json',
+        'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`
+      },
+    });
+    return response.data;
+  }
+
+  async updateRobot(id: string, updates: Partial<Robot>): Promise<void> {
+    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
+      headers: { 'Content-Type': 'application/ld+json' },
+    });
+  }
+
+  // =============================================================================
+  // Sensor Management Methods - Using new API endpoints
+  // =============================================================================
+
+  async getSensors(): Promise<Sensor[]> {
+    try {
+      // Fetch sensors from PostgreSQL API only (NGSI-LD sensors are loaded
+      // separately via getSDMEntityInstances('AgriSensor') in the viewer)
+      const response = await this.client.get('/api/sensors');
+      if (response.data?.sensors) {
+        return response.data.sensors.map((s: any) => ({
+          id: s.id,
+          type: 'AgriSensor',
+          name: {
+            type: 'Property',
+            value: s.name || s.external_id
+          },
+          location: s.location?.value || s.location,
+          external_id: s.external_id,
+          profile: s.profile
+        }));
+      }
+      return [];
+    } catch (error) {
+      logger.warn('Error fetching sensors:', error);
+      return [];
+    }
+  }
+
+  async getSensorProfiles(): Promise<any[]> {
+    try {
+      const response = await this.client.get('/api/sensors/profiles');
+      return response.data?.profiles || [];
+    } catch (error) {
+      logger.warn('Error fetching sensor profiles:', error);
+      return [];
+    }
+  }
+
+  async getSensorProfilesStatus(): Promise<{
+    initialized: boolean;
+    global_profiles: number;
+    tenant_profiles: number;
+    total: number;
+  }> {
+    try {
+      const response = await this.client.get('/api/sensors/profiles/status');
+      return response.data;
+    } catch (error) {
+      logger.warn('Error fetching sensor profiles status:', error);
+      return {
+        initialized: false,
+        global_profiles: 0,
+        tenant_profiles: 0,
+        total: 0
+      };
+    }
+  }
+
+  // =============================================================================
+  // Telemetry Methods
+  // =============================================================================
+
+  async getDeviceTelemetry(deviceId: string, params?: {
+    start_time?: string;
+    end_time?: string;
+    limit?: number;
+  }): Promise<any> {
+    const response = await this.client.get(`/api/devices/${deviceId}/telemetry`, { params });
+    return response.data;
+  }
+
+  async getDeviceLatestTelemetry(deviceId: string): Promise<any> {
+    const response = await this.client.get(`/api/devices/${deviceId}/telemetry/latest`);
+    return response.data;
+  }
+
+  async getDeviceTelemetryStats(deviceId: string, params?: {
+    start_time?: string;
+    end_time?: string;
+  }): Promise<any> {
+    const response = await this.client.get(`/api/devices/${deviceId}/telemetry/stats`, { params });
+    return response.data;
+  }
+
+  // =============================================================================
+  // Timeseries Reader Service Methods
+  // =============================================================================
+
+  /**
+   * Get historical timeseries data for an entity from TimescaleDB.
+   * Detects telemetry entities (IoT sensors) and routes to v2 endpoint for telemetry_events.
+   */
+  async getTimeseriesData(
+    entityId: string,
+    options: {
+      start_time: string;
+      end_time?: string;
+      aggregation?: 'none' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+      attribute?: string;
+      limit?: number;
+    }
+  ): Promise<{
+    entity_id?: string;
+    entity_urn?: string;
+    series_kind?: string;
+    start_time: string;
+    end_time: string;
+    aggregation: string;
+    count: number;
+    data?: Array<{
+      timestamp: string;
+      [attribute: string]: string | number;
+    }>;
+    timestamps?: string[];
+    attributes?: Record<string, (number | null)[]>;
+  }> {
+    const isTelemetryEntity = entityId.startsWith('urn:ngsi-ld:AgriSensor:') ||
+                               entityId.startsWith('urn:ngsi-ld:Sensor:') ||
+                               entityId.startsWith('urn:ngsi-ld:Device:');
+    const endpoint = isTelemetryEntity
+      ? `/api/timeseries/v2/entities/${encodeURIComponent(entityId)}/data`
+      : `/api/timeseries/entities/${entityId}/data`;
+
+    const response = await this.client.get(endpoint, { params: options });
+    return response.data;
+  }
+
+  /**
+   * Get statistics for entity timeseries data
+   */
+  async getTimeseriesStats(
+    entityId: string,
+    options: {
+      start_time: string;
+      end_time?: string;
+      attribute?: string;
+    }
+  ): Promise<{
+    entity_id: string;
+    start_time: string;
+    end_time: string;
+    stats: Record<string, {
+      min: number | null;
+      max: number | null;
+      avg: number | null;
+      count: number;
+      first_observed: string | null;
+      last_observed: string | null;
+    }>;
+  }> {
+    const response = await this.client.get(`/api/timeseries/entities/${entityId}/stats`, {
+      params: options,
+    });
+    return response.data;
+  }
+
+  // =============================================================================
+  // NGSI-LD Subscriptions Methods
+  // =============================================================================
+
+  /**
+   * Get all subscriptions
+   */
+  async getSubscriptions(params?: {
+    type?: string;
+    id?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<any[]> {
+    try {
+      const response = await this.client.get('/ngsi-ld/v1/subscriptions', { params });
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error: any) {
+      // If endpoint doesn't exist, return empty array (graceful degradation)
+      if (error.response?.status === 404) {
+        logger.warn('[API] Subscriptions endpoint not available');
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Get a specific subscription by ID
+   */
+  async getSubscription(subscriptionId: string): Promise<any> {
+    const response = await this.client.get(`/ngsi-ld/v1/subscriptions/${subscriptionId}`);
+    return response.data;
+  }
+
+  /**
+   * Create a new subscription
+   */
+  async createSubscription(subscription: any): Promise<any> {
+    const response = await this.client.post('/ngsi-ld/v1/subscriptions', subscription, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Link': '<https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"',
+      },
+    });
+    return response.data;
+  }
+
+  /**
+   * Update a subscription
+   */
+  async updateSubscription(subscriptionId: string, updates: any): Promise<void> {
+    await this.client.patch(`/ngsi-ld/v1/subscriptions/${subscriptionId}`, updates, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  /**
+   * Delete a subscription
+   */
+  async deleteSubscription(subscriptionId: string): Promise<void> {
+    await this.client.delete(`/ngsi-ld/v1/subscriptions/${subscriptionId}`);
+  }
+
+  // =============================================================================
+  // Device Commands Methods
+  // =============================================================================
+
+  async sendDeviceCommand(deviceId: string, command: {
+    command_type: string;
+    payload: Record<string, any>;
+  }): Promise<any> {
+    const response = await this.client.post(`/api/devices/${deviceId}/commands`, command);
+    return response.data;
+  }
+
+  async getDeviceCommands(deviceId: string, params?: {
+    limit?: number;
+    status?: string;
+  }): Promise<any> {
+    const response = await this.client.get(`/api/devices/${deviceId}/commands`, { params });
+    return response.data;
+  }
+
+  // =============================================================================
+  // SDM Integration Methods
+  // =============================================================================
+  // Note: getSDMEntities, getSDMEntitySchema, and createSDMEntity are defined later
+  // to avoid duplication. See lines 1066-1094 for implementations.
+
+  async getSDMEntityInstances(entityType: string, useCache: boolean = true): Promise<any[]> {
+    const cacheKey = `entities:${entityType}`;
+
+    // Check cache first
+    if (useCache) {
+      const cached = this.cache.get<unknown[]>(cacheKey);
+      if (cached) {
+        return cached as any[];
+      }
+    }
+
+    try {
+      const response = await retryRequest(
+        () => this.client.get('/ngsi-ld/v1/entities', { params: { type: entityType } }),
+        3,
+        1000
+      );
+
+      // Orion-LD returns an array directly
+      const data = Array.isArray(response.data) ? response.data : (response.data.instances || []);
+
+      // Cache for 60 seconds
+      if (useCache) {
+        this.cache.set(cacheKey, data, 60000);
+      }
+
+      return data;
+    } catch (error: any) {
+      // Clear cache on error
+      this.cache.delete(cacheKey);
+      throw error;
+    }
+  }
+
+  async getSDMEntityInstancesPaginated(entityType: string, params?: { limit?: number; offset?: number }): Promise<{ instances: any[]; total: number; count: number }> {
+    const queryParams = { ...params, type: entityType, count: 'true' };
+    const response = await this.client.get('/ngsi-ld/v1/entities', { params: queryParams });
+    const entities = Array.isArray(response.data) ? response.data : [];
+    // Orion-LD returns total count in NGSILD-Results-Count header when count=true
+    const totalHeader = response.headers?.['ngsild-results-count'];
+    const total = totalHeader ? parseInt(totalHeader, 10) : entities.length;
+    return { instances: entities, total, count: entities.length };
+  }
+
+  async updateSDMEntity(_entityType: string, entityId: string, updates: any): Promise<void> {
+    await this.client.patch(`/ngsi-ld/v1/entities/${entityId}/attrs`, updates, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  async getSDMEntityInstance(_entityType: string, entityId: string): Promise<any> {
+    const response = await this.client.get(`/ngsi-ld/v1/entities/${entityId}`);
+    return response.data;
+  }
+
+  async deleteSDMEntity(_entityType: string, entityId: string): Promise<void> {
+    await this.client.delete(`/ngsi-ld/v1/entities/${entityId}`);
+  }
+
+  // =============================================================================
+  // Vercel Blob Upload Authorization
+  // =============================================================================
+
+  async authorizeBlobUpload(data: {
+    filename: string;
+    contentType?: string;
+    fileSize?: number;
+  }): Promise<{ token: string; filename: string; contentType: string }> {
+    const response = await this.client.post('/entity-manager/api/upload/authorize', data);
+    return response.data;
+  }
+
+  // =============================================================================
+  // Asset Service (MinIO) - Replaces Vercel Blob
+  // =============================================================================
+
+  /**
+   * Upload an asset (3D model or icon) to MinIO
+   */
+  async uploadAsset(
+    formData: FormData,
+    config?: { onUploadProgress?: (progressEvent: any) => void }
+  ): Promise<{
+    url: string;
+    asset_id: string;
+    key: string;
+    size: number;
+    content_type: string;
+    tenant_id: string;
+  }> {
+    const response = await this.client.post('/api/assets/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: config?.onUploadProgress,
+    });
+    return response.data;
+  }
+
+  /**
+   * Get a presigned URL for an asset
+   */
+  async getAssetUrl(
+    assetId: string,
+    assetType: 'model' | 'icon',
+    extension?: string
+  ): Promise<{ url: string; expires_in: number; asset_id: string }> {
+    const params = new URLSearchParams({ type: assetType });
+    if (extension) params.append('extension', extension);
+    const response = await this.client.get(`/api/assets/${assetId}?${params}`);
+    return response.data;
+  }
+
+  /**
+   * Delete an asset from MinIO
+   */
+  async deleteAsset(
+    assetId: string,
+    assetType: 'model' | 'icon',
+    extension?: string
+  ): Promise<{ deleted: boolean; asset_id: string }> {
+    const params = new URLSearchParams({ type: assetType });
+    if (extension) params.append('extension', extension);
+    const response = await this.client.delete(`/api/assets/${assetId}?${params}`);
+    return response.data;
+  }
+
+  // =============================================================================
+  // Heartbeat / Connection Status
+  // =============================================================================
+
+  /**
+   * Check if an entity (sensor, robot, device) has connected/sent data
+   */
+  async checkEntityHeartbeat(
+    entityId: string,
+    entityType: 'sensor' | 'robot' | 'device'
+  ): Promise<{ connected: boolean; last_seen?: string; first_seen?: string }> {
+    try {
+      const response = await this.client.get('/api/heartbeat/check', {
+        params: { entity_id: entityId, entity_type: entityType }
+      });
+      return response.data;
+    } catch (error) {
+      // If endpoint doesn't exist yet, return not connected
+      return { connected: false };
+    }
+  }
+
+  // =============================================================================
+  // Enhanced Entity Methods using SDM
+  // =============================================================================
+
+  async getRobotsSDM(): Promise<Robot[]> {
+    const instances = await this.getSDMEntityInstances('AutonomousMobileRobot');
+    return instances.map(this.mapSDMToRobot);
+  }
+
+  async getSensorsSDM(): Promise<Sensor[]> {
+    const instances = await this.getSDMEntityInstances('AgriSensor');
+    return instances.map(this.mapSDMToSensor);
+  }
+
+  async getParcelsSDM(): Promise<Parcel[]> {
+    const instances = await this.getSDMEntityInstances('AgriParcel');
+    return instances.map(this.mapSDMToParcel);
+  }
+
+  async createRobotSDM(robotData: Partial<Robot>): Promise<Robot> {
+    const sdmData = this.mapRobotToSDM(robotData);
+    const result = await this.createSDMEntity('AutonomousMobileRobot', sdmData);
+    return this.mapSDMToRobot(result.entity);
+  }
+
+  async updateRobotSDM(id: string, updates: Partial<Robot>): Promise<void> {
+    const sdmUpdates = this.mapRobotToSDM(updates);
+    await this.updateSDMEntity('AutonomousMobileRobot', id, sdmUpdates);
+  }
+
+  async deleteRobotSDM(id: string): Promise<void> {
+    await this.deleteSDMEntity('AutonomousMobileRobot', id);
+  }
+
+  // =============================================================================
+  // SDM Mapping Methods
+  // =============================================================================
+
+  private mapSDMToRobot(sdmEntity: any): Robot {
+    return {
+      id: sdmEntity.id,
+      type: sdmEntity.type,
+      name: sdmEntity.name || { type: 'Property', value: 'Unnamed Robot' },
+      status: sdmEntity.status || { type: 'Property', value: 'idle' },
+      batteryLevel: sdmEntity.batteryLevel,
+      location: sdmEntity.location
+    };
+  }
+
+  private mapSDMToSensor(sdmEntity: any): Sensor {
+    return {
+      id: sdmEntity.id,
+      type: sdmEntity.type,
+      name: sdmEntity.name || { type: 'Property', value: 'Unnamed Sensor' },
+      location: sdmEntity.location,
+      moisture: sdmEntity.moisture,
+      ph: sdmEntity.ph,
+      temperature: sdmEntity.temperature
+    };
+  }
+
+  private mapSDMToParcel(sdmEntity: any): Parcel {
+    return {
+      id: sdmEntity.id,
+      type: sdmEntity.type,
+      name: sdmEntity.name || { type: 'Property', value: 'Unnamed Parcel' },
+      area: sdmEntity.area,
+      cropType: sdmEntity.cropType,
+      location: sdmEntity.location
+    };
+  }
+
+  private mapRobotToSDM(robot: Partial<Robot>): any {
+    const sdmData: any = {};
+
+    if (robot.name) sdmData.name = robot.name;
+    if (robot.status) sdmData.status = robot.status;
+    if (robot.batteryLevel) sdmData.batteryLevel = robot.batteryLevel;
+    if (robot.location) sdmData.location = robot.location;
+
+    return sdmData;
+  }
+
+  // Note: getSensors() is defined above (line 150) using new API endpoints
+  // This duplicate method has been removed to avoid TypeScript errors
+
+  async createSensor(sensor: Partial<Sensor>): Promise<Sensor> {
+    // Use SDM service for creating sensors to ensure proper IoT provisioning
+    const sdmData: any = {};
+
+    // Map properties to simple values for SDM consumption
+    // Handle both property objects ({type: 'Property', value: '...'}) and direct values
+    if (sensor.name) {
+      sdmData.name = typeof sensor.name === 'object' && 'value' in sensor.name
+        ? sensor.name.value
+        : sensor.name;
+    }
+
+    // Pass other fields
+    if (sensor.location) sdmData.location = sensor.location;
+    if (sensor.external_id) sdmData.external_id = sensor.external_id;
+    if (sensor.profile) sdmData.profile = sensor.profile;
+
+    // SDM service handles the rest (NGSI-LD formatting, IoT keys, etc.)
+    const result = await this.createSDMEntity('AgriSensor', sdmData);
+
+    // Return mapped entity using existing helper
+    return this.mapSDMToSensor(result.entity || result);
+  }
+
+  async updateSensor(id: string, updates: Partial<Sensor>): Promise<void> {
+    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
+      headers: { 'Content-Type': 'application/ld+json' },
+    });
+  }
+
+  async deleteSensor(id: string): Promise<void> {
+    try {
+      // Try new API endpoint first
+      await this.client.delete(`/api/sensors/${id}`);
+    } catch (error) {
+      // Fallback to NGSI-LD endpoint
+      await this.client.delete(`/ngsi-ld/v1/entities/${id}`);
+    }
+  }
+
+  async regenerateIoTKey(id: string): Promise<any> {
+    const response = await this.client.post(`/sdm/entities/${id}/iot/regenerate-key`);
+    return response.data;
+  }
+
+  async getIoTDetails(id: string): Promise<any> {
+    const response = await this.client.get(`/sdm/entities/${id}/iot/details`);
+    return response.data;
+  }
+
+  // Entities - Parcels
+  async getMachines(): Promise<AgriculturalMachine[]> {
+    try {
+      // Query for AutonomousMobileRobot and ManufacturingMachine
+      const [robotsRes, machinesRes] = await Promise.all([
+        this.client.get('/ngsi-ld/v1/entities', {
+          params: { type: 'AutonomousMobileRobot', options: 'keyValues' },
+          headers: { 'Accept': 'application/ld+json' }
+        }).catch(() => ({ data: [] })),
+        this.client.get('/ngsi-ld/v1/entities', {
+          params: { type: 'ManufacturingMachine', options: 'keyValues' },
+          headers: { 'Accept': 'application/ld+json' }
+        }).catch(() => ({ data: [] }))
+      ]);
+
+      const robots = Array.isArray(robotsRes.data) ? robotsRes.data : [];
+      const machines = Array.isArray(machinesRes.data) ? machinesRes.data : [];
+
+      return [...robots, ...machines].map((m: any) => {
+        // Determine type description based on entity type
+        let typeDesc = 'Machinery';
+        if (m.type === 'AutonomousMobileRobot') typeDesc = 'Autonomous Robot';
+        else if (m.type === 'ManufacturingMachine') {
+          const category = m.category?.value || m.category;
+          typeDesc = category === 'implement' ? 'Implement' : 'Tractor';
+        }
+
+        return {
+          id: m.id,
+          name: m.name || 'Unnamed Machine',
+          type: typeDesc,
+          status: m.status || 'offline',
+          location: m.location, // options=keyValues returns direct GeoJSON
+          batteryLevel: m.batteryLevel || 100,
+          task: m.currentTask || 'Idle',
+          operationType: m.operationType,
+          model3d: m.model3d
+        };
+      });
+    } catch (error) {
+      logger.warn('Error fetching machines:', error);
+      return [];
+    }
+  }
+
+  async getLivestock(): Promise<LivestockAnimal[]> {
+    try {
+      const response = await this.client.get('/ngsi-ld/v1/entities', {
+        params: { type: 'LivestockAnimal', options: 'keyValues' },
+        headers: { 'Accept': 'application/ld+json' },
+      });
+
+      const payload = Array.isArray(response.data) ? response.data : [];
+
+      return payload.map((l: any) => ({
+        id: l.id,
+        type: 'LivestockAnimal',
+        name: l.name || 'Unnamed Animal',
+        species: l.species || 'Unknown',
+        status: l.status || 'healthy',
+        location: l.location, // options=keyValues returns direct GeoJSON
+        lastUpdate: l.modifiedAt || new Date().toISOString()
+      }));
+    } catch (error) {
+      logger.warn('Error fetching livestock:', error);
+      return [];
+    }
+  }
+
+  async getWeatherStations(): Promise<WeatherStation[]> {
+    try {
+      const response = await this.client.get('/ngsi-ld/v1/entities', {
+        params: { type: 'WeatherObserved' },
+        headers: { 'Accept': 'application/ld+json' },
+      });
+      // Map NGSI-LD response
+      const payload = Array.isArray(response.data) ? response.data : [];
+
+      return payload.map((w: any) => ({
+        id: w.id,
+        type: 'WeatherStation',
+        name: w.name || 'Weather Station',
+        location: w.location, // options=keyValues returns direct GeoJSON
+        readings: {
+          temperature: w.temperature || 0,
+          humidity: w.humidity || 0,
+          pressure: w.pressure || 1013,
+          windSpeed: w.windSpeed || 0
+        },
+        lastUpdate: w.modifiedAt || new Date().toISOString()
+      }));
+    } catch (error) {
+      logger.warn('Error fetching weather stations:', error);
+      return [];
+    }
+  }
+
+  async getParcels(): Promise<Parcel[]> {
+    try {
+      const response = await this.client.get('/ngsi-ld/v1/entities', {
+        params: { type: 'AgriParcel' },
+        headers: { 'Accept': 'application/ld+json' },
+      });
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      logger.warn('Error fetching parcels:', error);
+      return [];
+    }
+  }
+
+  async getTenantLimits(): Promise<TenantLimits> {
+    const response = await this.client.get('/api/admin/tenant-limits');
+    return response.data;
+  }
+
+  async getTenantUsage(): Promise<TenantUsageSummary> {
+    const response = await this.client.get('/api/admin/tenant-usage');
+    return response.data;
+  }
+
+  async getGrafanaLink(params?: { dashboard?: string }): Promise<GrafanaLink> {
+    const response = await this.client.get('/entity-manager/integrations/grafana/link', {
+      params,
+    });
+    return response.data;
+  }
+
+  async createParcel(parcel: Partial<Parcel>): Promise<Parcel> {
+    const response = await this.client.post('/ngsi-ld/v1/entities', parcel, {
+      headers: {
+        'Content-Type': 'application/ld+json',
+        'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`
+      },
+    });
+    return response.data;
+  }
+
+  async updateParcel(id: string, updates: Partial<Parcel>): Promise<void> {
+    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
+      headers: { 'Content-Type': 'application/ld+json' },
+    });
+  }
+
+  async deleteParcel(id: string): Promise<void> {
+    await this.client.delete(`/ngsi-ld/v1/entities/${id}`);
+  }
+
+  // =============================================================================
+  // Agricultural Machines (ManufacturingMachine/AgriOperation)
+  // =============================================================================
+
+  async createMachine(machine: Partial<AgriculturalMachine>): Promise<AgriculturalMachine> {
+    const response = await this.client.post('/ngsi-ld/v1/entities', machine, {
+      headers: {
+        'Content-Type': 'application/ld+json',
+        'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`
+      },
+    });
+    return response.data;
+  }
+
+  async updateMachine(id: string, updates: Partial<AgriculturalMachine>): Promise<void> {
+    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
+      headers: { 'Content-Type': 'application/ld+json' },
+    });
+  }
+
+  async deleteMachine(id: string): Promise<void> {
+    await this.client.delete(`/ngsi-ld/v1/entities/${id}`);
+  }
+
+  // =============================================================================
+  // Livestock Animals
+  // =============================================================================
+
+  async createLivestockAnimal(animal: Partial<LivestockAnimal>): Promise<LivestockAnimal> {
+    const response = await this.client.post('/ngsi-ld/v1/entities', animal, {
+      headers: {
+        'Content-Type': 'application/ld+json',
+        'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`
+      },
+    });
+    return response.data;
+  }
+
+  async updateLivestockAnimal(id: string, updates: Partial<LivestockAnimal>): Promise<void> {
+    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
+      headers: { 'Content-Type': 'application/ld+json' },
+    });
+  }
+
+  async deleteLivestockAnimal(id: string): Promise<void> {
+    await this.client.delete(`/ngsi-ld/v1/entities/${id}`);
+  }
+
+  // =============================================================================
+  // Weather Stations
+  // =============================================================================
+
+  async createWeatherStation(station: Partial<WeatherStation>): Promise<WeatherStation> {
+    const response = await this.client.post('/ngsi-ld/v1/entities', station, {
+      headers: {
+        'Content-Type': 'application/ld+json',
+        'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`
+      },
+    });
+    return response.data;
+  }
+
+  async updateWeatherStation(id: string, updates: Partial<WeatherStation>): Promise<void> {
+    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
+      headers: { 'Content-Type': 'application/ld+json' },
+    });
+  }
+
+  async deleteWeatherStation(id: string): Promise<void> {
+    await this.client.delete(`/ngsi-ld/v1/entities/${id}`);
+  }
+
+  // =============================================================================
+  // Cadastral API - Parcel Management
+  // =============================================================================
+  // DEPRECATED: Use parcelApi.ts instead for all parcel operations
+  // Legacy methods removed - parcelApi.ts provides Orion-LD First architecture
+
+  // =============================================================================
+  // Terrain 3D Service - REMOVED
+  // =============================================================================
+  // El sistema antiguo de generación de terrain bajo demanda ha sido eliminado.
+  // Ahora usamos providers externos (IGN/IDENA) directamente en CesiumMap.
+  // =============================================================================
+
+  // =============================================================================
+  // Asset Digitization Service
+  // =============================================================================
+
+  async createAsset(asset: AssetCreationPayload): Promise<any> {
+    const response = await this.client.post('/entity-manager/api/assets', asset);
+    return response.data;
+  }
+
+  // Terms and Conditions
+  async getTerms(language: string): Promise<{ content: string; last_updated: string; language: string }> {
+    const response = await this.client.get(`/api/terms/${language}`);
+    return response.data;
+  }
+
+  async saveTerms(language: string, content: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/api/admin/terms/${language}`, {
+      content,
+      language,
+    });
+    return response.data;
+  }
+
+  // =============================================================================
+  // Weather Data Methods
+  // =============================================================================
+
+  async getWeatherLocations(): Promise<any[]> {
+    try {
+      const response = await this.client.get('/api/weather/locations');
+      return response.data?.locations || [];
+    } catch (error) {
+      logger.warn('Error fetching weather locations:', error);
+      return [];
+    }
+  }
+
+  async createWeatherLocation(location: {
+    municipality_code: string;
+    is_primary?: boolean;
+    label?: string;
+    station_id?: string;
+    metadata?: any;
+  }): Promise<any> {
+    try {
+      const response = await this.client.post('/api/weather/locations', location);
+      return response.data?.location;
+    } catch (error) {
+      logger.warn('Error creating weather location:', error);
+      throw error;
+    }
+  }
+
+  async searchMunicipalities(query: string, limit: number = 20): Promise<{ municipalities: any[]; count: number }> {
+    try {
+      const url = '/api/weather/municipalities/search';
+      const fullUrl = `${this.client.defaults.baseURL || ''}${url}`;
+      logger.debug('[API] Searching municipalities:', { query, limit, url, fullUrl });
+      const response = await this.client.get(url, {
+        params: { q: query, limit },
+      });
+      logger.debug('[API] Municipalities search successful:', response.data);
+      return {
+        municipalities: response.data?.municipalities || [],
+        count: response.data?.count || 0,
+      };
+    } catch (error: any) {
+      logger.error('[API] Error searching municipalities:', error);
+      logger.error('[API] Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+        headers: error.config?.headers,
+      });
+      // Don't silently return empty - let the error propagate so UI can show it
+      throw error;
+    }
+  }
+
+  async getNearestMunicipality(latitude: number, longitude: number, maxDistanceKm: number = 50): Promise<any> {
+    try {
+      const response = await this.client.get('/api/weather/municipality/near', {
+        params: { latitude, longitude, max_distance_km: maxDistanceKm },
+      });
+      return response.data;
+    } catch (error: any) {
+      logger.error('[API] Error getting nearest municipality:', error);
+      throw error;
+    }
+  }
+
+  async getLatestWeatherObservations(params?: {
+    municipality_code?: string;
+    source?: string;
+    data_type?: string;
+  }): Promise<any[]> {
+    try {
+      const response = await this.client.get('/api/weather/observations/latest', { params });
+      return response.data?.observations || [];
+    } catch (error) {
+      logger.warn('Error fetching latest weather observations:', error);
+      return [];
+    }
+  }
+
+  async getWeatherObservations(params?: {
+    municipality_code?: string;
+    source?: string;
+    data_type?: string;
+    start_date?: string;
+    end_date?: string;
+    limit?: number;
+  }): Promise<{ observations: any[]; count: number }> {
+    try {
+      const response = await this.client.get('/api/weather/observations', { params });
+      return {
+        observations: response.data?.observations || [],
+        count: response.data?.count || 0,
+      };
+    } catch (error) {
+      logger.warn('Error fetching weather observations:', error);
+      return { observations: [], count: 0 };
+    }
+  }
+
+  /**
+   * Get downscaled weather for a specific parcel from the canonical API.
+   * Applies altitude/aspect/slope corrections automatically.
+   */
+  async getParcelWeather(parcelId: string, params?: {
+    source?: string;
+    data_type?: string;
+    limit?: number;
+  }): Promise<{
+    parcel_id: string;
+    municipality_code: string;
+    municipality_name: string;
+    downscaling: string;
+    interpolation: string;
+    station_count: number;
+    parcel_altitude_m: number;
+    station_altitude_m: number;
+    parcel_aspect_deg: number;
+    parcel_slope_deg: number;
+    contributing_stations: Array<{
+      municipality_code: string;
+      municipality_name?: string;
+      distance_km: number;
+      station_altitude_m: number;
+    }>;
+    observations: Array<{
+      observed_at: string;
+      temp_avg?: number;
+      temp_min?: number;
+      temp_max?: number;
+      humidity_avg?: number;
+      precip_mm?: number;
+      precip_probability?: number;
+      solar_rad_w_m2?: number;
+      solar_rad_ghi_w_m2?: number;
+      solar_rad_dni_w_m2?: number;
+      eto_mm?: number;
+      wind_speed_ms?: number;
+      wind_gusts_ms?: number;
+      wind_direction_deg?: number;
+      pressure_hpa?: number;
+      gdd_accumulated?: number;
+      delta_t?: number;
+      soil_moisture_0_10cm?: number;
+      soil_moisture_10_40cm?: number;
+      source?: string;
+      data_type?: string;
+      municipality_code?: string;
+    }>;
+  }> {
+    try {
+      const response = await this.client.get(
+        `/api/weather/parcel/${encodeURIComponent(parcelId)}`,
+        { params }
+      );
+      return response.data;
+    } catch (error) {
+      logger.warn('Error fetching parcel weather:', error);
+      throw error;
+    }
+  }
+
+  async getParcelAgroStatus(parcelId: string): Promise<AgroStatusResponse> {
+    try {
+      const response = await this.client.get(`/api/weather/parcel/${parcelId}/agro-status`);
+      return response.data;
+    } catch (error) {
+      logger.error('Agro-status endpoint failed:', error);
+      throw error;
+    }
+  }
+
+  async getWeatherAlerts(params?: {
+    municipality_code?: string;
+    alert_type?: string;
+    active_only?: boolean;
+  }): Promise<{ alerts: any[]; count: number }> {
+    try {
+      const response = await this.client.get('/api/weather/alerts', { params });
+      return {
+        alerts: response.data?.alerts || [],
+        count: response.data?.count || 0,
+      };
+    } catch (error) {
+      logger.warn('Error fetching weather alerts:', error);
+      return { alerts: [], count: 0 };
+    }
+  }
+
+  // =============================================================================
+  // Risk Management Methods
+  // =============================================================================
+
+  async getEntityInventory(): Promise<EntityInventory[]> {
+    try {
+      const response = await this.client.get('/entity-manager/api/entities/inventory');
+      return response.data?.inventory || [];
+    } catch (error) {
+      logger.warn('Error fetching entity inventory:', error);
+      return [];
+    }
+  }
+
+  async getRiskCatalog(): Promise<RiskCatalog[]> {
+    try {
+      const response = await this.client.get('/api/risks/catalog');
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      logger.warn('Error fetching risk catalog:', error);
+      return [];
+    }
+  }
+
+  async getRiskSubscriptions(): Promise<RiskSubscription[]> {
+    try {
+      const response = await this.client.get('/api/risks/subscriptions');
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      logger.warn('Error fetching risk subscriptions:', error);
+      return [];
+    }
+  }
+
+  async createRiskSubscription(subscription: Partial<RiskSubscription>): Promise<RiskSubscription> {
+    const response = await this.client.post('/api/risks/subscriptions', subscription);
+    return response.data;
+  }
+
+  async updateRiskSubscription(id: string, updates: Partial<RiskSubscription>): Promise<RiskSubscription> {
+    const response = await this.client.patch(`/api/risks/subscriptions/${id}`, updates);
+    return response.data;
+  }
+
+  async deleteRiskSubscription(id: string): Promise<void> {
+    await this.client.delete(`/api/risks/subscriptions/${id}`);
+  }
+
+  async getRiskStates(params?: {
+    entityId?: string;
+    riskCode?: string;
+    limit?: number;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<RiskState[]> {
+    try {
+      const response = await this.client.get('/api/risks/states', { params });
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      logger.warn('Error fetching risk states:', error);
+      return [];
+    }
+  }
+
+  async getRiskWebhooks(): Promise<RiskWebhook[]> {
+    try {
+      const response = await this.client.get('/api/risks/webhooks');
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      logger.warn('Error fetching risk webhooks:', error);
+      return [];
+    }
+  }
+
+  async createRiskWebhook(data: {
+    name: string;
+    url: string;
+    secret?: string;
+    min_severity?: string;
+  }): Promise<RiskWebhook> {
+    const response = await this.client.post('/api/risks/webhooks', data);
+    return response.data;
+  }
+
+  async deleteRiskWebhook(id: string): Promise<void> {
+    await this.client.delete(`/api/risks/webhooks/${id}`);
+  }
+
+  async triggerRiskEvaluation(): Promise<{ message: string; tenant_id: string }> {
+    const response = await this.client.post('/api/risks/trigger-evaluation');
+    return response.data;
+  }
+
+  async createCustomRisk(riskRule: any): Promise<{ message: string; risk_code: string }> {
+    const response = await this.client.post('/api/risks/catalog/custom', riskRule);
+    return response.data;
+  }
+
+  // IoT Provisioning
+  async provisionDevice(payload: any): Promise<any> {
+    const response = await this.client.post('/iot/provision', payload);
+    return response.data;
+  }
+
+  /**
+   * Provision MQTT credentials for a newly created IoT device.
+   * Calls the mqtt-credentials-manager via the gateway.
+   * Returns credentials (username, password, topics) — only available at creation time.
+   */
+  async provisionMqttCredentials(deviceId: string): Promise<any> {
+    const response = await this.client.post('/api/iot/provision-mqtt', { device_id: deviceId });
+    return response.data;
+  }
+
+  // =============================================================================
+  // SDM Integration - Entity Types and Management
+  // =============================================================================
+
+  async getSDMEntities(): Promise<any> {
+    try {
+      const response = await this.client.get('/sdm/entities');
+      return response.data || {};
+    } catch (error) {
+      logger.warn('Error fetching SDM entities:', error);
+      return {};
+    }
+  }
+
+  async getSDMEntitySchema(entityType: string): Promise<any> {
+    try {
+      const response = await this.client.get(`/sdm/entities/${entityType}`);
+      return response.data;
+    } catch (error) {
+      logger.warn(`Error fetching SDM schema for ${entityType}:`, error);
+      return null;
+    }
+  }
+
+  async createSDMEntity(_entityType: string, entity: any): Promise<any> {
+    // No @context in body — gateway injects Link header with platform context.
+    const response = await this.client.post('/ngsi-ld/v1/entities', entity);
+    return response.data;
+  }
+
+  /**
+   * Create an IoT entity via SDM Integration Service.
+   * This provisions the entity in Orion-LD AND in the IoT Agent in one call,
+   * returning MQTT credentials for the physical device.
+   */
+  async createSDMIoTEntity(entityType: string, body: Record<string, unknown>): Promise<any> {
+    const response = await this.client.post(`/sdm/entities/${entityType}/instances`, body);
+    return response.data;
+  }
+
+  async batchCreateEntities(
+    entityType: string,
+    entities: Array<{ name: string; lat?: number | null; lng?: number | null; [key: string]: any }>
+  ): Promise<{ created: number; errors: any[]; entity_ids: string[] }> {
+    const response = await this.client.post(`/sdm/entities/${entityType}/batch`, { entities });
+    return response.data;
+  }
+
+  // =============================================================================
+  // Parent Entities (for hierarchy)
+  // =============================================================================
+
+  async getParentEntities(entityType?: string): Promise<any[]> {
+    try {
+      const params = entityType ? { type: entityType } : {};
+      const response = await this.client.get('/api/entities/parents', { params });
+      return Array.isArray(response.data?.entities) ? response.data.entities : [];
+    } catch (error) {
+      logger.warn('Error fetching parent entities:', error);
+      return [];
+    }
+  }
+
+  // =============================================================================
+  // Robot Provisioning (UUID + ROS namespace; network via nkz-module-vpn Claim Code)
+  // =============================================================================
+
+  async provisionRobot(robotData: {
+    name: string;
+    location: any;
+    robotType?: string;
+    model?: string;
+    manufacturer?: string;
+    serialNumber?: string;
+    [key: string]: any;
+  }): Promise<{
+    robot: any;
+    credentials: {
+      robot_uuid: string;
+      ros_namespace: string;
+    };
+    info?: string;
+  }> {
+    const response = await this.client.post('/entity-manager/api/robots/provision', robotData);
+    return response.data;
+  }
+}
+
+const apiService = new ApiService();
+
+// Export methods for cache management
+export const clearApiCache = () => {
+  (apiService as any).cache.clear();
+};
+
+export const invalidateEntityCache = (entityType: string, entityId?: string) => {
+  const cache = (apiService as any).cache as SimpleCache;
+  if (entityId) {
+    cache.delete(`entity:${entityType}:${entityId}`);
+  }
+  cache.delete(`entities:${entityType}`);
+};
+
+export const api = apiService;
+export default apiService;

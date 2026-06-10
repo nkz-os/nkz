@@ -1,0 +1,35 @@
+/**
+ * Copyright 2025 NKZ Platform (Nekazari)
+ * Licensed under Apache-2.0
+ * 
+ * @see https://github.com/nkz-os/nekazari-public/tree/main/packages/sdk
+ */
+
+export * from './auth/useAuth';
+export * from './i18n/provider';
+export * from './i18n/config';
+
+// Viewer Context exports
+export { useViewer, useViewerOptional, type ViewerContextValue } from './viewer/useViewer';
+
+// API Client exports
+export { NKZClient, type NKZClientOptions } from './api/client';
+
+// NGSI-LD helpers
+export { getEntityDisplayName, getNGSIValue } from './ngsi/helpers';
+
+// Slot & Module types (canonical source of truth)
+export type {
+  SlotType,
+  SlotWidgetDefinition,
+  ModuleViewerSlots,
+  NKZModuleRegistration,
+  ModuleApiContract,
+  ModuleCompatibilityResult,
+} from './types';
+
+// Backward compatibility: Export legacy names as aliases
+// These will be deprecated in v3.0.0
+export { NKZClient as NekazariClient } from './api/client';
+export type { NKZClientOptions as NekazariClientOptions } from './api/client';
+

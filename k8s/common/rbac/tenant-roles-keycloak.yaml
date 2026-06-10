@@ -1,0 +1,321 @@
+# =============================================================================
+# RBAC - Roles de Tenant (Nivel Aplicación/Keycloak)
+# =============================================================================
+# Estos roles se definen en Keycloak y se propagan a las aplicaciones
+# (FIWARE, Grafana, APIs propias, Mosquitto)
+#
+# NOTA: Este archivo es documentación/configuración de referencia.
+# Los roles se crean en Keycloak vía API o consola admin.
+# =============================================================================
+
+---
+# =============================================================================
+# Estructura de Realms en Keycloak
+# =============================================================================
+#
+# ESTRATEGIA RECOMENDADA: Realm por Tenant (máximo aislamiento)
+#
+# Master Realm (nekazari-master):
+#   - Solo para PlatformAdmin
+#   - Gestión de otros realms
+#
+# Tenant Realms:
+#   - nekazari-tenant-farm001
+#   - nekazari-tenant-farm002
+#   - nekazari-tenant-farm003
+#   - etc.
+#
+# Cada tenant realm contiene:
+#   - Usuarios del tenant
+#   - Roles específicos: TenantAdmin, DeviceManager, DashboardViewer
+#   - Clientes (clients) para aplicaciones
+#   - Grupos para organización interna
+
+---
+# =============================================================================
+# ConfigMap con definición de roles para documentación
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenant-roles-definition
+  namespace: nekazari-system
+  labels:
+    app: nekazari
+    component: rbac-config
+data:
+  roles.yaml: |
+    # =============================================================================
+    # 1. TenantAdmin - Administrador del Tenant 🛠️
+    # =============================================================================
+    tenant_admin:
+      description: "Responsable técnico o administrador de la empresa cliente"
+      keycloak:
+        realm_role: true
+        composite: false
+        permissions:
+          - manage_users: true          # Crear/editar usuarios de su organización
+          - manage_devices: true        # Registrar sensores/robots
+          - assign_roles: true          # Asignar roles a usuarios
+          - view_all_data: true         # Ver todos los datos del tenant
+      
+      fiware_api:
+        permissions:
+          - create_entities: true       # POST /ngsi-ld/v1/entities
+          - read_entities: true         # GET /ngsi-ld/v1/entities
+          - update_entities: true       # PATCH /ngsi-ld/v1/entities/{entityId}
+          - delete_entities: true       # DELETE /ngsi-ld/v1/entities/{entityId}
+        filters:
+          - tenant_id: "${user.tenant}"  # Solo su tenant
+      
+      grafana:
+        org_role: "Admin"               # Admin de su organización
+        permissions:
+          - create_dashboards: true
+          - edit_dashboards: true
+          - manage_users: true
+          - manage_datasources: true
+      
+      mosquitto_acl:
+        patterns:
+          - "readwrite ${user.tenant}/#"          # Todo el tenant
+          - "write ${user.tenant}/+/cmd/#"        # Comandos a dispositivos
+          - "read ${user.tenant}/+/data/#"        # Datos de dispositivos
+          - "read ${user.tenant}/+/status/#"      # Estado de dispositivos
+      
+      kubernetes:
+        # TenantAdmin NO tiene acceso directo a K8s
+        # Solo a través de APIs
+        cluster_access: false
+
+    # =============================================================================
+    # 2. DeviceManager - Gestor de Dispositivos 🤖
+    # =============================================================================
+    device_manager:
+      description: "Técnico u operador que interactúa con dispositivos"
+      keycloak:
+        realm_role: true
+        composite: false
+        permissions:
+          - manage_users: false
+          - manage_devices: false       # NO puede añadir/eliminar dispositivos
+          - view_devices: true
+          - control_devices: true       # Puede enviar comandos
+      
+      fiware_api:
+        permissions:
+          - create_entities: false
+          - read_entities: true         # GET /ngsi-ld/v1/entities
+          - update_entities: true       # PATCH /ngsi-ld/v1/entities/{entityId}
+          - delete_entities: false
+        filters:
+          - tenant_id: "${user.tenant}"
+          - allowed_attributes:         # Solo atributos de comandos/config
+              - "command"
+              - "configuration"
+              - "status"
+              - "operational_mode"
+      
+      grafana:
+        org_role: "Editor"
+        permissions:
+          - view_dashboards: true
+          - edit_dashboards: true       # Puede crear dashboards operativos
+          - manage_users: false
+          - manage_datasources: false
+      
+      mosquitto_acl:
+        patterns:
+          - "write ${user.tenant}/+/cmd/#"        # Enviar comandos
+          - "read ${user.tenant}/+/data/#"        # Leer telemetría
+          - "read ${user.tenant}/+/status/#"      # Leer estado
+          - "read ${user.tenant}/+/camera/#"      # Ver cámaras
+      
+      ros2:
+        allowed_topics:
+          - "/${user.tenant}/robot_+/cmd_vel"     # Comandos de velocidad
+          - "/${user.tenant}/robot_+/goal_pose"   # Objetivos de navegación
+          - "/${user.tenant}/robot_+/cancel"      # Cancelar acciones
+
+    # =============================================================================
+    # 3. DashboardViewer - Visualizador de Datos 📊
+    # =============================================================================
+    dashboard_viewer:
+      description: "Analista, gerente o cliente final con acceso de solo lectura"
+      keycloak:
+        realm_role: true
+        composite: false
+        permissions:
+          - manage_users: false
+          - manage_devices: false
+          - view_devices: true
+          - view_data: true
+          - control_devices: false
+      
+      fiware_api:
+        permissions:
+          - create_entities: false
+          - read_entities: true         # Solo GET
+          - update_entities: false
+          - delete_entities: false
+        filters:
+          - tenant_id: "${user.tenant}"
+      
+      grafana:
+        org_role: "Viewer"
+        permissions:
+          - view_dashboards: true
+          - edit_dashboards: false
+          - manage_users: false
+          - manage_datasources: false
+      
+      mosquitto_acl:
+        patterns:
+          - "read ${user.tenant}/+/data/#"        # Solo leer telemetría
+          - "read ${user.tenant}/+/status/#"      # Solo leer estado
+          - "read ${user.tenant}/+/camera/#"      # Ver cámaras (read-only)
+      
+      ros2:
+        allowed_topics:
+          # Solo suscripción a tópicos de datos, no puede publicar
+          - "/${user.tenant}/+/data"              # Telemetría
+          - "/${user.tenant}/+/status"            # Estado
+
+  # Script de creación de roles en Keycloak
+  create-roles.sh: |
+    #!/bin/bash
+    # Script para crear roles en Keycloak vía API
+    
+    KEYCLOAK_URL="${KEYCLOAK_URL:-http://keycloak-service:8080}"
+    ADMIN_USER="${KEYCLOAK_ADMIN:-admin}"
+    ADMIN_PASS="${KEYCLOAK_ADMIN_PASSWORD}"
+    
+    # Obtener token de admin
+    TOKEN=$(curl -s -X POST "${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "username=${ADMIN_USER}" \
+      -d "password=${ADMIN_PASS}" \
+      -d "grant_type=password" \
+      -d "client_id=admin-cli" | jq -r '.access_token')
+    
+    # Función para crear rol en un realm
+    create_role() {
+      local realm=$1
+      local role_name=$2
+      local role_desc=$3
+      
+      curl -s -X POST "${KEYCLOAK_URL}/admin/realms/${realm}/roles" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{
+          \"name\": \"${role_name}\",
+          \"description\": \"${role_desc}\",
+          \"composite\": false,
+          \"clientRole\": false
+        }"
+    }
+    
+    # Crear roles en cada tenant realm
+    for realm in $(curl -s -H "Authorization: Bearer ${TOKEN}" \
+                    "${KEYCLOAK_URL}/admin/realms" | jq -r '.[].realm' | grep "nekazari-tenant-"); do
+      
+      echo "Creating roles in realm: ${realm}"
+      
+      create_role "${realm}" "TenantAdmin" "Administrador del Tenant"
+      create_role "${realm}" "DeviceManager" "Gestor de Dispositivos"
+      create_role "${realm}" "DashboardViewer" "Visualizador de Datos"
+      
+      echo "✓ Roles created in ${realm}"
+    done
+    
+    echo "✓ All roles created successfully"
+
+  # Mapeo de roles a claims JWT
+  jwt-mapper.json: |
+    {
+      "name": "tenant-roles-mapper",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-realm-role-mapper",
+      "consentRequired": false,
+      "config": {
+        "multivalued": "true",
+        "userinfo.token.claim": "true",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "roles",
+        "jsonType.label": "String"
+      }
+    }
+  
+  # Mapeo de tenant_id a JWT
+  tenant-mapper.json: |
+    {
+      "name": "tenant-id-mapper",
+      "protocol": "openid-connect",
+      "protocolMapper": "oidc-usermodel-attribute-mapper",
+      "consentRequired": false,
+      "config": {
+        "userinfo.token.claim": "true",
+        "user.attribute": "tenant_id",
+        "id.token.claim": "true",
+        "access.token.claim": "true",
+        "claim.name": "tenant_id",
+        "jsonType.label": "String"
+      }
+    }
+
+---
+# =============================================================================
+# Job para crear roles automáticamente en Keycloak
+# =============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-roles-setup
+  namespace: nekazari
+  labels:
+    app: keycloak
+    component: rbac-setup
+spec:
+  template:
+    spec:
+      serviceAccountName: keycloak-setup-sa
+      restartPolicy: OnFailure
+      containers:
+      - name: setup-roles
+        image: curlimages/curl@sha256:b3f1fb2a51d923260350d21b8654bbc607164a987e2f7c84a0ac199a67df812a
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            echo "Waiting for Keycloak to be ready..."
+            until curl -f http://keycloak-service:8080/auth/realms/master; do
+              echo "Keycloak not ready, waiting..."
+              sleep 10
+            done
+            echo "Keycloak is ready!"
+            echo "Roles setup completed (manual configuration required)"
+        env:
+        - name: KEYCLOAK_URL
+          value: "http://keycloak-service:8080"
+        - name: KEYCLOAK_ADMIN
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+
+---
+# ServiceAccount para el Job de setup
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak-setup-sa
+  namespace: nekazari
+  labels:
+    app: keycloak
+    component: setup

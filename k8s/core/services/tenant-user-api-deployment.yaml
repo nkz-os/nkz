@@ -1,0 +1,119 @@
+# =============================================================================
+# Tenant User API Deployment - Gestión de Usuarios por TenantAdmin
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-user-api
+  namespace: nekazari
+  labels:
+    app: tenant-user-api
+    layer: apis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tenant-user-api
+  template:
+    metadata:
+      labels:
+        app: tenant-user-api
+        layer: apis
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: tenant-user-api
+        image: ghcr.io/nkz-os/nkz/tenant-user-api@sha256:293e531044ede122ff94bdbb2052f1d56ec454f0d5bb7e206d89f9b1d701ad20
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+        ports:
+        - containerPort: 5000
+          name: http
+        env:
+        - name: KEYCLOAK_URL
+          value: "http://keycloak-service:8080/auth"
+        - name: KEYCLOAK_REALM
+          value: "nekazari"
+        - name: KEYCLOAK_CLIENT_ID
+          value: "admin-cli"
+        - name: KEYCLOAK_ADMIN_USER
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-username
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: keycloak-secret
+              key: admin-password
+        - name: KEYCLOAK_PUBLIC_URL
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: KEYCLOAK_PUBLIC_URL
+        - name: KEYCLOAK_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: nekazari-config
+              key: KEYCLOAK_HOSTNAME
+        - name: CORS_ORIGINS
+          valueFrom:
+            configMapKeyRef:
+              name: core-tenant-user-api-config
+              key: CORS_ORIGINS
+        - name: POSTGRES_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: postgres-url
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "100m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tenant-user-api-service
+  namespace: nekazari
+  labels:
+    app: tenant-user-api
+    layer: apis
+spec:
+  type: ClusterIP
+  selector:
+    app: tenant-user-api
+  ports:
+  - name: http
+    port: 5000
+    targetPort: 5000
+    protocol: TCP
+
