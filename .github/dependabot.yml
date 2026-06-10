@@ -1,0 +1,45 @@
+# Dependabot configuration — Nekazari platform
+# Security updates are enabled at the repository level (Settings → Code security).
+# Version updates below are grouped and rate-limited to keep PR noise manageable.
+version: 2
+updates:
+  # JavaScript/TypeScript — pnpm workspace (host app + packages)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Python backend services (one manifest per service)
+  - package-ecosystem: "pip"
+    directories:
+      - "/services"
+      - "/services/*"
+      - "/module-template/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      pip-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      actions-all:
+        patterns:
+          - "*"
