@@ -75,7 +75,8 @@ class ModuleActivation:
                 if e.response.status_code == 409:
                     attrs = {
                         k: v for k, v in body.items()
-                        if k not in ("id", "type", "@context")
+                        # dateCreated must not be refreshed on idempotent re-runs
+                        if k not in ("id", "type", "@context", "dateCreated")
                     }
                     try:
                         await self._client.update_entity_attrs(eid, attrs)
