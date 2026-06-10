@@ -380,11 +380,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
           ),
         );
       } catch (err) {
-        // Un-mark so the next effect run retries: marking before the attempt
-        // only dedupes in-flight loads, it must not make a transient failure
-        // (network, race at startup) permanent for the whole session.
-        preloadedRef.current.delete(m.id);
-        logger.warn(`[ModuleContext] Slot preload failed for module "${m.id}" (will retry):`, err);
+        logger.warn(`[ModuleContext] Slot preload failed for module "${m.id}":`, err);
       }
     });
   }, [modules]);
