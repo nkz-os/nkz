@@ -41,9 +41,6 @@
 
 ### Fixes
 
-- **Slot preload retry** — a transient `loadRemote` failure no longer leaves a
-  module without viewer slots for the whole session (layers missing in
-  Entities until visiting the module page) (#534).
 - **i18n locale recovery** — repaired broken JSON in en/es `common.json`
   (missing comma silently disabled the whole namespace) (#480). The osm
   base-layer default that rode along in #480 was unrequested and is reverted:
