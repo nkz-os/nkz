@@ -26,7 +26,7 @@ sudo ufw status            # Verificar: 22, 80, 443, 51820/udp, 3478/udp
 ### Instalar Tailscale en el nodo K8s (subnet router)
 
 ```bash
-# En el servidor de producción (109.123.252.120)
+# En el servidor de producción (nodo K8s)
 curl -fsSL https://tailscale.com/install.sh | sh
 
 # Autenticar contra Headscale (después de que Headscale esté desplegado)

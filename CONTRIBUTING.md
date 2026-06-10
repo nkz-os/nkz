@@ -88,6 +88,7 @@ pip install -r requirements.txt
 ## Pull requests — acceptance
 
 - **CI**: Required checks green for the areas you touch (tests, lint, typecheck, Docker build when applicable).
+- **Review policy**: All changes to `main` go through a pull request — direct pushes are blocked, including for admins. Merging is gated on the required CI checks (backend tests, frontend tests, Docker builds). Maintainer review is required for external contributions; maintainers' own PRs rely on the CI gate plus post-merge monitoring, given the current single-maintainer team. This policy will tighten to mandatory cross-review as the maintainer team grows.
 - **Scope**: Prefer focused PRs; large features can be split or behind feature flags.
 - **Docs**: Public files under `docs/` must include YAML frontmatter (`title`, `description`). Internal notes belong in `internal-docs/`, not public `docs/`.
 - **Behavior**: Do not regress multi-tenant isolation or auth without explicit review.

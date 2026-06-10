@@ -42,7 +42,7 @@ data:
   # The historical NodePort 31883 (plain MQTT) is intentionally NOT exposed in the current cluster.
   # If external MQTT ingestion is not yet published via Traefik TCP+TLS passthrough, clients using
   # this endpoint will fail to connect — this is the SOTA contract, fail-fast over silent insecurity.
-  MQTT_EXTERNAL_HOST: "109.123.252.120"
+  MQTT_EXTERNAL_HOST: "mqtt.YOUR_DOMAIN"
   MQTT_EXTERNAL_PORT: "8883"
 
   # Frontend configuration
