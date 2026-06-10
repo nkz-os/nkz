@@ -2122,3 +2122,98 @@ def publish_module_internal(module_id):
     status, payload = _upload_dist_and_activate(module_id, files, manifest, version_hash)
     return jsonify(payload), status
 
+
+# ── Parcel Activation Routes ────────────────────────────────────────────
+
+@modules_bp.route('/api/entities/parcels/<parcel_id>/modules/<module_id>/activate', methods=['POST'])
+@require_auth(require_hmac=False)
+def activate_module_for_parcel(parcel_id, module_id):
+    """Activate a module for a specific parcel. TenantAdmin or PlatformAdmin."""
+    tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
+    user_roles = _get_user_roles()
+
+    if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions'}), 403
+
+    # Check quota
+    ok, reason = _check_parcel_limit(tenant_id, module_id)
+    if not ok:
+        return jsonify({
+            'error': 'Parcel limit reached',
+            'reason': reason,
+            'action_required': 'upgrade_plan',
+        }), 403
+
+    # Get parcel name for dispatch (try Orion-LD)
+    parcel_name = parcel_id
+    try:
+        headers = inject_fiware_headers({}, tenant=tenant_id)
+        resp = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/entities/urn:ngsi-ld:AgriParcel:{parcel_id}",
+            headers=headers,
+            params={"options": "keyValues"},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            name_val = data.get("name", "")
+            parcel_name = name_val.get("value", parcel_id) if isinstance(name_val, dict) else name_val or parcel_id
+    except Exception:
+        pass
+
+    # Dispatch to module backend
+    status, result = _dispatch_to_module(
+        module_id=module_id,
+        tenant_id=tenant_id,
+        parcel_id=parcel_id,
+        parcel_name=parcel_name,
+        action="activate",
+    )
+
+    if status in (200, 201, 204):
+        _persist_activation(tenant_id, parcel_id, module_id, enabled=True)
+        return jsonify({
+            'message': f'Module {module_id} activated for parcel {parcel_id}',
+            'module_response': result,
+        }), 201
+    else:
+        logger.error("Module activation failed: HTTP %d, body: %s", status, result)
+        _persist_activation(tenant_id, parcel_id, module_id, enabled=True)
+        return jsonify({
+            'message': 'Activation queued - module responded with error, retrying',
+            'module_response': result,
+        }), 202
+
+
+@modules_bp.route('/api/entities/parcels/<parcel_id>/modules/<module_id>/deactivate', methods=['POST'])
+@require_auth(require_hmac=False)
+def deactivate_module_for_parcel(parcel_id, module_id):
+    """Deactivate a module for a specific parcel."""
+    tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
+    user_roles = _get_user_roles()
+
+    if 'TenantAdmin' not in user_roles and 'PlatformAdmin' not in user_roles:
+        return jsonify({'error': 'Insufficient permissions'}), 403
+
+    status, result = _dispatch_to_module(
+        module_id=module_id,
+        tenant_id=tenant_id,
+        parcel_id=parcel_id,
+        action="deactivate",
+    )
+
+    _persist_activation(tenant_id, parcel_id, module_id, enabled=False)
+    return jsonify({
+        'message': f'Module {module_id} deactivated for parcel {parcel_id}',
+        'module_response': result,
+    }), 200
+
+
+@modules_bp.route('/api/entities/parcels/<parcel_id>/modules', methods=['GET'])
+@require_auth(require_hmac=False)
+def get_parcel_modules(parcel_id):
+    """List activated modules for a parcel."""
+    tenant_id = getattr(g, 'tenant_id', None) or getattr(g, 'tenant', None)
+    active = _get_activated_modules(tenant_id, parcel_id)
+    return jsonify({'parcel_id': parcel_id, 'modules': active}), 200
+
