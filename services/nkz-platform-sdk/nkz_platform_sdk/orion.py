@@ -163,6 +163,26 @@ class OrionClient:
         )
         resp.raise_for_status()
 
+    async def query_subscriptions(self, limit: int = 100) -> list[dict[str, Any]]:
+        """List NGSI-LD subscriptions for this tenant."""
+        resp = await self._client.get(
+            self._url("/ngsi-ld/v1/subscriptions"),
+            params={"limit": limit},
+            headers=self._headers("application/json"),
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def create_subscription(self, subscription: dict[str, Any]) -> str:
+        """Create an NGSI-LD subscription. Returns the subscription Location."""
+        resp = await self._client.post(
+            self._url("/ngsi-ld/v1/subscriptions"),
+            json=subscription,
+            headers=self._headers("application/json"),
+        )
+        resp.raise_for_status()
+        return resp.headers.get("Location", "")
+
     async def close(self) -> None:
         await self._client.aclose()
 
