@@ -1,5 +1,62 @@
 # Changelog
 
+## v1.2.0
+
+### Features
+
+- **Module parcel activation** — per-parcel module activation flow:
+  entity-manager endpoints (`/api/entities/parcels/{id}/modules/{module}/activate`)
+  with tier-quota enforcement (fail-open), parcel-ownership and
+  installed-module checks, honest `setup_status` state (pending/ok/error,
+  idempotent re-POST as retry), and internal dispatch to module backends via
+  the `setup_parcel_url` contract (#529, #530). New table
+  `tenant_parcel_modules` (migration 080).
+- **nkz-platform-sdk 0.4.0** — `SubscriptionRegistrar` (idempotent per-tenant
+  Orion-LD subscription management with periodic heal) and `ModuleActivation`
+  (idempotent placeholder entity lifecycle); subscription methods added to
+  `OrionClient`. All Orion I/O delegates to `OrionClient` for NGSI-LD header
+  compliance (#529).
+- **Weather SOTA pack** — terrain aspect/slope via elevation-api 5-point Horn
+  method, hourly wind with unit conversion, 3-day water balance with
+  telemetry fallback and dedup, forecast cache bypass, AEMET alerts migrated
+  to Orion-LD, international weather support (migration 079), per-tenant
+  weather discovery (#436–#446, #462–#472).
+- **Module publish pipeline** — versioned publicPath for MF2 remotes, pnpm v10
+  support, `package_json_file` input in the reusable publish workflow
+  (#449–#461).
+- **Carbon module proxy** — `/api/carbon` route through api-gateway (#447).
+
+### Security
+
+- **Public-repo audit** — canonical AGPL-3.0 license text (GitHub now detects
+  the license correctly), Dependabot version updates configured, production
+  IP removed from K8s templates, explicit main-branch review policy
+  documented (#473). Repo-level secret scanning, push protection and
+  Dependabot security updates enabled.
+- **Dependency security wave** — 35+ security updates across all Python
+  services and the frontend (PyJWT 2.12, cryptography 46, gunicorn 22,
+  Flask 3.1, flask-cors 6, requests 2.33, axios 1.16, vitest 3); open
+  security alerts reduced from 227 to under 70. Semver-major updates of
+  Module Federation shared singletons excluded by policy (#490, #519).
+
+### Fixes
+
+- **i18n locale recovery** — repaired broken JSON in en/es `common.json`
+  (missing comma silently disabled the whole namespace) (#480).
+- **Base layers restored to intended behavior** — reverted two unrequested
+  changes: osm default (#531) and always-on OSM fallback that covered
+  PNOA/ESRI whenever module layers were not on top (#537). PNOA is the
+  default; each base layer renders only when selected.
+- **MinIO stability** — chronic restarts (66 in 21 days; every one took
+  `/modules` down platform-wide) fixed: digest-pinned image, tolerant
+  liveness probe, 1 CPU limit (#536).
+- **agro-status Orion fallback** chain hardened (#443–#446);
+  timeseries-reader telemetry fallback (#462); EOProduct added to the
+  platform @context (#464); host terrain module priority (#449); frontend
+  polish p3 (#434, #442); stale ui-kit shadows removed (#437).
+- **Core services SHA-pinned** — remaining core images pinned by digest
+  (#430–#435).
+
 ## v1.1.0
 
 ### Features
