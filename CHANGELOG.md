@@ -42,9 +42,14 @@
 ### Fixes
 
 - **i18n locale recovery** — repaired broken JSON in en/es `common.json`
-  (missing comma silently disabled the whole namespace) (#480). The osm
-  base-layer default that rode along in #480 was unrequested and is reverted:
-  PNOA remains the default (#531).
+  (missing comma silently disabled the whole namespace) (#480).
+- **Base layers restored to intended behavior** — reverted two unrequested
+  changes: osm default (#531) and always-on OSM fallback that covered
+  PNOA/ESRI whenever module layers were not on top (#537). PNOA is the
+  default; each base layer renders only when selected.
+- **MinIO stability** — chronic restarts (66 in 21 days; every one took
+  `/modules` down platform-wide) fixed: digest-pinned image, tolerant
+  liveness probe, 1 CPU limit (#536).
 - **agro-status Orion fallback** chain hardened (#443–#446);
   timeseries-reader telemetry fallback (#462); EOProduct added to the
   platform @context (#464); host terrain module priority (#449); frontend
