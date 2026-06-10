@@ -95,6 +95,8 @@ spec:
           value: "http://orion-ld-service:1026"
         - name: CONTEXT_URL
           value: "http://api-gateway-service:5000/ngsi-ld-context.json"
+        - name: ELEVATION_SERVICE_URL
+          value: "http://elevation-api-service:80"
 
         resources:
           requests:
