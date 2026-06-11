@@ -1,0 +1,17 @@
+# Product surface — requires explicit human (owner) review before merge.
+# Enforced by the "product-surface-human-review" repository ruleset:
+# admins can bypass via PR merge UI only (deliberate click), never via
+# unattended `gh pr merge`. Background: incident 2026-06-10, an unrequested
+# OSM map default shipped inside an unrelated i18n auto-merged PR.
+#
+# Chores (deps, CI, backend) are intentionally NOT listed — they keep
+# auto-merge.
+
+# UI components (visual behavior, defaults rendered to users)
+/apps/host/src/components/ @k8-benetis
+
+# User-facing copy / translations
+/apps/host/public/locales/ @k8-benetis
+
+# Product defaults: theme, navigation, default assets, shortcuts
+/apps/host/src/config/ @k8-benetis
