@@ -72,6 +72,15 @@ jobs:
       - name: Run pytest
         run: pytest tests/ -v --tb=short
 
+      - name: Run entity-manager suite
+        # Per-service suites must be CI-blocking for core services
+        # (plan post-v1.2.0 task #7). Invocation mirrors the documented
+        # local run: from the service dir, with services/ on PYTHONPATH.
+        working-directory: services/entity-manager
+        run: |
+          pip install -r requirements.txt
+          PYTHONPATH=$GITHUB_WORKSPACE/services python -m pytest tests/ -v --tb=short
+
       - name: tenant_utils.py byte-equality
         # tenant-user-api ships its own copy of services/common/tenant_utils.py
         # because the Dockerfile only COPYs services/tenant-user-api/. The two
