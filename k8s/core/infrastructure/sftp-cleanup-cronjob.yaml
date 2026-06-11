@@ -1,73 +1,43 @@
 # =============================================================================
-# CronJob — Backup de MongoDB (entidades NGSI-LD de Orion-LD) → SFTP IONOS
+# CronJob — Limpieza de backups antiguos en IONOS SFTP (semanal, domingo 03:00)
 # =============================================================================
-# initContainer hace mongodump --gzip --archive; el contenedor principal sube
-# el archivo por SFTP con paramiko (ConfigMap backup-upload-script).
+# Borra del SFTP remoto los ficheros con más de RETENTION_DAYS días
+# (script en ConfigMap cleanup-script).
 #
 # Labels del pod: component=backup-sftp habilita la NetworkPolicy
 # backup-sftp-egress (DNS + 443 PyPI + 22 SFTP). Ver nota de incidente en
 # postgresql-backup-cronjob.yaml.
-#
-# Credenciales: ionos-sftp-creds y mongodb-secret (root-username/
-# root-password). Nada hardcodeado.
 # =============================================================================
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: mongodb-backup-sftp
+  name: sftp-cleanup
   namespace: nekazari
   labels:
-    app: mongodb-backup-sftp
+    app: sftp-cleanup
     component: backup-sftp
+    layer: ops
 spec:
-  schedule: "30 */6 * * *"
-  successfulJobsHistoryLimit: 3
+  schedule: "0 3 * * 0"
+  successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: 86400
       backoffLimit: 3
-      activeDeadlineSeconds: 1800
+      activeDeadlineSeconds: 600
       template:
         metadata:
           labels:
-            app: mongodb-backup-sftp
+            app: sftp-cleanup
             component: backup-sftp
         spec:
-          restartPolicy: OnFailure
-          initContainers:
-          - name: mongodump
-            image: mongo:5.0
-            command:
-            - /bin/bash
-            - -c
-            - |
-              set -e
-              echo "Starting MongoDB dump at $(date)"
-              mongodump --host=mongodb-service --port=27017 \
-                -u "${MONGO_USER}" -p "${MONGO_PASSWORD}" \
-                --authenticationDatabase=admin --gzip \
-                --archive=/backup/backup-mongodb-nkz-$(date +%Y%m%d-%H%M%S).archive
-              ls -lh /backup/
-              echo "Dump complete at $(date)"
-            env:
-            - name: MONGO_USER
-              valueFrom:
-                secretKeyRef:
-                  name: mongodb-secret
-                  key: root-username
-            - name: MONGO_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: mongodb-secret
-                  key: root-password
-            volumeMounts:
-            - name: backup-data
-              mountPath: /backup
+          restartPolicy: Never
           containers:
-          - name: upload
+          - name: runner
             image: python:3.12-alpine
+            imagePullPolicy: IfNotPresent
             command:
             - sh
             - -c
@@ -76,7 +46,7 @@ spec:
             - |
               set -e
               pip install --no-cache-dir --quiet paramiko
-              python3 -u /script/upload.py
+              python3 -u /script/cleanup.py
             env:
             - name: SFTP_HOST
               valueFrom:
@@ -98,6 +68,8 @@ spec:
                 secretKeyRef:
                   name: ionos-sftp-creds
                   key: remote_dir
+            - name: RETENTION_DAYS
+              value: "30"
             resources:
               requests:
                 cpu: 100m
@@ -106,14 +78,10 @@ spec:
                 cpu: 500m
                 memory: 256Mi
             volumeMounts:
-            - name: backup-data
-              mountPath: /backup
             - name: script
               mountPath: /script
               readOnly: true
           volumes:
-          - name: backup-data
-            emptyDir: {}
           - name: script
             configMap:
-              name: backup-upload-script
+              name: cleanup-script
