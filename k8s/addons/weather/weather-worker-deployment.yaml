@@ -42,8 +42,10 @@ spec:
         fsGroup: 1000
       containers:
       - name: weather-worker
-        image: ghcr.io/nkz-os/nkz/weather-worker:latest
-        imagePullPolicy: Always
+        # Pinned by digest: :latest + pullPolicy Always means a pod restart can
+        # silently change running code (frontend-host outage 2026-05-26).
+        image: ghcr.io/nkz-os/nkz/weather-worker@sha256:2ff53fb04e52ddfe91ff221f3f3ec007ddbc2438ba186d8ad59262e114a7ec7c
+        imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
