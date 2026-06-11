@@ -1,0 +1,104 @@
+# =============================================================================
+# ConfigMaps — Scripts de subida y limpieza de backups en IONOS SFTP
+# =============================================================================
+# Consumidos por los CronJobs postgresql-backup-sftp, mongodb-backup-sftp
+# (backup-upload-script) y sftp-cleanup (cleanup-script). Los nombres se
+# conservan tal cual estaban aplicados en el cluster (2026-05-23/24) para que
+# kubectl apply sea idempotente sobre los recursos vivos.
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-upload-script
+  namespace: nekazari
+  labels:
+    component: backup-sftp
+data:
+  upload.py: |
+    import paramiko, sys, os
+    from datetime import datetime
+
+    host = os.environ["SFTP_HOST"]
+    user = os.environ["SFTP_USER"]
+    pwd = os.environ["SFTP_PASSWORD"]
+    remote_dir = os.environ.get("SFTP_DIR", ".")
+    backup_dir = "/backup"
+
+    print(f"Connecting to {host} at {datetime.now()}...")
+    try:
+        t = paramiko.Transport((host, 22))
+        t.connect(username=user, password=pwd)
+        sftp = paramiko.SFTPClient.from_transport(t)
+
+        files = os.listdir(backup_dir)
+        if not files:
+            print("ERROR: No backup files found in", backup_dir)
+            sys.exit(1)
+
+        for f in files:
+            local_path = os.path.join(backup_dir, f)
+            remote_path = f"{remote_dir}/{f}"
+            if remote_dir == ".":
+                remote_path = f
+            size_mb = os.path.getsize(local_path) / (1024*1024)
+            print(f"Uploading {f} ({size_mb:.1f}MB)...")
+            sftp.put(local_path, remote_path)
+            print(f"OK: {f}")
+
+        print("Remote files:", sftp.listdir(remote_dir))
+        sftp.close()
+        t.close()
+        print("SUCCESS")
+    except Exception as e:
+        print(f"SFTP ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cleanup-script
+  namespace: nekazari
+  labels:
+    component: backup-sftp
+data:
+  cleanup.py: |
+    import paramiko, sys, os
+    from datetime import datetime, timedelta
+
+    host = os.environ["SFTP_HOST"]
+    user = os.environ["SFTP_USER"]
+    pwd = os.environ["SFTP_PASSWORD"]
+    remote_dir = os.environ.get("SFTP_DIR", ".")
+    retention_days = int(os.environ.get("RETENTION_DAYS", "30"))
+
+    print(f"Connecting to {host} at {datetime.now()}...")
+    try:
+        t = paramiko.Transport((host, 22))
+        t.connect(username=user, password=pwd)
+        sftp = paramiko.SFTPClient.from_transport(t)
+
+        files = sftp.listdir_attr(remote_dir)
+        cutoff = datetime.now() - timedelta(days=retention_days)
+        deleted = 0
+        kept = 0
+
+        for f in files:
+            mtime = datetime.fromtimestamp(f.st_mtime)
+            if mtime < cutoff:
+                path = f"{remote_dir}/{f.filename}" if remote_dir != "." else f.filename
+                print(f"Deleting {f.filename} ({f.st_size/1024:.0f}KB, age: {(datetime.now()-mtime).days}d)...")
+                sftp.remove(path)
+                deleted += 1
+            else:
+                kept += 1
+
+        print(f"Done. Deleted: {deleted}, Kept: {kept}")
+        sftp.close()
+        t.close()
+    except Exception as e:
+        print(f"SFTP ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
