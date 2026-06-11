@@ -299,85 +299,10 @@ class TestHealthVersionMetrics:
         assert "text/plain" in anon_client.get("/metrics").content_type
 
 
-# ============================================================================
-# Weather (9 routes)
-# ============================================================================
-
-
-class TestWeatherRoutes:
-    AUTH = [
-        ("GET", "/api/weather/municipalities/search"),
-        ("GET", "/api/weather/locations"),
-        ("GET", "/api/weather/municipality/near"),
-        ("POST", "/api/weather/locations"),
-        ("GET", "/api/weather/observations/latest"),
-        ("GET", "/api/weather/observations"),
-        ("GET", "/api/weather/parcel/test-parcel"),
-        ("GET", "/api/weather/parcel/test-parcel/agro-status"),
-        ("GET", "/api/weather/alerts"),
-    ]
-
-    @pytest.mark.parametrize("method,path", AUTH)
-    def test_requires_auth(self, anon_client, method, path):
-        assert anon_client.open(path, method=method).status_code == 401
-
-    @pytest.mark.parametrize(
-        "method,path,expected_status,query",
-        [
-            ("GET", "/api/weather/municipalities/search", 200, {"q": "Pamplona"}),
-            ("GET", "/api/weather/locations", 200, {}),
-            (
-                "GET",
-                "/api/weather/municipality/near",
-                200,
-                {"latitude": "42.0", "longitude": "-2.0"},
-            ),
-            ("GET", "/api/weather/observations/latest", 200, {}),
-            ("GET", "/api/weather/observations", 200, {}),
-            ("GET", "/api/weather/parcel/test-parcel", 200, {}),
-            ("GET", "/api/weather/parcel/test-parcel/agro-status", 200, {}),
-            ("GET", "/api/weather/alerts", 200, {}),
-        ],
-    )
-    @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
-    @patch("entity_management_api.get_db_connection_with_tenant")
-    @patch("entity_management_api.get_db_connection_simple")
-    def test_get_ok(
-        self,
-        mock_db_simple,
-        mock_db_tenant,
-        mock_req,
-        client,
-        method,
-        path,
-        expected_status,
-        query,
-    ):
-        conn = _make_db_conn()
-        mock_db_tenant.return_value = conn
-        mock_db_simple.return_value = conn
-        r = client.open(path, method=method, query_string=query)
-        assert r.status_code in (expected_status, 400, 500), (
-            f"{method} {path} got {r.status_code}"
-        )
-        r.get_json()
-
-    @patch("entity_management_api.get_db_connection_with_tenant")
-    @patch("entity_management_api.get_db_connection_simple")
-    def test_post_location_ok(self, mock_db_simple, mock_db_tenant, client):
-        conn = _make_db_conn()
-        mock_db_tenant.return_value = conn
-        mock_db_simple.return_value = conn
-        r = client.post(
-            "/api/weather/locations",
-            content_type="application/json",
-            data=json.dumps({"municipality_code": "31001"}),
-        )
-        assert r.status_code in (201, 200, 400, 500), (
-            f"POST location got {r.status_code}"
-        )
-        r.get_json()
-
+# NOTE: weather routes moved to the standalone weather-api service
+# (entity_management_api.py: "weather_bp removed — routes now served by
+# standalone weather-api service"). Their smoke tests moved out with them;
+# weather-api still needs its own suite.
 
 # ============================================================================
 # Admin (14 routes)
@@ -427,7 +352,12 @@ class TestAdminRoutes:
             ("GET", "/api/admin/audit-logs", 200),
         ],
     )
-    # Patch blueprint namespaces so extracted routes see the same mocks
+    # Patch blueprint namespaces so extracted routes see the same mocks.
+    # helpers.tenant_limits imports db_helper functions at module level, so
+    # the sys.modules["db_helper"] MagicMock leaks into get_limits_for_tenant
+    # (MagicMock rows are not JSON serializable) — patch that namespace too.
+    @patch("helpers.tenant_limits.return_db_connection")
+    @patch("helpers.tenant_limits.get_db_connection_simple")
     @patch("blueprints.admin.return_db_connection")
     @patch("blueprints.admin.get_db_connection_with_tenant")
     @patch("blueprints.admin.get_db_connection_simple")
@@ -442,6 +372,8 @@ class TestAdminRoutes:
         mock_bp_db_simple,
         mock_bp_db_tenant,
         mock_bp_return_db,
+        mock_helpers_db_simple,
+        mock_helpers_return_db,
         client,
         method,
         path,
@@ -452,6 +384,10 @@ class TestAdminRoutes:
         mock_db_tenant.return_value = conn
         mock_bp_db_simple.return_value = conn
         mock_bp_db_tenant.return_value = conn
+        # _get_limits_from_db indexes the row positionally (row[0]..row[6])
+        mock_helpers_db_simple.return_value = _make_db_conn(
+            fetchone=("pro", 100, 10, 50, 100.0, 100, 1000)
+        )
         r = client.open(path, method=method)
         assert r.status_code == expected_status, f"{method} {path} got {r.status_code}"
         r.get_json()
@@ -491,8 +427,9 @@ class TestAdminRoutes:
     def test_delete_tenant_purge_ok(self, mock_db, client):
         mock_db.return_value = _make_db_conn()
         r = client.delete("/api/admin/tenants/test/purge")
-        assert r.status_code in (200, 207, 500), f"DELETE purge got {r.status_code}"
-        r.get_json()
+        # Endpoint is intentionally deprecated (purge moved to tenant-webhook)
+        assert r.status_code == 410, f"DELETE purge got {r.status_code}"
+        assert "migrated_to" in r.get_json()
 
     # PUT /api/admin/tenants/test/governance
     @patch("entity_management_api.get_db_connection_simple")
