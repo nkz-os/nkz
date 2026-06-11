@@ -39,8 +39,10 @@ spec:
       # No imagePullSecrets: public GHCR images pull anonymously
       containers:
         - name: backend
-          image: ghcr.io/nkz-os/nkz-module-agrienergy/agrienergy-backend:main
-          imagePullPolicy: Always
+          # Pinned by digest: :main + pullPolicy Always means any pod restart can
+          # silently deploy whatever the module repo's main last built.
+          image: ghcr.io/nkz-os/nkz-module-agrienergy/agrienergy-backend@sha256:17f4ee218f526ff4d0decc0ee62e682e8ffd3f95d47e9a0845591528188ce8e2
+          imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
