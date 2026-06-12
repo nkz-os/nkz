@@ -83,7 +83,7 @@ def delta_t(monkeypatch):
 
     def _set(value):
         monkeypatch.setattr(
-            "common.weather_utils.psychrometrics.calculate_delta_t",
+            "weather_utils.psychrometrics.calculate_delta_t",
             lambda t, h: value,
         )
 
@@ -405,7 +405,7 @@ class TestDownscaling:
             return out
 
         monkeypatch.setattr(
-            "common.weather_utils.spatial_downscaler.downscale_for_parcel",
+            "weather_utils.spatial_downscaler.downscale_for_parcel",
             fake_downscale,
         )
         r = run_agro(parcel_altitude_m=600.0, station_altitude_m=300.0)
@@ -424,7 +424,7 @@ class TestDownscaling:
             raise RuntimeError("downscaler exploded")
 
         monkeypatch.setattr(
-            "common.weather_utils.spatial_downscaler.downscale_for_parcel", boom
+            "weather_utils.spatial_downscaler.downscale_for_parcel", boom
         )
         r = run_agro(parcel_altitude_m=600.0, station_altitude_m=300.0)
         assert r["downscaling"] == "unavailable"
