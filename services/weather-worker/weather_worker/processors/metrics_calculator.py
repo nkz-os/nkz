@@ -101,7 +101,7 @@ class MetricsCalculator:
             if temp_celsius is None or relative_humidity_percent is None:
                 return None
 
-            from common.weather_utils.psychrometrics import calculate_delta_t
+            from weather_utils.psychrometrics import calculate_delta_t
 
             return calculate_delta_t(temp_celsius, relative_humidity_percent) or None
 
