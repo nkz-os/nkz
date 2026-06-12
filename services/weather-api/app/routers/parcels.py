@@ -442,7 +442,7 @@ def get_parcel_weather(
         # Step 6: Apply spatial downscaling
         downscaling_applied = False
         try:
-            from common.weather_utils.spatial_downscaler import (
+            from weather_utils.spatial_downscaler import (
                 downscale_for_parcel,
             )
 

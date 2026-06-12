@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def _calc_delta_t(temp_celsius: float, humidity_percent: float) -> Optional[float]:
     """Calculate Delta-T (wet-bulb depression) — delegates to unified psychrometrics."""
     try:
-        from common.weather_utils.psychrometrics import calculate_delta_t
+        from weather_utils.psychrometrics import calculate_delta_t
 
         return calculate_delta_t(temp_celsius, humidity_percent) or None
     except Exception:
@@ -286,7 +286,7 @@ def calculate_agro_status(
     )
     if need_downscaling or nearby_stations:
         try:
-            from common.weather_utils.spatial_downscaler import downscale_for_parcel
+            from weather_utils.spatial_downscaler import downscale_for_parcel
 
             obs_dt = weather_observation.get("observed_at")
             doy = obs_dt.timetuple().tm_yday if hasattr(obs_dt, "timetuple") else None
