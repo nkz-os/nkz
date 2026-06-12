@@ -2,6 +2,7 @@
 
 import json
 
+import httpx
 import pytest
 import respx
 from httpx import Response
@@ -54,10 +55,22 @@ async def test_append_raises_on_error():
     respx.post(f"{ORION}/ngsi-ld/v1/entities/{EID}/attrs").mock(
         return_value=Response(400)
     )
-    import httpx
-
     with pytest.raises(httpx.HTTPStatusError):
         await client.append_entity_attrs(
             EID, {"tilt": {"type": "Property", "value": 1.0}}
+        )
+    await client.close()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_append_raises_on_207_partial():
+    client = OrionClient("montiko", base_url=ORION)
+    respx.post(f"{ORION}/ngsi-ld/v1/entities/{EID}/attrs").mock(
+        return_value=Response(207, json={"notUpdated": [{"attributeName": "tilt"}]})
+    )
+    with pytest.raises(httpx.HTTPStatusError, match="Partial append"):
+        await client.append_entity_attrs(
+            EID, {"tilt": {"type": "Property", "value": 1.0}}, overwrite=False
         )
     await client.close()
