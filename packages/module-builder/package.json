@@ -26,8 +26,8 @@
         "access": "public"
     },
     "dependencies": {
-        "@module-federation/vite": "^1.15.4",
-        "esbuild": "^0.25.1"
+        "@module-federation/vite": "^1.16.6",
+        "esbuild": "^0.28.1"
     },
     "peerDependencies": {
         "vite": ">=5.0.0",
