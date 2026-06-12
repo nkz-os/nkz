@@ -242,7 +242,7 @@ def recalculate_delta_t(temp_celsius: float, relative_humidity_percent: float) -
     Delegates to unified psychrometrics module — single source of truth.
     """
     try:
-        from common.weather_utils.psychrometrics import calculate_delta_t
+        from .psychrometrics import calculate_delta_t
 
         return calculate_delta_t(temp_celsius, relative_humidity_percent)
     except ImportError:
