@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "lint-staged": "^15.2.10",
-    "turbo": "^2.0.0"
+    "turbo": "^2.9.14"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
