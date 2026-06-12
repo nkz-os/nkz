@@ -191,15 +191,35 @@ export interface AgriFarm extends NGSIEntity {
 }
 
 /**
- * AgriGreenhouse entity structure
+ * AgriGreenhouse entity structure — FIWARE Smart Data Model
+ *
+ * @see https://github.com/smart-data-models/dataModel.AgriFood/tree/master/AgriGreenhouse
  */
 export interface AgriGreenhouse extends NGSIEntity {
   type: 'AgriGreenhouse';
   name?: NGSIProperty;
   description?: NGSIProperty;
   location?: NGSIGeoProperty;
+  /** Area of the greenhouse in square meters */
+  area?: NGSIProperty;
+  /** Cover material: polyethylene, glass, polycarbonate */
+  coverType?: NGSIProperty;
+  /** Orientation: N-S, E-W */
+  orientation?: NGSIProperty;
+  /** Ventilation type: roof, side, roof_and_side */
+  ventilationType?: NGSIProperty;
+  /** Shading type: mobile_screen, paint, none */
+  shadingType?: NGSIProperty;
+  /** Heating type: biomass, gas, electric, none */
+  heatingType?: NGSIProperty;
+  /** Legacy relationship to parent farm */
   refAgriFarm?: NGSIRelationship;
-  structureType?: NGSIProperty;
+  /** SDM-standard relationship to child parcels (zones) */
+  hasAgriParcel?: NGSIRelationship;
+  /** Date of planting / season start */
+  dateCreated?: NGSIProperty;
+  /** Date of last modification */
+  dateModified?: NGSIProperty;
   [key: string]: any;
 }
 

@@ -1,6 +1,6 @@
 import {
   MapPin, Gauge, Bot, Building2, Droplets, Trees, Zap,
-  Leaf, Activity, Sun, Tractor,
+  Leaf, Activity, Sun, Tractor, Sprout,
 } from 'lucide-react';
 import type { MacroCategory } from './types';
 
@@ -24,6 +24,7 @@ export const ENTITY_TYPE_METADATA: Record<string, EntityTypeInfo> = {
   OliveTree:                { keywords: ['olivo', 'olive tree'],                                      macroCategory: 'assets',  icon: Trees,      description: 'Olivo individual',            color: 'green'  },
   Vine:                     { keywords: ['vid', 'cepa', 'vine'],                                      macroCategory: 'assets',  icon: Leaf,       description: 'Cepa de vid',                 color: 'purple' },
   FruitTree:                { keywords: ['frutal', 'fruit tree', 'manzano', 'peral'],                 macroCategory: 'assets',  icon: Trees,      description: 'Árbol frutal',                color: 'orange' },
+  AgriGreenhouse:           { keywords: ['invernadero', 'greenhouse', 'túnel', 'cultivo protegido', 'greenhouse', 'tunnel'], macroCategory: 'assets', icon: Sprout, description: 'Invernadero', color: 'emerald' },
   AgriBuilding:             { keywords: ['edificio', 'almacén', 'bodega', 'building', 'warehouse'],   macroCategory: 'assets',  icon: Building2,  description: 'Edificio agrícola',           color: 'gray'   },
   WaterSource:              { keywords: ['agua', 'fuente', 'water', 'source'],                        macroCategory: 'assets',  icon: Droplets,   description: 'Fuente de agua',              color: 'blue'   },
   Well:                     { keywords: ['pozo', 'well'],                                             macroCategory: 'assets',  icon: Droplets,   description: 'Pozo',                        color: 'blue'   },
@@ -80,7 +81,7 @@ export const ENTITY_CATEGORIES: Record<string, string[]> = {
   'Agua':            ['WaterSource', 'Well', 'IrrigationOutlet', 'Spring', 'Pond'],
   'Robótica':        ['AutonomousMobileRobot', 'ManufacturingMachine'],
   'Sensores':        ['AgriSensor', 'Device', 'WeatherObserved'],
-  'Infraestructura': ['AgriBuilding', 'IrrigationSystem'],
+  'Infraestructura': ['AgriGreenhouse', 'AgriBuilding', 'IrrigationSystem'],
   'Ganadería':       ['LivestockAnimal', 'LivestockGroup', 'LivestockFarm'],
   'Energía':         ['PhotovoltaicInstallation', 'AgriEnergyTracker', 'EnergyStorageSystem'],
   'Operaciones':     ['AgriOperation'],
