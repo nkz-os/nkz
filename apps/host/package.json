@@ -57,7 +57,7 @@
     "i18next-http-backend": "^4.0.0",
     "js-sha256": "^0.11.0",
     "jwt-decode": "^4.0.0",
-    "keycloak-js": "^24.0.5",
+    "keycloak-js": "^26.2.4",
     "lucide-react": "^1.17.0",
     "nipplejs": "^0.10.1",
     "polyclip-ts": "^0.16.8",

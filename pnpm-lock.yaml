@@ -138,8 +138,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0
       keycloak-js:
-        specifier: ^24.0.5
-        version: 24.0.5
+        specifier: ^26.2.4
+        version: 26.2.4
       lucide-react:
         specifier: ^1.17.0
         version: 1.17.0(react@18.3.1)
@@ -3370,8 +3370,8 @@ packages:
   kdbush@4.1.0:
     resolution: {integrity: sha512-e9vurzrXJQrFX6ckpHP3bvj5l+9CnYzkxDNnNQ1h2QTqdWsUAJgXiKdGNcOa1EY85dU8KbQ+z/FdQdB7P+9yfQ==}
 
-  keycloak-js@24.0.5:
-    resolution: {integrity: sha512-VQOSn3j13DPB6OuavKAq+sRjDERhIKrXgBzekoHRstifPuyULILguugX6yxRUYFSpn3OMYUXmSX++tkdCupOjA==}
+  keycloak-js@26.2.4:
+    resolution: {integrity: sha512-PnXpR3ubETGOt0B/Qt2lxmPbkZr5bc3vlQsOqDoTPPQsZRp7JjhTKxlJ187uWh8qJhvBab6Gsjb06a8ayOPfuw==}
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -7496,10 +7496,7 @@ snapshots:
 
   kdbush@4.1.0: {}
 
-  keycloak-js@24.0.5:
-    dependencies:
-      js-sha256: 0.11.1
-      jwt-decode: 4.0.0
+  keycloak-js@26.2.4: {}
 
   keyv@4.5.4:
     dependencies:
