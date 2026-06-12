@@ -232,6 +232,8 @@
     "sensorsinsolation": "https://nekazari.io/vocab/sensorsinsolation",
     "illuminance": "saref:Illuminance",
     "soilMoisture": "nkz:soilMoisture",
+    "soilMoistureTop": "nkz:soilMoistureTop",
+    "soilMoistureSub": "nkz:soilMoistureSub",
     "soilTemperature": "https://smartdatamodels.org/dataModel.Weather/soilTemperature",
     "windSpeed": "nkz:windSpeed",
     "windSpeedMax": "nkz:windSpeedMax",
