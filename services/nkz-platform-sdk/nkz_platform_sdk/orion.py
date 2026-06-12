@@ -158,6 +158,33 @@ class OrionClient:
         )
         resp.raise_for_status()
 
+    async def append_entity_attrs(
+        self,
+        entity_id: str,
+        attrs: dict[str, Any],
+        overwrite: bool = True,
+    ) -> None:
+        # PATCH /attrs only updates EXISTING attributes (new ones land in
+        # notUpdated). POST /attrs appends new attributes and overwrites
+        # existing ones unless overwrite=False (options=noOverwrite).
+        # Fragments carry no @context -> application/json + Link.
+        params = {} if overwrite else {"options": "noOverwrite"}
+        resp = await self._client.post(
+            self._url(f"/ngsi-ld/v1/entities/{entity_id}/attrs"),
+            params=params,
+            json=attrs,
+            headers=self._headers("application/json"),
+        )
+        if resp.status_code == 207:
+            # Partial append: some attrs rejected (raise_for_status is a no-op
+            # on 207 since it's < 400 — fail loudly per platform fail-safe rule)
+            raise httpx.HTTPStatusError(
+                f"Partial append on {entity_id}: {resp.text[:200]}",
+                request=resp.request,
+                response=resp,
+            )
+        resp.raise_for_status()
+
     async def delete_entity(self, entity_id: str) -> None:
         resp = await self._client.delete(
             self._url(f"/ngsi-ld/v1/entities/{entity_id}"),
