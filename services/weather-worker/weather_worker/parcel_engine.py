@@ -690,8 +690,11 @@ class ParcelWeatherEngine:
                 obs["gdd_accumulated"] = round(gdd, 1)
                 # Delta-T from latest hour (wet-bulb depression)
                 if hhums:
-                    from common.weather_utils.psychrometrics import calculate_delta_t
-                    obs["delta_t"] = calculate_delta_t(htemps[-1], hhums[-1])
+                    try:
+                        from weather_utils.psychrometrics import calculate_delta_t
+                        obs["delta_t"] = calculate_delta_t(htemps[-1], hhums[-1])
+                    except ImportError:
+                        logger.debug("psychrometrics not available, skipping delta_t")
 
             if hprecips:
                 # Hourly precipitation sum (should match daily, but self-consistent)
@@ -877,10 +880,10 @@ class ParcelWeatherEngine:
     ) -> List[Dict[str, Any]]:
         """Apply spatial downscaling to observations for a specific parcel.
 
-        Uses the existing spatial_downscaler module from common/weather_utils.
+        Uses the existing spatial_downscaler module from weather_utils.
         """
         try:
-            from common.weather_utils.spatial_downscaler import (
+            from weather_utils.spatial_downscaler import (
                 downscale_for_parcel,
                 extract_parcel_terrain,
             )
