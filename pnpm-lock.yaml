@@ -24,8 +24,8 @@ importers:
         specifier: ^2.5.1
         version: 2.5.1(node-fetch@2.7.0)
       '@module-federation/vite':
-        specifier: ^1.16.6
-        version: 1.16.6(node-fetch@2.7.0)(typescript@5.9.3)(vite@5.4.21(@types/node@25.3.3))
+        specifier: ^1.16.7
+        version: 1.16.7(node-fetch@2.7.0)(typescript@5.9.3)(vite@5.4.21(@types/node@25.3.3))
       '@nekazari/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
@@ -123,8 +123,8 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
       dompurify:
-        specifier: ^3.4.9
-        version: 3.4.9
+        specifier: ^3.4.10
+        version: 3.4.10
       i18next:
         specifier: ^23.11.0
         version: 23.16.8
@@ -141,8 +141,8 @@ importers:
         specifier: ^26.2.4
         version: 26.2.4
       lucide-react:
-        specifier: ^1.17.0
-        version: 1.17.0(react@18.3.1)
+        specifier: ^1.18.0
+        version: 1.18.0(react@18.3.1)
       nipplejs:
         specifier: ^0.10.1
         version: 0.10.2
@@ -280,8 +280,8 @@ importers:
   packages/module-builder:
     dependencies:
       '@module-federation/vite':
-        specifier: ^1.16.6
-        version: 1.16.6(node-fetch@2.7.0)(typescript@5.9.3)(vite@5.4.21(@types/node@25.6.0))
+        specifier: ^1.16.7
+        version: 1.16.7(node-fetch@2.7.0)(typescript@5.9.3)(vite@5.4.21(@types/node@25.6.0))
       '@vitejs/plugin-react':
         specifier: ^4.0.0
         version: 4.7.0(vite@5.4.21(@types/node@25.6.0))
@@ -1235,8 +1235,8 @@ packages:
   '@module-federation/third-party-dts-extractor@2.5.1':
     resolution: {integrity: sha512-/jD/o2IivDgg6jGUgdb9NZtlJWeoz1uKcblGL2BxYVzzlKT+1YS7Y2idTl1tqp4hNdFnDlPpQv6WLdKiLoOPNw==}
 
-  '@module-federation/vite@1.16.6':
-    resolution: {integrity: sha512-MTZJ7z0F47RuKeOBB9kAz8tacTlT4PlPr03UkoT+/wsJJbzvaPP4ReQ5P7pRrgw3sRL8FZgxPQtKIOCP/l+Ctg==}
+  '@module-federation/vite@1.16.7':
+    resolution: {integrity: sha512-XUQLeMobkl8zoJXLiKpKNczkymEo1XBvaho6lzHK/Iqx/MHpkHMIUl3wzoNzZJ0cBZHCVXwFPN7vehjuThbwsw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     peerDependencies:
       vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
@@ -2772,8 +2772,8 @@ packages:
   dom-accessibility-api@0.6.3:
     resolution: {integrity: sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w==}
 
-  dompurify@3.4.9:
-    resolution: {integrity: sha512-4dPSRMRDqHvs0V4YDFCsaIZo4if5u0xM+llyxiM2fwuZFdKArUBAF3VtI2+n8NKg9P870WMdYk0UhqQNoWXbfQ==}
+  dompurify@3.4.10:
+    resolution: {integrity: sha512-0xzNv0e7oYC6yyuOGZIABPM4qtg3QxLFniDNPP4ZP90wR8Yq3zgwpRbrNiT4N3IKqDbbYFEJLV+JWEs19aZ//w==}
 
   draco3d@1.5.7:
     resolution: {integrity: sha512-m6WCKt/erDXcw+70IJXnG7M3awwQPAsZvJGX5zY7beBqpELw6RDGkYVU0W43AFxye4pDZ5i2Lbyc/NNGqwjUVQ==}
@@ -3400,8 +3400,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.17.0:
-    resolution: {integrity: sha512-9FA9evdox/JQL5PT57fdA1x/yg8T7knJ98+zjTL3UfKza6pflQUUh3XtaQIHKvnsJw1lmsEyHVlt5jchYxOQ5w==}
+  lucide-react@1.18.0:
+    resolution: {integrity: sha512-LZDb7H/0YfM+RJncD0hDQRCAu+vSGODqpe35TuVI8EuXaRjkczbsx7p8dY4J87F/MUSj6bpYqeI8nw8qXaAdmA==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -4645,7 +4645,7 @@ snapshots:
       '@zip.js/zip.js': 2.8.26
       autolinker: 4.1.5
       bitmap-sdf: 1.0.4
-      dompurify: 3.4.9
+      dompurify: 3.4.10
       draco3d: 1.5.7
       earcut: 3.0.2
       grapheme-splitter: 1.0.4
@@ -5065,7 +5065,7 @@ snapshots:
       find-pkg: 2.0.0
       resolve: 1.22.8
 
-  '@module-federation/vite@1.16.6(node-fetch@2.7.0)(typescript@5.9.3)(vite@5.4.21(@types/node@25.3.3))':
+  '@module-federation/vite@1.16.7(node-fetch@2.7.0)(typescript@5.9.3)(vite@5.4.21(@types/node@25.3.3))':
     dependencies:
       '@module-federation/dts-plugin': 2.5.1(node-fetch@2.7.0)(typescript@5.9.3)
       '@module-federation/runtime': 2.5.1(node-fetch@2.7.0)
@@ -5078,7 +5078,7 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/vite@1.16.6(node-fetch@2.7.0)(typescript@5.9.3)(vite@5.4.21(@types/node@25.6.0))':
+  '@module-federation/vite@1.16.7(node-fetch@2.7.0)(typescript@5.9.3)(vite@5.4.21(@types/node@25.6.0))':
     dependencies:
       '@module-federation/dts-plugin': 2.5.1(node-fetch@2.7.0)(typescript@5.9.3)
       '@module-federation/runtime': 2.5.1(node-fetch@2.7.0)
@@ -6194,7 +6194,7 @@ snapshots:
 
   '@types/dompurify@3.2.0':
     dependencies:
-      dompurify: 3.4.9
+      dompurify: 3.4.10
 
   '@types/esrecurse@4.3.1': {}
 
@@ -6759,7 +6759,7 @@ snapshots:
 
   dom-accessibility-api@0.6.3: {}
 
-  dompurify@3.4.9:
+  dompurify@3.4.10:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -7470,7 +7470,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.17.0(react@18.3.1):
+  lucide-react@1.18.0(react@18.3.1):
     dependencies:
       react: 18.3.1
 
