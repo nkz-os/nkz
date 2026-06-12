@@ -37,6 +37,11 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "vite"
         update-types: ["version-update:semver-major"]
+      # postcss: toolchain dependency for TailwindCSS+Vite (postcss.config.js).
+      # Not imported in JS/TS → Dependabot static analysis incorrectly flags as
+      # unused and creates removal PRs that break frozen-lockfile builds.
+      - dependency-name: "postcss"
+
 
   # Python backend services (one manifest per service)
   - package-ecosystem: "pip"
