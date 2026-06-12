@@ -363,6 +363,21 @@ def create_weather_observed_entity(
                 "unitCode": "MMT",  # Millimeters
             }
 
+        # Soil moisture (from Open-Meteo daily)
+        if weather_data.get("soil_moisture_0_10cm") is not None:
+            entity["soilMoistureTop"] = {
+                "type": "Property",
+                "value": float(weather_data["soil_moisture_0_10cm"]),
+                "unitCode": "M3",  # m³/m³
+            }
+
+        if weather_data.get("soil_moisture_10_40cm") is not None:
+            entity["soilMoistureSub"] = {
+                "type": "Property",
+                "value": float(weather_data["soil_moisture_10_40cm"]),
+                "unitCode": "M3",  # m³/m³
+            }
+
         # Add source information
         source = weather_data.get("source", "OPEN-METEO")
         entity["sourceConfidence"] = {"type": "Property", "value": source}
@@ -519,6 +534,21 @@ def update_weather_observed_entity(
                 "type": "Property",
                 "value": float(weather_data["precip_mm"]),
                 "unitCode": "MMT",
+            }
+
+        # Soil moisture (from Open-Meteo daily)
+        if weather_data.get("soil_moisture_0_10cm") is not None:
+            update_payload["soilMoistureTop"] = {
+                "type": "Property",
+                "value": float(weather_data["soil_moisture_0_10cm"]),
+                "unitCode": "M3",
+            }
+
+        if weather_data.get("soil_moisture_10_40cm") is not None:
+            update_payload["soilMoistureSub"] = {
+                "type": "Property",
+                "value": float(weather_data["soil_moisture_10_40cm"]),
+                "unitCode": "M3",
             }
 
         source = weather_data.get("source", "OPEN-METEO")
