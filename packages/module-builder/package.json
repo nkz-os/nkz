@@ -27,6 +27,7 @@
     },
     "dependencies": {
         "@module-federation/vite": "^1.15.4",
+        "esbuild": "^0.25.1"
     },
     "peerDependencies": {
         "vite": ">=5.0.0",
