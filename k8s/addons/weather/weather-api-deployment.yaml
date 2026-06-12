@@ -31,8 +31,10 @@ spec:
       serviceAccountName: weather-worker-sa
       containers:
         - name: weather-api
-          image: ghcr.io/nkz-os/nkz/weather-api:latest
-          imagePullPolicy: Always
+          # Pinned by digest: :latest + pullPolicy Always means a pod restart can
+          # silently change running code (frontend-host outage 2026-05-26).
+          image: ghcr.io/nkz-os/nkz/weather-api@sha256:81a1ceebfc7f22dc3ad2b3d26effaa86b6384af6932345dcbdeb8b34782292ca
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
               name: http
