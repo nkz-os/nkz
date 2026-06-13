@@ -21,12 +21,13 @@ CONTEXT_URL = os.getenv("CONTEXT_URL", "")
 
 
 def _make_headers(tenant_id: str) -> dict:
-    """Build Orion-LD headers with normalized tenant ID — both NGSI-LD + FIWARE."""
-    import re
+    """Build Orion-LD headers — NGSI-LD + FIWARE. Tenant IDs are sent AS-IS.
 
-    n = tenant_id.lower().strip().replace("-", "_").replace(" ", "_")
-    n = re.sub(r"[^a-z0-9_]", "", n)
-    n = n.strip("_") or tenant_id
+    The canonical tenant format is hyphenated (services/common/tenant_utils.py);
+    the SDK OrionClient sends it verbatim. Underscoring it here routed writes to
+    a phantom tenant for hyphenated tenants.
+    """
+    n = tenant_id
     headers = {
         "NGSILD-Tenant": n,
         "Fiware-Service": n,
