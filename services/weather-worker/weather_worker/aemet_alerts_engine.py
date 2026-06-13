@@ -10,7 +10,6 @@ Alerts are geographic (per AEMET zone), cross-tenant. They live in tenant 'defau
 
 import logging
 import os
-import re
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -54,10 +53,8 @@ _AEMET_SUBCATEGORY_MAP: Dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 def _make_headers(tenant_id: str) -> dict:
-    """Build Orion-LD headers with normalized tenant ID — NGSI-LD + FIWARE."""
-    n = tenant_id.lower().strip().replace("-", "_").replace(" ", "_")
-    n = re.sub(r"[^a-z0-9_]", "", n)
-    n = n.strip("_") or tenant_id
+    """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated)."""
+    n = tenant_id
     headers = {
         "NGSILD-Tenant": n,
         "Fiware-Service": n,
