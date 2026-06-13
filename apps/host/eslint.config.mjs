@@ -15,7 +15,6 @@ export default tseslint.config(
     extends: [
       js.configs.recommended,
       ...tseslint.configs.recommended,
-      reactHooks.configs['recommended-latest'],
     ],
     languageOptions: {
       ecmaVersion: 'latest',
@@ -26,6 +25,7 @@ export default tseslint.config(
       },
     },
     plugins: {
+      'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
     },
     linterOptions: {
