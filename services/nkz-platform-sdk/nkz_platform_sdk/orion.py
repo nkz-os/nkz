@@ -347,3 +347,9 @@ class SyncOrionClient:
 
     def close(self) -> None:
         self._session.close()
+
+    def __enter__(self) -> "SyncOrionClient":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
