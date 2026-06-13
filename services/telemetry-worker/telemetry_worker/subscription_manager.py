@@ -1,6 +1,5 @@
 import os
 import logging
-import re
 import requests
 
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -121,10 +120,8 @@ SUBSCRIPTIONS = [
 
 
 def _make_headers(tenant_id: str) -> dict:
-    """Build Orion-LD headers with normalized tenant ID."""
-    n = tenant_id.lower().strip().replace("-", "_").replace(" ", "_")
-    n = re.sub(r"[^a-z0-9_]", "", n)
-    n = n.strip("_") or tenant_id
+    """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated)."""
+    n = tenant_id
     headers = {
         "NGSILD-Tenant": n,
         "Fiware-Service": n,

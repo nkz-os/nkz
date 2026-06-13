@@ -96,11 +96,9 @@ def inject_fiware_headers(headers, tenant=None):
 
         normalized = normalize_tenant_id(tenant)
     except (ImportError, ValueError):
-        import re
-
-        normalized = tenant.lower().replace("-", "_").replace(" ", "_")
-        normalized = re.sub(r"[^a-z0-9_]", "", normalized)
-        normalized = normalized.strip("_") or tenant
+        # Send AS-IS — canonical tenant IDs are hyphenated. Underscoring here
+        # routed writes to a phantom tenant for hyphenated (paying) tenants.
+        normalized = tenant
 
     headers["NGSILD-Tenant"] = normalized
     headers["Fiware-Service"] = normalized

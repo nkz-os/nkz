@@ -8,7 +8,6 @@ Handles: AgriSensor, RiskAssessment
 
 import logging
 import os
-import re
 
 import psycopg2
 import requests
@@ -70,9 +69,8 @@ SUBSCRIPTIONS = [
 
 
 def _make_headers(tenant_id: str) -> dict:
-    n = tenant_id.lower().strip().replace("-", "_").replace(" ", "_")
-    n = re.sub(r"[^a-z0-9_]", "", n)
-    n = n.strip("_") or tenant_id
+    # Tenant sent AS-IS — canonical is hyphenated (parity with SDK OrionClient).
+    n = tenant_id
     headers = {
         "NGSILD-Tenant": n,
         "Fiware-Service": n,
