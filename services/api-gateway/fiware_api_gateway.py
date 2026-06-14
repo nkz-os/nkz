@@ -159,6 +159,9 @@ BIOORCHESTRATOR_API_URL = os.getenv(
 CROP_HEALTH_API_URL = os.getenv(
     "CROP_HEALTH_API_URL", "http://crop-health-api-service:8000"
 )
+GREENHOUSE_DT_URL = os.getenv(
+    "GREENHOUSE_DT_URL", "http://greenhouse-dt-backend:8420"
+)
 FIELD_OPERATIONS_API_URL = os.getenv(
     "FIELD_OPERATIONS_API_URL", "http://field-operations-api-service:8420"
 )
@@ -1432,6 +1435,113 @@ def geoserver_proxy(path):
     except requests.exceptions.RequestException as e:
         logger.error(f"Error forwarding request to GeoServer: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route(
+    "/api/greenhouse",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
+@app.route(
+    "/api/greenhouse/<path:path>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
+def greenhouse_proxy(path=""):
+    """Proxy to Greenhouse DT backend with JWT auth and tenant injection.
+
+    Skips JWT validation for paths under /api/greenhouse/internal/
+    (module activation flow uses X-Internal-Service-Secret).
+    """
+    # Internal paths: skip JWT, require X-Internal-Service-Secret
+    if path.startswith("internal/"):
+        internal_secret = request.headers.get("X-Internal-Service-Secret", "")
+        if not internal_secret:
+            return jsonify({"error": "Missing X-Internal-Service-Secret"}), 401
+        tenant = request.headers.get("X-Tenant-ID", "")
+        user_id = request.headers.get("X-User-ID", "internal")
+        user_roles = request.headers.get("X-User-Roles", "internal")
+    else:
+        # Standard auth: JWT validation
+        token = get_request_token()
+        if not token:
+            return jsonify({"error": "Missing or invalid authorization"}), 401
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
+
+        tenant = extract_tenant_id(payload)
+        if not tenant:
+            return jsonify({"error": "Tenant not present in token"}), 401
+
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+
+        user_id = payload.get("sub", "")
+        user_roles = ",".join(payload.get("realm_access", {}).get("roles", []))
+
+    # Build target URL
+    target = f"{GREENHOUSE_DT_URL}/api/greenhouse"
+    if path:
+        target += f"/{path}"
+
+    # Forward headers
+    headers = {
+        "X-Tenant-ID": tenant,
+        "X-User-ID": user_id,
+        "X-User-Roles": user_roles,
+        "Content-Type": request.headers.get("Content-Type", "application/json"),
+    }
+    if path.startswith("internal/"):
+        headers["X-Internal-Service-Secret"] = request.headers.get(
+            "X-Internal-Service-Secret", ""
+        )
+
+    try:
+        response = requests.request(
+            method=request.method,
+            url=target,
+            headers=headers,
+            params=request.args,
+            json=request.get_json(silent=True) if request.is_json else None,
+            data=request.get_data() if not request.is_json else None,
+            timeout=30.0,
+        )
+        return make_response(
+            response.content, response.status_code, dict(response.headers)
+        )
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout forwarding to greenhouse-dt: {target}")
+        return jsonify({"error": "Greenhouse backend timeout"}), 504
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error forwarding to greenhouse-dt: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route("/api/ngsi-ld/notify", methods=["POST"])
+def ngsi_ld_notify_proxy():
+    """Proxy NGSI-LD subscription notifications to greenhouse-dt.
+
+    Called by Orion-LD when watched attributes change on AgriSensor entities.
+    No JWT required — validated by greenhouse backend via subscription payload.
+    """
+    target = f"{GREENHOUSE_DT_URL}/api/ngsi-ld/notify"
+    headers = {
+        "Content-Type": request.headers.get("Content-Type", "application/json"),
+        "NGSILD-Tenant": request.headers.get("NGSILD-Tenant", ""),
+        "Fiware-Service": request.headers.get("Fiware-Service", ""),
+    }
+    try:
+        response = requests.post(
+            url=target,
+            headers=headers,
+            json=request.get_json(silent=True) or {},
+            timeout=10.0,
+        )
+        return make_response(
+            response.content, response.status_code, dict(response.headers)
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error forwarding NGSI-LD notify to greenhouse-dt: {e}")
+        return jsonify({"error": "Greenhouse backend unreachable"}), 502
 
 
 @app.route("/ngsi-ld-context.json", methods=["GET"])
