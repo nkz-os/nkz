@@ -1440,6 +1440,7 @@ def geoserver_proxy(path):
 @app.route(
     "/api/greenhouse",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    strict_slashes=False,
 )
 @app.route(
     "/api/greenhouse/<path:path>",
