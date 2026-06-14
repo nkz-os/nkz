@@ -221,11 +221,6 @@ class ApiService {
               logger.debug('[API] Token expiring soon, refreshing for cookie update...');
               try {
                 await _keycloakRef.updateToken(60);
-                if (_keycloakRef.token) {
-                  // setSession is called by KeycloakAuthContext's onTokenExpired,
-                  // but also call here as a safety net for proactive refresh
-                  this.setSession(_keycloakRef.token).catch(() => {});
-                }
               } catch (e) {
                 logger.warn('[API] Token refresh failed:', e);
               }

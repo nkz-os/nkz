@@ -39,17 +39,12 @@ export function useDashboardData(): DashboardData {
   const loadExpirationInfo = useCallback(async (): Promise<ExpirationInfo | null> => {
     try {
       const token = getToken() || '';
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const response = await api.get('/api/admin/tenants', {
         headers: {
           'Authorization': `Bearer ${token}`
-        },
-        signal: controller.signal
+        }
       });
-
-      clearTimeout(timeoutId);
 
       let tenants: any[] = [];
       if (Array.isArray(response.data)) {
