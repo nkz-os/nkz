@@ -39,3 +39,14 @@ async def test_get_entity_appends_options():
     await client.get_entity(uri, options="keyValues")
     assert "options=keyValues" in str(route.calls[0].request.url)
     await client.close()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_entity_omits_options_when_none():
+    client = OrionClient("default", base_url=ORION)
+    uri = "urn:ngsi-ld:AgriParcel:P1"
+    route = respx.get(f"{ENTITIES}/{uri}").mock(return_value=Response(200, json={"id": uri}))
+    await client.get_entity(uri)
+    assert "options=" not in str(route.calls[0].request.url)
+    await client.close()
