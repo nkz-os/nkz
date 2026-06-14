@@ -30,6 +30,7 @@ import { AdminRoute, FarmerRoute, ModulesRoute } from '@/components/KeycloakProt
 import { RemoteModuleLoader } from '@/components/RemoteModuleLoader';
 import { Layout } from '@/components/Layout';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
+import { NotFound } from '@/components/error/NotFound';
 const UnifiedViewer = React.lazy(() => import('@/components/UnifiedViewer').then(m => ({ default: m.UnifiedViewer })));
 
 // CORE Pages (essential for platform operation)
@@ -44,7 +45,6 @@ const AdminManagement = React.lazy(() => import('@/pages/admin/AdminManagement')
 
 const Risks = React.lazy(() => import('@/pages/Risks').then(m => ({ default: m.Risks })));
 const IntelligenceInfoPage = React.lazy(() => import('@/pages/IntelligenceInfoPage').then(m => ({ default: m.IntelligenceInfoPage })));
-const NotFound = React.lazy(() => import('@/components/error/NotFound').then(m => ({ default: m.NotFound })));
 const MobileViewer = React.lazy(() => import('@/pages/MobileViewer'));
 // Route-level code splitting comment marker
 const RouteFallback = () => (
