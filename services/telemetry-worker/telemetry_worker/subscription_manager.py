@@ -116,6 +116,32 @@ SUBSCRIPTIONS = [
         "throttling": 10,
         "isActive": True,
     },
+    {
+        "description": "Telemetry Worker - Weather zonal stats (AgriParcelRecord)",
+        "type": "Subscription",
+        "entities": [{"type": "AgriParcelRecord"}],
+        "watchedAttributes": ["eto", "solarRadiation", "soilMoistureVwc"],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+            "attributes": [
+                "eto",
+                "solarRadiation",
+                "soilMoistureVwc",
+                "waterBalance",
+                "frostRisk",
+                "airTemperatureAvg",
+                "airTemperatureMin",
+                "soilTemperature",
+                "relativeHumidity",
+            ],
+        },
+        "throttling": 5,
+        "isActive": True,
+    },
 ]
 
 
