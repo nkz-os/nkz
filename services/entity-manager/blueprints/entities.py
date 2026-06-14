@@ -41,6 +41,7 @@ SDM_ALLOWED_TYPES = {
     'CropHealthObservation', 'SoilObservation',
     'ManagementPractice', 'IrrigationOperation',
     'Animal', 'LivestockFarm', 'Building', 'Farm',
+    'AgriGreenhouse',
 }
 
 entities_bp = Blueprint('entities', __name__)

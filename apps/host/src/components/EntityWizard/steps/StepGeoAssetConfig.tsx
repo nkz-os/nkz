@@ -19,6 +19,7 @@ const PARCEL_ASSOCIATION_TYPES = new Set([
 
 // AgriParcel gets first-class cadastral fields instead of generic additionalAttributes
 const IS_AGRI_PARCEL = (type: string) => type === 'AgriParcel';
+const IS_GREENHOUSE = (type: string) => type === 'AgriGreenhouse';
 
 export function StepGeoAssetConfig() {
   const { entityType, formData, updateFormData } = useWizard();
@@ -46,6 +47,7 @@ export function StepGeoAssetConfig() {
 
   const canSubdivide = SUBDIVISION_CAPABLE.has(entityType ?? '');
   const isAgriParcel = IS_AGRI_PARCEL(entityType ?? '');
+  const isGreenhouse = IS_GREENHOUSE(entityType ?? '');
 
   return (
     <div className="space-y-4">
@@ -160,6 +162,75 @@ export function StepGeoAssetConfig() {
               ))}
             </select>
           )}
+        </div>
+      )}
+
+      {/* AgriGreenhouse: specific fields for greenhouse DT module */}
+      {isGreenhouse && (
+        <div className="pt-4 border-t space-y-3">
+          <h4 className="text-sm font-medium text-gray-700">Dimensiones del invernadero</h4>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Área (m²)</label>
+              <Input
+                type="number"
+                min="0"
+                value={data.additionalAttributes.area ?? ''}
+                onChange={(e: any) => updateFormData({
+                  additionalAttributes: { ...data.additionalAttributes, area: Number(e.target.value) || 0 }
+                })}
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm"
+                placeholder="Ej: 2000"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Altura (m)</label>
+              <Input
+                type="number"
+                min="0"
+                step="0.1"
+                value={data.additionalAttributes.height ?? ''}
+                onChange={(e: any) => updateFormData({
+                  additionalAttributes: { ...data.additionalAttributes, height: Number(e.target.value) || 0 }
+                })}
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm"
+                placeholder="Ej: 5"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de cubierta</label>
+              <select
+                value={data.additionalAttributes.coverType as string ?? ''}
+                onChange={(e: any) => updateFormData({
+                  additionalAttributes: { ...data.additionalAttributes, coverType: e.target.value }
+                })}
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Seleccionar...</option>
+                <option value="polyethylene">Polietileno</option>
+                <option value="glass">Vidrio</option>
+                <option value="polycarbonate">Policarbonato</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Orientación</label>
+              <select
+                value={data.additionalAttributes.orientation as string ?? ''}
+                onChange={(e: any) => updateFormData({
+                  additionalAttributes: { ...data.additionalAttributes, orientation: e.target.value }
+                })}
+                className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Seleccionar...</option>
+                <option value="N-S">Norte-Sur</option>
+                <option value="E-W">Este-Oeste</option>
+              </select>
+            </div>
+          </div>
         </div>
       )}
 
