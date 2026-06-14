@@ -1,0 +1,20 @@
+# Greenhouse Digital Twin — source of truth: nkz-module-greenhouse-dt repo (GitOps strict).
+# Syncs Deployment, Service from the module repo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: greenhouse-dt
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nkz-os/nkz-module-greenhouse-dt
+    targetRevision: HEAD
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nekazari
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
