@@ -148,6 +148,50 @@ class OrionClient:
         resp.raise_for_status()
         return {"created": 0, "errors": [], "entity_ids": []}
 
+    async def upsert_entities_batch(
+        self,
+        entities: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Create-or-update entities via POST /entityOperations/upsert?options=update.
+
+        Unlike create_entities_batch (create semantics — existing entities land
+        in 207/errors), upsert overwrites existing attributes. This is the
+        idempotent primitive for catalog (re-)ingestion.
+
+        Returns:
+            dict with keys ``upserted``, ``errors``, ``entity_ids``.
+        Raises:
+            httpx.HTTPStatusError: on non-batchable failure (caller may fall back).
+        """
+        prepared = [self._ensure_context(e) for e in entities]
+        if not prepared:
+            return {"upserted": 0, "errors": [], "entity_ids": []}
+
+        resp = await self._client.post(
+            self._url("/ngsi-ld/v1/entityOperations/upsert"),
+            params={"options": "update"},
+            json=prepared,
+            headers=self._headers("application/ld+json"),
+        )
+
+        entity_ids = [e["id"] for e in prepared if e.get("id")]
+
+        if resp.status_code in (200, 201, 204):
+            return {"upserted": len(prepared), "errors": [], "entity_ids": entity_ids}
+
+        if resp.status_code == 207:
+            body = resp.json() if resp.content else {}
+            success = body.get("success", entity_ids)
+            errors = body.get("errors", [])
+            if isinstance(success, list) and success and isinstance(success[0], dict):
+                success_ids = [s.get("id", "") for s in success if s.get("id")]
+            else:
+                success_ids = success if isinstance(success, list) else entity_ids
+            return {"upserted": len(success_ids), "errors": errors, "entity_ids": success_ids}
+
+        resp.raise_for_status()
+        return {"upserted": 0, "errors": [], "entity_ids": []}
+
     async def update_entity_attrs(self, entity_id: str, attrs: dict[str, Any]) -> None:
         # attrs fragments carry no @context, so the legal NGSI-LD combination
         # is application/json + Link header (ld+json without @context is a 400).
