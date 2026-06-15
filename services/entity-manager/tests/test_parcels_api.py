@@ -146,3 +146,25 @@ def test_create_zone_links_to_parent_and_inherits(client):
     assert zone["category"]["value"] == "managementZone"
     assert zone["hasAgriParcel"]["object"] == "urn:ngsi-ld:AgriParcel:parent"
     assert zone["cropType"]["value"] == "olive"
+
+
+def test_patch_parcel_attrs(client):
+    from unittest.mock import patch
+    with patch("blueprints.parcels._orion_patch_attrs", return_value=(204, {})) as pa, \
+         patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.patch("/api/entities/parcels/urn:ngsi-ld:AgriParcel:x",
+                            json={"cropType": "vine"}, headers={"X-Tenant-ID": "montiko"})
+    assert resp.status_code == 204
+    assert pa.called
+
+
+def test_delete_parcel_cascades_to_zones(client):
+    from unittest.mock import patch
+    children = [{"id": "urn:ngsi-ld:AgriParcel:z1"}]
+    with patch("blueprints.parcels._orion_query_children", return_value=children), \
+         patch("blueprints.parcels._orion_delete", return_value=204) as dl, \
+         patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.delete("/api/entities/parcels/urn:ngsi-ld:AgriParcel:p1",
+                            headers={"X-Tenant-ID": "montiko"})
+    assert resp.status_code == 204
+    assert dl.call_count == 2  # parent + 1 child

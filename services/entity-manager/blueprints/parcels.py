@@ -19,6 +19,9 @@ parcels_bp = Blueprint("parcels", __name__)
 
 _LINK = f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 
+# Minimal valid geometry used only to satisfy _build_parcel_entity when PATCH omits geometry.
+_PLACEHOLDER_GEOM = {"type": "Polygon", "coordinates": [[[0, 0], [0, 0], [0, 0], [0, 0]]]}
+
 
 def _current_tenant() -> str:
     return getattr(g, "tenant", None) or request.headers.get("X-Tenant-ID", "")
@@ -124,6 +127,61 @@ def create_parcel():
         "Created AgriParcel %s tenant=%s ref=%s", parcel_id, tenant, cadastral_ref
     )
     return jsonify({"id": parcel_id, "created": True}), 201
+
+
+def _orion_delete(tenant: str, parcel_id: str) -> int:
+    headers = inject_fiware_headers({"Link": _LINK}, tenant)
+    return requests.delete(
+        f"{ORION_URL}/ngsi-ld/v1/entities/{parcel_id}", headers=headers, timeout=15
+    ).status_code
+
+
+def _orion_query_children(tenant: str, parent_id: str):
+    headers = inject_fiware_headers({"Accept": "application/json", "Link": _LINK}, tenant)
+    params = {"type": "AgriParcel", "q": f'hasAgriParcel=="{parent_id}"', "limit": 200}
+    r = requests.get(
+        f"{ORION_URL}/ngsi-ld/v1/entities", params=params, headers=headers, timeout=15
+    )
+    return (r.json() or []) if r.status_code == 200 else []
+
+
+@parcels_bp.route("/api/entities/parcels/<path:parcel_id>", methods=["PATCH"])
+@require_auth
+def patch_parcel(parcel_id):
+    tenant = _current_tenant()
+    data = request.get_json(silent=True) or {}
+    if "geometry" in data:
+        try:
+            validate_parcel_geometry(data["geometry"])
+        except GeometryError as e:
+            return jsonify({"error": "invalid_geometry", "detail": str(e)}), 422
+    entity = _build_parcel_entity(
+        parcel_id, {**data, "geometry": data.get("geometry") or _PLACEHOLDER_GEOM}
+    )
+    attrs = {
+        k: v for k, v in entity.items()
+        if k not in ("id", "type") and (k != "location" or "geometry" in data)
+    }
+    status, _ = _orion_patch_attrs(tenant, parcel_id, attrs)
+    return (
+        ("", 204)
+        if status in (200, 204)
+        else (jsonify({"error": "orion_write_failed", "status": status}), 502)
+    )
+
+
+@parcels_bp.route("/api/entities/parcels/<path:parcel_id>", methods=["DELETE"])
+@require_auth
+def delete_parcel(parcel_id):
+    tenant = _current_tenant()
+    for child in _orion_query_children(tenant, parcel_id):
+        _orion_delete(tenant, child["id"])
+    status = _orion_delete(tenant, parcel_id)
+    return (
+        ("", 204)
+        if status in (200, 204)
+        else (jsonify({"error": "orion_delete_failed", "status": status}), 502)
+    )
 
 
 @parcels_bp.route("/api/entities/parcels/<path:parent_id>/zones", methods=["POST"])
