@@ -5,6 +5,7 @@ Source of truth: Orion-LD AgriParcel. cadastral_parcels (PostGIS) is a
 read-model projected by subscription + reconcile.
 """
 import logging
+import os
 import re
 import uuid
 
@@ -14,6 +15,7 @@ from flask import Blueprint, request, jsonify, g
 from common.auth_middleware import require_auth, inject_fiware_headers
 from helpers import ORION_URL, CONTEXT_URL
 from parcel_geometry import validate_parcel_geometry, GeometryError
+from parcel_projection import project_rows
 
 logger = logging.getLogger(__name__)
 parcels_bp = Blueprint("parcels", __name__)
@@ -185,6 +187,23 @@ def delete_parcel(parcel_id):
         if status in (200, 204)
         else (jsonify({"error": "orion_delete_failed", "status": status}), 502)
     )
+
+
+@parcels_bp.route("/internal/parcels/project", methods=["POST"])
+def project_parcels():
+    """Orion notification sink — projects AgriParcel entities into cadastral_parcels.
+
+    Authenticated by X-Internal-Service-Secret header only (no JWT/cookie).
+    Must remain exempt from @require_auth.
+    """
+    secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
+    if not secret or request.headers.get("X-Internal-Service-Secret") != secret:
+        return jsonify({"error": "forbidden"}), 403
+    tenant = request.headers.get("NGSILD-Tenant") or request.headers.get("X-Tenant-ID", "")
+    payload = request.get_json(silent=True) or {}
+    entities = payload.get("data", [])
+    project_rows(tenant, entities, deleted=False)
+    return jsonify({"projected": len(entities)}), 200
 
 
 @parcels_bp.route("/api/entities/parcels/<path:parent_id>/zones", methods=["POST"])

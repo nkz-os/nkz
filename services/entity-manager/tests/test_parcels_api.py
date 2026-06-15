@@ -201,3 +201,27 @@ def test_create_parcel_rejects_injecting_cadastral_ref(client):
                            json={"name": "P1", "geometry": POLY, "cadastralReference": 'x"||id~="urn'},
                            headers={"X-Tenant-ID": "montiko"})
     assert resp.status_code == 422
+
+
+def test_projection_endpoint_requires_internal_secret(client, monkeypatch):
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "s3cret")
+    resp = client.post("/internal/parcels/project", json={"data": []},
+                       headers={"X-Internal-Service-Secret": "wrong"})
+    assert resp.status_code == 403
+
+
+def test_projection_endpoint_upserts_on_notification(client, monkeypatch):
+    from unittest.mock import patch
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "s3cret")
+    notif = {"data": [{
+        "id": "urn:ngsi-ld:AgriParcel:11111111-1111-1111-1111-111111111111",
+        "type": "AgriParcel",
+        "location": {"type": "GeoProperty", "value": {"type": "Polygon",
+            "coordinates": [[[0,0],[0,0.001],[0.001,0.001],[0,0]]]}},
+    }]}
+    with patch("blueprints.parcels.project_rows") as pr:
+        resp = client.post("/internal/parcels/project", json=notif,
+                           headers={"X-Internal-Service-Secret": "s3cret",
+                                    "NGSILD-Tenant": "montiko"})
+    assert resp.status_code == 200
+    assert pr.called

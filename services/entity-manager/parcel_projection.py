@@ -1,7 +1,12 @@
 """Project AgriParcel (Orion SoT) into the cadastral_parcels read-model. No Flask."""
 import json
+import logging
 import re
 from typing import Any, Dict, Optional
+
+from db_helper import get_db_connection_simple, return_db_connection
+
+logger = logging.getLogger(__name__)
 
 _UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
@@ -70,3 +75,30 @@ def project_delete_sql() -> str:
     Expects params dict with keys: id (UUID str), tenant_id.
     """
     return "DELETE FROM cadastral_parcels WHERE id = %(id)s::uuid AND tenant_id = %(tenant_id)s"
+
+
+def project_rows(tenant: str, entities: list, deleted: bool = False) -> int:
+    """Upsert (or delete) AgriParcel rows into the cadastral_parcels read-model.
+
+    Returns the number of rows applied. Skips legacy non-uuid ids and (for upsert)
+    geometry-less entities.
+    """
+    conn = get_db_connection_simple()
+    applied = 0
+    try:
+        cur = conn.cursor()
+        sql = project_delete_sql() if deleted else project_upsert_sql()
+        for ent in entities:
+            row = parse_agriparcel(tenant, ent)
+            if row["id"] is None:
+                logger.warning("Skip projection (legacy non-uuid id): %s", ent.get("id"))
+                continue
+            if not deleted and not row["geometry_geojson"]:
+                logger.warning("Skip projection (no geometry): %s", ent.get("id"))
+                continue
+            cur.execute(sql, row)
+            applied += 1
+        conn.commit()
+    finally:
+        return_db_connection(conn)
+    return applied
