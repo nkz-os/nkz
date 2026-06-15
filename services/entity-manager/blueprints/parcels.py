@@ -16,11 +16,16 @@ from common.auth_middleware import require_auth, inject_fiware_headers
 from helpers import ORION_URL, CONTEXT_URL
 from parcel_geometry import validate_parcel_geometry, GeometryError
 from parcel_projection import project_rows
+from parcel_subscription import ensure_projection_subscription
 
 logger = logging.getLogger(__name__)
 parcels_bp = Blueprint("parcels", __name__)
 
 _LINK = f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+_PROJECTION_ENDPOINT = os.getenv(
+    "PARCEL_PROJECTION_ENDPOINT",
+    "http://entity-manager-service:5000/internal/parcels/project",
+)
 
 
 def _current_tenant() -> str:
@@ -130,6 +135,10 @@ def create_parcel():
     logger.info(
         "Created AgriParcel %s tenant=%s ref=%s", parcel_id, tenant, cadastral_ref
     )
+    try:
+        ensure_projection_subscription(tenant, _PROJECTION_ENDPOINT, os.getenv("INTERNAL_SERVICE_SECRET", ""))
+    except Exception:
+        logger.exception("ensure_projection_subscription failed (non-fatal) tenant=%s", tenant)
     return jsonify({"id": parcel_id, "created": True}), 201
 
 

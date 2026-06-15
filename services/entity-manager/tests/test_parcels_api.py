@@ -246,3 +246,16 @@ def test_reconcile_parcels_calls_project_rows(client):
     body = resp.get_json()
     assert body["reconciled"] == 1
     pr.assert_called_once_with("montiko", entities, deleted=False)
+
+
+def test_create_parcel_ensures_projection_subscription(client):
+    from unittest.mock import patch
+    with patch("blueprints.parcels._orion_query_by_cadastral_ref", return_value=[]), \
+         patch("blueprints.parcels._orion_upsert", return_value=(201, {})), \
+         patch("blueprints.parcels.ensure_projection_subscription") as ens, \
+         patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.post("/api/entities/parcels",
+                           json={"name": "P1", "geometry": POLY},
+                           headers={"X-Tenant-ID": "montiko", "X-User-ID": "u1"})
+    assert resp.status_code == 201
+    assert ens.called  # subscription ensured on create (ensure-on-use)
