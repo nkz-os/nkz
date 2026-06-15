@@ -184,6 +184,32 @@
       "_comment": "SDM-004 Proposal: Raster derived from point samples or gridded soil models (COG/NetCDF storage)"
     },
 
+    "CompostWindrow": {
+      "@id": "nkz:CompostWindrow",
+      "@type": "@id",
+      "_comment": "Platform extension — active compost pile/windrow with thermal monitoring and compliance tracking."
+    },
+    "CompostRecipe": {
+      "@id": "nkz:CompostRecipe",
+      "@type": "@id",
+      "_comment": "Platform extension — compost recipe with C/N ratio calculation and input byproducts."
+    },
+    "CompostCertificate": {
+      "@id": "nkz:CompostCertificate",
+      "@type": "@id",
+      "_comment": "Platform extension — sanitization certificate for EU 2021/1165 compliance."
+    },
+    "BiofertilizerExtraction": {
+      "@id": "nkz:BiofertilizerExtraction",
+      "@type": "@id",
+      "_comment": "Platform extension — liquid biofertilizer extraction batch from compost tea reactor."
+    },
+    "CompostInput": {
+      "@id": "nkz:CompostInput",
+      "@type": "@id",
+      "_comment": "Platform extension — registered agricultural byproduct inventory (pruning, manure, pomace)."
+    },
+
     "horizons": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#horizons",
     "hydrologicGroup": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#hydrologicGroup",
     "parcelVersionId": "https://nkz-os.org/sdm-proposals/AgriSoilExtended#parcelVersionId",
@@ -381,6 +407,19 @@
     "eppoCode": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/agroVocConcept",
     "inputMethod": "https://nekazari.io/vocab/inputMethod",
     "refAgriCrop": "https://smart-data-models.github.io/dataModel.Agrifood/AgriCrop/schema.json",
+
+    "daysAbove55C": "nkz:daysAbove55C",
+    "cnRatio": "nkz:cnRatio",
+    "phase": "nkz:phase",
+    "refersTo": "nkz:refersTo",
+    "hasRecipe": "nkz:hasRecipe",
+    "turnsCompleted": "nkz:turnsCompleted",
+    "predictedCnRatio": "nkz:predictedCnRatio",
+    "targetCnRatio": "nkz:targetCnRatio",
+    "predictedMoisture": "nkz:predictedMoisture",
+    "waterToAddLiters": "nkz:waterToAddLiters",
+    "regulation": "nkz:regulation",
+    "maxTemperature": "nkz:maxTemperature",
 
       "Point": "schema:GeoCoordinates",
       "coordinates": "schema:geo"
