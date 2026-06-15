@@ -73,9 +73,26 @@ def _build_parcel_entity(parcel_id: str, data: dict) -> dict:
     return ent
 
 
+def _orion_patch_attrs(tenant: str, parcel_id: str, attrs: dict):
+    """Attribute fragment → application/json + Link (NO @context in body)."""
+    headers = inject_fiware_headers({"Content-Type": "application/json", "Link": _LINK}, tenant)
+    r = requests.patch(
+        f"{ORION_URL}/ngsi-ld/v1/entities/{parcel_id}/attrs",
+        json=attrs,
+        headers=headers,
+        timeout=15,
+    )
+    return r.status_code, (r.json() if r.content else {})
+
+
 def _update_existing(tenant: str, parcel_id: str, data: dict):
-    """Placeholder; implemented in a later task."""
-    raise NotImplementedError
+    entity = _build_parcel_entity(parcel_id, data)
+    attrs = {k: v for k, v in entity.items() if k not in ("id", "type")}
+    status, _ = _orion_patch_attrs(tenant, parcel_id, attrs)
+    if status not in (200, 204):
+        return jsonify({"error": "orion_write_failed", "status": status}), 502
+    logger.info("Dedup update AgriParcel %s tenant=%s", parcel_id, tenant)
+    return jsonify({"id": parcel_id, "created": False}), 200
 
 
 @parcels_bp.route("/api/entities/parcels", methods=["POST"])

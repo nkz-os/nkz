@@ -118,3 +118,16 @@ def test_create_parcel_invalid_geometry_returns_422(client):
             headers={"X-Tenant-ID": "montiko", "X-User-ID": "u1"},
         )
     assert resp.status_code == 422
+
+
+def test_create_with_existing_cadastral_ref_updates_not_duplicates(client):
+    existing = [{"id": "urn:ngsi-ld:AgriParcel:abc", "type": "AgriParcel"}]
+    with patch("blueprints.parcels._orion_query_by_cadastral_ref", return_value=existing), \
+         patch("blueprints.parcels._orion_patch_attrs", return_value=(204, {})) as pa, \
+         patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.post("/api/entities/parcels",
+                           json={"name": "P1", "geometry": POLY, "cadastralReference": "REF-1"},
+                           headers={"X-Tenant-ID": "montiko", "X-User-ID": "u1"})
+    assert resp.status_code == 200
+    assert resp.get_json()["id"] == "urn:ngsi-ld:AgriParcel:abc"
+    assert pa.called
