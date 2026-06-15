@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Parcels Blueprint — entity-manager is the SOLE writer of AgriParcel.
+
+Source of truth: Orion-LD AgriParcel. cadastral_parcels (PostGIS) is a
+read-model projected by subscription + reconcile.
+"""
+import logging
+import uuid
+
+import requests
+from flask import Blueprint, request, jsonify, g
+
+from common.auth_middleware import require_auth, inject_fiware_headers
+from helpers import ORION_URL, CONTEXT_URL
+from parcel_geometry import validate_parcel_geometry, GeometryError
+
+logger = logging.getLogger(__name__)
+parcels_bp = Blueprint("parcels", __name__)
+
+_LINK = f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
+
+
+def _current_tenant() -> str:
+    return getattr(g, "tenant", None) or request.headers.get("X-Tenant-ID", "")
+
+
+def _orion_upsert(tenant: str, entity: dict):
+    """Create/replace a full NGSI-LD entity (carries @context in body)."""
+    headers = inject_fiware_headers({"Content-Type": "application/ld+json"}, tenant)
+    body = dict(entity)
+    body["@context"] = CONTEXT_URL
+    r = requests.post(
+        f"{ORION_URL}/ngsi-ld/v1/entityOperations/upsert",
+        json=[body],
+        headers=headers,
+        timeout=15,
+    )
+    return r.status_code, (r.json() if r.content else {})
+
+
+def _orion_query_by_cadastral_ref(tenant: str, cadastral_ref: str):
+    """Find existing AgriParcel with this cadastralReference in the tenant."""
+    headers = inject_fiware_headers({"Accept": "application/json", "Link": _LINK}, tenant)
+    params = {
+        "type": "AgriParcel",
+        "q": f'cadastralReference=="{cadastral_ref}"',
+        "limit": 5,
+    }
+    r = requests.get(
+        f"{ORION_URL}/ngsi-ld/v1/entities",
+        params=params,
+        headers=headers,
+        timeout=15,
+    )
+    if r.status_code != 200:
+        return []
+    return r.json() or []
+
+
+def _build_parcel_entity(parcel_id: str, data: dict) -> dict:
+    ent = {
+        "id": parcel_id,
+        "type": "AgriParcel",
+        "location": {"type": "GeoProperty", "value": data["geometry"]},
+        "category": {"type": "Property", "value": data.get("category", "cadastral")},
+    }
+    if data.get("name"):
+        ent["name"] = {"type": "Property", "value": data["name"]}
+    if data.get("cadastralReference"):
+        ent["cadastralReference"] = {"type": "Property", "value": data["cadastralReference"]}
+    if data.get("cropType"):
+        ent["cropType"] = {"type": "Property", "value": data["cropType"]}
+    return ent
+
+
+def _update_existing(tenant: str, parcel_id: str, data: dict):
+    """Placeholder; implemented in a later task."""
+    raise NotImplementedError
+
+
+@parcels_bp.route("/api/entities/parcels", methods=["POST"])
+@require_auth
+def create_parcel():
+    tenant = _current_tenant()
+    data = request.get_json(silent=True) or {}
+    geometry = data.get("geometry")
+    try:
+        validate_parcel_geometry(geometry)
+    except GeometryError as e:
+        return jsonify({"error": "invalid_geometry", "detail": str(e)}), 422
+
+    cadastral_ref = data.get("cadastralReference")
+    if cadastral_ref:
+        existing = _orion_query_by_cadastral_ref(tenant, cadastral_ref)
+        if existing:
+            return _update_existing(tenant, existing[0]["id"], data)
+
+    parcel_id = f"urn:ngsi-ld:AgriParcel:{uuid.uuid4()}"
+    entity = _build_parcel_entity(parcel_id, data)
+    status, _ = _orion_upsert(tenant, entity)
+    if status not in (200, 201, 204):
+        logger.error(
+            "Orion upsert failed (%s) tenant=%s parcel=%s", status, tenant, parcel_id
+        )
+        return jsonify({"error": "orion_write_failed", "status": status}), 502
+    logger.info(
+        "Created AgriParcel %s tenant=%s ref=%s", parcel_id, tenant, cadastral_ref
+    )
+    return jsonify({"id": parcel_id, "created": True}), 201
