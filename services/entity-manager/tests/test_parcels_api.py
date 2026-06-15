@@ -131,3 +131,18 @@ def test_create_with_existing_cadastral_ref_updates_not_duplicates(client):
     assert resp.status_code == 200
     assert resp.get_json()["id"] == "urn:ngsi-ld:AgriParcel:abc"
     assert pa.called
+
+
+def test_create_zone_links_to_parent_and_inherits(client):
+    from unittest.mock import patch
+    with patch("blueprints.parcels._orion_upsert", return_value=(201, {})) as up, \
+         patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.post("/api/entities/parcels/urn:ngsi-ld:AgriParcel:parent/zones",
+                           json={"zones": [{"name": "Z1", "geometry": POLY}], "inherit": {"cropType": "olive"}},
+                           headers={"X-Tenant-ID": "montiko", "X-User-ID": "u1"})
+    assert resp.status_code == 201
+    zone = up.call_args.args[1]
+    assert zone["type"] == "AgriParcel"
+    assert zone["category"]["value"] == "managementZone"
+    assert zone["hasAgriParcel"]["object"] == "urn:ngsi-ld:AgriParcel:parent"
+    assert zone["cropType"]["value"] == "olive"

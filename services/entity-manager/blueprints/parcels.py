@@ -124,3 +124,26 @@ def create_parcel():
         "Created AgriParcel %s tenant=%s ref=%s", parcel_id, tenant, cadastral_ref
     )
     return jsonify({"id": parcel_id, "created": True}), 201
+
+
+@parcels_bp.route("/api/entities/parcels/<path:parent_id>/zones", methods=["POST"])
+@require_auth
+def create_zones(parent_id):
+    tenant = _current_tenant()
+    data = request.get_json(silent=True) or {}
+    inherit = data.get("inherit", {}) or {}
+    created = []
+    for z in data.get("zones", []):
+        try:
+            validate_parcel_geometry(z.get("geometry"))
+        except GeometryError as e:
+            return jsonify({"error": "invalid_geometry", "detail": str(e)}), 422
+        merged = {**inherit, **z, "category": "managementZone"}
+        zid = f"urn:ngsi-ld:AgriParcel:{uuid.uuid4()}"
+        entity = _build_parcel_entity(zid, merged)
+        entity["hasAgriParcel"] = {"type": "Relationship", "object": parent_id}
+        status, _ = _orion_upsert(tenant, entity)
+        if status not in (200, 201, 204):
+            return jsonify({"error": "orion_write_failed", "status": status}), 502
+        created.append(zid)
+    return jsonify({"created": created}), 201
