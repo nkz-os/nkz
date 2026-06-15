@@ -68,7 +68,7 @@
     "react-router": "^6.30.4",
     "react-router-dom": "^6.30.4",
     "roslib": "^1.3.0",
-    "tailwind-merge": "^2.4.0",
+    "tailwind-merge": "^3.6.0",
     "vite": "^6.4.2",
     "vite-plugin-cesium": "^1.2.23"
   },
