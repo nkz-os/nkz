@@ -136,6 +136,7 @@ def test_create_with_existing_cadastral_ref_updates_not_duplicates(client):
 def test_create_zone_links_to_parent_and_inherits(client):
     from unittest.mock import patch
     with patch("blueprints.parcels._orion_upsert", return_value=(201, {})) as up, \
+         patch("blueprints.parcels._orion_entity_exists", return_value=True), \
          patch("blueprints.parcels._current_tenant", return_value="montiko"):
         resp = client.post("/api/entities/parcels/urn:ngsi-ld:AgriParcel:parent/zones",
                            json={"zones": [{"name": "Z1", "geometry": POLY}], "inherit": {"cropType": "olive"}},
@@ -168,3 +169,35 @@ def test_delete_parcel_cascades_to_zones(client):
                             headers={"X-Tenant-ID": "montiko"})
     assert resp.status_code == 204
     assert dl.call_count == 2  # parent + 1 child
+
+
+def test_query_by_cadastral_ref_includes_link_context_header():
+    from unittest.mock import patch, MagicMock
+    import blueprints.parcels as p
+    fake = MagicMock(status_code=200)
+    fake.json.return_value = []
+    with patch("blueprints.parcels.requests.get", return_value=fake) as g, \
+         patch("blueprints.parcels.inject_fiware_headers", side_effect=lambda h, t=None, **k: {**h, "NGSILD-Tenant": t}):
+        p._orion_query_by_cadastral_ref("montiko", "REF-1")
+    sent_headers = g.call_args.kwargs["headers"]
+    assert "Link" in sent_headers and "json-ld#context" in sent_headers["Link"]
+    assert sent_headers.get("NGSILD-Tenant") == "montiko"
+
+
+def test_create_zone_missing_parent_returns_404(client):
+    from unittest.mock import patch
+    with patch("blueprints.parcels._orion_entity_exists", return_value=False), \
+         patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.post("/api/entities/parcels/urn:ngsi-ld:AgriParcel:nope/zones",
+                           json={"zones": [{"name": "Z1", "geometry": POLY}]},
+                           headers={"X-Tenant-ID": "montiko"})
+    assert resp.status_code == 404
+
+
+def test_create_parcel_rejects_injecting_cadastral_ref(client):
+    from unittest.mock import patch
+    with patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.post("/api/entities/parcels",
+                           json={"name": "P1", "geometry": POLY, "cadastralReference": 'x"||id~="urn'},
+                           headers={"X-Tenant-ID": "montiko"})
+    assert resp.status_code == 422
