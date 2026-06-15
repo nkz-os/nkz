@@ -14,9 +14,10 @@ logger = logging.getLogger(__name__)
 _LINK = f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 
 
-def build_projection_subscription(endpoint_uri: str, secret: str) -> dict:
+def build_projection_subscription(endpoint_uri: str, secret: str, tenant: str) -> dict:
     # receiverInfo: Orion sends these headers on every notification → authenticates
     # the call to /internal/parcels/project (the endpoint is invoked BY Orion, not by us).
+    # NGSILD-Tenant is included so the projection endpoint knows which tenant to write to.
     return {
         "type": "Subscription",
         "entities": [{"type": "AgriParcel"}],
@@ -24,7 +25,10 @@ def build_projection_subscription(endpoint_uri: str, secret: str) -> dict:
             "endpoint": {
                 "uri": endpoint_uri,
                 "accept": "application/json",
-                "receiverInfo": [{"key": "X-Internal-Service-Secret", "value": secret}],
+                "receiverInfo": [
+                    {"key": "X-Internal-Service-Secret", "value": secret},
+                    {"key": "NGSILD-Tenant", "value": tenant},
+                ],
             },
             "format": "normalized",
         },
@@ -39,7 +43,9 @@ def _list_subscriptions(tenant: str):
 
 
 def _create_subscription(tenant: str, body: dict):
-    headers = inject_fiware_headers({"Content-Type": "application/ld+json"}, tenant)
+    headers = inject_fiware_headers({}, tenant)
+    headers["Content-Type"] = "application/ld+json"
+    headers.pop("Link", None)
     body = dict(body)
     body["@context"] = CONTEXT_URL
     r = requests.post(f"{ORION_URL}/ngsi-ld/v1/subscriptions", json=body, headers=headers, timeout=15)
@@ -54,4 +60,4 @@ def ensure_projection_subscription(tenant: str, endpoint_uri: str, secret: str):
         same_uri = s.get("notification", {}).get("endpoint", {}).get("uri") == endpoint_uri
         if watches_parcel and same_uri:
             return  # idempotent: already present
-    _create_subscription(tenant, build_projection_subscription(endpoint_uri, secret))
+    _create_subscription(tenant, build_projection_subscription(endpoint_uri, secret, tenant))

@@ -15,7 +15,7 @@ from flask import Blueprint, request, jsonify, g
 from common.auth_middleware import require_auth, inject_fiware_headers
 from helpers import ORION_URL, CONTEXT_URL
 from parcel_geometry import validate_parcel_geometry, GeometryError
-from parcel_projection import project_rows
+from parcel_projection import project_rows, urn_to_uuid
 from parcel_subscription import ensure_projection_subscription
 
 logger = logging.getLogger(__name__)
@@ -33,8 +33,10 @@ def _current_tenant() -> str:
 
 
 def _orion_upsert(tenant: str, entity: dict):
-    """Create/replace a full NGSI-LD entity (carries @context in body)."""
-    headers = inject_fiware_headers({"Content-Type": "application/ld+json"}, tenant)
+    """Create/replace a full NGSI-LD entity (carries @context in body → ld+json, no Link)."""
+    headers = inject_fiware_headers({}, tenant)
+    headers["Content-Type"] = "application/ld+json"
+    headers.pop("Link", None)
     body = dict(entity)
     body["@context"] = CONTEXT_URL
     r = requests.post(
@@ -184,18 +186,23 @@ def patch_parcel(parcel_id):
 @require_auth
 def delete_parcel(parcel_id):
     tenant = _current_tenant()
+    deleted_ids = []
     for child in _orion_query_children(tenant, parcel_id):
         sc = _orion_delete(tenant, child["id"])
         if sc not in (200, 204, 404):
             logger.error("Child zone delete failed (%s) parent=%s child=%s tenant=%s",
                          sc, parcel_id, child["id"], tenant)
             return jsonify({"error": "child_delete_failed", "child": child["id"], "status": sc}), 502
+        deleted_ids.append(child["id"])
     status = _orion_delete(tenant, parcel_id)
-    return (
-        ("", 204)
-        if status in (200, 204)
-        else (jsonify({"error": "orion_delete_failed", "status": status}), 502)
-    )
+    if status not in (200, 204):
+        return jsonify({"error": "orion_delete_failed", "status": status}), 502
+    deleted_ids.append(parcel_id)
+    try:
+        project_rows(tenant, [{"id": i} for i in deleted_ids], deleted=True)
+    except Exception:
+        logger.exception("read-model delete projection failed (non-fatal) tenant=%s", tenant)
+    return ("", 204)
 
 
 @parcels_bp.route("/internal/parcels/project", methods=["POST"])
@@ -225,7 +232,10 @@ def reconcile_parcels():
     r = requests.get(f"{ORION_URL}/ngsi-ld/v1/entities", params=params, headers=headers, timeout=30)
     entities = (r.json() or []) if r.status_code == 200 else []
     project_rows(tenant, entities, deleted=False)
-    return jsonify({"reconciled": len(entities)}), 200
+    present_uuids = [u for u in (urn_to_uuid(e["id"]) for e in entities) if u]
+    from parcel_projection import delete_orphans
+    removed = delete_orphans(tenant, present_uuids)
+    return jsonify({"reconciled": len(entities), "removed_orphans": removed}), 200
 
 
 @parcels_bp.route("/api/entities/parcels/<path:parent_id>/zones", methods=["POST"])

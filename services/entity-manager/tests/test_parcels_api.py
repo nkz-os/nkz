@@ -239,12 +239,14 @@ def test_reconcile_parcels_calls_project_rows(client):
     fake_resp.json.return_value = entities
     with patch("blueprints.parcels.requests.get", return_value=fake_resp), \
          patch("blueprints.parcels.project_rows") as pr, \
+         patch("parcel_projection.delete_orphans", return_value=0), \
          patch("blueprints.parcels._current_tenant", return_value="montiko"):
         resp = client.post("/api/admin/parcels/reconcile",
                            headers={"X-Tenant-ID": "montiko"})
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["reconciled"] == 1
+    assert body["removed_orphans"] == 0
     pr.assert_called_once_with("montiko", entities, deleted=False)
 
 
@@ -259,3 +261,57 @@ def test_create_parcel_ensures_projection_subscription(client):
                            headers={"X-Tenant-ID": "montiko", "X-User-ID": "u1"})
     assert resp.status_code == 201
     assert ens.called  # subscription ensured on create (ensure-on-use)
+
+
+def test_orion_upsert_sends_ldjson_without_link(monkeypatch):
+    """FIX 1: _orion_upsert must set Content-Type: application/ld+json and remove Link.
+
+    Uses the REAL inject_fiware_headers (patched back from common.ngsi_headers) to
+    exercise the actual header-building path and confirm our explicit override is correct.
+    """
+    import blueprints.parcels as p
+    from unittest.mock import patch, MagicMock
+
+    # Bring in the real header helper (bypasses the module-level stub in this test)
+    _services_dir = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    import importlib.util, sys as _sys
+    _ngsi_spec = importlib.util.spec_from_file_location(
+        "_real_ngsi_headers",
+        os.path.join(_services_dir, "common", "ngsi_headers.py"),
+    )
+    _ngsi_mod = importlib.util.module_from_spec(_ngsi_spec)
+    _ngsi_spec.loader.exec_module(_ngsi_mod)
+    real_inject = _ngsi_mod.inject_fiware_headers
+
+    monkeypatch.setenv("CONTEXT_URL", "http://ctx.example/ctx.jsonld")
+
+    fake = MagicMock(status_code=201)
+    fake.content = b"{}"
+    fake.json.return_value = {}
+
+    with patch("blueprints.parcels.inject_fiware_headers", real_inject), \
+         patch("blueprints.parcels.requests.post", return_value=fake) as post:
+        p._orion_upsert("montiko", {"id": "urn:ngsi-ld:AgriParcel:x", "type": "AgriParcel"})
+
+    sent = post.call_args.kwargs["headers"]
+    assert sent["Content-Type"] == "application/ld+json", \
+        f"Expected ld+json, got {sent.get('Content-Type')}"
+    assert "Link" not in sent, f"Link header must be absent for body-@context requests, got: {sent}"
+
+
+def test_delete_parcel_projects_deletes_to_readmodel(client):
+    """FIX 2b: delete_parcel must call project_rows with deleted=True after Orion deletes."""
+    from unittest.mock import patch
+    with patch("blueprints.parcels._orion_query_children",
+               return_value=[{"id": "urn:ngsi-ld:AgriParcel:z1"}]), \
+         patch("blueprints.parcels._orion_delete", return_value=204), \
+         patch("blueprints.parcels.project_rows") as pr, \
+         patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.delete("/api/entities/parcels/urn:ngsi-ld:AgriParcel:p1",
+                             headers={"X-Tenant-ID": "montiko"})
+    assert resp.status_code == 204
+    assert pr.called
+    # project_rows must be called with deleted=True
+    kwargs = pr.call_args.kwargs
+    args = pr.call_args.args
+    assert (kwargs.get("deleted") is True) or (len(args) >= 3 and args[2] is True)

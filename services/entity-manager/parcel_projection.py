@@ -77,6 +77,26 @@ def project_delete_sql() -> str:
     return "DELETE FROM cadastral_parcels WHERE id = %(id)s::uuid AND tenant_id = %(tenant_id)s"
 
 
+def delete_orphans(tenant: str, present_uuids: list) -> int:
+    """Delete cadastral_parcels rows for this tenant whose id is NOT in present_uuids."""
+    conn = get_db_connection_simple()
+    deleted = 0
+    try:
+        cur = conn.cursor()
+        if present_uuids:
+            cur.execute(
+                "DELETE FROM cadastral_parcels WHERE tenant_id = %s AND NOT (id = ANY(%s::uuid[]))",
+                (tenant, present_uuids),
+            )
+        else:
+            cur.execute("DELETE FROM cadastral_parcels WHERE tenant_id = %s", (tenant,))
+        deleted = cur.rowcount
+        conn.commit()
+    finally:
+        return_db_connection(conn)
+    return deleted
+
+
 def project_rows(tenant: str, entities: list, deleted: bool = False) -> int:
     """Upsert (or delete) AgriParcel rows into the cadastral_parcels read-model.
 
