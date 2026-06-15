@@ -1,0 +1,22 @@
+# Crop-health module — source of truth: nkz-module-crop-health repo k8s/ (GitOps).
+# Syncs Deployment + Service from the module repo k8s/ path. The ConfigMap stays
+# with the separate `crop-health-config` app (gitops-config overlay) — no overlap.
+# Migrates crop-health off manual `kubectl apply` to ArgoCD auto-sync (2026-06-15).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crop-health
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nkz-os/nekazari-module-crop-health
+    targetRevision: HEAD
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nekazari
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
