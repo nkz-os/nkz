@@ -61,6 +61,7 @@ class OrionClient:
         limit: int = 100,
         offset: int = 0,
         attrs: str | None = None,
+        options: str | None = None,
     ) -> list[dict[str, Any]]:
         params: dict[str, Any] = {"limit": limit, "offset": offset}
         if type:
@@ -69,6 +70,8 @@ class OrionClient:
             params["q"] = q
         if attrs:
             params["attrs"] = attrs
+        if options:
+            params["options"] = options
         resp = await self._client.get(
             self._url("/ngsi-ld/v1/entities"),
             params=params,
@@ -77,9 +80,13 @@ class OrionClient:
         resp.raise_for_status()
         return resp.json()
 
-    async def get_entity(self, entity_id: str) -> dict[str, Any]:
+    async def get_entity(
+        self, entity_id: str, options: str | None = None
+    ) -> dict[str, Any]:
+        params = {"options": options} if options else None
         resp = await self._client.get(
             self._url(f"/ngsi-ld/v1/entities/{entity_id}"),
+            params=params,
             headers=self._headers("application/json"),
         )
         resp.raise_for_status()
@@ -316,6 +323,7 @@ class SyncOrionClient:
         limit: int = 100,
         offset: int = 0,
         attrs: str | None = None,
+        options: str | None = None,
     ) -> list[dict[str, Any]]:
         params: dict[str, Any] = {"limit": limit, "offset": offset}
         if type:
@@ -324,6 +332,8 @@ class SyncOrionClient:
             params["q"] = q
         if attrs:
             params["attrs"] = attrs
+        if options:
+            params["options"] = options
         resp = self._session.get(
             self._url("/ngsi-ld/v1/entities"),
             params=params,
@@ -333,9 +343,11 @@ class SyncOrionClient:
         resp.raise_for_status()
         return resp.json()
 
-    def get_entity(self, entity_id: str) -> dict[str, Any]:
+    def get_entity(self, entity_id: str, options: str | None = None) -> dict[str, Any]:
+        params = {"options": options} if options else None
         resp = self._session.get(
             self._url(f"/ngsi-ld/v1/entities/{entity_id}"),
+            params=params,
             headers=self._headers("application/json"),
             timeout=self.timeout,
         )
