@@ -225,3 +225,24 @@ def test_projection_endpoint_upserts_on_notification(client, monkeypatch):
                                     "NGSILD-Tenant": "montiko"})
     assert resp.status_code == 200
     assert pr.called
+
+
+def test_reconcile_parcels_calls_project_rows(client):
+    from unittest.mock import patch, MagicMock
+    entities = [
+        {
+            "id": "urn:ngsi-ld:AgriParcel:11111111-1111-1111-1111-111111111111",
+            "type": "AgriParcel",
+        }
+    ]
+    fake_resp = MagicMock(status_code=200)
+    fake_resp.json.return_value = entities
+    with patch("blueprints.parcels.requests.get", return_value=fake_resp), \
+         patch("blueprints.parcels.project_rows") as pr, \
+         patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.post("/api/admin/parcels/reconcile",
+                           headers={"X-Tenant-ID": "montiko"})
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["reconciled"] == 1
+    pr.assert_called_once_with("montiko", entities, deleted=False)

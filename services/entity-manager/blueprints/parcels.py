@@ -206,6 +206,19 @@ def project_parcels():
     return jsonify({"projected": len(entities)}), 200
 
 
+@parcels_bp.route("/api/admin/parcels/reconcile", methods=["POST"])
+@require_auth
+def reconcile_parcels():
+    """Rebuild the read-model for the current tenant from Orion (idempotent). Reads WITH @context."""
+    tenant = _current_tenant()
+    headers = inject_fiware_headers({"Accept": "application/json", "Link": _LINK}, tenant)
+    params = {"type": "AgriParcel", "limit": 1000}
+    r = requests.get(f"{ORION_URL}/ngsi-ld/v1/entities", params=params, headers=headers, timeout=30)
+    entities = (r.json() or []) if r.status_code == 200 else []
+    project_rows(tenant, entities, deleted=False)
+    return jsonify({"reconciled": len(entities)}), 200
+
+
 @parcels_bp.route("/api/entities/parcels/<path:parent_id>/zones", methods=["POST"])
 @require_auth
 def create_zones(parent_id):
