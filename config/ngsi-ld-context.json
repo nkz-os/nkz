@@ -410,6 +410,7 @@
 
     "daysAbove55C": "nkz:daysAbove55C",
     "cnRatio": "nkz:cnRatio",
+    "oxygenLevel": "nkz:oxygenLevel",
     "phase": "nkz:phase",
     "refersTo": "nkz:refersTo",
     "hasRecipe": "nkz:hasRecipe",
