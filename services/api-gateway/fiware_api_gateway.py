@@ -2459,6 +2459,16 @@ def proxy_parcels_requests(subpath=""):
     if content_type:
         headers["Content-Type"] = content_type
 
+    # entity-manager's require_auth enforces an HMAC signature (REQUIRE_HMAC_SIGNATURE)
+    # proving the request was minted by the gateway. Mirror the weather/ngsi-ld proxies.
+    if KEYCLOAK_AUTH_AVAILABLE:
+        try:
+            signature = generate_hmac_signature(token, tenant)
+            if signature:
+                headers["X-Auth-Signature"] = signature
+        except Exception as e:
+            logger.warning(f"Failed to generate HMAC signature for parcels: {e}")
+
     try:
         response = requests.request(
             request.method,
