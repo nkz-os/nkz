@@ -59,7 +59,7 @@
     "jwt-decode": "^4.0.0",
     "keycloak-js": "^26.2.4",
     "lucide-react": "^1.18.0",
-    "nipplejs": "^0.10.1",
+    "nipplejs": "^1.0.4",
     "polyclip-ts": "^0.16.8",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.2.0",
