@@ -159,6 +159,36 @@ def test_patch_parcel_attrs(client):
     assert pa.called
 
 
+def test_patch_parcel_attrs_raw_forwards_ngsi_ld_fragment(client):
+    """Generic SDM editor path: a raw NGSI-LD attribute fragment (including
+    relationships the flat API doesn't model, e.g. refAgriFarm) is forwarded to
+    Orion verbatim — entity-manager remains the sole writer."""
+    from unittest.mock import patch
+    raw = {
+        "elevation": {"type": "Property", "value": 576},
+        "refAgriFarm": {"type": "Relationship", "object": "urn:ngsi-ld:AgriFarm:f1"},
+        "id": "urn:ngsi-ld:AgriParcel:x",  # must be stripped
+        "type": "AgriParcel",              # must be stripped
+    }
+    with patch("blueprints.parcels._orion_patch_attrs", return_value=(204, {})) as pa, \
+         patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.patch("/api/entities/parcels/urn:ngsi-ld:AgriParcel:x/attrs",
+                            json=raw, headers={"X-Tenant-ID": "montiko"})
+    assert resp.status_code == 204
+    sent = pa.call_args.args[2]
+    assert sent["elevation"] == {"type": "Property", "value": 576}
+    assert sent["refAgriFarm"] == {"type": "Relationship", "object": "urn:ngsi-ld:AgriFarm:f1"}
+    assert "id" not in sent and "type" not in sent  # not rebuilt as flat
+
+
+def test_patch_parcel_attrs_raw_empty_returns_422(client):
+    from unittest.mock import patch
+    with patch("blueprints.parcels._current_tenant", return_value="montiko"):
+        resp = client.patch("/api/entities/parcels/urn:ngsi-ld:AgriParcel:x/attrs",
+                            json={}, headers={"X-Tenant-ID": "montiko"})
+    assert resp.status_code == 422
+
+
 def test_delete_parcel_cascades_to_zones(client):
     from unittest.mock import patch
     children = [{"id": "urn:ngsi-ld:AgriParcel:z1"}]

@@ -192,6 +192,27 @@ def patch_parcel(parcel_id):
     return ("", 204) if status in (200, 204) else (jsonify({"error": "orion_write_failed", "status": status}), 502)
 
 
+@parcels_bp.route("/api/entities/parcels/<path:parcel_id>/attrs", methods=["PATCH"])
+@require_auth
+def patch_parcel_attrs_raw(parcel_id):
+    """Forward a raw NGSI-LD attribute fragment to Orion (entity-manager = sole writer).
+
+    Used by the generic SDM editor for AgriParcel: it sends NGSI-LD attrs as-is
+    (e.g. an ``refAgriFarm``/``hasAgriFarm`` Relationship) which the flat PATCH does
+    not model and would silently drop. The fragment carries no @context →
+    application/json + Link (handled by ``_orion_patch_attrs``). The read-model is
+    reprojected by the AgriParcel subscription (no manual projection here).
+    """
+    tenant = _current_tenant()
+    attrs = request.get_json(silent=True) or {}
+    for k in ("id", "type", "@context"):
+        attrs.pop(k, None)
+    if not attrs:
+        return jsonify({"error": "empty_attrs"}), 422
+    status, _ = _orion_patch_attrs(tenant, parcel_id, attrs)
+    return ("", 204) if status in (200, 204) else (jsonify({"error": "orion_write_failed", "status": status}), 502)
+
+
 @parcels_bp.route("/api/entities/parcels/<path:parcel_id>", methods=["DELETE"])
 @require_auth
 def delete_parcel(parcel_id):
