@@ -2420,6 +2420,60 @@ def proxy_assets_requests(subpath):
         return jsonify({"error": "Internal service connection error"}), 502
 
 
+@app.route("/api/entities/parcels", methods=["POST", "OPTIONS"])
+@app.route(
+    "/api/entities/parcels/<path:subpath>",
+    methods=["POST", "PATCH", "DELETE", "OPTIONS"],
+)
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def proxy_parcels_requests(subpath=""):
+    """Proxy the entity-manager parcel API — the single source of truth for AgriParcel.
+
+    entity-manager is the SOLE writer of AgriParcel (it writes Orion-LD directly,
+    bypassing this gateway). Browser/module parcel writes (create/update/delete/
+    zones/attrs) come here and are forwarded to entity-manager; direct AgriParcel
+    writes to /ngsi-ld/v1/entities are rejected by enforce_parcel_write_authority().
+    """
+    if request.method == "OPTIONS":
+        return "", 204
+
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+
+    if not rate_limit(tenant):
+        return jsonify({"error": "Rate limit exceeded"}), 429
+
+    suffix = f"/{subpath}" if subpath else ""
+    target_url = f"{ENTITY_MANAGER_URL}/api/entities/parcels{suffix}"
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
+    content_type = request.headers.get("Content-Type")
+    if content_type:
+        headers["Content-Type"] = content_type
+
+    try:
+        response = requests.request(
+            request.method,
+            target_url,
+            headers=headers,
+            params=request.args,
+            data=request.get_data(),
+            timeout=30,
+        )
+        return (response.content, response.status_code, response.headers.items())
+    except Exception as e:
+        logger.error(f"Error proxying parcel request: {e}")
+        return jsonify({"error": "Internal service connection error"}), 502
+
+
 @app.route("/api/core/sync/vectorial", methods=["GET", "POST", "OPTIONS"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 def proxy_vector_sync_requests():
