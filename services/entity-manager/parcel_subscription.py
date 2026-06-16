@@ -14,10 +14,12 @@ logger = logging.getLogger(__name__)
 _LINK = f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
 
 
-def build_projection_subscription(endpoint_uri: str, secret: str, tenant: str) -> dict:
-    # receiverInfo: Orion sends these headers on every notification → authenticates
-    # the call to /internal/parcels/project (the endpoint is invoked BY Orion, not by us).
-    # NGSILD-Tenant is included so the projection endpoint knows which tenant to write to.
+def build_projection_subscription(endpoint_uri: str, secret: str) -> dict:
+    # receiverInfo carries the auth secret on every notification → authenticates the
+    # call to /internal/parcels/project (the endpoint is invoked BY Orion, not by us).
+    # NGSILD-Tenant is NOT added here: Orion-LD already forwards the subscription's
+    # tenant on notifications, and duplicating it folds the header into "t,t" which
+    # would corrupt the projected tenant_id.
     return {
         "type": "Subscription",
         "entities": [{"type": "AgriParcel"}],
@@ -27,7 +29,6 @@ def build_projection_subscription(endpoint_uri: str, secret: str, tenant: str) -
                 "accept": "application/json",
                 "receiverInfo": [
                     {"key": "X-Internal-Service-Secret", "value": secret},
-                    {"key": "NGSILD-Tenant", "value": tenant},
                 ],
             },
             "format": "normalized",
@@ -60,4 +61,4 @@ def ensure_projection_subscription(tenant: str, endpoint_uri: str, secret: str):
         same_uri = s.get("notification", {}).get("endpoint", {}).get("uri") == endpoint_uri
         if watches_parcel and same_uri:
             return  # idempotent: already present
-    _create_subscription(tenant, build_projection_subscription(endpoint_uri, secret, tenant))
+    _create_subscription(tenant, build_projection_subscription(endpoint_uri, secret))
