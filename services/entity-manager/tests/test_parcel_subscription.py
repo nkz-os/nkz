@@ -33,7 +33,7 @@ _TENANT = "montiko"
 
 
 def test_subscription_body_watches_agriparcel_to_internal_endpoint():
-    sub = build_projection_subscription(_ENDPOINT, _SECRET, _TENANT)
+    sub = build_projection_subscription(_ENDPOINT, _SECRET)
     assert sub["type"] == "Subscription"
     assert sub["entities"][0]["type"] == "AgriParcel"
     assert sub["notification"]["endpoint"]["uri"].endswith("/internal/parcels/project")
@@ -41,13 +41,12 @@ def test_subscription_body_watches_agriparcel_to_internal_endpoint():
     assert any(h.get("key") == "X-Internal-Service-Secret" and h.get("value") == _SECRET for h in ri)
 
 
-def test_subscription_body_includes_ngsild_tenant_in_receiver_info():
-    """FIX 3: receiverInfo must include NGSILD-Tenant so Orion forwards it on notifications."""
-    sub = build_projection_subscription(_ENDPOINT, _SECRET, _TENANT)
+def test_subscription_body_omits_ngsild_tenant_in_receiver_info():
+    """Orion-LD forwards the tenant natively; adding it to receiverInfo duplicates
+    the header (folded "t,t") and corrupts the projected tenant_id. Must NOT be present."""
+    sub = build_projection_subscription(_ENDPOINT, _SECRET)
     ri = sub["notification"]["endpoint"]["receiverInfo"]
-    assert any(
-        h.get("key") == "NGSILD-Tenant" and h.get("value") == _TENANT for h in ri
-    ), f"NGSILD-Tenant not found in receiverInfo: {ri}"
+    assert not any(h.get("key") == "NGSILD-Tenant" for h in ri), f"NGSILD-Tenant must not be in receiverInfo: {ri}"
 
 
 def test_ensure_is_idempotent_skips_when_present():
@@ -86,6 +85,6 @@ def test_ensure_creates_when_uri_differs():
 
 
 def test_subscription_body_format_normalized():
-    sub = build_projection_subscription(_ENDPOINT, _SECRET, _TENANT)
+    sub = build_projection_subscription(_ENDPOINT, _SECRET)
     assert sub["notification"]["format"] == "normalized"
     assert sub["notification"]["endpoint"]["accept"] == "application/json"
