@@ -599,6 +599,62 @@ def enforce_module_csp_of_data():
     return None
 
 
+# ---------------------------------------------------------------------------
+# AgriParcel write authority enforcement
+# entity-manager is the SOLE writer of AgriParcel entities.  All external
+# write attempts are rejected here at the gateway.  An internal writer may
+# identify itself via X-Internal-Service-Secret for defense-in-depth.
+# ---------------------------------------------------------------------------
+
+_PARCEL_WRITE_METHODS = {"POST", "PATCH", "PUT", "DELETE"}
+
+
+def _targets_agriparcel() -> bool:
+    """Return True if the current request targets an AgriParcel entity."""
+    if "AgriParcel" in request.args.get("type", ""):
+        return True
+    if "urn:ngsi-ld:AgriParcel:" in request.path:
+        return True
+    if request.is_json:
+        body = request.get_json(silent=True)
+        if isinstance(body, dict) and body.get("type") == "AgriParcel":
+            return True
+        if isinstance(body, list) and any(
+            isinstance(e, dict) and e.get("type") == "AgriParcel" for e in body
+        ):
+            return True
+    return False
+
+
+@app.before_request
+def enforce_parcel_write_authority():
+    """Only entity-manager may write AgriParcel to Orion. GET always allowed."""
+    if request.method not in _PARCEL_WRITE_METHODS:
+        return None
+    if not (
+        request.path.startswith("/ngsi-ld/v1/entities")
+        or request.path.startswith("/ngsi-ld/v1/entityOperations")
+    ):
+        return None
+    if not _targets_agriparcel():
+        return None
+    secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
+    if secret and request.headers.get("X-Internal-Service-Secret") == secret:
+        return None  # entity-manager — the sole authorized writer
+    return (
+        jsonify(
+            {
+                "error": "parcel_write_forbidden",
+                "detail": (
+                    "AgriParcel writes must go through entity-manager"
+                    " /api/entities/parcels"
+                ),
+            }
+        ),
+        403,
+    )
+
+
 def rate_limit(tenant: str) -> bool:
     """Devuelve True si permitido, False si excede el límite."""
     if REQUESTS_PER_MINUTE <= 0:
