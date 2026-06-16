@@ -144,8 +144,8 @@ importers:
         specifier: ^1.18.0
         version: 1.18.0(react@18.3.1)
       nipplejs:
-        specifier: ^0.10.1
-        version: 0.10.2
+        specifier: ^1.0.4
+        version: 1.0.4
       polyclip-ts:
         specifier: ^0.16.8
         version: 0.16.8
@@ -3547,8 +3547,8 @@ packages:
     resolution: {integrity: sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg==}
     engines: {node: '>= 0.6'}
 
-  nipplejs@0.10.2:
-    resolution: {integrity: sha512-XGxFY8C2DOtobf1fK+MXINTzkkXJLjZDDpfQhOUZf4TSytbc9s4bmA0lB9eKKM8iDivdr9NQkO7DpIQfsST+9g==}
+  nipplejs@1.0.4:
+    resolution: {integrity: sha512-YtvRZDuyWQ+tOj0nUjfnZt4ZQmJVWfK9+yPmV5OXpQ4k4AkOGcSfKvSXbPNkV0ERqc4eakkBSZ7/Wyx1y6h/Sg==}
 
   node-fetch@2.7.0:
     resolution: {integrity: sha512-c4FRfUm/dbcWZ7U+1Wq0AwCyFL+3nt2bEw05wfxSz+DWpWsitgmSgYmy2dQdWyKC1694ELPqMs/YzUSNozLt8A==}
@@ -7653,7 +7653,7 @@ snapshots:
 
   negotiator@0.6.3: {}
 
-  nipplejs@0.10.2: {}
+  nipplejs@1.0.4: {}
 
   node-fetch@2.7.0:
     dependencies:
