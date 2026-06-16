@@ -67,6 +67,15 @@ def _orion_query_by_cadastral_ref(tenant: str, cadastral_ref: str):
     return r.json() or []
 
 
+# Parcel attributes carried as plain NGSI-LD Properties (preserve the full FE set so
+# routing writes through this API does not drop data).
+_PARCEL_PROPERTY_KEYS = (
+    "name", "municipality", "province", "cropType", "cadastralReference",
+    "area", "ndviEnabled", "notes", "generationMethod", "aiModel",
+    "confidence", "elevation", "terrainSlope", "terrainAspect",
+)
+
+
 def _build_parcel_entity(parcel_id: str, data: dict) -> dict:
     ent = {
         "id": parcel_id,
@@ -76,12 +85,13 @@ def _build_parcel_entity(parcel_id: str, data: dict) -> dict:
     geometry = data.get("geometry")
     if geometry is not None:
         ent["location"] = {"type": "GeoProperty", "value": geometry}
-    if data.get("name"):
-        ent["name"] = {"type": "Property", "value": data["name"]}
-    if data.get("cadastralReference"):
-        ent["cadastralReference"] = {"type": "Property", "value": data["cadastralReference"]}
-    if data.get("cropType"):
-        ent["cropType"] = {"type": "Property", "value": data["cropType"]}
+    for key in _PARCEL_PROPERTY_KEYS:
+        val = data.get(key)
+        if val is not None:
+            ent[key] = {"type": "Property", "value": val}
+    parent = data.get("refParent")
+    if parent:
+        ent["hasAgriParcel"] = {"type": "Relationship", "object": parent}
     return ent
 
 

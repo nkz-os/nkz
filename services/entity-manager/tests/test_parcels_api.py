@@ -315,3 +315,30 @@ def test_delete_parcel_projects_deletes_to_readmodel(client):
     kwargs = pr.call_args.kwargs
     args = pr.call_args.args
     assert (kwargs.get("deleted") is True) or (len(args) >= 3 and args[2] is True)
+
+
+def test_build_parcel_entity_preserves_full_attribute_set():
+    import blueprints.parcels as p
+    ent = p._build_parcel_entity("urn:ngsi-ld:AgriParcel:x", {
+        "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [0, 1], [1, 1], [0, 0]]]},
+        "name": "P", "municipality": "Allo", "province": "Navarra", "cropType": "olive",
+        "cadastralReference": "REF", "area": 1.2, "ndviEnabled": True, "notes": "n",
+        "generationMethod": "manual", "aiModel": "m", "confidence": 0.9,
+        "elevation": 576, "terrainSlope": 1.8, "terrainAspect": 220,
+        "refParent": "urn:ngsi-ld:AgriParcel:parent",
+    })
+    assert ent["type"] == "AgriParcel"
+    assert ent["location"]["type"] == "GeoProperty"
+    for k in ("name", "municipality", "province", "cropType", "cadastralReference", "area",
+              "ndviEnabled", "notes", "generationMethod", "aiModel", "confidence",
+              "elevation", "terrainSlope", "terrainAspect"):
+        assert ent[k]["type"] == "Property", f"missing/incorrect {k}"
+    assert ent["ndviEnabled"]["value"] is True
+    assert ent["hasAgriParcel"]["object"] == "urn:ngsi-ld:AgriParcel:parent"
+
+
+def test_build_parcel_entity_omits_absent_attrs():
+    import blueprints.parcels as p
+    ent = p._build_parcel_entity("urn:ngsi-ld:AgriParcel:x", {"name": "only"})
+    assert "municipality" not in ent and "location" not in ent and "hasAgriParcel" not in ent
+    assert ent["name"]["value"] == "only"
