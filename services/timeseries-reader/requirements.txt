@@ -3,7 +3,7 @@ Flask-CORS==6.0.5
 psycopg2-binary==2.9.12
 python-dateutil==2.9.0.post0
 PyJWT==2.13.0
-cryptography==46.0.7
+cryptography==48.0.1
 requests==2.34.2
 gunicorn==22.0.0
 pyarrow>=14.0.0
