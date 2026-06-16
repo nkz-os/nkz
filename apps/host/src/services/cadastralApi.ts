@@ -18,29 +18,9 @@ class CadastralApiService {
     return response.data;
   }
 
-  async createParcel(parcel: {
-    cadastral_reference?: string;
-    municipality: string;
-    province: string;
-    crop_type: string;
-    geometry: {
-      type: 'Polygon';
-      coordinates: number[][][];
-    };
-    notes?: string;
-  }): Promise<any> {
-    const response = await this.client.post('/api/cadastral-api/parcels', parcel);
-    return response.data;
-  }
-
-  async updateParcel(parcelId: string, updates: any): Promise<any> {
-    const response = await this.client.put(`/api/cadastral-api/parcels/${parcelId}`, updates);
-    return response.data;
-  }
-
-  async deleteParcel(parcelId: string): Promise<void> {
-    await this.client.delete(`/api/cadastral-api/parcels/${parcelId}`);
-  }
+  // Parcel create/update/delete are owned by entity-manager (POST/PATCH/DELETE
+  // /api/entities/parcels) — use `parcelApi` for writes. The cadastral backend no
+  // longer exposes parcel-write endpoints (single source of truth: Orion-LD).
 
   async getSummary(): Promise<any> {
     const response = await this.client.get('/api/cadastral-api/parcels/summary');
