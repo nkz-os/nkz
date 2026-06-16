@@ -225,7 +225,9 @@ def project_parcels():
     secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
     if not secret or request.headers.get("X-Internal-Service-Secret") != secret:
         return jsonify({"error": "forbidden"}), 403
-    tenant = request.headers.get("NGSILD-Tenant") or request.headers.get("X-Tenant-ID", "")
+    # Defensive: if NGSILD-Tenant arrives duplicated (e.g. folded "t,t"), take the first.
+    raw_tenant = request.headers.get("NGSILD-Tenant") or request.headers.get("X-Tenant-ID", "")
+    tenant = raw_tenant.split(",")[0].strip()
     payload = request.get_json(silent=True) or {}
     entities = payload.get("data", [])
     project_rows(tenant, entities, deleted=False)
