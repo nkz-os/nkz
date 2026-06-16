@@ -386,8 +386,8 @@ def _validate_oidc_token(token, module_id=""):
             logger.warning(f"OIDC: rejected repo_owner={repo_owner}")
             return False
 
-        # Accept main branch pushes and tags
-        if ref != "refs/heads/main" and not ref.startswith("refs/tags/"):
+        # Accept default branch pushes (main/master) and tags
+        if ref not in ("refs/heads/main", "refs/heads/master") and not ref.startswith("refs/tags/"):
             logger.warning(f"OIDC: rejected ref={ref}")
             return False
 
