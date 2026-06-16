@@ -35,7 +35,8 @@ def test_parse_agriparcel_handles_missing_fields():
     row = parse_agriparcel("tenant-a", ent)
     assert row["id"] == "22222222-2222-2222-2222-222222222222"
     assert row["tenant_id"] == "tenant-a"
-    assert row["cadastral_reference"] is None
+    # cadastral_reference is NOT NULL in the read-model → falls back to AUTO-<uuid>
+    assert row["cadastral_reference"] == "AUTO-22222222-2222-2222-2222-222222222222"
     assert row["municipality"] is None
     assert row["crop_type"] is None
     assert row["geometry_geojson"] is None
@@ -87,3 +88,32 @@ def test_delete_orphans_sql_uses_tenant_and_uuid_array():
     sql = call_args.args[0]
     assert "DELETE FROM cadastral_parcels" in sql
     assert "tenant_id" in sql
+
+
+def test_parse_agriparcel_handles_expanded_keys():
+    # Orion notifications may deliver expanded JSON-LD URI keys
+    ent = {
+        "id": "urn:ngsi-ld:AgriParcel:22222222-2222-2222-2222-222222222222",
+        "type": "AgriParcel",
+        "https://uri.etsi.org/ngsi-ld/location": {
+            "type": "GeoProperty",
+            "value": {"type": "Polygon", "coordinates": [[[0, 0], [0, 1], [1, 1], [0, 0]]]},
+        },
+        "https://smartdatamodels.org/dataModel.Agriculture/cadastralReference": {
+            "type": "Property", "value": "EXP-REF",
+        },
+    }
+    row = parse_agriparcel("montiko", ent)
+    assert row["geometry_geojson"]
+    assert row["cadastral_reference"] == "EXP-REF"
+
+
+def test_parse_agriparcel_cadastral_fallback_never_null():
+    ent = {
+        "id": "urn:ngsi-ld:AgriParcel:33333333-3333-3333-3333-333333333333",
+        "type": "AgriParcel",
+        "location": {"type": "GeoProperty", "value": {"type": "Polygon",
+                     "coordinates": [[[0, 0], [0, 1], [1, 1], [0, 0]]]}},
+    }
+    row = parse_agriparcel("montiko", ent)
+    assert row["cadastral_reference"] == "AUTO-33333333-3333-3333-3333-333333333333"
