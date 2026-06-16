@@ -3,6 +3,6 @@ flask-cors>=6.0.5
 psycopg2-binary>=2.9.12
 PyJWT>=2.13.0
 requests>=2.34.2
-cryptography>=46.0.7
+cryptography>=48.0.1
 pydantic>=2.13.4
 
