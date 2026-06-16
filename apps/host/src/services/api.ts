@@ -749,16 +749,7 @@ class ApiService {
     return { instances: entities, total, count: entities.length };
   }
 
-  async updateSDMEntity(entityType: string, entityId: string, updates: any): Promise<void> {
-    // AgriParcel is written solely by entity-manager (the api-gateway blocks direct
-    // AgriParcel writes). Forward the raw NGSI-LD attribute fragment through the core
-    // parcel API, which relays it to Orion and keeps the read-model in sync.
-    if (entityType === 'AgriParcel') {
-      await this.client.patch(`/api/entities/parcels/${encodeURIComponent(entityId)}/attrs`, updates, {
-        headers: { 'Content-Type': 'application/json' },
-      });
-      return;
-    }
+  async updateSDMEntity(_entityType: string, entityId: string, updates: any): Promise<void> {
     await this.client.patch(`/ngsi-ld/v1/entities/${entityId}/attrs`, updates, {
       headers: { 'Content-Type': 'application/json' },
     });
@@ -769,13 +760,7 @@ class ApiService {
     return response.data;
   }
 
-  async deleteSDMEntity(entityType: string, entityId: string): Promise<void> {
-    // AgriParcel deletes go through entity-manager (cascades child zones + updates
-    // the read-model); direct Orion deletes are blocked by the api-gateway.
-    if (entityType === 'AgriParcel') {
-      await this.client.delete(`/api/entities/parcels/${encodeURIComponent(entityId)}`);
-      return;
-    }
+  async deleteSDMEntity(_entityType: string, entityId: string): Promise<void> {
     await this.client.delete(`/ngsi-ld/v1/entities/${entityId}`);
   }
 
@@ -1575,14 +1560,8 @@ class ApiService {
     }
   }
 
-  async createSDMEntity(entityType: string, entity: any): Promise<any> {
-    // AgriParcel must be created through the entity-manager parcel API (server-owned
-    // URN id + cadastralReference dedup) — use `parcelApi.createParcel` / EntityWizard.
-    // Guard against a direct Orion create that the api-gateway would reject.
-    if (entityType === 'AgriParcel') {
-      throw new Error('AgriParcel must be created via the parcel API (parcelApi), not the generic SDM entity API');
-    }
-    // No @context in body — gateway injects Link header with platform context.
+  async createSDMEntity(_entityType: string, entity: any): Promise<any> {
+    // No @context in body — gateway injects Link/context with the platform context.
     const response = await this.client.post('/ngsi-ld/v1/entities', entity);
     return response.data;
   }
