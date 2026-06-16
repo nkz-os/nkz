@@ -240,7 +240,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: entity-manager
-          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:9fc3eb6e00dc01bf4c70a924d2d73998a9bdde663fb1d2d9259928850ef3044a  # parcel single source of truth backend (PR #600)
+          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:08b41fdac313850322f9a3961433496b805d9b5bd26018be6297fd633f60d660  # parcel SoT backend + projection fixes (PR #603)
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
