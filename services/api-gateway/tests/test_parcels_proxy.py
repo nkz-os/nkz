@@ -34,6 +34,8 @@ def test_proxy_parcels_create_forwards_to_entity_manager(monkeypatch):
         return _Resp()
 
     _patch_auth(monkeypatch, gw)
+    monkeypatch.setattr(gw, "KEYCLOAK_AUTH_AVAILABLE", True)
+    monkeypatch.setattr(gw, "generate_hmac_signature", lambda t, ten: "sig123")
     monkeypatch.setattr(gw.requests, "request", fake_request)
 
     with gw.app.test_request_context(
@@ -48,6 +50,8 @@ def test_proxy_parcels_create_forwards_to_entity_manager(monkeypatch):
     assert captured["url"] == f"{gw.ENTITY_MANAGER_URL}/api/entities/parcels"
     assert captured["headers"]["Authorization"] == "Bearer tok"
     assert captured["headers"]["X-Tenant-ID"] == "montiko"
+    # HMAC signature required by entity-manager (REQUIRE_HMAC_SIGNATURE)
+    assert captured["headers"]["X-Auth-Signature"] == "sig123"
     assert b'"name"' in captured["data"]
 
 
