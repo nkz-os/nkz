@@ -18,24 +18,52 @@ def urn_to_uuid(urn: str) -> Optional[str]:
 
 
 def _val(attr: Any):
-    """Extract .value from NGSI-LD property/relationship dict, or pass through scalar."""
-    return attr.get("value") if isinstance(attr, dict) else attr
+    """Extract .value (or .object) from an NGSI-LD member dict, or pass through scalar."""
+    if isinstance(attr, dict):
+        return attr.get("value", attr.get("object"))
+    return attr
+
+
+def _short(key: str) -> str:
+    """Last path/fragment segment of a (possibly expanded) JSON-LD key."""
+    return key.rsplit("/", 1)[-1].rsplit("#", 1)[-1]
+
+
+def _find_attr(ent: Dict[str, Any], name: str) -> Any:
+    """Look up an attribute by short name, tolerating expanded JSON-LD URI keys.
+
+    Orion-LD subscription notifications may deliver attributes under fully
+    expanded URIs (e.g. ``https://uri.etsi.org/ngsi-ld/location``) instead of
+    the compacted short name. Try the short key first, then match by suffix.
+    """
+    if name in ent:
+        return ent[name]
+    for k in ent:
+        if k not in ("id", "type", "@context") and _short(k) == name:
+            return ent[k]
+    return None
 
 
 def parse_agriparcel(tenant_id: str, ent: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Extract read-model fields from an AgriParcel entity.
+    Extract read-model fields from an AgriParcel entity (compacted OR expanded keys).
 
     Returns dict with keys: id (UUID or None), tenant_id, cadastral_reference,
     municipality, crop_type, geometry_geojson (JSON string or None).
+    cadastral_reference falls back to name then ``AUTO-<uuid>`` because the
+    read-model column is NOT NULL and management zones carry no cadastral ref.
     """
-    geom = _val(ent.get("location"))
+    pid = urn_to_uuid(ent["id"])
+    geom = _val(_find_attr(ent, "location"))
+    cadastral = _val(_find_attr(ent, "cadastralReference")) or _val(_find_attr(ent, "name"))
+    if not cadastral:
+        cadastral = f"AUTO-{pid}" if pid else None
     return {
-        "id": urn_to_uuid(ent["id"]),
+        "id": pid,
         "tenant_id": tenant_id,
-        "cadastral_reference": _val(ent.get("cadastralReference")),
-        "municipality": _val(ent.get("municipality")),
-        "crop_type": _val(ent.get("cropType")),
+        "cadastral_reference": cadastral,
+        "municipality": _val(_find_attr(ent, "municipality")),
+        "crop_type": _val(_find_attr(ent, "cropType")),
         "geometry_geojson": json.dumps(geom) if geom else None,
     }
 
