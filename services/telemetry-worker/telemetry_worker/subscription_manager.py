@@ -117,6 +117,30 @@ SUBSCRIPTIONS = [
         "isActive": True,
     },
     {
+        "description": "Telemetry Worker - AgriSoil water budget attributes",
+        "type": "Subscription",
+        "entities": [{"type": "AgriSoil"}],
+        "watchedAttributes": ["currentMoisture", "deficitMm", "fieldCapacity", "awc"],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+            "attributes": [
+                "currentMoisture",
+                "deficitMm",
+                "fieldCapacity",
+                "awc",
+                "wiltingPoint",
+                "forecast7d",
+                "lastComputed"
+            ],
+        },
+        "throttling": 5,
+        "isActive": True,
+    },
+    {
         "description": "Telemetry Worker - Weather zonal stats (AgriParcelRecord)",
         "type": "Subscription",
         "entities": [{"type": "AgriParcelRecord"}],
