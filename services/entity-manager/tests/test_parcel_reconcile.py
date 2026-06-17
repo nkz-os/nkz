@@ -6,7 +6,7 @@ import unittest.mock
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("POSTGRES_URL", "postgresql://test:test@localhost:5432/test")
-os.environ.setdefault("CONTEXT_URL", "https://nekazari.robotika.cloud/ngsi-ld-context.json")
+os.environ.setdefault("CONTEXT_URL", "http://ngsi-context.test/ngsi-ld-context.json")
 os.environ.setdefault("INTERNAL_SERVICE_SECRET", "test-secret")
 
 _dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
