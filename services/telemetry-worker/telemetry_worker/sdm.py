@@ -396,9 +396,11 @@ def _process_payload_sync(
         # Step 4: Update entity in Orion-LD
         _update_orion_entity_sync(tenant_id, entity_id, entity_updates, settings)
         
-        # Step 5: Persist to TimescaleDB (telemetry hypertable for raw data)
-        _persist_to_timescaledb(tenant_id, payload, entity_id, settings)
-        
+        # Step 5: Raw telemetry persistence handled by Orion-LD subscription
+        # → notification_handler → EventSink → telemetry_events flow.
+        # See subscription_manager.py for active subscriptions.
+        # Do NOT write directly to telemetry hypertable — see _persist_to_timescaledb (deprecated).
+
         logger.info(f"Successfully processed telemetry for device {payload.deviceId}")
         
     except Exception as e:
@@ -510,24 +512,18 @@ def _persist_to_timescaledb(
     entity_id: str,
     settings: Settings
 ) -> None:
-    """Persist raw telemetry directly to TimescaleDB hypertable.
+    """DEPRECATED — direct DB write bypasses Orion-LD.
 
-    FIWARE COMPLIANCE NOTE: This bypasses Orion-LD for high-volume time-series
-    storage. Each row represents a sensor reading at a timestamp — writing each
-    one as an NGSI-LD entity update would overload the Context Broker.
+    This function is kept for rollback safety but is NO LONGER CALLED.
+    Telemetry persistence now flows through:
+      Orion-LD update → NGSI-LD subscription → notification_handler → EventSink
 
-    Mitigation:
-      1. The canonical entity state IS written to Orion-LD first (see
-         _update_orion_entity_sync).
-      2. The NGSI-LD subscription → notification_handler → event_sink flow
-         provides the compliant path for TimescaleDB population.
-      3. This direct write is a performance optimization for raw time-series,
-         not the canonical entity state.
-
-    TODO (FIWARE certification): Route raw time-series through Orion-LD
-    temporal endpoints or document this as a valid architectural exception
-    for high-frequency sensor data (>1 Hz).
+    Remove entirely after 2026-07-01 if no rollback needed.
     """
+    logger.warning(
+        "DEPRECATED: _persist_to_timescaledb called — this bypasses Orion-LD. "
+        "Use subscription flow instead."
+    )
     try:
         conn = psycopg2.connect(settings.postgres_url)
         cur = conn.cursor()
