@@ -124,8 +124,11 @@ class ParcelWeatherEngine:
         Priority:
         1. PARCEL_ENGINE_TENANTS env var (comma-separated)
         2. Discover from admin platform DB (tenant_limits table)
-        3. Discover from Orion-LD by listing entity types per tenant scope
-        4. Fallback to ['default']
+        3. Fallback to ['default']
+
+        Note: there is no "parse tenant from entity id" path. Uniform entity writes
+        use ``urn:ngsi-ld:AgriParcel:<uuid4>`` ids that carry no tenant segment;
+        tenant discovery is DB-backed + per-tenant ``NGSILD-Tenant`` queries.
         """
         # Priority 1: explicit env var
         env_tenants = os.getenv("PARCEL_ENGINE_TENANTS", "").strip()
@@ -136,41 +139,6 @@ class ParcelWeatherEngine:
         db_tenants = self._discover_tenants_from_db()
         if db_tenants:
             return db_tenants
-
-        # Priority 2: discover from Orion-LD by querying without tenant scope
-        # (returns entities regardless of tenant)
-        try:
-            headers = {
-                "Accept": "application/ld+json",
-            }
-            if self.context_url:
-                headers["Link"] = (
-                    f'<{self.context_url}>; '
-                    f'rel="http://www.w3.org/ns/json-ld#context"; '
-                    f'type="application/ld+json"'
-                )
-            # Query AgriParcel across all tenants — extract tenant from entity IDs
-            params = {
-                "type": "AgriParcel",
-                "attrs": "id",
-                "limit": 1000,
-            }
-            url = f"{self.orion_url}/ngsi-ld/v1/entities"
-            resp = requests.get(url, params=params, headers=headers, timeout=10)
-            if resp.status_code == 200:
-                entities = resp.json()
-                if isinstance(entities, list):
-                    tenant_ids: set = set()
-                    for entity in entities:
-                        eid = entity.get("id", "")
-                        # Extract tenant from urn:ngsi-ld:AgriParcel:<tenant>:<id>
-                        parts = eid.split(":")
-                        if len(parts) >= 4:
-                            tenant_ids.add(parts[3])
-                    if tenant_ids:
-                        return list(tenant_ids)
-        except Exception as e:
-            logger.warning(f"Could not discover tenants from Orion-LD: {e}")
 
         # Priority 3: fallback
         return ["default"]
