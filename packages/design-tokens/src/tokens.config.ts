@@ -192,7 +192,7 @@ const semanticColorsHmi = {
   info:    '#60A5FA', infoSoft: '#1E3A5F',    infoStrong: '#93C5FD',
 };
 
-const defaultAccent = { accentBase: '#10B981', accentSoft: '#D1FAE5', accentStrong: '#059669' };
+const defaultAccent = { accentBase: '#059669', accentSoft: '#A7F3D0', accentStrong: '#047857' };
 
 const shadowsPage = {
   sm: '0 1px 2px rgba(0,0,0,0.04)',
