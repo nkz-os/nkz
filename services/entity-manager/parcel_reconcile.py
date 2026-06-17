@@ -205,3 +205,104 @@ def delete_row(tenant_id: str, parcel_id: str, module_id: str) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+# Backstop registry. ref must resolve to an AgriParcel-typed reference.
+# Validate against `GET /ngsi-ld/v1/types` of the tenant before trusting it.
+DERIVED_TYPE_REGISTRY = [
+    {"type": "VegetationIndex", "ref_keys": ["hasAgriParcel"]},
+    {"type": "EOProduct", "ref_keys": ["hasAgriParcel"]},
+    {"type": "CropHealthAssessment", "ref_keys": ["hasAgriParcel"]},
+    {"type": "RiskAssessment", "ref_keys": ["targetEntityId"],
+     "require_target_type": "AgriParcel"},
+    {"type": "DataProcessingJob", "ref_keys": ["hasAgriParcel", "refAgriParcel"]},
+    {"type": "AgriParcelOperation", "ref_keys": ["hasAgriParcel", "refAgriParcel"]},
+    {"type": "DigitalAsset", "ref_keys": ["hasAgriParcel", "refAgriParcel"]},
+]
+
+
+def _attr_scalar(node):
+    """Extract object (Relationship) or value (Property) from a normalized attr."""
+    if isinstance(node, dict):
+        return node.get("object", node.get("value"))
+    return node
+
+
+def resolve_parcel_ref(entity: dict, spec: dict):
+    """Return the parcel URN this entity references, or None if not parcel-typed."""
+    req_type = spec.get("require_target_type")
+    if req_type:
+        tt = _attr_scalar(entity.get("targetEntityType"))
+        if tt != req_type:
+            return None
+    for key in spec["ref_keys"]:
+        if key in entity:
+            ref = _attr_scalar(entity[key])
+            if isinstance(ref, str) and ref:
+                return ref
+    return None
+
+
+def query_entities(tenant_id: str, etype: str) -> list:
+    """All entities of a type (normalized) for a tenant. [] on error (logged)."""
+    headers = _orion_headers(tenant_id)
+    out: list = []
+    offset = 0
+    try:
+        while True:
+            resp = requests.get(
+                f"{ORION_URL}/ngsi-ld/v1/entities",
+                params={"type": etype, "limit": PAGE_SIZE, "offset": offset},
+                headers=headers,
+                timeout=ORION_TIMEOUT_S,
+            )
+            if resp.status_code != 200:
+                logger.error("query_entities %s/%s -> %s", tenant_id, etype, resp.status_code)
+                return []
+            batch = resp.json()
+            if not isinstance(batch, list):
+                return []
+            out.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            offset += PAGE_SIZE
+        return out
+    except requests.RequestException as exc:
+        logger.error("query_entities %s/%s failed: %s", tenant_id, etype, exc)
+        return []
+
+
+def find_backstop_orphans(tenant_id: str, live_ids: set, owned_parcel_ids: set) -> list:
+    """Ids of derived entities whose parcel-typed ref is neither live nor owned by a row."""
+    orphans: list = []
+    for spec in DERIVED_TYPE_REGISTRY:
+        for e in query_entities(tenant_id, spec["type"]):
+            ref = resolve_parcel_ref(e, spec)
+            if ref is None or ref in live_ids or ref in owned_parcel_ids:
+                continue
+            orphans.append(e["id"])
+    return orphans
+
+
+def delete_entities(tenant_id: str, ids: list) -> int:
+    """Batch-delete entities by id via entityOperations/delete. Returns count attempted."""
+    if not ids:
+        return 0
+    headers = _orion_headers(tenant_id)
+    headers["Content-Type"] = "application/json"
+    done = 0
+    for i in range(0, len(ids), 100):
+        chunk = ids[i:i + 100]
+        try:
+            resp = requests.post(
+                f"{ORION_URL}/ngsi-ld/v1/entityOperations/delete",
+                json=chunk, headers=headers, timeout=ORION_TIMEOUT_S,
+            )
+            if resp.status_code in (200, 204):
+                done += len(chunk)
+                logger.warning("Backstop deleted %d orphans for %s", len(chunk), tenant_id)
+            else:
+                logger.error("Backstop delete %s -> %s", tenant_id, resp.status_code)
+        except requests.RequestException as exc:
+            logger.error("Backstop delete failed for %s: %s", tenant_id, exc)
+    return done

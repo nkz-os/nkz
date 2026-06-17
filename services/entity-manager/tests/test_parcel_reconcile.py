@@ -96,3 +96,40 @@ def test_is_due_for_retry():
     assert pr.is_due_for_retry(past, now) is True
     assert pr.is_due_for_retry(future, now) is False
     assert pr.is_due_for_retry(none_row, now) is True
+
+
+def test_resolve_parcel_ref_relationship():
+    e = {"id": "x", "hasAgriParcel": {"type": "Relationship",
+                                      "object": "urn:ngsi-ld:AgriParcel:aaa"}}
+    spec = {"type": "VegetationIndex", "ref_keys": ["hasAgriParcel"]}
+    assert pr.resolve_parcel_ref(e, spec) == "urn:ngsi-ld:AgriParcel:aaa"
+
+
+def test_resolve_parcel_ref_risk_requires_target_type():
+    spec = {"type": "RiskAssessment", "ref_keys": ["targetEntityId"],
+            "require_target_type": "AgriParcel"}
+    parcel = {"id": "r1",
+              "targetEntityId": {"value": "urn:ngsi-ld:AgriParcel:aaa"},
+              "targetEntityType": {"value": "AgriParcel"}}
+    crop = {"id": "r2",
+            "targetEntityId": {"value": "urn:ngsi-ld:AgriCrop:zzz"},
+            "targetEntityType": {"value": "AgriCrop"}}
+    assert pr.resolve_parcel_ref(parcel, spec) == "urn:ngsi-ld:AgriParcel:aaa"
+    assert pr.resolve_parcel_ref(crop, spec) is None  # not parcel-typed -> ignored
+
+
+def test_find_backstop_orphans_skips_live_and_owned():
+    live = {"urn:ngsi-ld:AgriParcel:live"}
+    owned = {"urn:ngsi-ld:AgriParcel:owned"}
+    entities = {
+        "VegetationIndex": [
+            {"id": "vi-live", "hasAgriParcel": {"object": "urn:ngsi-ld:AgriParcel:live"}},
+            {"id": "vi-owned", "hasAgriParcel": {"object": "urn:ngsi-ld:AgriParcel:owned"}},
+            {"id": "vi-orphan", "hasAgriParcel": {"object": "urn:ngsi-ld:AgriParcel:gone"}},
+        ],
+    }
+    with patch.object(pr, "DERIVED_TYPE_REGISTRY",
+                      [{"type": "VegetationIndex", "ref_keys": ["hasAgriParcel"]}]), \
+         patch.object(pr, "query_entities", side_effect=lambda t, ty: entities.get(ty, [])):
+        orphans = pr.find_backstop_orphans("montiko", live, owned)
+    assert orphans == ["vi-orphan"]
