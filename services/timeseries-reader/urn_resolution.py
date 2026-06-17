@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import psycopg2
@@ -151,17 +150,26 @@ def _municipality_from_parcel_address_entity(
     parcel_entity: Optional[Dict[str, Any]],
 ) -> Optional[Tuple[str, str]]:
     """
-    Match catalog_municipalities.ine_code from Orion parcel address (addressLocality / addressRegion).
-    Used when cadastral_parcels has no row (common) or URN has no extractable UUID.
+    Match catalog_municipalities.ine_code from the Orion AgriParcel entity.
+
+    Single source of truth = Orion. Prefers a ``municipality`` Property; falls back
+    to ``address.addressLocality`` / ``addressRegion``.
     """
     if not parcel_entity or not POSTGRES_URL:
         return None
-    addr = parcel_entity.get("address")
-    if isinstance(addr, dict) and "value" in addr:
-        addr = addr["value"]
-    if not isinstance(addr, dict):
-        return None
-    loc = addr.get("addressLocality") or addr.get("addressRegion") or ""
+    loc = None
+    muni = parcel_entity.get("municipality")
+    if isinstance(muni, dict):
+        muni = muni.get("value")
+    if isinstance(muni, str) and muni.strip():
+        loc = muni.strip()
+    if loc is None:
+        addr = parcel_entity.get("address")
+        if isinstance(addr, dict) and "value" in addr:
+            addr = addr["value"]
+        if not isinstance(addr, dict):
+            return None
+        loc = addr.get("addressLocality") or addr.get("addressRegion") or ""
     if not isinstance(loc, str) or not loc.strip():
         return None
     try:
@@ -188,59 +196,11 @@ def _municipality_from_parcel_address_entity(
 def _parcel_urn_to_municipality_code(
     tenant_id: str, parcel_urn: str, parcel_entity: Optional[dict] = None
 ) -> Optional[Tuple[str, str]]:
-    uuid_candidate = None
-    parts = parcel_urn.split(":")
-    if parts:
-        last = parts[-1].strip()
-        if re.match(
-            r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-            last,
-        ):
-            uuid_candidate = last
-        elif last.startswith("parcel-"):
-            uuid_candidate = last[7:].strip()
-            if not re.match(r"^[0-9a-fA-F-]{36}$", uuid_candidate):
-                uuid_candidate = None
-    if not uuid_candidate:
-        return _municipality_from_parcel_address_entity(parcel_entity)
+    """Resolve a parcel URN to ``(municipality INE code, 'municipality')``.
 
-    try:
-        conn = psycopg2.connect(POSTGRES_URL)
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            SELECT twl.municipality_code
-            FROM cadastral_parcels cp
-            LEFT JOIN tenant_weather_locations twl ON twl.id = cp.weather_location_id
-            WHERE cp.id = %s::uuid AND cp.tenant_id = %s
-            LIMIT 1
-            """,
-            (uuid_candidate, tenant_id),
-        )
-        row = cur.fetchone()
-        if row and row.get("municipality_code"):
-            cur.close()
-            conn.close()
-            return (row["municipality_code"], "municipality")
-        cur.execute(
-            """
-            SELECT cm.ine_code
-            FROM cadastral_parcels cp
-            JOIN catalog_municipalities cm ON LOWER(TRIM(cm.name)) = LOWER(TRIM(cp.municipality))
-            WHERE cp.id = %s::uuid AND cp.tenant_id = %s
-            LIMIT 1
-            """,
-            (uuid_candidate, tenant_id),
-        )
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        if row and row.get("ine_code"):
-            return (row["ine_code"], "municipality")
-    except Exception as e:
-        logger.debug("cadastral_parcels lookup failed for %s: %s", uuid_candidate, e)
-
-    # No cadastral row (table often empty): still resolve weather key from Orion address
+    Single source of truth = Orion: the municipality is read straight from the
+    AgriParcel entity. The ``cadastral_parcels`` read-model is retired.
+    """
     return _municipality_from_parcel_address_entity(parcel_entity)
 
 
