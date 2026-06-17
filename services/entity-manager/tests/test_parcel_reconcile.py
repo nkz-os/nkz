@@ -51,3 +51,27 @@ def test_get_live_parcel_ids_returns_none_on_http_error():
 def test_get_live_parcel_ids_returns_none_on_exception():
     with patch.object(pr.requests, "get", side_effect=pr.requests.RequestException("boom")):
         assert pr.get_live_parcel_ids("montiko") is None
+
+
+def test_get_auto_provision_modules():
+    cur = MagicMock()
+    cur.fetchall.return_value = [("weather",)]
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    with patch.object(pr, "_get_db", return_value=conn):
+        assert pr.get_auto_provision_modules() == ["weather"]
+
+
+def test_get_rows_returns_dicts():
+    cur = MagicMock()
+    cur.description = [("tenant_id",), ("parcel_id",), ("module_id",),
+                       ("setup_status",), ("retry_count",), ("next_retry_at",)]
+    cur.fetchall.return_value = [
+        ("montiko", "urn:ngsi-ld:AgriParcel:aaa", "weather", "ok", 0, None),
+    ]
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    with patch.object(pr, "_get_db", return_value=conn):
+        rows = pr.get_rows("montiko")
+    assert rows[0]["module_id"] == "weather"
+    assert rows[0]["setup_status"] == "ok"
