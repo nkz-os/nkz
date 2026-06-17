@@ -22,6 +22,8 @@ unittest.mock.patch.dict(
      "common.auth_middleware": MagicMock()},
 ).start()
 
+from datetime import datetime, timedelta, timezone
+
 import parcel_reconcile as pr
 
 
@@ -75,3 +77,22 @@ def test_get_rows_returns_dicts():
         rows = pr.get_rows("montiko")
     assert rows[0]["module_id"] == "weather"
     assert rows[0]["setup_status"] == "ok"
+
+
+def test_backoff_seconds_schedule():
+    # capped exponential: 30s, 120s, 600s, 3600s, then capped
+    assert pr.backoff_seconds(0) == 30
+    assert pr.backoff_seconds(1) == 120
+    assert pr.backoff_seconds(2) == 600
+    assert pr.backoff_seconds(3) == 3600
+    assert pr.backoff_seconds(99) == 3600
+
+
+def test_is_due_for_retry():
+    now = datetime(2026, 6, 17, 12, 0, tzinfo=timezone.utc)
+    past = {"next_retry_at": now - timedelta(seconds=1)}
+    future = {"next_retry_at": now + timedelta(seconds=60)}
+    none_row = {"next_retry_at": None}
+    assert pr.is_due_for_retry(past, now) is True
+    assert pr.is_due_for_retry(future, now) is False
+    assert pr.is_due_for_retry(none_row, now) is True

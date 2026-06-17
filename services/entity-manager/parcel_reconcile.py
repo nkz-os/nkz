@@ -12,6 +12,7 @@ down the whole tenant (incident 2026-06-16).
 import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -127,5 +128,80 @@ def get_rows(tenant_id: str) -> list[dict]:
         rows = [dict(zip(cols, r)) for r in cur.fetchall()]
         cur.close()
         return rows
+    finally:
+        conn.close()
+
+
+_BACKOFF = [30, 120, 600, 3600]
+
+
+def backoff_seconds(retry_count: int) -> int:
+    idx = min(retry_count, len(_BACKOFF) - 1)
+    return _BACKOFF[idx]
+
+
+def is_due_for_retry(row: dict, now: datetime) -> bool:
+    nxt = row.get("next_retry_at")
+    return nxt is None or nxt <= now
+
+
+def mark_ok(tenant_id: str, parcel_id: str, module_id: str) -> None:
+    conn = _get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE tenant_parcel_modules SET setup_status='ok',"
+                " last_error=NULL, retry_count=0, next_retry_at=NULL, updated_at=NOW()"
+                " WHERE tenant_id=%s AND parcel_id=%s AND module_id=%s",
+                (tenant_id, parcel_id, module_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def mark_error(tenant_id: str, parcel_id: str, module_id: str,
+               err: str, retry_count: int) -> None:
+    nxt = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds(retry_count))
+    conn = _get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE tenant_parcel_modules SET setup_status='error',"
+                " last_error=%s, retry_count=%s, next_retry_at=%s, updated_at=NOW()"
+                " WHERE tenant_id=%s AND parcel_id=%s AND module_id=%s",
+                (err[:1000], retry_count + 1, nxt, tenant_id, parcel_id, module_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def insert_pending(tenant_id: str, parcel_id: str, module_id: str) -> None:
+    conn = _get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO tenant_parcel_modules"
+                " (tenant_id, parcel_id, module_id, enabled, setup_status, next_retry_at)"
+                " VALUES (%s,%s,%s,true,'pending',NOW())"
+                " ON CONFLICT (tenant_id, parcel_id, module_id) DO NOTHING",
+                (tenant_id, parcel_id, module_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_row(tenant_id: str, parcel_id: str, module_id: str) -> None:
+    conn = _get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM tenant_parcel_modules"
+                " WHERE tenant_id=%s AND parcel_id=%s AND module_id=%s",
+                (tenant_id, parcel_id, module_id),
+            )
+        conn.commit()
     finally:
         conn.close()
