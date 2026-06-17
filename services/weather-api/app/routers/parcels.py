@@ -20,6 +20,7 @@ from app.services.agro_status import (
     _usda_texture_class,
     _extract_float,
 )
+from common.ngsi_headers import inject_fiware_headers
 
 logger = logging.getLogger(__name__)
 
@@ -157,17 +158,7 @@ def _persist_agro_status_to_orion(tenant_id: str, parcel_id: str, result: dict):
 
 
 def _orion_headers(tenant_id: str) -> dict:
-    h = {"Accept": "application/ld+json"}
-    if tenant_id:
-        h["Fiware-Service"] = tenant_id
-        h["Fiware-ServicePath"] = "/"
-        h["NGSILD-Tenant"] = tenant_id
-    if settings.context_url:
-        h["Link"] = (
-            f'<{settings.context_url}>; rel="http://www.w3.org/ns/json-ld#context";'
-            f' type="application/ld+json"'
-        )
-    return h
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
 def _resolve_parcel_location(parcel_entity: dict) -> Optional[tuple]:

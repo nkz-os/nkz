@@ -43,7 +43,7 @@ except Exception as e:
     raise
 
 from db_helper import set_tenant_context
-from tenant_utils import normalize_tenant_id
+from common.ngsi_headers import inject_fiware_headers
 
 # Import risk models
 from risk_models.factory import RiskModelFactory
@@ -68,42 +68,14 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis-service:6379")
 
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers with normalized tenant ID."""
-    n = normalize_tenant_id(tenant_id)
-    headers = {
-        "NGSILD-Tenant": n,
-        "Fiware-Service": n,
-        "Fiware-ServicePath": "/",
-        "Accept": "application/ld+json",
-    }
-    ctx = os.getenv("CONTEXT_URL", "")
-    if ctx:
-        headers["Link"] = (
-            f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
-        )
-    return headers
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
 def _make_orion_headers(
     tenant_id: str, content_type: str = "application/ld+json"
 ) -> dict:
     """Build Orion-LD headers for entity creation (POST)."""
-    n = normalize_tenant_id(tenant_id)
-    headers = {
-        "NGSILD-Tenant": n,
-        "Fiware-Service": n,
-        "Fiware-ServicePath": "/",
-    }
-    if content_type == "application/ld+json":
-        headers["Content-Type"] = "application/ld+json"
-    else:
-        headers["Content-Type"] = "application/json"
-        ctx = os.getenv("CONTEXT_URL", "")
-        if ctx:
-            headers["Link"] = (
-                f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context";'
-                ' type="application/ld+json"'
-            )
-    return headers
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=(content_type == "application/ld+json"))
 
 
 # Build PostgreSQL URL

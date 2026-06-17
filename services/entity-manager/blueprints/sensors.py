@@ -16,7 +16,8 @@ import psycopg2
 import requests
 import paho.mqtt.client as mqtt
 
-from common.auth_middleware import require_auth, inject_fiware_headers
+from common.auth_middleware import require_auth
+from common.ngsi_headers import inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple
 
 # Import shared config
@@ -81,11 +82,9 @@ def _patch_command_status(
                 'value': response_data,
             }
 
-        headers = {
-            'Content-Type': 'application/ld+json',
-            'Fiware-Service': tenant_id,
-            'Fiware-ServicePath': '/',
-        }
+        headers = inject_fiware_headers(
+            {'Content-Type': 'application/json'}, tenant=tenant_id, has_context_in_body=False
+        )
         resp = requests.patch(
             f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs",
             json=patch_body,
@@ -179,18 +178,15 @@ def register_sensor():
             conn.close()
 
             # ── Dedup check via Orion-LD ──────────────────────────────────
-            orion_query_headers = {
-                'Accept': 'application/ld+json',
-                'Fiware-Service': tenant_id,
-                'Fiware-ServicePath': '/'
-            }
             orion_check_url = (
                 f"{ORION_URL}/ngsi-ld/v1/entities"
                 f"?type={sdm_entity_type}"
                 f'&q=externalId=="{external_id}"'
             )
             orion_check = requests.get(
-                orion_check_url, headers=orion_query_headers, timeout=10
+                orion_check_url,
+                headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
+                timeout=10
             )
             if orion_check.status_code == 200:
                 existing_entities = orion_check.json()
@@ -272,11 +268,9 @@ def register_sensor():
                     'value': data['parcel_id'],
                 }
 
-            orion_headers = {
-                'Content-Type': 'application/ld+json',
-                'Fiware-Service': tenant_id,
-                'Fiware-ServicePath': '/',
-            }
+            orion_headers = inject_fiware_headers(
+                {'Content-Type': 'application/ld+json'}, tenant=tenant_id, has_context_in_body=True
+            )
             orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
 
             orion_entity_created = False
@@ -373,11 +367,9 @@ def register_sensor():
                         device_config['devices'][0]['attributes'].append(attr_config)
 
                     # Register device in IoT Agent
-                    iot_headers = {
-                        'Content-Type': 'application/json',
-                        'Fiware-Service': tenant_id,
-                        'Fiware-ServicePath': '/'
-                    }
+                    iot_headers = inject_fiware_headers(
+                        {'Content-Type': 'application/json'}, tenant=tenant_id, has_context_in_body=False
+                    )
 
                     iot_response = requests.post(
                         f'{iot_agent_url}/iot/devices',
@@ -450,13 +442,9 @@ def register_sensor():
                 _cleanup_needed = False
             if _cleanup_needed:
                 try:
-                    cleanup_headers = {
-                        'Fiware-Service': tenant_id,
-                        'Fiware-ServicePath': '/',
-                    }
                     requests.delete(
                         f"{ORION_URL}/ngsi-ld/v1/entities/{orion_entity_id}",
-                        headers=cleanup_headers,
+                        headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
                         timeout=5,
                     )
                     logger.info(
@@ -960,11 +948,9 @@ def send_device_command(device_id):
                 'sentAt': {'type': 'Property', 'value': now_iso},
             }
 
-            orion_headers = {
-                'Content-Type': 'application/ld+json',
-                'Fiware-Service': tenant_id,
-                'Fiware-ServicePath': '/',
-            }
+            orion_headers = inject_fiware_headers(
+                {'Content-Type': 'application/ld+json'}, tenant=tenant_id, has_context_in_body=True
+            )
             orion_resp = requests.post(
                 f"{ORION_URL}/ngsi-ld/v1/entities",
                 json=command_entity,

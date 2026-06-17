@@ -77,6 +77,7 @@ _common_mock.require_auth = _require_auth
 _common_mock.inject_fiware_headers = lambda h, t=None, **kw: h
 sys.modules["common"] = _common_mock
 sys.modules["common.auth_middleware"] = _common_mock
+sys.modules["common.ngsi_headers"] = _common_mock
 # parcel_activation.py imports common.tier_quotas at module level; pre-seed
 # the submodule because the parent "common" stub is not a package.
 _tier_quotas_mock = MagicMock()
