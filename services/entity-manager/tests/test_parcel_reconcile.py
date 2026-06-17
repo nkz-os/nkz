@@ -55,6 +55,15 @@ def test_get_live_parcel_ids_returns_none_on_exception():
         assert pr.get_live_parcel_ids("montiko") is None
 
 
+def test_get_live_parcel_ids_none_when_context_url_missing():
+    """SEMANTIC false-zero guard: without CONTEXT_URL the @context Link is absent,
+    so a context-less AgriParcel query returns a FALSE empty list. The engine must
+    refuse to query (return None / skip) rather than treat it as zero parcels."""
+    with patch.object(pr, "CONTEXT_URL", ""), patch.object(pr.requests, "get") as get:
+        assert pr.get_live_parcel_ids("montiko") is None
+    get.assert_not_called()  # must not even hit Orion
+
+
 def test_get_auto_provision_modules():
     cur = MagicMock()
     cur.fetchall.return_value = [("weather",)]
