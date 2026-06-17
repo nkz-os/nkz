@@ -36,22 +36,14 @@ def _orion_headers(tenant_id: str) -> dict:
     @context Link from CONTEXT_URL (Content-Type application/json) — exactly what
     AgriParcel type-expansion and the false-zero guard require.
 
-    We access inject_fiware_headers via sys.modules so that test stubs of 'common'
-    (MagicMock injected into sys.modules) work without a real package on sys.path.
+    No silent fallback: in production common.auth_middleware always imports; if it
+    ever failed we want a hard error here rather than a degraded (@context-less)
+    header set that could trigger the false-zero catastrophe.
     """
-    import sys as _sys
-
-    _common = _sys.modules.get("common")
-    if _common is not None:
-        _inject = getattr(getattr(_common, "auth_middleware", None), "inject_fiware_headers", None)
-    else:
-        _inject = None
-
-    if _inject is None:
-        from common.auth_middleware import inject_fiware_headers as _inject  # type: ignore[assignment]
+    from common.auth_middleware import inject_fiware_headers
 
     headers: dict = {}
-    _inject(headers, tenant=tenant_id)
+    inject_fiware_headers(headers, tenant=tenant_id)
     return headers
 
 
