@@ -133,3 +133,63 @@ def test_find_backstop_orphans_skips_live_and_owned():
          patch.object(pr, "query_entities", side_effect=lambda t, ty: entities.get(ty, [])):
         orphans = pr.find_backstop_orphans("montiko", live, owned)
     assert orphans == ["vi-orphan"]
+
+
+def test_reconcile_tenant_skips_on_false_zero():
+    """If live parcels is None, NOTHING is torn down or deleted."""
+    with patch.object(pr, "get_live_parcel_ids", return_value=None), \
+         patch.object(pr, "get_rows") as rows, \
+         patch.object(pr, "dispatch_to_module") as disp, \
+         patch.object(pr, "find_backstop_orphans") as bs:
+        result = pr.reconcile_tenant("montiko")
+    assert result["skipped"] is True
+    rows.assert_not_called()
+    disp.assert_not_called()
+    bs.assert_not_called()
+
+
+def test_reconcile_tenant_provisions_auto_module():
+    with patch.object(pr, "get_live_parcel_ids",
+                      return_value={"urn:ngsi-ld:AgriParcel:p1"}), \
+         patch.object(pr, "get_rows", return_value=[]), \
+         patch.object(pr, "get_auto_provision_modules", return_value=["weather"]), \
+         patch.object(pr, "insert_pending") as ins, \
+         patch.object(pr, "dispatch_to_module", return_value=(200, {})) as disp, \
+         patch.object(pr, "mark_ok") as ok, \
+         patch.object(pr, "find_backstop_orphans", return_value=[]):
+        result = pr.reconcile_tenant("montiko")
+    ins.assert_called_once_with("montiko", "urn:ngsi-ld:AgriParcel:p1", "weather")
+    disp.assert_called_once()
+    assert disp.call_args.kwargs["action"] == "activate"
+    ok.assert_called_once()
+    assert result["provisioned"] == 1
+
+
+def test_reconcile_tenant_tears_down_dead_parcel_and_deletes_row_on_ok():
+    rows = [{"parcel_id": "urn:ngsi-ld:AgriParcel:dead", "module_id": "crop-health",
+             "setup_status": "ok", "retry_count": 0, "next_retry_at": None}]
+    with patch.object(pr, "get_live_parcel_ids", return_value=set()), \
+         patch.object(pr, "get_rows", return_value=rows), \
+         patch.object(pr, "get_auto_provision_modules", return_value=[]), \
+         patch.object(pr, "dispatch_to_module", return_value=(200, {})) as disp, \
+         patch.object(pr, "delete_row") as drow, \
+         patch.object(pr, "find_backstop_orphans", return_value=[]):
+        result = pr.reconcile_tenant("montiko")
+    assert disp.call_args.kwargs["action"] == "teardown"
+    drow.assert_called_once_with("montiko", "urn:ngsi-ld:AgriParcel:dead", "crop-health")
+    assert result["torn_down"] == 1
+
+
+def test_reconcile_tenant_keeps_row_on_teardown_failure():
+    rows = [{"parcel_id": "urn:ngsi-ld:AgriParcel:dead", "module_id": "crop-health",
+             "setup_status": "ok", "retry_count": 0, "next_retry_at": None}]
+    with patch.object(pr, "get_live_parcel_ids", return_value=set()), \
+         patch.object(pr, "get_rows", return_value=rows), \
+         patch.object(pr, "get_auto_provision_modules", return_value=[]), \
+         patch.object(pr, "dispatch_to_module", return_value=(502, {"error": "no teardown"})), \
+         patch.object(pr, "delete_row") as drow, \
+         patch.object(pr, "mark_error") as merr, \
+         patch.object(pr, "find_backstop_orphans", return_value=[]):
+        pr.reconcile_tenant("montiko")
+    drow.assert_not_called()
+    merr.assert_called_once()

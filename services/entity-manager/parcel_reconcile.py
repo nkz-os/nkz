@@ -306,3 +306,74 @@ def delete_entities(tenant_id: str, ids: list) -> int:
         except requests.RequestException as exc:
             logger.error("Backstop delete failed for %s: %s", tenant_id, exc)
     return done
+
+
+def reconcile_tenant(tenant_id: str) -> dict:
+    """One convergence pass for a tenant. Idempotent."""
+    metrics = {"tenant": tenant_id, "skipped": False, "provisioned": 0,
+               "retried": 0, "torn_down": 0, "orphans_deleted": 0, "errors": 0}
+
+    live = get_live_parcel_ids(tenant_id)
+    if live is None:  # false-zero guard — do nothing destructive
+        metrics["skipped"] = True
+        logger.warning("Reconcile skipped for %s (live parcels unknown)", tenant_id)
+        return metrics
+
+    rows = get_rows(tenant_id)
+    row_index = {(r["parcel_id"], r["module_id"]): r for r in rows}
+    owned_parcel_ids = {r["parcel_id"] for r in rows}
+    now = datetime.now(timezone.utc)
+
+    # 3. PROVISION: auto_provision modules for live parcels with no row
+    auto_modules = get_auto_provision_modules()
+    for parcel_id in live:
+        for module_id in auto_modules:
+            if (parcel_id, module_id) in row_index:
+                continue
+            insert_pending(tenant_id, parcel_id, module_id)
+            _dispatch(tenant_id, parcel_id, module_id, "activate", 0, metrics, "provisioned")
+
+    # 4. RETRY: rows in error/pending that are due
+    for r in rows:
+        if r["parcel_id"] not in live:
+            continue  # handled by teardown below
+        if r["setup_status"] in ("error", "pending") and is_due_for_retry(r, now):
+            _dispatch(tenant_id, r["parcel_id"], r["module_id"], "activate",
+                      r.get("retry_count", 0), metrics, "retried")
+
+    # 5. TEARDOWN: rows whose parcel is gone
+    for r in rows:
+        if r["parcel_id"] in live:
+            continue
+        status, _ = dispatch_to_module(
+            module_id=r["module_id"], tenant_id=tenant_id,
+            parcel_id=r["parcel_id"], action="teardown",
+        )
+        if status in (200, 201, 204):
+            delete_row(tenant_id, r["parcel_id"], r["module_id"])
+            metrics["torn_down"] += 1
+        else:
+            mark_error(tenant_id, r["parcel_id"], r["module_id"],
+                       f"teardown {status}", r.get("retry_count", 0))
+            metrics["errors"] += 1
+
+    # 6. BACKSTOP: legacy orphans with no owning row
+    if BACKSTOP_ENABLED:
+        orphans = find_backstop_orphans(tenant_id, live, owned_parcel_ids)
+        metrics["orphans_deleted"] = delete_entities(tenant_id, orphans)
+
+    logger.info("Reconcile %s: %s", tenant_id, metrics)
+    return metrics
+
+
+def _dispatch(tenant_id, parcel_id, module_id, action, retry_count, metrics, key):
+    status, result = dispatch_to_module(
+        module_id=module_id, tenant_id=tenant_id, parcel_id=parcel_id, action=action,
+    )
+    if status in (200, 201, 204):
+        mark_ok(tenant_id, parcel_id, module_id)
+        metrics[key] += 1
+    else:
+        mark_error(tenant_id, parcel_id, module_id,
+                   str(result)[:500], retry_count)
+        metrics["errors"] += 1
