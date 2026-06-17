@@ -74,13 +74,13 @@ export function StepTypeSelection() {
         <p className="text-xs font-medium text-nkz-muted uppercase tracking-wide mb-2">Acceso rápido</p>
         <Button
           onClick={() => handleQuickCreate('AgriParcel')}
-          className="w-full flex items-center justify-between px-5 py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-sm"
+          className="w-full flex items-center justify-between px-5 py-4 bg-nkz-accent-base hover:bg-nkz-accent-strong text-white rounded-xl transition-colors shadow-sm"
         >
           <div className="flex items-center gap-3">
             <MapPin className="w-5 h-5 flex-shrink-0" />
             <div className="text-left">
               <div className="font-semibold">Crear nueva parcela</div>
-              <div className="text-xs text-green-200">AgriParcel · Parcela agrícola</div>
+              <div className="text-xs text-white/70">AgriParcel · Parcela agrícola</div>
             </div>
           </div>
           <ArrowRight className="w-5 h-5 flex-shrink-0" />
@@ -102,7 +102,7 @@ export function StepTypeSelection() {
           value={searchTerm}
           onChange={(e: any) => setSearchTerm(e.target.value)}
           placeholder="Buscar: tractor, sensor humedad, Davis, John Deere..."
-          className="w-full pl-12 pr-4 py-3 border-2 border-nkz-border rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base"
+          className="w-full pl-12 pr-4 py-3 border-2 border-nkz-border rounded-xl focus:ring-2 focus:ring-nkz-accent-base focus:border-nkz-accent-base text-base"
         />
         {searchTerm && (
           <Button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600">
@@ -177,11 +177,11 @@ export function StepTypeSelection() {
         const meta = ENTITY_TYPE_METADATA[entityType];
         const Icon = meta?.icon ?? Activity;
         return (
-          <div className="p-4 bg-nkz-success-light border-2 border-green-500 rounded-xl flex items-center gap-3">
-            <Icon className="w-6 h-6 text-nkz-success" />
+          <div className="p-4 bg-nkz-accent-soft border-2 border-nkz-accent-base rounded-xl flex items-center gap-3">
+            <Icon className="w-6 h-6 text-nkz-accent-base" />
             <div>
-              <div className="font-semibold text-green-900">{entityType}</div>
-              <div className="text-sm text-nkz-success">{meta?.description}</div>
+              <div className="font-semibold text-nkz-accent-strong">{entityType}</div>
+              <div className="text-sm text-nkz-accent-base">{meta?.description}</div>
             </div>
           </div>
         );

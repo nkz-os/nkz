@@ -61,7 +61,7 @@ export const ForgotPassword: React.FC = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-nkz-accent-soft/30 to-nkz-accent-soft/10 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8 text-center">
           <CheckCircle className="mx-auto h-16 w-16 text-nkz-success mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('forgot_password.email_sent')}</h1>
@@ -83,10 +83,10 @@ export const ForgotPassword: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-nkz-accent-soft/30 to-nkz-accent-soft/10 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600 rounded-full mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-nkz-accent-base rounded-full mb-4">
             <Mail className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900">{t('forgot_password.title')}</h1>
