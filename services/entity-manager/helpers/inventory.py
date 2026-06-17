@@ -7,6 +7,8 @@ from typing import Any
 
 from tenant_utils import normalize_tenant_id
 
+from common.ngsi_headers import inject_fiware_headers
+
 logger = logging.getLogger(__name__)
 
 INVENTORY_TIMEOUT = 30
@@ -55,7 +57,7 @@ def _check_orion_ld(tenant_id: str) -> dict:
     """Discover entity types and counts using dynamic type discovery, plus subscription count."""
     try:
         base = f"{ORION_URL}/ngsi-ld/v1"
-        headers = {"Fiware-Service": tenant_id, "Fiware-ServicePath": "/"}
+        headers = inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
         r = requests.get(f"{base}/types", headers=headers, timeout=INVENTORY_TIMEOUT)
         type_counts = {}

@@ -22,6 +22,7 @@ import redis
 
 from .config import Settings
 from .models import TelemetryPayload, Measurement
+from common.ngsi_headers import inject_fiware_headers
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +32,7 @@ _redis_client: Optional[redis.Redis] = None
 
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated)."""
-    n = tenant_id
-    headers = {
-        "NGSILD-Tenant": n,
-        "Fiware-Service": n,
-        "Fiware-ServicePath": "/",
-        "Accept": "application/ld+json",
-    }
-    ctx = os.getenv("CONTEXT_URL", "")
-    if ctx:
-        headers["Link"] = f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
-    return headers
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
 def get_redis_client(settings: Settings) -> redis.Redis:

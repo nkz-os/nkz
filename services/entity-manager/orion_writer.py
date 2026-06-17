@@ -9,6 +9,8 @@ from typing import Dict, Any, Optional, Tuple
 from datetime import datetime
 import requests
 
+from common.auth_middleware import inject_fiware_headers
+
 logger = logging.getLogger(__name__)
 
 # Get Orion URL from environment
@@ -160,15 +162,8 @@ def create_weather_observed_entity(
 
         headers["Content-Type"] = "application/ld+json"
 
-        # Inject FIWARE headers (if inject_fiware_headers is available)
-        try:
-            from common.auth_middleware import inject_fiware_headers
-
-            headers = inject_fiware_headers(headers, tenant_id)
-        except ImportError:
-            # Fallback if common.auth_middleware not available
-            headers["Fiware-Service"] = tenant_id
-            headers["Fiware-ServicePath"] = "/"
+        # Inject FIWARE headers
+        headers = inject_fiware_headers(headers, tenant_id)
 
         # Try to create entity
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
@@ -304,13 +299,7 @@ def update_weather_observed_entity(
         headers["Content-Type"] = "application/ld+json"
 
         # Inject FIWARE headers
-        try:
-            from common.auth_middleware import inject_fiware_headers
-
-            headers = inject_fiware_headers(headers, tenant_id)
-        except ImportError:
-            headers["Fiware-Service"] = tenant_id
-            headers["Fiware-ServicePath"] = "/"
+        headers = inject_fiware_headers(headers, tenant_id)
 
         # Update entity
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"

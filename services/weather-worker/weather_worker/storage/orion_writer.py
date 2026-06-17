@@ -13,6 +13,8 @@ import requests
 # Add common directory to path
 sys.path.insert(0, "/app/common")
 
+from common.ngsi_headers import inject_fiware_headers
+
 logger = logging.getLogger(__name__)
 
 # Get Orion URL from environment
@@ -21,24 +23,8 @@ CONTEXT_URL = os.getenv("CONTEXT_URL", "")
 
 
 def _make_headers(tenant_id: str) -> dict:
-    """Build Orion-LD headers — NGSI-LD + FIWARE. Tenant IDs are sent AS-IS.
-
-    The canonical tenant format is hyphenated (services/common/tenant_utils.py);
-    the SDK OrionClient sends it verbatim. Underscoring it here routed writes to
-    a phantom tenant for hyphenated tenants.
-    """
-    n = tenant_id
-    headers = {
-        "NGSILD-Tenant": n,
-        "Fiware-Service": n,
-        "Fiware-ServicePath": "/",
-        "Accept": "application/ld+json",
-    }
-    if CONTEXT_URL:
-        headers["Link"] = (
-            f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
-        )
-    return headers
+    """Build Orion-LD headers — delegates to canonical ngsi_headers."""
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
 def find_existing_weather_observed(

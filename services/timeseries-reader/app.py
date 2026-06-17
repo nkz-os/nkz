@@ -47,9 +47,10 @@ except ImportError:
     def require_auth(f):
         return f
 
+    from ngsi_headers import inject_fiware_headers as _canonical
+
     def inject_fiware_headers(headers, tenant):
-        headers["Fiware-Service"] = tenant
-        return headers
+        return _canonical(headers, tenant=tenant, has_context_in_body=False)
 
 
 # Configure logging

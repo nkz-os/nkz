@@ -12,7 +12,7 @@ from typing import Any
 
 import requests
 
-from tenant_utils import normalize_tenant_id
+from common.ngsi_headers import inject_fiware_headers
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +24,7 @@ CONTEXT_URL = os.getenv(
 
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers with normalized tenant ID."""
-    n = normalize_tenant_id(tenant_id)
-    headers = {
-        "NGSILD-Tenant": n,
-        "Fiware-Service": n,
-        "Fiware-ServicePath": "/",
-        "Accept": "application/ld+json",
-    }
-    ctx = os.getenv("CONTEXT_URL", "")
-    if ctx:
-        headers["Link"] = f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
-    return headers
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
 def evaluate_disease_risks(

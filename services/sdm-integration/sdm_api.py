@@ -99,11 +99,7 @@ def get_or_create_service_group(tenant_id: str) -> str | None:
 
     Returns the tenant's apikey on success, None on failure.
     """
-    headers = {
-        'Content-Type': 'application/json',
-        'Fiware-Service': tenant_id,
-        'Fiware-ServicePath': '/'
-    }
+    headers = inject_fiware_headers({'Content-Type': 'application/json'}, tenant_id)
 
     try:
         # Check if a service group already exists for this tenant
@@ -254,11 +250,7 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
             })
         
         # Register device in IoT Agent
-        iot_headers = {
-            'Content-Type': 'application/json',
-            'Fiware-Service': tenant_id,
-            'Fiware-ServicePath': '/'
-        }
+        iot_headers = inject_fiware_headers({'Content-Type': 'application/json'}, tenant_id)
         
         logger.info(f"Provisioning device {device_id} in IoT Agent...")
         logger.debug(f"Device config: {json.dumps(device_config, indent=2)}")
