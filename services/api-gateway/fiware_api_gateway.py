@@ -599,62 +599,6 @@ def enforce_module_csp_of_data():
     return None
 
 
-# ---------------------------------------------------------------------------
-# AgriParcel write authority enforcement
-# entity-manager is the SOLE writer of AgriParcel entities.  All external
-# write attempts are rejected here at the gateway.  An internal writer may
-# identify itself via X-Internal-Service-Secret for defense-in-depth.
-# ---------------------------------------------------------------------------
-
-_PARCEL_WRITE_METHODS = {"POST", "PATCH", "PUT", "DELETE"}
-
-
-def _targets_agriparcel() -> bool:
-    """Return True if the current request targets an AgriParcel entity."""
-    if "AgriParcel" in request.args.get("type", ""):
-        return True
-    if "urn:ngsi-ld:AgriParcel:" in request.path:
-        return True
-    if request.is_json:
-        body = request.get_json(silent=True)
-        if isinstance(body, dict) and body.get("type") == "AgriParcel":
-            return True
-        if isinstance(body, list) and any(
-            isinstance(e, dict) and e.get("type") == "AgriParcel" for e in body
-        ):
-            return True
-    return False
-
-
-@app.before_request
-def enforce_parcel_write_authority():
-    """Only entity-manager may write AgriParcel to Orion. GET always allowed."""
-    if request.method not in _PARCEL_WRITE_METHODS:
-        return None
-    if not (
-        request.path.startswith("/ngsi-ld/v1/entities")
-        or request.path.startswith("/ngsi-ld/v1/entityOperations")
-    ):
-        return None
-    if not _targets_agriparcel():
-        return None
-    secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
-    if secret and request.headers.get("X-Internal-Service-Secret") == secret:
-        return None  # entity-manager — the sole authorized writer
-    return (
-        jsonify(
-            {
-                "error": "parcel_write_forbidden",
-                "detail": (
-                    "AgriParcel writes must go through entity-manager"
-                    " /api/entities/parcels"
-                ),
-            }
-        ),
-        403,
-    )
-
-
 def rate_limit(tenant: str) -> bool:
     """Devuelve True si permitido, False si excede el límite."""
     if REQUESTS_PER_MINUTE <= 0:
@@ -2417,6 +2361,55 @@ def proxy_assets_requests(subpath):
         return (response.content, response.status_code, response.headers.items())
     except Exception as e:
         logger.error(f"Error proxying asset request: {e}")
+        return jsonify({"error": "Internal service connection error"}), 502
+
+
+@app.route("/api/entities/parcels/<path:subpath>", methods=["GET", "POST", "OPTIONS"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def proxy_parcel_modules(subpath):
+    """Proxy the parcel-module CONTROL plane to entity-manager (activation/list).
+
+    Entity CRUD does NOT go here — AgriParcel is written via /ngsi-ld like every
+    entity. Only `/modules...` subpaths are valid here; anything else is rejected so
+    this route never shadows entity writes.
+    """
+    if request.method == "OPTIONS":
+        return "", 204
+    if "/modules" not in f"/{subpath}":
+        return jsonify({"error": "not_found"}), 404
+
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+    if not rate_limit(tenant):
+        return jsonify({"error": "Rate limit exceeded"}), 429
+
+    target_url = f"{ENTITY_MANAGER_URL}/api/entities/parcels/{subpath}"
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
+    content_type = request.headers.get("Content-Type")
+    if content_type:
+        headers["Content-Type"] = content_type
+    if KEYCLOAK_AUTH_AVAILABLE:
+        try:
+            signature = generate_hmac_signature(token, tenant)
+            if signature:
+                headers["X-Auth-Signature"] = signature
+        except Exception as e:
+            logger.warning(f"Failed to generate HMAC signature for parcel-modules: {e}")
+    try:
+        response = requests.request(
+            request.method, target_url, headers=headers,
+            params=request.args, data=request.get_data(), timeout=30,
+        )
+        return (response.content, response.status_code, response.headers.items())
+    except Exception as e:
+        logger.error(f"Error proxying parcel-module request: {e}")
         return jsonify({"error": "Internal service connection error"}), 502
 
 
