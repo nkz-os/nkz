@@ -123,25 +123,25 @@ function SidebarShellRoot({
     <div
       className={clsx(
         'relative h-full z-nkz-rail pointer-events-auto',
-        !isOpen && 'border-0 shadow-none bg-transparent',
+        isOpen ? 'overflow-visible' : 'border-0 shadow-none bg-transparent',
       )}
       style={{
         width: isOpen ? `${width}px` : 'auto',
         minWidth: isOpen ? `${width}px` : undefined,
       }}
     >
-      {/* Toggle button — outside overflow container, always fully visible */}
+      {/* Toggle button — anchored with fixed offset to avoid clipping */}
       <button
         onClick={handleCycle}
         className={clsx(
           'absolute top-1/2 -translate-y-1/2 z-50 group',
           'p-2 rounded-full',
           'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl',
-          'text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:scale-110',
+          'text-slate-600 dark:text-slate-300 hover:text-nkz-accent-base hover:bg-slate-50 dark:hover:bg-slate-800 hover:scale-110',
           'active:scale-95 transition-all duration-300',
           'flex items-center justify-center',
           isOpen
-            ? (side === 'left' ? 'right-0 translate-x-1/2' : 'left-0 -translate-x-1/2')
+            ? (side === 'left' ? '-right-4' : '-left-4')
             : (side === 'left' ? 'left-2' : 'right-2'),
         )}
         title={

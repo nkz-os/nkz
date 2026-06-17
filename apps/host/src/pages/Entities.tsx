@@ -340,7 +340,9 @@ export const Entities: React.FC = () => {
                 <>
                   <Button
                     onClick={() => setIsImportOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-sm"
+                    variant="primary"
+                    size="md"
+                    className="flex items-center gap-2 shadow-sm"
                   >
                     <Upload className="w-4 h-4" />
                     Importar
@@ -362,7 +364,7 @@ export const Entities: React.FC = () => {
             <Button
               onClick={() => setActiveTab('crops')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'crops'
-                ? 'border-green-500 text-nkz-success bg-nkz-success-light/50'
+                ? 'border-nkz-accent-base text-nkz-accent-base bg-nkz-accent-soft/50'
                 : 'border-transparent text-nkz-muted hover:text-gray-700 hover:bg-nkz-bg-secondary'
                 }`}
             >

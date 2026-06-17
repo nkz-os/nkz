@@ -15,12 +15,19 @@
 #   - */ingest/*.py                  (reference data loading)
 #   - db_helper.py                   (DB connection utilities)
 #   - audit_logger.py                (audit trail, not entity state)
+#   - parcel_activation.py           (admin/activation state: tenant_parcel_modules)
+#   - parcel_reconcile.py            (admin/activation state: tenant_parcel_modules)
 #   - config/timescaledb/migrations/ (schema migrations)
 #   - docker/*.sql                   (seed data)
 #
 # Deprecation exemption:
 #   INSERT statements inside a function whose docstring contains "DEPRECATED"
 #   are skipped (kept for rollback safety, not called).
+#
+# Note: tenant_parcel_modules is admin/activation-state metadata (CLAUDE.md §1:
+# "Admin/metadata writes (tenants, modules, …) are correct in PostgreSQL"), NOT
+# observational/timeseries data. Direct writes to it are sanctioned, like
+# tenant_weather_locations (locations.py) and tenant_limits.
 # =============================================================================
 
 set -euo pipefail
@@ -29,7 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MODE="${1:-staged}"
 
-EXCLUDE_FILES='notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|locations\.py|parcel_projection\.py'
+EXCLUDE_FILES='notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|locations\.py|parcel_projection\.py|parcel_activation\.py|parcel_reconcile\.py'
 EXCLUDE_DIRS='/ingest/|/tests/|/migrations/|/docker/|__pycache__|\.git|\.worktrees'
 EXCLUDE="$EXCLUDE_FILES|$EXCLUDE_DIRS"
 

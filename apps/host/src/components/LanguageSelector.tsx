@@ -67,20 +67,25 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
           onClick={() => setShowMenu(!showMenu)}
           title={supportedLanguages[language] || supportedLanguages['es']}
           aria-label={supportedLanguages[language] || 'Idioma'}
-          className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-nkz-border dark:border-gray-600 shadow-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-nkz-bg-secondary dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+          variant="ghost"
+          size="sm"
+          className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-nkz-border dark:border-nkz-border shadow-sm bg-white dark:bg-nkz-surface text-nkz-text-secondary hover:bg-nkz-bg-secondary dark:hover:bg-nkz-surface-raised"
         >
           <Globe className="h-4 w-4" />
         </Button>
         {showMenu && (
-          <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-20">
+          <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-nkz-surface ring-1 ring-black ring-opacity-5 z-20">
             {Object.entries(supportedLanguages).map(([code, name]) => (
               <Button
                 key={code}
+                variant="ghost"
+                size="sm"
                 onClick={() => handleLanguageChange(code)}
-                className={`block w-full text-left px-4 py-2 text-sm ${language === code
-                  ? 'bg-nkz-success-light dark:bg-green-900/20 text-green-900 dark:text-green-400'
-                  : 'text-gray-700 dark:text-gray-200 hover:bg-nkz-bg-secondary dark:hover:bg-gray-700'
-                  }`}
+                className={`block w-full text-left px-4 py-2 text-sm ${
+                  language === code
+                    ? 'bg-nkz-accent-soft text-nkz-accent-strong'
+                    : 'text-nkz-text-secondary hover:bg-nkz-bg-secondary dark:hover:bg-nkz-surface-raised'
+                }`}
               >
                 {(name as React.ReactNode)}
               </Button>
@@ -97,21 +102,26 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         <Button
           type="button"
           onClick={() => setShowMenu(!showMenu)}
-          className="inline-flex items-center justify-center w-full rounded-md border border-nkz-border shadow-sm px-3 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+          variant="ghost"
+          size="sm"
+          className="inline-flex items-center justify-center w-full rounded-md border border-nkz-border shadow-sm px-3 py-2 bg-white dark:bg-nkz-surface text-nkz-text-secondary hover:bg-nkz-bg-secondary dark:hover:bg-nkz-surface-raised"
         >
           <Globe className="h-4 w-4 mr-2" />
           <span className="text-xs">{supportedLanguages[language] || supportedLanguages['es']}</span>
         </Button>
         {showMenu && (
-          <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
+          <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-nkz-surface ring-1 ring-black ring-opacity-5 z-20">
             {Object.entries(supportedLanguages).map(([code, name]) => (
               <Button
                 key={code}
+                variant="ghost"
+                size="sm"
                 onClick={() => handleLanguageChange(code)}
-                className={`block w-full text-left px-4 py-2 text-sm ${language === code
-                  ? 'bg-nkz-success-light text-green-900'
-                  : 'text-gray-700 hover:bg-nkz-bg-secondary'
-                  }`}
+                className={`block w-full text-left px-4 py-2 text-sm ${
+                  language === code
+                    ? 'bg-nkz-accent-soft text-nkz-accent-strong'
+                    : 'text-nkz-text-secondary hover:bg-nkz-bg-secondary dark:hover:bg-nkz-surface-raised'
+                }`}
               >
                 {(name as React.ReactNode)}
               </Button>
@@ -127,21 +137,26 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       <Button
         type="button"
         onClick={() => setShowMenu(!showMenu)}
-        className="inline-flex items-center justify-center w-full rounded-md border border-nkz-border shadow-sm px-4 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+        variant="ghost"
+        size="sm"
+        className="inline-flex items-center justify-center w-full rounded-md border border-nkz-border shadow-sm px-4 py-2 bg-white dark:bg-nkz-surface text-nkz-text-secondary hover:bg-nkz-bg-secondary dark:hover:bg-nkz-surface-raised"
       >
         <Globe className="h-5 w-5 mr-2" />
         {supportedLanguages[language] || supportedLanguages['es']}
       </Button>
       {showMenu && (
-        <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
+        <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-nkz-surface ring-1 ring-black ring-opacity-5 z-20">
           {Object.entries(supportedLanguages).map(([code, name]) => (
             <Button
               key={code}
+              variant="ghost"
+              size="sm"
               onClick={() => handleLanguageChange(code)}
-              className={`block w-full text-left px-4 py-2 text-sm ${language === code
-                ? 'bg-nkz-success-light text-green-900'
-                : 'text-gray-700 hover:bg-nkz-bg-secondary'
-                }`}
+              className={`block w-full text-left px-4 py-2 text-sm ${
+                language === code
+                  ? 'bg-nkz-accent-soft text-nkz-accent-strong'
+                  : 'text-nkz-text-secondary hover:bg-nkz-bg-secondary dark:hover:bg-nkz-surface-raised'
+              }`}
             >
               {(name as React.ReactNode)}
             </Button>
@@ -153,4 +168,3 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
 };
 
 export default LanguageSelector;
-

@@ -1,0 +1,181 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: parcel-reconcile-worker
+  namespace: nekazari
+  labels:
+    app: parcel-reconcile-worker
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # single-writer convergence; never two replicas at once
+  selector:
+    matchLabels:
+      app: parcel-reconcile-worker
+  template:
+    metadata:
+      labels:
+        app: parcel-reconcile-worker
+    spec:
+      serviceAccountName: entity-manager-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: parcel-reconcile-worker
+          # ⚠️ POST-MERGE DEPLOY STEP (MERGING ≠ DEPLOYING): this pin is the entity-manager
+          # image from BEFORE this branch. parcel_reconcile.py does not exist in it, so the
+          # worker would CrashLoop with ModuleNotFoundError. After CI rebuilds the
+          # entity-manager image on merge, bump this SHA (and the entity-manager one in
+          # services-deployments.yaml) in lockstep BEFORE the worker is expected to run.
+          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:eca52cade2415a9e43d92b5fc3d9e2de0e717bedcb62025fda02f26e33583818
+          command: ["python", "parcel_reconcile.py"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: secret
+            - name: HMAC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: secret
+            - name: ALLOW_JWT_FALLBACK
+              value: "false"
+            - name: REQUIRE_HMAC_SIGNATURE
+              value: "true"
+            - name: ORION_URL
+              value: http://orion-ld-service:1026
+            - name: KEYCLOAK_URL
+              value: http://keycloak-service:8080/auth
+            - name: KEYCLOAK_PUBLIC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: nekazari-config
+                  key: KEYCLOAK_PUBLIC_URL
+                  optional: true
+            - name: KEYCLOAK_HOSTNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: nekazari-config
+                  key: KEYCLOAK_HOSTNAME
+                  optional: true
+            - name: KEYCLOAK_REALM
+              value: "nekazari"
+            - name: GRAFANA_OAUTH_CLIENT_ID
+              value: "nekazari-frontend"
+            - name: PRODUCTION_DOMAIN
+              valueFrom:
+                configMapKeyRef:
+                  name: nekazari-config
+                  key: PRODUCTION_DOMAIN
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: postgres-url
+            - name: NDVI_QUEUE_NAME
+              value: "ndvi"
+            - name: REDIS_URL
+              value: "redis://redis-service:6379/0"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+                  optional: true
+            - name: GRAFANA_URL
+              value: http://grafana-service:3000
+            - name: GRAFANA_ADMIN_USER
+              value: admin
+            - name: GRAFANA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-secret
+                  key: admin-password
+            - name: MQTT_HOST
+              value: mosquitto-service
+            - name: MQTT_PORT
+              value: "1883"
+            - name: MQTT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mosquitto-credentials
+                  key: iot-agent-username
+                  optional: true
+            - name: MQTT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mosquitto-credentials
+                  key: iot-agent-password
+                  optional: true
+            - name: BLOB_READ_WRITE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vercel-blob-secret
+                  key: blob-read-write-token
+                  optional: true
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: root-user
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: root-password
+            - name: S3_ENDPOINT_URL
+              value: "http://minio-service:9000"
+            - name: ASSETS_BUCKET
+              value: "assets-3d"
+            - name: ASSETS_PUBLIC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: core-static-assets-config
+                  key: STATIC_ASSETS_URL
+            - name: INTERNAL_SERVICE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: internal-service-secret
+                  key: INTERNAL_SERVICE_SECRET
+            - name: NKZ_PUBLISH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: nkz-publish-secret
+                  key: NKZ_PUBLISH_SECRET
+            - name: MODULE_LIFECYCLE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: module-lifecycle-secret
+                  key: LIFECYCLE_WEBHOOK_SECRET
+            # CONTEXT_URL is absent from entity-manager's env (it doesn't query Orion by type).
+            # The worker REQUIRES it for the false-zero safety guard in get_live_parcel_ids().
+            # Source: same nekazari-config ConfigMap key used by api-gateway — not an invented value.
+            - name: CONTEXT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: nekazari-config
+                  key: CONTEXT_URL
+            - name: RECONCILE_INTERVAL_S
+              value: "25"
+            - name: RECONCILE_BACKSTOP_ENABLED
+              value: "true"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"

@@ -316,7 +316,9 @@ function MonitorTab() {
           <Button
             onClick={handleTrigger}
             disabled={triggering}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition"
+            variant="primary"
+            size="md"
+            className="flex items-center gap-2"
           >
             {triggering
               ? <><RefreshCw className="w-4 h-4 animate-spin" /> Evaluando...</>
@@ -350,7 +352,7 @@ function MonitorTab() {
         <select
           value={filterCode}
           onChange={(e: any) => setFilterCode(e.target.value)}
-          className="text-sm border border-nkz-border rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-green-500 outline-none"
+          className="text-sm border border-nkz-border rounded-lg px-3 py-1.5 bg-white focus:ring-2 focus:ring-nkz-accent-base outline-none"
         >
           <option value="all">Todos los riesgos</option>
           {allCodes.map(code => (
@@ -427,7 +429,7 @@ export const Risks: React.FC = () => {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 isActive
-                  ? 'border-green-600 text-nkz-success'
+                  ? 'border-nkz-accent-base text-nkz-accent-base'
                   : 'border-transparent text-nkz-muted hover:text-gray-700 hover:border-nkz-border'
               }`}
             >
