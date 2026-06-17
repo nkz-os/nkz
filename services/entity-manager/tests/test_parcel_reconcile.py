@@ -13,10 +13,13 @@ _dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _dir)
 sys.path.insert(0, os.path.join(_dir, "..", "common"))
 
-# parcel_reconcile imports parcel_activation, which imports common.tier_quotas.
+# parcel_reconcile imports parcel_activation (common.tier_quotas) and, lazily,
+# common.auth_middleware.inject_fiware_headers — stub both so the real packages
+# are not required for unit tests.
 unittest.mock.patch.dict(
     "sys.modules",
-    {"common": MagicMock(), "common.tier_quotas": MagicMock()},
+    {"common": MagicMock(), "common.tier_quotas": MagicMock(),
+     "common.auth_middleware": MagicMock()},
 ).start()
 
 import parcel_reconcile as pr
