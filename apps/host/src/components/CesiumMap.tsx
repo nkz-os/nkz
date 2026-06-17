@@ -343,6 +343,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           fullscreenButton: false,
           infoBox: false,
           selectionIndicator: false,
+          requestRenderMode: true,
+          maximumRenderTimeChange: Infinity,
           imageryProvider: false, // No default ION imagery — we add OSM manually below
           terrainProvider: new Cesium.EllipsoidTerrainProvider(),
           orderIndependentTranslucency: false,
@@ -692,6 +694,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.robot.forEach(e => viewer.entities.remove(e));
     entityRefs.current.robot.clear();
+    viewer.entities.suspendEvents();
 
     robots.forEach((robot) => {
       try {
@@ -734,6 +737,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, robots, riskOverlay, enable3DTerrain]);
 
@@ -749,6 +753,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.sensor.forEach(e => viewer.entities.remove(e));
     entityRefs.current.sensor.clear();
+    viewer.entities.suspendEvents();
 
     logger.debug('[CesiumMap] Processing sensors:', sensors.length);
     sensors.forEach((sensor) => {
@@ -865,6 +870,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, sensors, riskOverlay, enable3DTerrain]);
 
@@ -880,6 +886,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.fieldPhoto.forEach(e => viewer.entities.remove(e));
     entityRefs.current.fieldPhoto.clear();
+    viewer.entities.suspendEvents();
 
     const cameraIcon = getIconDataUri('icon:camera');
     fieldPhotos.forEach((photo) => {
@@ -915,6 +922,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, fieldPhotos, enable3DTerrain]);
 
@@ -930,6 +938,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.machine.forEach(e => viewer.entities.remove(e));
     entityRefs.current.machine.clear();
+    viewer.entities.suspendEvents();
 
     machines.forEach((machine) => {
       try {
@@ -995,6 +1004,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, machines, enable3DTerrain]);
 
@@ -1010,6 +1020,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.livestock.forEach(e => viewer.entities.remove(e));
     entityRefs.current.livestock.clear();
+    viewer.entities.suspendEvents();
 
     livestock.forEach((animal) => {
       try {
@@ -1073,6 +1084,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, livestock, enable3DTerrain]);
 
@@ -1088,6 +1100,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.weather.forEach(e => viewer.entities.remove(e));
     entityRefs.current.weather.clear();
+    viewer.entities.suspendEvents();
 
     weatherStations.forEach((station) => {
       try {
@@ -1149,6 +1162,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, weatherStations, enable3DTerrain]);
 
@@ -1164,6 +1178,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.crop.forEach(e => viewer.entities.remove(e));
     entityRefs.current.crop.clear();
+    viewer.entities.suspendEvents();
 
     crops.forEach((crop) => {
       try {
@@ -1222,6 +1237,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, crops, enable3DTerrain]);
 
@@ -1237,6 +1253,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.building.forEach(e => viewer.entities.remove(e));
     entityRefs.current.building.clear();
+    viewer.entities.suspendEvents();
 
     buildings.forEach((building) => {
       try {
@@ -1294,6 +1311,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, buildings, enable3DTerrain]);
 
@@ -1309,6 +1327,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.device.forEach(e => viewer.entities.remove(e));
     entityRefs.current.device.clear();
+    viewer.entities.suspendEvents();
 
     devices.forEach((device) => {
       try {
@@ -1347,6 +1366,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, devices, enable3DTerrain]);
 
@@ -1362,6 +1382,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.tree.forEach(e => viewer.entities.remove(e));
     entityRefs.current.tree.clear();
+    viewer.entities.suspendEvents();
 
     if (trees.length > 0) {
       logger.debug('[CesiumMap] Rendering trees:', trees.length);
@@ -1446,6 +1467,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, trees, enable3DTerrain]);
 
@@ -1461,6 +1483,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     entityRefs.current.tracker.forEach(e => viewer.entities.remove(e));
     entityRefs.current.tracker.clear();
+    viewer.entities.suspendEvents();
 
     energyTrackers.forEach((tracker) => {
       try {
@@ -1556,6 +1579,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, energyTrackers, enable3DTerrain]);
 
@@ -1567,6 +1591,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     if (!Cesium) return;
     entityRefs.current.parcel.forEach(e => viewer.entities.remove(e));
     entityRefs.current.parcel.clear();
+    viewer.entities.suspendEvents();
 
     const isParcelSelected = (parcelId: string) => selectedEntity?.id === parcelId;
 
@@ -1670,6 +1695,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     });
 
+    viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, parcels, enable3DTerrain, enable3DTiles, selectedEntity?.id, riskOverlay]);
 
