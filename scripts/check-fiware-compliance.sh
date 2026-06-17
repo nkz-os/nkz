@@ -90,6 +90,8 @@ check_pattern() {
 
 # ── Check 1: Direct INSERT INTO with deprecation exemption ──
 # INSERTs inside functions marked DEPRECATED are kept for rollback safety.
+# INSERTs into administrative tables (module registry, tenants, etc.) are ALLOWED.
+ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants'
 check_exempt_insert() {
     local name="$1"
     local pattern="$2"
@@ -100,6 +102,10 @@ check_exempt_insert() {
     if [ -n "$hits" ]; then
         for f in $hits; do
             grep -nE "$pattern" "$f" 2>/dev/null | while IFS=: read -r linenum rest; do
+                # Skip inserts into admin tables (allowed)
+                if echo "$rest" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)[[:space:]]"; then
+                    continue  # Admin/registry write — allowed
+                fi
                 # Look backward 8 lines for a DEPRECATED docstring marker
                 ctx_before=$(sed -n "$((linenum - 8)),$((linenum - 1))p" "$f" 2>/dev/null)
                 if echo "$ctx_before" | grep -qE '"""DEPRECATED|"""Deprecated|"""deprecated'; then
