@@ -123,6 +123,15 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </Button>
         </div>
+        {/* Password requirements hint — always visible so user knows the rules before typing */}
+        <p className="text-nkz-xs text-nkz-text-muted mt-1.5">
+          {t('activation.password_requirements_hint') || 'Password must contain:'}
+          {' '}{t('activation.password_requirement_uppercase') || 'uppercase'} •{' '}
+          {t('activation.password_requirement_lowercase') || 'lowercase'} •{' '}
+          {t('activation.password_requirement_digit') || 'digit'} •{' '}
+          {t('activation.password_requirement_special') || 'special character'} •{' '}
+          {t('activation.password_requirement_min_length') || '8+ characters'}
+        </p>
       </div>
 
       {/* Password Requirements Checklist */}
