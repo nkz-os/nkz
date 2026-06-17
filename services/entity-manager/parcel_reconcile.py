@@ -21,6 +21,7 @@ from parcel_activation import _get_db, dispatch_to_module
 logger = logging.getLogger(__name__)
 
 ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
+CONTEXT_URL = os.getenv("CONTEXT_URL", "")
 RECONCILE_INTERVAL_S = int(os.getenv("RECONCILE_INTERVAL_S", "25"))
 BACKSTOP_ENABLED = os.getenv("RECONCILE_BACKSTOP_ENABLED", "true").lower() == "true"
 ORION_TIMEOUT_S = 15
@@ -52,7 +53,21 @@ def get_live_parcel_ids(tenant_id: str):
     """Set of live AgriParcel URNs for the tenant, or None on ANY query error.
 
     None means 'unknown' -> caller MUST skip teardown/backstop for this tenant.
+
+    SEMANTIC false-zero guard: a context-less ``?type=AgriParcel`` query expands to
+    the default vocab and returns HTTP 200 with an EMPTY list (the entities live
+    under the expanded SAREF type). That false empty would pass the transport guard
+    and trigger mass teardown. The @context Link is only added when CONTEXT_URL is
+    set, so if it is missing we refuse to query and return None (skip the tenant)
+    rather than risk a false zero (incident 2026-06-16).
     """
+    if not CONTEXT_URL:
+        logger.error(
+            "CONTEXT_URL not set — refusing AgriParcel query for %s; a context-less"
+            " query returns a FALSE empty list -> mass teardown. SKIP tenant.",
+            tenant_id,
+        )
+        return None
     headers = _orion_headers(tenant_id)
     ids: set[str] = set()
     offset = 0
@@ -301,6 +316,14 @@ def delete_entities(tenant_id: str, ids: list) -> int:
             if resp.status_code in (200, 204):
                 done += len(chunk)
                 logger.warning("Backstop deleted %d orphans for %s", len(chunk), tenant_id)
+            elif resp.status_code == 207:
+                # NGSI-LD batch partial success: some deleted, some failed (e.g.
+                # already-gone). Count as attempted; surface the body for triage.
+                done += len(chunk)
+                logger.warning(
+                    "Backstop partial delete (207) for %s: %s",
+                    tenant_id, resp.text[:300],
+                )
             else:
                 logger.error("Backstop delete %s -> %s", tenant_id, resp.status_code)
         except requests.RequestException as exc:
