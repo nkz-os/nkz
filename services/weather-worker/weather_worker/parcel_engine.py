@@ -174,6 +174,86 @@ class ParcelWeatherEngine:
         logger.info(f"Total parcels discovered: {len(all_parcels)}")
         return all_parcels
 
+    def _prune_orphan_weather_observed(self, tenant_id: str) -> int:
+        """Delete WeatherObserved entities whose parcel no longer exists.
+
+        Safe by construction: each WeatherObserved is 1:1 with a parcel
+        (id ``...:parcel-<id>``, ``locatedAt`` -> parcel), so deleting an orphan
+        never affects a live parcel. False-zero guard: never prune when
+        ``CONTEXT_URL`` is unset or the live-parcel query is not HTTP 200 — a
+        context-less or failed AgriParcel query returns a FALSE empty set, which
+        would otherwise delete every WeatherObserved in the tenant.
+        """
+        if not self.context_url:
+            logger.warning(
+                "Prune skipped for %s: CONTEXT_URL unset (a context-less "
+                "AgriParcel query false-zeros -> would delete everything).",
+                tenant_id,
+            )
+            return 0
+
+        headers = self._make_headers(tenant_id)
+        base = f"{self.orion_url}/ngsi-ld/v1/entities"
+
+        # 1. Live parcel ids — skip prune on ANY non-200 (false-zero guard)
+        try:
+            rp = requests.get(
+                base, params={"type": "AgriParcel", "attrs": "id", "limit": 1000},
+                headers=headers, timeout=15,
+            )
+        except Exception as e:
+            logger.warning("Prune %s: parcel query failed (%s) — skip", tenant_id, e)
+            return 0
+        if rp.status_code != 200 or not isinstance(rp.json(), list):
+            logger.warning("Prune %s: parcel query %s — skip", tenant_id, rp.status_code)
+            return 0
+        live = {p["id"] for p in rp.json() if p.get("id")}
+
+        # 2. WeatherObserved for the tenant
+        try:
+            rw = requests.get(
+                base, params={"type": "WeatherObserved", "attrs": "locatedAt", "limit": 1000},
+                headers=headers, timeout=15,
+            )
+        except Exception as e:
+            logger.warning("Prune %s: WeatherObserved query failed (%s) — skip", tenant_id, e)
+            return 0
+        if rw.status_code != 200 or not isinstance(rw.json(), list):
+            logger.warning("Prune %s: WeatherObserved query %s — skip", tenant_id, rw.status_code)
+            return 0
+
+        # 3. Orphans: locatedAt parcel not in the live set
+        orphans = []
+        for wo in rw.json():
+            loc = wo.get("locatedAt")
+            ref = loc.get("object") if isinstance(loc, dict) else loc
+            if ref and ref not in live and wo.get("id"):
+                orphans.append(wo["id"])
+        if not orphans:
+            return 0
+
+        # 4. Batch delete (NGSI-LD entityOperations/delete)
+        del_headers = dict(headers)
+        del_headers["Content-Type"] = "application/json"
+        deleted = 0
+        for i in range(0, len(orphans), 100):
+            chunk = orphans[i:i + 100]
+            try:
+                resp = requests.post(
+                    f"{self.orion_url}/ngsi-ld/v1/entityOperations/delete",
+                    json=chunk, headers=del_headers, timeout=15,
+                )
+                if resp.status_code in (200, 204, 207):
+                    deleted += len(chunk)
+                    logger.info(
+                        "Prune %s: deleted %d orphan WeatherObserved", tenant_id, len(chunk)
+                    )
+                else:
+                    logger.warning("Prune %s: delete -> %s", tenant_id, resp.status_code)
+            except Exception as e:
+                logger.warning("Prune %s: delete failed (%s)", tenant_id, e)
+        return deleted
+
     # ------------------------------------------------------------------
     # Geometry helpers
     # ------------------------------------------------------------------
@@ -690,6 +770,7 @@ class ParcelWeatherEngine:
             "weather_observed_created": 0,
             "weather_observed_updated": 0,
             "clusters": 0,
+            "weather_observed_pruned": 0,
             "errors": 0,
         }
 
@@ -811,10 +892,20 @@ class ParcelWeatherEngine:
                 logger.error(f"Error processing cluster {ci}: {e}")
                 stats["errors"] += 1
 
+        # Step 4: Prune orphan WeatherObserved (parcels deleted since last cycle).
+        # The engine already provisions per-parcel stations by discovery; this
+        # closes the loop on teardown. Per-tenant, false-zero-guarded inside.
+        for tid in self._get_active_tenants():
+            try:
+                stats["weather_observed_pruned"] += self._prune_orphan_weather_observed(tid)
+            except Exception as e:
+                logger.warning(f"Prune error for tenant {tid}: {e}")
+
         logger.info(
             f"ParcelWeatherEngine cycle complete: {stats['parcels_processed']} "
             f"parcels, {stats['weather_observed_created']} created, "
-            f"{stats['weather_observed_updated']} updated, {stats['errors']} errors"
+            f"{stats['weather_observed_updated']} updated, "
+            f"{stats['weather_observed_pruned']} pruned, {stats['errors']} errors"
         )
         return stats
 
