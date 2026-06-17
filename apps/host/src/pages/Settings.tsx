@@ -121,7 +121,9 @@ export const Settings: React.FC = () => {
           <Button
             type="button"
             onClick={openPreferences}
-            className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+            variant="primary"
+            size="sm"
+            className="text-sm"
           >
             {t('settings.cookies_manage')}
           </Button>
@@ -136,8 +138,8 @@ export const Settings: React.FC = () => {
             </div>
           )}
           {nameSuccess && (
-            <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg">
-              <p className="text-sm text-green-800">{nameSuccess}</p>
+            <div className="mb-4 p-3 bg-nkz-success-light border border-nkz-success rounded-lg">
+              <p className="text-sm text-nkz-success-strong">{nameSuccess}</p>
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
