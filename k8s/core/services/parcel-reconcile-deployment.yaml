@@ -27,6 +27,11 @@ spec:
           type: RuntimeDefault
       containers:
         - name: parcel-reconcile-worker
+          # ⚠️ POST-MERGE DEPLOY STEP (MERGING ≠ DEPLOYING): this pin is the entity-manager
+          # image from BEFORE this branch. parcel_reconcile.py does not exist in it, so the
+          # worker would CrashLoop with ModuleNotFoundError. After CI rebuilds the
+          # entity-manager image on merge, bump this SHA (and the entity-manager one in
+          # services-deployments.yaml) in lockstep BEFORE the worker is expected to run.
           image: ghcr.io/nkz-os/nkz/entity-manager@sha256:eca52cade2415a9e43d92b5fc3d9e2de0e717bedcb62025fda02f26e33583818
           command: ["python", "parcel_reconcile.py"]
           securityContext:
