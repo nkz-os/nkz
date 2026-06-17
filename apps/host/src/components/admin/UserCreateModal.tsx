@@ -134,6 +134,14 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
               onChange={(e: any) => setForm({ ...form, password: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-nkz-lg focus:ring-2 focus:ring-nkz-accent-base focus:border-transparent outline-none bg-nkz-surface"
             />
+            <p className="mt-1 text-nkz-xs text-nkz-text-muted">
+              {t('activation.password_requirements_hint') || 'Must contain:'}
+              {' '}{t('activation.password_requirement_uppercase') || 'uppercase'} •{' '}
+              {t('activation.password_requirement_lowercase') || 'lowercase'} •{' '}
+              {t('activation.password_requirement_digit') || 'digit'} •{' '}
+              {t('activation.password_requirement_special') || 'special character'} •{' '}
+              {t('activation.password_requirement_min_length') || '8+ characters'}
+            </p>
           </div>
           <div>
             <label className="block text-nkz-sm text-nkz-text-secondary font-medium mb-2">
