@@ -21,6 +21,7 @@ from nkz_platform_sdk.lifecycle import ModuleLifecycle, LifecycleResult
 from nkz_platform_sdk.config import ModuleConfig
 from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
 from nkz_platform_sdk.activation import ModuleActivation
+from nkz_platform_sdk.ngsi_headers import inject_fiware_headers
 
 __all__ = [
     "ModuleApp",
@@ -34,4 +35,5 @@ __all__ = [
     "ModuleConfig",
     "SubscriptionRegistrar",
     "ModuleActivation",
+    "inject_fiware_headers",
 ]
