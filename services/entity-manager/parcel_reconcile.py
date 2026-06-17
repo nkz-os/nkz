@@ -1,0 +1,94 @@
+"""Parcel lifecycle reconcile engine.
+
+Diffs live AgriParcel ids in Orion against tenant_parcel_modules rows and
+known derived-entity types, then provisions / retries / tears down / sweeps.
+Truth is Orion; tenant_parcel_modules is convergence state.
+
+HARD RULE (false-zero): if the live-parcel query is not HTTP 200, the tenant
+is SKIPPED. We never interpret an error as "zero parcels" — that would tear
+down the whole tenant (incident 2026-06-16).
+"""
+
+import logging
+import os
+import time
+
+import requests
+
+from parcel_activation import _get_db, dispatch_to_module
+
+logger = logging.getLogger(__name__)
+
+ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
+RECONCILE_INTERVAL_S = int(os.getenv("RECONCILE_INTERVAL_S", "25"))
+BACKSTOP_ENABLED = os.getenv("RECONCILE_BACKSTOP_ENABLED", "true").lower() == "true"
+ORION_TIMEOUT_S = 15
+PAGE_SIZE = 1000
+
+
+def _orion_headers(tenant_id: str) -> dict:
+    """NGSI-LD + FIWARE headers via the platform's canonical injector.
+
+    entity-manager does NOT bundle nkz-platform-sdk, so per CLAUDE.md directive 3
+    ("For services that cannot import the SDK, use inject_fiware_headers() from
+    common/auth_middleware.py") we use the canonical injector. It sets NGSILD-Tenant
+    + Fiware-Service (canonically normalized) + Fiware-ServicePath, and adds the
+    @context Link from CONTEXT_URL (Content-Type application/json) — exactly what
+    AgriParcel type-expansion and the false-zero guard require.
+
+    We access inject_fiware_headers via sys.modules so that test stubs of 'common'
+    (MagicMock injected into sys.modules) work without a real package on sys.path.
+    """
+    import sys as _sys
+
+    _common = _sys.modules.get("common")
+    if _common is not None:
+        _inject = getattr(getattr(_common, "auth_middleware", None), "inject_fiware_headers", None)
+    else:
+        _inject = None
+
+    if _inject is None:
+        from common.auth_middleware import inject_fiware_headers as _inject  # type: ignore[assignment]
+
+    headers: dict = {}
+    _inject(headers, tenant=tenant_id)
+    return headers
+
+
+def get_live_parcel_ids(tenant_id: str):
+    """Set of live AgriParcel URNs for the tenant, or None on ANY query error.
+
+    None means 'unknown' -> caller MUST skip teardown/backstop for this tenant.
+    """
+    headers = _orion_headers(tenant_id)
+    ids: set[str] = set()
+    offset = 0
+    try:
+        while True:
+            resp = requests.get(
+                f"{ORION_URL}/ngsi-ld/v1/entities",
+                params={"type": "AgriParcel", "limit": PAGE_SIZE,
+                        "offset": offset, "attrs": "id"},
+                headers=headers,
+                timeout=ORION_TIMEOUT_S,
+            )
+            if resp.status_code != 200:
+                logger.error(
+                    "Live-parcel query for %s returned %s — SKIP tenant",
+                    tenant_id, resp.status_code,
+                )
+                return None
+            batch = resp.json()
+            if not isinstance(batch, list):
+                logger.error("Live-parcel query for %s gave non-list — SKIP", tenant_id)
+                return None
+            for e in batch:
+                if e.get("id"):
+                    ids.add(e["id"])
+            if len(batch) < PAGE_SIZE:
+                break
+            offset += PAGE_SIZE
+        return ids
+    except requests.RequestException as exc:
+        logger.error("Live-parcel query for %s failed: %s — SKIP tenant", tenant_id, exc)
+        return None
