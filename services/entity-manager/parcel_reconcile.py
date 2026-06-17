@@ -400,3 +400,38 @@ def _dispatch(tenant_id, parcel_id, module_id, action, retry_count, metrics, key
         mark_error(tenant_id, parcel_id, module_id,
                    str(result)[:500], retry_count)
         metrics["errors"] += 1
+
+
+def run_once() -> None:
+    """One reconcile pass over all active tenants. Per-tenant isolated."""
+    try:
+        tenants = get_active_tenants()
+    except Exception as exc:
+        logger.error("Could not list tenants: %s", exc)
+        return
+    for tenant_id in tenants:
+        try:
+            reconcile_tenant(tenant_id)
+        except Exception as exc:
+            logger.error("Reconcile crashed for %s: %s", tenant_id, exc, exc_info=True)
+
+
+def run_loop() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+    if not CONTEXT_URL:
+        logger.error(
+            "CONTEXT_URL is not set — every tenant will be SKIPPED by the false-zero"
+            " guard and NOTHING will reconcile. Set CONTEXT_URL on the worker."
+        )
+    logger.info("Parcel reconcile worker starting (interval=%ss, backstop=%s)",
+                RECONCILE_INTERVAL_S, BACKSTOP_ENABLED)
+    while True:
+        run_once()
+        time.sleep(RECONCILE_INTERVAL_S)
+
+
+if __name__ == "__main__":
+    run_loop()
