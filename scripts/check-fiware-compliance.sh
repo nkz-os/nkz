@@ -17,6 +17,10 @@
 #   - audit_logger.py                (audit trail, not entity state)
 #   - config/timescaledb/migrations/ (schema migrations)
 #   - docker/*.sql                   (seed data)
+#
+# Deprecation exemption:
+#   INSERT statements inside a function whose docstring contains "DEPRECATED"
+#   are skipped (kept for rollback safety, not called).
 # =============================================================================
 
 set -euo pipefail
@@ -52,10 +56,11 @@ get_files() {
 files=$(get_files)
 
 if [ -z "$files" ]; then
-    echo "✅ No Python files to check."
+    echo "No Python files to check."
     exit 0
 fi
 
+# ── Shared check for exact pattern matches (simple, non-exempt) ──
 check_pattern() {
     local name="$1"
     local pattern="$2"
@@ -64,7 +69,7 @@ check_pattern() {
     hits=$(echo "$files" | xargs grep -lE "$pattern" 2>/dev/null | grep -vE "$EXCLUDE" || true)
 
     if [ -n "$hits" ]; then
-        echo "❌ FOUND: $name in:"
+        echo "FOUND: $name in:"
         echo "$hits" | while read -r f; do
             echo "   $f"
             grep -nE "$pattern" "$f" 2>/dev/null | head -5 | while read -r line; do
@@ -76,25 +81,72 @@ check_pattern() {
     fi
 }
 
-check_pattern "Direct INSERT INTO" 'INSERT[[:space:]]+INTO'
-check_pattern "execute(INSERT...)" 'execute[[:space:]]*\([[:space:]]*['"'"'\"'"'"']INSERT'
+# ── Check 1: Direct INSERT INTO with deprecation exemption ──
+# INSERTs inside functions marked DEPRECATED are kept for rollback safety.
+check_exempt_insert() {
+    local name="$1"
+    local pattern="$2"
+    local hits
 
-# For raw DB connections, only flag if the file ALSO has writes
-raw_conns=$(echo "$files" | xargs grep -lE 'psycopg2\.connect[[:space:]]*\(|asyncpg\.create_pool[[:space:]]*\(' 2>/dev/null | grep -vE "$EXCLUDE" || true)
+    hits=$(echo "$files" | xargs grep -lE "$pattern" 2>/dev/null | grep -vE "$EXCLUDE" || true)
+
+    if [ -n "$hits" ]; then
+        for f in $hits; do
+            grep -nE "$pattern" "$f" 2>/dev/null | while IFS=: read -r linenum rest; do
+                # Look backward 8 lines for a DEPRECATED docstring marker
+                ctx_before=$(sed -n "$((linenum - 8)),$((linenum - 1))p" "$f" 2>/dev/null)
+                if echo "$ctx_before" | grep -qE '"""DEPRECATED|"""Deprecated|"""deprecated'; then
+                    continue  # Inside deprecated function — rollback safety
+                fi
+                violations=$((violations + 1))
+                echo "FOUND: $name in $f:$linenum"
+                echo "     $rest"
+            done
+        done
+    fi
+}
+
+check_exempt_insert "Direct INSERT INTO" 'INSERT[[:space:]]+INTO'
+check_exempt_insert "execute(INSERT...)" 'execute[[:space:]]*\('
+
+# ── Raw DB connections that ALSO have writes ──
+raw_conns=$(echo "$files" | xargs grep -lE 'psycopg2\.connect|asyncpg\.create_pool' 2>/dev/null | grep -vE "$EXCLUDE" || true)
 if [ -n "$raw_conns" ]; then
     for f in $raw_conns; do
-        if grep -qE 'INSERT[[:space:]]+INTO|execute[[:space:]]*\([[:space:]]*['"'"'\"'"'"']INSERT' "$f" 2>/dev/null; then
-            echo "❌ FOUND: DB connection WITH writes in $f"
+        if grep -qE 'INSERT[[:space:]]+INTO|execute[[:space:]]*\(' "$f" 2>/dev/null; then
+            echo "FOUND: DB connection WITH writes in $f"
             violations=$((violations + 1))
         fi
     done
 fi
 
+# ── Check 2: verify=False (SSL bypass — BLOCKING) ──
+check_pattern "verify=False" 'verify[[:space:]]*=[[:space:]]*False'
+
+# ── Check 3: Deprecated ref<Type> relationship names (warning only) ──
+ref_hits=$(echo "$files" | xargs grep -nE "'ref[A-Z][a-zA-Z]*['"'"':]" 2>/dev/null | grep -vE "$EXCLUDE" || true)
+if [ -n "$ref_hits" ]; then
+    echo "WARNING: Deprecated 'ref<Type>' relationship patterns found (use 'has<Type>' instead):"
+    echo "$ref_hits" | head -10
+    echo ""
+fi
+
+# ── Check 4: Raw Orion-LD calls without canonical import (warning only) ──
+orion_files=$(echo "$files" | xargs grep -lE 'ORION_URL|orion-ld-service|/ngsi-ld/v1' 2>/dev/null | grep -vE "$EXCLUDE" || true)
+if [ -n "$orion_files" ]; then
+    for f in $orion_files; do
+        has_ngsi_headers=$(grep -cE 'ngsi_headers|OrionClient|SyncOrionClient|inject_fiware_headers' "$f" 2>/dev/null || true)
+        if [ "$has_ngsi_headers" -eq 0 ]; then
+            echo "WARNING: $f uses Orion-LD but doesn't import ngsi_headers/OrionClient"
+        fi
+    done
+fi
+
 if [ "$violations" -eq 0 ]; then
-    echo "✅ All checks passed. No direct DB write violations found."
+    echo "All checks passed. No direct DB write violations found."
     exit 0
 else
-    echo "❌ Found $violations violation(s)."
+    echo "Found $violations violation(s)."
     echo ""
     echo "Fix: Data must flow through Orion-LD. Use NGSI-LD entity operations,"
     echo "     then let subscriptions feed the database via notification handlers."
