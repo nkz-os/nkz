@@ -448,6 +448,8 @@ class TestPersistAgroStatus:
 
         monkeypatch.setattr(settings, "context_url",
                             "http://context-test/ngsi-context.jsonld")
+        monkeypatch.setenv("CONTEXT_URL",
+                           "http://context-test/ngsi-context.jsonld")
         with patch("app.routers.parcels.requests.patch",
                    return_value=orion_response(204)) as mock_patch:
             _persist_agro_status_to_orion("test-tenant", PARCEL_ID, self.RESULT)
