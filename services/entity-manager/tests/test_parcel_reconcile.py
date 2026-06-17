@@ -202,3 +202,21 @@ def test_reconcile_tenant_keeps_row_on_teardown_failure():
         pr.reconcile_tenant("montiko")
     drow.assert_not_called()
     merr.assert_called_once()
+
+
+def test_run_once_reconciles_each_tenant():
+    with patch.object(pr, "get_active_tenants", return_value=["t1", "t2"]), \
+         patch.object(pr, "reconcile_tenant") as rec:
+        pr.run_once()
+    assert rec.call_count == 2
+    rec.assert_any_call("t1")
+    rec.assert_any_call("t2")
+
+
+def test_run_once_isolates_tenant_failure():
+    """One tenant raising must not stop the others."""
+    with patch.object(pr, "get_active_tenants", return_value=["bad", "good"]), \
+         patch.object(pr, "reconcile_tenant",
+                      side_effect=[RuntimeError("boom"), {"tenant": "good"}]) as rec:
+        pr.run_once()  # must not raise
+    assert rec.call_count == 2
