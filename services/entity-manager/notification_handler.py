@@ -10,13 +10,31 @@ and persists to the appropriate database tables:
 import json
 import logging
 import os
+import re
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 import psycopg2
 from flask import Blueprint, request, jsonify
 
 logger = logging.getLogger(__name__)
+
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+def _parcel_uuid_from_urn(parcel_id: Optional[str]) -> Optional[str]:
+    """Derive the parcel UUID from its Orion URN (uniform writes).
+
+    The parcel URN is ``urn:ngsi-ld:AgriParcel:<uuid4>`` and that uuid IS the
+    parcel identity — used directly as ``sensors.parcel_id`` (the cadastral_parcels
+    mirror is retired). Returns None for non-UUID identifiers.
+    """
+    if not parcel_id or not isinstance(parcel_id, str):
+        return None
+    candidate = (parcel_id.rsplit(":", 1)[-1] if parcel_id.startswith("urn:") else parcel_id).strip()
+    return candidate if _UUID_RE.match(candidate) else None
 
 notify_bp = Blueprint("sensor_notifications", __name__)
 
@@ -140,21 +158,9 @@ def _handle_agrisensor(tenant_id: str, entities: list) -> int:
                     if profile_row:
                         profile_id = profile_row[0]
 
-                # Resolve parcel_id UUID from parcelId string
-                parcel_uuid = None
-                if parcel_id:
-                    parcel_ref = parcel_id
-                    if parcel_ref.startswith("urn:"):
-                        parcel_ref = parcel_ref.rsplit(":", 1)[-1]
-                    cur.execute(
-                        "SELECT id FROM cadastral_parcels "
-                        "WHERE tenant_id = %s "
-                        "AND external_id = %s LIMIT 1",
-                        (tenant_id, parcel_ref),
-                    )
-                    parcel_row = cur.fetchone()
-                    if parcel_row:
-                        parcel_uuid = parcel_row[0]
+                # Derive parcel_id UUID from the parcel URN (uniform writes:
+                # urn:ngsi-ld:AgriParcel:<uuid4>). The cadastral_parcels mirror is retired.
+                parcel_uuid = _parcel_uuid_from_urn(parcel_id)
 
                 # Extract coordinates
                 lon = None

@@ -75,13 +75,6 @@ except ImportError:
         return decorator
 
 try:
-    from parcel_sync import parcel_sync
-    PARCEL_SYNC_AVAILABLE = True
-except ImportError:
-    PARCEL_SYNC_AVAILABLE = False
-    logging.getLogger(__name__).warning("Parcel sync service not available")
-
-try:
     from module_metrics import record_module_usage, record_module_latency, record_module_error, metrics_decorator
     MODULE_METRICS_AVAILABLE = True
 except ImportError:

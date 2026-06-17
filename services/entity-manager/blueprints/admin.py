@@ -26,13 +26,6 @@ from helpers import _limits_cache, _limits_cache_ts, _extract_number
 ORION_URL = os.getenv('ORION_URL')
 POSTGRES_URL = os.getenv('POSTGRES_URL')
 
-# Import parcel sync
-try:
-    from parcel_sync import parcel_sync
-    PARCEL_SYNC_AVAILABLE = True
-except ImportError:
-    PARCEL_SYNC_AVAILABLE = False
-
 # Import audit_log with fallback
 try:
     from audit_logger import audit_log, log_module_toggle, log_module_job_create, log_error
@@ -296,28 +289,6 @@ def save_terms(language):
 
 # =============================================================================
 # Parent Entities (for hierarchy)
-
-# === Lines 4105-4124 from entity_management_api.py ===
-@admin_bp.route('/api/admin/parcels/sync', methods=['POST'])
-@require_auth(require_hmac=False)
-def admin_sync_parcels():
-    """Trigger parcel synchronization for a tenant (PlatformAdmin only)"""
-    user_roles = _get_user_roles()
-    if 'PlatformAdmin' not in user_roles:
-        return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
-    
-    tenant_id = request.args.get('tenant_id')
-    if not tenant_id:
-        return jsonify({'error': 'tenant_id query parameter is required'}), 400
-        
-    if not PARCEL_SYNC_AVAILABLE:
-        return jsonify({'error': 'Parcel sync service is not available'}), 503
-        
-    success = parcel_sync.sync_all_tenant_parcels(tenant_id)
-    if success:
-        return jsonify({'message': f'Sync triggered for tenant {tenant_id}'}), 200
-    else:
-        return jsonify({'error': f'Sync failed for tenant {tenant_id}'}), 500
 
 # === Lines 4126-4148 from entity_management_api.py ===
 @admin_bp.route('/api/admin/tenants', methods=['GET'])

@@ -621,7 +621,7 @@ def _resolve_urn_to_timeseries_entity_id(tenant_id: str, entity_id: str) -> tupl
         res = _parcel_urn_to_municipality_code(tenant_id, parcel_urn, parcel_entity)
         return (None, 'no_location') if res is None else res
 
-    # AgriParcel / Parcel / parcel-like: resolve by cadastral_parcels or Orion municipality
+    # AgriParcel / Parcel / parcel-like: resolve municipality from the Orion entity
     if etype in PARCEL_ENTITY_TYPES or 'parcel' in etype.lower():
         res = _parcel_urn_to_municipality_code(tenant_id, entity_id, entity)
         return (None, 'no_location') if res is None else res
