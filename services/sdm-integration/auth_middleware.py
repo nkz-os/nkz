@@ -87,30 +87,18 @@ def require_auth(f):
 
 
 def inject_fiware_headers(headers, tenant=None):
-    """Add NGSI-LD + FIWARE tenant headers for Orion-LD multitenancy."""
+    """Add NGSI-LD + FIWARE tenant headers for Orion-LD multitenancy.
+
+    Delegates to the canonical implementation in ngsi_headers.py.
+    Preserved for signature compatibility — all sdm-integration callers
+    pass empty headers dict and rely on old default behavior.
+    """
     if tenant is None:
         tenant = getattr(g, "tenant", "master")
 
-    try:
-        from tenant_utils import normalize_tenant_id
+    from ngsi_headers import inject_fiware_headers as _canonical
 
-        normalized = normalize_tenant_id(tenant)
-    except (ImportError, ValueError):
-        # Send AS-IS — canonical tenant IDs are hyphenated. Underscoring here
-        # routed writes to a phantom tenant for hyphenated (paying) tenants.
-        normalized = tenant
-
-    headers["NGSILD-Tenant"] = normalized
-    headers["Fiware-Service"] = normalized
-    headers["Fiware-ServicePath"] = "/"
-
-    ctx = os.getenv("CONTEXT_URL", "")
-    if ctx:
-        headers["Link"] = (
-            f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
-        )
-
-    return headers
+    return _canonical(headers, tenant=tenant, has_context_in_body=False)
 
 
 def log_entity_operation(
