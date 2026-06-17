@@ -621,7 +621,7 @@ def _resolve_urn_to_timeseries_entity_id(tenant_id: str, entity_id: str) -> tupl
         res = _parcel_urn_to_municipality_code(tenant_id, parcel_urn, parcel_entity)
         return (None, 'no_location') if res is None else res
 
-    # AgriParcel / Parcel / parcel-like: resolve by cadastral_parcels or Orion municipality
+    # AgriParcel / Parcel / parcel-like: resolve municipality from the Orion entity
     if etype in PARCEL_ENTITY_TYPES or 'parcel' in etype.lower():
         res = _parcel_urn_to_municipality_code(tenant_id, entity_id, entity)
         return (None, 'no_location') if res is None else res
@@ -630,103 +630,73 @@ def _resolve_urn_to_timeseries_entity_id(tenant_id: str, entity_id: str) -> tupl
 
 
 # === Lines 2104-2201 from entity_management_api.py ===
-def _parcel_urn_to_municipality_code(tenant_id: str, parcel_urn: str, parcel_entity: Optional[dict] = None) -> Optional[tuple]:
-    """
-    Resolve parcel URN to municipality_code (INE).
-    Tries: cadastral_parcels.id (UUID from URN) -> weather_location_id -> municipality_code;
-    else cadastral_parcels.municipality -> catalog_municipalities.ine_code.
-    """
-    uuid_candidate = None
-    parts = parcel_urn.split(':')
-    if parts:
-        last = parts[-1].strip()
-        if re.match(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$', last):
-            uuid_candidate = last
-        elif last.startswith('parcel-'):
-            uuid_candidate = last[7:].strip()
-            if not re.match(r'^[0-9a-fA-F-]{36}$', uuid_candidate):
-                uuid_candidate = None
-    if not uuid_candidate:
-        # Fallback: try to get municipality from Orion entity (address.addressLocality, etc.)
-        if parcel_entity:
-            addr = parcel_entity.get('address')
-            if isinstance(addr, dict) and 'value' in addr:
-                addr = addr['value']
-            if isinstance(addr, dict):
-                loc = addr.get('addressLocality') or addr.get('addressRegion') or ''
-                if isinstance(loc, str) and loc.strip():
-                    with get_db_connection_with_tenant(tenant_id) as conn:
-                        if conn:
-                            try:
-                                cur = conn.cursor(cursor_factory=RealDictCursor)
-                                cur.execute("""
-                                    SELECT ine_code FROM catalog_municipalities
-                                    WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s))
-                                    LIMIT 1
-                                """, (loc.strip(),))
-                                row = cur.fetchone()
-                                cur.close()
-                                if row:
-                                    return (row['ine_code'], 'municipality')
-                            except Exception as e:
-                                logger.debug(f"Catalog lookup for municipality name failed: {e}")
-        return None
+def _municipality_name_from_entity(parcel_entity: Optional[dict]) -> Optional[str]:
+    """Extract the municipality name from an Orion AgriParcel entity.
 
+    Prefers a ``municipality`` Property; falls back to ``address.addressLocality``
+    / ``addressRegion``. Tolerates both expanded ({"value": ...}) and plain shapes.
+    """
+    if not isinstance(parcel_entity, dict):
+        return None
+    muni = parcel_entity.get('municipality')
+    if isinstance(muni, dict):
+        muni = muni.get('value')
+    if isinstance(muni, str) and muni.strip():
+        return muni.strip()
+    addr = parcel_entity.get('address')
+    if isinstance(addr, dict) and 'value' in addr:
+        addr = addr['value']
+    if isinstance(addr, dict):
+        loc = addr.get('addressLocality') or addr.get('addressRegion') or ''
+        if isinstance(loc, str) and loc.strip():
+            return loc.strip()
+    return None
+
+
+def _ine_code_for_municipality(tenant_id: str, municipality: str) -> Optional[str]:
+    """Look up ``catalog_municipalities.ine_code`` by municipality name (case/space-insensitive)."""
     with get_db_connection_with_tenant(tenant_id) as conn:
         if not conn:
             return None
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            # Prefer weather_location_id -> tenant_weather_locations.municipality_code
             cur.execute("""
-                SELECT twl.municipality_code
-                FROM cadastral_parcels cp
-                LEFT JOIN tenant_weather_locations twl ON twl.id = cp.weather_location_id
-                WHERE cp.id = %s::uuid AND cp.tenant_id = %s
+                SELECT ine_code FROM catalog_municipalities
+                WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s))
                 LIMIT 1
-            """, (uuid_candidate, tenant_id))
-            row = cur.fetchone()
-            if row and row.get('municipality_code'):
-                cur.close()
-                return (row['municipality_code'], 'municipality')
-            # Fallback: parcel municipality (name) -> catalog_municipalities.ine_code
-            cur.execute("""
-                SELECT cm.ine_code
-                FROM cadastral_parcels cp
-                JOIN catalog_municipalities cm ON LOWER(TRIM(cm.name)) = LOWER(TRIM(cp.municipality))
-                WHERE cp.id = %s::uuid AND cp.tenant_id = %s
-                LIMIT 1
-            """, (uuid_candidate, tenant_id))
+            """, (municipality,))
             row = cur.fetchone()
             cur.close()
             if row and row.get('ine_code'):
-                return (row['ine_code'], 'municipality')
+                return row['ine_code']
         except Exception as e:
-            logger.debug(f"cadastral_parcels lookup failed for {uuid_candidate}: {e}")
-    # No cadastral row: resolve from Orion parcel address (matches timeseries-reader)
-    if parcel_entity:
-        addr = parcel_entity.get('address')
-        if isinstance(addr, dict) and 'value' in addr:
-            addr = addr['value']
-        if isinstance(addr, dict):
-            loc = addr.get('addressLocality') or addr.get('addressRegion') or ''
-            if isinstance(loc, str) and loc.strip():
-                with get_db_connection_with_tenant(tenant_id) as conn:
-                    if conn:
-                        try:
-                            cur = conn.cursor(cursor_factory=RealDictCursor)
-                            cur.execute("""
-                                SELECT ine_code FROM catalog_municipalities
-                                WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s))
-                                LIMIT 1
-                            """, (loc.strip(),))
-                            row = cur.fetchone()
-                            cur.close()
-                            if row:
-                                return (row['ine_code'], 'municipality')
-                        except Exception as e:
-                            logger.debug(f'Catalog lookup for municipality name failed: {e}')
+            logger.debug(f"Catalog lookup for municipality name failed: {e}")
     return None
+
+
+def _parcel_urn_to_municipality_code(tenant_id: str, parcel_urn: str, parcel_entity: Optional[dict] = None) -> Optional[tuple]:
+    """Resolve a parcel URN to ``(municipality INE code, 'municipality')``.
+
+    Single source of truth = Orion. Reads the parcel's ``municipality`` (or address
+    locality) straight from the AgriParcel entity and maps it to
+    ``catalog_municipalities.ine_code``. The ``cadastral_parcels`` read-model is retired.
+    """
+    # If the caller did not pass the entity, fetch it from Orion (inject_fiware_headers
+    # adds the platform @context Link — guards the false-zero trap).
+    if parcel_entity is None and isinstance(parcel_urn, str) and parcel_urn.lower().startswith('urn:'):
+        try:
+            headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant_id)
+            resp = requests.get(f"{ORION_URL}/ngsi-ld/v1/entities/{parcel_urn}", headers=headers, timeout=10)
+            if resp.status_code == 200:
+                parcel_entity = resp.json()
+        except Exception as e:
+            logger.debug(f"Orion fetch for parcel {parcel_urn} failed: {e}")
+
+    municipality = _municipality_name_from_entity(parcel_entity)
+    if not municipality:
+        return None
+    ine_code = _ine_code_for_municipality(tenant_id, municipality)
+    return (ine_code, 'municipality') if ine_code else None
 
 
 # === Lines 2204-2228 from entity_management_api.py ===

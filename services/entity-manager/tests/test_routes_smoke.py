@@ -315,7 +315,6 @@ class TestAdminRoutes:
         ("GET", "/api/admin/tenant-usage"),
         ("PATCH", "/api/admin/tenant-limits"),
         ("POST", "/api/admin/terms/es"),
-        ("POST", "/api/admin/parcels/sync"),
         ("GET", "/api/admin/tenants"),
         ("GET", "/api/admin/activations"),
         ("DELETE", "/api/admin/tenants/test/purge"),
@@ -416,11 +415,6 @@ class TestAdminRoutes:
         )
         assert r.status_code in (200, 201, 500), f"POST terms got {r.status_code}"
         r.get_json()
-
-    # POST /api/admin/parcels/sync
-    def test_post_parcels_sync_requires_params(self, client):
-        r = client.post("/api/admin/parcels/sync")
-        assert r.status_code in (400, 403), "expected 400 (missing tenant_id) or 403"
 
     # DELETE /api/admin/tenants/test/purge
     @patch("entity_management_api.get_db_connection_simple")

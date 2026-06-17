@@ -75,13 +75,6 @@ except ImportError:
         return decorator
 
 try:
-    from parcel_sync import parcel_sync
-    PARCEL_SYNC_AVAILABLE = True
-except ImportError:
-    PARCEL_SYNC_AVAILABLE = False
-    logging.getLogger(__name__).warning("Parcel sync service not available")
-
-try:
     from module_metrics import record_module_usage, record_module_latency, record_module_error, metrics_decorator
     MODULE_METRICS_AVAILABLE = True
 except ImportError:
@@ -240,7 +233,6 @@ def get_tenant_limits_with_usage():
 from blueprints.admin import admin_bp
 from blueprints.assets import assets_bp
 from blueprints.entities import entities_bp
-from blueprints.parcels import parcels_bp
 from blueprints.sync import sync_bp
 from blueprints.modules import modules_bp
 from blueprints.sensors import sensors_bp
@@ -250,7 +242,6 @@ from notification_handler import notify_bp
 app.register_blueprint(admin_bp)
 app.register_blueprint(assets_bp)
 app.register_blueprint(entities_bp)
-app.register_blueprint(parcels_bp)
 app.register_blueprint(sync_bp)
 app.register_blueprint(modules_bp)
 app.register_blueprint(sensors_bp)

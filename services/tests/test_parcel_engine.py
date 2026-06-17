@@ -19,9 +19,13 @@ class TestParcelDiscovery:
         """Fetch AgriParcel entities for a single tenant."""
         mock_response = MagicMock()
         mock_response.status_code = 200
+        # Uniform writes: ids are urn:ngsi-ld:AgriParcel:<uuid4> (no tenant segment).
+        # The tenant is resolved by discovery (env/DB) and the per-tenant query, NOT
+        # parsed from the id — so _fetch_all_parcels tags _tenant from the queried tenant.
+        parcel1_id = "urn:ngsi-ld:AgriParcel:11111111-1111-1111-1111-111111111111"
         mock_response.json.return_value = [
             {
-                "id": "urn:ngsi-ld:AgriParcel:tenant1:parcel1",
+                "id": parcel1_id,
                 "type": "AgriParcel",
                 "name": {"type": "Property", "value": "Viñedo Norte"},
                 "location": {
@@ -34,7 +38,7 @@ class TestParcelDiscovery:
                 "elevation": {"type": "Property", "value": 450.0},
             },
             {
-                "id": "urn:ngsi-ld:AgriParcel:tenant1:parcel2",
+                "id": "urn:ngsi-ld:AgriParcel:22222222-2222-2222-2222-222222222222",
                 "type": "AgriParcel",
                 "name": {"type": "Property", "value": "Trigal Sur"},
                 "location": {
@@ -56,15 +60,17 @@ class TestParcelDiscovery:
         ]
         mock_get.return_value = mock_response
 
-        engine = ParcelWeatherEngine(
-            orion_url="http://orion:1026",
-            openmeteo_url="https://api.open-meteo.com/v1",
-        )
-
-        parcels = engine._fetch_all_parcels()
+        with patch.object(
+            ParcelWeatherEngine, "_get_active_tenants", return_value=["tenant1"]
+        ):
+            engine = ParcelWeatherEngine(
+                orion_url="http://orion:1026",
+                openmeteo_url="https://api.open-meteo.com/v1",
+            )
+            parcels = engine._fetch_all_parcels()
 
         assert len(parcels) == 2
-        assert parcels[0]["id"] == "urn:ngsi-ld:AgriParcel:tenant1:parcel1"
+        assert parcels[0]["id"] == parcel1_id
         assert parcels[0]["_tenant"] == "tenant1"
 
     @patch("weather_worker.parcel_engine.requests.get")
