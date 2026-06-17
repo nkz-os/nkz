@@ -44,6 +44,7 @@ _common_mock.require_auth = _require_auth
 _common_mock.inject_fiware_headers = lambda h, t=None, **kw: h
 sys.modules["common"] = _common_mock
 sys.modules["common.auth_middleware"] = _common_mock
+sys.modules["common.ngsi_headers"] = _common_mock
 sys.modules["common.config_manager"] = MagicMock()
 sys.modules["common.tier_quotas"] = MagicMock()
 # db_helper provides get_db_connection_with_tenant — stubbed here, patched per test

@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from common.ngsi_headers import inject_fiware_headers
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -23,7 +25,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
-CONTEXT_URL = os.getenv("CONTEXT_URL", "")
 
 # SDM WeatherAlert severity mapping (AEMET → FIWARE standard)
 _AEMET_SEVERITY_MAP: Dict[str, str] = {
@@ -54,19 +55,7 @@ _AEMET_SUBCATEGORY_MAP: Dict[str, str] = {
 
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated)."""
-    n = tenant_id
-    headers = {
-        "NGSILD-Tenant": n,
-        "Fiware-Service": n,
-        "Fiware-ServicePath": "/",
-        "Accept": "application/ld+json",
-    }
-    if CONTEXT_URL:
-        headers["Link"] = (
-            f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context";'
-            f' type="application/ld+json"'
-        )
-    return headers
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
 # ---------------------------------------------------------------------------

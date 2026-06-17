@@ -2110,6 +2110,48 @@ def publish_module_internal(module_id):
         )
         return jsonify({'error': 'Unauthorized'}), 401
 
+    # ── FIWARE compliance gate ──
+    # Module must declare fiware_compliance.status="compliant" to publish.
+    # Existing modules with "pending" get a warning; new modules are blocked.
+    try:
+        conn = get_db_connection_simple()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT fiware_compliance, deployed_version FROM marketplace_modules WHERE id = %s",
+            (module_id,)
+        )
+        row = cur.fetchone()
+        cur.close()
+        return_db_connection(conn)
+        if row:
+            fiware = row[0] if row[0] and isinstance(row[0], dict) else {}
+            is_first_publish = row[1] is None
+            status = fiware.get('status', 'pending')
+
+            if status != 'compliant':
+                if is_first_publish:
+                    logger.warning(
+                        f"Blocked first publish of {module_id}: fiware_compliance={status}"
+                    )
+                    return jsonify({
+                        'error': 'Module must declare FIWARE compliance before publishing',
+                        'detail': (
+                            'Set fiware_compliance.status to "compliant" in marketplace_modules. '
+                            'Run: UPDATE marketplace_modules SET fiware_compliance = '
+                            "jsonb_build_object('status', 'compliant', "
+                            "'orion_client', 'sdk', "
+                            "'direct_db_writes', 'none', "
+                            "'verification_date', CURRENT_DATE) "
+                            f"WHERE id = '{module_id}';"
+                        )
+                    }), 412
+                else:
+                    logger.warning(
+                        f"Module {module_id} re-published with fiware_compliance={status}"
+                    )
+    except Exception as e:
+        logger.error(f"Error checking fiware_compliance for {module_id}: {e}")
+
     files = request.files.getlist('file')
     if not files:
         return jsonify({'error': "No files provided (multipart 'file' fields)."}), 400

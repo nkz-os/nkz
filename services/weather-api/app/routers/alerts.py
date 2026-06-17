@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 
 from app.auth import require_auth
 from app.config import settings
+from common.ngsi_headers import inject_fiware_headers
 
 logger = logging.getLogger(__name__)
 
@@ -25,17 +26,7 @@ router = APIRouter(prefix="/api/weather", tags=["alerts"])
 
 def _orion_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers with tenant context and JSON-LD Link header."""
-    h = {"Accept": "application/ld+json"}
-    if tenant_id:
-        h["Fiware-Service"] = tenant_id
-        h["Fiware-ServicePath"] = "/"
-        h["NGSILD-Tenant"] = tenant_id
-    if settings.context_url:
-        h["Link"] = (
-            f'<{settings.context_url}>; rel="http://www.w3.org/ns/json-ld#context";'
-            f' type="application/ld+json"'
-        )
-    return h
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
 @router.get("/alerts")

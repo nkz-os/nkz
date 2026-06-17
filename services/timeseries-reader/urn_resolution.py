@@ -15,6 +15,8 @@ import psycopg2
 import requests
 from psycopg2.extras import RealDictCursor
 
+from common.ngsi_headers import inject_fiware_headers
+
 logger = logging.getLogger(__name__)
 
 ORION_URL = (os.getenv("ORION_URL") or "").rstrip("/")
@@ -33,10 +35,7 @@ PARCEL_ENTITY_TYPES = set(
 def _orion_headers(
     tenant_id: str, extra: Optional[Dict[str, str]] = None
 ) -> Dict[str, str]:
-    h: Dict[str, str] = {"Accept": "application/ld+json"}
-    if tenant_id:
-        h["NGSILD-Tenant"] = tenant_id
-        h["Fiware-Service"] = tenant_id
+    h = inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
     if extra:
         h.update(extra)
     return h

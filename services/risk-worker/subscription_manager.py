@@ -12,6 +12,8 @@ import psycopg2
 import requests
 from tenacity import retry, stop_after_attempt, wait_fixed
 
+from common.ngsi_headers import inject_fiware_headers
+
 logger = logging.getLogger(__name__)
 
 ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
@@ -43,21 +45,8 @@ SUBSCRIPTIONS = [
 
 
 def _make_headers(tenant_id: str) -> dict:
-    """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated)."""
-    n = tenant_id
-    headers = {
-        "NGSILD-Tenant": n,
-        "Fiware-Service": n,
-        "Fiware-ServicePath": "/",
-        "Accept": "application/ld+json",
-    }
-    ctx = os.getenv("CONTEXT_URL", "")
-    if ctx:
-        headers["Link"] = (
-            f'<{ctx}>; rel="http://www.w3.org/ns/json-ld#context";'
-            ' type="application/ld+json"'
-        )
-    return headers
+    """Build Orion-LD headers — delegates to canonical ngsi_headers."""
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
 def _get_active_tenants() -> list:
