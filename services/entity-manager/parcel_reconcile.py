@@ -84,3 +84,48 @@ def get_live_parcel_ids(tenant_id: str):
     except requests.RequestException as exc:
         logger.error("Live-parcel query for %s failed: %s — SKIP tenant", tenant_id, exc)
         return None
+
+
+def get_active_tenants() -> list[str]:
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT tenant_id FROM tenants WHERE tenant_id IS NOT NULL")
+        rows = [r[0] for r in cur.fetchall()]
+        cur.close()
+        return rows
+    finally:
+        conn.close()
+
+
+def get_auto_provision_modules() -> list[str]:
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id FROM marketplace_modules"
+            " WHERE metadata->>'auto_provision' = 'true'"
+        )
+        rows = [r[0] for r in cur.fetchall()]
+        cur.close()
+        return rows
+    finally:
+        conn.close()
+
+
+def get_rows(tenant_id: str) -> list[dict]:
+    conn = _get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT tenant_id, parcel_id, module_id, setup_status,"
+            " retry_count, next_retry_at"
+            " FROM tenant_parcel_modules WHERE tenant_id = %s",
+            (tenant_id,),
+        )
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        cur.close()
+        return rows
+    finally:
+        conn.close()
