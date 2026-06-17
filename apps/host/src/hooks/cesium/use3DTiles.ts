@@ -2,8 +2,15 @@ import { useEffect } from 'react';
 import { logger } from '@/utils/logger';
 
 /**
+ * Ref to hold the host-managed tileset so we can remove it selectively
+ * without destroying module-managed primitives.
+ */
+let hostTileset: any = null;
+
+/**
  * Manages 3D Tiles tileset primitives on the Cesium viewer.
- * Extracted from CesiumMap.tsx 3D tiles useEffect.
+ * Only removes the previous host tileset — never calls primitives.removeAll(),
+ * which would destroy tilesets added by external modules via the slot system.
  */
 export function use3DTiles(
   viewerRef: React.MutableRefObject<any>,
@@ -18,8 +25,15 @@ export function use3DTiles(
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
-    // Remove existing tilesets
-    viewer.scene.primitives.removeAll();
+    // Remove only the previous host tileset (not all primitives)
+    if (hostTileset) {
+      try {
+        viewer.scene.primitives.remove(hostTileset);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error removing previous 3D Tiles:', e);
+      }
+      hostTileset = null;
+    }
 
     if (enable3DTiles && tilesetUrl) {
       try {
@@ -31,6 +45,7 @@ export function use3DTiles(
             url: tilesetUrl,
           })
         );
+        hostTileset = tileset;
 
         if (tileset.readyPromise) {
           tileset.readyPromise.then(() => {
