@@ -137,7 +137,8 @@ fi
 check_pattern "verify=False" 'verify[[:space:]]*=[[:space:]]*False'
 
 # ── Check 3: Deprecated ref<Type> relationship names (warning only) ──
-ref_hits=$(echo "$files" | xargs grep -nE "'ref[A-Z][a-zA-Z]*['"'"':]" 2>/dev/null | grep -vE "$EXCLUDE" || true)
+ref_pattern="'ref[A-Z][a-zA-Z]*'"
+ref_hits=$(echo "$files" | xargs grep -nE "$ref_pattern" 2>/dev/null | grep -vE "$EXCLUDE" || true)
 if [ -n "$ref_hits" ]; then
     echo "WARNING: Deprecated 'ref<Type>' relationship patterns found (use 'has<Type>' instead):"
     echo "$ref_hits" | head -10
