@@ -13,9 +13,45 @@ on:
       INTERNAL_SERVICE_SECRET: { required: true }
 
 jobs:
+  # FIWARE compliance gate — publish CANNOT run unless this passes. Conservative:
+  # blocks unambiguous violations (verify=False, direct INSERT into timeseries
+  # tables); warns on raw Orion calls. Tighten over time as module criteria firm up.
+  compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: FIWARE compliance check (module Python)
+        working-directory: ${{ inputs.working_dir }}
+        run: |
+          set -uo pipefail
+          PYFILES=$(find . -name '*.py' \
+            -not -path '*/node_modules/*' -not -path '*/.venv/*' -not -path '*/venv/*' \
+            -not -path '*/tests/*' -not -path '*/migrations/*' 2>/dev/null || true)
+          if [ -z "$PYFILES" ]; then echo "No Python files; nothing to check."; exit 0; fi
+          fail=0
+          # 1) SSL bypass — always forbidden
+          if echo "$PYFILES" | xargs grep -nE 'verify[[:space:]]*=[[:space:]]*False' 2>/dev/null; then
+            echo "::error::verify=False (SSL bypass) is forbidden"; fail=1
+          fi
+          # 2) Direct writes to observational/timeseries tables — must flow via Orion-LD
+          TS='telemetry|telemetry_events|weather_observations|risk_daily_states|device_measurements'
+          if echo "$PYFILES" | xargs grep -nEi "INSERT[[:space:]]+INTO[[:space:]]+($TS)" 2>/dev/null; then
+            echo "::error::Direct INSERT into a timeseries/observational table — route via Orion-LD subscription"; fail=1
+          fi
+          # 3) Raw Orion-LD without the canonical header layer — warning
+          for f in $PYFILES; do
+            if grep -qE 'ORION_URL|orion-ld-service|/ngsi-ld/v1' "$f" 2>/dev/null \
+               && ! grep -qE 'inject_fiware_headers|OrionClient|SyncOrionClient|ngsi_headers' "$f" 2>/dev/null; then
+              echo "::warning::$f calls Orion-LD without inject_fiware_headers/OrionClient"
+            fi
+          done
+          [ "$fail" -eq 0 ] || { echo "FIWARE compliance gate FAILED"; exit 1; }
+          echo "FIWARE compliance gate passed"
+
   publish:
     # GitHub-hosted runner. Auth: OIDC JWT from token.actions.githubusercontent.com
     # validated by api-gateway against GitHub's JWKS.
+    needs: compliance
     runs-on: ubuntu-latest
     env:
       # Public API endpoint. api-gateway validates OIDC JWT before forwarding.
@@ -83,9 +119,13 @@ jobs:
           SHA=$(echo "${{ github.sha }}" | cut -c1-40)
           args=$(cd "$DIST" && find . -type f -printf '-F file=@%p;filename=%P ')
           # shellcheck disable=SC2086
+          # X-FIWARE-Compliant is sent ONLY here — and this step runs only because
+          # `publish needs: compliance` passed. entity-manager stamps the module
+          # fiware_compliance=compliant on receipt (replaces the manual-SQL stamp).
           code=$(cd "$DIST" && curl -sS -o /tmp/pub.json -w '%{http_code}' \
                  -H "X-Internal-Service-Secret: $SECRET" \
                  -H "X-OIDC-Token: $OIDC_TOKEN" \
+                 -H "X-FIWARE-Compliant: 1" \
                  -F "version_hash=$SHA" $args \
                  "$EM/api/internal/modules/$MODULE/publish")
           echo "publish HTTP $code"; cat /tmp/pub.json; echo

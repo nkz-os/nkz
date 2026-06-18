@@ -182,3 +182,51 @@ def test_publish_ok_with_secret(client, monkeypatch):
     )
     assert r.status_code == 201
     assert r.get_json()["version_hash"] == "abc1234"
+
+
+# ---------------------------------------------------------------------------
+# FIWARE publish gate (_fiware_publish_gate)
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch  # noqa: E402
+import blueprints.modules as _mod  # noqa: E402
+
+
+def _gate_conn(fiware, deployed_version):
+    cur = MagicMock()
+    cur.fetchone.return_value = (fiware, deployed_version)
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    return conn, cur
+
+
+def test_fiware_gate_ci_verified_stamps_and_allows():
+    """CI-verified publish stamps compliant (no manual SQL) and proceeds."""
+    conn, cur = _gate_conn({"status": "pending"}, None)
+    with patch.object(_mod, "get_db_connection_simple", return_value=conn), \
+         patch.object(_mod, "return_db_connection"):
+        result = _mod._fiware_publish_gate("demo", ci_verified=True)
+    assert result is None  # proceed
+    assert any("UPDATE marketplace_modules" in str(c.args[0])
+               for c in cur.execute.call_args_list), "should stamp compliant"
+    conn.commit.assert_called_once()
+
+
+def test_fiware_gate_blocks_unverified_first_publish():
+    """No CI verification + pending + first publish (no deployed_version) => 412."""
+    conn, _ = _gate_conn({"status": "pending"}, None)
+    with app.app_context(), \
+         patch.object(_mod, "get_db_connection_simple", return_value=conn), \
+         patch.object(_mod, "return_db_connection"):
+        result = _mod._fiware_publish_gate("demo", ci_verified=False)
+    assert result is not None
+    assert result[1] == 412
+
+
+def test_fiware_gate_allows_unverified_republish():
+    """No CI verification but already deployed (re-publish) => warn + proceed."""
+    conn, _ = _gate_conn({"status": "pending"}, "abc1234")
+    with patch.object(_mod, "get_db_connection_simple", return_value=conn), \
+         patch.object(_mod, "return_db_connection"):
+        result = _mod._fiware_publish_gate("demo", ci_verified=False)
+    assert result is None
