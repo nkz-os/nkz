@@ -29,15 +29,16 @@ jobs:
             -not -path '*/tests/*' -not -path '*/migrations/*' 2>/dev/null || true)
           if [ -z "$PYFILES" ]; then echo "No Python files; nothing to check."; exit 0; fi
           fail=0
+          # Drop full-line comment matches (":<lineno>:<spaces>#…") to avoid
+          # false positives on code that only MENTIONS a pattern in a comment.
+          NOCOMMENT='grep -vE :[0-9]+:[[:space:]]*#'
           # 1) SSL bypass — always forbidden
-          if echo "$PYFILES" | xargs grep -nE 'verify[[:space:]]*=[[:space:]]*False' 2>/dev/null; then
-            echo "::error::verify=False (SSL bypass) is forbidden"; fail=1
-          fi
+          vf=$(echo "$PYFILES" | xargs grep -nE 'verify[[:space:]]*=[[:space:]]*False' 2>/dev/null | $NOCOMMENT || true)
+          if [ -n "$vf" ]; then echo "$vf"; echo "::error::verify=False (SSL bypass) is forbidden"; fail=1; fi
           # 2) Direct writes to observational/timeseries tables — must flow via Orion-LD
           TS='telemetry|telemetry_events|weather_observations|risk_daily_states|device_measurements'
-          if echo "$PYFILES" | xargs grep -nEi "INSERT[[:space:]]+INTO[[:space:]]+($TS)" 2>/dev/null; then
-            echo "::error::Direct INSERT into a timeseries/observational table — route via Orion-LD subscription"; fail=1
-          fi
+          ins=$(echo "$PYFILES" | xargs grep -nEi "INSERT[[:space:]]+INTO[[:space:]]+($TS)" 2>/dev/null | $NOCOMMENT || true)
+          if [ -n "$ins" ]; then echo "$ins"; echo "::error::Direct INSERT into a timeseries/observational table — route via Orion-LD subscription"; fail=1; fi
           # 3) Raw Orion-LD without the canonical header layer — warning
           for f in $PYFILES; do
             if grep -qE 'ORION_URL|orion-ld-service|/ngsi-ld/v1' "$f" 2>/dev/null \
