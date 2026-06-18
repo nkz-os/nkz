@@ -2094,6 +2094,77 @@ def federation_runtime_health():
     }), 200 if unhealthy == 0 else 207
 
 
+def _fiware_publish_gate(module_id: str, ci_verified: bool):
+    """FIWARE compliance gate for module publish.
+
+    Compliance is enforced OBJECTIVELY by the reusable publish workflow
+    (`_publish-module.yml`): its `publish` job `needs: compliance`, and the
+    publish step sends ``X-FIWARE-Compliant: 1`` — present ONLY if the
+    compliance check passed. The request is OIDC-authenticated (validated by
+    api-gateway), so we trust the header. On a verified publish we stamp
+    ``status=compliant`` automatically (replacing the old manual-SQL rubber
+    stamp). A non-verified FIRST publish of a still-``pending`` module is blocked.
+
+    Returns ``None`` to proceed, or a ``(response, status)`` tuple to abort.
+    """
+    try:
+        conn = get_db_connection_simple()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT fiware_compliance, deployed_version"
+                " FROM marketplace_modules WHERE id = %s",
+                (module_id,),
+            )
+            row = cur.fetchone()
+            fiware = row[0] if (row and row[0] and isinstance(row[0], dict)) else {}
+            is_first_publish = bool(row) and row[1] is None
+            status = fiware.get('status', 'pending')
+
+            if ci_verified:
+                cur.execute(
+                    "UPDATE marketplace_modules SET fiware_compliance = jsonb_build_object("
+                    "'status', 'compliant', 'orion_client', 'sdk', "
+                    "'direct_db_writes', 'none', 'verification_date', CURRENT_DATE::text)"
+                    " WHERE id = %s",
+                    (module_id,),
+                )
+                conn.commit()
+                logger.info(
+                    "FIWARE compliance verified by CI for %s — stamped compliant",
+                    module_id,
+                )
+                return None
+
+            if status != 'compliant' and is_first_publish:
+                logger.warning(
+                    "Blocked first publish of %s: fiware_compliance=%s (no CI verification)",
+                    module_id, status,
+                )
+                return jsonify({
+                    'error': 'Module must pass the FIWARE compliance gate before publishing',
+                    'detail': (
+                        'Publish via the standard reusable workflow (_publish-module.yml), '
+                        'whose `compliance` job gates `publish` and sends X-FIWARE-Compliant '
+                        'on success.'
+                    ),
+                }), 412
+
+            if status != 'compliant':
+                logger.warning(
+                    "Module %s re-published with fiware_compliance=%s (no CI verification)",
+                    module_id, status,
+                )
+            return None
+        finally:
+            cur.close()
+            return_db_connection(conn)
+    except Exception as e:
+        # Fail-open on infrastructure error (do not block deploys on a DB hiccup).
+        logger.error("Error in fiware_compliance gate for %s: %s", module_id, e)
+        return None
+
+
 @modules_bp.route('/api/internal/modules/<module_id>/publish', methods=['POST'])
 def publish_module_internal(module_id):
     """CI publish: upload dist/ to modules/<id>/<version_hash>/ + activate pointer.
@@ -2111,46 +2182,13 @@ def publish_module_internal(module_id):
         return jsonify({'error': 'Unauthorized'}), 401
 
     # ── FIWARE compliance gate ──
-    # Module must declare fiware_compliance.status="compliant" to publish.
-    # Existing modules with "pending" get a warning; new modules are blocked.
-    try:
-        conn = get_db_connection_simple()
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT fiware_compliance, deployed_version FROM marketplace_modules WHERE id = %s",
-            (module_id,)
-        )
-        row = cur.fetchone()
-        cur.close()
-        return_db_connection(conn)
-        if row:
-            fiware = row[0] if row[0] and isinstance(row[0], dict) else {}
-            is_first_publish = row[1] is None
-            status = fiware.get('status', 'pending')
-
-            if status != 'compliant':
-                if is_first_publish:
-                    logger.warning(
-                        f"Blocked first publish of {module_id}: fiware_compliance={status}"
-                    )
-                    return jsonify({
-                        'error': 'Module must declare FIWARE compliance before publishing',
-                        'detail': (
-                            'Set fiware_compliance.status to "compliant" in marketplace_modules. '
-                            'Run: UPDATE marketplace_modules SET fiware_compliance = '
-                            "jsonb_build_object('status', 'compliant', "
-                            "'orion_client', 'sdk', "
-                            "'direct_db_writes', 'none', "
-                            "'verification_date', CURRENT_DATE) "
-                            f"WHERE id = '{module_id}';"
-                        )
-                    }), 412
-                else:
-                    logger.warning(
-                        f"Module {module_id} re-published with fiware_compliance={status}"
-                    )
-    except Exception as e:
-        logger.error(f"Error checking fiware_compliance for {module_id}: {e}")
+    # Enforced objectively by the reusable publish workflow (compliance job
+    # gates publish → sends X-FIWARE-Compliant on success). See _fiware_publish_gate.
+    _gate = _fiware_publish_gate(
+        module_id, request.headers.get('X-FIWARE-Compliant', '') == '1'
+    )
+    if _gate is not None:
+        return _gate
 
     files = request.files.getlist('file')
     if not files:
