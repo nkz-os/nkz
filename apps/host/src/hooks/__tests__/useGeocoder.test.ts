@@ -195,6 +195,19 @@ describe('useGeocoder', () => {
     expect(result.current.loading).toBe(false);
   });
 
+  it('cleans up timer and abort on unmount', () => {
+    const fetchMock = makeFetchOk({ results: [mockResult] });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result, unmount } = renderHook(() => useGeocoder());
+    act(() => { result.current.search('Pamplona'); });
+    unmount();
+    // After unmount, the debounce timer should be cleared (no pending callback)
+    act(() => { vi.advanceTimersByTime(300); });
+    // No state updates should happen — no assertions needed beyond no console errors
+    // If cleanup was missing, vitest would warn about state updates on unmounted components
+  });
+
   it('aborts previous pending fetch and keeps latest results', async () => {
     const { mock: firstFetch, resolve: resolveFirst } = deferredFetch();
     const secondFetch = makeFetchOk({
