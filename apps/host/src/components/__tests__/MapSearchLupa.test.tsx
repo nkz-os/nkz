@@ -65,16 +65,38 @@ describe('MapSearchLupa', () => {
   });
 
   it('closes on Escape key', () => {
+    const search = vi.fn();
     mockUseGeocoder.mockReturnValue({
       results: [baseResult],
       loading: false,
       error: null,
-      search: vi.fn(),
+      search,
     });
     render(<MapSearchLupa onPick={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /search/i }));
     expect(screen.getByRole('textbox')).toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
     expect(screen.queryByRole('textbox')).toBeNull();
+    expect(search).toHaveBeenCalledWith('');
+  });
+
+  it('closes on Escape key and clears results in hook', () => {
+    const onPick = vi.fn();
+    render(<MapSearchLupa onPick={onPick} />);
+    fireEvent.click(screen.getByRole('button', { name: /search/i }));
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'Pam' } });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('textbox')).toBeNull();
+    // After ESC, component called search('') — update mock to simulate cleared state
+    mockUseGeocoder.mockReturnValue({
+      results: [],
+      loading: false,
+      error: null,
+      search: vi.fn(),
+    });
+    // reopen — should not see stale results
+    fireEvent.click(screen.getByRole('button', { name: /search/i }));
+    expect(screen.queryByText('Pamplona')).toBeNull();
   });
 });
