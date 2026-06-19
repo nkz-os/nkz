@@ -44,7 +44,7 @@ spec:
       - name: weather-worker
         # Pinned by digest: :latest + pullPolicy Always means a pod restart can
         # silently change running code (frontend-host outage 2026-05-26).
-        image: ghcr.io/nkz-os/nkz/weather-worker@sha256:af39550e30d8abd3c8feed36e3cb2da25aad5989e3b25ba9b52bca99d3ecce73  # PR #620: drop id-parse tenant fallback — UUID ids (main 53d33a0)
+        image: ghcr.io/nkz-os/nkz/weather-worker@sha256:c6662673370ff84c604b6b7c4ef2b9fcfe1ff87604570528fa57ef9bba45fded  # main 1b7c444c: WeatherObserved orphan prune (#627) + FIWARE compliance (replaces af39550e)
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
