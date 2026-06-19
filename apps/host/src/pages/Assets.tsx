@@ -14,6 +14,7 @@ import { Layers, AlertCircle, CheckCircle2, Expand, Minimize } from 'lucide-reac
 import { useI18n } from '@/context/I18nContext';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { logger } from '@/utils/logger';
+import { EU_RECTANGLE } from '@/utils/cameraFraming';
 import { Button } from '@nekazari/ui-kit';
 
 
@@ -66,10 +67,8 @@ export const Assets: React.FC = () => {
     if (viewer.scene.sun) viewer.scene.sun.show = false;
     if (viewer.scene.moon) viewer.scene.moon.show = false;
 
-    // Set initial camera to Spain center
-    viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(-3.0, 40.0, 500000),
-    });
+    // Set initial camera to EU view
+    viewer.camera.flyTo({ destination: EU_RECTANGLE, duration: 1.2 });
 
     // Configure imagery
     const osmProvider = new Cesium.UrlTemplateImageryProvider({
