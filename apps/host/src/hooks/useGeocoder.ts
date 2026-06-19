@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { GeocodeResult, isGeocodeResult } from '@/types/geocode';
 
 const API = (import.meta as any)?.env?.VITE_API_URL || 'https://nkz.robotika.cloud';
@@ -10,6 +10,13 @@ export function useGeocoder(lang = 'es') {
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abort = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+      abort.current?.abort();
+    };
+  }, []);
 
   const run = useCallback(async (q: string) => {
     abort.current?.abort();
