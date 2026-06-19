@@ -2400,6 +2400,12 @@ def proxy_geocode():
     token = get_request_token()
     if not token:
         return jsonify({"error": "unauthorized"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid token"}), 401
+    tenant = extract_tenant_id(payload) or request.headers.get("X-Tenant-ID", "platform")
+    if not rate_limit(tenant):
+        return jsonify({"error": "Rate limit exceeded"}), 429
     q = request.args.get("q", "").strip()
     if not q:
         return jsonify({"results": []}), 200
