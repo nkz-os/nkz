@@ -1386,5 +1386,11 @@
   "location": {
     "select_first": "Please select a location first in the Geometry step"
   },
+  "map": {
+    "search_placeholder": "Search place, province, street…",
+    "search_no_results": "No results",
+    "search_error": "Search unavailable",
+    "search_open": "Search location"
+  },
   "save_changes_error": "Error saving changes"
 }
