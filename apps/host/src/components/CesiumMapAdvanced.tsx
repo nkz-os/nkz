@@ -8,6 +8,7 @@
 // - NDVI color mapping
 // - Extensible layer system for easy addition of new layers
 import { logger } from '@/utils/logger';
+import { EU_RECTANGLE } from '@/utils/cameraFraming';
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Layers, Calendar, MapPin, Loader2, Eye, EyeOff, Expand, Minimize } from 'lucide-react';
@@ -137,10 +138,8 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
         logger.warn('[CesiumMapAdvanced] Unable to adjust scene appearance', sceneError);
       }
 
-      // Set initial camera to Spain center
-      viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(-3.0, 40.0, 1000000),
-      });
+      // Set initial camera to EU view
+      viewer.camera.flyTo({ destination: EU_RECTANGLE, duration: 1.2 });
 
       logger.debug('[CesiumMapAdvanced] Viewer initialized');
     } catch (error) {

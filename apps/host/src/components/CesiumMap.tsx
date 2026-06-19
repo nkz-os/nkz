@@ -23,12 +23,16 @@ import type { RegionId } from '@/utils/regions';
 import { use3DTiles } from '@/hooks/cesium/use3DTiles';
 import { useEntitySelection } from '@/hooks/cesium/useEntitySelection';
 import { useFlyToEntity } from '@/hooks/cesium/useFlyToEntity';
-import { useInitialParcelsFit } from '@/hooks/cesium/useInitialParcelsFit';
 import { useModelPreview } from '@/hooks/cesium/useModelPreview';
 import { logger } from '@/utils/logger';
 import { normalizeAssetUrl } from '@/utils/urlNormalizer';
 import { getEntityCoordinates, getEntityGeometryType } from '@/utils/ngsiEntityCoordinates';
 import type { RiskOverlayInfo } from '@/hooks/cesium/useRiskOverlay';
+import { MapSearchLupa } from '@/components/MapSearchLupa';
+import { flyToForResult } from '@/utils/cameraFraming';
+import { applyInitialFraming } from '@/hooks/useInitialCameraFraming';
+import { parcelCentroid } from '@/types/geocode';
+import { parcelApi } from '@/services/parcelApi';
 // Removed hardcoded vegetation layer import - modules should use slot system
 
 const RISK_SEVERITY_COLORS: Record<RiskOverlayInfo['severity'], string> = {
@@ -306,12 +310,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     fieldPhoto: new Map<string, any>(),
   });
 
-  const parcelsIdentityKey = useMemo(
-    () => [...parcels].map((p) => String(p.id)).sort().join('|'),
-    [parcels]
-  );
-  const skipInitialParcelsFit = Boolean(viewerContext?.selectedEntityId);
-
   // Update local state if prop changes
   useEffect(() => {
     setCurrentTerrainProvider(terrainProvider);
@@ -499,10 +497,18 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           setCesiumViewer(viewer);
         }
 
-        // Set initial camera position (Spain center)
-        viewer.camera.setView({
-          destination: Cesium.Cartesian3.fromDegrees(-3.0, 40.0, 500000),
-        });
+        // Set initial camera position based on available parcels
+        (async () => {
+          try {
+            const parcels = await parcelApi.getParcels();
+            const centroids: Array<[number, number]> = parcels
+              .map(p => parcelCentroid(p))
+              .filter((c): c is [number, number] => c !== null);
+            applyInitialFraming(viewer, centroids);
+          } catch {
+            applyInitialFraming(viewer, []);
+          }
+        })();
 
       } catch (error) {
         logger.error('[CesiumMap] Error creating viewer:', error);
@@ -1738,14 +1744,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     viewer.scene.requestRender();
   }, [isViewerReady, parcels, enable3DTerrain, enable3DTiles, selectedEntity?.id, riskOverlay]);
 
-  useInitialParcelsFit(
-    viewerRef,
-    isViewerReady,
-    parcelsIdentityKey,
-    parcels,
-    skipInitialParcelsFit
-  );
-
   useFlyToEntity(viewerRef, selectedEntity, viewerContext?.entityListCameraNonce ?? 0);
 
   // Handle 3D Model Preview (PREVIEW_MODEL mode) (extracted hook)
@@ -1932,6 +1930,13 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           inline
           additionalProps={{ viewer: viewerRef.current }}
         />
+      )}
+
+      {/* Search lupa */}
+      {isViewerReady && viewerRef.current && (
+        <div className="absolute top-4 left-4 z-10">
+          <MapSearchLupa onPick={(r) => flyToForResult(viewerRef.current, r)} />
+        </div>
       )}
 
       {/* Legend/Info Overlay could go here */}
