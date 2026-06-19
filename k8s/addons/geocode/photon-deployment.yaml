@@ -1,0 +1,59 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: photon
+  namespace: nekazari
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: photon
+  template:
+    metadata:
+      labels:
+        app: photon
+    spec:
+      volumes:
+        - name: index
+          persistentVolumeClaim:
+            claimName: photon-index
+      containers:
+        - name: photon
+          # Pin a real digest — never use :latest
+          image: ghcr.io/komoot/photon@sha256:<pin>
+          args: ["-data-dir", "/photon"]
+          ports:
+            - containerPort: 2322
+          volumeMounts:
+            - name: index
+              mountPath: /photon
+          startupProbe:
+            httpGet:
+              path: /status
+              port: 2322
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 2322
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: photon-service
+  namespace: nekazari
+spec:
+  selector:
+    app: photon
+  ports:
+    - port: 2322
+      targetPort: 2322

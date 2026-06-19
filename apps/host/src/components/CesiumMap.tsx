@@ -2,7 +2,7 @@
 // Cesium Map Component - GeoServer Integration
 // =============================================================================
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
 /* eslint-disable @typescript-eslint/no-explicit-any */
   Maximize2,
@@ -17,15 +17,22 @@ import { useViewerOptional } from '@/context/ViewerContext';
 import { SlotRenderer } from '@/components/SlotRenderer';
 import { CesiumStampRenderer } from '@/components/CesiumStampRenderer';
 import { useTerrainProvider } from '@/hooks/cesium/useTerrainProvider';
+import { useRegionResolver } from '@/hooks/useRegionResolver';
+import { imageryProviderForRegion } from '@/utils/terrain';
+import type { RegionId } from '@/utils/regions';
 import { use3DTiles } from '@/hooks/cesium/use3DTiles';
 import { useEntitySelection } from '@/hooks/cesium/useEntitySelection';
 import { useFlyToEntity } from '@/hooks/cesium/useFlyToEntity';
-import { useInitialParcelsFit } from '@/hooks/cesium/useInitialParcelsFit';
 import { useModelPreview } from '@/hooks/cesium/useModelPreview';
 import { logger } from '@/utils/logger';
 import { normalizeAssetUrl } from '@/utils/urlNormalizer';
 import { getEntityCoordinates, getEntityGeometryType } from '@/utils/ngsiEntityCoordinates';
 import type { RiskOverlayInfo } from '@/hooks/cesium/useRiskOverlay';
+import { MapSearchLupa } from '@/components/MapSearchLupa';
+import { flyToForResult } from '@/utils/cameraFraming';
+import { applyInitialFraming } from '@/hooks/useInitialCameraFraming';
+import { parcelCentroid } from '@/types/geocode';
+import { parcelApi } from '@/services/parcelApi';
 // Removed hardcoded vegetation layer import - modules should use slot system
 
 const RISK_SEVERITY_COLORS: Record<RiskOverlayInfo['severity'], string> = {
@@ -275,6 +282,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [currentTerrainProvider, setCurrentTerrainProvider] = useState<string>(terrainProvider);
   const [baseLayer, setBaseLayer] = useState<'pnoa' | 'osm' | 'esri' | 'cesium'>('pnoa');
+  const [currentRegion, setCurrentRegion] = useState<RegionId>('eu');
+  const [layerAutoMode, setLayerAutoMode] = useState(true);
+  const manualPickRef = useRef(false); // true when user clicked a layer button
   const osmLayerRef = useRef<any>(null);
   const pnoaLayerRef = useRef<any>(null);
   const esriLayerRef = useRef<any>(null);
@@ -300,16 +310,43 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     fieldPhoto: new Map<string, any>(),
   });
 
-  const parcelsIdentityKey = useMemo(
-    () => [...parcels].map((p) => String(p.id)).sort().join('|'),
-    [parcels]
-  );
-  const skipInitialParcelsFit = Boolean(viewerContext?.selectedEntityId);
-
   // Update local state if prop changes
   useEffect(() => {
     setCurrentTerrainProvider(terrainProvider);
   }, [terrainProvider]);
+
+  // Region resolver: camera.moveEnd → resolve region
+  const handleRegionChange = useCallback((region: RegionId) => {
+    setCurrentRegion(region);
+    // If user manually picked a layer, don't auto-switch
+    if (manualPickRef.current) return;
+  }, []);
+
+  useRegionResolver(isViewerReady ? viewerRef.current : null, handleRegionChange);
+
+  // Auto-switch imagery based on region
+  useEffect(() => {
+    if (!layerAutoMode || manualPickRef.current) return;
+    const target = imageryProviderForRegion(currentRegion);
+    // Only switch if it's changing between pnoa and esri
+    if (target === 'pnoa' && baseLayer !== 'pnoa' && baseLayer !== 'osm') {
+      setBaseLayer('pnoa');
+    } else if (target === 'esri' && baseLayer !== 'esri' && baseLayer !== 'cesium') {
+      setBaseLayer('esri');
+    }
+  }, [currentRegion, layerAutoMode, baseLayer]);
+
+  // Sync __nkzRegion.layerAutoMode for cross-repo consumption
+  useEffect(() => {
+    if (!viewerRef.current) return;
+    const existing = (viewerRef.current as Record<string, unknown>).__nkzRegion as
+      | { currentRegion: string; layerAutoMode: boolean }
+      | undefined;
+    (viewerRef.current as Record<string, unknown>).__nkzRegion = {
+      currentRegion: existing?.currentRegion ?? currentRegion,
+      layerAutoMode,
+    };
+  }, [layerAutoMode, currentRegion]);
 
   useEffect(() => {
     if (!containerRef.current || viewerRef.current || webglFailed || initAttemptedRef.current) return;
@@ -460,10 +497,18 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           setCesiumViewer(viewer);
         }
 
-        // Set initial camera position (Spain center)
-        viewer.camera.setView({
-          destination: Cesium.Cartesian3.fromDegrees(-3.0, 40.0, 500000),
-        });
+        // Set initial camera position based on available parcels
+        (async () => {
+          try {
+            const parcels = await parcelApi.getParcels();
+            const centroids: Array<[number, number]> = parcels
+              .map(p => parcelCentroid(p))
+              .filter((c): c is [number, number] => c !== null);
+            applyInitialFraming(viewer, centroids);
+          } catch {
+            applyInitialFraming(viewer, []);
+          }
+        })();
 
       } catch (error) {
         logger.error('[CesiumMap] Error creating viewer:', error);
@@ -535,7 +580,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   }, []);
 
   // Handle Terrain Updates (extracted hook)
-  useTerrainProvider(viewerRef, enable3DTerrain, currentTerrainProvider, parcels);
+  useTerrainProvider(viewerRef, enable3DTerrain, currentTerrainProvider, parcels, currentRegion, layerAutoMode);
 
   // Handle Base Layer Updates
   useEffect(() => {
@@ -1699,14 +1744,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     viewer.scene.requestRender();
   }, [isViewerReady, parcels, enable3DTerrain, enable3DTiles, selectedEntity?.id, riskOverlay]);
 
-  useInitialParcelsFit(
-    viewerRef,
-    isViewerReady,
-    parcelsIdentityKey,
-    parcels,
-    skipInitialParcelsFit
-  );
-
   useFlyToEntity(viewerRef, selectedEntity, viewerContext?.entityListCameraNonce ?? 0);
 
   // Handle 3D Model Preview (PREVIEW_MODEL mode) (extracted hook)
@@ -1785,22 +1822,35 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                   <p className="text-xs font-semibold text-slate-300">Mapa Base</p>
                 </div>
                 <div className="p-1 border-b border-slate-700">
+                  {/* Auto toggle */}
                   <Button
-                    onClick={() => setBaseLayer('osm')}
+                    onClick={() => {
+                      manualPickRef.current = false;
+                      setLayerAutoMode(true);
+                      setShowTerrainPicker(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${layerAutoMode ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
+                  >
+                    <div className="font-medium">🌍 Auto</div>
+                    <div className="text-xs text-slate-500">Automático según región</div>
+                  </Button>
+                  {!layerAutoMode && (<>
+                  <Button
+                    onClick={() => { manualPickRef.current = true; setLayerAutoMode(false); setBaseLayer('osm'); }}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'osm' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                   >
                     <div className="font-medium">Callejero (OSM)</div>
                     <div className="text-xs text-slate-500">OpenStreetMap global</div>
                   </Button>
                   <Button
-                    onClick={() => setBaseLayer('pnoa')}
+                    onClick={() => { manualPickRef.current = true; setLayerAutoMode(false); setBaseLayer('pnoa'); }}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'pnoa' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                   >
                     <div className="font-medium">Ortofoto (PNOA)</div>
                     <div className="text-xs text-slate-500">Alta resolución (España)</div>
                   </Button>
                   <Button
-                    onClick={() => setBaseLayer('esri')}
+                    onClick={() => { manualPickRef.current = true; setLayerAutoMode(false); setBaseLayer('esri'); }}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'esri' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                   >
                     <div className="font-medium">Satélite (Esri)</div>
@@ -1808,13 +1858,14 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                   </Button>
                   {import.meta.env.VITE_CESIUM_ION_TOKEN && (
                     <Button
-                      onClick={() => setBaseLayer('cesium')}
+                      onClick={() => { manualPickRef.current = true; setLayerAutoMode(false); setBaseLayer('cesium'); }}
                       className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'cesium' ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                     >
                       <div className="font-medium">Satélite (Cesium Ion)</div>
                       <div className="text-xs text-slate-500">Bing Maps Aerial (Premium)</div>
                     </Button>
                   )}
+                  </>)}
                 </div>
 
                 {/* Terrain Section */}
@@ -1825,7 +1876,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                     </div>
                     <div className="p-1">
                       {[
-                        { id: 'auto', name: 'Automático (Detectar)', desc: 'Selecciona según ubicación' },
+                        { id: 'auto', name: 'Automático (Región)', desc: 'IDENA/IGN/EU según cámara' },
                         { id: 'idena', name: 'IDENA (Navarra)', desc: 'Alta precisión (MDT05)' },
                         { id: 'ign', name: 'IGN (España)', desc: 'Cobertura nacional (MDT25)' },
                         ...(import.meta.env.VITE_CESIUM_ION_TOKEN ? [
@@ -1835,6 +1886,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                         <Button
                           key={provider.id}
                           onClick={() => {
+                            if (provider.id !== 'auto') { manualPickRef.current = true; setLayerAutoMode(false); }
+                            else { manualPickRef.current = false; setLayerAutoMode(true); }
                             setCurrentTerrainProvider(provider.id);
                             setShowTerrainPicker(false);
                           }}
@@ -1877,6 +1930,13 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           inline
           additionalProps={{ viewer: viewerRef.current }}
         />
+      )}
+
+      {/* Search lupa */}
+      {isViewerReady && viewerRef.current && (
+        <div className="absolute top-4 left-4 z-10">
+          <MapSearchLupa onPick={(r) => flyToForResult(viewerRef.current, r)} />
+        </div>
       )}
 
       {/* Legend/Info Overlay could go here */}

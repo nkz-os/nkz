@@ -1,0 +1,37 @@
+---
+# Idempotent import Job — restores a prebuilt Photon EU search index from MinIO
+# into the PVC. Skips if photon_data/ already exists so it can be re-run safely.
+# Source: community EU Photon extract → MinIO bucket geocode/photon-eu/
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: photon-import
+  namespace: nekazari
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      volumes:
+        - name: index
+          persistentVolumeClaim:
+            claimName: photon-index
+      containers:
+        - name: import
+          image: minio/mc@sha256:<pin>  # pin a real digest
+          volumeMounts:
+            - name: index
+              mountPath: /photon
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              if [ -d /photon/photon_data ]; then
+                echo "Index already present, skipping import"
+                exit 0
+              fi
+              mc alias set m "$MINIO_URL" "$MINIO_KEY" "$MINIO_SECRET"
+              mc cp --recursive m/geocode/photon-eu/ /photon/
+          envFrom:
+            - secretRef:
+                name: minio-credentials
+                optional: true
