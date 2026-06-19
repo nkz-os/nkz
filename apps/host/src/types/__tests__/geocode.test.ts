@@ -49,6 +49,30 @@ describe('isGeocodeResult', () => {
     expect(isGeocodeResult(result)).toBe(false);
   });
 
+  it('rejects NaN for lat', () => {
+    const result: unknown = {
+      label: 'NaN Lat',
+      lat: NaN,
+      lon: -3.7038,
+      bbox: null,
+      type: 'other',
+      countryCode: 'XX',
+    };
+    expect(isGeocodeResult(result)).toBe(false);
+  });
+
+  it('rejects Infinity for lon', () => {
+    const result: unknown = {
+      label: 'Inf Lon',
+      lat: 40.4168,
+      lon: Infinity,
+      bbox: null,
+      type: 'other',
+      countryCode: 'XX',
+    };
+    expect(isGeocodeResult(result)).toBe(false);
+  });
+
   it('rejects non-object input', () => {
     expect(isGeocodeResult(null)).toBe(false);
     expect(isGeocodeResult(undefined)).toBe(false);
@@ -124,15 +148,15 @@ describe('parcelCentroid', () => {
     expect(lat).toBeCloseTo(38.5, 10);
   });
 
-  it('returns [0, 0] for parcel with no geometry', () => {
+  it('returns null for parcel with no geometry', () => {
     const parcel: Parcel = {
       id: 'parcel-4',
       type: 'AgriParcel',
     };
-    expect(parcelCentroid(parcel)).toEqual([0, 0]);
+    expect(parcelCentroid(parcel)).toBeNull();
   });
 
-  it('returns [0, 0] for Polygon with fewer than 3 vertices', () => {
+  it('returns null for Polygon with fewer than 3 vertices', () => {
     const parcel: Parcel = {
       id: 'parcel-5',
       type: 'AgriParcel',
@@ -146,6 +170,6 @@ describe('parcelCentroid', () => {
         ],
       },
     };
-    expect(parcelCentroid(parcel)).toEqual([0, 0]);
+    expect(parcelCentroid(parcel)).toBeNull();
   });
 });
