@@ -103,7 +103,7 @@ describe('parcelCentroid', () => {
         },
       },
     };
-    const [lon, lat] = parcelCentroid(parcel);
+    const [lon, lat] = parcelCentroid(parcel)!;
     // Average of unique vertices: ([-3.8,-3.7,-3.7,-3.8]/4 = -3.75, [40.4,40.4,40.5,40.5]/4 = 40.45)
     expect(lon).toBeCloseTo(-3.75, 10);
     expect(lat).toBeCloseTo(40.45, 10);
@@ -126,7 +126,7 @@ describe('parcelCentroid', () => {
         ],
       },
     };
-    const [lon, lat] = parcelCentroid(parcel);
+    const [lon, lat] = parcelCentroid(parcel)!;
     expect(lon).toBeCloseTo(2.05, 10);
     expect(lat).toBeCloseTo(41.05, 10);
   });
@@ -143,7 +143,7 @@ describe('parcelCentroid', () => {
         },
       },
     };
-    const [lon, lat] = parcelCentroid(parcel);
+    const [lon, lat] = parcelCentroid(parcel)!;
     expect(lon).toBeCloseTo(-0.5, 10);
     expect(lat).toBeCloseTo(38.5, 10);
   });
