@@ -21,7 +21,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 # Path hacks for in-pod execution
-sys_paths = ["/app/common", "/app/weather-worker"]
+sys_paths = ["/app", "/app/weather-worker"]
 for p in sys_paths:
     if p not in sys.path:
         sys.path.insert(0, p)
