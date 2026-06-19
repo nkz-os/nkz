@@ -21,7 +21,7 @@ spec:
       containers:
         - name: photon
           # Pin a real digest — never use :latest
-          image: ghcr.io/komoot/photon@sha256:<pin>
+          image: ghcr.io/nkz-os/nkz/photon@sha256:2005be92cd4168a5b23eb9d9e49ca507097e273d23d467e3ad2a0a638f2dc122
           args: ["-data-dir", "/photon"]
           ports:
             - containerPort: 2322
