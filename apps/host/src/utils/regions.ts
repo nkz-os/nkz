@@ -21,14 +21,15 @@ export interface RegionDef {
  * IDENA is terrain-only (Navarra MDT05 5m).
  * EU/world use ESRI satellite imagery + eu-elevation module terrain.
  *
- * Bboxes are approximate; tune in manual verification (Task 6).
+ * Bboxes aligned with existing terrain.ts constants (NAVARRA_BOUNDS, SPAIN_BOUNDS).
+ * Spain includes Canary Islands (-18.5 lon).
  * 'world' is the catch-all fallback (not in table — resolveRegion returns 'world'
  * when no entry matches).
  */
 export const REGION_TABLE: RegionDef[] = [
-  { id: 'navarra', bbox: [-2.55, 41.90, -0.70, 43.32], priority: 3, imagery: 'pnoa', terrain: 'idena' },
-  { id: 'spain',   bbox: [-9.80, 35.80,  4.40, 43.90], priority: 2, imagery: 'pnoa', terrain: 'ign' },
-  { id: 'eu',      bbox: [-12.0, 34.00, 32.00, 62.00], priority: 1, imagery: 'esri', terrain: 'eu' },
+  { id: 'navarra', bbox: [-2.5, 42.0, -1.0, 43.5],   priority: 3, imagery: 'pnoa', terrain: 'idena' },
+  { id: 'spain',   bbox: [-18.5, 27.0, 5.0, 44.0],   priority: 2, imagery: 'pnoa', terrain: 'ign' },
+  { id: 'eu',      bbox: [-12.0, 34.0, 32.0, 62.0],  priority: 1, imagery: 'esri', terrain: 'eu' },
 ];
 
 /** Hysteresis margin in degrees — prevents flicker at borders. */
