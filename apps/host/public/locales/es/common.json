@@ -1446,5 +1446,11 @@
   "location": {
     "select_first": "Por favor, selecciona primero una ubicación en el paso de Geometría"
   },
+  "map": {
+    "search_placeholder": "Buscar lugar, provincia, calle…",
+    "search_no_results": "Sin resultados",
+    "search_error": "Búsqueda no disponible",
+    "search_open": "Buscar ubicación"
+  },
   "save_changes_error": "Error al guardar los cambios"
 }
