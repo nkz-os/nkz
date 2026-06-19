@@ -3,6 +3,8 @@
 // =============================================================================
 // Utilities for detecting and selecting terrain providers based on location
 
+import type { RegionId } from './regions';
+
 export type TerrainProviderType = 'idena' | 'ign' | 'cesium_world' | 'auto';
 
 type PointCoordinates = [number, number];
@@ -149,5 +151,32 @@ export function getTerrainProviderDescription(provider: TerrainProviderType): st
   if (provider === 'ign') return 'Modelo Digital de Terreno del IGN (España completa)';
   if (provider === 'cesium_world') return 'Cesium World Terrain (~30m, global) — gratuito';
   return String(provider);
+}
+
+// =============================================================================
+// Region-based provider resolution (Sub-feature B: smart region base layer)
+// =============================================================================
+
+/**
+ * Map a resolved region to the terrain provider id.
+ * - navarra → idena (MDT05 5m)
+ * - spain → ign (MDT 25m)
+ * - eu / world → eu (delegated to eu-elevation module; host does not set terrain)
+ */
+export function terrainProviderForRegion(region: RegionId): 'idena' | 'ign' | 'eu' {
+  if (region === 'navarra') return 'idena';
+  if (region === 'spain') return 'ign';
+  // eu + world → handled by eu-elevation module (host delegates)
+  return 'eu';
+}
+
+/**
+ * Map a resolved region to the imagery provider id.
+ * - navarra / spain → pnoa (IGN PNOA orthophoto covers all Spain)
+ * - eu / world → esri (ArcGIS World Imagery)
+ */
+export function imageryProviderForRegion(region: RegionId): 'pnoa' | 'esri' {
+  if (region === 'navarra' || region === 'spain') return 'pnoa';
+  return 'esri';
 }
 
