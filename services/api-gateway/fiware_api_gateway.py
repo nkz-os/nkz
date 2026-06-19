@@ -143,6 +143,7 @@ VEGETATION_API_URL = os.getenv(
     "VEGETATION_API_URL", "http://vegetation-prime-api-service:8000"
 )
 WEATHER_API_URL = os.getenv("WEATHER_API_URL", "http://weather-api-service:8000")
+GEOCODE_URL = os.environ.get("GEOCODE_URL", "http://photon-service:2322")
 INTELLIGENCE_API_URL = os.getenv(
     "INTELLIGENCE_API_URL", "http://intelligence-api-service:8000"
 )
@@ -2362,6 +2363,61 @@ def proxy_assets_requests(subpath):
     except Exception as e:
         logger.error(f"Error proxying asset request: {e}")
         return jsonify({"error": "Internal service connection error"}), 502
+
+
+_OSM_TYPE_MAP = {
+    "country": "country", "state": "region", "region": "region", "county": "county",
+    "city": "city", "town": "town", "village": "village", "hamlet": "village",
+    "street": "street", "residential": "street", "house": "house", "house_number": "house",
+}
+
+
+def _normalise_photon(payload):
+    """Normalise Photon JSON to the frozen frontend contract."""
+    out = []
+    for f in (payload or {}).get("features", []):
+        p = f.get("properties", {}) or {}
+        coords = (f.get("geometry", {}) or {}).get("coordinates", [None, None])
+        lon, lat = coords[0], coords[1]
+        if lon is None or lat is None:
+            continue
+        label = ", ".join([x for x in [p.get("name"), p.get("state"), p.get("country")] if x])
+        ext = p.get("extent")  # photon: [minLon, maxLat, maxLon, minLat]
+        bbox = [ext[0], ext[3], ext[2], ext[1]] if ext and len(ext) == 4 else None
+        out.append({
+            "label": label or p.get("name", ""),
+            "lat": lat, "lon": lon,
+            "bbox": bbox,
+            "type": _OSM_TYPE_MAP.get(p.get("osm_value") or p.get("type"), "other"),
+            "countryCode": (p.get("countrycode") or "").upper(),
+        })
+    return out
+
+
+@app.route("/api/geocode", methods=["GET"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def proxy_geocode():
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "unauthorized"}), 401
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"results": []}), 200
+    try:
+        limit = min(int(request.args.get("limit", 5)), 10)
+    except ValueError:
+        limit = 5
+    params = {"q": q, "limit": limit, "lang": request.args.get("lang", "es")}
+    for k in ("lat", "lon"):
+        if request.args.get(k):
+            params[k] = request.args.get(k)
+    try:
+        r = requests.get(f"{GEOCODE_URL}/api", params=params, timeout=8)
+        r.raise_for_status()
+        return jsonify({"results": _normalise_photon(r.json())[:limit]}), 200
+    except Exception as e:
+        app.logger.warning("geocode upstream error: %s", e)
+        return jsonify({"error": "geocode_unavailable"}), 502
 
 
 @app.route("/api/entities/parcels/<path:subpath>", methods=["GET", "POST", "OPTIONS"])
