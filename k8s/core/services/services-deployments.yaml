@@ -242,7 +242,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: entity-manager
-          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:eca52cade2415a9e43d92b5fc3d9e2de0e717bedcb62025fda02f26e33583818  # PR #620: retire cadastral_parcels read-model — resolver from Orion, drop parcels API/projector/sync (main 53d33a0)
+          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:6aeb9e19aee08063899101d96ab19ad34c1dcb49f1ed35e37c9bcb06ed042601  # main 1b7c444c: parcel-lifecycle engine (#625) + FIWARE compliance. Lockstep with parcel-reconcile worker. Replaces eca52cad (GC'd on GHCR → 403)
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
