@@ -166,6 +166,8 @@ class TestOrionLdIsolation:
     @pytest.fixture(autouse=True)
     def skip_if_no_orion(self, orion_url):
         """Skip all tests in this class if Orion-LD is not reachable."""
+        if not orion_url:
+            pytest.skip("ORION_URL not set")
         try:
             resp = requests.get(f"{orion_url}/ngsi-ld/v1/version", timeout=2)
             resp.raise_for_status()

@@ -70,7 +70,7 @@ jobs:
           pip install -r common/requirements.txt 2>/dev/null || true
 
       - name: Run pytest
-        run: pytest tests/ -v --tb=short
+        run: pytest tests/ -v --tb=short -m "not orion_integration and not pg_integration"
 
       - name: Run entity-manager suite
         # Per-service suites must be CI-blocking for core services
