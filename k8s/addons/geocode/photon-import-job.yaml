@@ -1,19 +1,14 @@
 ---
-# Idempotent import Job — descarga el extracto Photon planetario desde GraphHQ
-# y lo extrae directamente al PVC. Idempotente: skip si photon_data/ ya existe.
-# 
-# Requisitos:
-# - PVC photon-index con suficiente espacio (>95GB para planetario)
-# - Tiempo: ~7h a 2.2 MB/s (56GB comprimido)
-#
-# Fuente: https://download1.graphhopper.com/public/photon-db-planet-master-latest.tar.bz2
+# Idempotent import Job — restores a prebuilt Photon EU search index from MinIO
+# into the PVC. Skips if photon_data/ already exists so it can be re-run safely.
+# Source: community EU Photon extract → MinIO bucket geocode/photon-eu/
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: photon-import
   namespace: nekazari
 spec:
-  backoffLimit: 2
+  backoffLimit: 3
   template:
     spec:
       restartPolicy: OnFailure
@@ -23,26 +18,20 @@ spec:
             claimName: photon-index
       containers:
         - name: import
-          image: ghcr.io/nkz-os/nkz/photon@sha256:b497ef9cc5905452442df49b7d692c127aeb11f9829a2507a2efddaf854542c2
+          image: minio/mc@sha256:3e1ab31acb728a1f4d05f37af0b62fc66fe7e2b2f150bf25d1ec4d4584e0bac6
           volumeMounts:
             - name: index
               mountPath: /photon
           command: ["/bin/sh", "-c"]
           args:
             - |
-              set -e
               if [ -d /photon/photon_data ]; then
-                echo "Índice ya presente, saltando importación"
+                echo "Index already present, skipping import"
                 exit 0
               fi
-              mkdir -p /photon/photon_data
-              echo "Descargando e importando base de datos Photon planetaria..."
-              echo "URL: https://download1.graphhopper.com/public/photon-db-planet-master-latest.tar.bz2"
-              echo "Esto puede llevar varias horas (56GB comprimido)..."
-              wget -O - "https://download1.graphhopper.com/public/photon-db-planet-master-latest.tar.bz2" | \
-                pbzip2 -cd | tar xf - -C /photon/photon_data
-              echo "Importación completada."
-              rm -f /photon/.initialized
-          env:
-            - name: DEBIAN_FRONTEND
-              value: noninteractive
+              mc alias set m "$MINIO_URL" "$MINIO_KEY" "$MINIO_SECRET"
+              mc cp --recursive m/geocode/photon-eu/ /photon/
+          envFrom:
+            - secretRef:
+                name: minio-credentials
+                optional: true
