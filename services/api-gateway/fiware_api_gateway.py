@@ -4910,6 +4910,9 @@ def internal_module_ci(module_id, action):
     secret = request.headers.get("X-Internal-Service-Secret", "")
     if secret:
         fwd_headers["X-Internal-Service-Secret"] = secret
+    fiware = request.headers.get("X-FIWARE-Compliant", "")
+    if fiware:
+        fwd_headers["X-FIWARE-Compliant"] = fiware
     # Strip empty values
     fwd_headers = {k: v for k, v in fwd_headers.items() if v}
 
