@@ -5,7 +5,7 @@ import pytest
 
 _EM_API_PATH = os.path.join(
     os.path.dirname(__file__),
-    "..", "entity-manager", "entity_management_api.py"
+    "..", "..", "entity-manager", "entity_management_api.py"
 )
 
 

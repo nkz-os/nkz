@@ -1,0 +1,50 @@
+{
+  "name": "@nekazari/geo-utils",
+  "version": "0.1.0",
+  "description": "Edge geo-processing utilities wrapping geolibre-wasm for Nekazari modules",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nkz-os/nkz.git"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --external geolibre-wasm || exit 1",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch --external geolibre-wasm || exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run build"
+  },
+  "dependencies": {
+    "geolibre-wasm": "^0.4.4"
+  },
+  "peerDependencies": {
+    "@nekazari/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0",
+    "@types/geojson": "^1.0.0"
+  }
+}
