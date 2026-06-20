@@ -77,7 +77,7 @@ check_pattern() {
 
     if [ -n "$hits" ]; then
         echo "FOUND: $name in:"
-        echo "$hits" | while read -r f; do
+        for f in $hits; do
             echo "   $f"
             grep -nE "$pattern" "$f" 2>/dev/null | head -5 | while read -r line; do
                 echo "     $line"
@@ -101,26 +101,35 @@ check_exempt_insert() {
 
     if [ -n "$hits" ]; then
         for f in $hits; do
-            grep -nE "$pattern" "$f" 2>/dev/null | while IFS=: read -r linenum rest; do
-                # Skip inserts into admin tables (allowed)
-                if echo "$rest" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)[[:space:]]"; then
-                    continue  # Admin/registry write — allowed
+            while IFS=: read -r linenum rest; do
+                # For execute() patterns, verify SQL is actually an INSERT
+                # (catches cur.execute("INSERT INTO ...") but not UPDATE/SELECT/DELETE)
+                if [[ "$pattern" == *"execute("* ]]; then
+                    if ! echo "$rest" | grep -qiE 'INSERT[[:space:]]+INTO'; then
+                        next_line=$(sed -n "$((linenum + 1))p" "$f" 2>/dev/null)
+                        if ! echo "$next_line" | grep -qiE 'INSERT[[:space:]]+INTO'; then
+                            continue
+                        fi
+                    fi
                 fi
-                # Look backward 8 lines for a DEPRECATED docstring marker
+                # Skip writes into admin tables (allowed)
+                if echo "$rest" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)[[:space:]]"; then
+                    continue
+                fi
                 ctx_before=$(sed -n "$((linenum - 8)),$((linenum - 1))p" "$f" 2>/dev/null)
                 if echo "$ctx_before" | grep -qE '"""DEPRECATED|"""Deprecated|"""deprecated'; then
-                    continue  # Inside deprecated function — rollback safety
+                    continue
                 fi
                 violations=$((violations + 1))
                 echo "FOUND: $name in $f:$linenum"
                 echo "     $rest"
-            done
+            done < <(grep -nE "$pattern" "$f" 2>/dev/null)
         done
     fi
 }
 
 check_exempt_insert "Direct INSERT INTO" 'INSERT[[:space:]]+INTO'
-check_exempt_insert "execute(INSERT...)" 'execute[[:space:]]*\('
+check_exempt_insert "execute INSERT" '\.execute(\|\.executemany(\|session\.execute('
 
 # ── Raw DB connections that ALSO have writes ──
 raw_conns=$(echo "$files" | xargs grep -lE 'psycopg2\.connect|asyncpg\.create_pool' 2>/dev/null | grep -vE "$EXCLUDE" || true)

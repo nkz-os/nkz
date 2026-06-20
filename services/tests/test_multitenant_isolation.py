@@ -10,26 +10,14 @@ import os
 import pytest
 import re
 import requests
-from urllib.parse import urlparse
 
 # ---------------------------------------------------------------------------
 # Constants / Env
 # ---------------------------------------------------------------------------
 
-POSTGRES_URL = os.environ.get(
-    "POSTGRES_URL",
-    "postgresql://nekazari:nekazari@localhost:5432/nekazari"
-)
-
-ORION_URL = os.environ.get(
-    "ORION_URL",
-    "http://orion:1026"
-)
-
-CONTEXT_URL = os.environ.get(
-    "CONTEXT_URL",
-    "http://orion:1026/ngsi-ld-context.json"
-)
+POSTGRES_URL = os.environ.get("POSTGRES_URL", "")
+ORION_URL = os.environ.get("ORION_URL", "")
+CONTEXT_URL = os.environ.get("CONTEXT_URL", "")
 
 # Import normalize_tenant_id from the SDK common module.
 # The canonical location is common/tenant_utils.py.
@@ -41,12 +29,20 @@ except ImportError:
 
     def normalize_tenant_id(tenant_id: str) -> str:
         """Canonical tenant ID normalisation (mirror of common.tenant_utils)."""
-        nfd = unicodedata.normalize("NFD", tenant_id.strip())
+        if tenant_id is None or not isinstance(tenant_id, str):
+            raise ValueError("Tenant ID cannot be empty")
+        normalized = tenant_id.lower().strip()
+        if not normalized:
+            raise ValueError("Tenant ID cannot be empty")
+        nfd = unicodedata.normalize("NFD", normalized)
         ascii_only = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
-        ascii_only = ascii_only.lower()
         normalized = re.sub(r"[^a-z0-9]+", "-", ascii_only).strip("-")
         if not normalized:
             raise ValueError(f"Tenant ID is empty after normalization (from {tenant_id!r})")
+        if len(normalized) < 3:
+            raise ValueError("Tenant ID too short")
+        if len(normalized) > 47:
+            raise ValueError("Tenant ID too long")
         return normalized
 
 
@@ -144,16 +140,14 @@ class TestNormalizeTenantId:
 
     def test_raises_on_empty(self):
         """Empty input must raise ValueError."""
-        import pytest as _pt
-        with _pt.raises(ValueError):
+        with pytest.raises(ValueError):
             normalize_tenant_id("")
-        with _pt.raises(ValueError):
+        with pytest.raises(ValueError):
             normalize_tenant_id("   ")
 
     def test_raises_on_none(self):
         """None input must raise ValueError."""
-        import pytest as _pt
-        with _pt.raises(ValueError):
+        with pytest.raises(ValueError):
             normalize_tenant_id(None)  # type: ignore[arg-type]
 
 
@@ -172,6 +166,8 @@ class TestOrionLdIsolation:
     @pytest.fixture(autouse=True)
     def skip_if_no_orion(self, orion_url):
         """Skip all tests in this class if Orion-LD is not reachable."""
+        if not orion_url:
+            pytest.skip("ORION_URL not set")
         try:
             resp = requests.get(f"{orion_url}/ngsi-ld/v1/version", timeout=2)
             resp.raise_for_status()
@@ -293,9 +289,6 @@ class TestPostgresIsolation:
         """Skip all tests in this class if PostgreSQL is not reachable."""
         try:
             import psycopg2
-            from unittest.mock import MagicMock
-            if isinstance(psycopg2, MagicMock):
-                pytest.skip("psycopg2 is mocked")
             conn = psycopg2.connect(POSTGRES_URL, connect_timeout=2)
             conn.close()
         except Exception:
@@ -370,7 +363,7 @@ class TestPostgresIsolation:
 class TestCrossTenantQuerySafety:
     """Tests that our code handles cross-tenant query risks correctly."""
 
-    @pytest.mark.skip(reason="Audit tool: run manually")
+    @pytest.mark.skip(reason="Audit tool: run manually to scan for raw Orion calls without NGSILD-Tenant")
     def test_no_raw_ngsi_ld_calls_without_tenant_header(self):
         """Scan for raw HTTP calls to Orion that may lack NGSILD-Tenant header."""
         import glob
@@ -390,20 +383,21 @@ class TestCrossTenantQuerySafety:
                     "requests.delete(", "requests.patch(",
                     "httpx.get(", "httpx.post(", "httpx.put(",
                     "httpx.delete(", "httpx.patch(",
+                    "httpx.AsyncClient", "httpx.Client",
                 )
                 if any(call in content for call in raw_calls):
                     # Check if headers are set with NGSILD-Tenant
                     if "NGSILD-Tenant" not in content and "ngsi-ld" in content.lower():
                         violations.append(pyfile)
 
-        # This is a soft check — log findings but don't fail CI
         if violations:
-            print(f"WARNING: {len(violations)} files may make raw Orion calls "
-                  f"without NGSILD-Tenant:")
-            for v in violations[:10]:
-                print(f"  - {v}")
+            pytest.fail(
+                f"Found {len(violations)} files with potential raw Orion calls "
+                f"without NGSILD-Tenant header:\n" +
+                "\n".join(f"  - {v}" for v in violations[:10])
+            )
 
-    @pytest.mark.skip(reason="Audit tool: run manually")
+    @pytest.mark.skip(reason="Audit tool: run manually to scan for SQL injection risks")
     def test_no_tenant_id_injection_in_queries(self):
         """Scan for potential SQL injection via tenant_id interpolation."""
         import glob
@@ -427,10 +421,11 @@ class TestCrossTenantQuerySafety:
                                 violations.append(f"{pyfile}:{i}")
 
         if violations:
-            print(f"WARNING: {len(violations)} potential SQL injection risks "
-                  f"with tenant_id:")
-            for v in violations[:10]:
-                print(f"  - {v}")
+            pytest.fail(
+                f"Found {len(violations)} potential SQL injection risks "
+                f"with tenant_id:\n" +
+                "\n".join(f"  - {v}" for v in violations[:10])
+            )
 
     def test_tenant_normalization_is_idempotent(self):
         """normalize_tenant_id must be idempotent (double-apply yields same result)."""

@@ -12,6 +12,11 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: nekazari
+  ignoreDifferences:
+  - group: cert-manager.io
+    kind: Certificate
+    jsonPointers:
+    - /status
   syncPolicy:
     automated:
       prune: true

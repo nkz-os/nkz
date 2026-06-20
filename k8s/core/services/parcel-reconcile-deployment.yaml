@@ -171,7 +171,7 @@ spec:
             - name: RECONCILE_INTERVAL_S
               value: "25"
             - name: RECONCILE_BACKSTOP_ENABLED
-              value: "false"
+              value: "true"
           resources:
             requests:
               cpu: "50m"
