@@ -247,6 +247,34 @@ app.register_blueprint(modules_bp)
 app.register_blueprint(sensors_bp)
 app.register_blueprint(notify_bp)
 
+# ---------------------------------------------------------------------------
+# NGSI-LD subscription bootstrap at startup
+# ---------------------------------------------------------------------------
+
+def _bootstrap_subscriptions_at_startup():
+    """Ensure NGSI-LD subscriptions exist for all active tenants on startup.
+
+    Runs in a background thread so it doesn't block the HTTP server startup.
+    Subscriptions are created asynchronously — if this fails, they can be
+    created lazily on first use via check_or_create_subscription pattern.
+    """
+    logger.info("Bootstrapping NGSI-LD subscriptions for all active tenants...")
+    try:
+        from subscription_manager import ensure_subscriptions_for_all_tenants
+        ensure_subscriptions_for_all_tenants()
+        logger.info("Subscription bootstrap complete")
+    except Exception as e:
+        logger.error("Subscription bootstrap failed (non-fatal): %s", e, exc_info=True)
+
+
+# Start bootstrap in background thread to not block startup
+_bootstrap_t = threading.Thread(
+    target=_bootstrap_subscriptions_at_startup,
+    daemon=True,
+    name="subscription-bootstrap"
+)
+_bootstrap_t.start()
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     debug = LOG_LEVEL == 'DEBUG'
