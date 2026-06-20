@@ -18,30 +18,21 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import requests
 
-# Add paths for imports
+# Add paths for imports (both Docker /app/ and bare-metal service dirs)
 sys.path.insert(0, "/app/task-queue")
 sys.path.insert(0, "/app/common")
 sys.path.insert(0, "/app")
 
 # Import task_queue module
 try:
-    import importlib.util
-
-    task_queue_file = "/app/task-queue/task_queue.py"
-    if os.path.exists(task_queue_file):
-        spec = importlib.util.spec_from_file_location("task_queue", task_queue_file)
-        task_queue_module = importlib.util.module_from_spec(spec)
-        sys.modules["task_queue"] = task_queue_module
-        spec.loader.exec_module(task_queue_module)
-        TaskQueue = task_queue_module.TaskQueue
-        logger = logging.getLogger(__name__)
-        logger.info("TaskQueue module loaded successfully")
-    else:
-        raise ImportError(f"task_queue.py not found at {task_queue_file}")
-except Exception as e:
+    from task_queue import TaskQueue
+except ImportError as e:
     logger = logging.getLogger(__name__)
     logger.error(f"Failed to load TaskQueue module: {e}")
     raise
+
+logger = logging.getLogger(__name__)
+logger.info("TaskQueue module loaded successfully")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
