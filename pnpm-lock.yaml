@@ -279,10 +279,16 @@ importers:
 
   packages/geo-utils:
     dependencies:
+      '@nekazari/sdk':
+        specifier: ^1.0.0
+        version: 1.1.4(react@18.3.1)(typescript@5.9.3)
       geolibre-wasm:
         specifier: ^0.4.4
         version: 0.4.4
     devDependencies:
+      '@types/geojson':
+        specifier: ^1.0.0
+        version: 1.0.6
       tsup:
         specifier: ^8.0.0
         version: 8.5.1(jiti@1.21.7)(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.8.2)
@@ -1419,6 +1425,11 @@ packages:
       react: ^18.3.1
       react-dom: ^18.3.1
 
+  '@nekazari/sdk@1.1.4':
+    resolution: {integrity: sha512-gMZssToUbG1GcIu0nCd/u4vmmgx2tArsr29ESUthtwFz4zGbe8fFCIlsCuE2oL6FFMz5Otka6WRqRF7F/OzxoA==}
+    peerDependencies:
+      react: ^18.3.1
+
   '@nekazari/ui-kit@1.0.2-alpha.3':
     resolution: {integrity: sha512-x471dDkQb4/Rl4itIFWvsvUcS/SsZz7LaC/QTHyuKVoXQhK0glXiRCTadAsU2pgPikZD+kh72DJ8iAiVYaFhfA==}
     peerDependencies:
@@ -2403,6 +2414,9 @@ packages:
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+
+  '@types/geojson@1.0.6':
+    resolution: {integrity: sha512-Xqg/lIZMrUd0VRmSRbCAewtwGZiAk3mEUDvV4op1tGl+LvyPcb/MIOSxTl9z+9+J+R4/vpjiCAT4xeKzH9ji1w==}
 
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
@@ -5489,6 +5503,16 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
+  '@nekazari/sdk@1.1.4(react@18.3.1)(typescript@5.9.3)':
+    dependencies:
+      i18next: 23.16.8
+      react: 18.3.1
+      react-i18next: 15.7.4(i18next@23.16.8)(react@18.3.1)(typescript@5.9.3)
+    transitivePeerDependencies:
+      - react-dom
+      - react-native
+      - typescript
+
   '@nekazari/ui-kit@1.0.2-alpha.3(@types/react-dom@18.3.7(@types/react@18.3.27))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@nekazari/design-tokens': 0.1.0-alpha(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -6594,6 +6618,8 @@ snapshots:
   '@types/estree@1.0.8': {}
 
   '@types/estree@1.0.9': {}
+
+  '@types/geojson@1.0.6': {}
 
   '@types/geojson@7946.0.16': {}
 
