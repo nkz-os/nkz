@@ -293,6 +293,9 @@ class TestPostgresIsolation:
         """Skip all tests in this class if PostgreSQL is not reachable."""
         try:
             import psycopg2
+            from unittest.mock import MagicMock
+            if isinstance(psycopg2, MagicMock):
+                pytest.skip("psycopg2 is mocked")
             conn = psycopg2.connect(POSTGRES_URL, connect_timeout=2)
             conn.close()
         except Exception:
