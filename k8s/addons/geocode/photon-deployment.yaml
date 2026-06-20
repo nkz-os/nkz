@@ -20,25 +20,12 @@ spec:
             claimName: photon-index
       containers:
         - name: photon
-          # Pin a real digest — never use :latest
-          image: ghcr.io/nkz-os/nkz/photon@sha256:2005be92cd4168a5b23eb9d9e49ca507097e273d23d467e3ad2a0a638f2dc122
-          args: ["-data-dir", "/photon"]
+          image: ghcr.io/nkz-os/nkz/photon@sha256:b497ef9cc5905452442df49b7d692c127aeb11f9829a2507a2efddaf854542c2
           ports:
             - containerPort: 2322
           volumeMounts:
             - name: index
               mountPath: /photon
-          startupProbe:
-            httpGet:
-              path: /status
-              port: 2322
-            failureThreshold: 60
-            periodSeconds: 5
-          readinessProbe:
-            httpGet:
-              path: /status
-              port: 2322
-            periodSeconds: 10
           resources:
             requests:
               memory: "2Gi"
