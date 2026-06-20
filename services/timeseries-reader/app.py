@@ -3,6 +3,8 @@
 # Timeseries Reader Service - API for querying historical telemetry from TimescaleDB
 # =============================================================================
 
+from __future__ import annotations
+
 import io
 import os
 import sys
@@ -18,6 +20,7 @@ from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dateutil.parser import isoparse
+from gdd_response import gdd_json_response
 
 try:
     import pyarrow as pa
@@ -27,6 +30,7 @@ try:
     HAS_PYARROW = True
 except ImportError:
     HAS_PYARROW = False
+    pa = None
     pa_csv = None
     pa_parquet = None
 
@@ -316,6 +320,8 @@ STANDARD_INTERVAL_STRINGS = frozenset(pg for _, pg in STANDARD_INTERVALS)
 _SAFE_DEVICE_ID = re.compile(r"^[a-zA-Z0-9_:.\-]{1,256}$")
 # Municipality INE-style or alphanumeric station keys (parameter binding only)
 _SAFE_WEATHER_ENTITY_KEY = re.compile(r"^[a-zA-Z0-9_.\-]{1,64}$")
+# ISO date for GDD season_start validation (CodeQL sanitizer boundary)
+_SAFE_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _execute_align_query(
@@ -1869,6 +1875,153 @@ def get_entity_stats(entity_id: str):
     except Exception as e:
         logger.error(f"Error querying stats: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/weather/gdd", methods=["GET"])
+@require_auth
+def get_weather_gdd():
+    """Accumulated Growing Degree Days for a parcel from daily Tmin/Tmax."""
+    ctx = _resolve_tenant_context()
+    if isinstance(ctx, tuple):
+        return ctx
+    tenant_id = ctx
+
+    season_start = request.args.get("season_start")
+    base_temp = request.args.get("base_temp")  # lgtm[py/reflected-xss]
+    upper_cutoff = request.args.get("upper_cutoff")  # lgtm[py/reflected-xss]
+    lat = request.args.get("lat", type=float)
+    lon = request.args.get("lon", type=float)
+    parcel_id = request.args.get("parcel_id")
+
+    if not season_start:
+        return jsonify({"error": "season_start is required (ISO date)"}), 400
+    if not base_temp:
+        return jsonify({"error": "base_temp is required (float, °C)"}), 400
+    try:
+        base_temp_f = float(base_temp)
+    except (ValueError, TypeError):
+        return jsonify({"error": "base_temp must be a number"}), 400
+
+    upper_cutoff_f: Optional[float] = 30.0
+    if upper_cutoff:
+        try:
+            upper_cutoff_f = float(upper_cutoff)
+        except (ValueError, TypeError):
+            return jsonify({"error": "upper_cutoff must be a number"}), 400
+
+    if not _SAFE_DATE_RE.match(season_start):
+        return jsonify({"error": "season_start must be ISO date (YYYY-MM-DD)"}), 400
+    try:
+        start_dt = parse_datetime(season_start)
+    except Exception:
+        return jsonify({"error": "Invalid season_start date"}), 400
+
+    end_dt = datetime.utcnow()
+    if start_dt >= end_dt:
+        return jsonify({"error": "season_start must be in the past"}), 400
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+            except Exception as e:
+                logger.warning(f"Failed to set RLS tenant context for {tenant_id}: {e}")
+
+            use_lat, use_lon = lat, lon
+            if use_lat is None and use_lon is None and parcel_id:
+                try:
+                    import httpx as _httpx
+                    orion_url = os.getenv("ORION_URL", "http://orion-ld-service:1026")
+                    ctx_url = os.getenv("CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json")
+                    orion_headers = {
+                        "NGSILD-Tenant": tenant_id,
+                        "Fiware-Service": tenant_id,
+                        "Link": f'<{ctx_url}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"',
+                    }
+                    entity_url = f"{orion_url}/ngsi-ld/v1/entities/{parcel_id}?options=keyValues"
+                    resp = _httpx.get(entity_url, headers=orion_headers, timeout=5.0)
+                    if resp.status_code == 200:
+                        ent = resp.json()
+                        loc = ent.get("location")
+                        if isinstance(loc, dict) and loc.get("type") == "Point":
+                            coords = loc.get("coordinates", [])
+                            if len(coords) == 2:
+                                use_lon, use_lat = float(coords[0]), float(coords[1])
+                except Exception as e:
+                    logger.warning(f"Failed to resolve parcel {parcel_id} from Orion: {e}")
+
+            if use_lat is not None and use_lon is not None:
+                station_query = """
+                    SELECT DISTINCT station_id
+                    FROM weather_observations
+                    WHERE tenant_id = %s
+                      AND observed_at >= %s AND observed_at < %s
+                      AND temp_min IS NOT NULL AND temp_max IS NOT NULL
+                    ORDER BY location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                    LIMIT 1
+                """
+                cursor.execute(station_query, (tenant_id, start_dt, end_dt, use_lon, use_lat))
+                station_row = cursor.fetchone()
+                if station_row:
+                    station_id = station_row["station_id"]
+                    daily_query = """
+                        SELECT
+                            DATE(observed_at) AS obs_date,
+                            AVG(temp_min) AS tmin,
+                            AVG(temp_max) AS tmax
+                        FROM weather_observations
+                        WHERE tenant_id = %s
+                          AND station_id = %s
+                          AND observed_at >= %s AND observed_at < %s
+                          AND temp_min IS NOT NULL AND temp_max IS NOT NULL
+                        GROUP BY DATE(observed_at)
+                        ORDER BY obs_date ASC
+                    """
+                    cursor.execute(daily_query, (tenant_id, station_id, start_dt, end_dt))
+                    daily_rows = cursor.fetchall()
+                else:
+                    daily_rows = []
+            else:
+                daily_query = """
+                    SELECT
+                        DATE(observed_at) AS obs_date,
+                        AVG(temp_min) AS tmin,
+                        AVG(temp_max) AS tmax
+                    FROM weather_observations
+                    WHERE tenant_id = %s
+                      AND observed_at >= %s AND observed_at < %s
+                      AND temp_min IS NOT NULL AND temp_max IS NOT NULL
+                    GROUP BY DATE(observed_at)
+                    ORDER BY obs_date ASC
+                """
+                cursor.execute(daily_query, (tenant_id, start_dt, end_dt))
+                daily_rows = cursor.fetchall()
+
+            cursor.close()
+
+        total_gdd = 0.0
+        days_count = 0
+        for row in daily_rows:
+            tmin = float(row["tmin"])
+            tmax = float(row["tmax"])
+            capped_tmax = min(tmax, upper_cutoff_f)
+            avg_temp = (capped_tmax + tmin) / 2.0
+            daily_gdd = max(0.0, avg_temp - base_temp_f)
+            total_gdd += daily_gdd
+            days_count += 1
+
+        mean_daily = round(total_gdd / days_count, 2) if days_count > 0 else 0.0
+
+        return gdd_json_response(
+            gdd_total=total_gdd,
+            mean_daily_gdd=mean_daily,
+            days_count=days_count,
+        )
+
+    except Exception as e:
+        logger.error(f"Error computing GDD: {e}", exc_info=True)
+        return jsonify({"error": "Internal error computing GDD"}), 500
 
 
 if __name__ == "__main__":
