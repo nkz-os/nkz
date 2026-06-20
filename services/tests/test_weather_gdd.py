@@ -15,7 +15,14 @@ _common_dir = os.path.join(os.path.dirname(__file__), "..", "common")
 if _common_dir not in sys.path:
     sys.path.insert(0, _common_dir)
 
-import auth_middleware
+try:
+    import auth_middleware
+except ImportError:
+    auth_middleware = None  # type: ignore
+
+if auth_middleware is None:
+    pytest.skip("auth_middleware requires flask", allow_module_level=True)
+
 auth_middleware.require_auth = lambda f: f
 
 # Step 2: Add timeseries-reader to path so app.py can import gdd_response module

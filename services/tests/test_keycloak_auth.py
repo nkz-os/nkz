@@ -13,7 +13,14 @@ import hashlib
 from unittest.mock import patch, MagicMock
 
 import pytest
-from flask import Flask
+try:
+    from flask import Flask
+except ImportError:
+    Flask = None  # type: ignore
+
+if Flask is None:
+    pytest.skip("flask not installed", allow_module_level=True)
+
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
 # ---------------------------------------------------------------------------

@@ -13,11 +13,16 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
+try:
+    from fastapi.testclient import TestClient
+except ImportError:
+    TestClient = None  # type: ignore
+
+if TestClient is None:
+    pytest.skip("fastapi not installed", allow_module_level=True)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "weather-api"))
-
-from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app  # noqa: E402
 from app.routers.parcels import (  # noqa: E402
