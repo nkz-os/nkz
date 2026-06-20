@@ -1,11 +1,17 @@
 """services/tests/test_subscription_bootstrap.py — Verifies subscription bootstrap at startup."""
 
+import os
 import pytest
+
+_EM_API_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "..", "..", "entity-manager", "entity_management_api.py"
+)
 
 
 def test_entity_manager_invokes_bootstrap():
     """entity_management_api must call ensure_subscriptions at startup."""
-    with open("services/entity-manager/entity_management_api.py") as f:
+    with open(_EM_API_PATH) as f:
         src = f.read()
 
     # Check the bootstrap function exists
