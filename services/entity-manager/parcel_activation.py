@@ -40,7 +40,7 @@ def _max_parcels_for_tenant(tenant_id: str):
     finally:
         conn.close()
     level = (row or {}).get("plan_level", 0) or 0
-    tier = LEVEL_TO_TIER.get(level, "free")
+    tier = LEVEL_TO_TIER.get(level, "basic")
     return quotas_for_tier(tier).get("max_parcels", 0)
 
 

@@ -200,33 +200,27 @@ def _gate_conn(fiware, deployed_version):
     return conn, cur
 
 
-def test_fiware_gate_ci_verified_stamps_and_allows():
-    """CI-verified publish stamps compliant (no manual SQL) and proceeds."""
+def test_fiware_gate_stamps_compliant_and_proceeds():
+    """Publish stamps compliant and proceeds (OIDC chain auth)."""
     conn, cur = _gate_conn({"status": "pending"}, None)
     with patch.object(_mod, "get_db_connection_simple", return_value=conn), \
          patch.object(_mod, "return_db_connection"):
-        result = _mod._fiware_publish_gate("demo", ci_verified=True)
+        result = _mod._fiware_publish_gate("demo")
     assert result is None  # proceed
     assert any("UPDATE marketplace_modules" in str(c.args[0])
                for c in cur.execute.call_args_list), "should stamp compliant"
     conn.commit.assert_called_once()
 
 
-def test_fiware_gate_blocks_unverified_first_publish():
-    """No CI verification + pending + first publish (no deployed_version) => 412."""
-    conn, _ = _gate_conn({"status": "pending"}, None)
+def test_fiware_gate_returns_404_if_module_not_found():
+    """No marketplace_modules row => 404."""
+    cur = MagicMock()
+    cur.fetchone.return_value = None
+    conn = MagicMock()
+    conn.cursor.return_value = cur
     with app.app_context(), \
          patch.object(_mod, "get_db_connection_simple", return_value=conn), \
          patch.object(_mod, "return_db_connection"):
-        result = _mod._fiware_publish_gate("demo", ci_verified=False)
+        result = _mod._fiware_publish_gate("nonexistent")
     assert result is not None
-    assert result[1] == 412
-
-
-def test_fiware_gate_allows_unverified_republish():
-    """No CI verification but already deployed (re-publish) => warn + proceed."""
-    conn, _ = _gate_conn({"status": "pending"}, "abc1234")
-    with patch.object(_mod, "get_db_connection_simple", return_value=conn), \
-         patch.object(_mod, "return_db_connection"):
-        result = _mod._fiware_publish_gate("demo", ci_verified=False)
-    assert result is None
+    assert result[1] == 404
