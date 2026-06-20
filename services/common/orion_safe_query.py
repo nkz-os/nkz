@@ -62,7 +62,13 @@ def safe_count_entities(
         if resp.status_code == 200:
             count = resp.headers.get("X-Total-Count")
             if count is not None:
-                return int(count)
+                try:
+                    return int(count)
+                except (ValueError, TypeError):
+                    logger.warning(
+                        "safe_count_entities: malformed X-Total-Count '%s' — falling back to body length",
+                        count
+                    )
             data = resp.json()
             return len(data) if isinstance(data, list) else 0
 

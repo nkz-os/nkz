@@ -7,6 +7,7 @@ _SERVICES_DIR = os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, _SERVICES_DIR)
 
 import pytest
+import requests
 from unittest.mock import patch, Mock
 from requests.exceptions import ConnectionError as RequestsConnectionError
 from common.orion_safe_query import (
@@ -78,6 +79,17 @@ class TestSafeCountEntities:
         with patch("requests.get", return_value=mock_resp):
             result = safe_count_entities("http://orion:1026", "test", "AgriParcel")
             assert result == 3
+
+    def test_graceful_on_malformed_count_header(self):
+        """If X-Total-Count is malformed, fall back to body length."""
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"X-Total-Count": "abc"}
+        mock_resp.json.return_value = [{"id": "1"}, {"id": "2"}]
+
+        with patch("requests.get", return_value=mock_resp):
+            result = safe_count_entities("http://orion:1026", "test", "AgriParcel")
+            assert result == 2, f"Should fall back to body length, got {result}"
 
     def test_sends_correct_headers(self):
         """Must send NGSILD-Tenant and Link @context headers."""
@@ -193,19 +205,21 @@ class TestSafeQueryResponsePatterns:
 
     def test_neg1_caller_must_not_treat_as_zero(self):
         """Verify that -1 cannot be used as count without explicit check."""
-        count = safe_count_entities("http://orion:1026", "test", "AgriParcel")
-        # This passes because we mock requests.get to return a 500 (no mock set up)
-        # so it will actually try to connect and fail -> QUERY_FAILED
+        from requests.exceptions import ConnectionError as RequestsConnectionError
+        with patch("requests.get", side_effect=RequestsConnectionError("simulated")):
+            count = safe_count_entities("http://orion:1026", "test", "AgriParcel")
 
         # WRONG pattern that must NOT happen:
         # if count == 0: delete_all_parcels()
         # We assert that -1 is NOT equal to 0
+        assert count == QUERY_FAILED, "QUERY_FAILED must be -1 on error"
         assert count != 0, "QUERY_FAILED must not equal 0"
-        assert count is not None, "QUERY_FAILED must not be None"
 
     def test_none_caller_must_not_treat_as_empty_list(self):
         """Verify that None cannot be iterated like []."""
-        result = safe_query_entities("http://orion:1026", "test", "AgriParcel")
+        from requests.exceptions import ConnectionError as RequestsConnectionError
+        with patch("requests.get", side_effect=RequestsConnectionError("simulated")):
+            result = safe_query_entities("http://orion:1026", "test", "AgriParcel")
 
         # WRONG patterns that must NOT happen:
         # for entity in result:   # TypeError: None is not iterable
