@@ -70,7 +70,7 @@ jobs:
           pip install -r common/requirements.txt 2>/dev/null || true
 
       - name: Run pytest
-        run: pytest tests/ -v --tb=short
+        run: pytest tests/ -v --tb=short -m "not orion_integration and not pg_integration"
 
       - name: Run entity-manager suite
         # Per-service suites must be CI-blocking for core services
@@ -94,6 +94,41 @@ jobs:
             diff common/tenant_utils.py tenant-user-api/common/tenant_utils.py || true
             exit 1
           fi
+
+  service-smoke-tests:
+    name: Service Smoke Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - email-service
+          - isobus-bridge
+          - mqtt-credentials-manager
+          - pmtiles-packager
+          - push-notification-service
+          - risk-api
+          - risk-orchestrator
+          - sdm-integration
+          - task-queue
+          - telemetry-worker
+          - tenant-user-api
+          - weather-api
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install service deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r services/requirements-test.txt 2>/dev/null || true
+          pip install -r services/${{ matrix.service }}/requirements.txt 2>/dev/null || true
+
+      - name: Run smoke tests
+        run: |
+          PYTHONPATH=services python -m pytest services/${{ matrix.service }}/tests/ -v --tb=short
 
   production-domain-check:
     name: Production Domain Check
