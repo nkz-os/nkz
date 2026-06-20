@@ -18,7 +18,7 @@ spec:
             claimName: photon-index
       containers:
         - name: import
-          image: minio/mc@sha256:<pin>  # pin a real digest
+          image: minio/mc@sha256:3e1ab31acb728a1f4d05f37af0b62fc66fe7e2b2f150bf25d1ec4d4584e0bac6
           volumeMounts:
             - name: index
               mountPath: /photon

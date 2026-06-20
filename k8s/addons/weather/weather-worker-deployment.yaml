@@ -44,7 +44,7 @@ spec:
       - name: weather-worker
         # Pinned by digest: :latest + pullPolicy Always means a pod restart can
         # silently change running code (frontend-host outage 2026-05-26).
-        image: ghcr.io/nkz-os/nkz/weather-worker@sha256:55dd5fedcb9937022da04cd0217e2e9d94e79e7072676e7949d35fe72f0029cf  # fix: common.ngsi_headers ModuleNotFoundError — sys.path /app not /app/common
+        image: ghcr.io/nkz-os/nkz/weather-worker@sha256:9b8f76b3b9ca102196e7e80c5f1a2675072dcaf57d377643991a5050248dd920  # fix: prune query keyValues + sys.path
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
