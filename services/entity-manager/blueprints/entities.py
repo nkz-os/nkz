@@ -825,7 +825,8 @@ def _get_next_robot_index(tenant_id: str) -> int:
             return 1
         finally:
             return_db_connection(conn)
-    except:
+    except Exception as e:
+        logger.error("Error calculating parcel count limit: %s", e)
         return 1
 
 
