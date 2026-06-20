@@ -229,6 +229,7 @@ spec:
   issuerRef:
     name: nekazari-iot-ca
     kind: ClusterIssuer
+    group: cert-manager.io
   duration: 8760h     # 1 año
   renewBefore: 720h   # Renovar 30 días antes
   commonName: mosquitto-service.nekazari.svc.cluster.local
