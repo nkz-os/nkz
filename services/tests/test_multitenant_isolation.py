@@ -138,9 +138,9 @@ class TestNormalizeTenantId:
 
     def test_accent_transliteration(self):
         """Accented characters should be transliterated (NFD + drop combining marks)."""
-        assert normalize_tenant_id("aéreo") == "aereo" or normalize_tenant_id("aereo") == "aereo"
-        assert normalize_tenant_id("mañana") == "manana" or normalize_tenant_id("manana") == "manana"
-        assert normalize_tenant_id("garçom") == "garcom" or normalize_tenant_id("garcom") == "garcom"
+        assert normalize_tenant_id("aéreo") == "aereo"
+        assert normalize_tenant_id("mañana") == "manana"
+        assert normalize_tenant_id("garçom") == "garcom"
 
     def test_raises_on_empty(self):
         """Empty input must raise ValueError."""
@@ -161,14 +161,13 @@ class TestNormalizeTenantId:
 # Orion-LD isolation tests (require running Orion-LD instance)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.orion_integration
 class TestOrionLdIsolation:
     """Tests that Orion-LD properly isolates data between tenants.
 
     These tests require a running Orion-LD instance at ORION_URL.
     They are skipped if Orion is not available.
     """
-
-    MARKER = "orion_integration"
 
     @pytest.fixture(autouse=True)
     def skip_if_no_orion(self, orion_url):
@@ -281,14 +280,13 @@ class TestOrionLdIsolation:
 # PostgreSQL isolation tests (require running PostgreSQL instance)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.pg_integration
 class TestPostgresIsolation:
     """Tests that PostgreSQL tenant isolation works.
 
     These tests require a running PostgreSQL at POSTGRES_URL.
     They are skipped if PG is not available.
     """
-
-    MARKER = "pg_integration"
 
     @pytest.fixture(autouse=True)
     def skip_if_no_pg(self):
@@ -300,57 +298,65 @@ class TestPostgresIsolation:
         except Exception:
             pytest.skip(f"PostgreSQL not reachable at {POSTGRES_URL}")
 
-    def test_pg_weather_observations_isolated_by_tenant_id(self):
-        """Query weather_observations — count per tenant must be independent.
+    def test_pg_insert_and_query_tenant_isolation(self):
+        """Insert test rows for two tenants, verify each can only see their own data.
 
-        Verifies that querying with one tenant's ID does not return rows
-        belonging to another tenant.
+        Uses telemetry_measurements (no FK constraints, has entity_id column).
         """
         import psycopg2
+        import uuid
 
         conn = psycopg2.connect(POSTGRES_URL)
         try:
             with conn.cursor() as cur:
-                # Get counts per normalized tenant_id
+                alpha_id = uuid.uuid4().hex[:12]
+                beta_id = uuid.uuid4().hex[:12]
+                tenant_a = "test-iso-alpha"
+                tenant_b = "test-iso-beta"
+
+                # Insert test rows
                 cur.execute("""
-                    SELECT tenant_id, COUNT(*) as cnt
-                    FROM weather_observations
-                    GROUP BY tenant_id
-                    ORDER BY cnt DESC
-                    LIMIT 10
-                """)
-                rows = cur.fetchall()
+                    INSERT INTO telemetry_measurements
+                    (tenant_id, observed_at, source_event_id, entity_id,
+                     attribute_name, value, source)
+                    VALUES (%s, NOW(), 0, %s, 'test_attr', 1.0, 'test_isolation')
+                """, (tenant_a, alpha_id))
 
-                # There should be at least one tenant with data
-                assert len(rows) > 0, \
-                    "No weather_observations data found — cannot verify isolation"
+                cur.execute("""
+                    INSERT INTO telemetry_measurements
+                    (tenant_id, observed_at, source_event_id, entity_id,
+                     attribute_name, value, source)
+                    VALUES (%s, NOW(), 0, %s, 'test_attr', 1.0, 'test_isolation')
+                """, (tenant_b, beta_id))
+                conn.commit()
 
-                # Verify no tenant has a negative count
-                for tenant_id, count in rows:
-                    assert count >= 0
-                    print(f"  Tenant '{tenant_id}': {count} observations")
+                # Query as tenant_a — should see own row
+                cur.execute(
+                    "SELECT entity_id FROM telemetry_measurements "
+                    "WHERE tenant_id = %s AND entity_id = %s",
+                    (tenant_a, alpha_id)
+                )
+                assert cur.fetchone() is not None, \
+                    "Tenant A should see its own row"
 
-                # If there are 2+ tenants, verify cross-tenant isolation
-                if len(rows) >= 2:
-                    t1 = rows[0][0]
-                    cur.execute(
-                        "SELECT COUNT(*) FROM weather_observations WHERE tenant_id = %s",
-                        (t1,)
-                    )
-                    t1_count = cur.fetchone()[0]
+                # Query as tenant_a for tenant_b's data — should NOT see it
+                cur.execute(
+                    "SELECT entity_id FROM telemetry_measurements "
+                    "WHERE tenant_id = %s AND entity_id = %s",
+                    (tenant_a, beta_id)  # Querying with alpha's tenant for beta's entity
+                )
+                assert cur.fetchone() is None, \
+                    f"Tenant A MUST NOT see tenant B's row. Got entity_id={beta_id}"
 
-                    t2 = rows[1][0]
-                    cur.execute(
-                        "SELECT COUNT(*) FROM weather_observations WHERE tenant_id = %s",
-                        (t2,)
-                    )
-                    t2_count = cur.fetchone()[0]
-
-                    # Each tenant's count should be distinct from the other
-                    assert t1_count != t2_count or t1_count > 0, \
-                        f"Expected different counts for tenant '{t1}' ({t1_count}) " \
-                        f"and tenant '{t2}' ({t2_count})"
+                conn.commit()
         finally:
+            # Cleanup
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM telemetry_measurements WHERE entity_id IN (%s, %s)",
+                    (alpha_id, beta_id)
+                )
+            conn.commit()
             conn.close()
 
 
@@ -361,7 +367,7 @@ class TestPostgresIsolation:
 class TestCrossTenantQuerySafety:
     """Tests that our code handles cross-tenant query risks correctly."""
 
-    def test_no_raw_orion_calls_without_tenant_header(self):
+    def test_no_raw_ngsi_ld_calls_without_tenant_header(self):
         """Scan for raw HTTP calls to Orion that may lack NGSILD-Tenant header."""
         import glob
 
@@ -375,7 +381,13 @@ class TestCrossTenantQuerySafety:
             with open(pyfile, errors="replace") as f:
                 content = f.read()
                 # Look for raw HTTP calls that might hit Orion
-                if "requests.get(" in content or "httpx.get(" in content:
+                raw_calls = (
+                    "requests.get(", "requests.post(", "requests.put(",
+                    "requests.delete(", "requests.patch(",
+                    "httpx.get(", "httpx.post(", "httpx.put(",
+                    "httpx.delete(", "httpx.patch(",
+                )
+                if any(call in content for call in raw_calls):
                     # Check if headers are set with NGSILD-Tenant
                     if "NGSILD-Tenant" not in content and "ngsi-ld" in content.lower():
                         violations.append(pyfile)
