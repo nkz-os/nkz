@@ -39,7 +39,9 @@ def test_syntax():
 
 
 def test_import():
-    """Verify the main module can be imported."""
+    """Verify the main module can be imported (requires POSTGRES_URL)."""
+    if not os.environ.get("POSTGRES_URL"):
+        pytest.skip("POSTGRES_URL not set — skipping import test")
     try:
         importlib.import_module("risk_api")
     except (ModuleNotFoundError, ImportError) as e:
