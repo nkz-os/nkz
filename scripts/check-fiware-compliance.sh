@@ -101,20 +101,19 @@ check_exempt_insert() {
 
     if [ -n "$hits" ]; then
         for f in $hits; do
-            grep -nE "$pattern" "$f" 2>/dev/null | while IFS=: read -r linenum rest; do
-                # Skip inserts into admin tables (allowed)
+            while IFS=: read -r linenum rest; do
+                # Skip writes into admin tables (allowed)
                 if echo "$rest" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)[[:space:]]"; then
-                    continue  # Admin/registry write — allowed
+                    continue
                 fi
-                # Look backward 8 lines for a DEPRECATED docstring marker
                 ctx_before=$(sed -n "$((linenum - 8)),$((linenum - 1))p" "$f" 2>/dev/null)
                 if echo "$ctx_before" | grep -qE '"""DEPRECATED|"""Deprecated|"""deprecated'; then
-                    continue  # Inside deprecated function — rollback safety
+                    continue
                 fi
                 violations=$((violations + 1))
                 echo "FOUND: $name in $f:$linenum"
                 echo "     $rest"
-            done
+            done < <(grep -nE "$pattern" "$f" 2>/dev/null)
         done
     fi
 }
