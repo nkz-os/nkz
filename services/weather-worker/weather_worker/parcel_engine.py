@@ -198,7 +198,7 @@ class ParcelWeatherEngine:
         # 1. Live parcel ids — skip prune on ANY non-200 (false-zero guard)
         try:
             rp = requests.get(
-                base, params={"type": "AgriParcel", "attrs": "id", "limit": 1000},
+                base, params={"type": "AgriParcel", "options": "keyValues", "limit": 1000},
                 headers=headers, timeout=15,
             )
         except Exception as e:
@@ -212,7 +212,7 @@ class ParcelWeatherEngine:
         # 2. WeatherObserved for the tenant
         try:
             rw = requests.get(
-                base, params={"type": "WeatherObserved", "attrs": "locatedAt", "limit": 1000},
+                base, params={"type": "WeatherObserved", "options": "keyValues", "limit": 1000},
                 headers=headers, timeout=15,
             )
         except Exception as e:
