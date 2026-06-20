@@ -33,8 +33,8 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: risk-worker
-            image: ghcr.io/nkz-os/nkz/risk-worker:latest
-            imagePullPolicy: Always
+            image: ghcr.io/nkz-os/nkz/risk-worker@sha256:8a0ef0c4f874f0b54cb0fe6e687ffe93770955c7556e58b76033162293677565
+            imagePullPolicy: IfNotPresent
             env:
             # PostgreSQL Configuration
             - name: POSTGRES_HOST
@@ -119,8 +119,8 @@ spec:
         fsGroup: 1000
       containers:
       - name: risk-worker
-        image: ghcr.io/nkz-os/nkz/risk-worker:latest
-        imagePullPolicy: Always
+        image: ghcr.io/nkz-os/nkz/risk-worker@sha256:8a0ef0c4f874f0b54cb0fe6e687ffe93770955c7556e58b76033162293677565
+        imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: false
