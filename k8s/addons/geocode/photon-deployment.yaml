@@ -1,0 +1,46 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: photon
+  namespace: nekazari
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: photon
+  template:
+    metadata:
+      labels:
+        app: photon
+    spec:
+      volumes:
+        - name: index
+          persistentVolumeClaim:
+            claimName: photon-index
+      containers:
+        - name: photon
+          image: ghcr.io/nkz-os/nkz/photon@sha256:b497ef9cc5905452442df49b7d692c127aeb11f9829a2507a2efddaf854542c2
+          ports:
+            - containerPort: 2322
+          volumeMounts:
+            - name: index
+              mountPath: /photon
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: photon-service
+  namespace: nekazari
+spec:
+  selector:
+    app: photon
+  ports:
+    - port: 2322
+      targetPort: 2322
