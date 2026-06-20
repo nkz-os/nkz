@@ -31,12 +31,14 @@ def test_syntax():
 
 
 def test_import():
-    """Verify the main module can be imported (requires pymongo)."""
+    """Verify the main module can be imported (requires pymongo + ORION_URL)."""
     try:
         import pymongo  # noqa: F401 — needed by sdm_api
     except ImportError:
         pytest.skip("pymongo not installed — skipping import test")
+    if not os.environ.get("ORION_URL"):
+        pytest.skip("ORION_URL not set — skipping import test")
     try:
         importlib.import_module("sdm_api")
-    except (ModuleNotFoundError, ImportError) as e:
+    except (ModuleNotFoundError, ImportError, ValueError) as e:
         pytest.fail(f"Could not import sdm_api: {e}")
