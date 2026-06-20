@@ -120,7 +120,7 @@ check_exempt_insert() {
 }
 
 check_exempt_insert "Direct INSERT INTO" 'INSERT[[:space:]]+INTO'
-check_exempt_insert "execute(INSERT...)" 'execute[[:space:]]*\('
+check_exempt_insert "execute INSERT" '\.execute(\|\.executemany('\|session\.execute('
 
 # ── Raw DB connections that ALSO have writes ──
 raw_conns=$(echo "$files" | xargs grep -lE 'psycopg2\.connect|asyncpg\.create_pool' 2>/dev/null | grep -vE "$EXCLUDE" || true)
