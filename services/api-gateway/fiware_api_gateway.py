@@ -143,7 +143,7 @@ VEGETATION_API_URL = os.getenv(
     "VEGETATION_API_URL", "http://vegetation-prime-api-service:8000"
 )
 WEATHER_API_URL = os.getenv("WEATHER_API_URL", "http://weather-api-service:8000")
-GEOCODE_URL = os.environ.get("GEOCODE_URL", "http://photon-service:2322")
+GEOCODE_URL = os.getenv("GEOCODE_URL", "https://photon.komoot.io")
 INTELLIGENCE_API_URL = os.getenv(
     "INTELLIGENCE_API_URL", "http://intelligence-api-service:8000"
 )
