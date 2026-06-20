@@ -77,7 +77,7 @@ check_pattern() {
 
     if [ -n "$hits" ]; then
         echo "FOUND: $name in:"
-        echo "$hits" | while read -r f; do
+        for f in $hits; do
             echo "   $f"
             grep -nE "$pattern" "$f" 2>/dev/null | head -5 | while read -r line; do
                 echo "     $line"
@@ -102,6 +102,16 @@ check_exempt_insert() {
     if [ -n "$hits" ]; then
         for f in $hits; do
             while IFS=: read -r linenum rest; do
+                # For execute() patterns, verify SQL is actually an INSERT
+                # (catches cur.execute("INSERT INTO ...") but not UPDATE/SELECT/DELETE)
+                if [[ "$pattern" == *"execute("* ]]; then
+                    if ! echo "$rest" | grep -qiE 'INSERT[[:space:]]+INTO'; then
+                        next_line=$(sed -n "$((linenum + 1))p" "$f" 2>/dev/null)
+                        if ! echo "$next_line" | grep -qiE 'INSERT[[:space:]]+INTO'; then
+                            continue
+                        fi
+                    fi
+                fi
                 # Skip writes into admin tables (allowed)
                 if echo "$rest" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)[[:space:]]"; then
                     continue
@@ -119,7 +129,7 @@ check_exempt_insert() {
 }
 
 check_exempt_insert "Direct INSERT INTO" 'INSERT[[:space:]]+INTO'
-check_exempt_insert "execute INSERT" '\.execute(\|\.executemany('\|session\.execute('
+check_exempt_insert "execute INSERT" '\.execute(\|\.executemany(\|session\.execute('
 
 # ── Raw DB connections that ALSO have writes ──
 raw_conns=$(echo "$files" | xargs grep -lE 'psycopg2\.connect|asyncpg\.create_pool' 2>/dev/null | grep -vE "$EXCLUDE" || true)
