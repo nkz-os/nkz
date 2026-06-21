@@ -101,7 +101,7 @@ spec:
             - name: TENANT_USER_API_URL
               value: http://tenant-user-api-service:5000
             - name: GEOCODE_URL
-              value: http://photon-service:2322
+              value: https://photon.komoot.io
             # ADR 003 — PAT + Keycloak client credentials (optional until secrets exist)
             - name: REDIS_PASSWORD
               valueFrom:
