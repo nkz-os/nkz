@@ -536,6 +536,14 @@ const UnifiedViewerInner: React.FC = () => {
                     state={sidebarState}
                     onStateChange={handleLeftStateChange}
                     variant="glass"
+                    labels={{
+                        openLabel: t('viewer.sidebar.open'),
+                        expandLabel: t('viewer.sidebar.expand'),
+                        closeLabel: t('viewer.sidebar.close'),
+                        openTooltip: t('viewer.sidebar.open'),
+                        expandTooltip: t('viewer.sidebar.expand_tooltip'),
+                        closeTooltip: t('viewer.sidebar.close'),
+                    }}
                 >
                     <SidebarShell.Pinned>
                         <Suspense fallback={<PanelLoadingFallback />}>
@@ -556,6 +564,14 @@ const UnifiedViewerInner: React.FC = () => {
                     state={rightSidebarState}
                     onStateChange={handleRightStateChange}
                     variant="solid"
+                    labels={{
+                        openLabel: t('viewer.sidebar.open'),
+                        expandLabel: t('viewer.sidebar.expand'),
+                        closeLabel: t('viewer.sidebar.close'),
+                        openTooltip: t('viewer.sidebar.open'),
+                        expandTooltip: t('viewer.sidebar.expand_tooltip'),
+                        closeTooltip: t('viewer.sidebar.close'),
+                    }}
                 >
                     {mapMode === 'DRAW_PARCEL' && drawnGeometry ? (
                         <div className="flex-1 overflow-y-auto p-4">

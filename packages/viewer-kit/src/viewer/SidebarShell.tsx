@@ -20,6 +20,21 @@ export type SidebarState = 'closed' | 'compact' | 'expanded';
 
 export type SidebarVariant = 'glass' | 'solid';
 
+export interface SidebarLabels {
+  /** Tooltip for the toggle button when sidebar is closed */
+  openLabel?: string;
+  /** Tooltip for the toggle button when sidebar is open (compact) */
+  expandLabel?: string;
+  /** Tooltip for the toggle button when sidebar is open (expanded) */
+  closeLabel?: string;
+  /** Tooltip in the popover when sidebar is closed */
+  openTooltip?: string;
+  /** Tooltip in the popover when sidebar is compact */
+  expandTooltip?: string;
+  /** Tooltip in the popover when sidebar is expanded */
+  closeTooltip?: string;
+}
+
 interface SidebarShellRootProps {
   side: 'left' | 'right';
   state: SidebarState;
@@ -31,6 +46,8 @@ interface SidebarShellRootProps {
   maxWidth?: number;
   children: React.ReactNode;
   className?: string;
+  /** Localised labels for the toggle button. Defaults to Spanish. */
+  labels?: SidebarLabels;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,7 +71,17 @@ function SidebarShellRoot({
   maxWidth = 720,
   children,
   className,
+  labels: labelsProp,
 }: SidebarShellRootProps) {
+  const labels: Required<SidebarLabels> = {
+    openLabel: 'Abrir panel',
+    expandLabel: 'Expandir panel',
+    closeLabel: 'Cerrar panel',
+    openTooltip: 'Abrir panel',
+    expandTooltip: 'Expandir',
+    closeTooltip: 'Cerrar panel',
+    ...labelsProp,
+  };
   const isOpen = state !== 'closed';
   const [width, setWidth] = useState(
     state === 'expanded' ? expandedWidth : compactWidth,
@@ -146,13 +173,13 @@ function SidebarShellRoot({
         )}
         title={
           isOpen
-            ? (state === 'compact' ? 'Expandir panel' : 'Cerrar panel')
-            : 'Abrir panel'
+            ? (state === 'compact' ? labels.expandLabel : labels.closeLabel)
+            : labels.openLabel
         }
         aria-label={
           isOpen
-            ? (state === 'compact' ? 'Expand sidebar' : 'Close sidebar')
-            : 'Open sidebar'
+            ? (state === 'compact' ? labels.expandLabel : labels.closeLabel)
+            : labels.openLabel
         }
       >
         <svg
@@ -186,10 +213,10 @@ function SidebarShellRoot({
           side === 'left' ? 'left-full ml-2' : 'right-full mr-2',
         )}>
           {!isOpen
-            ? 'Abrir panel'
+            ? labels.openTooltip
             : state === 'compact'
-              ? 'Expandir'
-              : 'Cerrar panel'
+              ? labels.expandTooltip
+              : labels.closeTooltip
           }
         </span>
       </button>
