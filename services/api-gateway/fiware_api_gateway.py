@@ -143,6 +143,7 @@ VEGETATION_API_URL = os.getenv(
     "VEGETATION_API_URL", "http://vegetation-prime-api-service:8000"
 )
 WEATHER_API_URL = os.getenv("WEATHER_API_URL", "http://weather-api-service:8000")
+HYDROLOGY_API_URL = os.getenv("HYDROLOGY_API_URL", "http://hydrology-api-service:8000")
 GEOCODE_URL = os.getenv("GEOCODE_URL", "https://photon.komoot.io")
 INTELLIGENCE_API_URL = os.getenv(
     "INTELLIGENCE_API_URL", "http://intelligence-api-service:8000"
@@ -3368,6 +3369,89 @@ def proxy_weather_requests(subpath):
     except Exception as e:
         logger.error(f"Error in proxy_weather_requests: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+@app.route(
+    "/api/v1/hydrology/<path:subpath>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
+def proxy_hydrology_requests(subpath):
+    """Proxy NKZ Water Studio requests to hydrology backend."""
+    logger.info(f"Hydrology request: {request.method} /api/v1/hydrology/{subpath}")
+
+    # CORS preflight
+    if request.method == "OPTIONS":
+        response = make_response()
+        cors_origin = get_cors_origin()
+        if cors_origin:
+            response.headers["Access-Control-Allow-Origin"] = cors_origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = (
+            "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        )
+        response.headers["Access-Control-Allow-Headers"] = (
+            "Authorization, Content-Type, X-Tenant-ID, X-Module-Id, Cookie"
+        )
+        response.headers["Access-Control-Max-Age"] = "3600"
+        response.headers["Vary"] = "Origin"
+        return response, 200
+
+    # Auth
+    token = get_request_token()
+    payload = validate_jwt_token(token) if token else None
+    if not payload:
+        logger.warning(f"Missing or invalid auth for /api/v1/hydrology/{subpath}")
+        return jsonify({"error": "Missing or invalid authorization header"}), 401
+
+    tenant = extract_tenant_id(payload) or request.headers.get("X-Tenant-ID", "platform")
+
+    # Forward headers + HMAC signature
+    headers = {k: v for k, v in request.headers if k.lower() != "host"}
+    headers["X-Tenant-ID"] = tenant
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if KEYCLOAK_AUTH_AVAILABLE:
+        try:
+            signature = generate_hmac_signature(token, tenant)
+            if signature:
+                headers["X-Auth-Signature"] = signature
+        except Exception as e:
+            logger.warning(f"HMAC generation failed: {e}")
+
+    target_url = f"{HYDROLOGY_API_URL}/api/v1/hydrology/{subpath}"
+    try:
+        params = dict(request.args)
+        json_data = request.get_json(silent=True) if request.method in ["POST", "PUT", "PATCH"] else None
+
+        if request.method == "GET":
+            resp = requests.get(target_url, headers=headers, params=params, timeout=120)
+        elif request.method == "POST":
+            resp = requests.post(target_url, headers=headers, json=json_data, params=params, timeout=120)
+        elif request.method == "PUT":
+            resp = requests.put(target_url, headers=headers, json=json_data, params=params, timeout=120)
+        elif request.method == "PATCH":
+            resp = requests.patch(target_url, headers=headers, json=json_data, params=params, timeout=120)
+        elif request.method == "DELETE":
+            resp = requests.delete(target_url, headers=headers, params=params, timeout=120)
+        else:
+            return jsonify({"error": "Method not allowed"}), 405
+
+        response_headers = dict(resp.headers)
+        response_headers.pop("Content-Encoding", None)
+        response_headers.pop("Transfer-Encoding", None)
+        cors_origin = get_cors_origin()
+        if cors_origin:
+            response_headers["Access-Control-Allow-Origin"] = cors_origin
+            response_headers["Access-Control-Allow-Credentials"] = "true"
+            response_headers["Vary"] = "Origin"
+        return make_response((resp.text, resp.status_code, response_headers))
+
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout connecting to hydrology backend for /api/v1/hydrology/{subpath}")
+        return jsonify({"error": "Hydrology backend timeout"}), 504
+    except Exception as e:
+        logger.error(f"Error in proxy_hydrology_requests: {e}")
+        return jsonify({"error": "Hydrology backend unavailable"}), 502
 
 
 @app.route(
