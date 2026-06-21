@@ -4,7 +4,7 @@
 // Full-screen viewer with persistent CesiumMap and collapsible overlay panels.
 // Uses the Slot System to render widgets from modules dynamically.
 
-import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { CesiumMap } from '@/components/CesiumMap';
 import { EntityWizard } from '@/components/EntityWizard';
 import { PlacementToolbar } from '@/components/EntityWizard/PlacementToolbar';
@@ -453,8 +453,13 @@ const UnifiedViewerInner: React.FC = () => {
         for (const attr of attrs) {
             const val = entity[attr];
             if (!val) continue;
+            // NGSI-LD Relationship uses { type: 'Relationship', object: 'urn:...' }
+            // Simplified/Normalized can be { value: 'urn:...' } or a plain string
+            // Legacy flattened can be { id: 'urn:...' }
             const resolved = typeof val === 'object' && val?.value ? val.value : val;
-            const targetId = typeof resolved === 'object' && resolved?.id ? resolved.id : resolved;
+            const targetId = typeof resolved === 'object'
+                ? (resolved?.object || resolved?.id || String(resolved))
+                : resolved;
             if (String(targetId) === parcelId) return true;
         }
         return false;
@@ -486,13 +491,15 @@ const UnifiedViewerInner: React.FC = () => {
         : buildings;
 
     // Collapse left panel when entering focus mode, restore when exiting
+    const preFocusLeftPanelOpen = useRef(false);
     useEffect(() => {
         if (isFocusMode) {
+            preFocusLeftPanelOpen.current = isLeftPanelOpen;
             setLeftPanelOpen(false);
         } else {
-            setLeftPanelOpen(true);
+            setLeftPanelOpen(preFocusLeftPanelOpen.current);
         }
-    }, [isFocusMode, setLeftPanelOpen]);
+    }, [isFocusMode, setLeftPanelOpen, isLeftPanelOpen]);
 
     // ESC key exits focus mode
     useEffect(() => {

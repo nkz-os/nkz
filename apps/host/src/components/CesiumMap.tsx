@@ -1770,6 +1770,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             500
           ),
         });
+      } else {
+        logger.warn(`[CesiumMap] Focus parcel entity not found in scene: ${focusParcelId}`);
       }
     } else {
       // Exit focus mode — restore normal scene
