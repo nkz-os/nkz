@@ -273,7 +273,19 @@ def add_calibration_period(sensor_id: str):
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # ── Step 1: Close existing active period for this sensor+variable ──
+        # ── Step 1: Get current active period id before closing it ──
+        cur.execute("""
+            SELECT id FROM calibration_periods
+            WHERE sensor_id = %s
+              AND variable = %s
+              AND tenant_id = %s
+              AND valid_to IS NULL
+            LIMIT 1
+        """, (sensor_id, variable, tenant_id))
+        old_row = cur.fetchone()
+        old_period_id = str(old_row['id']) if old_row else None
+
+        # ── Step 1b: Close existing active period for this sensor+variable ──
         cur.execute("""
             UPDATE calibration_periods
             SET valid_to = %s
@@ -289,6 +301,25 @@ def add_calibration_period(sensor_id: str):
                 "Closed %d active period(s) for sensor=%s variable=%s",
                 closed_count, sensor_id, variable,
             )
+
+            # Mark data from the closed period as stale
+            if old_period_id:
+                try:
+                    cur.execute("""
+                        UPDATE telemetry_events
+                        SET quality_flag = 'stale'
+                        WHERE calibration_period_id = %s
+                          AND quality_flag IS NULL
+                    """, (old_period_id,))
+                    logger.info(
+                        "Marked %d telemetry rows as stale for calibration period %s",
+                        cur.rowcount, old_period_id,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to mark stale data for period %s: %s",
+                        old_period_id, e,
+                    )
 
         # ── Step 2: Insert new calibration period ──────────────────────
         cur.execute("""
