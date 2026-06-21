@@ -99,6 +99,8 @@ export interface ViewerState {
 
     // Parcel focus mode
     focusParcelId: string | null;
+    /** Derived — computed as `focusParcelId !== null` */
+    isFocusMode: boolean;
 }
 
 interface ViewerContextType extends ViewerState {
