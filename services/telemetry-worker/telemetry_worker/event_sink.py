@@ -28,6 +28,7 @@ class TelemetryEvent:
         "entity_id",
         "entity_type",
         "payload",
+        "quality_flag",  # NEW
     )
 
     def __init__(
@@ -38,6 +39,7 @@ class TelemetryEvent:
         entity_id: str,
         entity_type: str,
         payload: Dict[str, Any],
+        quality_flag: Optional[str] = None,  # NEW
     ):
         self.tenant_id = tenant_id
         self.observed_at = observed_at
@@ -45,6 +47,7 @@ class TelemetryEvent:
         self.entity_id = entity_id
         self.entity_type = entity_type
         self.payload = payload
+        self.quality_flag = quality_flag  # NEW
 
     def as_tuple(self) -> tuple:
         """Return values as a tuple for batch insertion."""
@@ -55,6 +58,7 @@ class TelemetryEvent:
             self.entity_id,
             self.entity_type,
             json.dumps(self.payload),
+            self.quality_flag,  # NEW
         )
 
 
@@ -90,9 +94,10 @@ class PostgreSQLSink(EventSink):
     INSERT_SQL = """
         INSERT INTO telemetry_events (
             tenant_id, observed_at, device_id,
-            entity_id, entity_type, payload
+            entity_id, entity_type, payload,
+            quality_flag
         )
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
     """
 
     COLUMNS = [
@@ -102,6 +107,7 @@ class PostgreSQLSink(EventSink):
         "entity_id",
         "entity_type",
         "payload",
+        "quality_flag",
     ]
 
     def __init__(
