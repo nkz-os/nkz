@@ -26,9 +26,9 @@ export const ParcelFocusButton: React.FC<ParcelFocusButtonProps> = ({ className 
         }
     }, [isFocusMode, selectedEntityId, setFocusParcel, clearFocusParcel]);
 
-    // Only show for AgriParcel entities
+    // Only show for AgriParcel entities (strict check — avoid false matches on AgriParcelOperation, AgriParcelRecord)
     if (!selectedEntityId) return null;
-    const isParcel = selectedEntityType === 'AgriParcel' || (selectedEntityType && selectedEntityType.includes('Parcel'));
+    const isParcel = selectedEntityType === 'AgriParcel' || selectedEntityType?.endsWith('AgriParcel');
     if (!isParcel) return null;
 
     return (
