@@ -127,21 +127,18 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                 if (coordinates) {
                     logger.debug(`[ParcelDetailsPanel] Calculating municipality from coordinates:`, coordinates.lat, coordinates.lon);
                     try {
-                        // Get municipality info and elevation in parallel
-                        const [municipalityData, elevation] = await Promise.all([
+                        // Get municipality info (elevation removed — was calling external
+                        // open-elevation.com without auth, causing CORS errors.
+                        // The platform elevation API is available via /api/elevation/point).
+                        const [municipalityData] = await Promise.all([
                             api.getNearestMunicipality(
                                 coordinates.lat,
                                 coordinates.lon,
-                                10 // max 10km - more precise for parcel-specific location
+                                10
                             ).catch((err) => {
                                 logger.error('[ParcelDetailsPanel] Error getting nearest municipality:', err);
                                 return null;
                             }),
-                            // Get elevation from Open-Elevation API
-                            fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${coordinates.lat},${coordinates.lon}`)
-                                .then(res => res.json())
-                                .then(data => data.results?.[0]?.elevation)
-                                .catch(() => null)
                         ]);
 
                         logger.debug('[ParcelDetailsPanel] Municipality data received:', municipalityData);
@@ -160,7 +157,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
 
                             setLocationInfo({
                                 coordinates,
-                                elevation: elevation || undefined,
+                                elevation: undefined,
                                 municipality: calculatedMunicipality,
                                 province: municipalityData.municipality.province,
                                 autonomousCommunity: municipalityData.municipality.autonomous_community,
@@ -178,7 +175,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                             if (parcel.municipality) {
                                 setLocationInfo({
                                     coordinates,
-                                    elevation: elevation || undefined,
+                                    elevation: undefined,
                                     municipality: parcel.municipality,
                                     province: parcel.province || undefined,
                                     country: 'España',

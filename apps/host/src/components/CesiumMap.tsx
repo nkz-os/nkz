@@ -1953,9 +1953,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         />
       )}
 
-      {/* Search lupa — centered on screen, above all overlays */}
+      {/* Search lupa — top-center, above all overlays */}
       {isViewerReady && viewerRef.current && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
+        <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50">
           <MapSearchLupa onPick={(r) => flyToForResult(viewerRef.current, r)} />
         </div>
       )}
