@@ -96,6 +96,11 @@ export interface ViewerState {
 
     // Entity refresh trigger (increment to signal reload)
     entityRefreshTrigger: number;
+
+    // Parcel focus mode
+    focusParcelId: string | null;
+    /** Derived — computed as `focusParcelId !== null` */
+    isFocusMode: boolean;
 }
 
 interface ViewerContextType extends ViewerState {
@@ -129,6 +134,10 @@ interface ViewerContextType extends ViewerState {
 
     // Entity refresh (modules call this to signal host to reload entities)
     triggerEntityRefresh: () => void;
+
+    // Focus mode
+    setFocusParcel: (id: string | null) => void;
+    clearFocusParcel: () => void;
 
     // Location Picking State
     pickLocation: (callback: (lat: number, lon: number) => void) => void;
@@ -213,6 +222,9 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
 
     // Entity refresh trigger
     const [entityRefreshTrigger, setEntityRefreshTrigger] = useState(0);
+
+    // Parcel focus mode
+    const [focusParcelId, setFocusParcelId] = useState<string | null>(null);
 
     // Map interaction mode (state machine)
     const [mapMode, setMapModeState] = useState<MapMode>('VIEW');
@@ -390,6 +402,17 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setEntityRefreshTrigger(prev => prev + 1);
     }, []);
 
+    const setFocusParcel = useCallback((id: string | null) => {
+        setFocusParcelId(id);
+        if (id) {
+            setIsRightPanelOpen(true);
+        }
+    }, []);
+
+    const clearFocusParcel = useCallback(() => {
+        setFocusParcelId(null);
+    }, []);
+
     const cancelPicking = useCallback(() => {
         setPickingCallback(null); // Clear the callback
         setMapModeState('VIEW'); // Return to view mode
@@ -514,6 +537,8 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         activeContextModule,
         mapMode,
         entityRefreshTrigger,
+        focusParcelId,
+        isFocusMode: focusParcelId !== null,
         pickingCallback, // Expose pickingCallback state
         drawingType,
         drawingCallback,
@@ -543,6 +568,8 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         setMapMode,
         resetMapMode,
         triggerEntityRefresh,
+        setFocusParcel,
+        clearFocusParcel,
         setCesiumViewer,
         pickLocation,
         cancelPicking,
@@ -597,6 +624,9 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         resetMapMode,
         triggerEntityRefresh,
         entityRefreshTrigger,
+        focusParcelId,
+        setFocusParcel,
+        clearFocusParcel,
         setCesiumViewer,
         pickLocation,
         cancelPicking,
