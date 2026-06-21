@@ -1281,6 +1281,10 @@
       "theme_light": "Claro",
       "theme_dark": "Oscuro"
     },
+    "focus": {
+      "enter": "Enfocar parcela",
+      "exit": "Salir de foco"
+    },
     "cadastral": {
       "not_found": "No se encontró información catastral para esta ubicación.",
       "error": "Error al consultar el servicio catastral: {errorMsg}"

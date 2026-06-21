@@ -30,11 +30,13 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
     onClear,
     customActions,
 }) => {
-    const { mapMode, resetMapMode } = useViewer();
+    const { mapMode, resetMapMode, isFocusMode } = useViewer();
     const { t } = useI18n();
 
-    // Only show toolbar when not in VIEW mode
-    if (mapMode === 'VIEW') {
+    // Only show toolbar when not in VIEW mode and not in focus mode
+    // Focus mode: drawing/editing tools are hidden because they don't make sense
+    // in the isolated parcel view
+    if (mapMode === 'VIEW' || isFocusMode) {
         return null;
     }
 

@@ -1221,6 +1221,10 @@
       "theme_light": "Light",
       "theme_dark": "Dark"
     },
+    "focus": {
+      "enter": "Focus parcel",
+      "exit": "Exit focus"
+    },
     "cadastral": {
       "not_found": "No cadastral information found for this location.",
       "error": "Cadastral service error: {errorMsg}"

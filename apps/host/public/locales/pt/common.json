@@ -851,6 +851,10 @@
       "theme_light": "Claro",
       "theme_dark": "Escuro"
     },
+    "focus": {
+      "enter": "Focar parcela",
+      "exit": "Sair do foco"
+    },
     "cadastral": {
       "not_found": "Nenhuma informação cadastral encontrada para esta localização.",
       "error": "Erro do serviço cadastral: {errorMsg}"

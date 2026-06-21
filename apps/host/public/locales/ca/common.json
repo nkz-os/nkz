@@ -851,6 +851,10 @@
       "theme_light": "Clar",
       "theme_dark": "Fosc"
     },
+    "focus": {
+      "enter": "Enfocar parcel·la",
+      "exit": "Sortir del focus"
+    },
     "cadastral": {
       "not_found": "No s'ha trobat informació cadastral per a aquesta ubicació.",
       "error": "Error al consultar el servei cadastral: {errorMsg}"
