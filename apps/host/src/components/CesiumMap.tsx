@@ -281,7 +281,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const [webglFailed, setWebglFailed] = useState(false);
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [currentTerrainProvider, setCurrentTerrainProvider] = useState<string>(terrainProvider);
-  const [baseLayer, setBaseLayer] = useState<'pnoa' | 'osm' | 'esri' | 'cesium'>('pnoa');
+  const [baseLayer, setBaseLayer] = useState<'pnoa' | 'osm' | 'esri' | 'cesium'>('esri');
   const [currentRegion, setCurrentRegion] = useState<RegionId>('eu');
   const [layerAutoMode, setLayerAutoMode] = useState(true);
   const manualPickRef = useRef(false); // true when user clicked a layer button
@@ -324,6 +324,18 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   // Region resolver: camera.moveEnd → resolve region
   const handleRegionChange = useCallback((region: RegionId) => {
     setCurrentRegion(region);
+    // Update __nkzRegion IMMEDIATELY on the viewer object so the
+    // eu-elevation module's moveEnd listener sees current region
+    // (avoiding the async gap from React useEffect batching).
+    if (viewerRef.current) {
+      const existing = (viewerRef.current as Record<string, unknown>).__nkzRegion as
+        | { currentRegion: string; layerAutoMode: boolean }
+        | undefined;
+      (viewerRef.current as Record<string, unknown>).__nkzRegion = {
+        currentRegion: region,
+        layerAutoMode: existing?.layerAutoMode ?? true,
+      };
+    }
     // If user manually picked a layer, don't auto-switch
     if (manualPickRef.current) return;
   }, []);
@@ -490,10 +502,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             logger.warn('[CesiumMap] Could not set up Cesium Ion:', cesiumError);
           }
 
-          // Apply initial visibility. OSM is always visible as bottom fallback
-          // so the globe never renders blank (PNOA/Esri/Cesium can overlay on top
-          // or be absent during async loading).
-          if (osmLayer) osmLayer.show = true; // Always-on fallback
+          // Apply initial visibility. Only the selected base layer is shown.
+          if (osmLayer) osmLayer.show = baseLayer === 'osm'
           if (pnoaLayerRef.current) pnoaLayerRef.current.show = baseLayer === 'pnoa';
           if (esriLayerRef.current) esriLayerRef.current.show = baseLayer === 'esri';
           viewer.scene.requestRender?.();
@@ -594,13 +604,12 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   useTerrainProvider(viewerRef, enable3DTerrain, currentTerrainProvider, parcels, currentRegion, layerAutoMode);
 
   // Handle Base Layer Updates.
-  // OSM is always visible as the bottom fallback so the globe never renders
-  // blank (PNOA/Esri/Cesium layers are optional overlays on top).
+  // Only the selected base layer is shown; OSM appears only when explicitly picked.
   useEffect(() => {
     if (!isViewerReady) return;
 
     if (osmLayerRef.current) {
-      osmLayerRef.current.show = true; // Always-on fallback
+      osmLayerRef.current.show = baseLayer === 'osm';
     }
 
     if (pnoaLayerRef.current) {
@@ -1944,9 +1953,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         />
       )}
 
-      {/* Search lupa */}
+      {/* Search lupa — centered on screen, above all overlays */}
       {isViewerReady && viewerRef.current && (
-        <div className="absolute top-4 left-4 z-10">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
           <MapSearchLupa onPick={(r) => flyToForResult(viewerRef.current, r)} />
         </div>
       )}
