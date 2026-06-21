@@ -432,7 +432,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           osmLayerRef.current = osmLayer;
           logger.debug('[CesiumMap] Initial imagery provider (OSM) configured');
 
-          // Add PNOA (Plan Nacional de Ortofotografía Aérea) as base layer option
+          // Add PNOA (Plan Nacional de Ortofotografía Aérea) as base layer option.
+          // Added above OSM (index 1) so PNOA renders on top when visible.
           try {
             const pnoaProvider = new Cesium.WebMapServiceImageryProvider({
               url: 'https://www.ign.es/wms-inspire/pnoa-ma',
@@ -443,7 +444,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               },
               credit: 'PNOA - IGN España',
             });
-            const pnoaLayer = viewer.imageryLayers.addImageryProvider(pnoaProvider, 0); // Add at bottom
+            const pnoaLayer = viewer.imageryLayers.addImageryProvider(pnoaProvider, 1); // Above OSM
             pnoaLayerRef.current = pnoaLayer;
           } catch (pnoaError) {
             logger.warn('[CesiumMap] Could not add PNOA layer:', pnoaError);
@@ -457,7 +458,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             }
             ).then((esriProvider: any) => {
               if (viewer.isDestroyed()) return;
-              const esriLayer = viewer.imageryLayers.addImageryProvider(esriProvider, 0);
+              // Add above OSM (index 1) so it renders on top when visible.
+              const esriLayer = viewer.imageryLayers.addImageryProvider(esriProvider, 1);
               esriLayerRef.current = esriLayer;
               esriLayer.show = baseLayerRef.current === 'esri';
               viewer.scene.requestRender?.();
@@ -476,7 +478,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               Cesium.IonImageryProvider.fromAssetId(2)
                 .then((provider: any) => {
                   if (viewer.isDestroyed()) return;
-                  const cesiumLayer = viewer.imageryLayers.addImageryProvider(provider, 0);
+                  // Add above OSM (index 1) so it renders on top when visible.
+                  const cesiumLayer = viewer.imageryLayers.addImageryProvider(provider, 1);
                   cesiumLayerRef.current = cesiumLayer;
                   cesiumLayer.show = baseLayerRef.current === 'cesium';
                   viewer.scene.requestRender?.();
