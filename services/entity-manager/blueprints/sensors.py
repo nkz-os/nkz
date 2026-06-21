@@ -510,7 +510,7 @@ def list_sensor_profiles():
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("""
-                SELECT code, name, description, sdm_entity_type, sdm_category, mapping, metadata
+                SELECT code, name, description, sdm_entity_type, sdm_category, mapping, metadata, health_defaults
                 FROM sensor_profiles
                 WHERE tenant_id IS NULL OR tenant_id = %s
                 ORDER BY code
@@ -529,6 +529,10 @@ def list_sensor_profiles():
                 # Include metadata if available
                 if row.get('metadata'):
                     profile_data['metadata'] = row['metadata']
+
+                # Include health_defaults if available
+                if row.get('health_defaults'):
+                    profile_data['health_defaults'] = row['health_defaults']
 
                 # Include mapping info for frontend hints
                 if row.get('mapping'):
