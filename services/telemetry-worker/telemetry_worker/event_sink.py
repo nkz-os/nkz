@@ -153,6 +153,7 @@ class PostgreSQLSink(EventSink):
                 event.entity_id,
                 event.entity_type,
                 json.dumps(event.payload),
+                event.quality_flag,
             )
 
     async def write_batch(self, events: List[TelemetryEvent]) -> None:
