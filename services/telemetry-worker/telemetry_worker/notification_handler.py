@@ -15,6 +15,7 @@ from .config import Settings
 from .event_sink import EventSink, TelemetryEvent
 from .health_checker import HealthChecker, _severity
 from .profiles import ProfileService
+from .calibration import CalibrationService
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ _settings: Optional[Settings] = None
 _profile_service: Optional[ProfileService] = None
 _event_sink: Optional[EventSink] = None
 _health_checker: Optional[HealthChecker] = None
+_calibration_service: Optional[CalibrationService] = None
 
 
 def init_handler(
@@ -32,13 +34,15 @@ def init_handler(
     profile_service: ProfileService,
     event_sink: EventSink,
     health_checker: Optional[HealthChecker] = None,
+    calibration_service: Optional[CalibrationService] = None,
 ) -> None:
     """Wire dependencies from app lifespan."""
-    global _settings, _profile_service, _event_sink, _health_checker
+    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service
     _settings = settings
     _profile_service = profile_service
     _event_sink = event_sink
     _health_checker = health_checker
+    _calibration_service = calibration_service
 
 
 async def process_notification_task(
@@ -119,6 +123,21 @@ async def _process_entity(
         logger.debug(f"No measurements in entity {entity_id}")
         return None
 
+    # --- Calibration step: transform raw values ---
+    raw_measurements: Dict[str, Any] = {}
+    calibration_period_ids: Dict[str, str] = {}
+    if _calibration_service and tenant_id:
+        for var, val in list(measurements.items()):
+            if isinstance(val, (int, float)):
+                raw_measurements[var] = val
+                cal = await _calibration_service.get_active_period(
+                    entity_id, tenant_id, var
+                )
+                if cal:
+                    calibrated = _calibration_service.apply_calibration(val, cal)
+                    measurements[var] = calibrated
+                    calibration_period_ids[var] = cal["id"]
+
     # --- Health check on extracted measurements ---
     quality_flag = "valid"
     if _health_checker and tenant_id:
@@ -167,6 +186,8 @@ async def _process_entity(
         payload={
             "measurements": filtered,
             "raw": entity,
+            **({"raw_measurements": raw_measurements} if raw_measurements else {}),
+            **({"calibration_period_ids": calibration_period_ids} if calibration_period_ids else {}),
         },
         quality_flag=quality_flag,
     )
