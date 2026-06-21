@@ -847,6 +847,12 @@
     }
   },
   "viewer": {
+    "sidebar": {
+      "open": "Ireki panela",
+      "close": "Itxi panela",
+      "expand": "Zabaldu panela",
+      "expand_tooltip": "Zabaldu"
+    },
     "header": {
       "main_section": "Nagusia",
       "addons_section": "Gehigarriak",
