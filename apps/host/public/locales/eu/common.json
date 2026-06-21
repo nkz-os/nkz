@@ -853,6 +853,10 @@
       "theme_light": "Argia",
       "theme_dark": "Iluna"
     },
+    "focus": {
+      "enter": "Parcela enfokatu",
+      "exit": "Irten fokotik"
+    },
     "cadastral": {
       "not_found": "Ez da katastrala informatzioa aurkitu kokaleku honetan.",
       "error": "Katastrala zerbitzuaren errorea: {errorMsg}"
