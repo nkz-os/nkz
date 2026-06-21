@@ -75,6 +75,8 @@ interface CesiumMapProps {
   riskOverlay?: Map<string, RiskOverlayInfo>; // Optional: risk severity colors keyed by entity ID
   renderMapLayerSlot?: boolean; // Whether to render map-layer slot inside this component
   fieldPhotos?: FieldPhotoRecord[];
+  /** When set, enters focus mode: dark background, isolates this parcel */
+  focusParcelId?: string | null;
   // Module layer configurations (extensible for future modules)
   // Removed vegetationLayerConfig - modules should register layers via slot system
 }
@@ -270,6 +272,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   riskOverlay,
   renderMapLayerSlot = true,
   fieldPhotos = [],
+  focusParcelId,
   // vegetationLayerConfig removed - modules use slot system
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1765,6 +1768,40 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, parcels, enable3DTerrain, enable3DTiles, selectedEntity?.id, riskOverlay]);
+
+  // Focus mode: dark scene background + fly-to parcel
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+
+    if (focusParcelId) {
+      // Enter focus mode — dark scene
+      viewer.scene.backgroundColor = new Cesium.Color(0, 0, 0, 1);
+      viewer.scene.globe.baseColor = new Cesium.Color(0.02, 0.02, 0.02, 1);
+      viewer.scene.skyBox.show = false;
+
+      // Fly to the focused parcel
+      const entity = viewer.entities.getById(`parcel-${focusParcelId}`);
+      if (entity) {
+        viewer.flyTo(entity, {
+          offset: new Cesium.HeadingPitchRange(
+            Cesium.Math.toRadians(0),
+            Cesium.Math.toRadians(-45),
+            500
+          ),
+        });
+      } else {
+        logger.warn(`[CesiumMap] Focus parcel entity not found in scene: ${focusParcelId}`);
+      }
+    } else {
+      // Exit focus mode — restore normal scene
+      viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0f172a');
+      viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#1f2937');
+      viewer.scene.skyBox.show = true;
+    }
+  }, [focusParcelId, isViewerReady]);
 
   useFlyToEntity(viewerRef, selectedEntity, viewerContext?.entityListCameraNonce ?? 0);
 
