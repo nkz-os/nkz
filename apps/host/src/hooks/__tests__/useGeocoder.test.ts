@@ -3,6 +3,11 @@ import { renderHook, act } from '@testing-library/react';
 import { useGeocoder } from '../useGeocoder';
 import type { GeocodeResult } from '@/types/geocode';
 
+// Mock the auth hook so useGeocoder can call getToken()
+vi.mock('@/context/KeycloakAuthContext', () => ({
+  useAuth: () => ({ getToken: () => 'mock-token' }),
+}));
+
 const DEBOUNCE_MS = 300;
 
 const mockResult: GeocodeResult = {
