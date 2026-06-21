@@ -86,3 +86,29 @@ export const ENTITY_CATEGORIES: Record<string, string[]> = {
   'Energía':         ['PhotovoltaicInstallation', 'AgriEnergyTracker', 'EnergyStorageSystem'],
   'Operaciones':     ['AgriOperation'],
 };
+
+// ─── Sensor health & calibration types ───────────────────────────────────────
+
+export interface SensorVariableHealthConfig {
+  minValid?: number;
+  maxValid?: number;
+  unitCode?: string;
+  maxStagnantHours?: number;
+}
+
+export interface SensorHealthConfig {
+  [variable: string]: SensorVariableHealthConfig | number | undefined;
+  communicationTimeoutHours?: number;
+}
+
+export interface SensorCalibrationEntry {
+  slope: number;
+  offset: number;
+  unitCode?: string;
+  lastCalibratedAt?: string;
+  sensorHardwareId: string;
+}
+
+export interface SensorCalibrationConfig {
+  [variable: string]: SensorCalibrationEntry;
+}
