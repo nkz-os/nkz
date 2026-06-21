@@ -1243,9 +1243,18 @@ def post_timeseries_export():
 def _build_telemetry_columnar(
     rows: List[Dict[str, Any]], attrs_filter: Optional[List[str]]
 ) -> Dict[str, Any]:
-    """Build unified timestamp list + attribute arrays from telemetry_events payloads."""
+    """Build unified timestamp list + attribute arrays from telemetry_events payloads.
+
+    Returns a dict with keys:
+      - timestamps (list[str])
+      - attributes (dict[str, list])
+      - raw_attributes (dict[str, list], only if any non-None raw values exist)
+      - quality_flags (list[Optional[str]], only if any non-None flags exist)
+    """
     flt: Optional[set] = set(attrs_filter) if attrs_filter else None
     by_ts: Dict[datetime, Dict[str, Any]] = {}
+    by_ts_raw: Dict[datetime, Dict[str, Any]] = {}
+    by_qf: Dict[datetime, Optional[str]] = {}
 
     def _store_measurement(ts_key: datetime, name: str, val: Any) -> None:
         if flt is not None and name not in flt:
@@ -1256,10 +1265,22 @@ def _build_telemetry_columnar(
             float(val) if val is not None and isinstance(val, (int, float)) else val
         )
 
+    def _store_raw_measurement(ts_key: datetime, name: str, val: Any) -> None:
+        if flt is not None and name not in flt:
+            return
+        if ts_key not in by_ts_raw:
+            by_ts_raw[ts_key] = {}
+        by_ts_raw[ts_key][name] = (
+            float(val) if val is not None and isinstance(val, (int, float)) else val
+        )
+
     for row in rows:
         ts = row.get("observed_at")
         if not ts:
             continue
+        # Per-row quality flag
+        by_qf[ts] = row.get("quality_flag")
+
         payload = row.get("payload")
         if isinstance(payload, str):
             try:
@@ -1268,6 +1289,8 @@ def _build_telemetry_columnar(
                 payload = {}
         if not isinstance(payload, dict):
             payload = {}
+
+        # Calibrated measurements
         raw_meas = payload.get("measurements")
         if isinstance(raw_meas, dict):
             for name, val in raw_meas.items():
@@ -1284,6 +1307,23 @@ def _build_telemetry_columnar(
                 val = m.get("value")
                 _store_measurement(ts, str(name), val)
 
+        # Raw (pre-calibration) measurements
+        raw_meas_raw = payload.get("raw_measurements")
+        if isinstance(raw_meas_raw, dict):
+            for name, val in raw_meas_raw.items():
+                if not name or not isinstance(name, str):
+                    continue
+                _store_raw_measurement(ts, name, val)
+        elif isinstance(raw_meas_raw, list):
+            for m in raw_meas_raw:
+                if not isinstance(m, dict):
+                    continue
+                name = m.get("type") or m.get("name")
+                if not name:
+                    continue
+                val = m.get("value")
+                _store_raw_measurement(ts, str(name), val)
+
     sorted_ts = sorted(by_ts.keys())
     all_attrs = set()
     for d in by_ts.values():
@@ -1299,7 +1339,46 @@ def _build_telemetry_columnar(
         rd = by_ts[t]
         for a in attr_list:
             attributes[a].append(rd.get(a))
-    return {"timestamps": timestamps, "attributes": attributes}
+
+    result: Dict[str, Any] = {
+        "timestamps": timestamps,
+        "attributes": attributes,
+    }
+
+    # Build raw_attributes (parallel structure to attributes)
+    if by_ts_raw:
+        all_raw_attrs = set()
+        for d in by_ts_raw.values():
+            all_raw_attrs |= set(d.keys())
+        if flt is not None:
+            all_raw_attrs &= flt
+        raw_attr_list = sorted(all_raw_attrs)
+        raw_attributes: Dict[str, List[Any]] = {a: [] for a in raw_attr_list}
+        for t in sorted_ts:
+            rd = by_ts_raw.get(t, {})
+            for a in raw_attr_list:
+                raw_attributes[a].append(rd.get(a))
+        # Only include if any non-None value exists
+        has_any = any(
+            v is not None
+            for vals in raw_attributes.values()
+            for v in vals
+        )
+        if has_any:
+            result["raw_attributes"] = raw_attributes
+
+    # Build quality_flags parallel to timestamps
+    qf_list: List[Optional[str]] = []
+    has_qf = False
+    for t in sorted_ts:
+        qf = by_qf.get(t)
+        qf_list.append(qf)
+        if qf is not None:
+            has_qf = True
+    if has_qf:
+        result["quality_flags"] = qf_list
+
+    return result
 
 
 def _fetch_telemetry_rows(
@@ -1326,7 +1405,7 @@ def _fetch_telemetry_rows(
             )
         cur.execute(
             """
-            SELECT observed_at, payload
+            SELECT observed_at, payload, quality_flag
             FROM telemetry_events
             WHERE tenant_id = %s
               AND (device_id = ANY(%s) OR entity_id = ANY(%s))
@@ -1480,6 +1559,22 @@ def get_v2_entity_timeseries(entity_urn: str):
                             "value": pa.array(val_arr, type=pa.float64()),
                         }
                     )
+                    # Add value_raw column if raw_attributes are available
+                    if "raw_attributes" in col and attr in col["raw_attributes"]:
+                        val_raw_arr = []
+                        for i, t in enumerate(col["timestamps"]):
+                            v = col["raw_attributes"].get(
+                                attr, [None] * len(col["timestamps"])
+                            )[i]
+                            val_raw_arr.append(float(v) if v is not None else None)
+                        if any(v is not None for v in val_raw_arr):
+                            table = pa.table(
+                                {
+                                    "timestamp": pa.array(ts_arr, type=pa.float64()),
+                                    "value": pa.array(val_arr, type=pa.float64()),
+                                    "value_raw": pa.array(val_raw_arr, type=pa.float64()),
+                                }
+                            )
                     sink = pa.BufferOutputStream()
                     with pa.ipc.new_stream(sink, table.schema) as writer:
                         writer.write_table(table)
@@ -1501,6 +1596,7 @@ def get_v2_entity_timeseries(entity_urn: str):
                     "series_kind": "telemetry",
                     "timestamps": col["timestamps"],
                     "attributes": col["attributes"],
+                    **{k: col[k] for k in ("raw_attributes", "quality_flags") if k in col},
                 }
             )
 
@@ -1591,6 +1687,22 @@ def get_v2_entity_timeseries(entity_urn: str):
                     "value": pa.array(val_arr, type=pa.float64()),
                 }
             )
+            # Add value_raw column if raw_attributes are available
+            if "raw_attributes" in col and attr in col["raw_attributes"]:
+                val_raw_arr = []
+                for i, t in enumerate(col["timestamps"]):
+                    v = col["raw_attributes"].get(
+                        attr, [None] * len(col["timestamps"])
+                    )[i]
+                    val_raw_arr.append(float(v) if v is not None else None)
+                if any(v is not None for v in val_raw_arr):
+                    table = pa.table(
+                        {
+                            "timestamp": pa.array(ts_arr, type=pa.float64()),
+                            "value": pa.array(val_arr, type=pa.float64()),
+                            "value_raw": pa.array(val_raw_arr, type=pa.float64()),
+                        }
+                    )
             sink = pa.BufferOutputStream()
             with pa.ipc.new_stream(sink, table.schema) as writer:
                 writer.write_table(table)
@@ -1610,6 +1722,7 @@ def get_v2_entity_timeseries(entity_urn: str):
                 "weather_source": plan.get("weather_source"),
                 "timestamps": col["timestamps"],
                 "attributes": col["attributes"],
+                **{k: col[k] for k in ("raw_attributes", "quality_flags") if k in col},
             }
         )
 
