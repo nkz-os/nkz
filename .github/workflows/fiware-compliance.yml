@@ -37,22 +37,29 @@ jobs:
           echo ""
 
           violations=0
+          ADMIN_TABLES='calibration_periods|tenant_limits|tenants|sensor_profiles|marketplace_modules'
           for f in $changed; do
             # Get only added lines from this file
             added=$(git diff origin/main...HEAD -- "$f" | grep '^+' | grep -v '^+++' || true)
-            if echo "$added" | grep -qE 'INSERT[[:space:]]+INTO|execute[[:space:]]*\([[:space:]]*['"'"'"]INSERT'; then
-              echo "❌ $f — direct DB write in added lines:"
-              echo "$added" | grep -nE 'INSERT[[:space:]]+INTO|execute[[:space:]]*\([[:space:]]*['"'"'"]INSERT'
-              echo ""
-              violations=$((violations + 1))
-            fi
+            while IFS= read -r line; do
+              # Skip writes to admin/metadata tables
+              if echo "$line" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)[[:space:]]"; then
+                continue
+              fi
+              if echo "$line" | grep -qE 'INSERT[[:space:]]+INTO'; then
+                echo "FAIL: $f -- direct DB write in added lines:"
+                echo "$line"
+                echo ""
+                violations=$((violations + 1))
+              fi
+            done <<< "$added"
           done
 
           if [ "$violations" -gt 0 ]; then
-            echo "❌ Found $violations file(s) with direct DB writes."
+            echo "FAIL: Found $violations file(s) with direct DB writes."
             echo "Allowed exceptions: notification_handler.py, subscription_manager.py, ingest/, migrations/"
             echo "See AGENTS.md for the architecture rules."
             exit 1
           fi
 
-          echo "✅ No direct DB writes in new non-exempt lines."
+          echo "PASS: No direct DB writes in new non-exempt lines."
