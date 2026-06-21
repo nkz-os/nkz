@@ -87,7 +87,6 @@ const UnifiedViewerInner: React.FC = () => {
         focusParcelId,
         isFocusMode,
         setLeftPanelOpen,
-        clearFocusParcel,
     } = useViewer();
 
     // Local expanded state for left panel
@@ -532,16 +531,16 @@ const UnifiedViewerInner: React.FC = () => {
                     height="h-full"
                     showControls={true}
                     renderMapLayerSlot={false}
-                    parcels={displayParcels}
-                    robots={displayRobots}
-                    sensors={displaySensors}
-                    machines={displayMachines}
-                    livestock={displayLivestock}
-                    weatherStations={displayWeatherStations}
-                    crops={displayCrops}
-                    buildings={displayBuildings}
-                    trees={trees} // Always show trees (OliveTree, AgriTree, etc.)
-                    energyTrackers={energyTrackers} // AgriEnergyTracker (solar panels)
+                    parcels={isLayerActive('parcels') ? displayParcels : []}
+                    robots={isLayerActive('robots') ? displayRobots : []}
+                    sensors={isLayerActive('sensors') ? displaySensors : []}
+                    machines={isLayerActive('machines') ? displayMachines : []}
+                    livestock={isLayerActive('livestock') ? displayLivestock : []}
+                    weatherStations={isLayerActive('weather') ? displayWeatherStations : []}
+                    crops={isLayerActive('crops') ? displayCrops : []}
+                    buildings={isLayerActive('buildings') ? displayBuildings : []}
+                    trees={isFocusMode && focusParcelId ? trees.filter(t => isRelatedToParcel(t, focusParcelId)) : trees}
+                    energyTrackers={isFocusMode && focusParcelId ? energyTrackers.filter(e => isRelatedToParcel(e, focusParcelId)) : energyTrackers}
                     enable3DTerrain={true}
                     terrainProvider="auto"
                     selectedEntity={selectedEntityForMap}
