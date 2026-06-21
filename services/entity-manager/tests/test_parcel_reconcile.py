@@ -114,6 +114,15 @@ def test_resolve_parcel_ref_relationship():
     assert pr.resolve_parcel_ref(e, spec) == "urn:ngsi-ld:AgriParcel:aaa"
 
 
+def test_registry_includes_zone_assessment():
+    # Zone assessments of a deleted parcel must be swept like the parcel-level
+    # CropHealthAssessment (they reference the parcel via hasAgriParcel).
+    types = {s["type"] for s in pr.DERIVED_TYPE_REGISTRY}
+    assert "CropHealthZoneAssessment" in types
+    spec = next(s for s in pr.DERIVED_TYPE_REGISTRY if s["type"] == "CropHealthZoneAssessment")
+    assert "hasAgriParcel" in spec["ref_keys"]
+
+
 def test_resolve_parcel_ref_risk_requires_target_type():
     spec = {"type": "RiskAssessment", "ref_keys": ["targetEntityId"],
             "require_target_type": "AgriParcel"}
