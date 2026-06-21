@@ -136,11 +136,17 @@ export function useTelemetry(options: UseTelemetryOptions): UseTelemetryReturn {
     try {
       const data = await api.getDeviceLatestTelemetry(deviceId);
       
-      if (data && data.observed_at) {
+      if (data) {
+        // Handle both the old telemetry_events structure (data.payload)
+        // and the new Orion-LD raw entity structure (options=keyValues)
+        const isRawEntity = data.id !== undefined && data.type !== undefined;
+        const observedAt = data.observed_at || data.dateObserved || data.dateModified || new Date().toISOString();
+        const payload = isRawEntity ? data : (data.payload || {});
+
         const telemetry: TelemetryValue = {
-          observed_at: data.observed_at,
-          payload: data.payload || {},
-          metadata: data.metadata,
+          observed_at: observedAt,
+          payload: payload,
+          metadata: data.metadata || {},
         };
 
         setLatestTelemetry(telemetry);
