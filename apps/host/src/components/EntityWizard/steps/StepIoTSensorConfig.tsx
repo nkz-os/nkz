@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Cable, Activity, Zap, HelpCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Cable, Activity, Zap, HelpCircle, Settings, Plus, Trash2 } from 'lucide-react';
 import { useWizard } from '../WizardContext';
 import { listDeviceProfiles, createDeviceProfile, type DeviceProfile } from '@/services/deviceProfilesApi';
 import { DeviceProfileHelpModal } from '../../DeviceProfileHelpModal';
@@ -13,6 +13,7 @@ export function StepIoTSensorConfig() {
   const { entityType, formData, updateFormData } = useWizard();
   const [deviceProfiles, setDeviceProfiles] = useState<DeviceProfile[]>([]);
   const [showHelp, setShowHelp] = useState(false);
+  const [newVariableName, setNewVariableName] = useState('');
 
   useEffect(() => {
     if (!entityType) return;
@@ -23,6 +24,76 @@ export function StepIoTSensorConfig() {
 
   if (!formData || formData.macroCategory !== 'sensors') return null;
   const data = formData as IoTSensorFormData;
+
+  // ── Health & Calibration helpers ──────────────────────────────────────────
+  const selectedProfile = deviceProfiles.find(p => p.id === data.deviceProfileId);
+  const profileVariables = useMemo(
+    () => selectedProfile?.mappings?.map(m => m.target_attribute) ?? [],
+    [selectedProfile]
+  );
+
+  // Collect variable names from both the profile and already-configured keys
+  const currentHealth = (data as any).healthConfig ?? {};
+  const currentCalibration = (data as any).calibrationConfig ?? {};
+  const customVarKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const k of Object.keys(currentHealth)) {
+      if (k !== 'communicationTimeoutHours') keys.add(k);
+    }
+    for (const k of Object.keys(currentCalibration)) {
+      keys.add(k);
+    }
+    return keys;
+  }, [currentHealth, currentCalibration]);
+  const allVariables = useMemo(
+    () => [...new Set([...profileVariables, ...customVarKeys])],
+    [profileVariables, customVarKeys]
+  );
+
+  function updateHealthVar(variable: string, field: string, value: number | undefined) {
+    const current = { ...((data as any).healthConfig ?? {}) };
+    if (!current[variable]) current[variable] = {};
+    current[variable] = { ...current[variable], [field]: value };
+    (updateFormData as any)({ healthConfig: current });
+  }
+
+  function updateCalibrationVar(variable: string, field: string, value: any) {
+    const current = { ...((data as any).calibrationConfig ?? {}) };
+    if (!current[variable]) current[variable] = {};
+    current[variable] = { ...current[variable], [field]: value };
+    (updateFormData as any)({ calibrationConfig: current });
+  }
+
+  function updateCommunicationTimeout(value: number | undefined) {
+    const current = { ...((data as any).healthConfig ?? {}) };
+    current.communicationTimeoutHours = value;
+    (updateFormData as any)({ healthConfig: current });
+  }
+
+  function addVariable() {
+    const name = newVariableName.trim();
+    if (!name || allVariables.includes(name)) return;
+    // Initialise empty entries for the new variable
+    const hc = { ...((data as any).healthConfig ?? {}) };
+    hc[name] = hc[name] ?? {};
+    (updateFormData as any)({ healthConfig: hc });
+
+    const cc = { ...((data as any).calibrationConfig ?? {}) };
+    cc[name] = cc[name] ?? { slope: 1.0, offset: 0.0, sensorHardwareId: '' };
+    (updateFormData as any)({ calibrationConfig: cc });
+
+    setNewVariableName('');
+  }
+
+  function removeVariable(variable: string) {
+    const hc = { ...((data as any).healthConfig ?? {}) };
+    delete hc[variable];
+    (updateFormData as any)({ healthConfig: hc });
+
+    const cc = { ...((data as any).calibrationConfig ?? {}) };
+    delete cc[variable];
+    (updateFormData as any)({ calibrationConfig: cc });
+  }
 
   const handleImportProfile = (file: File) => {
     const reader = new FileReader();
@@ -167,6 +238,165 @@ export function StepIoTSensorConfig() {
           </p>
         </div>
       </div>
+
+      {/* ── Health Rules & Calibration Accordion ── */}
+      <details className="group mt-6 border border-nkz-border rounded-xl overflow-hidden">
+        <summary className="flex items-center gap-2 px-4 py-3 bg-gray-50 hover:bg-gray-100 cursor-pointer list-none">
+          <Settings className="w-5 h-5 text-teal-600" />
+          <span className="text-sm font-semibold text-gray-800">
+            Configuración de Fiabilidad y Calibración (Health Rules)
+          </span>
+          <span className="ml-auto text-xs text-nkz-muted transition-transform group-open:rotate-180">▼</span>
+        </summary>
+
+        <div className="p-4 space-y-4 border-t border-nkz-border">
+          <p className="text-xs text-nkz-muted">
+            Define reglas de validación y calibración para las variables del sensor.
+            Estos valores se usan para detectar lecturas anómalas y transformar señales en bruto.
+          </p>
+
+          {/* Communication timeout */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Communication Timeout (horas)
+            </label>
+            <Input
+              type="number"
+              min="0"
+              step="0.5"
+              value={(currentHealth as any).communicationTimeoutHours ?? ''}
+              onChange={(e: any) => updateCommunicationTimeout(e.target.value !== '' ? Number(e.target.value) : undefined)}
+              className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500"
+              placeholder="Ej: 24"
+            />
+            <p className="text-xs text-nkz-muted mt-1">
+              Horas sin datos antes de marcar el sensor como no disponible.
+            </p>
+          </div>
+
+          {/* Variable */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-gray-800">
+                Variables ({allVariables.length})
+              </h4>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  value={newVariableName}
+                  onChange={(e: any) => setNewVariableName(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-nkz-border rounded-lg w-40"
+                  placeholder="Nueva variable..."
+                  onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); addVariable(); } }}
+                />
+                <Button
+                  onClick={addVariable}
+                  disabled={!newVariableName.trim()}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus className="w-3 h-3" /> Añadir
+                </Button>
+              </div>
+            </div>
+
+            {allVariables.length === 0 && (
+              <p className="text-xs text-nkz-muted italic py-2">
+                Selecciona un perfil de dispositivo o añade variables manualmente para configurar reglas de salud y calibración.
+              </p>
+            )}
+
+            {allVariables.map(variable => {
+              const vHealth = (currentHealth as any)[variable] ?? {};
+              const vCalib = (currentCalibration as any)[variable] ?? {};
+              return (
+                <div key={variable} className="border border-nkz-border rounded-lg p-3 bg-white">
+                  <div className="flex items-center justify-between mb-2">
+                    <h5 className="text-sm font-semibold text-gray-800 font-mono">{variable}</h5>
+                    <button
+                      type="button"
+                      onClick={() => removeVariable(variable)}
+                      className="text-red-400 hover:text-red-600 p-1"
+                      title="Eliminar variable"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {/* Health: minValid */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Min Valid</label>
+                      <Input
+                        type="number"
+                        value={vHealth.minValid ?? ''}
+                        onChange={(e: any) => updateHealthVar(variable, 'minValid', e.target.value !== '' ? Number(e.target.value) : undefined)}
+                        className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
+                        placeholder="—"
+                      />
+                    </div>
+                    {/* Health: maxValid */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Max Valid</label>
+                      <Input
+                        type="number"
+                        value={vHealth.maxValid ?? ''}
+                        onChange={(e: any) => updateHealthVar(variable, 'maxValid', e.target.value !== '' ? Number(e.target.value) : undefined)}
+                        className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
+                        placeholder="—"
+                      />
+                    </div>
+                    {/* Health: maxStagnantHours */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Max Stagnant (h)</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={vHealth.maxStagnantHours ?? ''}
+                        onChange={(e: any) => updateHealthVar(variable, 'maxStagnantHours', e.target.value !== '' ? Number(e.target.value) : undefined)}
+                        className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
+                        placeholder="—"
+                      />
+                    </div>
+                    {/* Calibration: slope */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Slope</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={vCalib.slope ?? 1.0}
+                        onChange={(e: any) => updateCalibrationVar(variable, 'slope', e.target.value !== '' ? Number(e.target.value) : 1.0)}
+                        className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
+                      />
+                    </div>
+                    {/* Calibration: offset */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Offset</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={vCalib.offset ?? 0.0}
+                        onChange={(e: any) => updateCalibrationVar(variable, 'offset', e.target.value !== '' ? Number(e.target.value) : 0.0)}
+                        className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
+                      />
+                    </div>
+                    {/* Calibration: sensorHardwareId */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Hardware ID</label>
+                      <Input
+                        type="text"
+                        value={vCalib.sensorHardwareId ?? ''}
+                        onChange={(e: any) => updateCalibrationVar(variable, 'sensorHardwareId', e.target.value)}
+                        className="w-full px-3 py-1.5 text-sm border border-nkz-border rounded-lg"
+                        placeholder="SN-..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </details>
 
       <DeviceProfileHelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
     </div>
