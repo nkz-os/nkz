@@ -845,6 +845,10 @@
       "theme_light": "Clair",
       "theme_dark": "Sombre"
     },
+    "focus": {
+      "enter": "Focus parcelle",
+      "exit": "Quitter le focus"
+    },
     "cadastral": {
       "not_found": "Aucune information cadastrale trouvée pour cette localisation.",
       "error": "Erreur du service cadastral : {errorMsg}"
