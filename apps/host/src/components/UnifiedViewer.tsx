@@ -87,6 +87,7 @@ const UnifiedViewerInner: React.FC = () => {
         focusParcelId,
         isFocusMode,
         setLeftPanelOpen,
+        clearFocusParcel,
     } = useViewer();
 
     // Local expanded state for left panel
@@ -492,6 +493,20 @@ const UnifiedViewerInner: React.FC = () => {
             setLeftPanelOpen(true);
         }
     }, [isFocusMode, setLeftPanelOpen]);
+
+    // ESC key exits focus mode
+    useEffect(() => {
+        if (!isFocusMode) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                clearFocusParcel();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isFocusMode]);
 
     return (
         <ThemeProvider profile={profile}>
