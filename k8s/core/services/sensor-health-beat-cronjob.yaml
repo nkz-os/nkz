@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sensor-health-beat
+  namespace: nekazari
+  labels:
+    app: sensor-health-beat
+    layer: backend
+spec:
+  schedule: "*/15 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: sensor-health-beat
+            layer: backend
+        spec:
+          serviceAccountName: sensor-health-beat
+          restartPolicy: OnFailure
+          containers:
+          - name: sensor-health-beat
+            image: ghcr.io/nkz-os/nkz/services/sensor-health-beat:sha-COMMIT_SHA
+            imagePullPolicy: IfNotPresent
+            args: ["python3", "-m", "uvicorn", "sensor_health_beat.app:app", "--host", "0.0.0.0", "--port", "8000"]
+            ports:
+            - containerPort: 8000
+            env:
+            - name: ORION_URL
+              value: "http://orion-ld-service:1026"
+            - name: CONTEXT_URL
+              value: "http://api-gateway-service:5000/ngsi-ld-context.json"
+            - name: TIMESCALE_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: timescale-dsn
+            - name: REDIS_URL
+              value: "redis://redis-service:6379/0"
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "100m"
+              limits:
+                memory: "256Mi"
+                cpu: "500m"
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: 8000
+              initialDelaySeconds: 10
+              periodSeconds: 30
