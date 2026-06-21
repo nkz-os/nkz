@@ -839,6 +839,12 @@
     }
   },
   "viewer": {
+    "sidebar": {
+      "open": "Abrir painel",
+      "close": "Fechar painel",
+      "expand": "Expandir painel",
+      "expand_tooltip": "Expandir"
+    },
     "header": {
       "main_section": "Principal",
       "addons_section": "Addons",

@@ -20,6 +20,8 @@ export interface ModuleGroupProps {
   onDragStart?: (e: React.DragEvent) => void;
   tenantId: string;
   userId: string;
+  /** Localised "Hide" label. Defaults to Spanish "Ocultar". */
+  hideLabel?: string;
 }
 
 function ModuleGroup({
@@ -33,6 +35,7 @@ function ModuleGroup({
   onDragStart,
   tenantId,
   userId,
+  hideLabel = 'Ocultar',
 }: ModuleGroupProps) {
   const state = useModuleGroupState(tenantId, userId, slot, moduleId);
 
@@ -95,9 +98,9 @@ function ModuleGroup({
         <span
           onClick={handleHide}
           className="opacity-0 group-hover:opacity-100 transition-opacity duration-nkz-fast cursor-pointer text-nkz-text-muted hover:text-nkz-text-primary"
-          title="Ocultar"
+          title={hideLabel}
           role="button"
-          aria-label={`Hide ${name}`}
+          aria-label={`${hideLabel} ${name}`}
         >
           👁
         </span>
