@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 import asyncpg
 import httpx
 
+from .alert_manager import AlertManager
 from .config import Settings
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,10 @@ class SensorHealthBeat:
     def __init__(self, settings: Settings):
         self.settings = settings
         self._pg_pool: Optional[asyncpg.Pool] = None
+        self._alert_manager = AlertManager(
+            orion_url=settings.orion_url,
+            context_url=settings.context_url,
+        )
 
     async def start(self) -> None:
         """Initialize PostgreSQL connection pool."""
@@ -133,6 +138,17 @@ class SensorHealthBeat:
                     f"Sensor {entity_id} timeout: {delta.total_seconds()/3600:.1f}h > {timeout_hours}h"
                 )
                 await self._set_status(tenant_id, entity_id, "error")
+                # Create alert if not silenced
+                if not is_silenced and self._alert_manager:
+                    sensor_name = entity_id.split(":")[-1]
+                    await self._alert_manager.create_alert(
+                        tenant_id=tenant_id,
+                        sensor_id=entity_id,
+                        sensor_name=sensor_name,
+                        alert_type="timeout",
+                        variables=list(health_config.keys()),
+                        description=f"Sensor {sensor_name} timeout: {delta.total_seconds()/3600:.1f}h > {timeout_hours}h",
+                    )
                 return
 
         # Check stagnation per variable
@@ -152,6 +168,16 @@ class SensorHealthBeat:
                     f"Sensor {entity_id} variable {variable}: stagnant > {max_stagnant}h"
                 )
                 await self._set_status(tenant_id, entity_id, "error")
+                if not is_silenced and self._alert_manager:
+                    sensor_name = entity_id.split(":")[-1]
+                    await self._alert_manager.create_alert(
+                        tenant_id=tenant_id,
+                        sensor_id=entity_id,
+                        sensor_name=sensor_name,
+                        alert_type="stagnation",
+                        variables=[variable],
+                        description=f"Sensor {sensor_name} variable {variable}: stagnant > {max_stagnant}h",
+                    )
                 return
 
         # Recovery check: if currently degraded/error, check if data recovered
@@ -159,6 +185,15 @@ class SensorHealthBeat:
             recovered = await self._check_recovery(tenant_id, entity_id)
             if recovered:
                 logger.info(f"Sensor {entity_id}: recovered, setting to optimal")
+                # Close active alerts before recovering
+                if self._alert_manager:
+                    active = await self._alert_manager.get_active_alerts_for_sensor(
+                        tenant_id, entity_id
+                    )
+                    for alert in active:
+                        await self._alert_manager.close_alert(
+                            tenant_id, alert["id"]
+                        )
                 await self._set_status(tenant_id, entity_id, "optimal")
                 return
 
