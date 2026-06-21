@@ -242,7 +242,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: entity-manager
-          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:6aeb9e19aee08063899101d96ab19ad34c1dcb49f1ed35e37c9bcb06ed042601  # main 1b7c444c: parcel-lifecycle engine (#625) + FIWARE compliance. Lockstep with parcel-reconcile worker. Replaces eca52cad (GC'd on GHCR → 403)
+          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:a58345803ccc87aaabb6a5692c01dd4bc54824d64416d7af7f3ae3649b02bca5  # main c63c50d: reconcile sweeps CropHealthZoneAssessment (#670). Lockstep with parcel-reconcile worker
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
