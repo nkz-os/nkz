@@ -96,7 +96,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
   const [timeRangePreset, setTimeRangePreset] = useState<TimeRangePreset>('24h');
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
-  const [selectedAttributes, setSelectedAttributes] = useState<string[]>(['temp_avg']);
+  const [selectedAttributes, setSelectedAttributes] = useState<string[]>([]);
   
   // Calculate time range based on preset or custom
   const timeRange = useMemo(() => {
