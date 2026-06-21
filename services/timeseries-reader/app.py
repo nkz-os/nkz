@@ -1279,7 +1279,8 @@ def _build_telemetry_columnar(
         if not ts:
             continue
         # Per-row quality flag
-        by_qf[ts] = row.get("quality_flag")
+        qf_val = row.get("quality_flag")
+        by_qf[ts] = str(qf_val) if qf_val is not None else None
 
         payload = row.get("payload")
         if isinstance(payload, str):
@@ -1541,40 +1542,40 @@ def get_v2_entity_timeseries(entity_urn: str):
                     attr = attrs_list[0]
                     ts_arr = []
                     val_arr = []
+                    val_raw_arr = []
+                    raw_available = "raw_attributes" in col and attr in col.get("raw_attributes", {})
                     for i, t in enumerate(col["timestamps"]):
                         v = col["attributes"].get(
                             attr, [None] * len(col["timestamps"])
                         )[i]
                         if v is None:
-                            continue
+                            continue  # skip row entirely — no calibrated value
                         try:
                             epoch = parse_datetime(t.replace("Z", "+00:00")).timestamp()
                         except Exception:
                             continue
                         ts_arr.append(epoch)
                         val_arr.append(float(v))
+                        # Raw value aligned with same row
+                        if raw_available:
+                            rv = col["raw_attributes"].get(
+                                attr, [None] * len(col["timestamps"])
+                            )[i]
+                            val_raw_arr.append(float(rv) if rv is not None else float('nan'))
                     table = pa.table(
                         {
                             "timestamp": pa.array(ts_arr, type=pa.float64()),
                             "value": pa.array(val_arr, type=pa.float64()),
                         }
                     )
-                    # Add value_raw column if raw_attributes are available
-                    if "raw_attributes" in col and attr in col["raw_attributes"]:
-                        val_raw_arr = []
-                        for i, t in enumerate(col["timestamps"]):
-                            v = col["raw_attributes"].get(
-                                attr, [None] * len(col["timestamps"])
-                            )[i]
-                            val_raw_arr.append(float(v) if v is not None else None)
-                        if any(v is not None for v in val_raw_arr):
-                            table = pa.table(
-                                {
-                                    "timestamp": pa.array(ts_arr, type=pa.float64()),
-                                    "value": pa.array(val_arr, type=pa.float64()),
-                                    "value_raw": pa.array(val_raw_arr, type=pa.float64()),
-                                }
-                            )
+                    if raw_available and val_raw_arr:
+                        table = pa.table(
+                            {
+                                "timestamp": pa.array(ts_arr, type=pa.float64()),
+                                "value": pa.array(val_arr, type=pa.float64()),
+                                "value_raw": pa.array(val_raw_arr, type=pa.float64()),
+                            }
+                        )
                     sink = pa.BufferOutputStream()
                     with pa.ipc.new_stream(sink, table.schema) as writer:
                         writer.write_table(table)
@@ -1671,38 +1672,38 @@ def get_v2_entity_timeseries(entity_urn: str):
             attr = use_attrs[0]
             ts_arr = []
             val_arr = []
+            val_raw_arr = []
+            raw_available = "raw_attributes" in col and attr in col.get("raw_attributes", {})
             for i, t in enumerate(col["timestamps"]):
                 v = col["attributes"][attr][i]
                 if v is None:
-                    continue
+                    continue  # skip row entirely — no calibrated value
                 try:
                     epoch = parse_datetime(t.replace("Z", "+00:00")).timestamp()
                 except Exception:
                     continue
                 ts_arr.append(epoch)
                 val_arr.append(float(v))
+                # Raw value aligned with same row
+                if raw_available:
+                    rv = col["raw_attributes"].get(
+                        attr, [None] * len(col["timestamps"])
+                    )[i]
+                    val_raw_arr.append(float(rv) if rv is not None else float('nan'))
             table = pa.table(
                 {
                     "timestamp": pa.array(ts_arr, type=pa.float64()),
                     "value": pa.array(val_arr, type=pa.float64()),
                 }
             )
-            # Add value_raw column if raw_attributes are available
-            if "raw_attributes" in col and attr in col["raw_attributes"]:
-                val_raw_arr = []
-                for i, t in enumerate(col["timestamps"]):
-                    v = col["raw_attributes"].get(
-                        attr, [None] * len(col["timestamps"])
-                    )[i]
-                    val_raw_arr.append(float(v) if v is not None else None)
-                if any(v is not None for v in val_raw_arr):
-                    table = pa.table(
-                        {
-                            "timestamp": pa.array(ts_arr, type=pa.float64()),
-                            "value": pa.array(val_arr, type=pa.float64()),
-                            "value_raw": pa.array(val_raw_arr, type=pa.float64()),
-                        }
-                    )
+            if raw_available and val_raw_arr:
+                table = pa.table(
+                    {
+                        "timestamp": pa.array(ts_arr, type=pa.float64()),
+                        "value": pa.array(val_arr, type=pa.float64()),
+                        "value_raw": pa.array(val_raw_arr, type=pa.float64()),
+                    }
+                )
             sink = pa.BufferOutputStream()
             with pa.ipc.new_stream(sink, table.schema) as writer:
                 writer.write_table(table)
