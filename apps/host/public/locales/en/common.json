@@ -1201,6 +1201,12 @@
     "save": "Save"
   },
   "viewer": {
+    "sidebar": {
+      "open": "Open panel",
+      "close": "Close panel",
+      "expand": "Expand panel",
+      "expand_tooltip": "Expand"
+    },
     "layersTitle": "Layers",
     "layersRiskOverlay": "Risk overlay",
     "layersExpand": "Show layers",

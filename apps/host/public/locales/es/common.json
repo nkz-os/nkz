@@ -1261,6 +1261,12 @@
     "save": "Guardar"
   },
   "viewer": {
+    "sidebar": {
+      "open": "Abrir panel",
+      "close": "Cerrar panel",
+      "expand": "Expandir panel",
+      "expand_tooltip": "Expandir"
+    },
     "layersTitle": "Capas",
     "layersRiskOverlay": "Overlay de Riesgos",
     "layersExpand": "Mostrar capas",
