@@ -41,6 +41,7 @@ import {
     ChevronUp,
     Loader2,
 } from 'lucide-react';
+import { ParcelFocusButton } from '@/components/viewer/ParcelFocusButton';
 
 // Opaque surface styles for viewer overlays
 const overlayPanel = {
@@ -83,6 +84,10 @@ const UnifiedViewerInner: React.FC = () => {
         drawingCallback,
         selectEntity,
         photoWindowDays,
+        focusParcelId,
+        isFocusMode,
+        setLeftPanelOpen,
+        clearFocusParcel,
     } = useViewer();
 
     // Local expanded state for left panel
@@ -441,6 +446,54 @@ const UnifiedViewerInner: React.FC = () => {
     // ThemeProvider for the viewer only — does NOT affect other routes
     const { profile } = useViewerProfile();
 
+    // Focus mode entity filtering (React props layer — reactively safe)
+    function isRelatedToParcel(entity: any, parcelId: string): boolean {
+        if (!entity || !parcelId) return false;
+        const attrs = ['hasAgriParcel', 'refAgriParcel', 'locatedAt', 'belongsTo', 'hasAgriFarm'];
+        for (const attr of attrs) {
+            const val = entity[attr];
+            if (!val) continue;
+            const resolved = typeof val === 'object' && val?.value ? val.value : val;
+            const targetId = typeof resolved === 'object' && resolved?.id ? resolved.id : resolved;
+            if (String(targetId) === parcelId) return true;
+        }
+        return false;
+    }
+
+    const displayParcels = isFocusMode && focusParcelId
+        ? parcels.filter(p => p.id === focusParcelId)
+        : parcels;
+    const displaySensors = isFocusMode && focusParcelId
+        ? sensors.filter(s => isRelatedToParcel(s, focusParcelId))
+        : sensors;
+    const displayMachines = isFocusMode && focusParcelId
+        ? machines.filter(m => isRelatedToParcel(m, focusParcelId))
+        : machines;
+    const displayRobots = isFocusMode && focusParcelId
+        ? robots.filter(r => isRelatedToParcel(r, focusParcelId))
+        : robots;
+    const displayLivestock = isFocusMode && focusParcelId
+        ? livestock.filter(l => isRelatedToParcel(l, focusParcelId))
+        : livestock;
+    const displayWeatherStations = isFocusMode && focusParcelId
+        ? weatherStations.filter(w => isRelatedToParcel(w, focusParcelId))
+        : weatherStations;
+    const displayCrops = isFocusMode && focusParcelId
+        ? crops.filter(c => isRelatedToParcel(c, focusParcelId))
+        : crops;
+    const displayBuildings = isFocusMode && focusParcelId
+        ? buildings.filter(b => isRelatedToParcel(b, focusParcelId))
+        : buildings;
+
+    // Collapse left panel when entering focus mode, restore when exiting
+    useEffect(() => {
+        if (isFocusMode) {
+            setLeftPanelOpen(false);
+        } else {
+            setLeftPanelOpen(true);
+        }
+    }, [isFocusMode, setLeftPanelOpen]);
+
     return (
         <ThemeProvider profile={profile}>
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-100 dark:bg-slate-950">
@@ -479,14 +532,14 @@ const UnifiedViewerInner: React.FC = () => {
                     height="h-full"
                     showControls={true}
                     renderMapLayerSlot={false}
-                    parcels={isLayerActive('parcels') ? parcels : []}
-                    robots={isLayerActive('robots') ? robots : []}
-                    sensors={isLayerActive('sensors') ? sensors : []}
-                    machines={isLayerActive('machines') ? machines : []}
-                    livestock={isLayerActive('livestock') ? livestock : []}
-                    weatherStations={isLayerActive('weather') ? weatherStations : []}
-                    crops={isLayerActive('crops') ? crops : []}
-                    buildings={isLayerActive('buildings') ? buildings : []}
+                    parcels={displayParcels}
+                    robots={displayRobots}
+                    sensors={displaySensors}
+                    machines={displayMachines}
+                    livestock={displayLivestock}
+                    weatherStations={displayWeatherStations}
+                    crops={displayCrops}
+                    buildings={displayBuildings}
                     trees={trees} // Always show trees (OliveTree, AgriTree, etc.)
                     energyTrackers={energyTrackers} // AgriEnergyTracker (solar panels)
                     enable3DTerrain={true}
@@ -501,6 +554,7 @@ const UnifiedViewerInner: React.FC = () => {
                     fieldPhotos={isLayerActive('fieldPhotos') ? windowedPhotos : []}
                     onEntitySelect={handleEntityMapSelect}
                     riskOverlay={riskOverlay}
+                    focusParcelId={isFocusMode ? focusParcelId : null}
                 />
 
                 {/* Map Layer Slot - Dynamic widgets overlaying the map (Search, Controls, etc.) */}
@@ -591,6 +645,8 @@ const UnifiedViewerInner: React.FC = () => {
                     ) : (
                         <Suspense fallback={<PanelLoadingFallback />}>
                             <div className="flex-1 min-h-0 overflow-y-auto p-2">
+                                {/* Focus toggle button — only visible for parcels */}
+                                <ParcelFocusButton className="mb-3" />
                                 <SlotRenderer
                                     slot="context-panel"
                                     className="flex flex-col gap-3"
