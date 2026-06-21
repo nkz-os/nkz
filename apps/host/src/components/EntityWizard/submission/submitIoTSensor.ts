@@ -26,6 +26,14 @@ export async function submitIoTSensor(
     name: formData.name,
   };
 
+  // Attach sensor health & calibration configuration if present
+  if (formData.healthConfig) {
+    body.health_config = formData.healthConfig;
+  }
+  if (formData.calibrationConfig) {
+    body.calibration_config = formData.calibrationConfig;
+  }
+
   if (formData.description) {
     body.description = formData.description;
   }
