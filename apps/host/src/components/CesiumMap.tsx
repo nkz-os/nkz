@@ -1773,8 +1773,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
       }
     } else {
       // Exit focus mode — restore normal scene
-      viewer.scene.backgroundColor = new Cesium.Color(0, 0, 0, 0);
-      viewer.scene.globe.baseColor = new Cesium.Color(0.1, 0.1, 0.1, 1);
+      viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0f172a');
+      viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#1f2937');
       viewer.scene.skyBox.show = true;
     }
   }, [focusParcelId, isViewerReady]);
