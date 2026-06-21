@@ -22,6 +22,13 @@ from nkz_platform_sdk.config import ModuleConfig
 from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
 from nkz_platform_sdk.activation import ModuleActivation
 from nkz_platform_sdk.ngsi_headers import inject_fiware_headers
+from nkz_platform_sdk.agronomy import (
+    AgronomicValue,
+    Source,
+    combine_confidence,
+    confidence_from_match,
+    confidence_from_fidelity,
+)
 
 __all__ = [
     "ModuleApp",
@@ -36,4 +43,9 @@ __all__ = [
     "SubscriptionRegistrar",
     "ModuleActivation",
     "inject_fiware_headers",
+    "AgronomicValue",
+    "Source",
+    "combine_confidence",
+    "confidence_from_match",
+    "confidence_from_fidelity",
 ]

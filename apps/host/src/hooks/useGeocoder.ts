@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GeocodeResult, isGeocodeResult } from '@/types/geocode';
+import { useAuth } from '@/context/KeycloakAuthContext';
 
 const API = (import.meta as any)?.env?.VITE_API_URL || 'https://nkz.robotika.cloud';
 const DEBOUNCE_MS = 300;
 
 export function useGeocoder(lang = 'es') {
+  const { getToken } = useAuth();
   const [results, setResults] = useState<GeocodeResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,8 +27,11 @@ export function useGeocoder(lang = 'es') {
     setLoading(true);
     setError(null);
     try {
+      const token = getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const url = `${API}/api/geocode?q=${encodeURIComponent(q)}&lang=${lang}&limit=5`;
-      const r = await fetch(url, { credentials: 'include', signal: ctrl.signal });
+      const r = await fetch(url, { headers, signal: ctrl.signal });
       if (!r.ok) throw new Error(`geocode ${r.status}`);
       const data: { results?: unknown[] } = await r.json();
       setResults(Array.isArray(data?.results) ? data.results.filter(isGeocodeResult) : []);
@@ -38,7 +43,7 @@ export function useGeocoder(lang = 'es') {
     } finally {
       setLoading(false);
     }
-  }, [lang]);
+  }, [lang, getToken]);
 
   const search = useCallback((q: string) => {
     if (timer.current) clearTimeout(timer.current);
