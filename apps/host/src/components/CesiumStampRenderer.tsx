@@ -169,7 +169,6 @@ export const CesiumStampRenderer: React.FC = () => {
             return;
         }
 
-        // @ts-expect-error - Cesium types
         const Cesium = window.Cesium;
         if (!Cesium) return;
 
