@@ -33,7 +33,8 @@ SERVICE_PORT = os.getenv('SERVICE_PORT', '5000')
 NOTIFICATION_URL = f'http://{SERVICE_HOST}:{SERVICE_PORT}/api/internal/notify'
 POSTGRES_URL = os.getenv('POSTGRES_URL', '')
 INTERNAL_SERVICE_SECRET = os.getenv('INTERNAL_SERVICE_SECRET', '')
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://nekazari.robotika.cloud')
+def get_frontend_url() -> str:
+    return os.getenv('FRONTEND_URL', 'https://nekazari.robotika.cloud')
 
 CLUSTER_SMTP_HOST = os.getenv('CLUSTER_SMTP_HOST', '')
 CLUSTER_SMTP_PORT = int(os.getenv('CLUSTER_SMTP_PORT', '587'))
@@ -300,7 +301,7 @@ def _build_alert_payload(entity: dict) -> dict:
     severity = payload.get('severity', 'info')
     description = payload.get('description') or payload.get('alertMessage', '')
     payload['_summary'] = f'[{severity.upper()}] {alert_name}: {description}'
-    payload['_link'] = f'{FRONTEND_URL}/alerts/{payload.get("id", "")}'
+    payload['_link'] = f'{get_frontend_url()}/alerts/{payload.get("id", "")}'
     return payload
 
 
