@@ -75,8 +75,14 @@ def get_live_parcel_ids(tenant_id: str):
         while True:
             resp = requests.get(
                 f"{ORION_URL}/ngsi-ld/v1/entities",
+                # NB: do NOT send attrs=id. Orion-LD treats `attrs` as an
+                # attribute filter, and since no AgriParcel has a property
+                # literally named "id" it returns ZERO entities -> a
+                # false-empty live set -> the backstop deletes every derived
+                # entity of every parcel (incident 2026-06-22). We only read
+                # e["id"], which is always present.
                 params={"type": "AgriParcel", "limit": PAGE_SIZE,
-                        "offset": offset, "attrs": "id"},
+                        "offset": offset},
                 headers=headers,
                 timeout=ORION_TIMEOUT_S,
             )
