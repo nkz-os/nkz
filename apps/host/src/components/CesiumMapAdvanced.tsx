@@ -360,7 +360,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
-    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -443,7 +442,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
-    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
