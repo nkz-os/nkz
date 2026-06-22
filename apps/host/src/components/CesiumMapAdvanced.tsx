@@ -100,7 +100,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
     logger.debug('[CesiumMapAdvanced] Initializing Cesium viewer');
 
     try {
-      // @ts-ignore - Cesium types
       const Cesium = window.Cesium;
 
       if (!Cesium) {
@@ -361,7 +360,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
-    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -444,7 +442,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
-    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
 

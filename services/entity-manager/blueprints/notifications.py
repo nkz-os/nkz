@@ -20,6 +20,7 @@ import smtplib
 from flask import Blueprint, jsonify, request
 from tenacity import retry, stop_after_attempt, wait_fixed
 
+from common.auth_middleware import require_auth
 from common.ngsi_headers import inject_fiware_headers
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ POSTGRES_URL = os.getenv('POSTGRES_URL', '')
 INTERNAL_SERVICE_SECRET = os.getenv('INTERNAL_SERVICE_SECRET', '')
 def get_frontend_url() -> str:
     return os.getenv('FRONTEND_URL', 'https://nekazari.robotika.cloud')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://nekazari.robotika.cloud')
 
 CLUSTER_SMTP_HOST = os.getenv('CLUSTER_SMTP_HOST', '')
 CLUSTER_SMTP_PORT = int(os.getenv('CLUSTER_SMTP_PORT', '587'))
@@ -143,6 +145,8 @@ def _ensure_tenant_subscriptions(tenant_id: str):
                 logger.error(
                     "Failed to create subscription '%s' for %s: %s",
                     desc, tenant_id, resp.text,
+                    "Failed to create subscription '%s' for %s: %.200s",
+                    desc, tenant_id, resp.text or '',
                 )
     except requests.RequestException as e:
         logger.error(
@@ -225,6 +229,14 @@ def _get_notification_config(tenant_id: str) -> Optional[dict]:
                     'email_config': row[0] or {},
                     'zulip_config': row[1] or {},
                     'webhook_config': row[2] or {},
+                def _parse_jsonb(val):
+                    if isinstance(val, str):
+                        return json.loads(val)
+                    return val or {}
+                return {
+                    'email_config': _parse_jsonb(row[0]),
+                    'zulip_config': _parse_jsonb(row[1]),
+                    'webhook_config': _parse_jsonb(row[2]),
                     'enabled': row[3] if row[3] is not None else True,
                 }
             return None
@@ -302,6 +314,7 @@ def _build_alert_payload(entity: dict) -> dict:
     description = payload.get('description') or payload.get('alertMessage', '')
     payload['_summary'] = f'[{severity.upper()}] {alert_name}: {description}'
     payload['_link'] = f'{get_frontend_url()}/alerts/{payload.get("id", "")}'
+    payload['_link'] = f'{FRONTEND_URL}/alerts/{payload.get("id", "")}'
     return payload
 
 
@@ -367,6 +380,7 @@ def _zulip_send_sync(stream: str, topic: str, content: str) -> None:
     if resp.status_code != 200:
         logger.error(
             'Zulip send failed: %s %s', resp.status_code, resp.text[:200],
+            'Zulip send failed: %s %.200s', resp.status_code, resp.text or '',
         )
     else:
         logger.info('Zulip alert sent to stream=%s topic=%s', stream, topic)
@@ -398,6 +412,7 @@ def _webhook_send_sync(url: str, headers: dict, payload: dict) -> None:
     if resp.status_code >= 400:
         logger.error(
             'Webhook %s failed: %s %s', url, resp.status_code, resp.text[:200],
+            'Webhook %s failed: %s %.200s', url, resp.status_code, resp.text or '',
         )
     else:
         logger.info('Webhook sent to %s: %s', url, resp.status_code)
@@ -417,6 +432,151 @@ async def _send_webhook_channel(webhook_config: dict, payload: dict):
     await loop.run_in_executor(
         None, lambda: _webhook_send_sync(url, headers, payload),
     )
+
+
+# ── Notification Config endpoints ────────────────────────────────────
+
+
+@notifications_bp.route('/api/notifications/config', methods=['GET'])
+@require_auth
+def get_notification_config():
+    """Get notification config for the current tenant."""
+    tenant_id = request.headers.get('X-Tenant-ID', '')
+    if not tenant_id:
+        return jsonify({'error': 'Missing X-Tenant-ID'}), 400
+
+    config = _get_notification_config(tenant_id)
+    if config is None:
+        return jsonify({
+            'email_config': {},
+            'zulip_config': {},
+            'webhook_config': {},
+            'enabled': True,
+        })
+    return jsonify(config)
+
+
+@notifications_bp.route('/api/notifications/config', methods=['PUT'])
+@require_auth
+def update_notification_config():
+    """Update notification config for the current tenant.
+
+    Body: { 'email_config': {...}, 'zulip_config': {...},
+            'webhook_config': {...}, 'enabled': bool }
+    """
+    tenant_id = request.headers.get('X-Tenant-ID', '')
+    if not tenant_id:
+        return jsonify({'error': 'Missing X-Tenant-ID'}), 400
+
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({'error': 'Invalid or empty JSON body'}), 400
+
+    if not POSTGRES_URL:
+        return jsonify({'error': 'Database not configured'}), 500
+
+    try:
+        conn = psycopg2.connect(POSTGRES_URL)
+        try:
+            cur = conn.cursor()
+
+            # Extract config fields with defaults
+            email_config = json.dumps(data.get('email_config', {}))
+            zulip_config = json.dumps(data.get('zulip_config', {}))
+            webhook_config = json.dumps(data.get('webhook_config', {}))
+            enabled = data.get('enabled', True)
+
+            cur.execute(
+                '''
+                INSERT INTO admin_platform.notification_config
+                    (tenant_id, email_config, zulip_config, webhook_config, enabled, updated_at)
+                VALUES (%s, %s::jsonb, %s::jsonb, %s::jsonb, %s, NOW())
+                ON CONFLICT (tenant_id)
+                DO UPDATE SET
+                    email_config = EXCLUDED.email_config,
+                    zulip_config = EXCLUDED.zulip_config,
+                    webhook_config = EXCLUDED.webhook_config,
+                    enabled = EXCLUDED.enabled,
+                    updated_at = NOW()
+                ''',
+                (tenant_id, email_config, zulip_config, webhook_config, enabled),
+            )
+            conn.commit()
+            cur.close()
+
+            logger.info('Notification config updated for tenant=%s', tenant_id)
+            return jsonify({'status': 'updated'})
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error('Error updating notification config for %s: %s', tenant_id, e, exc_info=True)
+        return jsonify({'error': 'Failed to update config'}), 500
+
+
+@notifications_bp.route('/api/notifications/config/test', methods=['POST'])
+@require_auth
+def test_notification_config():
+    """Send a test alert to all configured channels for the current tenant."""
+    tenant_id = request.headers.get('X-Tenant-ID', '')
+    if not tenant_id:
+        return jsonify({'error': 'Missing X-Tenant-ID'}), 400
+
+    config = _get_notification_config(tenant_id)
+    if config is None:
+        return jsonify({'error': 'No notification config found for tenant'}), 404
+    if not config.get('enabled', True):
+        return jsonify({'warning': 'Notifications are disabled for this tenant'})
+
+    # Build a test alert payload
+    test_payload = {
+        'id': f'urn:ngsi-ld:Alert:{tenant_id}:test',
+        'type': 'Alert',
+        'alert_type': 'test',
+        'severity': 'info',
+        'description': 'This is a test alert from the notification config panel',
+        'sensor_id': f'urn:ngsi-ld:AgriSensor:{tenant_id}:test-sensor',
+        'sensor_name': 'test-sensor',
+        'affected_variables': ['test'],
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'dashboard_url': f'{FRONTEND_URL}/entities?tenant={tenant_id}',
+    }
+
+    # Run channels synchronously and report results per channel
+    async def _run_test_channels():
+        results = {}
+        channels = []
+
+        ec = config.get('email_config', {})
+        if isinstance(ec, dict) and ec.get('enabled', False):
+            channels.append(('email', ec, _send_email_channel))
+        else:
+            results['email'] = 'skipped (not enabled)'
+
+        zc = config.get('zulip_config', {})
+        if isinstance(zc, dict) and zc.get('enabled', False):
+            channels.append(('zulip', zc, _send_zulip_channel))
+        else:
+            results['zulip'] = 'skipped (not enabled)'
+
+        wc = config.get('webhook_config', {})
+        if isinstance(wc, dict) and wc.get('enabled', False):
+            channels.append(('webhook', wc, _send_webhook_channel))
+        else:
+            results['webhook'] = 'skipped (not enabled)'
+
+        if channels:
+            outputs = await asyncio.gather(
+                *(func(cfg, test_payload) for _, cfg, func in channels),
+                return_exceptions=True,
+            )
+            for (name, _, _), out in zip(channels, outputs):
+                results[name] = 'sent' if not isinstance(out, Exception) else f'error: {out}'
+        return results
+
+    results = asyncio.run(_run_test_channels())
+
+    logger.info('Test notification sent for tenant=%s: %s', tenant_id, results)
+    return jsonify({'status': 'test_completed', 'results': results})
 
 
 # ── Init ─────────────────────────────────────────────────────────────
