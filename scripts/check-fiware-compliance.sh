@@ -113,7 +113,7 @@ check_exempt_insert() {
                     fi
                 fi
                 # Skip writes into admin tables (allowed)
-                if echo "$rest" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)[[:space:]]"; then
+                if echo "$rest" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)([[:space:](]|$)"; then
                     continue
                 fi
                 ctx_before=$(sed -n "$((linenum - 8)),$((linenum - 1))p" "$f" 2>/dev/null)
