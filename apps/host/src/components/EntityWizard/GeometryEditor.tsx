@@ -65,6 +65,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
 
     if (!containerRef.current || viewerRef.current || disabled) return;
 
+    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[GeometryEditor] Cesium not available');
@@ -125,7 +126,8 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   useEffect(() => {
     if (!viewerRef.current || !parentGeometry) return;
 
-    // @ts-expect-error - Cesium types
+    // @ts-ignore
+    const Cesium = window.Cesium;
     if (!Cesium) return;
 
     const viewer = viewerRef.current;
@@ -174,8 +176,9 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   useEffect(() => {
     if (!viewerRef.current || !initialGeometry || currentGeometry) return;
 
-    // @ts-expect-error - Cesium types
+    // @ts-ignore
     const Cesium = window.Cesium;
+    if (!Cesium) return;
 
     const viewer = viewerRef.current;
     if (viewer.isDestroyed()) return;
@@ -188,9 +191,10 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   const drawGeometry = (geometry: Geometry) => {
     if (!viewerRef.current) return;
 
-    // @ts-expect-error - Cesium types
+    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
+
     const viewer = viewerRef.current;
     if (viewer.isDestroyed()) return;
 
@@ -357,10 +361,11 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
 
       // Update entity color to red
       if (currentEntityRef.current && viewerRef.current) {
-        // @ts-expect-error - Cesium types
+        // @ts-ignore
         const Cesium = window.Cesium;
         if (geometry.type === 'Polygon') {
           currentEntityRef.current.polygon.material = Cesium.Color.RED.withAlpha(0.3);
+          currentEntityRef.current.polygon.outlineColor = Cesium.Color.RED;
         } else if (geometry.type === 'LineString' || geometry.type === 'MultiLineString') {
           currentEntityRef.current.polyline.material = Cesium.Color.RED;
         }
@@ -371,11 +376,12 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
 
       // Update entity color to green
       if (currentEntityRef.current && viewerRef.current) {
-        // @ts-expect-error - Cesium types
+        // @ts-ignore
         const Cesium = window.Cesium;
         if (geometry.type === 'Polygon') {
           currentEntityRef.current.polygon.material = Cesium.Color.GREEN.withAlpha(0.3);
           currentEntityRef.current.polygon.outlineColor = Cesium.Color.GREEN;
+        } else if (geometry.type === 'LineString' || geometry.type === 'MultiLineString') {
           currentEntityRef.current.polyline.material = Cesium.Color.GREEN;
         }
       }
@@ -388,12 +394,13 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
       return;
     }
 
-    // @ts-expect-error - Cesium types
+    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
     const viewer = viewerRef.current;
     if (viewer.isDestroyed()) return;
+
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     handlerRef.current = handler;
 
@@ -570,13 +577,14 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   const handleUndo = () => {
     if (!viewerRef.current || pointsRef.current.length === 0) return;
 
-    // @ts-expect-error - Cesium types
+    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
     const viewer = viewerRef.current;
     const lastPoint = pointsRef.current.pop();
     if (lastPoint) {
+      viewer.entities.remove(lastPoint);
     }
 
     // Rebuild geometry without last point
