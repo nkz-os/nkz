@@ -28,14 +28,13 @@ export function useTerrainProvider(
     const viewer = viewerRef.current;
     if (!viewer || !enable3DTerrain) {
       if (viewer && !enable3DTerrain) {
-        // @ts-ignore
         const Cesium = window.Cesium;
         if (Cesium) viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
       }
       return;
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 

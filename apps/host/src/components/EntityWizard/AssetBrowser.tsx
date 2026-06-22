@@ -165,7 +165,6 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                 >
                                     {/* 3D Preview */}
                                     <div className="flex-1 w-full bg-nkz-bg-secondary relative">
-                                        {/* @ts-ignore */}
                                         <model-viewer
                                             src={asset.url}
                                             poster="/assets/icons/default-model.png"
@@ -181,7 +180,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                             <div slot="poster" className="flex items-center justify-center w-full h-full text-nkz-muted">
                                                 <Package className="w-8 h-8 opacity-50" />
                                             </div>
-                                            {/* @ts-ignore */}
+                                            {/* @ts-expect-error - Cesium types */}
                                         </model-viewer>
 
                                         {/* Selection Checkmark */}

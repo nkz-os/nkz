@@ -100,7 +100,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
 
-    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[CesiumPolygonDrawer] Cesium not available on window');
@@ -182,7 +181,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (!viewerRef.current) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -254,7 +253,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (!viewerRef.current || !initialGeometry) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -340,7 +339,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (!viewerRef.current) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -455,7 +454,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       return;
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[CesiumPolygonDrawer] Cesium not available');
@@ -638,7 +637,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       return;
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -670,7 +669,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   };
 
   const startDrawing = () => {
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     const viewer = viewerRef.current;
     if (!Cesium || !viewer) {
@@ -814,7 +813,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -885,7 +884,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       return;
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[CesiumPolygonDrawer] Cesium not available');
@@ -913,7 +912,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       return;
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[CesiumPolygonDrawer] Cesium not available');
@@ -925,7 +924,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     logger.debug(`[CesiumPolygonDrawer] Parcel lookup: found=${!!parcel}, hasGeometry=${!!parcel?.geometry}, cadastralParcels.length=${cadastralParcels.length}`);
 
     let positions: any[] | null = null;
-    let entity: any = null;
+    let entity: any;
 
     // Strategy 1: Try to get from existing entity in map
     const entityId = `parcel-${parcelId}`;
@@ -960,6 +959,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
           const ndviColor = ndviInfo ? getNDVIColor(ndviInfo.ndviMean) : '#4ade80';
           const parcelColor = Cesium.Color.fromCssColorString(ndviColor);
           
+          /* eslint-disable no-useless-assignment */
           entity = viewer.entities.add({
             id: entityId,
             name: parcel.cadastral_reference || parcel.id,
@@ -975,6 +975,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
               _originalOutlineWidth: 2,
             },
           });
+          /* eslint-enable no-useless-assignment */
         } else {
           // Update existing entity to highlight it
           entity.polygon.material = Cesium.Color.CYAN.withAlpha(0.6);

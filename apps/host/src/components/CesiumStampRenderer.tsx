@@ -31,7 +31,6 @@ export const CesiumStampRenderer: React.FC = () => {
     useEffect(() => {
         if (!viewer || viewer.isDestroyed()) return;
 
-        // @ts-ignore
         const Cesium = window.Cesium;
         if (!Cesium) return;
 
@@ -170,7 +169,7 @@ export const CesiumStampRenderer: React.FC = () => {
             return;
         }
 
-        // @ts-ignore
+        // @ts-expect-error - Cesium types
         const Cesium = window.Cesium;
         if (!Cesium) return;
 
