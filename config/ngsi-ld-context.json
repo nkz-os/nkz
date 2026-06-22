@@ -162,6 +162,11 @@
       "@type": "@id",
       "_comment": "Alias for AgriculturalRobot — both resolve to nkz:AgriculturalRobot. Robotics module uses AgriRobot as entity type. Standardized 2026-05-08."
     },
+    "Alert": {
+      "@id": "nkz:Alert",
+      "@type": "@id",
+      "_comment": "Platform extension — sensor health alert entity. Created by sensor-health-beat when reliabilityStatus transitions to error and isSilenced==false."
+    },
 
     "AgriSoilExtended": {
       "@id": "https://nkz-os.org/sdm-proposals/AgriSoilExtended",
@@ -320,6 +325,10 @@
     "maxBounds": "https://nekazari.io/vocab/maxBounds",
     "connectivityStatus": "https://nekazari.io/vocab/connectivityStatus",
     "lastHeartbeat": "https://nekazari.io/vocab/lastHeartbeat",
+    "healthConfig": "https://nekazari.io/vocab/healthConfig",
+    "reliabilityStatus": "https://nekazari.io/vocab/reliabilityStatus",
+    "isSilenced": "https://nekazari.io/vocab/isSilenced",
+    "calibrationConfig": "https://nekazari.io/vocab/calibrationConfig",
 
     "ndviMean": "https://nekazari.io/vocab/ndviMean",
     "ndviMin": "https://nekazari.io/vocab/ndviMin",
