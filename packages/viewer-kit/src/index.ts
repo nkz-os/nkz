@@ -1,7 +1,7 @@
 // Viewer shells
 export { SlotShell, SlotShellCompact } from './viewer/SlotShell';
 export { ModuleGroup } from './viewer/ModuleGroup';
-export { SidebarShell, type SidebarState } from './viewer/SidebarShell';
+export { SidebarShell, type SidebarState, type SidebarLabels } from './viewer/SidebarShell';
 
 // Page layout
 export { PageShell } from './page/PageShell';
