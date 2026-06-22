@@ -59,6 +59,22 @@ def test_get_live_parcel_ids_query_does_not_send_attrs_id():
     assert captured["params"].get("attrs") != "id"
 
 
+def test_get_live_parcel_ids_none_when_empty_but_type_present():
+    """Defense-in-depth false-zero guard: empty result + AgriParcel type present
+    = the query is lying -> return None (skip), never an empty live set."""
+    with patch.object(pr.requests, "get", return_value=_resp(200, [])), \
+         patch.object(pr, "_tenant_has_agriparcel_type", return_value=True):
+        assert pr.get_live_parcel_ids("montiko") is None
+
+
+def test_get_live_parcel_ids_empty_when_genuinely_no_parcels():
+    """Empty result + no AgriParcel type = genuinely empty -> empty set (allows
+    legitimate teardown of a tenant whose parcels were all deleted)."""
+    with patch.object(pr.requests, "get", return_value=_resp(200, [])), \
+         patch.object(pr, "_tenant_has_agriparcel_type", return_value=False):
+        assert pr.get_live_parcel_ids("montiko") == set()
+
+
 def test_get_live_parcel_ids_returns_none_on_http_error():
     """CRITICAL false-zero guard: a non-200 must NOT look like 'zero parcels'."""
     with patch.object(pr.requests, "get", return_value=_resp(500, {})):
