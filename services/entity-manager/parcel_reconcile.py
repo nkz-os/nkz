@@ -49,6 +49,31 @@ def _orion_headers(tenant_id: str) -> dict:
     return headers
 
 
+def _tenant_has_agriparcel_type(tenant_id: str) -> bool:
+    """True if the tenant's Orion store reports an AgriParcel type.
+
+    Cross-check for the false-zero guard: if the live-parcel query returns 0
+    but this says AgriParcel IS present, the query is lying — do NOT trust the
+    empty result. Best-effort: any error returns False (the query-level guards
+    remain the primary protection).
+    """
+    try:
+        resp = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/types",
+            headers=_orion_headers(tenant_id),
+            timeout=ORION_TIMEOUT_S,
+        )
+        if resp.status_code != 200:
+            return False
+        body = resp.json()
+        type_list = body.get("typeList", body) if isinstance(body, dict) else body
+        if not isinstance(type_list, list):
+            return False
+        return any("AgriParcel" in str(t) for t in type_list)
+    except requests.RequestException:
+        return False
+
+
 def get_live_parcel_ids(tenant_id: str):
     """Set of live AgriParcel URNs for the tenant, or None on ANY query error.
 
@@ -102,6 +127,18 @@ def get_live_parcel_ids(tenant_id: str):
             if len(batch) < PAGE_SIZE:
                 break
             offset += PAGE_SIZE
+        # Defense-in-depth false-zero guard: an EMPTY result is only trusted
+        # when the tenant genuinely has no AgriParcel type. If the type IS
+        # present but the query returned nothing, the query is lying (e.g. a
+        # bad projection/context) — returning {} here would make the backstop
+        # delete every derived entity. Return None (skip) instead.
+        if not ids and _tenant_has_agriparcel_type(tenant_id):
+            logger.error(
+                "Live-parcel query for %s returned 0 but AgriParcel type IS present"
+                " — suspected false-zero, SKIP tenant (no destructive ops)",
+                tenant_id,
+            )
+            return None
         return ids
     except requests.RequestException as exc:
         logger.error("Live-parcel query for %s failed: %s — SKIP tenant", tenant_id, exc)

@@ -23,7 +23,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: sensor-health-beat
-            image: ghcr.io/nkz-os/nkz/services/sensor-health-beat:sha-COMMIT_SHA
+            image: ghcr.io/nkz-os/nkz/services/sensor-health-beat:sha-d9b047a9c67bc27e9802072193df47efa14a72a6
             imagePullPolicy: IfNotPresent
             args: ["python3", "-m", "uvicorn", "sensor_health_beat.app:app", "--host", "0.0.0.0", "--port", "8000"]
             ports:
