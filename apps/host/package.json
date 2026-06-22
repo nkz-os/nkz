@@ -19,7 +19,7 @@
   "dependencies": {
     "@kurkle/color": "^0.4.0",
     "@module-federation/runtime": "^2.5.1",
-    "@module-federation/vite": "^1.16.8",
+    "@module-federation/vite": "^1.16.9",
     "@nekazari/design-tokens": "workspace:*",
     "@nekazari/module-kit": "workspace:*",
     "@nekazari/sdk": "workspace:*",
@@ -43,7 +43,7 @@
     "@turf/line-segment": "^7.3.5",
     "@turf/meta": "^7.3.5",
     "@turf/polygon-to-line": "^7.3.5",
-    "@vercel/blob": "^2.4.0",
+    "@vercel/blob": "^2.4.1",
     "@vitejs/plugin-react": "^4.3.1",
     "axios": "^1.18.0",
     "cesium": "^1.142.0",
@@ -52,13 +52,13 @@
     "chartjs-plugin-annotation": "^3.1.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
-    "dompurify": "^3.4.10",
+    "dompurify": "^3.4.11",
     "i18next": "^23.11.0",
     "i18next-http-backend": "^4.0.0",
     "js-sha256": "^0.11.0",
     "jwt-decode": "^4.0.0",
     "keycloak-js": "^26.2.4",
-    "lucide-react": "^1.18.0",
+    "lucide-react": "^1.21.0",
     "nipplejs": "^1.0.4",
     "polyclip-ts": "^0.16.8",
     "react": "^18.3.1",
@@ -73,7 +73,7 @@
     "vite-plugin-cesium": "^1.2.23"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
+    "@playwright/test": "^1.61.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/dompurify": "^3.2.0",
@@ -84,7 +84,7 @@
     "@types/turf": "^3.5.32",
         "@vitest/coverage-v8": "^3.2.6",
     "autoprefixer": "^10.5.0",
-    "@eslint/js": "^9.39.2",
+    "@eslint/js": "^10.0.1",
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
@@ -93,7 +93,7 @@
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.4",
     "typescript": "^5.2.2",
-    "typescript-eslint": "^8.0.0",
+    "typescript-eslint": "^8.61.1",
     "vitest": "^3.2.6"
   }
 }

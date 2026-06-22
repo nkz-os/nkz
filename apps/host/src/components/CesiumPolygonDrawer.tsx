@@ -925,7 +925,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     logger.debug(`[CesiumPolygonDrawer] Parcel lookup: found=${!!parcel}, hasGeometry=${!!parcel?.geometry}, cadastralParcels.length=${cadastralParcels.length}`);
 
     let positions: any[] | null = null;
-    let entity: any = null;
+    let entity: any;
 
     // Strategy 1: Try to get from existing entity in map
     const entityId = `parcel-${parcelId}`;
@@ -960,6 +960,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
           const ndviColor = ndviInfo ? getNDVIColor(ndviInfo.ndviMean) : '#4ade80';
           const parcelColor = Cesium.Color.fromCssColorString(ndviColor);
           
+          /* eslint-disable no-useless-assignment */
           entity = viewer.entities.add({
             id: entityId,
             name: parcel.cadastral_reference || parcel.id,

@@ -94,7 +94,7 @@ export function useEntity(options: UseEntityOptions): UseEntityReturn {
       await fetchEntity();
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || err.message || 'Failed to update entity';
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: err });
     }
   }, [entityType, entityId, fetchEntity]);
 
@@ -108,7 +108,7 @@ export function useEntity(options: UseEntityOptions): UseEntityReturn {
       setEntity(null);
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || err.message || 'Failed to delete entity';
-      throw new Error(errorMessage);
+      throw new Error(errorMessage, { cause: err });
     }
   }, [entityType, entityId]);
 

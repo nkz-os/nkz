@@ -19,7 +19,7 @@ jobs:
   compliance:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: FIWARE compliance check (module Python)
         working-directory: ${{ inputs.working_dir }}
         run: |
@@ -65,7 +65,7 @@ jobs:
       # pnpm v11+ blocks build scripts by default; esbuild is required by Vite
       PNPM_ONLY_BUILT_DEPENDENCIES: esbuild
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with: { node-version: "22" }
       - uses: pnpm/action-setup@v6
