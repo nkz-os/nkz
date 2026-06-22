@@ -32,6 +32,16 @@ export interface DeviceProfile {
     mappings: MappingEntry[];
     created_at?: string;
     updated_at?: string;
+    /**
+     * Optional default health thresholds per variable.
+     * Keyed by target_attribute name. E.g.:
+     * {"temperature": {"minValid": -20, "maxValid": 60, "maxStagnantHours": 4}}
+     */
+    health_defaults?: Record<string, {
+        minValid?: number;
+        maxValid?: number;
+        maxStagnantHours?: number;
+    }>;
 }
 
 export interface CreateDeviceProfileData {
