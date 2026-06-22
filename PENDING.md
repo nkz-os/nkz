@@ -29,11 +29,14 @@ Living document. Add items here as they surface; close them with date and commit
 - **lidar_mds provider type** in terrainFactory, ElevationLayer, AdminControl, i18n ✅
 - Commit: `fb12de4`
 
-### Pending deploy
-- [ ] Build + push Docker images for cadastral-spain and lidar
-- [ ] Update ArgoCD cadastral app to point to nkz-module-cadastral-spain (was catastro-sp-module-nekazari)
-- [ ] Create ArgoCD app for eu-elevation
-- [ ] Verify PNOA LAZ URL pattern (placeholder 1°×1°, real IGN pattern TBD)
+### Deploy & final state
+- [x] Build + push Docker images for cadastral-spain and lidar
+- [x] Update ArgoCD — cadastral app pointing to catastro-sp-module-nekazari (correct repo)
+- [x] Create ArgoCD app for eu-elevation
+- [x] catastro: replicas 0→1 (un-parked)
+- [x] lidar: k8s SHA bumped for PNOA coverage + MDS + multi-strategy downloader
+- [x] PNOA LAZ URL investigation: IGN/CNIG no expone URLs directas simples. Se implementó PNOADownloader con multi-estrategia (direct URL → CNIG API → fallback con caché). La cobertura se detecta correctamente. La descarga automática es best-effort; si falla, el usuario puede subir .laz manualmente como antes.
+- [ ] **Future**: si se descubre endpoint EPT/3D Tiles del IGN o Navarra, integrar como fuente directa
 
 ---
 
