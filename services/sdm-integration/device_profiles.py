@@ -159,19 +159,21 @@ def list_profiles():
         # Convert ObjectId to string and format response
         result = []
         for p in profiles:
-            result.append(
-                {
-                    "id": str(p.get("_id")),
-                    "name": p.get("name"),
-                    "description": p.get("description"),
-                    "sdm_entity_type": p.get("sdm_entity_type"),
-                    "is_public": p.get("is_public", False),
-                    "tenant_id": p.get("tenant_id"),
-                    "mappings": p.get("mappings", []),
-                    "created_at": p.get("created_at"),
-                    "updated_at": p.get("updated_at"),
-                }
-            )
+            item = {
+                "id": str(p.get("_id")),
+                "name": p.get("name"),
+                "description": p.get("description"),
+                "sdm_entity_type": p.get("sdm_entity_type"),
+                "is_public": p.get("is_public", False),
+                "tenant_id": p.get("tenant_id"),
+                "mappings": p.get("mappings", []),
+                "created_at": p.get("created_at"),
+                "updated_at": p.get("updated_at"),
+            }
+            defaults = p.get("health_defaults")
+            if defaults:
+                item["health_defaults"] = defaults
+            result.append(item)
 
         return jsonify({"profiles": result, "count": len(result)}), 200
 
@@ -200,19 +202,21 @@ def get_profile(profile_id: str):
         if not profile.get("is_public") and profile.get("tenant_id") != tenant_id:
             return jsonify({"error": "Acceso denegado"}), 403
 
-        return jsonify(
-            {
-                "id": str(profile.get("_id")),
-                "name": profile.get("name"),
-                "description": profile.get("description"),
-                "sdm_entity_type": profile.get("sdm_entity_type"),
-                "is_public": profile.get("is_public", False),
-                "tenant_id": profile.get("tenant_id"),
-                "mappings": profile.get("mappings", []),
-                "created_at": profile.get("created_at"),
-                "updated_at": profile.get("updated_at"),
-            }
-        ), 200
+        result = {
+            "id": str(profile.get("_id")),
+            "name": profile.get("name"),
+            "description": profile.get("description"),
+            "sdm_entity_type": profile.get("sdm_entity_type"),
+            "is_public": profile.get("is_public", False),
+            "tenant_id": profile.get("tenant_id"),
+            "mappings": profile.get("mappings", []),
+            "created_at": profile.get("created_at"),
+            "updated_at": profile.get("updated_at"),
+        }
+        defaults = profile.get("health_defaults")
+        if defaults:
+            result["health_defaults"] = defaults
+        return jsonify(result), 200
 
     except Exception as e:
         logger.error(f"Error getting profile: {e}", exc_info=True)
