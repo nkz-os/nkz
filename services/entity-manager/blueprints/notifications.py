@@ -498,8 +498,8 @@ def update_notification_config():
         finally:
             conn.close()
     except Exception as e:
-        logger.error('Error updating notification config for %s: %s', tenant_id, e)
-        return jsonify({'error': 'Failed to update config', 'detail': str(e)}), 500
+        logger.error('Error updating notification config for %s: %s', tenant_id, e, exc_info=True)
+        return jsonify({'error': 'Failed to update config'}), 500
 
 
 @notifications_bp.route('/api/notifications/config/test', methods=['POST'])
