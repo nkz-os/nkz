@@ -9,6 +9,7 @@ import uuid
 import logging
 import secrets
 from datetime import datetime
+from typing import Optional
 
 from flask import Blueprint, request, jsonify, g
 from psycopg2.extras import RealDictCursor
@@ -97,6 +98,19 @@ def _patch_command_status(
             "Failed to patch DeviceCommand %s: %s", entity_id, e
         )
         return False
+
+
+_HEALTH_ATTRIBUTES = frozenset({
+    "healthConfig", "reliabilityStatus", "isSilenced", "calibrationConfig",
+})
+
+
+def _extract_health_property(entity: dict, key: str) -> Optional[dict]:
+    """Extract a health-related Property (which may contain nested objects)."""
+    prop = entity.get(key)
+    if isinstance(prop, dict) and prop.get("type") == "Property":
+        return prop
+    return None
 
 
 # =============================================================================
@@ -268,6 +282,14 @@ def register_sensor():
                     'value': data['parcel_id'],
                 }
 
+            # Health & calibration config
+            for attr in _HEALTH_ATTRIBUTES:
+                if attr in data and data[attr] is not None:
+                    orion_entity[attr] = {
+                        'type': 'Property',
+                        'value': data[attr],
+                    }
+
             orion_headers = inject_fiware_headers(
                 {'Content-Type': 'application/ld+json'}, tenant=tenant_id, has_context_in_body=True
             )
@@ -403,6 +425,11 @@ def register_sensor():
                 'message': 'Sensor registered successfully',
             }
 
+            # Include health & calibration config in response
+            for attr in _HEALTH_ATTRIBUTES:
+                if attr in data and data[attr] is not None:
+                    response_data['sensor'][attr] = data[attr]
+
             # Add Orion-LD entity info if created
             if orion_entity_created and orion_entity_id:
                 response_data['orion_entity'] = {
@@ -483,7 +510,7 @@ def list_sensor_profiles():
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("""
-                SELECT code, name, description, sdm_entity_type, sdm_category, mapping, metadata
+                SELECT code, name, description, sdm_entity_type, sdm_category, mapping, metadata, health_defaults
                 FROM sensor_profiles
                 WHERE tenant_id IS NULL OR tenant_id = %s
                 ORDER BY code
@@ -502,6 +529,10 @@ def list_sensor_profiles():
                 # Include metadata if available
                 if row.get('metadata'):
                     profile_data['metadata'] = row['metadata']
+
+                # Include health_defaults if available
+                if row.get('health_defaults'):
+                    profile_data['health_defaults'] = row['health_defaults']
 
                 # Include mapping info for frontend hints
                 if row.get('mapping'):

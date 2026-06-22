@@ -32,7 +32,7 @@ spec:
           # worker would CrashLoop with ModuleNotFoundError. After CI rebuilds the
           # entity-manager image on merge, bump this SHA (and the entity-manager one in
           # services-deployments.yaml) in lockstep BEFORE the worker is expected to run.
-          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:a58345803ccc87aaabb6a5692c01dd4bc54824d64416d7af7f3ae3649b02bca5  # main c63c50d: reconcile sweeps CropHealthZoneAssessment (#670). Lockstep with entity-manager in services-deployments.yaml
+          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:927cb780f19a0ac0563adb06434ddb7217a2db5ea873fdfa49b2a06667f2bb69  # main 5cb5b89: fix live-parcel attrs=id (#683). Lockstep with entity-manager in services-deployments.yaml
           command: ["python", "parcel_reconcile.py"]
           securityContext:
             allowPrivilegeEscalation: false

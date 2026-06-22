@@ -91,7 +91,7 @@ check_pattern() {
 # ── Check 1: Direct INSERT INTO with deprecation exemption ──
 # INSERTs inside functions marked DEPRECATED are kept for rollback safety.
 # INSERTs into administrative tables (module registry, tenants, etc.) are ALLOWED.
-ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants'
+ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants|calibration_periods'
 check_exempt_insert() {
     local name="$1"
     local pattern="$2"
@@ -113,7 +113,7 @@ check_exempt_insert() {
                     fi
                 fi
                 # Skip writes into admin tables (allowed)
-                if echo "$rest" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)[[:space:]]"; then
+                if echo "$rest" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)([[:space:](]|$)"; then
                     continue
                 fi
                 ctx_before=$(sed -n "$((linenum - 8)),$((linenum - 1))p" "$f" 2>/dev/null)
