@@ -34,8 +34,6 @@ SERVICE_PORT = os.getenv('SERVICE_PORT', '5000')
 NOTIFICATION_URL = f'http://{SERVICE_HOST}:{SERVICE_PORT}/api/internal/notify'
 POSTGRES_URL = os.getenv('POSTGRES_URL', '')
 INTERNAL_SERVICE_SECRET = os.getenv('INTERNAL_SERVICE_SECRET', '')
-def get_frontend_url() -> str:
-    return os.getenv('FRONTEND_URL', 'https://nekazari.robotika.cloud')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://nekazari.robotika.cloud')
 
 CLUSTER_SMTP_HOST = os.getenv('CLUSTER_SMTP_HOST', '')
@@ -224,15 +222,11 @@ def _get_notification_config(tenant_id: str) -> Optional[dict]:
             )
             row = cur.fetchone()
             cur.close()
+            def _parse_jsonb(val):
+                if isinstance(val, str):
+                    return json.loads(val)
+                return val or {}
             if row:
-                return {
-                    'email_config': row[0] or {},
-                    'zulip_config': row[1] or {},
-                    'webhook_config': row[2] or {},
-                def _parse_jsonb(val):
-                    if isinstance(val, str):
-                        return json.loads(val)
-                    return val or {}
                 return {
                     'email_config': _parse_jsonb(row[0]),
                     'zulip_config': _parse_jsonb(row[1]),
@@ -313,7 +307,6 @@ def _build_alert_payload(entity: dict) -> dict:
     severity = payload.get('severity', 'info')
     description = payload.get('description') or payload.get('alertMessage', '')
     payload['_summary'] = f'[{severity.upper()}] {alert_name}: {description}'
-    payload['_link'] = f'{get_frontend_url()}/alerts/{payload.get("id", "")}'
     payload['_link'] = f'{FRONTEND_URL}/alerts/{payload.get("id", "")}'
     return payload
 
@@ -379,7 +372,6 @@ def _zulip_send_sync(stream: str, topic: str, content: str) -> None:
     )
     if resp.status_code != 200:
         logger.error(
-            'Zulip send failed: %s %s', resp.status_code, resp.text[:200],
             'Zulip send failed: %s %.200s', resp.status_code, resp.text or '',
         )
     else:
@@ -411,7 +403,6 @@ def _webhook_send_sync(url: str, headers: dict, payload: dict) -> None:
     resp = requests.post(url, json=payload, headers=headers, timeout=30)
     if resp.status_code >= 400:
         logger.error(
-            'Webhook %s failed: %s %s', url, resp.status_code, resp.text[:200],
             'Webhook %s failed: %s %.200s', url, resp.status_code, resp.text or '',
         )
     else:
