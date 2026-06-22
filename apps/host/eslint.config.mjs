@@ -56,7 +56,7 @@ export default tseslint.config(
       'no-debugger': 'error',
       'prefer-const': 'warn',
       'no-var': 'error',
-      eqeqeq: ['warn', 'always'],
+      eqeqeq: ['warn', 'smart'],
     },
   },
 );

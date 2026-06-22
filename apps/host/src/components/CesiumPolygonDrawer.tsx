@@ -100,7 +100,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[CesiumPolygonDrawer] Cesium not available on window');
@@ -182,7 +182,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (!viewerRef.current) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -254,7 +254,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (!viewerRef.current || !initialGeometry) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -340,7 +340,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (!viewerRef.current) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -455,7 +455,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       return;
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[CesiumPolygonDrawer] Cesium not available');
@@ -638,7 +638,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       return;
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -670,7 +670,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   };
 
   const startDrawing = () => {
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     const viewer = viewerRef.current;
     if (!Cesium || !viewer) {
@@ -814,7 +814,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -885,7 +885,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       return;
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[CesiumPolygonDrawer] Cesium not available');
@@ -913,7 +913,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       return;
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[CesiumPolygonDrawer] Cesium not available');
