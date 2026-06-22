@@ -43,7 +43,7 @@ jobs:
             added=$(git diff origin/main...HEAD -- "$f" | grep '^+' | grep -v '^+++' || true)
             while IFS= read -r line; do
               # Skip writes to admin/metadata tables
-              if echo "$line" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)[[:space:]]"; then
+              if echo "$line" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)([[:space:](]|$)"; then
                 continue
               fi
               if echo "$line" | grep -qE 'INSERT[[:space:]]+INTO'; then
