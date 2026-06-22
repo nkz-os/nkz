@@ -17,7 +17,6 @@ export function useModelPreview(
     const viewer = viewerRef.current;
     viewer.entities.removeById('model-preview-ghost');
 
-    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
 
     const { mapMode, modelPlacement } = viewerContext;

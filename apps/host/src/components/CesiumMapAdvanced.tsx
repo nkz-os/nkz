@@ -100,7 +100,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
     logger.debug('[CesiumMapAdvanced] Initializing Cesium viewer');
 
     try {
-      // @ts-expect-error - Cesium types
       const Cesium = window.Cesium;
 
       if (!Cesium) {
@@ -362,7 +361,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
     if (!viewer || viewer.isDestroyed()) return;
 
     // @ts-expect-error - Cesium types
-    const Cesium = window.Cesium;
     if (!Cesium) return;
 
     // Remove all imagery layers
@@ -446,7 +444,6 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
 
     // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
-    if (!Cesium) return;
 
     // Clear existing entities
     entitiesRef.current.forEach((entity) => {

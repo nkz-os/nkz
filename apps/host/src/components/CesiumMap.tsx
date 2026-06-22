@@ -376,7 +376,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     logger.debug('[CesiumMap] Initializing Cesium viewer');
 
     try {
-      // @ts-expect-error - Cesium types
       const Cesium = window.Cesium;
 
       if (!Cesium) {
@@ -646,7 +645,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     if (!viewer || mode !== 'picker' || !onMapClick) return;
 
     // @ts-expect-error - Cesium types
-    const Cesium = window.Cesium;
     if (!Cesium) return;
 
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
