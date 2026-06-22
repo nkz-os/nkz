@@ -22,19 +22,20 @@ export function StepIoTSensorConfig() {
       .catch(() => setDeviceProfiles([]));
   }, [entityType]);
 
-  if (!formData || formData.macroCategory !== 'sensors') return null;
-  const data = formData as IoTSensorFormData;
+  const formDataSafe = formData as IoTSensorFormData | null;
 
-  // ── Health & Calibration helpers ──────────────────────────────────────────
-  const selectedProfile = deviceProfiles.find(p => p.id === data.deviceProfileId);
+  // ── Health & Calibration helpers (hooks before early return per React rules) ──
+  const selectedProfile = formDataSafe ? deviceProfiles.find(p => p.id === formDataSafe.deviceProfileId) : undefined;
   const profileVariables = useMemo(
     () => selectedProfile?.mappings?.map(m => m.target_attribute) ?? [],
     [selectedProfile]
   );
 
-  // Collect variable names from both the profile and already-configured keys
-  const currentHealth = (data as any).healthConfig ?? {};
-  const currentCalibration = (data as any).calibrationConfig ?? {};
+  const currentHealth = (formDataSafe as any)?.healthConfig ?? {};
+  const currentCalibration = (formDataSafe as any)?.calibrationConfig ?? {};
+
+  if (!formData || formData.macroCategory !== 'sensors') return null;
+  const data = formData as IoTSensorFormData;
   const customVarKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const k of Object.keys(currentHealth)) {
