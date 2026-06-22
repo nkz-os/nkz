@@ -36,6 +36,13 @@ if _em_dir not in sys.path:
 # Mock common modules used inside function bodies (not at import time)
 _common_mock = MagicMock()
 _common_mock.inject_fiware_headers = lambda h, t=None, **kw: h
+
+# require_auth must be a proper pass-through decorator (preserves __name__)
+def _require_auth_passthrough(f):
+    f.__wrapped__ = f
+    return f
+
+_common_mock.require_auth = _require_auth_passthrough
 sys.modules.setdefault('common', _common_mock)
 sys.modules.setdefault('common.auth_middleware', _common_mock)
 sys.modules.setdefault('common.ngsi_headers', _common_mock)
@@ -191,7 +198,7 @@ class TestBuildAlertPayload:
         assert result['category'] == 'environmental'
         # _summary built from extracted payload
         assert result['_summary'] == '[HIGH] High Temperature: Temperature exceeded 40°C in field-7'
-        assert result['_link'] == 'https://test.nkz.example.com/alerts/urn:ngsi-ld:Alert:kv-1'
+        assert result['_link'] == f'{FRONTEND_URL}/alerts/urn:ngsi-ld:Alert:kv-1'
 
     def test_build_payload_normalized(self):
         """Nested input (normalized NGSI-LD) extracts .value from Property objects."""
@@ -210,7 +217,7 @@ class TestBuildAlertPayload:
         assert result['description'] == 'Frost expected tonight in valley areas'
         assert result['observedAt'] == '2026-06-22T00:00:00Z'
         assert result['_summary'] == '[CRITICAL] Frost Risk: Frost expected tonight in valley areas'
-        assert result['_link'] == 'https://test.nkz.example.com/alerts/urn:ngsi-ld:Alert:norm-1'
+        assert result['_link'] == f'{FRONTEND_URL}/alerts/urn:ngsi-ld:Alert:norm-1'
 
     def test_build_payload_minimal(self):
         """Minimal fields (id + type only) → defaults used for summary."""
@@ -226,7 +233,7 @@ class TestBuildAlertPayload:
         assert 'severity' not in result
         # Default summary: [INFO] Alert:
         assert result['_summary'] == '[INFO] Alert: '
-        assert result['_link'] == 'https://test.nkz.example.com/alerts/urn:ngsi-ld:Alert:min-1'
+        assert result['_link'] == f'{FRONTEND_URL}/alerts/urn:ngsi-ld:Alert:min-1'
 
 
 # =============================================================================
