@@ -445,7 +445,6 @@ export const Entities: React.FC = () => {
                     terrainProvider="auto"
                     showControls={true}
                     height="h-full"
-                    // @ts-ignore - Prop will be added to CesiumMap
                     selectedEntity={selectedEntity}
                   />
                 </ErrorBoundary>

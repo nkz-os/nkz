@@ -37,6 +37,9 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "vite"
         update-types: ["version-update:semver-major"]
+      # @vitest/coverage-v8 major bumps require vitest v4+. Bump both together.
+      - dependency-name: "@vitest/coverage-v8"
+        update-types: ["version-update:semver-major"]
       # postcss: toolchain dependency for TailwindCSS+Vite (postcss.config.js).
       # Not imported in JS/TS → Dependabot static analysis incorrectly flags as
       # unused and creates removal PRs that break frozen-lockfile builds.

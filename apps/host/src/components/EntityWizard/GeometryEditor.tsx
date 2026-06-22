@@ -65,7 +65,6 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
 
     if (!containerRef.current || viewerRef.current || disabled) return;
 
-    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[GeometryEditor] Cesium not available');
@@ -126,7 +125,6 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   useEffect(() => {
     if (!viewerRef.current || !parentGeometry) return;
 
-    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -176,7 +174,6 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   useEffect(() => {
     if (!viewerRef.current || !initialGeometry || currentGeometry) return;
 
-    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -191,7 +188,6 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   const drawGeometry = (geometry: Geometry) => {
     if (!viewerRef.current) return;
 
-    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -361,7 +357,6 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
 
       // Update entity color to red
       if (currentEntityRef.current && viewerRef.current) {
-        // @ts-ignore
         const Cesium = window.Cesium;
         if (geometry.type === 'Polygon') {
           currentEntityRef.current.polygon.material = Cesium.Color.RED.withAlpha(0.3);
@@ -376,7 +371,6 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
 
       // Update entity color to green
       if (currentEntityRef.current && viewerRef.current) {
-        // @ts-ignore
         const Cesium = window.Cesium;
         if (geometry.type === 'Polygon') {
           currentEntityRef.current.polygon.material = Cesium.Color.GREEN.withAlpha(0.3);
@@ -394,7 +388,6 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
       return;
     }
 
-    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
@@ -577,7 +570,6 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   const handleUndo = () => {
     if (!viewerRef.current || pointsRef.current.length === 0) return;
 
-    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
