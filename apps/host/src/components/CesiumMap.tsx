@@ -644,7 +644,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     const viewer = viewerRef.current;
     if (!viewer || mode !== 'picker' || !onMapClick) return;
 
-    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
