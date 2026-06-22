@@ -25,7 +25,9 @@ export function StepIoTSensorConfig() {
   const formDataSafe = formData as IoTSensorFormData | null;
 
   // ── Health & Calibration helpers (hooks before early return per React rules) ──
-  const selectedProfile = formDataSafe ? deviceProfiles.find(p => p.id === formDataSafe.deviceProfileId) : undefined;
+  const selectedProfile = formDataSafe
+    ? deviceProfiles.find(p => p.id === formDataSafe.deviceProfileId)
+    : undefined;
   const profileVariables = useMemo(
     () => selectedProfile?.mappings?.map(m => m.target_attribute) ?? [],
     [selectedProfile]
@@ -34,8 +36,6 @@ export function StepIoTSensorConfig() {
   const currentHealth = (formDataSafe as any)?.healthConfig ?? {};
   const currentCalibration = (formDataSafe as any)?.calibrationConfig ?? {};
 
-  if (!formData || formData.macroCategory !== 'sensors') return null;
-  const data = formData as IoTSensorFormData;
   const customVarKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const k of Object.keys(currentHealth)) {
@@ -50,6 +50,9 @@ export function StepIoTSensorConfig() {
     () => [...new Set([...profileVariables, ...customVarKeys])],
     [profileVariables, customVarKeys]
   );
+
+  if (!formData || formData.macroCategory !== 'sensors') return null;
+  const data = formData as IoTSensorFormData;
 
   function updateHealthVar(variable: string, field: string, value: number | undefined) {
     const current = { ...((data as any).healthConfig ?? {}) };
