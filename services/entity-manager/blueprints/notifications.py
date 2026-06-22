@@ -221,10 +221,14 @@ def _get_notification_config(tenant_id: str) -> Optional[dict]:
             row = cur.fetchone()
             cur.close()
             if row:
+                def _parse_jsonb(val):
+                    if isinstance(val, str):
+                        return json.loads(val)
+                    return val or {}
                 return {
-                    'email_config': row[0] or {},
-                    'zulip_config': row[1] or {},
-                    'webhook_config': row[2] or {},
+                    'email_config': _parse_jsonb(row[0]),
+                    'zulip_config': _parse_jsonb(row[1]),
+                    'webhook_config': _parse_jsonb(row[2]),
                     'enabled': row[3] if row[3] is not None else True,
                 }
             return None
@@ -526,50 +530,39 @@ def test_notification_config():
         'dashboard_url': f'{FRONTEND_URL}/entities?tenant={tenant_id}',
     }
 
-    # Run channels synchronously (not in background) so we can report results
-    results = {}
+    # Run channels synchronously and report results per channel
+    async def _run_test_channels():
+        results = {}
+        channels = []
 
-    ec = config.get('email_config', {})
-    if isinstance(ec, dict) and ec.get('enabled', False):
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(_send_email_channel(ec, test_payload))
-            results['email'] = 'sent'
-        except Exception as e:
-            results['email'] = f'error: {e}'
-        finally:
-            loop.close()
-    else:
-        results['email'] = 'skipped (not enabled)'
+        ec = config.get('email_config', {})
+        if isinstance(ec, dict) and ec.get('enabled', False):
+            channels.append(('email', ec, _send_email_channel))
+        else:
+            results['email'] = 'skipped (not enabled)'
 
-    zc = config.get('zulip_config', {})
-    if isinstance(zc, dict) and zc.get('enabled', False):
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(_send_zulip_channel(zc, test_payload))
-            results['zulip'] = 'sent'
-        except Exception as e:
-            results['zulip'] = f'error: {e}'
-        finally:
-            loop.close()
-    else:
-        results['zulip'] = 'skipped (not enabled)'
+        zc = config.get('zulip_config', {})
+        if isinstance(zc, dict) and zc.get('enabled', False):
+            channels.append(('zulip', zc, _send_zulip_channel))
+        else:
+            results['zulip'] = 'skipped (not enabled)'
 
-    wc = config.get('webhook_config', {})
-    if isinstance(wc, dict) and wc.get('enabled', False):
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(_send_webhook_channel(wc, test_payload))
-            results['webhook'] = 'sent'
-        except Exception as e:
-            results['webhook'] = f'error: {e}'
-        finally:
-            loop.close()
-    else:
-        results['webhook'] = 'skipped (not enabled)'
+        wc = config.get('webhook_config', {})
+        if isinstance(wc, dict) and wc.get('enabled', False):
+            channels.append(('webhook', wc, _send_webhook_channel))
+        else:
+            results['webhook'] = 'skipped (not enabled)'
+
+        if channels:
+            outputs = await asyncio.gather(
+                *(func(cfg, test_payload) for _, cfg, func in channels),
+                return_exceptions=True,
+            )
+            for (name, _, _), out in zip(channels, outputs):
+                results[name] = 'sent' if not isinstance(out, Exception) else f'error: {out}'
+        return results
+
+    results = asyncio.run(_run_test_channels())
 
     logger.info('Test notification sent for tenant=%s: %s', tenant_id, results)
     return jsonify({'status': 'test_completed', 'results': results})

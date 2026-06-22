@@ -48,6 +48,22 @@ spec:
                 secretKeyRef:
                   name: postgresql-secret
                   key: url
+            - name: CLUSTER_SMTP_HOST
+              value: {{ .Values.env.clusterSmtpHost | quote }}
+            - name: CLUSTER_SMTP_PORT
+              value: {{ .Values.env.clusterSmtpPort | quote }}
+            - name: CLUSTER_SMTP_USER
+              value: {{ .Values.env.clusterSmtpUser | quote }}
+            - name: CLUSTER_SMTP_PASSWORD
+              value: {{ .Values.env.clusterSmtpPassword | quote }}
+            - name: ZULIP_URL
+              value: {{ .Values.env.zulipUrl | quote }}
+            - name: ZULIP_BOT_EMAIL
+              value: {{ .Values.env.zulipBotEmail | quote }}
+            - name: ZULIP_BOT_API_KEY
+              value: {{ .Values.env.zulipBotApiKey | quote }}
+            - name: FRONTEND_URL
+              value: {{ .Values.env.frontendUrl | quote }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:
