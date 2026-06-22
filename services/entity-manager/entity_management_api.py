@@ -238,6 +238,7 @@ from blueprints.modules import modules_bp
 from blueprints.sensors import sensors_bp
 from blueprints.calibration import calibration_bp
 from notification_handler import notify_bp
+from blueprints.notifications import init_notifications
 
 # weather_bp removed — routes now served by standalone weather-api service
 app.register_blueprint(admin_bp)
@@ -248,6 +249,13 @@ app.register_blueprint(modules_bp)
 app.register_blueprint(sensors_bp)
 app.register_blueprint(calibration_bp)
 app.register_blueprint(notify_bp)
+
+# Register the unified notifications blueprint (Alert subs + channels + config)
+try:
+    init_notifications(app)
+    logger.info('Unified notifications blueprint registered')
+except Exception as e:
+    logger.error('Failed to register notifications blueprint: %s', e)
 
 # ---------------------------------------------------------------------------
 # NGSI-LD subscription bootstrap at startup
