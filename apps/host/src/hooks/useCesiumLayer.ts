@@ -75,6 +75,7 @@ export function createCesiumLayerHook<T extends Record<string, any>>(config: {
     const { enabled = true, opacity = 0.8, ...layerParams } = params;
 
     return useMemo<CesiumLayerResult>(() => {
+      // @ts-ignore
       const Cesium = window.Cesium;
       if (!Cesium) {
         return {

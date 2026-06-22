@@ -79,6 +79,7 @@ export const CesiumAssetDrawer: React.FC<CesiumAssetDrawerProps> = ({
     setIsDrawing(true);
     setCurrentPoints([]);
 
+    // @ts-ignore
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
