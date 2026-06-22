@@ -49,7 +49,7 @@ from blueprints.notifications import (
     _get_notification_config,
     _handle_alert_notification,
     INTERNAL_SERVICE_SECRET,
-    FRONTEND_URL,
+    get_frontend_url,
 )
 
 # ── Minimal test app (notifications blueprint only) ─────────────────────────
