@@ -4,8 +4,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from telemetry_worker.calibration import CalibrationService
 from telemetry_worker.config import Settings
 from telemetry_worker.event_sink import PostgreSQLSink
+from telemetry_worker.health_checker import HealthChecker
 from telemetry_worker.notification_handler import (
     init_handler,
     router as notification_router,
@@ -40,8 +42,23 @@ async def lifespan(app: FastAPI):
     # ProfileService gets the same pool for async DB queries
     profile_service = ProfileService(settings, pool=sink._pool)
 
+    # Health checker (evaluates sensor thresholds from Orion healthConfig)
+    health_checker = HealthChecker(
+        orion_url=settings.orion_url,
+        redis_url=settings.redis_url,
+        context_url=settings.context_url,
+    )
+    await health_checker.start()
+
+    # Calibration service
+    calibration_service = CalibrationService(
+        redis_url=settings.redis_url,
+        pg_pool=sink._pool,
+    )
+    await calibration_service.start()
+
     # Wire dependencies into notification handler
-    init_handler(settings, profile_service, sink)
+    init_handler(settings, profile_service, sink, health_checker, calibration_service)
 
     # Check/create NGSI-LD subscriptions for all tenants (sync, run in executor)
     try:
@@ -68,6 +85,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown: cancel periodic task and close pool
     periodic_task.cancel()
+    await calibration_service.stop()
+    await health_checker.stop()
     await sink.stop()
     logger.info("Telemetry Worker shut down.")
 
