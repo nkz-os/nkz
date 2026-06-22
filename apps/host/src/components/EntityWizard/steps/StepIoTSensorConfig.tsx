@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Cable, Activity, Zap, HelpCircle, Settings, Plus, Trash2 } from 'lucide-react';
 import { useWizard } from '../WizardContext';
 import { listDeviceProfiles, createDeviceProfile, type DeviceProfile } from '@/services/deviceProfilesApi';
@@ -32,6 +32,45 @@ export function StepIoTSensorConfig() {
     () => selectedProfile?.mappings?.map(m => m.target_attribute) ?? [],
     [selectedProfile]
   );
+
+  // Pre-fill health config from selected profile's health_defaults
+  const prevProfileIdRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const profileId = selectedProfile?.id;
+    // Guard: only act for sensors (health config is sensor-only)
+    if (!formData || formData.macroCategory !== 'sensors') return;
+    if (!profileId || profileId === prevProfileIdRef.current) return;
+    prevProfileIdRef.current = profileId;
+
+    const defaults = (selectedProfile as any)?.health_defaults as
+      | Record<string, { minValid?: number; maxValid?: number; maxStagnantHours?: number }>
+      | undefined;
+    if (!defaults) return;
+
+    // Only pre-fill variables that are both in the profile AND have defaults
+    for (const variable of profileVariables) {
+      const varDefaults = defaults[variable];
+      if (!varDefaults) continue;
+
+      if (varDefaults.minValid !== undefined) {
+        updateHealthVar(variable, 'minValid', varDefaults.minValid);
+      }
+      if (varDefaults.maxValid !== undefined) {
+        updateHealthVar(variable, 'maxValid', varDefaults.maxValid);
+      }
+      if (varDefaults.maxStagnantHours !== undefined) {
+        updateHealthVar(variable, 'maxStagnantHours', varDefaults.maxStagnantHours);
+      }
+    }
+
+    // Pre-fill communicationTimeoutHours from the root key if present
+    const defaultsAny = defaults as any;
+    if (defaultsAny.communicationTimeoutHours !== undefined &&
+        !(currentHealth as any).communicationTimeoutHours) {
+      updateCommunicationTimeout(defaultsAny.communicationTimeoutHours);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProfile?.id]);
 
   const currentHealth = (formDataSafe as any)?.healthConfig ?? {};
   const currentCalibration = (formDataSafe as any)?.calibrationConfig ?? {};
