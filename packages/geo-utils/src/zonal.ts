@@ -11,7 +11,7 @@ export async function zonalStats(
   geometry: Polygon | MultiPolygon,
 ): Promise<ZonalStatsResult> {
   await initGeoLibre();
-  const geojson: GeoJSON.FeatureCollection = {
+  const geojson: GeoJSON.FeatureCollection<GeoJSON.GeometryObject> = {
     type: 'FeatureCollection',
     features: [{ type: 'Feature', geometry: geometry as any, properties: { id: 'zone' } }],
   };

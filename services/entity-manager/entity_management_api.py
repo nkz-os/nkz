@@ -236,6 +236,7 @@ from blueprints.entities import entities_bp
 from blueprints.sync import sync_bp
 from blueprints.modules import modules_bp
 from blueprints.sensors import sensors_bp
+from blueprints.calibration import calibration_bp
 from notification_handler import notify_bp
 
 # weather_bp removed — routes now served by standalone weather-api service
@@ -245,6 +246,7 @@ app.register_blueprint(entities_bp)
 app.register_blueprint(sync_bp)
 app.register_blueprint(modules_bp)
 app.register_blueprint(sensors_bp)
+app.register_blueprint(calibration_bp)
 app.register_blueprint(notify_bp)
 
 # ---------------------------------------------------------------------------
