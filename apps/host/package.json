@@ -19,7 +19,7 @@
   "dependencies": {
     "@kurkle/color": "^0.4.0",
     "@module-federation/runtime": "^2.5.1",
-    "@module-federation/vite": "^1.16.9",
+    "@module-federation/vite": "^1.16.10",
     "@nekazari/design-tokens": "workspace:*",
     "@nekazari/module-kit": "workspace:*",
     "@nekazari/sdk": "workspace:*",
