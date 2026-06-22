@@ -43,7 +43,7 @@ export async function interpolateHeatmap(
     await initGeoLibre();
 
     // Build GeoJSON from points
-    const geojson: GeoJSON.FeatureCollection = {
+    const geojson: GeoJSON.FeatureCollection<GeoJSON.GeometryObject> = {
       type: 'FeatureCollection',
       features: points.map((p) => ({
         type: 'Feature' as const,
