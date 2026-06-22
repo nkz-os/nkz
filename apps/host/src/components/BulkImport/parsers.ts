@@ -95,8 +95,7 @@ export function parseGeoJSON(text: string): ParseResult {
     return { ok: false, error: 'JSON inválido. Verifica el formato del fichero.' };
   }
 
-  let features: any[] = [];
-
+  let features: any[];
   if (geojson.type === 'FeatureCollection') {
     features = geojson.features ?? [];
   } else if (geojson.type === 'Feature') {
@@ -117,8 +116,8 @@ export function parseGeoJSON(text: string): ParseResult {
     const geom = f.geometry;
     if (!geom) { warnings.push(`Feature ${i + 1}: sin geometría — omitida.`); return; }
 
-    let lat: number | null = null;
-    let lng: number | null = null;
+    let lat: number | null;
+    let lng: number | null;
 
     if (geom.type === 'Point') {
       [lng, lat] = geom.coordinates;

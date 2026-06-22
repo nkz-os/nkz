@@ -68,7 +68,8 @@ export async function uploadToMinIO(
     throw new Error(
       error.response?.data?.error || 
       error.message || 
-      'Failed to upload file to MinIO'
+      'Failed to upload file to MinIO',
+      { cause: error }
     );
   }
 }
@@ -88,7 +89,8 @@ export async function deleteFromMinIO(
     throw new Error(
       error.response?.data?.error || 
       error.message || 
-      'Failed to delete file from MinIO'
+      'Failed to delete file from MinIO',
+      { cause: error }
     );
   }
 }
@@ -109,7 +111,8 @@ export async function getAssetUrl(
     throw new Error(
       error.response?.data?.error || 
       error.message || 
-      'Failed to get asset URL'
+      'Failed to get asset URL',
+      { cause: error }
     );
   }
 }
