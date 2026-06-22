@@ -65,6 +65,11 @@ export interface IoTSensorFormData extends BaseFormData {
   geometryType: 'Point'; // Sensors are always point locations
   deviceProfileId: string | null;
   additionalAttributes: Record<string, string | number>;
+
+  // Sensor health monitoring & calibration configuration
+  // (stored in form state for submission to POST /api/sensors)
+  healthConfig?: Record<string, unknown> & { communicationTimeoutHours?: number };
+  calibrationConfig?: Record<string, unknown>;
 }
 
 export interface FleetFormData extends BaseFormData {
