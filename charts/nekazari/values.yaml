@@ -203,6 +203,14 @@ entity-manager:
     redisUrl: redis://:$(REDIS_PASSWORD)@redis-service:6379
     contextUrl: http://api-gateway-service:5000/ngsi-ld-context.json
     productionDomain: nekazari.robotika.cloud
+    clusterSmtpHost: ""
+    clusterSmtpPort: "587"
+    clusterSmtpUser: ""
+    clusterSmtpPassword: ""
+    zulipUrl: ""
+    zulipBotEmail: ""
+    zulipBotApiKey: ""
+    frontendUrl: "https://nekazari.robotika.cloud"
   resources:
     requests:
       memory: 256Mi
