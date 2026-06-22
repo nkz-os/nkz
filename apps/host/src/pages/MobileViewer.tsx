@@ -65,7 +65,7 @@ export const MobileViewer: React.FC = () => {
                     }
                 },
                 // Use PNOA (Ortofoto) as default imagery for Agriculture context
-                // @ts-ignore
+                // @ts-expect-error - Cesium types
                 imageryProvider: false,
                 // Use Ellipsoid terrain by default for performance, upgrade via message if needed
                 terrainProvider: undefined,
@@ -121,9 +121,9 @@ export const MobileViewer: React.FC = () => {
                 const position = camera.positionCartographic;
 
                 // Send camera state to native app
-                // @ts-ignore
+                // @ts-expect-error - Cesium types
                 if (window.ReactNativeWebView) {
-                    // @ts-ignore
+                    // @ts-expect-error - Cesium types
                     window.ReactNativeWebView.postMessage(JSON.stringify({
                         type: 'CAMERA_UPDATE',
                         payload: {
@@ -167,9 +167,9 @@ export const MobileViewer: React.FC = () => {
             logger.info('Cesium initialized successfully');
 
             // Notify parent that we are ready
-            // @ts-ignore
+            // @ts-expect-error - Cesium types
             if (window.ReactNativeWebView) {
-                // @ts-ignore
+                // @ts-expect-error - Cesium types
                 window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'VIEWER_READY' }));
             }
         } catch (error) {

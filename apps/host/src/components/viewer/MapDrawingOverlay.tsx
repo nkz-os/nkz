@@ -84,7 +84,7 @@ export const MapDrawingOverlay: React.FC<MapDrawingOverlayProps> = ({
         }
 
 
-        // @ts-ignore
+        // @ts-expect-error - Cesium types
         const Cesium = window.Cesium;
         if (!Cesium || cesiumViewer.isDestroyed()) {
             return;

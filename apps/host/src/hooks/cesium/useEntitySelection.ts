@@ -14,7 +14,7 @@ export function useEntitySelection(
     const viewer = viewerRef.current;
     if (!viewer || mode !== 'view' || !onEntitySelect) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 
