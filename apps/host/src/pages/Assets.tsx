@@ -35,7 +35,6 @@ export const Assets: React.FC = () => {
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
 
-    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[Assets] Cesium not available');

@@ -100,7 +100,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
 
-    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[CesiumPolygonDrawer] Cesium not available on window');
@@ -183,7 +182,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     if (!viewerRef.current) return;
 
     // @ts-expect-error - Cesium types
-    const Cesium = window.Cesium;
     if (!Cesium) return;
 
     const viewer = viewerRef.current;
@@ -256,7 +254,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
 
     // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
-    if (!Cesium) return;
 
     const viewer = viewerRef.current;
     if (viewer.isDestroyed()) return;
@@ -343,7 +340,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
-
     const viewer = viewerRef.current;
 
     try {
@@ -459,7 +455,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     const Cesium = window.Cesium;
     if (!Cesium) {
       logger.warn('[CesiumPolygonDrawer] Cesium not available');
-      return;
     }
 
     const viewer = viewerRef.current;
@@ -643,7 +638,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     if (!Cesium) return;
 
     const coordinates: number[][] = cartesianPositionsRef.current.map((cartesian) => {
-      const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
       const lon = Cesium.Math.toDegrees(cartographic.longitude);
       const lat = Cesium.Math.toDegrees(cartographic.latitude);
       return [Number(lon.toFixed(6)), Number(lat.toFixed(6))];
@@ -676,7 +670,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     if (!Cesium || !viewer) {
       logger.warn('[CesiumPolygonDrawer] Cannot start drawing, Cesium or viewer not ready');
       return;
-    }
 
     clearDrawingEntities();
     setCurrentGeometry(null);
@@ -821,7 +814,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     // Clear any existing preview
     clearPreviewPolygon();
 
-    const coordinates = geometry.coordinates?.[0];
     if (!coordinates || !Array.isArray(coordinates) || coordinates.length < 3) {
       logger.warn('[CesiumPolygonDrawer] Invalid geometry for preview');
       return;
@@ -893,7 +885,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
     }
 
     logger.debug(`[CesiumPolygonDrawer] Centering on coordinates: (${longitude}, ${latitude})`);
-    
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(longitude, latitude, 500), // 500m altitude
       orientation: {
@@ -922,7 +913,6 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
 
     // Always try to find parcel in cadastralParcels first (most reliable)
     const parcel = cadastralParcels.find(p => p.id === parcelId);
-    logger.debug(`[CesiumPolygonDrawer] Parcel lookup: found=${!!parcel}, hasGeometry=${!!parcel?.geometry}, cadastralParcels.length=${cadastralParcels.length}`);
 
     let positions: any[] | null = null;
     let entity: any;

@@ -165,7 +165,6 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                 >
                                     {/* 3D Preview */}
                                     <div className="flex-1 w-full bg-nkz-bg-secondary relative">
-                                        {/* @ts-expect-error - Cesium types */}
                                         <model-viewer
                                             src={asset.url}
                                             poster="/assets/icons/default-model.png"
@@ -182,7 +181,6 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                                 <Package className="w-8 h-8 opacity-50" />
                                             </div>
                                             {/* @ts-expect-error - Cesium types */}
-                                        </model-viewer>
 
                                         {/* Selection Checkmark */}
                                         {selectedUrl === asset.url && (

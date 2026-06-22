@@ -21,7 +21,6 @@ export function use3DTiles(
     const viewer = viewerRef.current;
     if (!viewer) return;
 
-    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 

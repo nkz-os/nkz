@@ -79,7 +79,6 @@ export const CesiumAssetDrawer: React.FC<CesiumAssetDrawerProps> = ({
     setIsDrawing(true);
     setCurrentPoints([]);
 
-    // @ts-expect-error - Cesium types
     const Cesium = window.Cesium;
     if (!Cesium) return;
 

@@ -28,7 +28,6 @@ export function useTerrainProvider(
     const viewer = viewerRef.current;
     if (!viewer || !enable3DTerrain) {
       if (viewer && !enable3DTerrain) {
-        // @ts-expect-error - Cesium types
         const Cesium = window.Cesium;
         if (Cesium) viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
       }
@@ -36,7 +35,6 @@ export function useTerrainProvider(
     }
 
     // @ts-expect-error - Cesium types
-    const Cesium = window.Cesium;
     if (!Cesium) return;
 
     // If a module (elevation, lidar, etc.) has already set a real terrain provider,
