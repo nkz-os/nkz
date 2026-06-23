@@ -7,6 +7,7 @@ import os
 import json
 import logging
 import sys
+import time
 from flask import Flask, g, request, jsonify, make_response
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import cross_origin
@@ -408,6 +409,12 @@ def _validate_oidc_token(token, module_id=""):
 
 
 @app.before_request
+def record_request_start_time():
+    """Record start time for request duration logging."""
+    g.start_time = time.time()
+
+
+@app.before_request
 def enforce_pat_scopes():
     """Validate PAT tokens: check scope covers (method, path)."""
     if request.method == "OPTIONS":
@@ -640,7 +647,18 @@ def set_cors_headers(response, origin=None):
 
 @app.after_request
 def add_security_headers(response):
-    """Add security + CORS headers to all responses"""
+    """Add security + CORS headers to all responses, log request duration."""
+    # Log request duration for observability
+    if hasattr(g, 'start_time'):
+        duration = int((time.time() - g.start_time) * 1000)  # ms
+        # Only log slow requests (>500ms) + all 4xx/5xx for debugging
+        if duration > 500 or response.status_code >= 400:
+            logger.info(
+                '%s %s %s %sms',
+                request.method, request.path,
+                response.status_code, duration,
+            )
+
     set_cors_headers(response)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
