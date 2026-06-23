@@ -1091,7 +1091,10 @@ class ApiService {
     try {
       const response = await this.client.get('/ngsi-ld/v1/entities', {
         params: { type: 'AgriParcel' },
-        headers: { 'Accept': 'application/ld+json' },
+        headers: {
+          'Accept': 'application/json',
+          'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`,
+        },
       });
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
