@@ -491,15 +491,27 @@ const UnifiedViewerInner: React.FC = () => {
         : buildings;
 
     // Collapse left panel when entering focus mode, restore when exiting
-    const preFocusLeftPanelOpen = useRef(false);
+    // preFocusLeftPanelOpen tracks the pre-focus state.
+    // null = never saved (initial mount or focus was never entered).
+    // boolean = saved pre-focus state (panel was open/closed before focus).
+    const preFocusLeftPanelOpen = useRef<boolean | null>(null);
     useEffect(() => {
         if (isFocusMode) {
-            preFocusLeftPanelOpen.current = isLeftPanelOpen;
+            // Save pre-focus state ONCE when entering focus mode.
+            // isLeftPanelOpen is NOT in deps — prevents cascading re-runs
+            // from overwriting the saved value when setLeftPanelOpen(false)
+            // triggers a re-render.
+            if (preFocusLeftPanelOpen.current === null) {
+                preFocusLeftPanelOpen.current = isLeftPanelOpen;
+            }
             setLeftPanelOpen(false);
-        } else {
+        } else if (preFocusLeftPanelOpen.current !== null) {
+            // Only restore if we actually saved a pre-focus state.
+            // Prevents setLeftPanelOpen(false) on initial mount (bug fix).
             setLeftPanelOpen(preFocusLeftPanelOpen.current);
+            preFocusLeftPanelOpen.current = null;
         }
-    }, [isFocusMode, setLeftPanelOpen, isLeftPanelOpen]);
+    }, [isFocusMode, setLeftPanelOpen]);
 
     // ESC key exits focus mode
     useEffect(() => {
