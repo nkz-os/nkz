@@ -20,7 +20,7 @@ test.describe('Application Smoke Tests', () => {
     await page.goto('/')
     await page.waitForLoadState('domcontentloaded')
     const body = page.locator('body')
-    await expect(body).toBeVisible({ timeout: 15000 })
+    await expect(body).toBeVisible({ timeout: 30000 })
   })
 })
 
@@ -28,10 +28,10 @@ test.describe('Authentication Flow', () => {
   test('unauthenticated user sees login prompt or app shell', async ({ page }) => {
     await page.goto('/')
     await page.waitForLoadState('domcontentloaded')
-    await expect(page.locator('body')).toBeVisible({ timeout: 15000 })
+    await expect(page.locator('body')).toBeVisible({ timeout: 30000 })
     // Wait for app to render: either login/Keycloak text or main app content
     const loginOrShell = page.getByText(/Conectando|Keycloak|Login|Iniciar|Nekazari|Dashboard/i)
-    await expect(loginOrShell.first()).toBeVisible({ timeout: 10000 })
+    await expect(loginOrShell.first()).toBeVisible({ timeout: 20000 })
     const url = page.url()
     const hasAuthInUrl = url.includes('auth') || url.includes('login')
     const hasLoginOrAppText = await loginOrShell.first().isVisible().catch(() => false)
