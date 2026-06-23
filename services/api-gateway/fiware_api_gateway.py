@@ -2437,7 +2437,8 @@ def proxy_geocode():
         if request.args.get(k):
             params[k] = request.args.get(k)
     try:
-        r = requests.get(f"{GEOCODE_URL}/api", params=params, timeout=8)
+        r = requests.get(f"{GEOCODE_URL}/api", params=params, timeout=8,
+                       headers={"User-Agent": "Nekazari-Geocoder/1.0"})
         r.raise_for_status()
         return jsonify({"results": _normalise_photon(r.json())[:limit]}), 200
     except Exception as e:
