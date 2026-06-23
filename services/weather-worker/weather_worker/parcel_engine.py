@@ -70,7 +70,7 @@ class ParcelWeatherEngine:
     def _discover_tenants_from_db(self) -> List[str]:
         """Discover active tenants from the admin platform database.
 
-        Queries tenant_limits for all tenants that have been active.
+        Queries tenant_installed_modules for all tenants that have the weather module.
         Uses POSTGRES_URL or individual POSTGRES_* env vars.
         """
         try:
@@ -90,8 +90,10 @@ class ParcelWeatherEngine:
             try:
                 cur = conn.cursor()
                 cur.execute(
-                    "SELECT DISTINCT tenant_id FROM tenant_limits "
-                    "WHERE tenant_id IS NOT NULL AND tenant_id != '' "
+                    "SELECT DISTINCT tenant_id FROM tenant_installed_modules "
+                    "WHERE module_name = 'weather' "
+                    "AND tenant_id IS NOT NULL AND tenant_id != '' "
+                    "AND tenant_id != 'platform' "
                     "ORDER BY tenant_id"
                 )
                 tenants = [row[0] for row in cur.fetchall()]
@@ -112,7 +114,7 @@ class ParcelWeatherEngine:
 
         Priority:
         1. PARCEL_ENGINE_TENANTS env var (comma-separated)
-        2. Discover from admin platform DB (tenant_limits table)
+        2. Discover from admin platform DB (tenant_installed_modules with weather module)
         3. Fallback to ['default']
 
         Note: there is no "parse tenant from entity id" path. Uniform entity writes
