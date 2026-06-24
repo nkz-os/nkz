@@ -120,49 +120,6 @@ const getAuthToken = (): string | null => {
 };
 
 // =============================================================================
-// Tenant ID cache — avoids decoding the JWT on every single request.
-// =============================================================================
-// The tenant ID is stable for the lifetime of a token. Decoding the JWT
-// (split + atob + JSON.parse + property scan) on every request is wasteful.
-// We cache the extracted tenant ID keyed by the token string, so a new
-// token (after refresh) triggers a fresh extraction automatically.
-
-let _cachedTenantToken: string | null = null;
-let _cachedTenantId: string | null = null;
-
-function _invalidateTenantCache(): void {
-  _cachedTenantToken = null;
-  _cachedTenantId = null;
-}
-
-/**
- * Extract tenant ID from the current Bearer token, using cache when possible.
- * Returns null if no token is available or tenant cannot be extracted.
- */
-function _extractTenantId(): string | null {
-  const token = getAuthToken();
-  if (!token) return null;
-
-  // Return cached value if token hasn't changed
-  if (_cachedTenantToken === token && _cachedTenantId !== null) {
-    return _cachedTenantId;
-  }
-
-  try {
-    const decoded = JSON.parse(atob(token.split('.')[1]));
-    const tenantId = decoded['tenant-id'] || decoded.tenant_id || decoded.tenantId || decoded.tenant || '';
-    if (tenantId) {
-      _cachedTenantToken = token;
-      _cachedTenantId = tenantId;
-      return tenantId;
-    }
-  } catch {
-    logger.warn('[API] Could not extract tenant from token for X-Tenant-ID header');
-  }
-  return null;
-}
-
-// =============================================================================
 // Simple in-memory cache for API responses
 // =============================================================================
 
@@ -278,9 +235,14 @@ class ApiService {
         const token = getAuthToken();
         if (token) {
           requestConfig.headers['Authorization'] = `Bearer ${token}`;
-          const tenantId = _extractTenantId();
-          if (tenantId) {
-            requestConfig.headers['X-Tenant-ID'] = tenantId;
+          try {
+            const decoded = JSON.parse(atob(token.split('.')[1]));
+            const tenantId = decoded['tenant-id'] || decoded.tenant_id || decoded.tenantId || decoded.tenant || '';
+            if (tenantId) {
+              requestConfig.headers['X-Tenant-ID'] = tenantId;
+            }
+          } catch (e) {
+            logger.warn('[API] Could not extract tenant from token for X-Tenant-ID header');
           }
         }
 
@@ -334,8 +296,6 @@ class ApiService {
               logger.debug(`[API] 401 — refreshing token (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
               await _keycloakRef.updateToken(30);
               if (_keycloakRef.token) {
-                // Clear tenant cache — token may have changed after refresh
-                _invalidateTenantCache();
                 // Update cookie with fresh token
                 this.setSession(_keycloakRef.token).catch(() => {});
                 logger.debug('[API] Token refreshed, retrying with updated cookie...');
