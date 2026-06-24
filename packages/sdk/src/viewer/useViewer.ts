@@ -36,6 +36,7 @@ export interface ViewerContextValue {
 
   // Cesium viewer reference
   cesiumViewer: any;
+  isViewerReady: boolean;   // true when Cesium Viewer construction is complete
 
   // Entity selection handlers
   selectEntity: (id: string | null, type?: string | null) => void;
