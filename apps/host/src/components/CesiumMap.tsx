@@ -280,7 +280,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const viewerRef = useRef<any>(null);
   const initAttemptedRef = useRef(false); // prevent double-init on remount
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isViewerReady, setIsViewerReady] = useState(false);
   const [webglFailed, setWebglFailed] = useState(false);
   const [showTerrainPicker, setShowTerrainPicker] = useState(false);
   const [currentTerrainProvider, setCurrentTerrainProvider] = useState<string>(terrainProvider);
@@ -295,6 +294,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   const baseLayerRef = useRef(baseLayer); // ref to avoid stale closures in async .then() callbacks
   const viewerContext = useViewerOptional();
   const setCesiumViewer = viewerContext?.setCesiumViewer;
+  const setIsViewerReadyCtx = viewerContext?.setIsViewerReady;
+  const isViewerReady = viewerContext?.isViewerReady ?? false;
 
   // Per-category entity tracking refs — each effect manages only its own entities,
   // eliminating the full-scene rebuild (removeAll + re-add) that previously
@@ -514,10 +515,12 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         }
 
         viewerRef.current = viewer;
-        setIsViewerReady(true); // Signal that viewer is ready
         // Expose viewer to context for map-layer components (only if ViewerProvider is available)
         if (setCesiumViewer) {
           setCesiumViewer(viewer);
+        }
+        if (setIsViewerReadyCtx) {
+          setIsViewerReadyCtx(true);
         }
 
         // Set initial camera position based on available parcels
@@ -560,10 +563,12 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           logger.error('[CesiumMap] Error destroying viewer:', error);
         }
         viewerRef.current = null;
-        setIsViewerReady(false);
         // Clear viewer from context (only if ViewerProvider is available)
         if (setCesiumViewer) {
           setCesiumViewer(null);
+        }
+        if (setIsViewerReadyCtx) {
+          setIsViewerReadyCtx(false);
         }
       }
     };
