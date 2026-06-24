@@ -154,6 +154,10 @@ interface ViewerContextType extends ViewerState {
     cesiumViewer: any | null;
     setCesiumViewer: (viewer: any | null) => void;
 
+    // Viewer readiness (CesiumMap pushes, all modules read)
+    isViewerReady: boolean;
+    setIsViewerReady: (ready: boolean) => void;
+
     // ==========================================================================
     // 3D Model Placement State (PREVIEW_MODEL and STAMP_INSTANCES modes)
     // ==========================================================================
@@ -232,6 +236,9 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
 
     // Cesium viewer reference (exposed for map-layer components)
     const [cesiumViewer, setCesiumViewerState] = useState<any | null>(null);
+
+    // Viewer readiness (CesiumMap pushes true when ready, all modules read)
+    const [isViewerReady, setIsViewerReady] = useState(false);
 
     // ==========================================================================
     // URL Deep Link Support (Round-trip Navigation from Module Pages)
@@ -543,6 +550,8 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         drawingType,
         drawingCallback,
         cesiumViewer,
+        isViewerReady,
+        setIsViewerReady,
 
         // 3D Model Placement State
         modelPlacement,
@@ -643,6 +652,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         confirmStampMode,
         cancelStampMode,
         setStampModelOnly,
+        isViewerReady,
     ]);
 
     return (
