@@ -2,17 +2,32 @@
 Authentication dependency for module backends.
 
 The api-gateway validates the JWT and injects headers:
-  X-Tenant-ID, X-User-ID, X-User-Roles, X-Request-ID
+  X-Tenant-ID, X-User-ID, X-User-Roles, X-Request-ID, X-Auth-Signature
 
 This module provides require_auth() which reads those headers.
 Module backends do NOT validate JWT signatures — the gateway did that.
-Defense in depth: we still validate header presence and format.
+Defense in depth: we validate header presence, format, and optionally
+HMAC signature (X-Auth-Signature) to prevent tenant spoofing bypassing
+the gateway.
+
+Set REQUIRE_HMAC_SIGNATURE=true + HMAC_SECRET to enable HMAC verification.
+Without it, any pod in the namespace can spoof X-Tenant-ID.
 """
 
+import hashlib
+import hmac
+import os
 import re
+import time
 from dataclasses import dataclass
 from typing import Sequence
 from fastapi import Request, HTTPException, Depends
+
+# ---------------------------------------------------------------------------
+# HMAC configuration (defense-in-depth against tenant spoofing)
+# ---------------------------------------------------------------------------
+HMAC_SECRET = os.getenv("HMAC_SECRET", "")
+REQUIRE_HMAC = os.getenv("REQUIRE_HMAC_SIGNATURE", "").lower() in ("1", "true", "yes")
 
 
 @dataclass(frozen=True)
@@ -70,6 +85,56 @@ def require_auth(roles: Sequence[str] | None = None):
                 status_code=401,
                 detail=f"Invalid X-Tenant-ID format: {tenant_id}",
             )
+
+        # HMAC signature verification (defense-in-depth against tenant spoofing)
+        # Enabled when REQUIRE_HMAC_SIGNATURE=true + HMAC_SECRET is configured.
+        # Canonical format (aligned with services/common/keycloak_auth.py):
+        #   payload  = {token}|{tenant_id}|{timestamp}
+        #   output   = {HMAC-SHA256 hexdigest}:{timestamp}
+        if REQUIRE_HMAC and HMAC_SECRET:
+            hmac_header = request.headers.get("X-Auth-Signature", "")
+            if not hmac_header:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Missing X-Auth-Signature header",
+                )
+            try:
+                parts = hmac_header.split(":")
+                if len(parts) != 2:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Invalid HMAC signature format (expected sig:ts)",
+                    )
+                provided_sig, timestamp_str = parts
+                timestamp = int(timestamp_str)
+
+                # 5-minute window
+                if abs(int(time.time()) - timestamp) > 300:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="HMAC signature timestamp outside 5-minute window",
+                    )
+
+                # Recompute expected signature
+                # token is '' for internal service-to-service calls
+                token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+                payload = f"{token}|{tenant_id}|{timestamp}"
+                expected = hmac.new(
+                    HMAC_SECRET.encode("utf-8"),
+                    payload.encode("utf-8"),
+                    hashlib.sha256,
+                ).hexdigest()
+
+                if not hmac.compare_digest(provided_sig, expected):
+                    raise HTTPException(
+                        status_code=401,
+                        detail="Invalid HMAC signature",
+                    )
+            except (ValueError, IndexError) as e:
+                raise HTTPException(
+                    status_code=401,
+                    detail=f"HMAC validation error: {e}",
+                )
 
         user_roles = tuple(r.strip() for r in roles_header.split(",") if r.strip())
 
