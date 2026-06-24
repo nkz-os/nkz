@@ -44,6 +44,14 @@ updates:
       # Not imported in JS/TS → Dependabot static analysis incorrectly flags as
       # unused and creates removal PRs that break frozen-lockfile builds.
       - dependency-name: "postcss"
+      # @module-federation/vite: pinned to 1.16.8. 1.16.9 statically inlines the
+      # React loadShare proxy, creating a circular react<->design-tokens cycle
+      # (createContext at module-eval → TDZ → landing never bootstraps). Even
+      # patch bumps must be deliberate + smoke-tested. Bump manually only.
+      - dependency-name: "@module-federation/vite"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
 
 
   # Python backend services (one manifest per service)
