@@ -140,3 +140,186 @@ def test_logging_filter_does_not_break_when_enabled() -> None:
     # Just construct with logging on, ensure no exceptions
     ModuleApp(id="testmod", configure_logging=True)
     logging.getLogger("nkz.access").info("smoke")
+
+
+# ==========================================================================
+# HMAC signature verification tests
+# ==========================================================================
+
+import hashlib
+import hmac as hmac_lib
+import os as _os
+import time as _time
+
+
+def _make_hmac_signature(
+    secret: str, token: str, tenant_id: str, timestamp: int | None = None
+) -> str:
+    """Generate canonical HMAC signature matching keycloak_auth.py format."""
+    ts = timestamp if timestamp is not None else int(_time.time())
+    payload = f"{token}|{tenant_id}|{ts}"
+    sig = hmac_lib.new(secret.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{sig}:{ts}"
+
+
+def test_hmac_disabled_by_default() -> None:
+    """Without REQUIRE_HMAC_SIGNATURE, requests succeed without X-Auth-Signature."""
+    c = make_client()
+    r = c.get(
+        "/protected",
+        headers={
+            "X-Tenant-ID": "acme",
+            "X-User-ID": "u-1",
+            "X-User-Roles": "Farmer",
+        },
+    )
+    assert r.status_code == 200
+
+
+def test_hmac_rejects_missing_signature_when_required(monkeypatch) -> None:
+    monkeypatch.setenv("REQUIRE_HMAC_SIGNATURE", "true")
+    monkeypatch.setenv("HMAC_SECRET", "test-secret")
+    # Re-import to pick up env vars
+    from importlib import reload
+    import nkz_platform_sdk.auth as auth_mod
+    reload(auth_mod)
+
+    from nkz_platform_sdk import ModuleApp, AuthContext
+
+    app = ModuleApp(id="testmod-hmac", configure_logging=False)
+
+    @app.get("/hmac-protected")
+    async def hmac_protected(ctx: AuthContext = app.auth()):
+        return {"tenant": ctx.tenant_id}
+
+    c = TestClient(app)
+    r = c.get(
+        "/hmac-protected",
+        headers={"X-Tenant-ID": "acme", "X-User-ID": "u-1"},
+    )
+    assert r.status_code == 401
+    assert "X-Auth-Signature" in r.json()["detail"]
+
+
+def test_hmac_accepts_valid_signature(monkeypatch) -> None:
+    secret = "test-secret"
+    monkeypatch.setenv("REQUIRE_HMAC_SIGNATURE", "true")
+    monkeypatch.setenv("HMAC_SECRET", secret)
+
+    from importlib import reload
+    import nkz_platform_sdk.auth as auth_mod
+    reload(auth_mod)
+
+    from nkz_platform_sdk import ModuleApp, AuthContext
+
+    app = ModuleApp(id="testmod-hmac", configure_logging=False)
+
+    @app.get("/hmac-protected")
+    async def hmac_protected(ctx: AuthContext = app.auth()):
+        return {"tenant": ctx.tenant_id}
+
+    c = TestClient(app)
+    sig = _make_hmac_signature(secret, "", "acme")
+    r = c.get(
+        "/hmac-protected",
+        headers={
+            "X-Tenant-ID": "acme",
+            "X-User-ID": "u-1",
+            "X-Auth-Signature": sig,
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["tenant"] == "acme"
+
+
+def test_hmac_rejects_invalid_signature(monkeypatch) -> None:
+    secret = "test-secret"
+    monkeypatch.setenv("REQUIRE_HMAC_SIGNATURE", "true")
+    monkeypatch.setenv("HMAC_SECRET", secret)
+
+    from importlib import reload
+    import nkz_platform_sdk.auth as auth_mod
+    reload(auth_mod)
+
+    from nkz_platform_sdk import ModuleApp, AuthContext
+
+    app = ModuleApp(id="testmod-hmac", configure_logging=False)
+
+    @app.get("/hmac-protected")
+    async def hmac_protected(ctx: AuthContext = app.auth()):
+        return {"tenant": ctx.tenant_id}
+
+    c = TestClient(app)
+    # Wrong secret
+    wrong_sig = _make_hmac_signature("wrong-secret", "", "acme")
+    r = c.get(
+        "/hmac-protected",
+        headers={
+            "X-Tenant-ID": "acme",
+            "X-User-ID": "u-1",
+            "X-Auth-Signature": wrong_sig,
+        },
+    )
+    assert r.status_code == 401
+    assert "Invalid HMAC" in r.json()["detail"]
+
+
+def test_hmac_rejects_expired_timestamp(monkeypatch) -> None:
+    secret = "test-secret"
+    monkeypatch.setenv("REQUIRE_HMAC_SIGNATURE", "true")
+    monkeypatch.setenv("HMAC_SECRET", secret)
+
+    from importlib import reload
+    import nkz_platform_sdk.auth as auth_mod
+    reload(auth_mod)
+
+    from nkz_platform_sdk import ModuleApp, AuthContext
+
+    app = ModuleApp(id="testmod-hmac", configure_logging=False)
+
+    @app.get("/hmac-protected")
+    async def hmac_protected(ctx: AuthContext = app.auth()):
+        return {"tenant": ctx.tenant_id}
+
+    c = TestClient(app)
+    # 10 minutes old
+    sig = _make_hmac_signature(secret, "", "acme", timestamp=int(_time.time()) - 600)
+    r = c.get(
+        "/hmac-protected",
+        headers={
+            "X-Tenant-ID": "acme",
+            "X-User-ID": "u-1",
+            "X-Auth-Signature": sig,
+        },
+    )
+    assert r.status_code == 401
+    assert "outside" in r.json()["detail"]
+
+
+def test_hmac_rejects_malformed_signature(monkeypatch) -> None:
+    monkeypatch.setenv("REQUIRE_HMAC_SIGNATURE", "true")
+    monkeypatch.setenv("HMAC_SECRET", "test-secret")
+
+    from importlib import reload
+    import nkz_platform_sdk.auth as auth_mod
+    reload(auth_mod)
+
+    from nkz_platform_sdk import ModuleApp, AuthContext
+
+    app = ModuleApp(id="testmod-hmac", configure_logging=False)
+
+    @app.get("/hmac-protected")
+    async def hmac_protected(ctx: AuthContext = app.auth()):
+        return {"tenant": ctx.tenant_id}
+
+    c = TestClient(app)
+    r = c.get(
+        "/hmac-protected",
+        headers={
+            "X-Tenant-ID": "acme",
+            "X-User-ID": "u-1",
+            "X-Auth-Signature": "not-even-a-hmac",
+        },
+    )
+    assert r.status_code == 401
+    assert "format" in r.json()["detail"]
