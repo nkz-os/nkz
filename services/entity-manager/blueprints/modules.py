@@ -89,6 +89,7 @@ def _guess_dist_content_type(filename):
     ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
     return {
         'js': 'application/javascript',
+        'mjs': 'application/javascript',
         'json': 'application/json',
         'css': 'text/css',
         'html': 'text/html',
