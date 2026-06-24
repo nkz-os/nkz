@@ -36,8 +36,8 @@ spec:
             - name: TIMESCALE_DSN
               valueFrom:
                 secretKeyRef:
-                  name: postgres-secret
-                  key: timescale-dsn
+                  name: postgresql-secret
+                  key: postgres-url
             - name: REDIS_URL
               value: "redis://redis-service:6379/0"
             resources:
