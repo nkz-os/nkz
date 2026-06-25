@@ -608,6 +608,52 @@ def enforce_module_csp_of_data():
     return None
 
 
+@app.before_request
+def enforce_agriparcel_single_writer():
+    """Parcela SoT: block direct AgriParcel writes to Orion unless from entity-manager.
+
+    Entity-manager is the single writer for AgriParcel entities.
+    All other clients (FE, catastro, etc.) must go through
+    POST/PATCH/DELETE /api/entities/parcels.
+    """
+    if request.method in ("OPTIONS", "GET", "HEAD"):
+        return None
+
+    path = request.path
+    if not (path.startswith("/ngsi-ld/v1/entities") or path.startswith("/api/ngsi-ld/v1/entities")):
+        return None
+
+    # Allow entity-manager (identified by internal service secret)
+    internal_secret = request.headers.get("X-Internal-Service-Secret", "")
+    expected = os.getenv("INTERNAL_SERVICE_SECRET", "")
+    if expected and internal_secret == expected:
+        return None
+
+    # Check body for AgriParcel type
+    try:
+        body = request.get_json(silent=True) or {}
+    except Exception:
+        body = {}
+
+    # Direct entity body: {"type": "AgriParcel", ...}
+    if isinstance(body, dict) and body.get("type") == "AgriParcel":
+        logger.warning("AgriParcel write blocked: %s %s from %s", request.method, path, request.remote_addr)
+        return jsonify({
+            "error": "AgriParcel writes must go through entity-manager API",
+            "hint": "Use POST/PATCH/DELETE /api/entities/parcels",
+        }), 403
+
+    # URL contains AgriParcel URN: /ngsi-ld/v1/entities/urn:ngsi-ld:AgriParcel:...
+    if "AgriParcel" in path and request.method in ("PUT", "PATCH", "DELETE"):
+        logger.warning("AgriParcel write blocked: %s %s from %s", request.method, path, request.remote_addr)
+        return jsonify({
+            "error": "AgriParcel writes must go through entity-manager API",
+            "hint": "Use POST/PATCH/DELETE /api/entities/parcels",
+        }), 403
+
+    return None
+
+
 def rate_limit(tenant: str) -> bool:
     """Devuelve True si permitido, False si excede el límite."""
     if REQUESTS_PER_MINUTE <= 0:
