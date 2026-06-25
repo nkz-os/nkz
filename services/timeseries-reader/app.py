@@ -13,7 +13,7 @@ import uuid
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Tuple, Union
 from flask import Flask, request, jsonify, g, Response
 from flask_cors import CORS
@@ -975,6 +975,125 @@ def get_entity_timeseries(entity_id: str):
 
     except Exception as e:
         logger.error(f"Error querying timeseries: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Query timeseries by entity type + parcel ID (CropHealthAssessment, etc.)
+# ---------------------------------------------------------------------------
+@app.route("/api/timeseries/type/<entity_type>/parcel/<parcel_id>/data", methods=["GET"])
+@require_auth
+def get_timeseries_by_type_and_parcel(entity_type: str, parcel_id: str):
+    """Return time-series data for all entities of a given type belonging to a parcel.
+
+    Useful for endpoints that need historical assessment/computation data
+    grouped by parcel (e.g., CropHealthAssessment history, RiskAssessment
+    correlation). Replaces direct asyncpg reads banned by platform policy.
+
+    Query params:
+        - from: ISO datetime (optional, defaults to 30 days ago)
+        - to:   ISO datetime (optional, defaults to now)
+        - attrs: comma-separated attribute names (optional, all if omitted)
+        - limit: max rows (default 1000)
+
+    Returns standard timeseries format: {entity_type, parcel_id, count, data: [...]}
+    """
+    ctx = _resolve_tenant_context()
+    if isinstance(ctx, tuple):
+        return ctx
+    tenant_id = ctx
+
+    from_str = request.args.get("from")
+    to_str = request.args.get("to")
+    attrs_str = request.args.get("attrs")
+    limit = request.args.get("limit", 1000, type=int)
+
+    now = datetime.utcnow()
+    default_from = now - timedelta(days=30)
+
+    start_dt = parse_datetime(from_str) if from_str else default_from
+    end_dt = parse_datetime(to_str) if to_str else now
+
+    if not start_dt or not end_dt:
+        return jsonify({"error": "Invalid from/to date format"}), 400
+
+    attr_filter: List[str] = []
+    if attrs_str:
+        attr_filter = [a.strip() for a in attrs_str.split(",") if a.strip()]
+
+    # Build LIKE pattern: entity_id contains the parcel_id fragment
+    # Entity IDs follow pattern: urn:ngsi-ld:<Type>:<parcel>-<date>
+    parcel_like = f"%{parcel_id}%"
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "SELECT set_config('app.current_tenant', %s, true)",
+                    (tenant_id,),
+                )
+            except Exception:
+                pass
+
+            # telemetry_events stores entity payload as JSONB.
+            # Filter by entity_type + entity_id LIKE parcel for all assessments
+            # belonging to a given parcel.
+            query = """
+                SELECT
+                    entity_id,
+                    entity_type,
+                    observed_at,
+                    payload
+                FROM telemetry_events
+                WHERE tenant_id = %s
+                  AND entity_type = %s
+                  AND entity_id LIKE %s
+                  AND observed_at >= %s
+                  AND observed_at < %s
+                ORDER BY observed_at DESC
+                LIMIT %s
+            """
+            params: list = [tenant_id, entity_type, parcel_like, start_dt, end_dt, limit]
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            cursor.close()
+
+        data = []
+        for row in rows:
+            payload = row["payload"] or {}
+            measurements = payload.get("measurements", {})
+            point: dict = {
+                "entity_id": row["entity_id"],
+                "observed_at": row["observed_at"].isoformat()
+                if hasattr(row["observed_at"], "isoformat")
+                else str(row["observed_at"]),
+            }
+            if attr_filter:
+                for attr in attr_filter:
+                    if attr in measurements:
+                        point[attr] = measurements[attr]
+            else:
+                point["measurements"] = measurements
+            data.append(point)
+
+        return (
+            jsonify(
+                {
+                    "entity_type": entity_type,
+                    "parcel_id": parcel_id,
+                    "start_time": start_dt.isoformat(),
+                    "end_time": end_dt.isoformat(),
+                    "count": len(data),
+                    "data": data,
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        logger.error(f"Error querying timeseries by type/parcel: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
