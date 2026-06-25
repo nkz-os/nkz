@@ -114,23 +114,6 @@ class ParcelApiService {
         );
     }
 
-    private buildEntity(parcel: Partial<Parcel>, category: 'cadastral' | 'managementZone' = 'cadastral'): any {
-        const id = parcel.id || `urn:ngsi-ld:AgriParcel:${crypto.randomUUID()}`;
-        const entity: any = { id, type: 'AgriParcel', category: { type: 'Property', value: parcel.category || category } };
-        if (parcel.geometry) entity.location = { type: 'GeoProperty', value: { type: parcel.geometry.type || 'Polygon', coordinates: parcel.geometry.coordinates } };
-        if (parcel.name) entity.name = { type: 'Property', value: parcel.name };
-        if (parcel.municipality && parcel.municipality.trim() !== '') entity.municipality = { type: 'Property', value: parcel.municipality };
-        if (parcel.province && parcel.province.trim() !== '') entity.province = { type: 'Property', value: parcel.province };
-        if (parcel.cropType) entity.cropType = { type: 'Property', value: parcel.cropType };
-        if (parcel.cadastralReference) entity.cadastralReference = { type: 'Property', value: parcel.cadastralReference };
-        if (parcel.area !== undefined && parcel.area !== null) entity.area = { type: 'Property', value: parcel.area };
-        if (parcel.notes) entity.notes = { type: 'Property', value: parcel.notes };
-        if (parcel.generationMethod) entity.generationMethod = { type: 'Property', value: parcel.generationMethod };
-        if (parcel.refParent) entity.hasAgriParcel = { type: 'Relationship', object: parcel.refParent };
-        entity.ndviEnabled = { type: 'Property', value: parcel.ndviEnabled !== undefined ? parcel.ndviEnabled : true };
-        return entity;
-    }
-
     /**
    * Convert NGSI-LD entity to frontend Parcel (simplified format)
    */
@@ -199,9 +182,21 @@ class ParcelApiService {
      * cadastralReference, so a create may return an existing parcel's id.
      */
     async createParcel(parcel: Partial<Parcel>): Promise<Parcel> {
-        const entity = this.buildEntity(parcel, 'cadastral');
-        await this.client.post('/ngsi-ld/v1/entities', entity, { headers: { 'Content-Type': 'application/json' } });
-        return { ...(parcel as Parcel), id: entity.id, category: parcel.category || 'cadastral' };
+        const payload: Record<string, any> = {
+            geometry: parcel.geometry,
+            category: parcel.category || 'cadastral',
+        };
+        if (parcel.name) payload.name = parcel.name;
+        if (parcel.municipality) payload.municipality = parcel.municipality;
+        if (parcel.province) payload.province = parcel.province;
+        if (parcel.cropType) payload.cropType = parcel.cropType;
+        if (parcel.cadastralReference) payload.cadastralReference = parcel.cadastralReference;
+        if (parcel.area != null) payload.area = parcel.area;
+        if (parcel.notes) payload.notes = parcel.notes;
+        if (parcel.generationMethod) payload.generationMethod = parcel.generationMethod;
+
+        const resp = await this.client.post('/api/entities/parcels', payload);
+        return { ...(parcel as Parcel), id: resp.data.id, category: parcel.category || 'cadastral' };
     }
 
     /**
@@ -217,38 +212,39 @@ class ParcelApiService {
     async createZones(parentParcel: Parcel, zones: Partial<Parcel>[]): Promise<Parcel[]> {
         const created: Parcel[] = [];
         for (const zone of zones) {
-            const merged: Partial<Parcel> = {
-                ...zone,
-                cropType: zone.cropType !== undefined ? zone.cropType : (parentParcel.cropType || ''),
+            const payload: Record<string, any> = {
+                geometry: zone.geometry,
+                category: 'managementZone',
+                name: zone.name || `Zona ${Date.now()}`,
                 municipality: zone.municipality || parentParcel.municipality,
                 province: zone.province || parentParcel.province,
-                ndviEnabled: zone.ndviEnabled !== undefined ? zone.ndviEnabled : parentParcel.ndviEnabled,
-                refParent: parentParcel.id,
+                cropType: zone.cropType !== undefined ? zone.cropType : (parentParcel.cropType || ''),
                 generationMethod: zone.generationMethod || 'grid',
+                refParent: parentParcel.id,
             };
-            const entity = this.buildEntity(merged, 'managementZone');
-            await this.client.post('/ngsi-ld/v1/entities', entity, { headers: { 'Content-Type': 'application/json' } });
-            created.push({ ...(merged as Parcel), id: entity.id, category: 'managementZone', refParent: parentParcel.id });
+            const resp = await this.client.post('/api/entities/parcels', payload);
+            created.push({ ...(zone as Parcel), id: resp.data.id, category: 'managementZone', refParent: parentParcel.id });
         }
         return created;
     }
 
     /**
-     * Update an existing parcel
+     * Update an existing parcel via entity-manager.
      */
     async updateParcel(id: string, updates: Partial<Parcel>): Promise<void> {
-        const attrs: any = {};
-        const props: (keyof Parcel)[] = ['name', 'municipality', 'province', 'cropType', 'cadastralReference', 'notes', 'ndviEnabled', 'generationMethod'];
-        for (const k of props) if (updates[k] !== undefined) attrs[k] = { type: 'Property', value: updates[k] };
-        if (updates.geometry) attrs.location = { type: 'GeoProperty', value: { type: updates.geometry.type || 'Polygon', coordinates: updates.geometry.coordinates } };
-        await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, attrs, { headers: { 'Content-Type': 'application/json' } });
+        const payload: Record<string, any> = {};
+        const props: (keyof Parcel)[] = ['name', 'municipality', 'province', 'cropType', 'cadastralReference', 'notes', 'generationMethod'];
+        for (const k of props) if (updates[k] !== undefined) payload[k] = updates[k];
+        if (updates.geometry) payload.geometry = updates.geometry;
+        if (updates.ndviEnabled !== undefined) payload.ndviEnabled = updates.ndviEnabled;
+        await this.client.patch(`/api/entities/parcels/${encodeURIComponent(id)}`, payload);
     }
 
     /**
-     * Delete a parcel
+     * Delete a parcel via entity-manager (cascades to child zones).
      */
     async deleteParcel(id: string): Promise<void> {
-        await this.client.delete(`/ngsi-ld/v1/entities/${encodeURIComponent(id)}`);
+        await this.client.delete(`/api/entities/parcels/${encodeURIComponent(id)}`);
     }
 
     /**
