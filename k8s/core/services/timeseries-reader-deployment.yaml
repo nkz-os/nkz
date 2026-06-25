@@ -28,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: timeseries-reader
-          image: ghcr.io/nkz-os/nkz/timeseries-reader@sha256:60f65e618acea7ff911e2766a7ba49f667229152336e651a7e922375efc632da  # main b11d1e5: query by entity type + parcel id (#711)
+          image: ghcr.io/nkz-os/nkz/timeseries-reader@sha256:2ece6cbcfdd724091452ae0f966a1c4544c6f359d71359eb9205c8c2deef4868  # main b11d1e5: query by entity type + parcel id (#711)
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
