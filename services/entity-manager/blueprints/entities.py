@@ -907,3 +907,226 @@ def provision_robot():
     except Exception as e:
         logger.error(f"Error provisioning robot: {e}")
         return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+
+
+# =============================================================================
+# AgriParcel CRUD — Single Source of Truth (entity-manager is the ONLY writer)
+# =============================================================================
+
+_UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+
+
+def _parcel_urn(uuid_str: str) -> str:
+    return f"urn:ngsi-ld:AgriParcel:{uuid_str}"
+
+
+def _validate_geometry(geometry: dict) -> Optional[str]:
+    """Return error message if geometry is invalid, None if valid."""
+    gtype = geometry.get("type")
+    if gtype not in ("Polygon", "MultiPolygon"):
+        return f"Invalid geometry type: {gtype}. Must be Polygon or MultiPolygon."
+    coords = geometry.get("coordinates")
+    if not coords or not isinstance(coords, list):
+        return "Missing or invalid coordinates."
+    if gtype == "Polygon":
+        ring = coords[0] if coords else []
+        if len(ring) < 4:
+            return "Polygon must have at least 4 points (closed ring)."
+    return None
+
+
+def _geometry_area_approx(geometry: dict) -> float:
+    """Quick area estimate (Shoelace formula, assumes flat degrees — approximate)."""
+    gtype = geometry.get("type")
+    coords = geometry.get("coordinates", [])
+    if gtype == "Polygon" and coords:
+        ring = coords[0]
+    elif gtype == "MultiPolygon" and coords:
+        ring = coords[0][0] if coords[0] else []
+    else:
+        return 0.0
+    if len(ring) < 3:
+        return 0.0
+    area = 0.0
+    n = len(ring)
+    for i in range(n - 1):
+        x1, y1 = ring[i][0], ring[i][1]
+        x2, y2 = ring[i + 1][0], ring[i + 1][1]
+        area += x1 * y2 - x2 * y1
+    return abs(area) / 2.0
+
+
+@entities_bp.route('/entities/parcels', methods=['POST'])
+@require_auth
+def create_parcel():
+    """Create an AgriParcel. Entity-manager is the single writer.
+
+    Body (JSON):
+        - geometry: GeoJSON Polygon/MultiPolygon (required)
+        - name: str (optional)
+        - category: 'cadastral' | 'managementZone' (default 'cadastral')
+        - cadastralReference: str (optional — enables idempotent dedup)
+        - municipality, province, cropType, area, notes, generationMethod
+    """
+    tenant = g.tenant_id or g.tenant
+    data = request.json or {}
+    geometry = data.get("geometry")
+
+    if not geometry:
+        return jsonify({"error": "geometry is required"}), 400
+
+    err = _validate_geometry(geometry)
+    if err:
+        return jsonify({"error": err}), 422
+
+    # Dedup by cadastralReference
+    cadastral_ref = (data.get("cadastralReference") or "").strip()
+    if cadastral_ref:
+        headers = inject_fiware_headers({}, tenant)
+        q = f'cadastralReference=="{cadastral_ref}"'
+        existing = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/entities?type=AgriParcel&q={q}&limit=2&options=keyValues",
+            headers=headers, timeout=10,
+        )
+        if existing.status_code == 200:
+            existing_list = existing.json()
+            if isinstance(existing_list, list) and existing_list:
+                parcel_id = existing_list[0]["id"]
+                uuid_str = parcel_id.split(":")[-1]
+                # Idempotent — update instead
+                return update_parcel(uuid_str)
+
+    # Generate UUID-based ID
+    parcel_uuid = str(uuid.uuid4())
+    entity_id = _parcel_urn(parcel_uuid)
+
+    # Build NGSI-LD entity
+    entity = {
+        "id": entity_id,
+        "type": "AgriParcel",
+        "@context": [
+            "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.6.jsonld",
+            CONTEXT_URL,
+        ],
+        "location": {"type": "GeoProperty", "value": geometry},
+        "category": {"type": "Property", "value": data.get("category", "cadastral")},
+        "dateCreated": {"type": "Property", "value": datetime.utcnow().isoformat() + "Z"},
+    }
+
+    for field in ["name", "municipality", "province", "cropType", "notes", "generationMethod"]:
+        val = data.get(field)
+        if val:
+            entity[field] = {"type": "Property", "value": val}
+
+    if cadastral_ref:
+        entity["cadastralReference"] = {"type": "Property", "value": cadastral_ref}
+
+    area = data.get("area")
+    if area is None and geometry:
+        area = round(_geometry_area_approx(geometry) * 111320 * 111320 / 10000, 4)
+    if area:
+        entity["area"] = {"type": "Property", "value": area}
+
+    # Write to Orion
+    headers = inject_fiware_headers(
+        {"Content-Type": "application/json"}, tenant
+    )
+    resp = requests.post(
+        f"{ORION_URL}/ngsi-ld/v1/entities",
+        json=entity, headers=headers, timeout=10,
+    )
+    if resp.status_code not in (200, 201):
+        logger.error(f"Orion create AgriParcel failed: {resp.status_code} {resp.text}")
+        return jsonify({"error": "Failed to create parcel", "details": resp.text[:200]}), 500
+
+    logger.info(f"Created AgriParcel {entity_id} for tenant {tenant}")
+    return jsonify({"id": entity_id, "uuid": parcel_uuid}), 201
+
+
+@entities_bp.route('/entities/parcels/<parcel_id>', methods=['PATCH'])
+@require_auth
+def update_parcel(parcel_id: str):
+    """Update an AgriParcel's attributes."""
+    tenant = g.tenant_id or g.tenant
+    data = request.json or {}
+
+    # Resolve full URN if short UUID given
+    if _UUID_RE.match(parcel_id):
+        entity_id = _parcel_urn(parcel_id)
+    else:
+        entity_id = parcel_id
+
+    # Build attribute fragment
+    attrs = {}
+    for field in ["name", "municipality", "province", "cropType", "category",
+                  "cadastralReference", "area", "notes", "generationMethod"]:
+        val = data.get(field)
+        if val is not None:
+            attrs[field] = {"type": "Property", "value": val}
+
+    if data.get("geometry"):
+        err = _validate_geometry(data["geometry"])
+        if err:
+            return jsonify({"error": err}), 422
+        attrs["location"] = {"type": "GeoProperty", "value": data["geometry"]}
+
+    if not attrs:
+        return jsonify({"error": "No attributes to update"}), 400
+
+    headers = inject_fiware_headers(
+        {"Content-Type": "application/json"}, tenant
+    )
+    resp = requests.patch(
+        f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs",
+        json=attrs, headers=headers, timeout=10,
+    )
+    if resp.status_code == 404:
+        return jsonify({"error": "Parcel not found"}), 404
+    if resp.status_code >= 400:
+        return jsonify({"error": "Failed to update parcel", "details": resp.text[:200]}), 500
+
+    return jsonify({"id": entity_id}), 200
+
+
+@entities_bp.route('/entities/parcels/<parcel_id>', methods=['DELETE'])
+@require_auth
+def delete_parcel(parcel_id: str):
+    """Delete an AgriParcel and cascade to its child zones."""
+    tenant = g.tenant_id or g.tenant
+
+    if _UUID_RE.match(parcel_id):
+        entity_id = _parcel_urn(parcel_id)
+    else:
+        entity_id = parcel_id
+
+    headers = inject_fiware_headers({}, tenant)
+
+    # Delete child zones first (hasAgriParcel → this parcel)
+    q = f'hasAgriParcel=="{entity_id}"'
+    zones_resp = requests.get(
+        f"{ORION_URL}/ngsi-ld/v1/entities?type=AgriParcel&q={q}&limit=100&options=keyValues",
+        headers=headers, timeout=10,
+    )
+    if zones_resp.status_code == 200:
+        zones = zones_resp.json()
+        if isinstance(zones, list):
+            for zone in zones:
+                zone_id = zone.get("id")
+                if zone_id:
+                    requests.delete(
+                        f"{ORION_URL}/ngsi-ld/v1/entities/{zone_id}",
+                        headers=headers, timeout=10,
+                    )
+
+    # Delete the parcel
+    resp = requests.delete(
+        f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}",
+        headers=headers, timeout=10,
+    )
+    if resp.status_code == 404:
+        return jsonify({"error": "Parcel not found"}), 404
+    if resp.status_code >= 400 and resp.status_code != 404:
+        return jsonify({"error": "Failed to delete parcel", "details": resp.text[:200]}), 500
+
+    logger.info(f"Deleted AgriParcel {entity_id} for tenant {tenant}")
+    return jsonify({"id": entity_id}), 200
