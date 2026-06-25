@@ -29,7 +29,7 @@ import { normalizeAssetUrl } from '@/utils/urlNormalizer';
 import { getEntityCoordinates, getEntityGeometryType } from '@/utils/ngsiEntityCoordinates';
 import type { RiskOverlayInfo } from '@/hooks/cesium/useRiskOverlay';
 import { MapSearchLupa } from '@/components/MapSearchLupa';
-import { flyToForResult } from '@/utils/cameraFraming';
+import { EU_RECTANGLE, flyToForResult } from '@/utils/cameraFraming';
 import { applyInitialFraming } from '@/hooks/useInitialCameraFraming';
 import { parcelCentroid } from '@/types/geocode';
 import { parcelApi } from '@/services/parcelApi';
@@ -431,6 +431,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         if (viewer.scene.skyAtmosphere) viewer.scene.skyAtmosphere.show = false;
         if (viewer.scene.sun) viewer.scene.sun.show = false;
         if (viewer.scene.moon) viewer.scene.moon.show = false;
+
+        // Set initial camera to Europe (instant, before async parcel fetch)
+        viewer.camera.setView({ destination: EU_RECTANGLE });
 
         // Configure imagery provider IMMEDIATELY after creating viewer
         // Remove default imagery layer and add OSM as default (no Cesium ION)
