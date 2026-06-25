@@ -66,8 +66,8 @@ export const Assets: React.FC = () => {
     if (viewer.scene.sun) viewer.scene.sun.show = false;
     if (viewer.scene.moon) viewer.scene.moon.show = false;
 
-    // Set initial camera to EU view
-    viewer.camera.flyTo({ destination: EU_RECTANGLE, duration: 1.2 });
+    // Set initial camera to EU view (instant — no US flash)
+    viewer.camera.setView({ destination: EU_RECTANGLE });
 
     // Configure imagery
     const osmProvider = new Cesium.UrlTemplateImageryProvider({
