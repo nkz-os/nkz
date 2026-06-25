@@ -137,8 +137,8 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
         logger.warn('[CesiumMapAdvanced] Unable to adjust scene appearance', sceneError);
       }
 
-      // Set initial camera to EU view
-      viewer.camera.flyTo({ destination: EU_RECTANGLE, duration: 1.2 });
+      // Set initial camera to EU view (instant — no US flash)
+      viewer.camera.setView({ destination: EU_RECTANGLE });
 
       logger.debug('[CesiumMapAdvanced] Viewer initialized');
     } catch (error) {
