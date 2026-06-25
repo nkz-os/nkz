@@ -10,6 +10,7 @@
 import React, { Suspense, useMemo, useState, useEffect } from 'react';
 import { loadRemote } from '@module-federation/runtime';
 import { toNKZRegistration, NKZProvider } from '@nekazari/module-kit';
+import { ThemeProvider } from '@nekazari/design-tokens';
 import { useSlotRegistryOptional } from '@/context/SlotRegistry';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import type { SlotType, SlotWidgetDefinition } from '@nekazari/sdk';
@@ -124,12 +125,20 @@ const RemoteSlotWidget: React.FC<{
                 applyModuleRegistration(module.id, registration);
                 const slotWidgets = registration.viewerSlots?.[slot];
                 const match = slotWidgets?.find((w: { id: string }) => w.id === widget.id);
-                const Comp = match?.localComponent as React.ComponentType<any> | undefined;
-                if (!Comp) {
+                const rawComp = match?.localComponent;
+                if (!rawComp) {
                     throw new Error(
                         `Widget "${widget.id}" not found in slot "${slot}" of module "${module.id}"`,
                     );
                 }
+                // Lazy factories (() => import(...)) have .length === 0 (no props).
+                // React components always take at least 1 param (props). Wrap
+                // zero-arg factories with React.lazy so React suspends until
+                // the dynamic import resolves instead of rendering the Promise.
+                const isLazyFactory = typeof rawComp === 'function' && rawComp.length === 0;
+                const Comp: React.ComponentType<any> = isLazyFactory
+                    ? React.lazy(rawComp as unknown as () => Promise<{ default: React.ComponentType<any> }>)
+                    : (rawComp as React.ComponentType<any>);
                 if (!cancelled) setComponent(() => Comp);
             })
             .catch((err) => {
@@ -158,7 +167,9 @@ const RemoteSlotWidget: React.FC<{
             onError={(e, info) => logger.error(`[SlotRenderer] Remote widget ${widget.id} failed:`, e, info)}
         >
             <Suspense fallback={<WidgetLoadingFallback />}>
-                <Component {...widgetProps} />
+                <ThemeProvider profile="viewer">
+                    <Component {...widgetProps} />
+                </ThemeProvider>
             </Suspense>
         </ModuleErrorBoundary>
     );
