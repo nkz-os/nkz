@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: agrienergy-daily-aggregation
+  namespace: nekazari
+  labels:
+    app: agrienergy-daily-aggregation
+    module: agrienergy
+spec:
+  schedule: "5 0 * * *"   # 00:05 UTC — previous UTC day complete
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: daily-aggregation
+              image: ghcr.io/nkz-os/nkz-module-agrienergy/agrienergy-backend@sha256:b34e0b336280699b405b0004da1f83be8e6830ba8bfcc7e452af1a7d855ac81a
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "-m", "app.daily_aggregation"]
+              env:
+                - name: CONTEXT_BROKER_URL
+                  value: "http://orion-ld-service:1026/ngsi-ld/v1"
+                - name: CONTEXT_URL
+                  value: "http://api-gateway-service:5000/ngsi-ld-context.json"
+                - name: TIMESERIES_READER_URL
+                  value: "http://timeseries-reader-service:5000"
+                - name: AGRIENERGY_N8N_WEBHOOK_URL
+                  value: "http://n8n-webhook-service:5678/webhook/agrienergy-aggregation"
+                - name: HMAC_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: jwt-secret
+                      key: secret
+                - name: WORKER_BEARER_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: agrienergy-worker-token
+                      key: token
+                      optional: true
+                - name: POSTGRES_HOST
+                  value: "postgresql-service"
+                - name: POSTGRES_PORT
+                  value: "5432"
+                - name: POSTGRES_DB
+                  value: "nekazari"
+                - name: POSTGRES_USER
+                  value: "postgres"
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgresql-secret
+                      key: password
