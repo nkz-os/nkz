@@ -4514,6 +4514,9 @@ def routing_proxy(path):
 )
 def soil_proxy(path):
     """Proxy soil module requests — /api/soil/* → /v1/soil/*"""
+    # Normalize: some frontend calls include v1/soil/ prefix, others don't
+    if path.startswith("v1/soil/"):
+        path = path[len("v1/soil/"):]
     return generic_proxy(SOIL_API_URL, f"v1/soil/{path}")
 
 
