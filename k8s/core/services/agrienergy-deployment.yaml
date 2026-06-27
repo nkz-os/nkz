@@ -41,7 +41,7 @@ spec:
         - name: backend
           # Pinned by digest: :main + pullPolicy Always means any pod restart can
           # silently deploy whatever the module repo's main last built.
-          image: ghcr.io/nkz-os/nkz-module-agrienergy/agrienergy-backend@sha256:d768b43669cc63fe9cb76ce5179eb3dab81fac0427eb558b18acdc1275970537
+          image: ghcr.io/nkz-os/nkz-module-agrienergy/agrienergy-backend@sha256:95873635abcd4c04e7271876fb784490a87e61df5459f120c1971d272e6826b6
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
