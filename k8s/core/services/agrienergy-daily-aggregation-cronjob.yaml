@@ -18,7 +18,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: daily-aggregation
-              image: ghcr.io/nkz-os/nkz-module-agrienergy/agrienergy-backend@sha256:b34e0b336280699b405b0004da1f83be8e6830ba8bfcc7e452af1a7d855ac81a
+              image: ghcr.io/nkz-os/nkz-module-agrienergy/agrienergy-backend@sha256:d768b43669cc63fe9cb76ce5179eb3dab81fac0427eb558b18acdc1275970537
               imagePullPolicy: IfNotPresent
               command: ["python3", "-m", "app.daily_aggregation"]
               env:
@@ -30,11 +30,20 @@ spec:
                   value: "http://timeseries-reader-service:5000"
                 - name: AGRIENERGY_N8N_WEBHOOK_URL
                   value: "http://n8n-webhook-service:5678/webhook/agrienergy-aggregation"
-                - name: HMAC_SECRET
+                - name: KEYCLOAK_URL
+                  value: "http://keycloak-service:8080/auth"
+                - name: KEYCLOAK_REALM
+                  value: "nekazari"
+                - name: WORKER_KEYCLOAK_CLIENT_ID
                   valueFrom:
                     secretKeyRef:
-                      name: jwt-secret
-                      key: secret
+                      name: api-gateway-keycloak-secret
+                      key: client-id
+                - name: WORKER_KEYCLOAK_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: api-gateway-keycloak-secret
+                      key: client-secret
                 - name: WORKER_BEARER_TOKEN
                   valueFrom:
                     secretKeyRef:
