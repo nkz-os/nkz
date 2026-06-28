@@ -855,6 +855,9 @@ def internal_cache_invalidate():
 @app.route(
     "/ngsi-ld/v1/entities/<path:entity_id>", methods=["GET", "PUT", "PATCH", "DELETE"]
 )
+@app.route(
+    "/api/ngsi-ld/v1/entities/<path:entity_id>", methods=["GET", "PUT", "PATCH", "DELETE"]
+)
 def entity_by_id(entity_id):
     """Proxy to Orion-LD Context Broker for individual entity operations"""
     token = get_request_token()
@@ -931,6 +934,7 @@ def entity_by_id(entity_id):
 
 
 @app.route("/ngsi-ld/v1/entities", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+@app.route("/api/ngsi-ld/v1/entities", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 def entities():
     """Proxy to Orion-LD Context Broker entities endpoint"""
     token = get_request_token()
