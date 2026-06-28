@@ -2496,6 +2496,54 @@ def proxy_geocode():
         return jsonify({"error": "geocode_unavailable"}), 502
 
 
+@app.route("/api/entities/parcels", methods=["POST", "OPTIONS"])
+@app.route("/api/entities/parcels/<parcel_id>", methods=["PATCH", "DELETE", "OPTIONS"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def proxy_parcel_crud(parcel_id=None):
+    """Proxy parcel CRUD to entity-manager (single writer for AgriParcel).
+
+    Entity-manager serves at /entities/parcels (no /api prefix in its blueprint).
+    The gateway path (/api/entities/parcels) strips /api and forwards.
+    """
+    if request.method == "OPTIONS":
+        return "", 204
+
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+    if not rate_limit(tenant):
+        return jsonify({"error": "Rate limit exceeded"}), 429
+
+    suffix = f"/{parcel_id}" if parcel_id else ""
+    target_url = f"{ENTITY_MANAGER_URL}/entities/parcels{suffix}"
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
+    content_type = request.headers.get("Content-Type")
+    if content_type:
+        headers["Content-Type"] = content_type
+    if KEYCLOAK_AUTH_AVAILABLE:
+        try:
+            signature = generate_hmac_signature(token, tenant)
+            if signature:
+                headers["X-Auth-Signature"] = signature
+        except Exception as e:
+            logger.warning(f"Failed to generate HMAC signature for parcel-crud: {e}")
+    try:
+        response = requests.request(
+            request.method, target_url, headers=headers,
+            params=request.args, data=request.get_data(), timeout=30,
+        )
+        return (response.content, response.status_code, response.headers.items())
+    except Exception as e:
+        logger.error(f"Error proxying parcel-crud request: {e}")
+        return jsonify({"error": "Internal service connection error"}), 502
+
+
 @app.route("/api/entities/parcels/<path:subpath>", methods=["GET", "POST", "OPTIONS"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 def proxy_parcel_modules(subpath):
