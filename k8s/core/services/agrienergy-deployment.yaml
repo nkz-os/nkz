@@ -22,7 +22,7 @@ spec:
   selector:
     matchLabels:
       app: agrienergy-backend
-    template:
+  template:
     metadata:
       labels:
         app: agrienergy-backend
