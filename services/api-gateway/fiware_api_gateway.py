@@ -4240,6 +4240,9 @@ def generic_proxy(target_url, path):
         "X-User-Roles": ",".join(all_roles),
         "Authorization": f"Bearer {token}",
     }
+    signature = generate_hmac_signature(token, tenant)
+    if signature:
+        headers["X-Auth-Signature"] = signature
     if request.headers.get("Content-Type"):
         headers["Content-Type"] = request.headers.get("Content-Type")
     # Forward per-user DAD-IS credentials (FAO prohibits commercial use —
