@@ -2549,9 +2549,8 @@ def proxy_parcel_crud(parcel_id=None):
 def proxy_parcel_modules(subpath):
     """Proxy the parcel-module CONTROL plane to entity-manager (activation/list).
 
-    Entity CRUD does NOT go here — AgriParcel is written via /ngsi-ld like every
-    entity. Only `/modules...` subpaths are valid here; anything else is rejected so
-    this route never shadows entity writes.
+    Parcel CRUD goes through proxy_parcel_crud above; this handler is for
+    /api/entities/parcels/<id>/modules/... subpaths only.
     """
     if request.method == "OPTIONS":
         return "", 204
