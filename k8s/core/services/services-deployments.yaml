@@ -42,7 +42,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: api-gateway
-          image: ghcr.io/nkz-os/nkz/api-gateway@sha256:05cb57a911a2dc6323e3895d3872410d60ffafdf61487641ad78f7ddf843b128  # main adb31c9: Fix HMAC signature in api-gateway generic proxy
+          image: ghcr.io/nkz-os/nkz/api-gateway@sha256:7d8cbe9f91fb08f10defae8dcb16cd834b192ac14dcc88a9a102eec2f43c0316  # main 2be64c3: Add /api/ngsi-ld entity routes
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
