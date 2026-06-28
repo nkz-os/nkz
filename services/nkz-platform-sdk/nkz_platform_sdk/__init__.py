@@ -22,6 +22,7 @@ from nkz_platform_sdk.config import ModuleConfig
 from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
 from nkz_platform_sdk.activation import ModuleActivation
 from nkz_platform_sdk.ngsi_headers import inject_fiware_headers
+from nkz_platform_sdk.constants import SensorFidelity
 from nkz_platform_sdk.agronomy import (
     AgronomicValue,
     Source,
@@ -48,4 +49,5 @@ __all__ = [
     "combine_confidence",
     "confidence_from_match",
     "confidence_from_fidelity",
+    "SensorFidelity",
 ]
