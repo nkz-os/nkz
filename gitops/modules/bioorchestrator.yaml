@@ -8,11 +8,11 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/nkz-os/gitops-config
+    repoURL: https://github.com/nkz-os/nekazari-module-bioorchestrator
     targetRevision: HEAD
-    path: overlays/modules/bioorchestrator
+    path: k8s
     directory:
-      exclude: '{bioorchestrator-sealed-secret.yaml,bioorchestrator-ingress.yaml}'
+      exclude: '{secret.yaml,ingress.yaml,registration.sql}'
   destination:
     server: https://kubernetes.default.svc
     namespace: nekazari
