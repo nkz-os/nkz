@@ -193,6 +193,55 @@ COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", ".robotika.cloud")
 _cors_env = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
 ALLOWED_ORIGINS = {o.strip() for o in _cors_env.split(",") if o.strip()}
 
+
+# =========================================================================
+# Module Auto-Proxy Registry — SOTA dynamic routing via marketplace_modules
+# =========================================================================
+
+_route_cache: dict[str, dict] = {}
+_route_cache_ts: float = 0.0
+_ROUTE_CACHE_TTL = 300
+
+
+def _refresh_route_registry() -> dict[str, dict]:
+    """Load active module routes from marketplace_modules.metadata JSONB."""
+    global _route_cache, _route_cache_ts
+    now = time.time()
+    if _route_cache and (now - _route_cache_ts) < _ROUTE_CACHE_TTL:
+        return _route_cache
+    routes: dict[str, dict] = {}
+    try:
+        conn = psycopg2.connect(POSTGRES_URL, connect_timeout=3)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT id, metadata FROM marketplace_modules WHERE is_active = true"
+        )
+        for row in cur.fetchall():
+            meta = row.get("metadata") or {}
+            if isinstance(meta, str):
+                meta = json.loads(meta)
+            prefix = meta.get("api_prefix", "")
+            backend = meta.get("backend_service", "")
+            if prefix and backend:
+                routes[prefix] = {
+                    "backend_service": backend,
+                    "module_id": row["id"],
+                    "requires_auth": meta.get("requires_auth", True),
+                }
+        cur.close()
+        conn.close()
+    except Exception as exc:
+        logger.warning("Route registry refresh failed: %s", exc)
+    _route_cache = routes
+    _route_cache_ts = now
+    return routes
+
+
+def _invalidate_route_registry():
+    global _route_cache_ts
+    _route_cache_ts = 0.0
+
+
 # Set logging level
 logging.getLogger().setLevel(getattr(logging, LOG_LEVEL))
 
@@ -849,6 +898,9 @@ def internal_cache_invalidate():
     if key.startswith("suspended:"):
         tenant_id = key.split(":", 1)[1]
         _suspended_tenant_cache.pop(tenant_id, None)
+    if key == "routes" or key == "modules":
+        _invalidate_route_registry()
+        logger.info("Route registry cache invalidated")
     return jsonify({"ok": True}), 200
 
 
@@ -5138,6 +5190,84 @@ def internal_module_ci(module_id, action):
     except requests.exceptions.RequestException as e:
         logger.error(f"internal CI proxy error for {module_id}/{action}: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+# ── Auto-Proxy catch-all for dynamic module routing ────────────────────
+# Must be LAST so explicit routes take precedence.  Resolves /api/<prefix>/*
+# from marketplace_modules.metadata and proxies with HMAC + auth.
+
+@app.route("/api/<path:subpath>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+def auto_proxy_module(subpath):
+    """Auto-proxy unmatched /api/* requests to registered module backends."""
+    routes = _refresh_route_registry()
+    # Try exact prefix match first, then longest-prefix match
+    path = "/api/" + subpath.rstrip("/")
+    match: dict | None = None
+    matched_prefix = ""
+    for prefix, cfg in sorted(routes.items(), key=lambda x: -len(x[0])):
+        if path.startswith(prefix.rstrip("/")):
+            match = cfg
+            matched_prefix = prefix.rstrip("/")
+            break
+    if not match:
+        return jsonify({"error": "Not Found"}), 404
+
+    module_id = match["module_id"]
+    backend = match["backend_service"]
+    backend_path = path[len(matched_prefix):] or "/"
+    target_url = f"{backend.rstrip('/')}{backend_path}"
+    if request.query_string:
+        target_url += f"?{request.query_string.decode()}"
+
+    # ── Auth: extract tenant + token from request (same as explicit routes)
+    token = request.cookies.get("nkz_token") or request.headers.get("Authorization", "").replace("Bearer ", "")
+    tenant = request.headers.get("X-Tenant-ID") or g.get("tenant_id", "")
+    if not tenant:
+        try:
+            tenant = jwt.decode(token, options={"verify_signature": False}).get("tenant_id", "")
+        except Exception:
+            pass
+
+    fwd_headers = {}
+    for h in ["Content-Type", "Accept", "X-User-ID", "X-User-Roles"]:
+        v = request.headers.get(h)
+        if v:
+            fwd_headers[h] = v
+    if tenant:
+        fwd_headers["X-Tenant-ID"] = tenant
+        fwd_headers["Fiware-Service"] = tenant
+    if token:
+        fwd_headers["Authorization"] = f"Bearer {token}"
+        if KEYCLOAK_AUTH_AVAILABLE and tenant:
+            sig = generate_hmac_signature(token, tenant)
+            if sig:
+                fwd_headers["X-Auth-Signature"] = sig
+
+    start = time.time()
+    try:
+        resp = requests.request(
+            method=request.method,
+            url=target_url,
+            headers=fwd_headers,
+            data=request.get_data(),
+            timeout=30,
+        )
+        elapsed = (time.time() - start) * 1000
+        logger.info(
+            "auto-proxy %s %s → %s [%d] %.0fms",
+            request.method, path, module_id,
+            resp.status_code, elapsed,
+        )
+        return make_response(resp.content, resp.status_code, dict(resp.headers))
+    except requests.exceptions.Timeout:
+        logger.warning("auto-proxy timeout %s → %s", path, module_id)
+        return jsonify({"error": "Module backend timeout"}), 504
+    except requests.exceptions.ConnectionError:
+        logger.warning("auto-proxy unreachable %s → %s", path, module_id)
+        return jsonify({"error": "Module backend unreachable"}), 503
+    except Exception as exc:
+        logger.error("auto-proxy error %s: %s", path, exc)
+        return jsonify({"error": "Internal proxy error"}), 502
 
 
 # Register dynamic module routing blueprint
