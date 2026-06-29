@@ -17,6 +17,8 @@ jobs:
   # blocks unambiguous violations (verify=False, direct INSERT into timeseries
   # tables); warns on raw Orion calls. Tighten over time as module criteria firm up.
   compliance:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -53,6 +55,9 @@ jobs:
     # GitHub-hosted runner. Auth: OIDC JWT from token.actions.githubusercontent.com
     # validated by api-gateway against GitHub's JWKS.
     needs: compliance
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     env:
       # Public API endpoint. api-gateway validates OIDC JWT before forwarding.

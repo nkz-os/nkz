@@ -18,6 +18,7 @@ from typing import Dict, Any, List, Optional, Tuple, Union
 from flask import Flask, request, jsonify, g, Response
 from flask_cors import CORS
 import psycopg2
+from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 from dateutil.parser import isoparse
 from gdd_response import gdd_json_response
@@ -105,6 +106,19 @@ _WEATHER_ATTRIBUTE_MAP: Dict[str, str] = {
 # DB column names also accepted (passthrough for scripts, direct API)
 for _col in VALID_ATTRIBUTES:
     _WEATHER_ATTRIBUTE_MAP.setdefault(_col, _col)
+
+
+def _require_weather_column(name: str) -> str:
+    """Whitelist gate for weather_observations SQL column identifiers."""
+    if name not in VALID_ATTRIBUTES:
+        raise ValueError(f"Invalid weather column: {name}")
+    return name
+
+
+def _sql_weather_column_list(columns: List[str]) -> sql.SQL:
+    """Build a safe comma-separated column list for SELECT projections."""
+    validated = [_require_weather_column(c) for c in columns]
+    return sql.SQL(", ").join(sql.Identifier(c) for c in validated)
 
 
 def _resolve_weather_attribute(requested: str) -> Optional[str]:
@@ -849,20 +863,19 @@ def get_entity_timeseries(entity_id: str):
 
             if fmt == "arrow" and time_bucket:
                 # Arrow path: single attribute, epoch float8 + value float8 (parameterised bucket)
-                query_arrow = (
+                col = _require_weather_column(attribute)
+                query_arrow = sql.SQL(
                     """
                     SELECT
                         EXTRACT(EPOCH FROM time_bucket(%s::interval, observed_at))::float8 AS timestamp,
-                        AVG("""
-                    + attribute
-                    + """)::float8 AS value
+                        AVG({col})::float8 AS value
                     FROM weather_observations
                     WHERE tenant_id = %s AND observed_at >= %s AND observed_at < %s
                       AND (station_id = %s OR municipality_code = %s)
                     GROUP BY time_bucket(%s::interval, observed_at)
                     ORDER BY timestamp ASC
                 """
-                )
+                ).format(col=sql.Identifier(col))
                 cursor.execute(
                     query_arrow,
                     (
@@ -1563,16 +1576,19 @@ def _weather_query_columnar(
                 f"Failed to set RLS tenant context for {tenant_id}: {e}. "
                 "Row-level security may not be enforced for this query."
             )
-        col_sql = ", ".join(f'"{a}"' for a in want)
-        cur.execute(
-            f"""
-            SELECT observed_at AS timestamp, {col_sql}
+        col_sql = _sql_weather_column_list(want)
+        query = sql.SQL(
+            """
+            SELECT observed_at AS timestamp, {cols}
             FROM weather_observations
             WHERE tenant_id = %s AND observed_at >= %s AND observed_at < %s
               AND (station_id = %s OR municipality_code = %s)
             ORDER BY observed_at ASC
             LIMIT %s
-            """,
+            """
+        ).format(cols=col_sql)
+        cur.execute(
+            query,
             (tenant_id, start_dt, end_dt, weather_key, weather_key, limit),
         )
         rows = cur.fetchall()
@@ -2038,12 +2054,14 @@ def get_entity_stats(entity_id: str):
 
             stats = {}
             for attr in attributes:
-                query = f"""
+                col = sql.Identifier(_require_weather_column(attr))
+                query = sql.SQL(
+                    """
                     SELECT 
-                        MIN({attr}) as min_val,
-                        MAX({attr}) as max_val,
-                        AVG({attr}) as avg_val,
-                        COUNT({attr}) as count_val,
+                        MIN({col}) as min_val,
+                        MAX({col}) as max_val,
+                        AVG({col}) as avg_val,
+                        COUNT({col}) as count_val,
                         MIN(observed_at) as first_observed,
                         MAX(observed_at) as last_observed
                     FROM weather_observations
@@ -2051,8 +2069,9 @@ def get_entity_stats(entity_id: str):
                         AND observed_at >= %s
                         AND observed_at < %s
                         AND (station_id = %s OR municipality_code = %s)
-                        AND {attr} IS NOT NULL
+                        AND {col} IS NOT NULL
                 """
+                ).format(col=col)
                 cursor.execute(
                     query, (tenant_id, start_dt, end_dt, entity_id, entity_id)
                 )
