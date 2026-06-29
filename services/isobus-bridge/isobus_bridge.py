@@ -366,7 +366,7 @@ def update_entity_in_orion(
             return True
         else:
             logger.error(
-                f"Failed to update entity {entity_id}: {response.status_code} - {response.text}"
+                f"Failed to update entity {entity_id}: HTTP {response.status_code}"
             )
             return False
 
@@ -430,7 +430,7 @@ def create_entity_if_not_exists(
             return True
         else:
             logger.error(
-                f"Failed to create entity {entity_id}: {response.status_code} - {response.text}"
+                f"Failed to create entity {entity_id}: HTTP {response.status_code}"
             )
             return False
 
