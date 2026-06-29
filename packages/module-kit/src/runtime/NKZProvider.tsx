@@ -11,6 +11,12 @@ import type {
   TimeseriesPoint,
   NgsiLdEntity,
 } from '../hooks/types';
+import {
+  ORION_LD_PREFIX,
+  orionEntityAttrsPath,
+  orionEntityPath,
+  orionEntitiesPath,
+} from './orionPaths';
 
 declare global {
   interface Window {
@@ -65,32 +71,31 @@ function makeRealOrion(moduleId: string): OrionTransport {
   const http = makeHttp(moduleId);
   return {
     async getEntity(id, type) {
-      const q = type ? `?type=${encodeURIComponent(type)}` : '';
-      return http<NgsiLdEntity>(`/api/ngsi-ld/v1/entities/${encodeURIComponent(id)}${q}`);
+      return http<NgsiLdEntity>(orionEntityPath(id, type));
     },
     async listEntities(type, opts) {
       const sp = new URLSearchParams({ type });
       if (opts?.q) sp.set('q', opts.q);
       if (opts?.limit) sp.set('limit', String(opts.limit));
       if (opts?.offset) sp.set('offset', String(opts.offset));
-      return http<NgsiLdEntity[]>(`/api/ngsi-ld/v1/entities?${sp.toString()}`);
+      return http<NgsiLdEntity[]>(orionEntitiesPath(sp));
     },
     async createEntity(entity) {
-      await http<void>('/api/ngsi-ld/v1/entities', {
+      await http<void>(`${ORION_LD_PREFIX}/v1/entities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/ld+json' },
         body: JSON.stringify(entity),
       });
     },
     async updateEntity(id, attrs) {
-      await http<void>(`/api/ngsi-ld/v1/entities/${encodeURIComponent(id)}/attrs`, {
+      await http<void>(orionEntityAttrsPath(id), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/ld+json' },
         body: JSON.stringify(attrs),
       });
     },
     async deleteEntity(id) {
-      await http<void>(`/api/ngsi-ld/v1/entities/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await http<void>(orionEntityPath(id), { method: 'DELETE' });
     },
   };
 }
