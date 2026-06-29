@@ -1305,7 +1305,7 @@ class TestDeployModuleDist:
         assert body["is_active"] is True
 
         # Verify S3 was called for non-manifest files
-        assert s3_mock.put_object.call_count == 3
+        assert s3_mock.put_object.call_count == 4
 
         # Verify DB commit was called
         conn.commit.assert_called()
