@@ -30,6 +30,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "common"))
 
 from tenant_utils import normalize_tenant_id
 from ngsi_headers import inject_fiware_headers
+from api_errors import internal_error
 
 # Configure logging
 logging.basicConfig(
@@ -365,13 +366,11 @@ def update_entity_in_orion(
             )
             return True
         else:
-            logger.error(
-                f"Failed to update entity {entity_id}: HTTP {response.status_code}"
-            )
+            logger.error("Failed to update entity in Orion: HTTP %d", response.status_code)
             return False
 
     except Exception as e:
-        logger.error(f"Exception updating entity {entity_id}: {e}")
+        internal_error(e, "isobus_bridge.update_entity")
         return False
 
 
@@ -429,13 +428,11 @@ def create_entity_if_not_exists(
             logger.info(f"Created entity {entity_id} for tenant {tenant_id}")
             return True
         else:
-            logger.error(
-                f"Failed to create entity {entity_id}: HTTP {response.status_code}"
-            )
+            logger.error("Failed to create entity in Orion: HTTP %d", response.status_code)
             return False
 
     except Exception as e:
-        logger.error(f"Exception creating entity {entity_id}: {e}")
+        internal_error(e, "isobus_bridge.create_entity")
         return False
 
 
