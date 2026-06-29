@@ -3820,14 +3820,15 @@ def proxy_cadastral_api_requests(subpath):
     )
 
     try:
-        # Build target URL - cadastral-api service expects paths like /parcels/query-by-coordinates
-        target_url = f"{CADASTRAL_API_URL}/{subpath}"
+        user_id = payload.get("sub", "")
+        target_url = f"{CADASTRAL_API_URL}/api/cadastral-api/{subpath}"
 
         # Prepare headers
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": request.content_type or "application/json",
-            "X-Tenant-ID": tenant,  # Pass tenant to trusted internal service
+            "X-Tenant-ID": tenant,
+            "X-User-ID": user_id,
         }
 
         # Add HMAC signature if available
