@@ -162,6 +162,8 @@ spec:
               value: "600"
             - name: CARBON_API_URL
               value: "http://carbon-api-service:8000"
+            - name: CADASTRAL_API_URL
+              value: "http://catastro-spain-api-service:5000"
             - name: MODULE_GATEWAY_ENABLED
               value: "vegetation-health,gis-routing,cue,nkz-module-eu-elevation"
           command: ["gunicorn"]
