@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { NKZClient } from '@nekazari/sdk';
+import { useNKZRuntime } from '../runtime/NKZContext';
 
 /**
  * Preconfigured NKZClient hook. Reads basePath from the module
@@ -11,9 +12,12 @@ import { NKZClient } from '@nekazari/sdk';
  * - Prepends basePath to all requests
  */
 export function useAPI(basePath?: string): NKZClient {
+  const { moduleApi } = useNKZRuntime();
+
   const client = useMemo(() => {
     const resolvedBasePath =
       basePath ??
+      moduleApi.basePath ??
       ((typeof window !== 'undefined' &&
         (window as any).__NKZ_MODULE_BASE_PATH__) as string | undefined) ??
       '/api/modules/unknown';
@@ -26,7 +30,7 @@ export function useAPI(basePath?: string): NKZClient {
       baseUrl: resolvedBasePath,
       getTenantId,
     });
-  }, [basePath]);
+  }, [basePath, moduleApi.basePath]);
 
   return client;
 }
