@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 # Import the canonical tenant-id normalizer (single source of truth).
 # When running inside a container, /common is on PYTHONPATH.
 try:
+    from log_helpers import redact  # noqa: E402
+except ImportError:
+    def redact(v, _m=200): return str(v)  # fallback
+
+try:
     from tenant_utils import normalize_tenant_id as _canonical_normalize
 except ImportError:
     # Fallback: try relative path (local dev)
@@ -94,8 +99,8 @@ def _normalize_tenant(tenant: str) -> str:
         # If the canonical normalizer rejects the input (e.g. empty, too long),
         # fall back to basic cleaning so the request still reaches Orion-LD.
         logger.warning(
-            "Canonical tenant normalization rejected %r, using basic fallback",
-            tenant,
+            "Canonical tenant normalization rejected (len=%d), using basic fallback",
+            len(tenant),
         )
         n = tenant.lower().strip().replace(" ", "-")
         n = re.sub(r"[^a-z0-9-]", "", n)

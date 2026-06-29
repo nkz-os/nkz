@@ -15,6 +15,11 @@ sys.path.insert(0, "/app/common")
 
 from common.ngsi_headers import inject_fiware_headers
 
+try:
+    from common.log_helpers import redact
+except ImportError:
+    def redact(v, _m=200): return str(v)[:200]
+
 logger = logging.getLogger(__name__)
 
 # Get Orion URL from environment
@@ -86,7 +91,7 @@ def find_existing_weather_observed(
             return None
         else:
             logger.warning(
-                f"Error querying for existing WeatherObserved: {response.status_code} - {response.text}"
+                f"Error querying for existing WeatherObserved: {response.status_code} - {redact(redact(redact(response.text)))}"
             )
             return None
 
