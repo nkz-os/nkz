@@ -1,6 +1,6 @@
 {
   "name": "@nekazari/module-kit",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Nekazari Module Development Kit \u2014 single entry point for building Nekazari modules",
   "license": "Apache-2.0",
   "repository": {
