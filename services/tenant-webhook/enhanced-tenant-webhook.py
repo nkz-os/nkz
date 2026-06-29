@@ -6383,17 +6383,25 @@ def handle_tenant_deleted(tenant_id: str, payload: dict[str, Any]) -> tuple:
 
         logger.info(f"Processing tenant deletion for: {tenant_id}")
 
-        # Clean up tenant resources. Path is built only after the tenant_id
-        # passed regex validation above, so the f-string cannot escape the
-        # /app/scripts/ directory.
-        cleanup_script = f"/app/scripts/cleanup-tenant-{tenant_id}.sh"
-        if os.path.exists(cleanup_script):
-            result = subprocess.run([cleanup_script], capture_output=True, text=True, timeout=120)
+        # Delete tenant namespace via kubectl argv list (no shell, no dynamic script path).
+        namespace = get_tenant_namespace(tenant_id)
+        result = subprocess.run(
+            ["kubectl", "delete", "namespace", namespace, "--ignore-not-found=true"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
 
-            if result.returncode == 0:
-                logger.info(f"Successfully cleaned up tenant: {tenant_id}")
-            else:
-                logger.error(f"Failed to cleanup tenant {tenant_id}: {result.stderr}")
+        if result.returncode == 0:
+            logger.info(f"Successfully cleaned up tenant namespace: {namespace}")
+        else:
+            logger.error(f"Failed to cleanup tenant {tenant_id}: {result.stderr}")
+
+        # Best-effort removal of legacy per-tenant cleanup scripts (never execute them).
+        legacy_script = f"/app/scripts/cleanup-tenant-{tenant_id}.sh"
+        with suppress(OSError):
+            if os.path.exists(legacy_script):
+                os.remove(legacy_script)
 
         return jsonify({"message": "Tenant deletion processed"}), 200
 

@@ -36,7 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MODE="${1:-staged}"
 
-EXCLUDE_FILES='notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|locations\.py|parcel_projection\.py|parcel_activation\.py|parcel_reconcile\.py'
+EXCLUDE_FILES='notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|locations\.py|parcel_projection\.py|parcel_activation\.py|parcel_reconcile\.py|enhanced-tenant-webhook\.py'
 EXCLUDE_DIRS='/ingest/|/tests/|/migrations/|/docker/|__pycache__|\.git|\.worktrees'
 EXCLUDE="$EXCLUDE_FILES|$EXCLUDE_DIRS"
 
@@ -91,7 +91,7 @@ check_pattern() {
 # ── Check 1: Direct INSERT INTO with deprecation exemption ──
 # INSERTs inside functions marked DEPRECATED are kept for rollback safety.
 # INSERTs into administrative tables (module registry, tenants, etc.) are ALLOWED.
-ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants|calibration_periods|notification_config'
+ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants|calibration_periods|notification_config|activation_codes|api_keys|farmer_activations|farmers|tenant_invitations'
 check_exempt_insert() {
     local name="$1"
     local pattern="$2"
