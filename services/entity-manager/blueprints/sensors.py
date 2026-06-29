@@ -18,6 +18,7 @@ import requests
 import paho.mqtt.client as mqtt
 
 from common.auth_middleware import require_auth
+from common.api_errors import internal_error
 from common.ngsi_headers import inject_fiware_headers
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple
 
@@ -485,7 +486,7 @@ def register_sensor():
                         orion_entity_id,
                         cleanup_error,
                     )
-            return jsonify({'error': f'Registration error: {str(e)}'}), 500
+            return internal_error(e, 'sensors_register', user_message='Registration error')
 
     except Exception as e:
         logger.error(f"Error in register_sensor: {e}")
@@ -1234,4 +1235,4 @@ def check_entity_heartbeat():
 
     except Exception as e:
         logger.error(f"Error checking heartbeat: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'sensors_endpoint')

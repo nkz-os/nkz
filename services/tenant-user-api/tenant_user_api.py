@@ -16,6 +16,7 @@ from flask_cors import CORS
 from typing import Dict, Any, Optional, List
 from functools import wraps
 from common.tenant_utils import normalize_tenant_id
+from common.api_errors import internal_error
 
 # Configure logging
 logging.basicConfig(
@@ -329,7 +330,7 @@ def list_team_members(user_info: Dict[str, Any], tenant: str):
 
     except Exception as e:
         logger.error(f"Error listing users: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'tenant_user_api')
 
 
 @app.route('/api/tenant/users', methods=['POST'])
@@ -468,7 +469,7 @@ def create_user(user_info: Dict[str, Any], tenant: str):
         
     except Exception as e:
         logger.error(f"Error creating user: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'tenant_user_api')
 
 
 @app.route('/api/tenant/users/<user_id>/roles', methods=['PUT'])
@@ -540,7 +541,7 @@ def update_user_roles(user_info: Dict[str, Any], tenant: str, user_id: str):
         
     except Exception as e:
         logger.error(f"Error updating user roles: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'tenant_user_api')
 
 
 @app.route('/api/tenant/users/<user_id>', methods=['DELETE'])
@@ -583,7 +584,7 @@ def delete_user(user_info: Dict[str, Any], tenant: str, user_id: str):
         
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'tenant_user_api')
 
 
 @app.route('/api/tenant/users/<user_id>/reset-password', methods=['POST'])
@@ -626,7 +627,7 @@ def reset_password(user_info: Dict[str, Any], tenant: str, user_id: str):
         
     except Exception as e:
         logger.error(f"Error resetting password: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'tenant_user_api')
 
 
 @app.route('/api/tenant/users/me', methods=['PUT'])
@@ -781,7 +782,7 @@ def get_user_stats(user_info: Dict[str, Any], tenant: str):
         
     except Exception as e:
         logger.error(f"Error getting user stats: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'tenant_user_api')
 
 
 @app.route('/api/tenant/profile', methods=['GET'])

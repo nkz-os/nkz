@@ -16,6 +16,7 @@ from psycopg2.extras import RealDictCursor
 import requests
 
 from common.auth_middleware import require_auth, inject_fiware_headers
+from common.api_errors import internal_error
 from db_helper import get_db_connection_with_tenant, return_db_connection, get_db_connection_simple
 
 # Import shared helpers
@@ -906,7 +907,7 @@ def provision_robot():
 
     except Exception as e:
         logger.error(f"Error provisioning robot: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'entities_endpoint')
 
 
 # =============================================================================

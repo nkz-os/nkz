@@ -20,6 +20,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from common.auth_middleware import require_auth, inject_fiware_headers
+from common.api_errors import internal_error
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple, return_db_connection
 
 # Import shared helpers
@@ -300,9 +301,7 @@ def get_tenant_modules():
 
     except Exception as e:
         logger.error(f"Error fetching tenant modules: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'modules')
 
 
 def _dispatch_module_lifecycle_webhook_if_configured(module_id, tenant_id, enabled, user_email=None):
@@ -493,9 +492,7 @@ def toggle_module(module_id):
 
     except Exception as e:
         logger.error(f"Error toggling module: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'modules')
 
 
 @modules_bp.route('/api/modules/marketplace', methods=['GET'])
@@ -551,7 +548,7 @@ def get_marketplace_modules():
 
     except Exception as e:
         logger.error(f"Error fetching marketplace modules: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'modules')
 
 
 @modules_bp.route('/api/modules/<module_id>/activate', methods=['POST'])
@@ -613,9 +610,7 @@ def activate_marketplace_module(module_id):
 
     except Exception as e:
         logger.error(f"Error activating/deactivating marketplace module: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'modules')
 
 
 @modules_bp.route('/api/modules/<module_id>/can-install', methods=['GET'])
@@ -717,9 +712,7 @@ def can_install_module(module_id):
 
     except Exception as e:
         logger.error(f"Error checking module installation eligibility: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'modules')
 
 
 # =============================================================================
@@ -858,18 +851,12 @@ def put_modules_visibility():
                     )
                     # Behave as no-op, but respond OK so UI doesn't break
                     return jsonify({'message': 'Visibility table not available; rules not persisted yet.'}), 200
-                logger.error(f"[tenant_visibility] Error updating visibility rules: {exc}")
-                import traceback
-                logger.error(traceback.format_exc())
-                return jsonify({'error': 'Failed to update visibility rules', 'details': str(exc)}), 500
+                return internal_error(exc, 'modules_visibility', user_message='Failed to update visibility rules')
 
         return jsonify({'message': 'Visibility rules updated', 'rules': normalised}), 200
 
     except Exception as exc:
-        logger.error(f"[tenant_visibility] Unexpected error in PUT /api/modules/visibility: {exc}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error', 'details': str(exc)}), 500
+        return internal_error(exc, 'modules_visibility')
 
 
 # =============================================================================
@@ -1004,11 +991,7 @@ def upload_module():
             minio_object_name = upload_service.upload_to_minio(file_content, upload_id)
             logger.info(f"Uploaded module ZIP to MinIO: {minio_object_name}")
         except Exception as e:
-            logger.error(f"Failed to upload to MinIO: {e}")
-            return jsonify({
-                'error': 'Upload failed',
-                'message': f'Failed to upload file to storage: {str(e)}'
-            }), 500
+            return internal_error(e, 'modules_upload_minio', user_message='Upload failed')
 
         # Create validation job in Kubernetes
         try:
@@ -1019,11 +1002,7 @@ def upload_module():
                     'message': 'Could not create validation job'
                 }), 500
         except Exception as e:
-            logger.error(f"Failed to create validation job: {e}")
-            return jsonify({
-                'error': 'Validation job creation failed',
-                'message': f'Could not create validation job: {str(e)}'
-            }), 500
+            return internal_error(e, 'modules_validation_job', user_message='Validation job creation failed')
 
         # Store upload metadata temporarily (could use Redis in the future)
         # For now, the validation job will call a webhook endpoint when complete
@@ -1039,14 +1018,7 @@ def upload_module():
         }), 200
 
     except Exception as e:
-        logger.error(f"Error uploading module: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e),
-            'details': 'See server logs for more information'
-        }), 500
+        return internal_error(e, 'modules_upload')
 
 
 @modules_bp.route('/api/modules/<upload_id>/validation-status', methods=['GET'])
@@ -1115,11 +1087,7 @@ def get_validation_status(upload_id):
                 raise
 
     except Exception as e:
-        logger.error(f"Error checking validation status: {e}")
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
+        return internal_error(e, 'modules_validation_status')
 
 
 @modules_bp.route('/api/internal/modules/register-validated', methods=['POST'])
@@ -1200,13 +1168,7 @@ def register_validated_module():
             return_db_connection(conn)
 
     except Exception as e:
-        logger.error(f"Error in register_validated_module: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
+        return internal_error(e, 'modules_register_validated')
 
 
 @modules_bp.route('/api/modules/<module_id>/deploy-upload', methods=['POST'])
@@ -1251,13 +1213,7 @@ def deploy_module(module_id):
             }), 500
 
     except Exception as e:
-        logger.error(f"Error deploying module: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
+        return internal_error(e, 'modules_deploy')
 
 
 @modules_bp.route('/api/modules/<upload_id>/logs', methods=['GET'])
@@ -1330,13 +1286,7 @@ def get_validation_logs(upload_id):
                 raise
 
     except Exception as e:
-        logger.error(f"Error getting validation logs: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
+        return internal_error(e, 'modules_validation_logs')
 
 
 @modules_bp.route('/api/modules/uploads', methods=['GET'])
@@ -1384,13 +1334,7 @@ def get_module_uploads():
         return jsonify([dict(upload) for upload in uploads]), 200
 
     except Exception as e:
-        logger.error(f"Error fetching module uploads: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({
-            'error': 'Internal server error',
-            'message': str(e)
-        }), 500
+        return internal_error(e, 'modules_uploads_list')
 
 
 # =============================================================================
@@ -1480,7 +1424,6 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
             logger.error(f"S3 upload failed for {s3_key}: {e}")
             return 500, {
                 'error': f'Failed to upload {f.filename} to storage.',
-                'details': str(e),
             }
 
         # Also upload to root path so Module Federation's publicPath resolution works.
@@ -1499,8 +1442,7 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
                 logger.error(f"S3 root upload failed for {root_key}: {e}")
                 return 500, {
                     'error': f'Failed to upload {f.filename} to root storage.',
-                    'details': str(e),
-                }
+                    }
 
     logger.info(f"Deployed {module_id} v{manifest['version']}: {uploaded} files to {bucket}/{prefix}")
 
@@ -1637,12 +1579,9 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
     except Exception as e:
         if conn:
             conn.rollback()
-        logger.error(f"DB error deploying module {module_id}: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
+        logger.error("DB error deploying module %s: %s", module_id, e, exc_info=True)
         return 500, {
             'error': 'Internal server error while registering module.',
-            'details': str(e),
         }
     finally:
         if conn:
@@ -1827,7 +1766,7 @@ def deploy_module_version(module_id):
         if conn:
             conn.rollback()
         logger.error(f"deploy error for {module_id}: {e}")
-        return jsonify({'error': 'Internal server error.', 'details': str(e)}), 500
+        return internal_error(e, 'modules')
     finally:
         if conn:
             return_db_connection(conn)
@@ -1886,7 +1825,7 @@ def rollback_module_version(module_id):
         if conn:
             conn.rollback()
         logger.error(f"rollback error for {module_id}: {e}")
-        return jsonify({'error': 'Internal server error.', 'details': str(e)}), 500
+        return internal_error(e, 'modules')
     finally:
         if conn:
             return_db_connection(conn)
@@ -1915,7 +1854,7 @@ def list_module_versions(module_id):
         })
     except Exception as e:
         logger.error(f"versions error for {module_id}: {e}")
-        return jsonify({'error': 'Internal server error.', 'details': str(e)}), 500
+        return internal_error(e, 'modules')
     finally:
         if conn:
             return_db_connection(conn)
@@ -1949,7 +1888,7 @@ def resolve_module_manifest_url(module_id):
         return jsonify({'manifestUrl': manifest_url, 'version': version})
     except Exception as e:
         logger.error(f"resolve-url error for {module_id}: {e}")
-        return jsonify({'error': 'Internal server error.', 'details': str(e)}), 500
+        return internal_error(e, 'modules')
     finally:
         if conn:
             return_db_connection(conn)
@@ -1989,13 +1928,15 @@ def module_health_check(module_id):
         status_code = 200 if health_status['status'] == 'healthy' else 503
         return jsonify(health_status), status_code
     except Exception as e:
-        logger.error(f"Error checking module health for {module_id}: {e}")
-        return jsonify({
-            'module_id': module_id,
-            'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
-        }), 500
+        return internal_error(
+            e,
+            'module_health',
+            extra={
+                'module_id': module_id,
+                'status': 'unhealthy',
+                'timestamp': datetime.utcnow().isoformat() + 'Z',
+            },
+        )
 
 
 # =============================================================================
@@ -2029,7 +1970,7 @@ def federation_runtime_health():
         return_db_connection(conn)
     except Exception as e:
         logger.error(f"Failed to query marketplace_modules: {e}")
-        return jsonify({'error': 'Database error', 'details': str(e)}), 500
+        return internal_error(e, 'modules', user_message='Database error')
 
     results = []
     healthy = 0

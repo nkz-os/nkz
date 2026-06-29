@@ -61,6 +61,7 @@ ConditionGroup.model_rebuild()
 
 # Add common directory to path
 sys.path.insert(0, "/app/common")
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "common"))
 sys.path.insert(0, "/app/task-queue")
 from auth_middleware import require_auth  # noqa: E402
 from db_helper import set_tenant_context  # noqa: E402
@@ -610,8 +611,8 @@ def health_check():
         conn.close()
         return jsonify({"status": "healthy"}), 200
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return jsonify({"status": "unhealthy", "error": str(e)}), 503
+        logger.error("Health check failed: %s", e, exc_info=True)
+        return jsonify({"status": "unhealthy", "error": "Service unavailable"}), 503
 
 
 @app.route("/api/risks/states", methods=["GET"])
