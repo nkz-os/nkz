@@ -47,6 +47,14 @@ sys.modules['common'] = _common_mock
 sys.modules['common.auth_middleware'] = _common_mock
 sys.modules['common.ngsi_headers'] = _common_mock
 
+import importlib.util
+_log_h_path = os.path.join(_services_dir, "common", "log_helpers.py")
+_log_h_spec = importlib.util.spec_from_file_location("common.log_helpers", _log_h_path)
+_log_h_mod = importlib.util.module_from_spec(_log_h_spec)
+assert _log_h_spec.loader is not None
+_log_h_spec.loader.exec_module(_log_h_mod)
+sys.modules["common.log_helpers"] = _log_h_mod
+
 import pytest
 from flask import Flask
 

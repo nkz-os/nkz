@@ -131,7 +131,7 @@ def _ensure_tenant_subscriptions(tenant_id: str):
                 continue
 
             logger.info(
-                "Creating subscription '%s' for tenant %s", desc, tenant_id
+                "Creating subscription '%s' for tenant %s", desc, str(tenant_id)[:64]
             )
             resp = requests.post(
                 f'{ORION_URL}/ngsi-ld/v1/subscriptions',
@@ -141,8 +141,8 @@ def _ensure_tenant_subscriptions(tenant_id: str):
             )
             if resp.status_code not in (200, 201):
                 logger.error(
-                    "Failed to create subscription '%s' for %s: %.200s",
-                    desc, tenant_id, resp.text or '',
+                    "Failed create subscription '%s' for %s: HTTP %s",
+                    desc, str(tenant_id)[:64], resp.status_code,
                 )
     except requests.RequestException as e:
         logger.error(
