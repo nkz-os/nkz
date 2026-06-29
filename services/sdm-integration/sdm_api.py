@@ -20,6 +20,7 @@ from pymongo import MongoClient
 # Add common directory to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common'))
 from auth_middleware import require_auth, inject_fiware_headers, log_entity_operation, require_entity_ownership
+from api_errors import internal_error
 from entity_utils import generate_entity_id
 
 # Configure logging to stdout for kubernetes
@@ -899,8 +900,7 @@ def create_entity_instance(entity_type):
             }), 500
     
     except Exception as e:
-        logger.error(f"Error creating entity instance: {e}", exc_info=True)
-        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+        return internal_error(e, 'sdm_create_entity')
 
 @app.route('/sdm/entities/<entity_type>/instances/<entity_id>', methods=['GET'])
 @require_auth

@@ -16,6 +16,7 @@ import requests
 import redis
 
 from common.auth_middleware import require_auth, inject_fiware_headers
+from common.api_errors import internal_error
 from db_helper import get_db_connection_with_tenant, return_db_connection
 
 # Import shared helpers
@@ -507,7 +508,7 @@ def _core_vector_sync_pull():
         return jsonify(response_data)
     except Exception as e:
         logger.error(f"Core Vector Sync pull error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'sync_endpoint')
 
 
 def _core_vector_sync_push():
@@ -612,4 +613,4 @@ def _core_vector_sync_push():
         return jsonify(body)
     except Exception as e:
         logger.error(f"Core Vector Sync push error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'sync_endpoint')

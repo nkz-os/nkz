@@ -9,11 +9,17 @@ from the X-Module-Id header injected by the SDK.
 """
 
 import os
+import sys
 import logging
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 import boto3
 from botocore.client import Config
+
+_common = os.path.join(os.path.dirname(__file__), "..", "common")
+if _common not in sys.path:
+    sys.path.insert(0, _common)
+from api_errors import internal_error  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +113,7 @@ def presigned_url():
     try:
         url = _s3_client().generate_presigned_url(method, Params=params, ExpiresIn=ttl)
     except Exception as exc:  # pragma: no cover — boto config error
-        logger.exception("presigned URL generation failed")
-        return jsonify({"error": f"presigned URL generation failed: {exc}"}), 500
+        return internal_error(exc, "storage_presigned", user_message="Presigned URL generation failed")
 
     logger.info(
         "presigned %s ttl=%ss tenant=%s module=%s path=%s",
@@ -143,8 +148,7 @@ def list_objects():
     try:
         resp = _s3_client().list_objects_v2(Bucket=MINIO_BUCKET, Prefix=full_prefix)
     except Exception as exc:  # pragma: no cover
-        logger.exception("list_objects failed")
-        return jsonify({"error": f"list failed: {exc}"}), 500
+        return internal_error(exc, "storage_list", user_message="List operation failed")
 
     scope_strip = _scoped_key(tenant_id, module_id, "")
     items = [obj["Key"][len(scope_strip) :] for obj in resp.get("Contents", [])]

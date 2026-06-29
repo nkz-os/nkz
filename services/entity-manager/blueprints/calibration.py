@@ -18,6 +18,7 @@ from psycopg2.extras import RealDictCursor
 import requests
 
 from common.auth_middleware import require_auth
+from common.api_errors import internal_error
 from common.ngsi_headers import inject_fiware_headers
 from db_helper import get_db_connection_simple, return_db_connection
 
@@ -186,7 +187,7 @@ def list_calibration_periods(sensor_id: str):
     except Exception as e:
         logger.error("Error listing calibration periods for sensor %s: %s", sensor_id, e)
         return_db_connection(conn)
-        return jsonify({'error': 'Database error', 'details': str(e)}), 500
+        return internal_error(e, 'calibration', user_message='Database error')
 
 
 # =============================================================================
@@ -385,7 +386,7 @@ def add_calibration_period(sensor_id: str):
         except Exception:
             pass
         return_db_connection(conn)
-        return jsonify({'error': 'Database error', 'details': str(e)}), 500
+        return internal_error(e, 'calibration', user_message='Database error')
 
 
 # =============================================================================

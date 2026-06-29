@@ -46,6 +46,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "common"))
 
 try:
     from auth_middleware import require_auth, inject_fiware_headers
+    from api_errors import internal_error
 except ImportError:
     logging.warning("auth_middleware not available - auth will be disabled")
 
@@ -778,7 +779,7 @@ def list_timeseries_entities():
         return jsonify({"entities": entities})
     except Exception as e:
         logger.error(f"Error listing timeseries entities: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return internal_error(e, "timeseries")
 
 
 @app.route("/api/timeseries/entities/<entity_id>/data", methods=["GET"])
@@ -988,7 +989,7 @@ def get_entity_timeseries(entity_id: str):
 
     except Exception as e:
         logger.error(f"Error querying timeseries: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return internal_error(e, "timeseries")
 
 
 # ---------------------------------------------------------------------------
@@ -1107,7 +1108,7 @@ def get_timeseries_by_type_and_parcel(entity_type: str, parcel_id: str):
 
     except Exception as e:
         logger.error(f"Error querying timeseries by type/parcel: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return internal_error(e, "timeseries")
 
 
 @app.route("/api/timeseries/align", methods=["POST"])
@@ -1187,7 +1188,7 @@ def post_timeseries_align():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.error(f"Error in align: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return internal_error(e, "timeseries")
 
 
 def _get_s3_client():
@@ -1369,7 +1370,7 @@ def post_timeseries_export():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.error(f"Error in export: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return internal_error(e, "timeseries")
 
 
 def _build_telemetry_columnar(
@@ -2110,7 +2111,7 @@ def get_entity_stats(entity_id: str):
 
     except Exception as e:
         logger.error(f"Error querying stats: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return internal_error(e, "timeseries")
 
 
 @app.route("/api/weather/gdd", methods=["GET"])

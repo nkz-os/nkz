@@ -17,6 +17,8 @@ for path in common_paths:
     if os.path.exists(path) and path not in sys.path:
         sys.path.insert(0, path)
 
+from api_errors import internal_error  # noqa: E402
+
 # Try to import Keycloak auth, fallback to old JWT_SECRET
 try:
     from keycloak_auth import (
@@ -76,10 +78,11 @@ def require_auth(f):
             return jsonify({"message": "Token has expired!"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"message": "Token is invalid!"}), 401
-        except ValueError as e:
-            return jsonify({"message": str(e)}), 500
+        except ValueError:
+            logger.error("JWT_SECRET not configured", exc_info=True)
+            return jsonify({"message": "Authentication service misconfigured"}), 503
         except Exception as e:
-            return jsonify({"message": "Authentication error", "error": str(e)}), 500
+            return internal_error(e, "sdm_auth", user_message="Authentication error")
 
         return f(*args, **kwargs)
 

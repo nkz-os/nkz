@@ -78,6 +78,15 @@ _tier_quotas_mock.LEVEL_TO_TIER = {0: "free"}
 _tier_quotas_mock.quotas_for_tier = lambda tier: {"max_parcels": 0}
 sys.modules["common.tier_quotas"] = _tier_quotas_mock
 
+import importlib.util
+
+_api_errors_path = os.path.join(_services_dir, "common", "api_errors.py")
+_api_spec = importlib.util.spec_from_file_location("common.api_errors", _api_errors_path)
+_api_errors_mod = importlib.util.module_from_spec(_api_spec)
+assert _api_spec.loader is not None
+_api_spec.loader.exec_module(_api_errors_mod)
+sys.modules["common.api_errors"] = _api_errors_mod
+
 # Heavy / infrastructure dependencies
 sys.modules["db_helper"] = MagicMock()
 sys.modules["orion_writer"] = MagicMock()
