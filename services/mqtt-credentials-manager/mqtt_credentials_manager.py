@@ -151,6 +151,60 @@ def create_mqtt_user_in_mosquitto(username: str, password: str, tenant_id: str, 
         return False
 
 
+def _kubectl_cat_file(path: str) -> subprocess.CompletedProcess:
+    """Read a file from the Mosquitto pod without shell interpolation."""
+    return subprocess.run(
+        [
+            'kubectl', 'exec', '-n', MOSQUITTO_NAMESPACE, MOSQUITTO_POD,
+            '--', 'cat', path,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+
+def _kubectl_write_file(path: str, content: str) -> subprocess.CompletedProcess:
+    """Overwrite a file in the Mosquitto pod via stdin (no shell)."""
+    return subprocess.run(
+        [
+            'kubectl', 'exec', '-i', '-n', MOSQUITTO_NAMESPACE, MOSQUITTO_POD,
+            '--', 'tee', path,
+        ],
+        input=content,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+
+def _filter_password_file(content: str, username: str) -> str:
+    prefix = f"{username}:"
+    lines = [line for line in content.splitlines() if not line.startswith(prefix)]
+    if not lines:
+        return ""
+    return "\n".join(lines) + "\n"
+
+
+def _filter_acl_user_block(content: str, username: str) -> str:
+    """Drop the ACL stanza for `user <username>` through the following blank line."""
+    user_line = f"user {username}"
+    out: list[str] = []
+    skip = False
+    for line in content.splitlines():
+        if line.strip() == user_line:
+            skip = True
+            continue
+        if skip:
+            if line.strip() == "":
+                skip = False
+            continue
+        out.append(line)
+    if not out:
+        return ""
+    return "\n".join(out) + "\n"
+
+
 def delete_mqtt_user_from_mosquitto(username: str) -> bool:
     """Delete MQTT user from Mosquitto"""
     try:
@@ -159,29 +213,27 @@ def delete_mqtt_user_from_mosquitto(username: str) -> bool:
             logger.error(f"Invalid username rejected for deletion: {username!r}")
             return False
 
-        # Use grep -v to filter out the user line (no shell interpolation needed
-        # because username is validated to be alphanumeric+hyphens+underscores)
-        # Read file, filter, write back via a safe pipeline
-        filter_script = f'grep -v "^{username}:" {MOSQUITTO_PASSWD_PATH} > /tmp/passwd.tmp && mv /tmp/passwd.tmp {MOSQUITTO_PASSWD_PATH}'
-        cmd = [
-            'kubectl', 'exec', '-n', MOSQUITTO_NAMESPACE, MOSQUITTO_POD,
-            '--', 'sh', '-c', filter_script
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-
-        if result.returncode != 0:
-            logger.error(f"Failed to remove user from passwords: {result.stderr}")
+        passwd_result = _kubectl_cat_file(MOSQUITTO_PASSWD_PATH)
+        if passwd_result.returncode != 0:
+            logger.error(f"Failed to read passwords file: {passwd_result.stderr}")
             return False
 
-        # Remove ACL entries — safe because username is validated
-        acl_filter = f'sed -i "/^user {username}$/,/^$/d" {MOSQUITTO_ACL_PATH}'
-        acl_cmd = [
-            'kubectl', 'exec', '-n', MOSQUITTO_NAMESPACE, MOSQUITTO_POD,
-            '--', 'sh', '-c', acl_filter
-        ]
+        filtered_passwd = _filter_password_file(passwd_result.stdout, username)
+        write_result = _kubectl_write_file(MOSQUITTO_PASSWD_PATH, filtered_passwd)
+        if write_result.returncode != 0:
+            logger.error(f"Failed to remove user from passwords: {write_result.stderr}")
+            return False
 
-        subprocess.run(acl_cmd, capture_output=True, text=True, timeout=10)
+        acl_result = _kubectl_cat_file(MOSQUITTO_ACL_PATH)
+        if acl_result.returncode != 0:
+            logger.error(f"Failed to read ACL file: {acl_result.stderr}")
+            return False
+
+        filtered_acl = _filter_acl_user_block(acl_result.stdout, username)
+        acl_write = _kubectl_write_file(MOSQUITTO_ACL_PATH, filtered_acl)
+        if acl_write.returncode != 0:
+            logger.error(f"Failed to remove ACL entries: {acl_write.stderr}")
+            return False
 
         # Reload Mosquitto
         reload_cmd = [

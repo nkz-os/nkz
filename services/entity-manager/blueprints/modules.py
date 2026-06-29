@@ -1460,7 +1460,7 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
     uploaded = 0
 
     for f in files:
-        if not f.filename or f.filename == 'manifest.json':
+        if not f.filename:
             continue
 
         s3_key = prefix + f.filename.lstrip('/')

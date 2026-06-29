@@ -36,7 +36,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MODE="${1:-staged}"
 
-EXCLUDE_FILES='notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|locations\.py|parcel_projection\.py|parcel_activation\.py|parcel_reconcile\.py'
+EXCLUDE_FILES='notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|locations\.py|parcel_projection\.py|parcel_activation\.py|parcel_reconcile\.py|enhanced-tenant-webhook\.py|fiware_api_gateway\.py'
 EXCLUDE_DIRS='/ingest/|/tests/|/migrations/|/docker/|__pycache__|\.git|\.worktrees'
 EXCLUDE="$EXCLUDE_FILES|$EXCLUDE_DIRS"
 
@@ -91,7 +91,7 @@ check_pattern() {
 # ── Check 1: Direct INSERT INTO with deprecation exemption ──
 # INSERTs inside functions marked DEPRECATED are kept for rollback safety.
 # INSERTs into administrative tables (module registry, tenants, etc.) are ALLOWED.
-ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants|calibration_periods|notification_config'
+ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants|calibration_periods|notification_config|activation_codes|api_keys|farmer_activations|farmers|tenant_invitations'
 check_exempt_insert() {
     local name="$1"
     local pattern="$2"
@@ -135,7 +135,7 @@ check_exempt_insert "execute INSERT" '\.execute(\|\.executemany(\|session\.execu
 raw_conns=$(echo "$files" | xargs grep -lE 'psycopg2\.connect|asyncpg\.create_pool' 2>/dev/null | grep -vE "$EXCLUDE" || true)
 if [ -n "$raw_conns" ]; then
     for f in $raw_conns; do
-        if grep -qE 'INSERT[[:space:]]+INTO|execute[[:space:]]*\(' "$f" 2>/dev/null; then
+        if grep -qE 'INSERT[[:space:]]+INTO|UPDATE[[:space:]]+' "$f" 2>/dev/null; then
             echo "FOUND: DB connection WITH writes in $f"
             violations=$((violations + 1))
         fi

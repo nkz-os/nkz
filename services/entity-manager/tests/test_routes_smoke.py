@@ -1301,11 +1301,11 @@ class TestDeployModuleDist:
         assert body["module_id"] == "test-module"
         assert body["version"] == "1.0.0"
         assert body["remote_entry_url"] == "/modules/test-module/mf-manifest.json"
-        assert body["files_uploaded"] == 3  # 4 files, minus manifest.json
+        assert body["files_uploaded"] == 4  # manifest.json is now uploaded too
         assert body["is_active"] is True
 
         # Verify S3 was called for non-manifest files
-        assert s3_mock.put_object.call_count == 3
+        assert s3_mock.put_object.call_count == 4
 
         # Verify DB commit was called
         conn.commit.assert_called()
