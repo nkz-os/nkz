@@ -135,7 +135,7 @@ check_exempt_insert "execute INSERT" '\.execute(\|\.executemany(\|session\.execu
 raw_conns=$(echo "$files" | xargs grep -lE 'psycopg2\.connect|asyncpg\.create_pool' 2>/dev/null | grep -vE "$EXCLUDE" || true)
 if [ -n "$raw_conns" ]; then
     for f in $raw_conns; do
-        if grep -qE 'INSERT[[:space:]]+INTO|execute[[:space:]]*\(' "$f" 2>/dev/null; then
+        if grep -qE 'INSERT[[:space:]]+INTO|UPDATE[[:space:]]+' "$f" 2>/dev/null; then
             echo "FOUND: DB connection WITH writes in $f"
             violations=$((violations + 1))
         fi
