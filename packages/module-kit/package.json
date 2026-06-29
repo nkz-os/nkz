@@ -1,6 +1,6 @@
 {
   "name": "@nekazari/module-kit",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Nekazari Module Development Kit \u2014 single entry point for building Nekazari modules",
   "license": "Apache-2.0",
   "repository": {
@@ -44,7 +44,7 @@
   },
   "devDependencies": {
     "@nekazari/sdk": "workspace:*",
-    "@tanstack/react-query": "^5.101.0",
+    "@tanstack/react-query": "^5.101.2",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/react": "^18.3.0",
