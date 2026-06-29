@@ -15,6 +15,9 @@ on:
       - "config/timescaledb/migrations/**"
       - ".github/workflows/db-migrations.yml"
 
+permissions:
+  contents: read
+
 jobs:
   verify-migrations:
     name: Verify migration tree
