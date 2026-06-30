@@ -2256,7 +2256,13 @@ def save_copernicus_credentials():
                     """)
                     existing = cur.fetchone()
 
-                    password_hash = api_key_digest(password)
+                    password_hash = salted_credential_digest(
+                        password,
+                        os.getenv(
+                            "CREDENTIAL_ENCRYPTION_SALT",
+                            "default-salt-change-in-production",
+                        ),
+                    )
 
                     if existing:
                         cur.execute(

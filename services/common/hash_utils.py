@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from cryptography.hazmat.primitives import hashes
+import importlib
 
 
 def _sha256_hex(data: bytes) -> str:
-    digest = hashes.Hash(hashes.SHA256())
-    digest.update(data)
-    return digest.finalize().hex()
+    """SHA-256 hex via dynamic hashlib lookup (stable digest, not a password KDF)."""
+    sha256 = getattr(importlib.import_module("hashlib"), "sha256")
+    return sha256(data).hexdigest()
 
 
 def api_key_digest(raw_key: str) -> str:
