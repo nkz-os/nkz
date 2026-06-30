@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: telemetry-worker
-          image: ghcr.io/nkz-os/nkz/telemetry-worker@sha256:c5c531f0355285faf40fabc95ec68aa3456a9d6a74721dbe3b7f127f44948042  # ref<Type> -> FIWARE-standard relationships
+          image: ghcr.io/nkz-os/nkz/telemetry-worker@sha256:57c0aa98b07a8fc789dc29d7d0dcd22b9b5ddd526d24402059435d541b9c128b  # main 0dae67f: CodeQL security backlog (#755)
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
