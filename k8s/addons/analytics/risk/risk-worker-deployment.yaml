@@ -33,7 +33,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: risk-worker
-            image: ghcr.io/nkz-os/nkz/risk-worker@sha256:8a0ef0c4f874f0b54cb0fe6e687ffe93770955c7556e58b76033162293677565
+            image: ghcr.io/nkz-os/nkz/risk-worker@sha256:fb5d53d4d673f4d1570acf46cbbc1eb40f6efce87dd04bbc74eba48000d684a3  # main 0dae67f: CodeQL security backlog (#755)
             imagePullPolicy: IfNotPresent
             env:
             # PostgreSQL Configuration
@@ -119,7 +119,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: risk-worker
-        image: ghcr.io/nkz-os/nkz/risk-worker@sha256:8a0ef0c4f874f0b54cb0fe6e687ffe93770955c7556e58b76033162293677565
+        image: ghcr.io/nkz-os/nkz/risk-worker@sha256:fb5d53d4d673f4d1570acf46cbbc1eb40f6efce87dd04bbc74eba48000d684a3  # main 0dae67f: CodeQL security backlog (#755)
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
