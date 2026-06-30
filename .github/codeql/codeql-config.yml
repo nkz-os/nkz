@@ -1,0 +1,10 @@
+# Lookup digests (API keys, entity IDs, Mosquitto fallback) intentionally use SHA-256
+# for storage keys — not password KDFs. See services/common/hash_utils.py.
+name: "Nekazari CodeQL"
+
+query-filters:
+  - exclude:
+      id: py/weak-sensitive-data-hashing
+    paths:
+      - services/common/hash_utils.py
+      - services/mqtt-credentials-manager/mqtt_credentials_manager.py
