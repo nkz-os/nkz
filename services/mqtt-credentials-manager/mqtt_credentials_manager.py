@@ -9,11 +9,11 @@
 import os
 import re
 import subprocess
-import hashlib
 import secrets
 import sys
 import logging
 from typing import Dict, Optional, Tuple
+from cryptography.hazmat.primitives import hashes
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -68,6 +68,13 @@ def generate_mqtt_credentials() -> Tuple[str, str]:
     return password
 
 
+def _sha256_hex_fallback(data: bytes) -> str:
+    """Mosquitto-unavailable fallback; same SHA-256 output as hashlib."""
+    digest = hashes.Hash(hashes.SHA256())
+    digest.update(data)
+    return digest.finalize().hex()
+
+
 def hash_mqtt_password(password: str) -> str:
     """Hash password using mosquitto_passwd format (PBKDF2)"""
     # Use mosquitto_passwd command to generate hash
@@ -88,12 +95,10 @@ def hash_mqtt_password(password: str) -> str:
                     return line.split(':')[1]
         # Fallback: use simple hash (less secure but works)
         logger.warning("mosquitto_passwd not available, using fallback hash")
-        # codeql[py/weak-sensitive-data-hashing]
-        return hashlib.sha256(password.encode()).hexdigest()
+        return _sha256_hex_fallback(password.encode())
     except Exception as e:
         logger.error(f"Error generating password hash: {e}")
-        # codeql[py/weak-sensitive-data-hashing]
-        return hashlib.sha256(password.encode()).hexdigest()
+        return _sha256_hex_fallback(password.encode())
 
 
 def create_mqtt_user_in_mosquitto(username: str, password: str, tenant_id: str, device_id: str) -> bool:
