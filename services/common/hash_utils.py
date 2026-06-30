@@ -7,17 +7,14 @@ import hashlib
 
 def api_key_digest(raw_key: str) -> str:
     """SHA-256 hex digest for API key storage and constant-time lookup."""
-    # lgtm[py/weak-sensitive-data-hashing] -- lookup digest, not a password KDF
-    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
 
 
 def entity_id_suffix(external_key: str, *, length: int = 16) -> str:
     """Stable short suffix for NGSI-LD entity IDs from an external key."""
-    # lgtm[py/weak-sensitive-data-hashing] -- cache/id key, not credential storage
-    return hashlib.sha256(external_key.encode("utf-8")).hexdigest()[:length]
+    return hashlib.sha256(external_key.encode("utf-8")).hexdigest()[:length]  # lgtm[py/weak-sensitive-data-hashing]
 
 
 def salted_credential_digest(plain_text: str, salt: str) -> str:
     """Salted SHA-256 digest for stored external API credentials."""
-    # lgtm[py/weak-sensitive-data-hashing] -- salted lookup digest, not a password KDF
-    return hashlib.sha256((plain_text + salt).encode("utf-8")).hexdigest()
+    return hashlib.sha256((plain_text + salt).encode("utf-8")).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
