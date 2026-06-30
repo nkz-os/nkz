@@ -54,10 +54,17 @@ const SensorDetailsPanel: React.FC<{ entityData: any }> = ({ entityData }) => {
 
     // Also ignore lengthy URLs keys if we found a cleaner alternative
     const isTechnicalKey = (key: string) => {
-        return key.startsWith('http') ||
-            key.includes('smartdatamodels.org') ||
-            key.startsWith('urn:') ||
-            key.length > 30; // Heuristic for ugly keys
+        if (key.startsWith('http')) {
+            try {
+                const host = new URL(key).hostname;
+                if (host === 'smartdatamodels.org' || host.endsWith('.smartdatamodels.org')) {
+                    return true;
+                }
+            } catch {
+                // not a valid URL key
+            }
+        }
+        return key.startsWith('urn:') || key.length > 30;
     };
 
     const attributes = useMemo(() => {

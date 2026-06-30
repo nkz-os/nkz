@@ -17,6 +17,7 @@ Características:
 """
 
 import os
+import sys
 import smtplib
 import logging
 from email.mime.text import MIMEText
@@ -24,6 +25,11 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+
+_common = os.path.join(os.path.dirname(__file__), "..", "common")
+if _common not in sys.path:
+    sys.path.insert(0, _common)
+from api_errors import internal_error  # noqa: E402
 
 # Configurar logging
 logging.basicConfig(
@@ -796,7 +802,7 @@ def send_verification_otp():
             return jsonify({'error': 'Failed to send email'}), 500
     except Exception as e:
         logger.error(f"Error in send_verification_otp endpoint: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'email_send_verification_otp')
 
 @app.route('/email/activation-success', methods=['POST'])
 def send_activation_success():

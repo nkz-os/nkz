@@ -9,7 +9,6 @@
 import os
 import re
 import subprocess
-import hashlib
 import secrets
 import sys
 import logging
@@ -68,7 +67,7 @@ def generate_mqtt_credentials() -> Tuple[str, str]:
     return password
 
 
-def hash_mqtt_password(password: str) -> str:
+def hash_mqtt_password(password: str) -> Optional[str]:
     """Hash password using mosquitto_passwd format (PBKDF2)"""
     # Use mosquitto_passwd command to generate hash
     # Format: $7$rounds=...$salt$hash
@@ -86,13 +85,11 @@ def hash_mqtt_password(password: str) -> str:
             for line in lines:
                 if ':' in line:
                     return line.split(':')[1]
-        # Fallback: use simple hash (less secure but works)
-        logger.warning("mosquitto_passwd not available, using fallback hash")
-        return hashlib.sha256(password.encode()).hexdigest()
+        logger.error("mosquitto_passwd not available")
+        return None
     except Exception as e:
         logger.error(f"Error generating password hash: {e}")
-        # Fallback hash
-        return hashlib.sha256(password.encode()).hexdigest()
+        return None
 
 
 def create_mqtt_user_in_mosquitto(username: str, password: str, tenant_id: str, device_id: str) -> bool:
@@ -106,6 +103,8 @@ def create_mqtt_user_in_mosquitto(username: str, password: str, tenant_id: str, 
 
         # Generate password hash
         password_hash = hash_mqtt_password(password)
+        if not password_hash:
+            return False
 
         # Create user entry via stdin (no shell interpolation)
         user_entry = f"{username}:{password_hash}\n"

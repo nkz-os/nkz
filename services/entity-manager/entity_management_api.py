@@ -33,6 +33,7 @@ for path in common_paths:
         break
 
 from common.auth_middleware import require_auth
+from common.api_errors import internal_error
 from db_helper import get_db_connection_simple, get_db_connection_with_tenant, return_db_connection
 
 # Import optional dependencies with fallbacks
@@ -220,9 +221,7 @@ def get_tenant_limits_with_usage():
             result['percentages']['areaHectares'] = min(100.0, (usage.get('areaHectares', 0) / max_area) * 100)
         return jsonify(result), 200
     except Exception as e:
-        logger.error(f"Error getting tenant limits with usage: {e}")
-        import traceback; logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'entity_management_limits')
 
 
 # ---------------------------------------------------------------------------

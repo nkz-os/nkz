@@ -1998,7 +1998,7 @@ def federation_runtime_health():
                 detail = f'HEAD returned {resp.status_code}'
         except requests.RequestException as e:
             status = 'unhealthy'
-            detail = str(e)
+            detail = 'remote endpoint unreachable'
 
         # Optionally validate publicPath
         if status == 'healthy':

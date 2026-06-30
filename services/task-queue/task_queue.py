@@ -100,9 +100,9 @@ class TaskQueue:
                     encoded_password = quote(REDIS_PASSWORD, safe='')
                     # Add password to URL if not already present
                     redis_url = redis_url.replace('redis://', f'redis://:{encoded_password}@')
-                    logger.info(f"Redis URL configured with password: {redis_url.split('@')[0]}@***")
+                    logger.info("Redis URL configured with password")
                 else:
-                    logger.warning(f"Redis URL without password: {redis_url}")
+                    logger.warning("Redis URL without password")
                 
                 # Create connection pool with password in URL
                 _redis_pool = redis.ConnectionPool.from_url(

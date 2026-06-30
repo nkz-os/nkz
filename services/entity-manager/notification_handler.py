@@ -17,6 +17,8 @@ from typing import Any, Optional
 import psycopg2
 from flask import Blueprint, request, jsonify
 
+from common.api_errors import internal_error
+
 logger = logging.getLogger(__name__)
 
 _UUID_RE = re.compile(
@@ -116,10 +118,7 @@ def handle_notification():
         return jsonify({"status": "ok", "persisted": total})
 
     except Exception as e:
-        logger.error(
-            "Error processing notification: %s", e, exc_info=True
-        )
-        return jsonify({"status": "error", "detail": str(e)}), 500
+        return internal_error(e, 'notification_handler')
 
 
 def _handle_agrisensor(tenant_id: str, entities: list) -> int:

@@ -8,7 +8,8 @@ Provides:
 """
 
 import uuid
-import hashlib
+
+from hash_utils import entity_id_suffix
 
 
 def generate_entity_id(entity_type: str) -> str:
@@ -28,7 +29,7 @@ def generate_entity_id_deterministic(entity_type: str, external_key: str) -> str
 
     Format: urn:ngsi-ld:{Type}:{sha256_hex_16}
     """
-    stable = hashlib.sha256(external_key.encode()).hexdigest()[:16]
+    stable = entity_id_suffix(external_key)
     return f"urn:ngsi-ld:{entity_type}:{stable}"
 
 

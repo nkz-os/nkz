@@ -12,7 +12,6 @@ from __future__ import annotations
 import os
 import logging
 import json
-import hashlib
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 import psycopg2
@@ -23,6 +22,7 @@ import redis
 from .config import Settings
 from .models import TelemetryPayload, Measurement
 from common.ngsi_headers import inject_fiware_headers
+from hash_utils import api_key_digest
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +107,7 @@ async def process_payload(
 
 async def _resolve_tenant_from_api_key(api_key: str, settings: Settings) -> str | None:
     """Resolve tenant_id from API key hash"""
-    import hashlib
-    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    key_hash = api_key_digest(api_key)
     
     try:
         # Try activation_codes_db first (where API keys are stored)
@@ -401,7 +400,7 @@ def _process_payload_sync(
 
 def _resolve_tenant_cached(api_key: str, settings: Settings) -> Optional[str]:
     """Resolve tenant from API key with Redis caching"""
-    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    key_hash = api_key_digest(api_key)
     cache_key = f"tenant_cache:{key_hash}"
     
     # Try cache first
@@ -536,6 +535,7 @@ def _persist_to_timescaledb(
         
         # Batch insert using execute_values
         if rows:
+            # """DEPRECATED — rollback-only direct hypertable write
             execute_values(cur, """
                 INSERT INTO telemetry (
                     time, tenant_id, entity_id, device_id, 
@@ -761,7 +761,8 @@ def _batch_insert_timescaledb(rows: List[tuple], settings: Settings) -> None:
     try:
         conn = psycopg2.connect(settings.postgres_url)
         cur = conn.cursor()
-        
+
+        # """DEPRECATED — rollback-only direct hypertable write
         execute_values(cur, """
             INSERT INTO telemetry (
                 time, tenant_id, entity_id, device_id,

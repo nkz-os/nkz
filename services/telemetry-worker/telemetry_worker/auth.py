@@ -4,7 +4,6 @@ API key validation helpers for the sensor ingestor service.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import sys
 import os
@@ -22,6 +21,7 @@ if '/app/common' not in sys.path:
     sys.path.insert(0, '/app/common')
 
 from common.db_helper import get_db_connection_with_tenant
+from hash_utils import api_key_digest
 
 from .config import Settings
 
@@ -39,7 +39,7 @@ _cache_lock = RLock()
 
 
 def _compute_hash(api_key: str) -> str:
-    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+    return api_key_digest(api_key)
 
 
 def validate_api_key(tenant_id: str, api_key: str, settings: Settings) -> bool:

@@ -115,7 +115,7 @@ def check_module_tables(module_id: str, postgres_url: str, tenant_id: Optional[s
                 logger.error(f"Error checking table {table_name}: {e}")
                 results['tables'][table_name] = {
                     'exists': False,
-                    'error': str(e)
+                    'error': 'check failed',
                 }
                 results['healthy'] = False
         
@@ -125,7 +125,7 @@ def check_module_tables(module_id: str, postgres_url: str, tenant_id: Optional[s
     except Exception as e:
         logger.error(f"Error connecting to database for health check: {e}")
         results['healthy'] = False
-        results['error'] = str(e)
+        results['error'] = 'database connection failed'
     
     return results
 

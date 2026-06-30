@@ -742,7 +742,7 @@ def update_my_profile(user_info: Dict[str, Any], user_id: str):
         
     except requests.exceptions.RequestException as e:
         logger.error(f"Error updating user profile: {e}")
-        return jsonify({'error': f'Failed to update profile: {str(e)}'}), 500
+        return internal_error(e, 'tenant_user_update_profile', user_message='Failed to update profile')
     except Exception as e:
         logger.error(f"Error updating user profile: {e}")
         import traceback

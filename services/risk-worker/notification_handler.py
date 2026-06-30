@@ -13,6 +13,7 @@ from typing import Any
 
 import psycopg2
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
@@ -147,4 +148,7 @@ async def handle_notification(request: Request):
 
     except Exception as e:
         logger.error("Error processing risk notification: %s", e, exc_info=True)
-        return {"status": "error", "detail": str(e)}, 500
+        return JSONResponse(
+            {"status": "error", "error": "Internal server error"},
+            status_code=500,
+        )

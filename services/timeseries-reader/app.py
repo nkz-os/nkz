@@ -725,8 +725,8 @@ def health():
             cursor.close()
         return jsonify({"status": "healthy"}), 200
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
-        return jsonify({"status": "unhealthy", "error": str(e)}), 500
+        logger.error(f"Health check failed: {e}", exc_info=True)
+        return internal_error(e, "timeseries_health", user_message="Service unhealthy")
 
 
 @app.route("/api/timeseries/entities", methods=["GET"])

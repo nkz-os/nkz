@@ -67,6 +67,11 @@ for path in common_paths:
     if os.path.exists(path) and path not in sys.path:
         sys.path.insert(0, path)
 
+from api_errors import internal_error  # noqa: E402
+from log_helpers import redact  # noqa: E402
+from hash_utils import api_key_digest, salted_credential_digest  # noqa: E402
+from proxy_helpers import safe_json_proxy_response  # noqa: E402
+
 # Import Keycloak authentication
 try:
     from keycloak_auth import (
@@ -1823,7 +1828,7 @@ def list_external_api_credentials():
         return jsonify({"credentials": [dict(c) for c in credentials]}), 200
 
     except Exception as e:
-        logger.error(f"Error listing credentials: {e}")
+        logger.error("Error listing credentials: %s", redact(e))
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -1865,7 +1870,7 @@ def create_external_api_credential():
             salt = os.getenv(
                 "CREDENTIAL_ENCRYPTION_SALT", "default-salt-change-in-production"
             )
-            return hashlib.sha256((plain_text + salt).encode()).hexdigest()
+            return salted_credential_digest(plain_text, salt)
 
         password_encrypted = None
         api_key_encrypted = None
@@ -1933,7 +1938,7 @@ def create_external_api_credential():
     except psycopg2.IntegrityError:
         return jsonify({"error": "Service name already exists"}), 409
     except Exception as e:
-        logger.error(f"Error creating credential: {e}")
+        logger.error("Error creating credential: %s", redact(e))
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -1964,7 +1969,7 @@ def update_external_api_credential(credential_id):
             salt = os.getenv(
                 "CREDENTIAL_ENCRYPTION_SALT", "default-salt-change-in-production"
             )
-            return hashlib.sha256((plain_text + salt).encode()).hexdigest()
+            return salted_credential_digest(plain_text, salt)
 
         conn = psycopg2.connect(POSTGRES_URL)
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -2032,7 +2037,7 @@ def update_external_api_credential(credential_id):
         return jsonify({"message": "Credential updated successfully"}), 200
 
     except Exception as e:
-        logger.error(f"Error updating credential: {e}")
+        logger.error("Error updating credential: %s", redact(e))
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -2076,7 +2081,7 @@ def delete_external_api_credential(credential_id):
         return jsonify({"message": "Credential deleted successfully"}), 200
 
     except Exception as e:
-        logger.error(f"Error deleting credential: {e}")
+        logger.error("Error deleting credential: %s", redact(e))
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -2199,7 +2204,7 @@ def get_copernicus_credentials():
             }
         ), 200
     except Exception as e:
-        logger.error(f"Error getting Copernicus credentials: {e}")
+        logger.error("Error getting Copernicus credentials: %s", redact(e))
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -2251,7 +2256,13 @@ def save_copernicus_credentials():
                     """)
                     existing = cur.fetchone()
 
-                    password_hash = hashlib.sha256(password.encode()).hexdigest()
+                    password_hash = salted_credential_digest(
+                        password,
+                        os.getenv(
+                            "CREDENTIAL_ENCRYPTION_SALT",
+                            "default-salt-change-in-production",
+                        ),
+                    )
 
                     if existing:
                         cur.execute(
@@ -2289,7 +2300,7 @@ def save_copernicus_credentials():
             return jsonify({"error": "Failed to save credentials to Kubernetes"}), 500
 
     except Exception as e:
-        logger.error(f"Error saving Copernicus credentials: {e}")
+        logger.error("Error saving Copernicus credentials: %s", redact(e))
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -2346,7 +2357,7 @@ def get_aemet_credentials():
             {"configured": False, "url": "https://opendata.aemet.es/opendata/api"}
         ), 200
     except Exception as e:
-        logger.error(f"Error getting AEMET credentials: {e}")
+        logger.error("Error getting AEMET credentials: %s", redact(e))
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -2396,7 +2407,7 @@ def save_aemet_credentials():
                     """)
                     existing = cur.fetchone()
 
-                    api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+                    api_key_hash = api_key_digest(api_key)
 
                     if existing:
                         cur.execute(
@@ -2431,7 +2442,7 @@ def save_aemet_credentials():
             return jsonify({"error": "Failed to save credentials to Kubernetes"}), 500
 
     except Exception as e:
-        logger.error(f"Error saving AEMET credentials: {e}")
+        logger.error("Error saving AEMET credentials: %s", redact(e))
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -3379,7 +3390,7 @@ def proxy_ndvi_requests(subpath):
         return jsonify({"error": "NDVI service timeout"}), 504
     except requests.exceptions.RequestException as e:
         logger.error(f"Error proxying request to NDVI service: {e}")
-        return jsonify({"error": f"Failed to connect to NDVI service: {str(e)}"}), 502
+        return internal_error(e, "proxy_ndvi", status=502, user_message="Failed to connect to NDVI service")
     except Exception as e:
         logger.error(f"Error in proxy_ndvi_requests: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -3604,15 +3615,13 @@ def proxy_hydrology_requests(subpath):
         else:
             return jsonify({"error": "Method not allowed"}), 405
 
-        response_headers = dict(resp.headers)
-        response_headers.pop("Content-Encoding", None)
-        response_headers.pop("Transfer-Encoding", None)
         cors_origin = get_cors_origin()
+        extra_headers: dict[str, str] = {}
         if cors_origin:
-            response_headers["Access-Control-Allow-Origin"] = cors_origin
-            response_headers["Access-Control-Allow-Credentials"] = "true"
-            response_headers["Vary"] = "Origin"
-        return make_response((resp.text, resp.status_code, response_headers))
+            extra_headers["Access-Control-Allow-Origin"] = cors_origin
+            extra_headers["Access-Control-Allow-Credentials"] = "true"
+            extra_headers["Vary"] = "Origin"
+        return safe_json_proxy_response(resp, extra_headers)
 
     except requests.exceptions.Timeout:
         logger.error(f"Timeout connecting to hydrology backend for /api/v1/hydrology/{subpath}")
@@ -4006,7 +4015,7 @@ def list_profiles():
         import traceback
 
         logger.error(traceback.format_exc())
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return internal_error(e, "gateway_profiles_list")
 
 
 @app.route("/api/v1/profiles", methods=["POST"])
@@ -4257,7 +4266,7 @@ def get_telemetry_stats():
         import traceback
 
         logger.error(traceback.format_exc())
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return internal_error(e, "gateway_profiles_list")
 
 
 @app.route("/api/v1/profiles/device-types", methods=["GET"])
@@ -4301,7 +4310,7 @@ def list_device_types():
         import traceback
 
         logger.error(traceback.format_exc())
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return internal_error(e, "gateway_profiles_list")
 
 
 def generic_proxy(target_url, path):
@@ -4366,10 +4375,10 @@ def generic_proxy(target_url, path):
             allow_redirects=False,
             timeout=30,
         )
-        return make_response(resp.content, resp.status_code, dict(resp.headers))
+        return safe_json_proxy_response(resp)
     except Exception as e:
         logger.error(f"Proxy error to {url}: {e}")
-        return jsonify({"error": "Gateway proxy error", "details": str(e)}), 502
+        return internal_error(e, "gateway_proxy", status=502, user_message="Gateway proxy error")
 
 
 @app.route("/api/vegetation/tiles/<path:path>", methods=["GET"])
@@ -4592,7 +4601,7 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
         return make_response(body, resp.status_code, resp_headers)
     except Exception as e:
         logger.error(f"n8n tenant proxy error to {target}: {e}")
-        return jsonify({"error": "n8n instance unavailable", "details": str(e)}), 502
+        return internal_error(e, "gateway_n8n_proxy", status=502, user_message="n8n instance unavailable")
 
 
 @app.route("/", methods=["GET"])
@@ -4660,7 +4669,7 @@ def provision_mqtt_credentials():
             headers={"Authorization": f"Bearer {token}"},
             timeout=15,
         )
-        return make_response(resp.content, resp.status_code, dict(resp.headers))
+        return safe_json_proxy_response(resp)
     except Exception as e:
         logger.error(f"MQTT provisioning error: {e}")
         return jsonify({"error": "MQTT provisioning failed"}), 502
@@ -4723,7 +4732,7 @@ def proxy_sdm_integration(subpath):
                 f"SDM integration returned {resp.status_code} for /api/sdm/{subpath}: {resp.text[:200]}"
             )
 
-        return make_response(resp.content, resp.status_code, dict(resp.headers))
+        return safe_json_proxy_response(resp)
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error forwarding SDM integration request: {e}")
@@ -5068,7 +5077,7 @@ def proxy_datahub_export():
             getattr(g, "pat_modified_body", None) or request.get_json(silent=True) or {}
         )
         resp = requests.post(url, headers=headers, json=body, timeout=120)
-        return make_response(resp.content, resp.status_code, dict(resp.headers))
+        return safe_json_proxy_response(resp)
     except requests.exceptions.RequestException as e:
         logger.error(f"DataHub export proxy error: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -5114,7 +5123,7 @@ def proxy_datahub_align():
         resp = requests.post(
             url, headers=headers, json=request.get_json(silent=True) or {}, timeout=60
         )
-        return make_response(resp.content, resp.status_code, dict(resp.headers))
+        return safe_json_proxy_response(resp)
     except requests.exceptions.RequestException as e:
         logger.error(f"DataHub align proxy error: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -5187,7 +5196,7 @@ def internal_module_ci(module_id, action):
                 data=request.get_data(),
                 timeout=60,
             )
-        return make_response(resp.content, resp.status_code, dict(resp.headers))
+        return safe_json_proxy_response(resp)
     except requests.exceptions.RequestException as e:
         logger.error(f"internal CI proxy error for {module_id}/{action}: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -5259,7 +5268,7 @@ def auto_proxy_module(subpath):
             request.method, path, module_id,
             resp.status_code, elapsed,
         )
-        return make_response(resp.content, resp.status_code, dict(resp.headers))
+        return safe_json_proxy_response(resp)
     except requests.exceptions.Timeout:
         logger.warning("auto-proxy timeout %s → %s", path, module_id)
         return jsonify({"error": "Module backend timeout"}), 504
