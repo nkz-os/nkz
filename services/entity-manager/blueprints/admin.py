@@ -15,6 +15,7 @@ from psycopg2.extras import RealDictCursor
 import requests
 
 from common.auth_middleware import require_auth, inject_fiware_headers
+from common.api_errors import internal_error
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple, return_db_connection, set_platform_admin_context
 
 logger = logging.getLogger(__name__)
@@ -284,7 +285,7 @@ def save_terms(language):
 
     except Exception as e:
         logger.error(f"Error saving terms: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'admin')
 
 
 # =============================================================================
@@ -313,7 +314,7 @@ def admin_list_tenants():
         return jsonify(tenants), 200
     except Exception as e:
         logger.error(f"Error listing tenants for admin: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'admin')
 
 # === Lines 4150-4172 from entity_management_api.py ===
 @admin_bp.route('/api/admin/activations', methods=['GET'])
@@ -338,7 +339,7 @@ def admin_list_activations():
         return jsonify(activations), 200
     except Exception as e:
         logger.error(f"Error listing activations for admin: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'admin')
 
 # === Lines 4174-4265 from entity_management_api.py (DEPRECATED) ===
 @admin_bp.route('/api/admin/tenants/<tenant_id>/purge', methods=['DELETE'])
@@ -393,7 +394,7 @@ def admin_tenant_inventory(tenant_id):
         logger.error(f"Error gathering inventory for {tenant_id}: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'admin')
 
 # =============================================================================
 # Module Upload Endpoint
@@ -594,7 +595,7 @@ def get_tenant_governance(tenant_id):
         logger.error(f"Error getting tenant governance: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'admin')
 
 
 # === Lines 4969-5109 from entity_management_api.py ===
@@ -737,7 +738,7 @@ def update_tenant_governance(tenant_id):
         logger.error(f"Error updating tenant governance: {e}")
         import traceback
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'admin')
 
 
 # === Lines 5218-5698 from entity_management_api.py ===
@@ -894,10 +895,7 @@ def get_audit_logs():
         }), 200
 
     except Exception as e:
-        logger.error(f"Error fetching audit logs: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({'error': 'Failed to fetch audit logs', 'details': str(e)}), 500
+        return internal_error(e, 'admin_audit_logs', user_message='Failed to fetch audit logs')
 
 
 

@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 
 from app.auth import require_auth
 from app.config import settings
+from common.api_errors import fastapi_internal_error
 from common.ngsi_headers import inject_fiware_headers
 
 logger = logging.getLogger(__name__)
@@ -122,5 +123,4 @@ def get_weather_alerts(
         return {"alerts": alerts, "count": len(alerts), "source": "orion-ld"}
 
     except Exception as e:
-        logger.error(f"Error querying WeatherAlert from Orion-LD: {e}")
-        return JSONResponse({"error": "Failed to query alerts", "detail": str(e)}, status_code=500)
+        fastapi_internal_error(e, "weather_alerts", user_message="Failed to query alerts")

@@ -31,6 +31,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "common"))
 from tenant_utils import normalize_tenant_id
 from ngsi_headers import inject_fiware_headers
 from api_errors import internal_error
+from hash_utils import api_key_digest
 
 # Configure logging
 logging.basicConfig(
@@ -106,7 +107,7 @@ def validate_api_key(api_key: str) -> Optional[Tuple[str, str]]:
     if not api_key:
         return None
 
-    api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    api_key_hash = api_key_digest(api_key)
 
     # Buscar en cache
     for tenant_id, hashes in API_KEYS_CACHE.items():
@@ -583,7 +584,7 @@ def receive_isobus_telemetry():
 
     except Exception as e:
         logger.error(f"Error processing ISOBUS telemetry: {e}", exc_info=True)
-        return jsonify({"error": "Internal server error", "detail": str(e)}), 500
+        return internal_error(e, "isobus_bridge.telemetry")
 
 
 if __name__ == "__main__":

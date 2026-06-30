@@ -11,7 +11,13 @@ from datetime import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
+import sys
 import logging
+
+_common = os.path.join(os.path.dirname(__file__), "..", "common")
+if _common not in sys.path:
+    sys.path.insert(0, _common)
+from api_errors import fastapi_internal_error  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +141,7 @@ async def list_profiles(
         
     except Exception as e:
         logger.error(f"Error listing profiles: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        fastapi_internal_error(e, "profiles")
 
 
 @router.get("/device-types", response_model=List[str])
@@ -159,7 +165,7 @@ async def list_device_types():
         
     except Exception as e:
         logger.error(f"Error listing device types: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        fastapi_internal_error(e, "profiles")
 
 
 @router.get("/stats", response_model=TelemetryStats)
@@ -212,7 +218,7 @@ async def get_telemetry_stats(
         
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        fastapi_internal_error(e, "profiles")
 
 
 @router.get("/{profile_id}", response_model=ProfileResponse)
@@ -243,7 +249,7 @@ async def get_profile(profile_id: str):
         raise
     except Exception as e:
         logger.error(f"Error getting profile: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        fastapi_internal_error(e, "profiles")
 
 
 @router.post("", response_model=ProfileResponse, status_code=201)
@@ -285,7 +291,7 @@ async def create_profile(profile: ProfileCreate):
         
     except Exception as e:
         logger.error(f"Error creating profile: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        fastapi_internal_error(e, "profiles")
 
 
 @router.put("/{profile_id}", response_model=ProfileResponse)
@@ -351,7 +357,7 @@ async def update_profile(profile_id: str, updates: ProfileUpdate):
         raise
     except Exception as e:
         logger.error(f"Error updating profile: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        fastapi_internal_error(e, "profiles")
 
 
 @router.delete("/{profile_id}", status_code=204)
@@ -378,4 +384,4 @@ async def delete_profile(profile_id: str):
         raise
     except Exception as e:
         logger.error(f"Error deleting profile: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        fastapi_internal_error(e, "profiles")

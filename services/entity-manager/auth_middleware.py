@@ -2,7 +2,6 @@ import logging
 import os
 import sys
 import jwt
-import hashlib
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from flask import request, jsonify, g
@@ -20,6 +19,7 @@ try:
         TokenValidationError,
         extract_tenant_id,
     )
+    from hash_utils import api_key_digest
 
     KEYCLOAK_AUTH_AVAILABLE = True
 except ImportError:
@@ -54,7 +54,7 @@ def validate_api_key(api_key: str, tenant_id: str = None) -> dict:
 
     try:
         # Hash the provided API key
-        api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+        api_key_hash = api_key_digest(api_key)
 
         conn = psycopg2.connect(POSTGRES_URL)
         cur = conn.cursor(cursor_factory=RealDictCursor)

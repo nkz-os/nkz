@@ -497,7 +497,7 @@ def require_keycloak_auth(f):
             
         except TokenValidationError as e:
             logger.warning(f"Token validation error: {e}")
-            return jsonify({'error': str(e)}), 401
+            return jsonify({'error': 'Invalid or expired token'}), 401
         except KeycloakAuthError as e:
             logger.error(f"Keycloak auth error: {e}")
             return jsonify({'error': 'Authentication error'}), 500

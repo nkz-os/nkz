@@ -154,7 +154,7 @@ def dispatch_to_module(
         return resp.status_code, body
     except requests.RequestException as e:
         logger.error("Dispatch to %s failed: %s", url, e)
-        return 503, {"error": str(e)}
+        return 503, {"error": "Module dispatch failed"}
 
 
 def persist_activation(

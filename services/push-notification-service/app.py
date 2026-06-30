@@ -22,6 +22,7 @@ import requests
 from flask import Flask, g, jsonify, request
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "common"))
+from api_errors import internal_error  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ def health():
         cur.close()
         return jsonify({"status": "healthy", "service": "push-notification"}), 200
     except Exception as e:
-        return jsonify({"status": "unhealthy", "error": str(e)}), 503
+        return internal_error(e, "push_notification_health", status=503, user_message="Service unhealthy")
 
 
 # ── Token Registration ────────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ def register_device():
         return jsonify({"status": "registered"}), 200
     except Exception as e:
         logger.error("Token registration failed: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return internal_error(e, "push_notification_register")
 
 
 # ── Send Push ─────────────────────────────────────────────────────────────────
@@ -181,7 +182,7 @@ def send_push():
 
     except Exception as e:
         logger.error("Push dispatch failed: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return internal_error(e, "push_notification_register")
 
 
 if __name__ == "__main__":

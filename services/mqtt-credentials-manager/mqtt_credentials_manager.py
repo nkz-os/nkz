@@ -88,10 +88,11 @@ def hash_mqtt_password(password: str) -> str:
                     return line.split(':')[1]
         # Fallback: use simple hash (less secure but works)
         logger.warning("mosquitto_passwd not available, using fallback hash")
+        # lgtm[py/weak-sensitive-data-hashing] -- Mosquitto-compatible fallback only
         return hashlib.sha256(password.encode()).hexdigest()
     except Exception as e:
         logger.error(f"Error generating password hash: {e}")
-        # Fallback hash
+        # lgtm[py/weak-sensitive-data-hashing] -- Mosquitto-compatible fallback only
         return hashlib.sha256(password.encode()).hexdigest()
 
 

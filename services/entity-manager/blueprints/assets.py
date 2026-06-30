@@ -16,6 +16,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from common.auth_middleware import require_auth, inject_fiware_headers
+from common.api_errors import internal_error
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +239,7 @@ def create_asset():
 
     except Exception as e:
         logger.error(f"Error creating asset: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'assets')
 
 
 # =============================================================================
@@ -379,7 +380,7 @@ def upload_asset():
 
     except Exception as e:
         logger.error(f"Error uploading asset: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'assets')
 
 
 @assets_bp.route('/api/assets/<asset_id>', methods=['GET'])
@@ -435,7 +436,7 @@ def get_asset_url(asset_id):
 
     except Exception as e:
         logger.error(f"Error getting asset URL: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'assets')
 
 
 @assets_bp.route('/api/assets/<asset_id>', methods=['DELETE'])
@@ -478,7 +479,7 @@ def delete_asset(asset_id):
 
     except Exception as e:
         logger.error(f"Error deleting asset: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return internal_error(e, 'assets')
 
 
 @assets_bp.route('/api/assets/tenant', methods=['GET'])
@@ -649,7 +650,7 @@ def upload_public_asset():
 
     except Exception as e:
         logger.error(f"Error uploading public asset: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'assets')
 
 
 @assets_bp.route('/api/assets/public/<path:filename>', methods=['DELETE'])
@@ -683,4 +684,4 @@ def delete_public_asset(filename):
 
     except Exception as e:
         logger.error(f"Error deleting public asset: {e}")
-        return jsonify({'error': str(e)}), 500
+        return internal_error(e, 'assets')

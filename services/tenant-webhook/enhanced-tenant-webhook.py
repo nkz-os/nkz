@@ -61,6 +61,7 @@ if not common_path_found:
 # Canonical tenant_id normalizer (services/common/tenant_utils.py).
 # Imported AFTER sys.path is augmented so it works in both container and dev.
 from tenant_utils import normalize_tenant_id  # noqa: E402
+from hash_utils import api_key_digest  # noqa: E402
 
 try:
     from keycloak_auth import (
@@ -263,7 +264,6 @@ def require_platform_admin(f):  # noqa: C901
             return jsonify(
                 {
                     "error": "Token validation failed",
-                    "details": str(e),
                     "suggestion": (
                         "Your token may have expired. "
                         "Please refresh the page and try again."
@@ -320,10 +320,10 @@ def require_keycloak_auth(f):
 
         except TokenValidationError as e:
             logger.warning(f"Token validation error: {e}")
-            return jsonify({"error": str(e)}), 401
+            return jsonify({"error": "Invalid or expired token"}), 401
         except KeycloakAuthError as e:
             logger.error(f"Keycloak auth error: {e}")
-            return jsonify({"error": str(e)}), 401
+            return jsonify({"error": "Authentication error"}), 401
 
     return decorated_function
 
@@ -1210,7 +1210,7 @@ class EnhancedTenantWebhookService:
 
         except Exception as e:
             logger.error(f"Failed to create Keycloak user {email}: {e}")
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": "User creation failed"}
 
     def _fetch_realm_roles(self, headers: dict[str, str]) -> dict[str, dict[str, Any]]:
         """Fetch and cache Keycloak realm roles for quick lookup"""
@@ -1590,7 +1590,7 @@ class EnhancedTenantWebhookService:
         try:
             # Generate a secure API key (32 bytes hex)
             api_key = secrets.token_hex(32)
-            api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+            api_key_hash = api_key_digest(api_key)
             namespace = get_tenant_namespace(tenant_id)
 
             # 1. Store in PostgreSQL api_keys table
@@ -2912,7 +2912,7 @@ def create_tenant_personal_access_token():
             return jsonify({"error": "expires_at must be in the future"}), 400
 
     raw_token = f"nkz_pat_{secrets.token_urlsafe(32)}"
-    key_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    key_hash = api_key_digest(raw_token)
     creator_sub = (g.current_user or {}).get("sub")
 
     conn = webhook_service.get_db_connection()
@@ -3119,7 +3119,7 @@ def create_api_key():
 
     # Generate new API key (32 bytes hex)
     new_api_key = secrets.token_hex(32)
-    api_key_hash = hashlib.sha256(new_api_key.encode()).hexdigest()
+    api_key_hash = api_key_digest(new_api_key)
 
     name = data.get("name", f"API Key for {tenant}")
     description = data.get("description", f"Generated API key for tenant {tenant}")
@@ -3890,7 +3890,7 @@ def admin_hard_purge_tenant(tenant_id: str):
                 logger.error(f"Purge phase {phase_name} failed for {tenant_id}: {result.get('error')}")
                 break
         except Exception as e:
-            phase_results.append({"phase": phase_name, "ok": False, "error": str(e)})
+            phase_results.append({"phase": phase_name, "ok": False, "error": "phase failed"})
             logger.exception(f"Purge phase {phase_name} exception for {tenant_id}")
             break
 
@@ -3967,7 +3967,7 @@ def internal_inventory_kubernetes(tenant_id: str):
     except Exception as e:
         if "NotFound" in str(e) or "not found" in str(e):
             return jsonify({"status": "not_found", "summary": {}})
-        return jsonify({"status": "error", "error": str(e)}), 500
+        return _internal_error(e, "admin_tenant_resources")
 
 
 @app.route("/api/admin/tenants/<tenant_id>/users", methods=["POST"])
@@ -4142,7 +4142,7 @@ def suspend_tenant(tenant_id: str):
 
     except Exception as e:
         logger.error(f"Error suspending tenant {tenant_id}: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return _internal_error(e, "suspend_tenant", user_message="Failed to suspend tenant")
 
 
 @app.route("/api/admin/tenants/<tenant_id>/restore", methods=["POST"])
@@ -4200,7 +4200,7 @@ def restore_tenant(tenant_id: str):
 
     except Exception as e:
         logger.error(f"Error restoring tenant {tenant_id}: {e}")
-        return jsonify({'error': 'Internal server error', 'details': str(e)}), 500
+        return _internal_error(e, "suspend_tenant", user_message="Failed to suspend tenant")
 
 
 def _tenant_attr(attributes, key):
@@ -6452,7 +6452,7 @@ def internal_n8n_provision(tenant_id):
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
         logger.error(f"n8n provision error for {tenant_id}: {e}")
-        return jsonify({"error": str(e)}), 502
+        return _internal_error(e, "n8n_provision", status=502, user_message="n8n provision failed")
 
 
 @app.route(
@@ -6496,7 +6496,7 @@ def internal_n8n_suspension_event(tenant_id):
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
         logger.error(f"n8n suspension event error for {tenant_id}: {e}")
-        return jsonify({"error": str(e)}), 502
+        return _internal_error(e, "n8n_provision", status=502, user_message="n8n provision failed")
 
 
 def _migrate_001_scopes_column(conn):

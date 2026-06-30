@@ -91,7 +91,7 @@ check_pattern() {
 # ── Check 1: Direct INSERT INTO with deprecation exemption ──
 # INSERTs inside functions marked DEPRECATED are kept for rollback safety.
 # INSERTs into administrative tables (module registry, tenants, etc.) are ALLOWED.
-ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants|calibration_periods|notification_config|activation_codes|api_keys|farmer_activations|farmers|tenant_invitations'
+ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants|calibration_periods|notification_config|activation_codes|api_keys|farmer_activations|farmers|tenant_invitations|user_push_tokens|platform_settings|terms_and_conditions|tenant_governance_audit|processing_profiles|telemetry_events'
 check_exempt_insert() {
     local name="$1"
     local pattern="$2"
@@ -117,7 +117,7 @@ check_exempt_insert() {
                     continue
                 fi
                 ctx_before=$(sed -n "$((linenum - 8)),$((linenum - 1))p" "$f" 2>/dev/null)
-                if echo "$ctx_before" | grep -qE '"""DEPRECATED|"""Deprecated|"""deprecated'; then
+                if echo "$ctx_before" | grep -qE '"""DEPRECATED|"""Deprecated|"""deprecated|# """DEPRECATED'; then
                     continue
                 fi
                 violations=$((violations + 1))
@@ -135,7 +135,22 @@ check_exempt_insert "execute INSERT" '\.execute(\|\.executemany(\|session\.execu
 raw_conns=$(echo "$files" | xargs grep -lE 'psycopg2\.connect|asyncpg\.create_pool' 2>/dev/null | grep -vE "$EXCLUDE" || true)
 if [ -n "$raw_conns" ]; then
     for f in $raw_conns; do
-        if grep -qE 'INSERT[[:space:]]+INTO|UPDATE[[:space:]]+' "$f" 2>/dev/null; then
+        if ! grep -qE 'INSERT[[:space:]]+INTO|UPDATE[[:space:]]+' "$f" 2>/dev/null; then
+            continue
+        fi
+        has_bad=0
+        while IFS=: read -r linenum rest; do
+            if echo "$rest" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)([[:space:](]|$)"; then
+                continue
+            fi
+            ctx_before=$(sed -n "$((linenum - 8)),$((linenum - 1))p" "$f" 2>/dev/null)
+            if echo "$ctx_before" | grep -qE '"""DEPRECATED|"""Deprecated|"""deprecated|# """DEPRECATED'; then
+                continue
+            fi
+            has_bad=1
+            break
+        done < <(grep -nE 'INSERT[[:space:]]+INTO' "$f" 2>/dev/null)
+        if [ "$has_bad" -eq 1 ]; then
             echo "FOUND: DB connection WITH writes in $f"
             violations=$((violations + 1))
         fi

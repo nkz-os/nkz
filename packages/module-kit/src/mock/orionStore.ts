@@ -26,10 +26,16 @@ export class OrionMockStore implements OrionTransport {
     const all = Array.from(this.entities.values()).filter((e) => e.type === type);
     let filtered = all;
     if (opts?.q) {
-      const m = opts.q.match(/^([a-zA-Z0-9_]+)\s*==\s*"?([^"]+)"?$/);
-      if (m) {
-        const [, attr, val] = m;
-        filtered = all.filter((e) => String(e[attr]) === val);
+      const parts = opts.q.split('==');
+      if (parts.length === 2) {
+        const attr = parts[0].trim();
+        let val = parts[1].trim();
+        if (val.startsWith('"') && val.endsWith('"')) {
+          val = val.slice(1, -1);
+        }
+        if (/^[a-zA-Z0-9_]+$/.test(attr)) {
+          filtered = all.filter((e) => String(e[attr]) === val);
+        }
       }
     }
     const offset = opts?.offset ?? 0;

@@ -296,8 +296,8 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
         result['error'] = "Cannot connect to IoT Agent - device not provisioned"
         logger.error(result['error'])
     except Exception as e:
-        result['error'] = f"Provisioning error: {str(e)}"
-        logger.error(result['error'], exc_info=True)
+        result['error'] = "Provisioning error"
+        logger.error("Device provisioning failed", exc_info=True)
     
     return result
 
