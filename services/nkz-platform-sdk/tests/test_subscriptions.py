@@ -7,7 +7,7 @@ import pytest
 import respx
 from httpx import Response
 
-from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
+from nkz_platform_sdk.subscriptions import SubscriptionDef, SubscriptionRegistrar
 
 ORION = "http://orion-ld-service:1026"
 NOTIFY = "http://crop-health-api-service:8000/api/crop-health/webhooks/orion"
@@ -98,3 +98,30 @@ async def test_ensure_all_collects_errors_without_raising():
     result = await make_registrar().ensure_all(["montiko"])
     assert result["created"] == 0
     assert len(result["errors"]) == 1
+
+
+def _registrar():
+    return SubscriptionRegistrar(
+        orion_url="http://orion:1026",
+        notification_url="http://svc/notify",
+        subscriptions=[],
+        module_name="bioorchestrator",
+    )
+
+
+def test_body_omits_watched_and_condition_when_unset():
+    body = _registrar()._body(SubscriptionDef(type="AgriCrop"))
+    assert "watchedAttributes" not in body
+    assert "condition" not in body
+
+
+def test_body_includes_watched_and_condition_when_set():
+    sub = SubscriptionDef(
+        type="CropHealthAssessment",
+        watched_attributes=["phenologyStage"],
+        condition={"attrs": ["phenologyStage"]},
+    )
+    body = _registrar()._body(sub)
+    assert body["watchedAttributes"] == ["phenologyStage"]
+    assert body["condition"] == {"attrs": ["phenologyStage"]}
+    assert body["entities"] == [{"type": "CropHealthAssessment"}]
