@@ -10,11 +10,12 @@ spec:
     targetRevision: HEAD
     path: k8s/vpn
     directory:
-      exclude: '{02-headscale-config.yaml,04-headscale-ingress.yaml,04-subnet-router.yaml}'
+      exclude: '{02-headscale-config.yaml,04-headscale-ingress.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: nekazari
-  # Secret nekazari-iot-ca-secret is not in Git (created manually); prune disabled so ArgoCD won't delete it
+  # Production config + ingress: gitops-config vpn-config overlay.
+  # Subnet router: 04-subnet-router.yaml (this app). Secret nekazari-iot-ca-secret is manual.
   syncPolicy:
     automated:
       prune: false

@@ -154,36 +154,6 @@ spec:
   type: ClusterIP
 
 ---
-# Ingress — expone el control plane en YOUR_VPN_DOMAIN
-# Los clientes Tailscale se conectan aquí para registrarse.
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: headscale-ingress
-  namespace: nekazari
-  labels:
-    app: headscale
-    component: vpn-control-plane
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
-    # Headscale necesita websockets y HTTP/2 para gRPC
-    traefik.ingress.kubernetes.io/router.middlewares: nekazari-headscale-headers@kubernetescrd
-spec:
-  rules:
-    - host: YOUR_VPN_DOMAIN
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: headscale-service
-                port:
-                  name: http
-
----
 # ServiceAccount con permisos mínimos
 apiVersion: v1
 kind: ServiceAccount
