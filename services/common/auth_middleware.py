@@ -280,16 +280,14 @@ def require_auth(_func=None, *, require_hmac: bool = None):
         return decorator
 
 
-def inject_fiware_headers(headers, tenant=None):
+def inject_fiware_headers(headers, tenant=None, has_context_in_body=False):
     """Inject NGSI-LD + FIWARE tenant headers for Orion-LD multitenancy.
 
     Delegates to the canonical implementation in ngsi_headers.py.
-    Preserved for backward compatibility — all callers pass empty headers
-    and rely on the old default behavior (no @context in body detection).
-    """
+  """
     from ngsi_headers import inject_fiware_headers as _canonical
 
-    return _canonical(headers, tenant=tenant, has_context_in_body=False)
+    return _canonical(headers, tenant=tenant, has_context_in_body=has_context_in_body)
 
 
 def validate_entity_ownership(entity_id, tenant):

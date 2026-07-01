@@ -244,7 +244,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: entity-manager
-          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:7314392f70f23b2b4f270c022a3c8423aea82c89fc22f01cbbc6722bbefa283f  # fix/parcel-orion-ld-json aadbba1
+          image: ghcr.io/nkz-os/nkz/entity-manager@sha256:7cb26bb8d48d97ed1e278f935f8bc8c0d36ea5aaa43ef16a46c95013d4869621  # fix/parcel-inject-wrapper 439c248
           imagePullPolicy: Always
           securityContext:
             allowPrivilegeEscalation: false
