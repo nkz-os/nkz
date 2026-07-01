@@ -23,6 +23,8 @@ DESCRIPTION_PREFIX = "nkz-module"
 class SubscriptionDef:
     type: str
     throttling: int = 30
+    watched_attributes: list[str] | None = None
+    condition: dict | None = None
 
 
 class SubscriptionRegistrar:
@@ -60,7 +62,7 @@ class SubscriptionRegistrar:
         return f"{DESCRIPTION_PREFIX}: {sub.type} -> {self.module_name}"
 
     def _body(self, sub: SubscriptionDef) -> dict:
-        return {
+        body = {
             "type": "Subscription",
             "description": self._description(sub),
             "entities": [{"type": sub.type}],
@@ -71,6 +73,11 @@ class SubscriptionRegistrar:
             "throttling": sub.throttling,
             "isActive": True,
         }
+        if sub.watched_attributes:
+            body["watchedAttributes"] = sub.watched_attributes
+        if sub.condition:
+            body["condition"] = sub.condition
+        return body
 
     async def ensure_all(self, tenant_ids: list[str]) -> dict:
         """Ensure subscriptions exist for all tenants. Idempotent, never raises."""
