@@ -26,7 +26,9 @@ from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-_common = os.path.join(os.path.dirname(__file__), "..", "common")
+_common = os.path.join(os.path.dirname(__file__), "common")
+if not os.path.isdir(_common):
+    _common = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "common"))
 if _common not in sys.path:
     sys.path.insert(0, _common)
 from api_errors import internal_error  # noqa: E402
