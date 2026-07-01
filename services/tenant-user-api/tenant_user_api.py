@@ -122,12 +122,15 @@ def validate_tenant_admin(f):
                     elif isinstance(attr_val, str):
                         raw_tenant = attr_val
             
-            # CRITICAL SOTA: Always normalize tenant ID before use
+            # Canonical hyphen tenant id — never underscore (phantom Orion DB risk).
+            if not raw_tenant:
+                return jsonify({'error': 'missing_tenant_id'}), 400
             try:
-                tenant = normalize_tenant_id(raw_tenant) if raw_tenant else ''
-            except ValueError:
-                tenant = raw_tenant.lower().replace('-', '_') if raw_tenant else ''
-            
+                tenant = normalize_tenant_id(raw_tenant)
+            except ValueError as exc:
+                logger.warning("Invalid tenant_id in token: %r", raw_tenant)
+                return jsonify({'error': 'invalid_tenant_id', 'detail': str(exc)}), 400
+
             return f(user_info, tenant, *args, **kwargs)
             
         except Exception as e:

@@ -62,6 +62,7 @@ _SOURCE_TARGETS = [
     "risk-worker/subscription_manager.py",
     "entity-manager/subscription_manager.py",
     "sdm-integration/auth_middleware.py",
+    "tenant-user-api/tenant_user_api.py",
 ]
 
 
