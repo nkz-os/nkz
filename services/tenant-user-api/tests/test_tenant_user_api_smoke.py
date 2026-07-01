@@ -36,3 +36,11 @@ def test_import():
         importlib.import_module("tenant_user_api")
     except (ModuleNotFoundError, ImportError) as e:
         pytest.fail(f"Could not import tenant_user_api: {e}")
+
+
+def test_no_hyphen_to_underscore_fallback():
+    """TenantAdmin auth must not convert hyphens to underscores on normalize failure."""
+    with open(_MAIN_FILE) as f:
+        source = f.read()
+    assert "replace('-', '_')" not in source
+    assert 'replace("-", "_")' not in source
