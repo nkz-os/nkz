@@ -969,7 +969,7 @@ def create_parcel():
         - cadastralReference: str (optional — enables idempotent dedup)
         - municipality, province, cropType, area, notes, generationMethod
     """
-    tenant = g.tenant_id or g.tenant
+    tenant = g.tenant
     data = request.json or {}
     geometry = data.get("geometry")
 
@@ -1048,7 +1048,7 @@ def create_parcel():
 @require_auth
 def update_parcel(parcel_id: str):
     """Update an AgriParcel's attributes."""
-    tenant = g.tenant_id or g.tenant
+    tenant = g.tenant
     data = request.json or {}
 
     # Resolve full URN if short UUID given
@@ -1093,7 +1093,7 @@ def update_parcel(parcel_id: str):
 @require_auth
 def delete_parcel(parcel_id: str):
     """Delete an AgriParcel and cascade to its child zones."""
-    tenant = g.tenant_id or g.tenant
+    tenant = g.tenant
 
     if _UUID_RE.match(parcel_id):
         entity_id = _parcel_urn(parcel_id)
