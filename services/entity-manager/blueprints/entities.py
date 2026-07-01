@@ -1028,10 +1028,8 @@ def create_parcel():
     if area:
         entity["area"] = {"type": "Property", "value": area}
 
-    # Write to Orion
-    headers = inject_fiware_headers(
-        {"Content-Type": "application/json"}, tenant
-    )
+    # Write to Orion (@context in body → ld+json, no Link header)
+    headers = inject_fiware_headers({}, tenant, has_context_in_body=True)
     resp = requests.post(
         f"{ORION_URL}/ngsi-ld/v1/entities",
         json=entity, headers=headers, timeout=10,
