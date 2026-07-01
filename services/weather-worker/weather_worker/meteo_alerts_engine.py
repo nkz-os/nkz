@@ -124,6 +124,7 @@ class MeteoAlertsEngine:
         stats: Dict[str, int] = {
             "alerts_fetched": 0,
             "entities_upserted": 0,
+            "entities_pruned": 0,
             "errors": 0,
         }
 
@@ -132,26 +133,30 @@ class MeteoAlertsEngine:
             raw_alerts = self._fetch_all_alerts()
             stats["alerts_fetched"] = len(raw_alerts)
 
-            if not raw_alerts:
-                logger.info("MeteoAlertsEngine: no alerts fetched")
-                return stats
+            if raw_alerts:
+                # 2. Build WeatherAlert entities
+                entities = self._build_entities(raw_alerts)
 
-            # 2. Build WeatherAlert entities
-            entities = self._build_entities(raw_alerts)
-
-            if not entities:
-                logger.info("MeteoAlertsEngine: no valid entities built")
-                return stats
-
-            # 3. UPSERT batch into Orion-LD (tenant 'default')
-            ok = self._upsert_batch("default", entities)
-            if ok:
-                stats["entities_upserted"] = len(entities)
-                logger.info(
-                    f"MeteoAlertsEngine: upserted {len(entities)} WeatherAlert entities"
-                )
+                if entities:
+                    # 3. UPSERT batch into Orion-LD (tenant 'default')
+                    ok = self._upsert_batch("default", entities)
+                    if ok:
+                        stats["entities_upserted"] = len(entities)
+                        logger.info(
+                            f"MeteoAlertsEngine: upserted {len(entities)} WeatherAlert entities"
+                        )
+                    else:
+                        stats["errors"] += 1
+                else:
+                    logger.info("MeteoAlertsEngine: no valid entities built")
             else:
-                stats["errors"] += 1
+                logger.info("MeteoAlertsEngine: no alerts fetched")
+
+            # 4. Prune expired alerts (runs every cycle — upsert never removes stale rows)
+            pruned = self._prune_expired_alerts("default")
+            stats["entities_pruned"] = pruned
+            if pruned:
+                logger.info(f"MeteoAlertsEngine: pruned {pruned} expired WeatherAlert entities")
 
         except Exception as e:
             logger.error(f"MeteoAlertsEngine run_once failed: {e}", exc_info=True)
@@ -411,6 +416,74 @@ class MeteoAlertsEngine:
         except Exception as e:
             logger.error(f"UPSERT batch error: {e}")
             return False
+
+    def _prune_expired_alerts(self, tenant_id: str, batch_size: int = 200) -> int:
+        """Delete WeatherAlert entities whose validTo is in the past.
+
+        MeteoAlarm UPSERT only updates live alerts; expired rows accumulate in
+        tenant 'default' unless explicitly removed.
+        """
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        deleted = 0
+
+        while True:
+            headers = _make_headers(tenant_id)
+            headers["Accept"] = "application/json"
+            try:
+                resp = self._session.get(
+                    f"{self.orion_url}/ngsi-ld/v1/entities",
+                    params={
+                        "type": "WeatherAlert",
+                        "q": f'validTo<"{now_iso}"',
+                        "limit": batch_size,
+                    },
+                    headers=headers,
+                    timeout=60,
+                )
+            except Exception as e:
+                logger.warning(f"MeteoAlertsEngine: expired-alert query failed: {e}")
+                break
+
+            if resp.status_code != 200:
+                logger.warning(
+                    f"MeteoAlertsEngine: expired-alert query HTTP {resp.status_code}: "
+                    f"{resp.text[:200]}"
+                )
+                break
+
+            batch = resp.json()
+            if not isinstance(batch, list) or not batch:
+                break
+
+            ids = [e["id"] for e in batch if e.get("id")]
+            if not ids:
+                break
+
+            del_headers = _make_headers(tenant_id)
+            del_headers["Content-Type"] = "application/json"
+            try:
+                del_resp = self._session.post(
+                    f"{self.orion_url}/ngsi-ld/v1/entityOperations/delete",
+                    json=ids,
+                    headers=del_headers,
+                    timeout=120,
+                )
+            except Exception as e:
+                logger.warning(f"MeteoAlertsEngine: expired-alert delete failed: {e}")
+                break
+
+            if del_resp.status_code not in (200, 204):
+                logger.warning(
+                    f"MeteoAlertsEngine: expired-alert delete HTTP "
+                    f"{del_resp.status_code}: {del_resp.text[:200]}"
+                )
+                break
+
+            deleted += len(ids)
+            if len(batch) < batch_size:
+                break
+
+        return deleted
 
     # ------------------------------------------------------------------
     # Loop (run by main.py thread)
