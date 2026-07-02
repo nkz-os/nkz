@@ -331,6 +331,7 @@ gitops-config/
 
 # Production overlay files (live in gitops-config private repo)
 gitops/overlays/
+gitops/README.md
 
 # Agent / IDE context (keep repo clean)
 .antigravity/
