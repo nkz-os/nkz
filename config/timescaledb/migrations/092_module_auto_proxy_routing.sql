@@ -7,7 +7,7 @@
 
 -- weather-map (fixes wrong weather-api-service target from 087)
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/weather-map",
   "backend_service": "http://weather-map-backend:8080",
   "backend_mount": "/api/weather-map",
@@ -17,7 +17,7 @@ WHERE id = 'weather-map';
 
 -- soil (backend mounts at /v1/soil)
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/soil",
   "backend_service": "http://soil-module-service:8000",
   "backend_mount": "/v1/soil",
@@ -27,7 +27,7 @@ SET metadata = metadata || $json${
 WHERE id = 'soil';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/carbon",
   "backend_service": "http://carbon-api-service:8000",
   "backend_mount": "/api/carbon",
@@ -36,7 +36,7 @@ SET metadata = metadata || $json${
 WHERE id = 'carbon';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/crop-health",
   "backend_service": "http://crop-health-api-service:8000",
   "backend_mount": "/api/crop-health",
@@ -45,7 +45,7 @@ SET metadata = metadata || $json${
 WHERE id = 'crop-health';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/vegetation",
   "backend_service": "http://vegetation-prime-api-service:8000",
   "backend_mount": "/api/vegetation",
@@ -54,7 +54,7 @@ SET metadata = metadata || $json${
 WHERE id = 'vegetation-prime';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/field-operations",
   "backend_service": "http://field-operations-api-service:8420",
   "backend_mount": "/api/field-operations",
@@ -63,7 +63,7 @@ SET metadata = metadata || $json${
 WHERE id = 'field-operations';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/greenhouse",
   "backend_service": "http://greenhouse-dt-backend:8420",
   "backend_mount": "/api/greenhouse",
@@ -72,7 +72,7 @@ SET metadata = metadata || $json${
 WHERE id = 'greenhouse-dt';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/robotics",
   "backend_service": "http://robotics-api-service:80",
   "backend_mount": "/api/robotics",
@@ -81,7 +81,7 @@ SET metadata = metadata || $json${
 WHERE id = 'robotics';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/connectivity",
   "backend_service": "http://connectivity-api-service:8000",
   "backend_mount": "/api/connectivity",
@@ -90,7 +90,7 @@ SET metadata = metadata || $json${
 WHERE id = 'connectivity';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/agrienergy",
   "backend_service": "http://agrienergy-api-service:8000",
   "backend_mount": "/api/agrienergy",
@@ -99,7 +99,7 @@ SET metadata = metadata || $json${
 WHERE id = 'agrienergy';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/lidar",
   "backend_service": "http://lidar-api-service:80",
   "backend_mount": "/api/lidar",
@@ -108,7 +108,7 @@ SET metadata = metadata || $json${
 WHERE id = 'lidar';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/datahub",
   "backend_service": "http://datahub-api-service:8000",
   "backend_mount": "/api/datahub",
@@ -117,7 +117,7 @@ SET metadata = metadata || $json${
 WHERE id = 'datahub';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/modules/cue",
   "backend_service": "http://cue-backend-service:5000",
   "backend_mount": "/api/modules/cue",
@@ -127,7 +127,7 @@ WHERE id = 'cue';
 
 -- public agriculture graph subset (direct ingress exception documented in spec)
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/graph/agriculture",
   "backend_service": "http://bioorchestrator-api-service:8420",
   "backend_mount": "/api/graph/agriculture",
@@ -136,7 +136,7 @@ SET metadata = metadata || $json${
 WHERE id = 'bioorchestrator';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/elevation",
   "backend_service": "http://elevation-api-service:80",
   "backend_mount": "/api/elevation",
@@ -145,7 +145,7 @@ SET metadata = metadata || $json${
 WHERE id = 'nkz-module-eu-elevation';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/n8n-nkz",
   "backend_service": "http://n8n-nkz-api-service:8000",
   "backend_mount": "/api/n8n-nkz",
@@ -155,7 +155,7 @@ WHERE id = 'n8n-nkz';
 
 -- zulip: bespoke gateway handlers only (no auto-proxy row)
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/v1/hydrology",
   "backend_service": "http://hydrology-api-service:8000",
   "backend_mount": "/api/v1/hydrology",
@@ -164,7 +164,7 @@ SET metadata = metadata || $json${
 WHERE id = 'hydrology';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/routing",
   "backend_service": "http://nkz-module-gis-routing-service:8000",
   "backend_mount": "/api/routing",
@@ -173,7 +173,7 @@ SET metadata = metadata || $json${
 WHERE id = 'nkz-module-gis-routing';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/cadastral-api",
   "backend_service": "http://catastro-spain-api-service:5000",
   "backend_mount": "/api/cadastral-api",
@@ -182,7 +182,7 @@ SET metadata = metadata || $json${
 WHERE id = 'catastro-spain';
 
 UPDATE marketplace_modules
-SET metadata = metadata || $json${
+SET metadata = COALESCE(metadata, '{}'::jsonb) || $json${
   "api_prefix": "/api/odoo",
   "backend_service": "http://odoo-backend-service:80",
   "backend_mount": "/api/odoo",
