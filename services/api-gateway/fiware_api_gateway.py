@@ -231,6 +231,7 @@ def _refresh_route_registry() -> dict[str, dict]:
             if prefix and backend:
                 routes[prefix] = {
                     "backend_service": backend,
+                    "backend_mount": meta.get("backend_mount") or prefix,
                     "module_id": row["id"],
                     "requires_auth": meta.get("requires_auth", True),
                 }
@@ -4392,44 +4393,20 @@ def list_device_types():
         return internal_error(e, "gateway_profiles_list")
 
 
-def generic_proxy(target_url, path):
-    """Generic proxy handler with auth and tenant isolation"""
-    token = get_request_token()
-    if not token:
-        return jsonify({"error": "Missing or invalid authorization"}), 401
-    payload = validate_jwt_token(token)
-    if not payload:
-        return jsonify({"error": "Invalid or expired token"}), 401
-    tenant = extract_tenant_id(payload)
-    if not tenant:
-        return jsonify({"error": "Tenant not present in token"}), 401
-    if not rate_limit(tenant):
-        return jsonify({"error": "Rate limit exceeded"}), 429
-
-    # Role based access control (Read-Only fallback)
-    has_pro_expired = has_role("role_pro_expired", payload)
-    if has_pro_expired and request.method in ["POST", "PUT", "PATCH", "DELETE"]:
-        logger.warning(
-            f"Blocked mutation request to {target_url}/{path} for user with role_pro_expired"
-        )
-        return jsonify({"error": "Subscription expired. Read-only mode active."}), 403
-
-    url = f"{target_url}/{path}"
-
-    # Extract user_id from JWT sub claim
-    user_id = payload.get("sub", "")
-    # Collect all roles from realm_access + resource_access
+def _collect_jwt_roles(payload: dict) -> list[str]:
     realm_roles = payload.get("realm_access", {}).get("roles", []) or []
     resource_roles = []
     for resource in payload.get("resource_access", {}).values():
         if isinstance(resource, dict) and "roles" in resource:
             resource_roles.extend(resource["roles"])
-    all_roles = list(set(realm_roles + resource_roles + payload.get("roles", [])))
+    return list(set(realm_roles + resource_roles + payload.get("roles", [])))
 
+
+def _build_authenticated_proxy_headers(token: str, payload: dict, tenant: str) -> dict:
     headers = {
         "X-Tenant-ID": tenant,
-        "X-User-ID": user_id,
-        "X-User-Roles": ",".join(all_roles),
+        "X-User-ID": payload.get("sub", ""),
+        "X-User-Roles": ",".join(_collect_jwt_roles(payload)),
         "Authorization": f"Bearer {token}",
     }
     signature = generate_hmac_signature(token, tenant)
@@ -4437,16 +4414,62 @@ def generic_proxy(target_url, path):
         headers["X-Auth-Signature"] = signature
     if request.headers.get("Content-Type"):
         headers["Content-Type"] = request.headers.get("Content-Type")
-    # Forward per-user DAD-IS credentials (FAO prohibits commercial use —
-    # each user brings their own API key stored client-side in localStorage)
     for hdr in ("X-Dadis-Api-Url", "X-Dadis-Api-Token"):
         if request.headers.get(hdr):
             headers[hdr] = request.headers[hdr]
+    return headers
+
+
+def _proxy_authenticated_request(target_url: str, *, requires_auth: bool = True):
+    """Forward request to target_url with generic_proxy auth semantics."""
+    token = get_request_token()
+    payload = None
+    tenant = None
+
+    if requires_auth:
+        if not token:
+            return jsonify({"error": "Missing or invalid authorization"}), 401
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        tenant = extract_tenant_id(payload)
+        if not tenant:
+            return jsonify({"error": "Tenant not present in token"}), 401
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+        if has_role("role_pro_expired", payload) and request.method in [
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+        ]:
+            logger.warning(
+                "Blocked mutation request to %s for user with role_pro_expired",
+                target_url,
+            )
+            return jsonify(
+                {"error": "Subscription expired. Read-only mode active."}
+            ), 403
+        headers = _build_authenticated_proxy_headers(token, payload, tenant)
+    else:
+        headers = {}
+        if token:
+            payload = validate_jwt_token(token)
+            if payload:
+                tenant = extract_tenant_id(payload)
+                if tenant and rate_limit(tenant):
+                    headers = _build_authenticated_proxy_headers(
+                        token, payload, tenant
+                    )
+        for hdr in ("Content-Type", "Accept"):
+            val = request.headers.get(hdr)
+            if val:
+                headers[hdr] = val
 
     try:
         resp = requests.request(
             method=request.method,
-            url=url,
+            url=target_url,
             headers=headers,
             params=request.args,
             data=request.get_data(),
@@ -4456,8 +4479,40 @@ def generic_proxy(target_url, path):
         )
         return safe_json_proxy_response(resp)
     except Exception as e:
-        logger.error(f"Proxy error to {url}: {e}")
-        return internal_error(e, "gateway_proxy", status=502, user_message="Gateway proxy error")
+        logger.error(f"Proxy error to {target_url}: {e}")
+        return internal_error(
+            e, "gateway_proxy", status=502, user_message="Gateway proxy error"
+        )
+
+
+def generic_proxy(target_url, path):
+    """Generic proxy handler with auth and tenant isolation"""
+    return _proxy_authenticated_request(
+        f"{target_url}/{path}", requires_auth=True
+    )
+
+
+def _match_module_route(path: str, routes: dict) -> tuple[dict | None, str]:
+    """Longest-prefix match against marketplace route registry."""
+    match: dict | None = None
+    matched_prefix = ""
+    for prefix, cfg in sorted(routes.items(), key=lambda x: -len(x[0])):
+        normalized = prefix.rstrip("/")
+        if path == normalized or path.startswith(normalized + "/"):
+            match = cfg
+            matched_prefix = normalized
+            break
+    return match, matched_prefix
+
+
+def _build_module_proxy_url(path: str, matched_prefix: str, match: dict) -> str:
+    """Build backend URL using api_prefix strip + backend_mount."""
+    backend = match["backend_service"].rstrip("/")
+    backend_mount = (match.get("backend_mount") or matched_prefix).rstrip("/")
+    remainder = path[len(matched_prefix) :] if matched_prefix else path
+    if remainder and not remainder.startswith("/"):
+        remainder = f"/{remainder}"
+    return f"{backend}{backend_mount}{remainder or ''}"
 
 
 @app.route("/api/vegetation/tiles/<path:path>", methods=["GET"])
@@ -5288,75 +5343,34 @@ def internal_module_ci(module_id, action):
 @app.route("/api/<path:subpath>", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
 def auto_proxy_module(subpath):
     """Auto-proxy unmatched /api/* requests to registered module backends."""
+    if request.method == "OPTIONS":
+        return "", 204
+
     routes = _refresh_route_registry()
-    # Try exact prefix match first, then longest-prefix match
     path = "/api/" + subpath.rstrip("/")
-    match: dict | None = None
-    matched_prefix = ""
-    for prefix, cfg in sorted(routes.items(), key=lambda x: -len(x[0])):
-        if path.startswith(prefix.rstrip("/")):
-            match = cfg
-            matched_prefix = prefix.rstrip("/")
-            break
+    match, matched_prefix = _match_module_route(path, routes)
     if not match:
         return jsonify({"error": "Not Found"}), 404
 
     module_id = match["module_id"]
-    backend = match["backend_service"]
-    backend_path = path[len(matched_prefix):] or "/"
-    target_url = f"{backend.rstrip('/')}{backend_path}"
+    target_url = _build_module_proxy_url(path, matched_prefix, match)
     if request.query_string:
         target_url += f"?{request.query_string.decode()}"
 
-    # ── Auth: extract tenant + token from request (same as explicit routes)
-    token = request.cookies.get("nkz_token") or request.headers.get("Authorization", "").replace("Bearer ", "")
-    tenant = request.headers.get("X-Tenant-ID") or g.get("tenant_id", "")
-    if not tenant:
-        try:
-            tenant = jwt.decode(token, options={"verify_signature": False}).get("tenant_id", "")
-        except Exception:
-            pass
-
-    fwd_headers = {}
-    for h in ["Content-Type", "Accept", "X-User-ID", "X-User-Roles"]:
-        v = request.headers.get(h)
-        if v:
-            fwd_headers[h] = v
-    if tenant:
-        fwd_headers["X-Tenant-ID"] = tenant
-        fwd_headers["Fiware-Service"] = tenant
-    if token:
-        fwd_headers["Authorization"] = f"Bearer {token}"
-        if KEYCLOAK_AUTH_AVAILABLE and tenant:
-            sig = generate_hmac_signature(token, tenant)
-            if sig:
-                fwd_headers["X-Auth-Signature"] = sig
-
+    requires_auth = match.get("requires_auth", True)
     start = time.time()
-    try:
-        resp = requests.request(
-            method=request.method,
-            url=target_url,
-            headers=fwd_headers,
-            data=request.get_data(),
-            timeout=30,
-        )
-        elapsed = (time.time() - start) * 1000
-        logger.info(
-            "auto-proxy %s %s → %s [%d] %.0fms",
-            request.method, path, module_id,
-            resp.status_code, elapsed,
-        )
-        return safe_json_proxy_response(resp)
-    except requests.exceptions.Timeout:
-        logger.warning("auto-proxy timeout %s → %s", path, module_id)
-        return jsonify({"error": "Module backend timeout"}), 504
-    except requests.exceptions.ConnectionError:
-        logger.warning("auto-proxy unreachable %s → %s", path, module_id)
-        return jsonify({"error": "Module backend unreachable"}), 503
-    except Exception as exc:
-        logger.error("auto-proxy error %s: %s", path, exc)
-        return jsonify({"error": "Internal proxy error"}), 502
+    result = _proxy_authenticated_request(target_url, requires_auth=requires_auth)
+    elapsed = (time.time() - start) * 1000
+    status_code = result[1] if isinstance(result, tuple) else result.status_code
+    logger.info(
+        "auto-proxy %s %s → %s [%d] %.0fms",
+        request.method,
+        path,
+        module_id,
+        status_code,
+        elapsed,
+    )
+    return result
 
 
 # Register dynamic module routing blueprint
