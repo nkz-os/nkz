@@ -1515,7 +1515,7 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
                 scope = EXCLUDED.scope,
                 exposed_module = EXCLUDED.exposed_module,
                 is_active = EXCLUDED.is_active,
-                metadata = EXCLUDED.metadata,
+                metadata = COALESCE(marketplace_modules.metadata, '{}'::jsonb) || EXCLUDED.metadata,
                 deployed_version = EXCLUDED.deployed_version,
                 updated_at = NOW()
         """, (
