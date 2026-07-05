@@ -29,6 +29,13 @@ for p in sys_paths:
 from common.ngsi_headers import inject_fiware_headers
 
 
+def _elevation_request_headers() -> dict[str, str]:
+    secret = os.getenv("INTERNAL_SERVICE_SECRET", "").strip()
+    if secret:
+        return {"X-Internal-Service-Secret": secret}
+    return {}
+
+
 class ParcelWeatherEngine:
     """Parcel-driven weather ingestion engine.
 
@@ -316,8 +323,9 @@ class ParcelWeatherEngine:
         if not has_explicit_elevation and elev_service_url and centroid is not None:
             try:
                 resp = requests.get(
-                    f"{elev_service_url}/point",
+                    f"{elev_service_url}/api/elevation/point",
                     params={"lat": centroid[1], "lon": centroid[0], "purpose": "weather"},
+                    headers=_elevation_request_headers(),
                     timeout=10,
                 )
                 if resp.status_code == 200:
@@ -366,6 +374,7 @@ class ParcelWeatherEngine:
                 resp = requests.get(
                     f"{elev_url}/api/elevation/point",
                     params={"lat": round(lat, 6), "lon": round(lon, 6), "purpose": "weather"},
+                    headers=_elevation_request_headers(),
                     timeout=5,
                 )
                 if resp.status_code == 200:
