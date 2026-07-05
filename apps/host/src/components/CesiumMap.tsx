@@ -408,9 +408,11 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           orderIndependentTranslucency: false,
           shadows: false,
           contextOptions: {
-            requestWebgl1: true,
             webgl: {
+              alpha: false,
+              antialias: true,
               failIfMajorPerformanceCaveat: false,
+              powerPreference: 'high-performance',
             },
           },
         });
