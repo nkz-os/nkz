@@ -183,7 +183,7 @@ WHERE id = 'nkz-module-gis-routing';
 UPDATE marketplace_modules
 SET metadata = metadata || $json${
   "api_prefix": "/api/cadastral-api",
-  "backend_service": "http://cadastral-api-service:5000",
+  "backend_service": "http://catastro-spain-api-service:5000",
   "backend_mount": "/api/cadastral-api",
   "requires_auth": true
 }$json$::jsonb
