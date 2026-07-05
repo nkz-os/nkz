@@ -98,6 +98,16 @@ def test_build_module_proxy_url_soil_mount(gw):
     assert url == "http://soil-module-service:8000/v1/soil/profile"
 
 
+def test_build_module_proxy_url_soil_strip_duplicate_prefix(gw):
+    match = {
+        "backend_service": "http://soil-module-service:8000",
+        "backend_mount": "/v1/soil",
+        "strip_remainder_prefix": "/v1/soil",
+    }
+    url = gw._build_module_proxy_url("/api/soil/v1/soil/profile", "/api/soil", match)
+    assert url == "http://soil-module-service:8000/v1/soil/profile"
+
+
 def test_auto_proxy_requires_auth_returns_401(gw, monkeypatch):
     routes = {
         "/api/weather-map": {

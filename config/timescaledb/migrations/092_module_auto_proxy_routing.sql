@@ -21,6 +21,7 @@ SET metadata = metadata || $json${
   "api_prefix": "/api/soil",
   "backend_service": "http://soil-module-service:8000",
   "backend_mount": "/v1/soil",
+  "strip_remainder_prefix": "/v1/soil",
   "requires_auth": true
 }$json$::jsonb
 WHERE id = 'soil';
@@ -152,16 +153,7 @@ SET metadata = metadata || $json${
 }$json$::jsonb
 WHERE id = 'n8n-nkz';
 
-UPDATE marketplace_modules
-SET metadata = metadata || $json${
-  "api_prefix": "/api/zulip",
-  "backend_service": "http://zulip-service:80",
-  "backend_mount": "/api/zulip",
-  "requires_auth": false
-}$json$::jsonb
-WHERE id = 'zulip';
-
--- modules missing from 087
+-- zulip: bespoke gateway handlers only (no auto-proxy row)
 UPDATE marketplace_modules
 SET metadata = metadata || $json${
   "api_prefix": "/api/v1/hydrology",
@@ -183,7 +175,7 @@ WHERE id = 'nkz-module-gis-routing';
 UPDATE marketplace_modules
 SET metadata = metadata || $json${
   "api_prefix": "/api/cadastral-api",
-  "backend_service": "http://cadastral-api-service:5000",
+  "backend_service": "http://catastro-spain-api-service:5000",
   "backend_mount": "/api/cadastral-api",
   "requires_auth": true
 }$json$::jsonb

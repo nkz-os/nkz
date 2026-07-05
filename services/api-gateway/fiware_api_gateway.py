@@ -141,7 +141,7 @@ ENTITY_MANAGER_URL = os.getenv("ENTITY_MANAGER_URL", "http://entity-manager:5000
 DATAHUB_BFF_URL = os.getenv("DATAHUB_BFF_URL", "http://datahub-bff-service:8000")
 NDVI_SERVICE_URL = os.getenv("NDVI_SERVICE_URL", "http://entity-manager:5000")
 TENANT_USER_API_URL = os.getenv("TENANT_USER_API_URL", "http://tenant-user-api:5000")
-CADASTRAL_API_URL = os.getenv("CADASTRAL_API_URL", "http://cadastral-api-service:5000")
+CADASTRAL_API_URL = os.getenv("CADASTRAL_API_URL", "http://catastro-spain-api-service:5000")
 SDM_INTEGRATION_URL = os.getenv(
     "SDM_INTEGRATION_URL", "http://sdm-integration-service:5000"
 )
@@ -234,6 +234,7 @@ def _refresh_route_registry() -> dict[str, dict]:
                     "backend_mount": meta.get("backend_mount") or prefix,
                     "module_id": row["id"],
                     "requires_auth": meta.get("requires_auth", True),
+                    "strip_remainder_prefix": meta.get("strip_remainder_prefix", ""),
                 }
         cur.close()
         conn.close()
@@ -3553,165 +3554,6 @@ def proxy_weather_requests(subpath):
 
 
 @app.route(
-    "/api/v1/hydrology/<path:subpath>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-)
-def proxy_hydrology_requests(subpath):
-    """Proxy NKZ Water Studio requests to hydrology backend."""
-    logger.info(f"Hydrology request: {request.method} /api/v1/hydrology/{subpath}")
-
-    # CORS preflight
-    if request.method == "OPTIONS":
-        response = make_response()
-        cors_origin = get_cors_origin()
-        if cors_origin:
-            response.headers["Access-Control-Allow-Origin"] = cors_origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = (
-            "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        )
-        response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, X-Module-Id, Cookie"
-        )
-        response.headers["Access-Control-Max-Age"] = "3600"
-        response.headers["Vary"] = "Origin"
-        return response, 200
-
-    # Auth
-    token = get_request_token()
-    payload = validate_jwt_token(token) if token else None
-    if not payload:
-        logger.warning(f"Missing or invalid auth for /api/v1/hydrology/{subpath}")
-        return jsonify({"error": "Missing or invalid authorization header"}), 401
-
-    tenant = extract_tenant_id(payload) or request.headers.get("X-Tenant-ID", "platform")
-
-    # Forward headers + HMAC signature
-    headers = {k: v for k, v in request.headers if k.lower() != "host"}
-    headers["X-Tenant-ID"] = tenant
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    if KEYCLOAK_AUTH_AVAILABLE:
-        try:
-            signature = generate_hmac_signature(token, tenant)
-            if signature:
-                headers["X-Auth-Signature"] = signature
-        except Exception as e:
-            logger.warning(f"HMAC generation failed: {e}")
-
-    target_url = f"{HYDROLOGY_API_URL}/api/v1/hydrology/{subpath}"
-    try:
-        params = dict(request.args)
-        json_data = request.get_json(silent=True) if request.method in ["POST", "PUT", "PATCH"] else None
-
-        if request.method == "GET":
-            resp = requests.get(target_url, headers=headers, params=params, timeout=120)
-        elif request.method == "POST":
-            resp = requests.post(target_url, headers=headers, json=json_data, params=params, timeout=120)
-        elif request.method == "PUT":
-            resp = requests.put(target_url, headers=headers, json=json_data, params=params, timeout=120)
-        elif request.method == "PATCH":
-            resp = requests.patch(target_url, headers=headers, json=json_data, params=params, timeout=120)
-        elif request.method == "DELETE":
-            resp = requests.delete(target_url, headers=headers, params=params, timeout=120)
-        else:
-            return jsonify({"error": "Method not allowed"}), 405
-
-        cors_origin = get_cors_origin()
-        extra_headers: dict[str, str] = {}
-        if cors_origin:
-            extra_headers["Access-Control-Allow-Origin"] = cors_origin
-            extra_headers["Access-Control-Allow-Credentials"] = "true"
-            extra_headers["Vary"] = "Origin"
-        return safe_json_proxy_response(resp, extra_headers)
-
-    except requests.exceptions.Timeout:
-        logger.error(f"Timeout connecting to hydrology backend for /api/v1/hydrology/{subpath}")
-        return jsonify({"error": "Hydrology backend timeout"}), 504
-    except Exception as e:
-        logger.error(f"Error in proxy_hydrology_requests: {e}")
-        return jsonify({"error": "Hydrology backend unavailable"}), 502
-
-
-@app.route(
-    "/api/elevation/<path:subpath>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-)
-def proxy_elevation_requests(subpath):
-    """Proxy EU elevation module requests to elevation-api backend."""
-    logger.info(f"Elevation request: {request.method} /api/elevation/{subpath}")
-
-    if request.method == "OPTIONS":
-        response = make_response()
-        cors_origin = get_cors_origin()
-        if cors_origin:
-            response.headers["Access-Control-Allow-Origin"] = cors_origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = (
-            "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        )
-        response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, X-User-ID, X-Module-Id, Cookie"
-        )
-        response.headers["Access-Control-Max-Age"] = "3600"
-        response.headers["Vary"] = "Origin"
-        return response, 200
-
-    token = get_request_token()
-    payload = validate_jwt_token(token) if token else None
-    if not payload:
-        logger.warning(f"Missing or invalid auth for /api/elevation/{subpath}")
-        return jsonify({"error": "Missing or invalid authorization header"}), 401
-
-    tenant = extract_tenant_id(payload) or request.headers.get("X-Tenant-ID", "platform")
-
-    headers = {k: v for k, v in request.headers if k.lower() != "host"}
-    headers["X-Tenant-ID"] = tenant
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-    if KEYCLOAK_AUTH_AVAILABLE:
-        try:
-            signature = generate_hmac_signature(token, tenant)
-            if signature:
-                headers["X-Auth-Signature"] = signature
-        except Exception as e:
-            logger.warning(f"HMAC generation failed: {e}")
-
-    target_url = f"{ELEVATION_API_URL}/api/elevation/{subpath}"
-    try:
-        params = dict(request.args)
-        json_data = request.get_json(silent=True) if request.method in ["POST", "PUT", "PATCH"] else None
-
-        if request.method == "GET":
-            resp = requests.get(target_url, headers=headers, params=params, timeout=120)
-        elif request.method == "POST":
-            resp = requests.post(target_url, headers=headers, json=json_data, params=params, timeout=120)
-        elif request.method == "PUT":
-            resp = requests.put(target_url, headers=headers, json=json_data, params=params, timeout=120)
-        elif request.method == "PATCH":
-            resp = requests.patch(target_url, headers=headers, json=json_data, params=params, timeout=120)
-        elif request.method == "DELETE":
-            resp = requests.delete(target_url, headers=headers, params=params, timeout=120)
-        else:
-            return jsonify({"error": "Method not allowed"}), 405
-
-        cors_origin = get_cors_origin()
-        extra_headers: dict[str, str] = {}
-        if cors_origin:
-            extra_headers["Access-Control-Allow-Origin"] = cors_origin
-            extra_headers["Access-Control-Allow-Credentials"] = "true"
-            extra_headers["Vary"] = "Origin"
-        return safe_json_proxy_response(resp, extra_headers)
-
-    except requests.exceptions.Timeout:
-        logger.error(f"Timeout connecting to elevation backend for /api/elevation/{subpath}")
-        return jsonify({"error": "Elevation backend timeout"}), 504
-    except Exception as e:
-        logger.error(f"Error in proxy_elevation_requests: {e}")
-        return jsonify({"error": "Elevation backend unavailable"}), 502
-
-
-@app.route(
     "/api/modules/<path:subpath>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 )
@@ -3850,162 +3692,6 @@ def proxy_modules_requests(subpath):
     except Exception as e:
         logger.error(f"Error in proxy_modules_requests: {e}")
         return jsonify({"error": "Internal server error"}), 500
-
-
-@app.route(
-    "/api/cadastral-api/<path:subpath>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-)
-def proxy_cadastral_api_requests(subpath):
-    """Proxy cadastral-api service requests"""
-    logger.info(
-        f"Cadastral API request received: {request.method} /api/cadastral-api/{subpath}"
-    )
-    # Handle CORS preflight
-    if request.method == "OPTIONS":
-        response = make_response()
-        cors_origin = get_cors_origin()
-        if cors_origin:
-            response.headers["Access-Control-Allow-Origin"] = cors_origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = (
-            "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        )
-        response.headers["Access-Control-Allow-Headers"] = (
-            "Authorization, Content-Type, X-Tenant-ID, X-Module-Id, Cookie"
-        )
-        response.headers["Access-Control-Max-Age"] = "3600"
-        response.headers["Vary"] = "Origin"
-        return response, 200
-
-    # Validate JWT token
-    token = get_request_token()
-    if not token:
-        logger.warning(
-            f"Missing or invalid authorization for /api/cadastral-api/{subpath}"
-        )
-        return jsonify({"error": "Missing or invalid authorization"}), 401
-
-    payload = validate_jwt_token(token)
-    if not payload:
-        logger.warning(f"Token validation failed for /api/cadastral-api/{subpath}")
-        return jsonify({"error": "Invalid or expired token"}), 401
-
-    # Extract tenant
-    tenant = extract_tenant_id(payload)
-    if not tenant:
-        logger.warning(f"No tenant found in token for /api/cadastral-api/{subpath}")
-        return jsonify({"error": "Tenant not present in token"}), 401
-
-    # Rate limit
-    if not rate_limit(tenant):
-        logger.warning(
-            f"Rate limit exceeded for tenant {tenant} on /api/cadastral-api/{subpath}"
-        )
-        return jsonify({"error": "Rate limit exceeded"}), 429
-
-    logger.info(
-        f"Cadastral API request to /api/cadastral-api/{subpath} for tenant {tenant} - forwarding to cadastral-api service"
-    )
-
-    try:
-        user_id = payload.get("sub", "")
-        target_url = f"{CADASTRAL_API_URL}/api/cadastral-api/{subpath}"
-
-        # Prepare headers
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": request.content_type or "application/json",
-            "X-Tenant-ID": tenant,
-            "X-User-ID": user_id,
-        }
-
-        # Add HMAC signature if available
-        if KEYCLOAK_AUTH_AVAILABLE:
-            try:
-                signature = generate_hmac_signature(token, tenant)
-                if signature:
-                    headers["X-Auth-Signature"] = signature
-            except Exception as e:
-                logger.warning(f"Failed to generate HMAC signature: {e}")
-
-        # Forward query params
-        params = dict(request.args)
-
-        # Forward request body for POST/PUT/PATCH
-        json_data = None
-        if request.method in ["POST", "PUT", "PATCH"] and request.is_json:
-            json_data = request.get_json(silent=True)
-        elif request.data:
-            json_data = request.get_json(silent=True)
-        data = request.data if not request.is_json else None
-
-        # Forward request to cadastral-api service
-        if request.method == "GET":
-            response = requests.get(
-                target_url, headers=headers, params=params, timeout=30
-            )
-        elif request.method == "POST":
-            response = requests.post(
-                target_url,
-                headers=headers,
-                params=params,
-                json=json_data,
-                data=data,
-                timeout=30,
-            )
-        elif request.method == "PUT":
-            response = requests.put(
-                target_url,
-                headers=headers,
-                params=params,
-                json=json_data,
-                data=data,
-                timeout=30,
-            )
-        elif request.method == "PATCH":
-            response = requests.patch(
-                target_url,
-                headers=headers,
-                params=params,
-                json=json_data,
-                data=data,
-                timeout=30,
-            )
-        elif request.method == "DELETE":
-            response = requests.delete(
-                target_url, headers=headers, params=params, timeout=30
-            )
-        else:
-            return jsonify({"error": "Method not allowed"}), 405
-
-        # Log errors
-        if response.status_code >= 400:
-            logger.warning(
-                f"Cadastral API service returned {response.status_code} for /api/cadastral-api/{subpath}: {response.text}"
-            )
-
-        # Forward response
-        return make_response(
-            response.content, response.status_code, dict(response.headers)
-        )
-
-    except requests.exceptions.Timeout:
-        logger.error(
-            f"Timeout forwarding request to cadastral-api service: {target_url}"
-        )
-        return jsonify({"error": "Cadastral API service request timeout"}), 504
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error forwarding cadastral-api request: {e}")
-        return jsonify({"error": "Internal server error"}), 500
-    except Exception as e:
-        logger.error(f"Unexpected error in cadastral-api proxy: {e}", exc_info=True)
-        return jsonify({"error": "Internal server error"}), 500
-
-
-# =============================================================================
-# Processing Profiles CRUD Endpoints
-# =============================================================================
 
 
 @app.route("/api/v1/profiles", methods=["GET"])
@@ -4510,6 +4196,13 @@ def _build_module_proxy_url(path: str, matched_prefix: str, match: dict) -> str:
     backend = match["backend_service"].rstrip("/")
     backend_mount = (match.get("backend_mount") or matched_prefix).rstrip("/")
     remainder = path[len(matched_prefix) :] if matched_prefix else path
+    strip = (match.get("strip_remainder_prefix") or "").strip()
+    if strip:
+        strip_norm = strip if strip.startswith("/") else f"/{strip}"
+        if remainder == strip_norm:
+            remainder = ""
+        elif remainder.startswith(strip_norm + "/"):
+            remainder = remainder[len(strip_norm) :]
     if remainder and not remainder.startswith("/"):
         remainder = f"/{remainder}"
     return f"{backend}{backend_mount}{remainder or ''}"
@@ -4541,34 +4234,11 @@ def vegetation_tiles_proxy(path):
 
 
 @app.route(
-    "/api/vegetation/<path:path>", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
-)
-def vegetation_proxy(path):
-    return generic_proxy(VEGETATION_API_URL, f"api/vegetation/{path}")
-
-
-@app.route(
     "/api/intelligence/<path:path>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
 )
 def intelligence_proxy(path):
     return generic_proxy(INTELLIGENCE_API_URL, f"api/intelligence/{path}")
-
-
-@app.route(
-    "/api/agrienergy/<path:path>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-def agrienergy_proxy(path):
-    return generic_proxy(AGRIENERGY_API_URL, f"api/agrienergy/{path}")
-
-
-@app.route(
-    "/api/lidar/<path:path>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-def lidar_proxy(path):
-    return generic_proxy(LIDAR_API_URL, f"api/lidar/{path}")
 
 
 @app.route(
@@ -4580,51 +4250,11 @@ def bioorchestrator_proxy(path):
 
 
 @app.route(
-    "/api/crop-health/<path:path>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-def crop_health_proxy(path):
-    return generic_proxy(CROP_HEALTH_API_URL, f"api/crop-health/{path}")
-
-
-@app.route(
-    "/api/field-operations/<path:path>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-def field_operations_proxy(path):
-    return generic_proxy(FIELD_OPERATIONS_API_URL, f"api/field-operations/{path}")
-
-
-@app.route(
-    "/api/carbon/<path:path>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-def carbon_proxy(path):
-    return generic_proxy(CARBON_API_URL, f"api/carbon/{path}")
-
-
-@app.route(
-    "/api/robotics/<path:path>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-def robotics_proxy(path):
-    return generic_proxy(ROBOTICS_API_URL, f"api/robotics/{path}")
-
-
-@app.route(
     "/api/risks/<path:path>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
 )
 def risk_proxy(path):
     return generic_proxy(RISK_API_URL, f"api/risks/{path}")
-
-
-@app.route(
-    "/api/n8n-nkz/<path:path>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-def n8n_nkz_proxy(path):
-    return generic_proxy(N8N_NKZ_API_URL, f"api/n8n-nkz/{path}")
 
 
 @app.route(
@@ -4748,26 +4378,6 @@ def n8n_landing():
             "example": "/montiko/",
         }
     )
-
-
-@app.route(
-    "/api/routing/<path:path>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-def routing_proxy(path):
-    return generic_proxy(ROUTING_API_URL, f"api/routing/{path}")
-
-
-@app.route(
-    "/api/soil/<path:path>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-def soil_proxy(path):
-    """Proxy soil module requests — /api/soil/* → /v1/soil/*"""
-    # Normalize: some frontend calls include v1/soil/ prefix, others don't
-    if path.startswith("v1/soil/"):
-        path = path[len("v1/soil/"):]
-    return generic_proxy(SOIL_API_URL, f"v1/soil/{path}")
 
 
 # =============================================================================
