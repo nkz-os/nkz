@@ -166,6 +166,11 @@ spec:
               value: "http://catastro-spain-api-service:5000"
             - name: MODULE_GATEWAY_ENABLED
               value: "vegetation-health,gis-routing,cue,nkz-module-eu-elevation"
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: postgres-url
           command: ["gunicorn"]
           args:
             [
