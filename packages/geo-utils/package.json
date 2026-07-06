@@ -36,7 +36,7 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "geolibre-wasm": "^0.5.1"
+    "geolibre-wasm": "^0.5.2"
   },
   "peerDependencies": {
     "@nekazari/sdk": "^1.0.0"
