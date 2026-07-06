@@ -50,7 +50,6 @@ sys.modules["common.tier_quotas"] = MagicMock()
 # db_helper provides get_db_connection_with_tenant — stubbed here, patched per test
 sys.modules["db_helper"] = MagicMock()
 sys.modules["orion_writer"] = MagicMock()
-sys.modules["module_upload_service"] = MagicMock()
 sys.modules["parcel_sync"] = MagicMock()
 sys.modules["module_metrics"] = MagicMock()
 sys.modules["geo_utils"] = MagicMock()

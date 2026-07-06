@@ -90,7 +90,6 @@ sys.modules["common.api_errors"] = _api_errors_mod
 # Heavy / infrastructure dependencies
 sys.modules["db_helper"] = MagicMock()
 sys.modules["orion_writer"] = MagicMock()
-sys.modules["module_upload_service"] = MagicMock()
 sys.modules["parcel_sync"] = MagicMock()
 sys.modules["module_metrics"] = MagicMock()
 
@@ -833,11 +832,7 @@ class TestAssetRoutes:
             f"DELETE public got {r.status_code}"
         )
 
-    @patch("entity_management_api.ModuleUploadService")
-    def test_post_asset_upload_ok(self, mock_svc, client):
-        instance = MagicMock()
-        instance.handle_upload.return_value = ({"url": "http://example.com/file"}, 201)
-        mock_svc.return_value = instance
+    def test_post_asset_upload_ok(self, client):
         r = client.post(
             "/api/assets/upload",
             content_type="application/json",
@@ -860,13 +855,8 @@ class TestModuleRoutes:
         ("GET", "/api/modules/test/can-install"),
         ("GET", "/api/modules/visibility"),
         ("PUT", "/api/modules/visibility"),
-        ("POST", "/api/modules/upload"),
-        ("GET", "/api/modules/test/validation-status"),
-        ("POST", "/api/internal/modules/register-validated"),
         ("POST", "/api/modules/test/deploy"),
         ("POST", "/api/modules/test/dist"),
-        ("GET", "/api/modules/test/logs"),
-        ("GET", "/api/modules/uploads"),
         ("GET", "/api/modules/test/health"),
         ("GET", "/api/admin/modules/health"),
     ]
@@ -882,9 +872,6 @@ class TestModuleRoutes:
             ("GET", "/api/modules/marketplace", 200),
             ("GET", "/api/modules/test/can-install", 200),
             ("GET", "/api/modules/visibility", 200),
-            ("GET", "/api/modules/test/validation-status", 200),
-            ("GET", "/api/modules/test/logs", 200),
-            ("GET", "/api/modules/uploads", 200),
             ("GET", "/api/modules/test/health", 200),
         ],
     )
@@ -971,61 +958,6 @@ class TestModuleRoutes:
             data=json.dumps({"module": "test", "roles": ["admin"]}),
         )
         assert r.status_code in (200, 500), f"PUT visibility got {r.status_code}"
-        r.get_json()
-
-    @patch("blueprints.modules.ModuleUploadService")
-    @patch("blueprints.modules.get_db_connection_simple")
-    @patch("blueprints.modules.return_db_connection")
-    def test_upload_module_ok(self, mock_bp_return_db, mock_bp_db, mock_svc, client):
-        conn = _make_db_conn()
-        mock_bp_db.return_value = conn
-        instance = MagicMock()
-        instance.validate_and_store_upload.return_value = (
-            {"uploadId": "test-upload"},
-            201,
-        )
-        mock_svc.return_value = instance
-        r = client.post(
-            "/api/modules/upload",
-            content_type="application/json",
-            data=json.dumps({"name": "test-module", "version": "1.0.0"}),
-        )
-        assert r.status_code in (201, 200, 400, 500), f"POST upload got {r.status_code}"
-
-    @patch("blueprints.modules.ModuleUploadService")
-    @patch("blueprints.modules.get_db_connection_simple")
-    @patch("blueprints.modules.return_db_connection")
-    def test_register_validated_ok(
-        self, mock_bp_return_db, mock_bp_db, mock_svc, client
-    ):
-        mock_bp_db.return_value = _make_db_conn()
-        instance = MagicMock()
-        instance.register_module_in_database.return_value = True
-        mock_svc.return_value = instance
-        r = client.post(
-            "/api/internal/modules/register-validated",
-            content_type="application/json",
-            headers={"X-Internal-Service-Secret": "test-secret"},
-            data=json.dumps(
-                {"upload_id": "test-upload", "manifest_data": {"id": "test"}}
-            ),
-        )
-        assert r.status_code in (201, 200, 500, 503), (
-            f"POST register-validated got {r.status_code}"
-        )
-        r.get_json()
-
-    @patch("blueprints.modules.ModuleUploadService")
-    def test_deploy_module_ok(self, mock_svc, client):
-        instance = MagicMock()
-        instance.deploy_module_assets_to_server.return_value = (True, "Deployed")
-        mock_svc.return_value = instance
-        r = client.post(
-            "/api/modules/test/deploy-upload",
-            content_type="application/json",
-            data=json.dumps({"upload_id": "test-upload"}),
-        )
-        assert r.status_code in (200, 400, 500, 503), f"POST deploy got {r.status_code}"
         r.get_json()
 
 

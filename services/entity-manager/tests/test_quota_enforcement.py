@@ -88,7 +88,6 @@ sys.modules["common.tier_quotas"] = _tier_quotas_mock
 # Mock other optional dependencies
 sys.modules["parcel_sync"] = MagicMock()
 sys.modules["module_metrics"] = MagicMock()
-sys.modules["module_upload_service"] = MagicMock()
 
 from helpers import _check_entity_total_limit, _check_parcel_count_limit  # noqa: E402
 
