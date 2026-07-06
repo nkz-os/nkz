@@ -87,13 +87,6 @@ except ImportError:
         def decorator(func): return func
         return decorator
 
-try:
-    from module_upload_service import ModuleUploadService, K8S_NAMESPACE
-    MODULE_UPLOAD_SERVICE_AVAILABLE = True
-except ImportError as e:
-    logging.getLogger(__name__).warning(f"ModuleUploadService not available: {e}")
-    MODULE_UPLOAD_SERVICE_AVAILABLE = False
-
 from helpers import (
     _extract_number, _count_all_entities, _gather_usage_for_tenant,
     get_limits_for_tenant,

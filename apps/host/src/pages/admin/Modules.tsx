@@ -10,9 +10,8 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { NekazariClient, useTranslation } from '@nekazari/sdk';
 import { Card } from '@nekazari/ui-kit';
 import { Button } from '@nekazari/ui-kit';
-import { CheckCircle2, XCircle, Package, RefreshCw, Upload } from 'lucide-react';
+import { CheckCircle2, XCircle, Package, RefreshCw } from 'lucide-react';
 import { getConfig } from '@/config/environment';
-import { ModuleUploadModal } from '@/components/ModuleUploadModal';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl || '/api';
@@ -48,7 +47,6 @@ export const Modules: React.FC = () => {
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [activating, setActivating] = useState<Set<string>>(new Set());
   const [canInstallChecks, setCanInstallChecks] = useState<Map<string, { can_install: boolean; reason: string }>>(new Map());
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   // Ensure installedModules is always an array
   const installedModules = Array.isArray(rawInstalledModules) ? rawInstalledModules : [];
@@ -254,15 +252,6 @@ export const Modules: React.FC = () => {
           <p className="text-gray-600 mt-1">{t('manage_remote_modules')}</p>
         </div>
         <div className="flex gap-3">
-          {isPlatformAdmin && (
-            <Button
-              variant="primary"
-              onClick={() => setIsUploadModalOpen(true)}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Module
-            </Button>
-          )}
           <Button
             variant="secondary"
             onClick={() => {
@@ -584,19 +573,6 @@ export const Modules: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Module Upload Modal */}
-      {isPlatformAdmin && (
-        <ModuleUploadModal
-          isOpen={isUploadModalOpen}
-          onClose={() => setIsUploadModalOpen(false)}
-          onSuccess={() => {
-            // Refresh modules list after successful upload
-            loadMarketplace();
-            refreshInstalled();
-          }}
-        />
-      )}
     </div>
   );
 };

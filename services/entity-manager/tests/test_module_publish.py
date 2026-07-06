@@ -1,9 +1,4 @@
-"""Tests for /deploy route disambiguation.
-
-Verifies that:
-- POST /api/modules/<id>/deploy  hits the versioned handler (expects {version})
-- POST /api/modules/<id>/deploy-upload  hits the legacy upload handler (expects {upload_id})
-"""
+"""Tests for module publish and versioned deploy routes."""
 
 import os
 import sys
@@ -88,7 +83,6 @@ sys.modules["common.api_errors"] = _api_errors_mod
 # Heavy / infrastructure dependencies
 sys.modules["db_helper"] = MagicMock()
 sys.modules["orion_writer"] = MagicMock()
-sys.modules["module_upload_service"] = MagicMock()
 sys.modules["parcel_sync"] = MagicMock()
 sys.modules["module_metrics"] = MagicMock()
 
@@ -124,14 +118,13 @@ def test_versioned_deploy_is_reachable(client):
     assert "version" in r.get_json()["error"].lower()
 
 
-def test_legacy_upload_deploy_moved(client):
+def test_legacy_deploy_upload_removed(client):
     r = client.post(
         "/api/modules/demo/deploy-upload",
         headers={"Authorization": "Bearer x"},
         json={},
     )
-    assert r.status_code == 400
-    assert "upload_id" in r.get_json()["error"].lower()
+    assert r.status_code == 404
 
 
 # ---------------------------------------------------------------------------

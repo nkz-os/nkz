@@ -396,20 +396,6 @@ def admin_tenant_inventory(tenant_id):
         logger.error(traceback.format_exc())
         return internal_error(e, 'admin')
 
-# =============================================================================
-# Module Upload Endpoint
-# =============================================================================
-
-try:
-    from module_upload_service import ModuleUploadService
-    MODULE_UPLOAD_SERVICE_AVAILABLE = True
-    # Import K8S namespace from module_upload_service
-    from module_upload_service import K8S_NAMESPACE
-except ImportError as e:
-    logger.warning(f"ModuleUploadService not available: {e}")
-    MODULE_UPLOAD_SERVICE_AVAILABLE = False
-    K8S_NAMESPACE = os.getenv('K8S_NAMESPACE', 'nekazari')
-
 # === Lines 4783-4792 from entity_management_api.py ===
 def _ensure_platform_settings_table(cur):
     """Create the platform settings table if needed."""
