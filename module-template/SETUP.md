@@ -57,10 +57,25 @@ mc cp dist/nkz-module.js \
    --attr "Content-Type=application/javascript"
 ```
 
-## 8. Register in database
+## 8. Register in database (required)
 
 ```bash
 psql -U postgres -d nekazari -f k8s/registration.sql
+```
+
+Your `marketplace_modules.metadata` must include routing keys used by api-gateway auto-proxy:
+
+- `api_prefix` (example: `/api/MODULE_NAME`)
+- `backend_service` (example: `http://MODULE_NAME-api-service:8000`)
+- `backend_mount` (example: `/api/MODULE_NAME`)
+- `requires_auth` (`true` unless the endpoint is intentionally public)
+
+Quick verification:
+
+```sql
+SELECT id, metadata->>'api_prefix', metadata->>'backend_service'
+FROM marketplace_modules
+WHERE id = 'MODULE_NAME';
 ```
 
 ## 9. Deploy backend (if any)
@@ -71,7 +86,7 @@ docker push ghcr.io/YOUR_ORG/MODULE_NAME-backend:v1.0.0
 kubectl apply -f k8s/backend-deployment.yaml -n nekazari
 ```
 
-Add ingress: `/api/MODULE_NAME` → `MODULE_NAME-api-service:8000`
+Do not add a dedicated `/api/MODULE_NAME` Ingress rule. Module API traffic should go through the platform `/api` catch-all and gateway auto-proxy, except for explicitly approved direct-ingress exceptions.
 
 ## 10. Activate for tenants
 

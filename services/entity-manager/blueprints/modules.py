@@ -105,6 +105,25 @@ def _guess_dist_content_type(filename):
     }.get(ext, 'application/octet-stream')
 
 
+def _invalidate_gateway_route_cache() -> None:
+    """Drop api-gateway marketplace_modules route registry (TTL cache)."""
+    gateway_url = os.getenv("API_GATEWAY_URL", "http://api-gateway-service:5000").rstrip("/")
+    try:
+        resp = requests.post(
+            f"{gateway_url}/internal/cache/invalidate",
+            json={"key": "routes"},
+            timeout=5,
+        )
+        if resp.status_code != 200:
+            logger.warning(
+                "Gateway route cache invalidate returned %s: %s",
+                resp.status_code,
+                resp.text[:200],
+            )
+    except Exception as exc:
+        logger.warning("Gateway route cache invalidate failed: %s", exc)
+
+
 VisibilityRules = Mapping[str, Dict[str, List[str]]]
 
 # ---------------------------------------------------------------------------
@@ -596,6 +615,7 @@ def activate_marketplace_module(module_id):
         conn.commit()
         cur.close()
         return_db_connection(conn)
+        _invalidate_gateway_route_cache()
 
         action = 'activated' if is_active else 'deactivated'
         username = getattr(g, 'current_user', {}).get('preferred_username', 'unknown') if hasattr(g, 'current_user') else 'unknown'
@@ -1565,6 +1585,7 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
 
         conn.commit()
         cur.close()
+        _invalidate_gateway_route_cache()
 
         return 201, {
             'message': 'Module deployed successfully.',

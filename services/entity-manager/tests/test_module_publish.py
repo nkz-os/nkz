@@ -193,6 +193,51 @@ def test_publish_ok_with_secret(client, monkeypatch):
     assert r.get_json()["version_hash"] == "abc1234"
 
 
+def test_invalidate_gateway_route_cache_posts_routes_key(monkeypatch):
+    import blueprints.modules as m
+
+    posted = {}
+
+    def fake_post(url, json=None, timeout=None):
+        posted["url"] = url
+        posted["json"] = json
+        posted["timeout"] = timeout
+        return MagicMock(status_code=200, text="")
+
+    monkeypatch.setattr(m.requests, "post", fake_post)
+    monkeypatch.setenv("API_GATEWAY_URL", "http://api-gateway-service:5000")
+    m._invalidate_gateway_route_cache()
+    assert posted["url"] == "http://api-gateway-service:5000/internal/cache/invalidate"
+    assert posted["json"] == {"key": "routes"}
+    assert posted["timeout"] == 5
+
+
+def test_upload_dist_and_activate_invalidates_route_cache(monkeypatch):
+    import blueprints.modules as m
+
+    invalidate = MagicMock()
+    monkeypatch.setattr(m, "_invalidate_gateway_route_cache", invalidate)
+    monkeypatch.setattr(m, "_get_frontend_s3_client", lambda: None)
+
+    status, payload = m._upload_dist_and_activate("demo", [], {"id": "demo", "version": "1"}, "abc1234")
+    assert status == 503
+    invalidate.assert_not_called()
+
+    s3 = MagicMock()
+    monkeypatch.setattr(m, "_get_frontend_s3_client", lambda: s3)
+    conn = MagicMock()
+    cur = MagicMock()
+    conn.cursor.return_value = cur
+    monkeypatch.setattr(m, "get_db_connection_simple", lambda: conn)
+    monkeypatch.setattr(m, "return_db_connection", lambda _c: None)
+
+    manifest = {"id": "demo", "version": "1.0.0"}
+    with app.app_context():
+        status, payload = m._upload_dist_and_activate("demo", [], manifest, "abc1234")
+    assert status == 201
+    invalidate.assert_called_once()
+
+
 # ---------------------------------------------------------------------------
 # FIWARE publish gate (_fiware_publish_gate)
 # ---------------------------------------------------------------------------

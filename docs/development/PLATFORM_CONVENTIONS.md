@@ -456,83 +456,50 @@ Example:
 
 ## 8. API Routing
 
-### Ingress-level routing (nkz.robotika.cloud)
+### SOTA routing model (2026-07-06)
 
-Traefik ingress routes by longest prefix match. **Not all requests pass through api-gateway**:
+The platform routing contract is:
 
-#### Routes through api-gateway (auth + tenant injection automatic)
+```
+Browser -> Traefik
+        -> /api catch-all -> api-gateway
+        -> gateway auto_proxy_module() (registry from marketplace_modules.metadata)
+        -> module backend service
+```
 
-| Path | Final backend | Notes |
-|------|--------------|-------|
-| `/api/auth/session` | gateway itself | Cookie set/clear |
-| `/api/public/platform-settings` | entity-manager-service:5000 | Public boot config |
-| `/api/weather/*` | weather-worker:8080 | Weather data |
-| `/api/timeseries/*` | timeseries-reader-service:8000 | Historical data |
-| `/api/vegetation/*` | api-gateway → vegetation-prime-api:8000 | NDVI/satellite |
-| `/api/gis/*` | gateway itself | GIS utilities |
-| `/api/v1/profiles/*` | gateway itself | Device profiles |
-| `/api/iot/provision-mqtt` | gateway itself | MQTT provisioning |
-| `/api/*` (catch-all) | gateway | Any unmatched `/api/` path |
+This is the default for module APIs. New modules must be routable without adding new gateway `@app.route()` handlers or new per-module `/api/<module>` Ingress paths.
 
-#### Routes that bypass api-gateway (direct ingress)
+### Module metadata contract (`marketplace_modules.metadata`)
 
-These services receive traffic **directly from ingress** — no gateway auth/tenant injection:
+Each routable module must expose these keys in metadata:
 
-| Path | Backend service | Auth |
-|------|----------------|------|
-| `/webhook/*` | tenant-webhook-service:8080 | Own validation (public endpoints for activation) |
-| `/api/admin/*` | tenant-webhook-service:8080 (some routes) | Own JWT validation |
-| `/api/tenant/users/*` | tenant-user-api-service:5000 | Own JWT validation |
-| `/api/tenant/services/*` | tenant-webhook-service:8080 | Own JWT validation |
-| `/api/risks/*` | risk-api-service:5000 | Own JWT validation |
-| `/api/modules/*` | entity-manager-service:5000 | Direct ingress |
-| `/api/assets/*` | entity-manager-service:5000 | Direct ingress |
-| `/api/intelligence/*` | intelligence-api-service:8000 | Direct ingress |
-| `/api/cadastral-api/*` | catastro-spain-api-service:8000 | Direct ingress |
-| `/api/lidar/*` | lidar-api-service:8000 | Direct ingress |
-| `/api/datahub/*` | datahub-api-service:8000 | Direct ingress |
-| `/api/odoo/*` | odoo-backend-service:8069 | Direct ingress |
-| `/ngsi-ld/*` | api-gateway (nkz) / api-gateway (nekazari) | Via gateway |
-| `/sdm/*` | sdm-integration-service:5000 | Direct ingress |
+| Key | Required | Description |
+|-----|----------|-------------|
+| `api_prefix` | yes | Public API prefix, for example `/api/weather-map`. |
+| `backend_service` | yes | Internal service base URL, for example `http://weather-map-backend:8080`. |
+| `backend_mount` | yes | Backend mount prefix after strip, for example `/api/weather-map` or `/v1/soil`. |
+| `requires_auth` | yes | `true` for protected APIs, `false` only for documented public endpoints. |
 
-#### Admin route splitting (inside api-gateway)
+`api-gateway` keeps a route registry cache (TTL 300s). After publish/metadata updates, invalidate `routes` cache to avoid waiting for TTL.
 
-When `/api/admin/*` reaches api-gateway (catch-all), the gateway uses `ADMIN_ROUTE_MAP` to split:
+### Permanent direct-routing exceptions (do not auto-proxy)
 
-| Sub-path | Destination |
-|----------|-------------|
-| `audit-logs`, `terms`, `platform-settings`, `tenant-usage`, `assets`, `parcels` | entity-manager-service:5000 |
-| `tenants`, `activations`, `tenant-limits`, `api-keys`, `users`, `platform-credentials` | tenant-webhook-service:8080 |
+| Path | Reason |
+|------|--------|
+| `/api/elevation/ws` | WebSocket upgrade stays direct. |
+| `/api/graph/*`, `/api/capability/*` | BioOrchestrator direct ingress + own auth middleware. |
+| `/api/modules/cue/*` | CUE direct ingress contract. |
+| `odoo.robotika.cloud` | Odoo UI host only. |
 
-> **Note**: `/api/admin/*` also has a direct ingress rule to tenant-webhook. The gateway catch-all and the direct ingress compete — Traefik evaluates by longest prefix, so more specific sub-paths may hit the gateway while `/admin` hits tenant-webhook directly.
+Some core APIs also remain explicit in the gateway (for example intelligence, datahub export/align, vegetation tiles, routing/tiles, n8n tenant proxy, zulip-specific handlers).
 
-### Direct ingress (nekazari.robotika.cloud)
+### Operational rules
 
-Frontend domain. Module backends served alongside the host SPA:
-
-| Path | Backend service | Ingress name |
-|------|----------------|--------------|
-| `/api/agrienergy/*` | agrienergy-api-service:8000 | `agrienergy-api-frontend-host` |
-| `/api/connectivity/*` | connectivity-api-service:8000 | `connectivity-api-frontend-host` |
-| `/api/datahub/*` | datahub-api-service:8000 | `datahub-api-frontend-host` |
-| `/api/vegetation/*` | vegetation-prime-api-service:8000 | `vegetation-module-ingress` |
-| `/modules/*` | frontend-static-service:80 | Main ingress (module bundles from MinIO) |
-| `/` | frontend-static-service:80 | Main ingress (host SPA) |
-
-### Webhook routes (tenant-webhook-service:8080)
-
-| Path | Auth | Purpose |
-|------|------|---------|
-| `POST /webhook/activate` | None (public) | Activate NEK code, create tenant + user |
-| `POST /webhook/register` | None (public) | Self-registration (free trial) |
-| `GET /health` | None (exempt from rate limiter) | K8s probes |
-
-### Rules
-
-- api-gateway routes use prefix `/api/`. The gateway receives the full path including `/api/`.
-- Services with direct ingress must validate JWT themselves (JWKS from Keycloak).
-- Frontend calls: `VITE_API_URL` (`https://nkz.robotika.cloud`) for gateway routes; relative paths for direct-ingress modules on `nekazari.robotika.cloud`.
-- `/health` endpoints **must** have `@limiter.exempt` — K8s probes exhaust rate limits otherwise.
+- Keep `/api` catch-all in ingress and route module APIs through `api-gateway`.
+- Do not add per-module `/api/<module>` Ingress rules unless the path is an approved permanent exception.
+- Module publishes must preserve metadata keys above; verify `metadata->>'api_prefix'` is not `NULL`.
+- Frontend API base remains `https://nkz.robotika.cloud` (no `/api` suffix).
+- `/health` endpoints **must** have `@limiter.exempt` to avoid probe-triggered rate-limit failures.
 
 ---
 
