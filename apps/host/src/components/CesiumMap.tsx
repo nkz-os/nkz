@@ -1340,11 +1340,18 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
         const buildingName = typeof building.name === 'string' ? building.name : building.name?.value || 'Unknown Building';
         const category = typeof building.category === 'string' ? building.category : building.category?.value;
+        const rawHeight = typeof building.height === 'number'
+          ? building.height
+          : building.height?.value;
+        const extrudedHeight = typeof rawHeight === 'number' && rawHeight > 0 ? rawHeight : 5;
         const geomType = getEntityGeometryType(building);
 
-        if (geomType === 'Polygon') {
-          const coords = coordinates[0];
-          const hierarchy = (coords as any[]).map((c: any) => Cesium.Cartesian3.fromDegrees(c[0], c[1]));
+        if (geomType === 'Polygon' || geomType === 'MultiPolygon') {
+          const ring = geomType === 'MultiPolygon'
+            ? (coordinates as any[])[0]?.[0]
+            : (coordinates as any[])[0];
+          if (!Array.isArray(ring) || ring.length < 3) return;
+          const hierarchy = (ring as any[]).map((c: any) => Cesium.Cartesian3.fromDegrees(c[0], c[1]));
 
           const entity = viewer.entities.add({
             id: `building-${building.id}`,
@@ -1352,7 +1359,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             polygon: {
               hierarchy: hierarchy,
               material: Cesium.Color.GRAY.withAlpha(0.9),
-              extrudedHeight: 5,
+              extrudedHeight,
               outline: true,
               outlineColor: Cesium.Color.BLACK,
               heightReference: hr,

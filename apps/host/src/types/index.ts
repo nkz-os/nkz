@@ -445,6 +445,7 @@ export interface AgriBuilding {
   type: string;
   name?: { type: 'Property'; value: string };
   category?: { type: 'Property'; value: string };
+  height?: { type: 'Property'; value: number };
   location?: {
     type: 'GeoProperty';
     value: {
