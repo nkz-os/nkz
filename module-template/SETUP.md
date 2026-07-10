@@ -78,6 +78,8 @@ FROM marketplace_modules
 WHERE id = 'MODULE_NAME';
 ```
 
+After the first CI publish, entity-manager invalidates the api-gateway route cache automatically (`POST /internal/cache/invalidate` with `key=routes`). No manual cache flush is required.
+
 ## 9. Deploy backend (if any)
 
 ```bash
