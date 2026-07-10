@@ -71,7 +71,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
       });
       if (resp.data.success) {
         setOtpSent(true);
-        setOtpMessage(t('registration.send_otp_success') || 'Code sent');
+        setOtpMessage(t('registration.send_otp_success', { email: formData.email }) || 'Code sent');
         setResendCountdown(60);
       }
     } catch (err: unknown) {
