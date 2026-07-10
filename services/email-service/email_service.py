@@ -54,6 +54,7 @@ class EmailConfig:
         self.smtp_username = os.getenv('SMTP_USERNAME') or os.getenv('SMTP_USER', '')
         self.smtp_password = os.getenv('SMTP_PASSWORD', '')
         self.smtp_tls = os.getenv('SMTP_TLS', 'true').lower() == 'true'
+        self.smtp_timeout = int(os.getenv('SMTP_TIMEOUT_SECONDS', '15'))
         self.from_email = os.getenv('SMTP_FROM_EMAIL', self.smtp_username)
         self.from_name = os.getenv('SMTP_FROM_NAME', 'Nekazari Platform')
         # Get frontend URL, constructing from PRODUCTION_DOMAIN if not set
@@ -455,21 +456,26 @@ class EmailService:
             # Conectar y enviar
             # Use SMTP_SSL for port 465, SMTP with starttls for port 587
             if self.config.smtp_port == 465:
-                server = smtplib.SMTP_SSL(self.config.smtp_host, self.config.smtp_port)
+                server = smtplib.SMTP_SSL(self.config.smtp_host, self.config.smtp_port, timeout=self.config.smtp_timeout)
             else:
-                server = smtplib.SMTP(self.config.smtp_host, self.config.smtp_port)
+                server = smtplib.SMTP(self.config.smtp_host, self.config.smtp_port, timeout=self.config.smtp_timeout)
                 if self.config.smtp_tls:
                     server.starttls()
-            
-            server.login(self.config.smtp_username, self.config.smtp_password)
-            server.sendmail(self.config.from_email, [to_email], msg.as_string())
-            server.quit()
-            
+
+            try:
+                server.login(self.config.smtp_username, self.config.smtp_password)
+                server.sendmail(self.config.from_email, [to_email], msg.as_string())
+            finally:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
+
             logger.info(f"Email sent successfully to {to_email}")
             return True
-            
+
         except Exception as e:
-            logger.error(f"Failed to send email to {to_email}: {e}")
+            logger.error(f"Failed to send email to {to_email} via {self.config.smtp_host}: {type(e).__name__}: {e}")
             return False
     
     def send_welcome_email(self, email: str, farmer_name: str, farm_name: str, tenant_id: str, api_key: str) -> bool:
