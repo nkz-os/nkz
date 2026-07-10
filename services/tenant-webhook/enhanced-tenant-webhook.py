@@ -6088,12 +6088,13 @@ def request_registration_otp():
     try:
         data = request.get_json()
         email = data.get("email")
+        language = data.get("language")
 
         if not email or not isinstance(email, str) or '@' not in email:
             return jsonify({"error": "Valid email is required"}), 400
 
         email = email.lower().strip()
-        
+
         # 1. Check if user already exists in Keycloak (anti-enumeration check)
         token = webhook_service.get_keycloak_token()
         if token:
@@ -6113,7 +6114,7 @@ def request_registration_otp():
                     logger.info(f"OTP request for existing user {email}. Faking success.")
                     # Return 200 OK to prevent email enumeration, but don't send OTP
                     return jsonify(
-                        {"success": True, "message": "Si el email es válido, recibirás un código."}
+                        {"success": True, "message": "If the email is valid, you will receive a code."}
                     ), 200
 
         # 2. Generate secure 6-digit OTP
@@ -6132,19 +6133,20 @@ def request_registration_otp():
         email_service_url = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
         email_payload = {
             "email": email,
-            "otp": otp
+            "otp": otp,
+            "language": language
         }
-        
+
         email_resp = requests.post(
-            f"{email_service_url}/email/verification-otp", 
-            json=email_payload, 
+            f"{email_service_url}/email/verification-otp",
+            json=email_payload,
             timeout=10
         )
-        
+
         if email_resp.status_code == 200:
             logger.info(f"OTP generated and email requested for {email}")
             return jsonify(
-                {"success": True, "message": "Si el email es válido, recibirás un código."}
+                {"success": True, "message": "If the email is valid, you will receive a code."}
             ), 200
         else:
             logger.error(f"Email service failed to send OTP to {email}: {email_resp.text}")
@@ -6184,7 +6186,7 @@ def register_tenant():
         stored_otp = redis_client.get(redis_key)
 
         if not stored_otp or stored_otp != str(otp).strip():
-            return jsonify({"error": "Código de verificación inválido o expirado."}), 401
+            return jsonify({"error": "Invalid or expired verification code."}), 401
             
         # OTP is valid, delete it to ensure single-use
         redis_client.delete(redis_key)

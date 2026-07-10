@@ -178,12 +178,12 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
       }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string }; status?: number }; message?: string };
-      const msg = error.response?.data?.error || error.message || 'Registration failed';
-      setError(msg);
       if (error.response?.status === 409) {
         setError(t('registration.email_exists') || 'El email ya está registrado');
       } else if (error.response?.status === 401) {
         setError(t('registration.otp_invalid') || 'Código de verificación inválido o expirado.');
+      } else {
+        setError(error.response?.data?.error || error.message || 'Registration failed');
       }
     } finally {
       setLoading(false);

@@ -517,10 +517,11 @@ class EmailService:
         subject = f"🎉 Invitación para unirte a {tenant_name} en Nekazari"
         return self.send_email(email, subject, html_content)
     
-    def send_verification_otp_email(self, email: str, otp: str) -> bool:
-        """Send an OTP verification email to the user."""
+    def send_verification_otp_email(self, email: str, otp: str, language: str = 'es') -> bool:
+        """Send an OTP verification email to the user, localized by `language` ('es' or 'en')."""
         try:
-            with open(os.path.join(self.templates_dir, "verification_otp.html"), "r", encoding='utf-8') as f:
+            template_file = "verification_otp_en.html" if language == 'en' else "verification_otp.html"
+            with open(os.path.join(self.templates_dir, template_file), "r", encoding='utf-8') as f:
                 template = f.read()
 
             html_content = template.format(
@@ -529,8 +530,14 @@ class EmailService:
                 NKZ_URL="https://nekazari.robotika.cloud"
             )
 
-            text_content = f"Tu código de verificación de Nekazari es: {otp}\nEste código caducará en 15 minutos.\nSi no has solicitado este código, ignora este correo."
-            return self.send_email(email, "Verifica tu correo - Nekazari", html_content, text_content)
+            if language == 'en':
+                text_content = f"Your Nekazari verification code is: {otp}\nThis code will expire in 15 minutes.\nIf you did not request this code, you can ignore this email."
+                subject = "Verify your email - Nekazari"
+            else:
+                text_content = f"Tu código de verificación de Nekazari es: {otp}\nEste código caducará en 15 minutos.\nSi no has solicitado este código, ignora este correo."
+                subject = "Verifica tu correo - Nekazari"
+
+            return self.send_email(email, subject, html_content, text_content)
         except Exception as e:
             logger.error(f"Error sending OTP verification email: {e}")
             return False
@@ -793,10 +800,18 @@ def send_verification_otp():
     if not all([email, otp]):
         return jsonify({'error': 'Email and OTP are required'}), 400
 
+    # Normalize language: primary subtag only ('en-US' -> 'en'), only 'es'/'en'
+    # supported, anything else falls back to 'es'.
+    raw_language = (data.get('language') or 'es')
+    language = str(raw_language).strip().lower().split('-')[0]
+    if language not in ('es', 'en'):
+        language = 'es'
+
     try:
         success = email_service.send_verification_otp_email(
             email=email,
-            otp=otp
+            otp=otp,
+            language=language
         )
         if success:
             return jsonify({'message': 'OTP email sent successfully'}), 200
