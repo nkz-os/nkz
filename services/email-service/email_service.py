@@ -523,10 +523,11 @@ class EmailService:
         subject = f"🎉 Invitación para unirte a {tenant_name} en Nekazari"
         return self.send_email(email, subject, html_content)
     
-    def send_verification_otp_email(self, email: str, otp: str) -> bool:
-        """Send an OTP verification email to the user."""
+    def send_verification_otp_email(self, email: str, otp: str, language: str = 'es') -> bool:
+        """Send an OTP verification email to the user, localized by `language` ('es' or 'en')."""
         try:
-            with open(os.path.join(self.templates_dir, "verification_otp.html"), "r", encoding='utf-8') as f:
+            template_file = "verification_otp_en.html" if language == 'en' else "verification_otp.html"
+            with open(os.path.join(self.templates_dir, template_file), "r", encoding='utf-8') as f:
                 template = f.read()
 
             html_content = template.format(
@@ -535,10 +536,41 @@ class EmailService:
                 NKZ_URL="https://nekazari.robotika.cloud"
             )
 
-            text_content = f"Tu código de verificación de Nekazari es: {otp}\nEste código caducará en 15 minutos.\nSi no has solicitado este código, ignora este correo."
-            return self.send_email(email, "Verifica tu correo - Nekazari", html_content, text_content)
+            if language == 'en':
+                text_content = f"Your Nekazari verification code is: {otp}\nThis code will expire in 15 minutes.\nIf you did not request this code, you can ignore this email."
+                subject = "Verify your email - Nekazari"
+            else:
+                text_content = f"Tu código de verificación de Nekazari es: {otp}\nEste código caducará en 15 minutos.\nSi no has solicitado este código, ignora este correo."
+                subject = "Verifica tu correo - Nekazari"
+
+            return self.send_email(email, subject, html_content, text_content)
         except Exception as e:
             logger.error(f"Error sending OTP verification email: {e}")
+            return False
+
+    def send_account_exists_email(self, email: str, language: str = 'es') -> bool:
+        """Notify a user who already has an account that a registration was
+        attempted with their email, localized by `language` ('es' or 'en')."""
+        try:
+            template_file = "account_exists_en.html" if language == 'en' else "account_exists.html"
+            with open(os.path.join(self.templates_dir, template_file), "r", encoding='utf-8') as f:
+                template = f.read()
+
+            html_content = template.format(
+                YEAR=datetime.now().year,
+                NKZ_URL="https://nekazari.robotika.cloud"
+            )
+
+            if language == 'en':
+                text_content = "Someone (probably you) tried to register on Nekazari with this email address, but an account already exists for it.\nYou can log in at https://nekazari.robotika.cloud/login\nIf you forgot your password, you can reset it from the login screen.\nIf this wasn't you, you can ignore this email."
+                subject = "You already have an account - Nekazari"
+            else:
+                text_content = "Alguien (probablemente tú) intentó registrarse en Nekazari con esta dirección de correo, pero ya existe una cuenta asociada a ella.\nPuedes iniciar sesión en https://nekazari.robotika.cloud/login\nSi olvidaste tu contraseña, puedes restablecerla desde la pantalla de inicio de sesión.\nSi no fuiste tú, puedes ignorar este correo."
+                subject = "Ya tienes una cuenta - Nekazari"
+
+            return self.send_email(email, subject, html_content, text_content)
+        except Exception as e:
+            logger.error(f"Error sending account-exists email: {e}")
             return False
 
     def send_activation_success_notification(self, user_email: str, tenant_id: str, tenant_name: str, plan: str, activation_code: str, platform_email: str, tenant_admin_email: str) -> bool:
@@ -799,10 +831,18 @@ def send_verification_otp():
     if not all([email, otp]):
         return jsonify({'error': 'Email and OTP are required'}), 400
 
+    # Normalize language: primary subtag only ('en-US' -> 'en'), only 'es'/'en'
+    # supported, anything else falls back to 'es'.
+    raw_language = (data.get('language') or 'es')
+    language = str(raw_language).strip().lower().split('-')[0]
+    if language not in ('es', 'en'):
+        language = 'es'
+
     try:
         success = email_service.send_verification_otp_email(
             email=email,
-            otp=otp
+            otp=otp,
+            language=language
         )
         if success:
             return jsonify({'message': 'OTP email sent successfully'}), 200
@@ -811,6 +851,35 @@ def send_verification_otp():
     except Exception as e:
         logger.error(f"Error in send_verification_otp endpoint: {e}")
         return internal_error(e, 'email_send_verification_otp')
+
+@app.route('/email/account-exists', methods=['POST'])
+def send_account_exists():
+    """Notify a user who already has an account that a registration attempt was made"""
+    data = request.json
+    email = data.get('email')
+
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+
+    # Normalize language: primary subtag only ('en-US' -> 'en'), only 'es'/'en'
+    # supported, anything else falls back to 'es'.
+    raw_language = (data.get('language') or 'es')
+    language = str(raw_language).strip().lower().split('-')[0]
+    if language not in ('es', 'en'):
+        language = 'es'
+
+    try:
+        success = email_service.send_account_exists_email(
+            email=email,
+            language=language
+        )
+        if success:
+            return jsonify({'message': 'Account-exists email sent successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to send email'}), 500
+    except Exception as e:
+        logger.error(f"Error in send_account_exists endpoint: {e}")
+        return internal_error(e, 'email_send_account_exists')
 
 @app.route('/email/activation-success', methods=['POST'])
 def send_activation_success():

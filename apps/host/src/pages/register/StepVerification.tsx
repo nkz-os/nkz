@@ -31,7 +31,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
   loading,
   setLoading,
 }) => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const config = getConfig();
   const [otpSent, setOtpSent] = useState(false);
   const [otpMessage, setOtpMessage] = useState('');
@@ -67,10 +67,11 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
       });
       const resp = await client.post('/webhook/register/request-otp', {
         email: formData.email.toLowerCase(),
+        language,
       });
       if (resp.data.success) {
         setOtpSent(true);
-        setOtpMessage(resp.data.message || (t('registration.send_otp_success') || 'Code sent'));
+        setOtpMessage(t('registration.send_otp_success', { email: formData.email }) || 'Code sent');
         setResendCountdown(60);
       }
     } catch (err: unknown) {
@@ -83,7 +84,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [formData.email, config.api.baseUrl, setLoading, setError, t]);
+  }, [formData.email, config.api.baseUrl, language, setLoading, setError, t]);
 
   const formatCode = (code: string) => {
     const cleaned = code.replace(/[^A-Z0-9]/g, '').toUpperCase();
