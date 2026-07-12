@@ -12,6 +12,16 @@ export * from './i18n/config';
 // Viewer Context exports
 export { useViewer, useViewerOptional, type ViewerContextValue } from './viewer/useViewer';
 
+// Unified viewer-layer registry (contract frozen 2026-07-12, plan §B1)
+export { LayerRegistry, registerViewerLayers } from './viewer/layerRegistry';
+export type {
+  ViewerLayerDecl,
+  ViewerLayerEntry,
+  ViewerLayerStatus,
+  ViewerLayerStorageAdapter,
+} from './viewer/layerRegistry';
+export { useViewerLayer, type UseViewerLayerReturn } from './viewer/useViewerLayer';
+
 // API Client exports
 export { NKZClient, type NKZClientOptions } from './api/client';
 

@@ -42,3 +42,8 @@ export type { TimeseriesPoint, TimeseriesQuery, TimeseriesTransport } from './ho
 // Shared viewer components
 export { LayerMenuRow } from './components/LayerMenuRow';
 export type { LayerScope, LayerMenuRowProps } from './components/LayerMenuRow';
+
+// Unified viewer layers (contract frozen 2026-07-12, plan §B1) — declared via
+// defineModule({ viewerLayers }); live state is read with useViewerLayer from
+// @nekazari/sdk. Types re-exported here so modules don't need a direct sdk import.
+export type { ViewerLayerDecl, ViewerLayerStatus } from '@nekazari/sdk';
