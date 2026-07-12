@@ -82,8 +82,8 @@
   "route": "Ruta",
   "not_installed": "No instal·lat",
   "installed": "Instal·lat",
-  "module_requires_plan": "El mòdul requereix pla {plan}",
-  "current_plan_insufficient": "El teu pla actual ({current}) no compleix el requisit",
+  "module_requires_plan": "El mòdul requereix pla {{plan}}",
+  "current_plan_insufficient": "El teu pla actual ({{current}}) no compleix el requisit",
   "module_can_be_installed": "El mòdul es pot instal·lar",
   "module_not_found": "Mòdul no trobat",
   "module_not_active": "El mòdul no està actiu al mercat",
@@ -103,8 +103,8 @@
     "saved": "Terms saved successfully",
     "saving": "Saving...",
     "select_language": "Select language",
-    "terms_for_language": "Terms for {language}",
-    "confirm_delete_tenant": "Are you sure you want to purge tenant '{tenantId}'? This action cannot be undone.",
+    "terms_for_language": "Terms for {{language}}",
+    "confirm_delete_tenant": "Are you sure you want to purge tenant '{{tenantId}}'? This action cannot be undone.",
     "tenant_purged": "Tenant purged successfully",
     "tenant_purge_error": "Error purging tenant",
     "email_prompt": "Recipient email:",
@@ -125,7 +125,7 @@
     "contact_email_prompt": "Contact email (metadata):",
     "tenant_updated": "Tenant updated successfully",
     "tenant_update_error": "Error updating tenant",
-    "confirm_delete_user": "Are you sure you want to delete user '{email}'?",
+    "confirm_delete_user": "Are you sure you want to delete user '{{email}}'?",
     "delete_user": "Delete user",
     "user_deleted": "User deleted successfully",
     "user_delete_error": "Error deleting user",
@@ -167,7 +167,7 @@
     "grafana_desc": "Dashboards and metrics visualization",
     "keycloak_admin": "Keycloak Admin",
     "keycloak_admin_desc": "Advanced user and role management",
-    "last_update": "Last update: {date}",
+    "last_update": "Last update: {{date}}",
     "logout": "Log Out",
     "manage_devices": "Manage Devices",
     "manage_devices_desc": "Administer robots and sensors",
@@ -237,14 +237,14 @@
       "all_ok": "Tot correcte",
       "all_systems_ok": "Tots els sistemes funcionant correctament",
       "charging": "Carregant",
-      "robots_charging_one": "{count} robot carregant",
-      "robots_charging_other": "{count} robots carregant",
+      "robots_charging_one": "{{count}} robot carregant",
+      "robots_charging_other": "{{count}} robots carregant",
       "online": "En Línia",
       "mqtt_stable": "Connexió MQTT estable"
     },
     "sensors": {
       "humidity_unit_label": "% humitat",
-      "view_all_count": "Veure tots els sensors ({count})"
+      "view_all_count": "Veure tots els sensors ({{count}})"
     },
     "livestock": {
       "title": "Bestiar",
@@ -273,21 +273,21 @@
       "enterprise": "Pla Enterprise",
       "no_expiration_data": "Sense dades de venciment",
       "expired": "Pla vençut",
-      "expires_one": "Venceeix en {days} dia",
-      "expires_other": "Venceeix en {days} dies",
+      "expires_one": "Venceeix en {{days}} dia",
+      "expires_other": "Venceeix en {{days}} dies",
       "description": "Gestió centralitzada de límits i ús del tenant",
       "users": "Usuaris",
       "users_allowed": "Usuaris permesos pel pla",
       "robots": "Robots",
-      "in_use_of_limit": "{count} en ús {limit}",
+      "in_use_of_limit": "{{count}} en ús {{limit}}",
       "robots_usage": "Ús de robots",
       "sensors": "Sensors",
       "sensors_usage": "Ús de sensors",
       "monitored_area": "Superfície monitoritzada",
-      "area_in_use": "{value} ha {limit}",
+      "area_in_use": "{{value}} ha {{limit}}",
       "area_coverage": "Cobertura",
-      "updated": "Dades actualitzades {time}",
-      "plan_label": "Pla: {plan}"
+      "updated": "Dades actualitzades {{time}}",
+      "plan_label": "Pla: {{plan}}"
     },
     "progress": {
       "default_label": "Progrés"
@@ -309,13 +309,13 @@
         "medium": "Mig",
         "low": "Baix"
       },
-      "alert_count_one": "{count} alerta",
-      "alert_count_other": "{count} alertes",
+      "alert_count_one": "{{count}} alerta",
+      "alert_count_other": "{{count}} alertes",
       "refresh_button": "Actualitzar",
       "no_alerts": "Sense alertes actives",
       "next_eval": "Propera avaluació automàtica dins de l'hora.",
-      "more_evaluations": "+{count} més avaluacions",
-      "updated_time": "Actualitzat {time}",
+      "more_evaluations": "+{{count}} més avaluacions",
+      "updated_time": "Actualitzat {{time}}",
       "view_panel": "Veure panell de riscos"
     },
     "tenant_info": {
@@ -543,7 +543,7 @@
     "save_changes": "Guardar Cambios",
     "save_error": "Error al guardar el sensor",
     "search_placeholder": "Buscar sensores...",
-    "sensor_list": "Lista de Sensores ({count})",
+    "sensor_list": "Lista de Sensores ({{count}})",
     "sensor_location": "Ubicación de Sensores",
     "station_id": "Estación (opcional)",
     "station_id_placeholder": "Ej: Estacion_Principal",
@@ -857,17 +857,17 @@
     },
     "cadastral": {
       "not_found": "No s'ha trobat informació cadastral per a aquesta ubicació.",
-      "error": "Error al consultar el servei cadastral: {errorMsg}"
+      "error": "Error al consultar el servei cadastral: {{errorMsg}}"
     },
     "parcel": {
       "new_parcel": "Nova Parcel·la",
-      "cadastral_data": "Dades cadastrals: {reference}",
-      "area": "Àrea: {area} ha"
+      "cadastral_data": "Dades cadastrals: {{reference}}",
+      "area": "Àrea: {{area}} ha"
     },
     "timeline": {
       "button": "Timeline",
       "label": "Timeline - Control temporal unificat",
-      "current_date": "Data actual: {date}"
+      "current_date": "Data actual: {{date}}"
     },
     "sensor": {
       "iot_sensor": "Sensor IoT",
@@ -881,12 +881,12 @@
       "select_entity": "Selecciona una entitat del mapa o de la llista per veure els seus detalls i opcions de control",
       "yes": "Sí",
       "no": "No",
-      "elements_count": "{count} element(s)",
+      "elements_count": "{{count}} element(s)",
       "empty_list": "Buit",
-      "polygon_points": "Polígon ({count} punts)",
+      "polygon_points": "Polígon ({{count}} punts)",
       "details": "Detalls",
       "properties": "Propietats",
-      "more_properties": "+{count} més propietats",
+      "more_properties": "+{{count}} més propietats",
       "change_history": "Historial de Canvis",
       "change_history_unavailable": "L'historial de canvis es mostrarà aquí quan estigui disponible",
       "clear_selection": "Neteja la selecció"
@@ -931,7 +931,7 @@
       "linestring_instruction": "Clic esquerre per afegir punts. Clic dret per acabar.",
       "multilinestring_instruction": "Clic esquerre per afegir punts. Clic dret per acabar la línia actual.",
       "default_instruction": "Feu clic al mapa per dibuixar",
-      "type_label": "Dibuixant: {type}",
+      "type_label": "Dibuixant: {{type}}",
       "pick_location": "Feu clic al mapa per seleccionar ubicació"
     },
     "toolbar": {

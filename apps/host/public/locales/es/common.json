@@ -82,8 +82,8 @@
   "route": "Ruta",
   "not_installed": "No instalado",
   "installed": "Instalado",
-  "module_requires_plan": "El módulo requiere plan {plan}",
-  "current_plan_insufficient": "Tu plan actual ({current}) no cumple el requisito",
+  "module_requires_plan": "El módulo requiere plan {{plan}}",
+  "current_plan_insufficient": "Tu plan actual ({{current}}) no cumple el requisito",
   "module_can_be_installed": "El módulo se puede instalar",
   "module_not_found": "Módulo no encontrado",
   "module_not_active": "El módulo no está activo en el marketplace",
@@ -159,7 +159,7 @@
     "device_management_desc": "Gestiona robots y sensores desde aquí.",
     "manage_robots": "Gestionar Robots",
     "manage_sensors": "Gestionar Sensores",
-    "last_update": "Última actualización: {date}",
+    "last_update": "Última actualización: {{date}}",
     "edit_terms": "Editar Términos y Condiciones",
     "save_terms": "Guardar Términos",
     "saving": "Guardando...",
@@ -167,11 +167,11 @@
     "save_error": "Error al guardar los términos",
     "terms_placeholder": "Escribe aquí los términos y condiciones de uso de la plataforma...",
     "select_language": "Selecciona idioma",
-    "terms_for_language": "Términos para {language}",
+    "terms_for_language": "Términos para {{language}}",
     "all_languages": "Todos los idiomas",
     "current_content": "Contenido actual",
     "preview": "Vista previa",
-    "confirm_delete_tenant": "¿Estás seguro de que deseas purgar el tenant '{tenantId}'? Esta acción no se puede deshacer.",
+    "confirm_delete_tenant": "¿Estás seguro de que deseas purgar el tenant '{{tenantId}}'? Esta acción no se puede deshacer.",
     "tenant_purged": "Tenant purgado con éxito",
     "tenant_purge_error": "Error al purgar tenant",
     "email_prompt": "Email del destinatario:",
@@ -192,7 +192,7 @@
     "contact_email_prompt": "Email de contacto (metadata):",
     "tenant_updated": "Tenant actualizado con éxito",
     "tenant_update_error": "Error al actualizar tenant",
-    "confirm_delete_user": "¿Estás seguro de que deseas eliminar al usuario '{email}'?",
+    "confirm_delete_user": "¿Estás seguro de que deseas eliminar al usuario '{{email}}'?",
     "delete_user": "Eliminar usuario",
     "user_deleted": "Usuario eliminado con éxito",
     "user_delete_error": "Error al eliminar usuario",
@@ -273,14 +273,14 @@
       "all_ok": "Todo OK",
       "all_systems_ok": "Todos los sistemas funcionando correctamente",
       "charging": "Cargando",
-      "robots_charging_one": "{count} robot en carga",
-      "robots_charging_other": "{count} robots en carga",
+      "robots_charging_one": "{{count}} robot en carga",
+      "robots_charging_other": "{{count}} robots en carga",
       "online": "En Línea",
       "mqtt_stable": "Conexión MQTT estable"
     },
     "sensors": {
       "humidity_unit_label": "% humedad",
-      "view_all_count": "Ver todos los sensores ({count})"
+      "view_all_count": "Ver todos los sensores ({{count}})"
     },
     "livestock": {
       "title": "Ganado",
@@ -309,21 +309,21 @@
       "enterprise": "Plan Enterprise",
       "no_expiration_data": "Sin datos de expiración",
       "expired": "Plan expirado",
-      "expires_one": "Expira en {days} día",
-      "expires_other": "Expira en {days} días",
+      "expires_one": "Expira en {{days}} día",
+      "expires_other": "Expira en {{days}} días",
       "description": "Gestión centralizada de límites y uso del tenant",
       "users": "Usuarios",
       "users_allowed": "Usuarios permitidos por plan",
       "robots": "Robots",
-      "in_use_of_limit": "{count} en uso {limit}",
+      "in_use_of_limit": "{{count}} en uso {{limit}}",
       "robots_usage": "Uso de robots",
       "sensors": "Sensores",
       "sensors_usage": "Uso de sensores",
       "monitored_area": "Superficie monitorizada",
-      "area_in_use": "{value} ha {limit}",
+      "area_in_use": "{{value}} ha {{limit}}",
       "area_coverage": "Cobertura",
-      "updated": "Datos actualizados {time}",
-      "plan_label": "Plan: {plan}"
+      "updated": "Datos actualizados {{time}}",
+      "plan_label": "Plan: {{plan}}"
     },
     "progress": {
       "default_label": "Progreso"
@@ -345,13 +345,13 @@
         "medium": "Medio",
         "low": "Bajo"
       },
-      "alert_count_one": "{count} alerta",
-      "alert_count_other": "{count} alertas",
+      "alert_count_one": "{{count}} alerta",
+      "alert_count_other": "{{count}} alertas",
       "refresh_button": "Actualizar",
       "no_alerts": "Sin alertas activas",
       "next_eval": "Próxima evaluación automática en la hora.",
-      "more_evaluations": "+{count} evaluaciones más",
-      "updated_time": "Actualizado {time}",
+      "more_evaluations": "+{{count}} evaluaciones más",
+      "updated_time": "Actualizado {{time}}",
       "view_panel": "Ver panel de riesgos"
     },
     "tenant_info": {
@@ -576,7 +576,7 @@
     "search_placeholder": "Buscar sensores...",
     "map_title": "Mapa de Sensores",
     "sensor_location": "Ubicación de Sensores",
-    "sensor_list": "Lista de Sensores ({count})",
+    "sensor_list": "Lista de Sensores ({{count}})",
     "loading": "Cargando sensores...",
     "no_sensors_found": "No se encontraron sensores",
     "try_other_filters": "Intenta con otros filtros de búsqueda",
@@ -645,7 +645,7 @@
     "widget_title": "Información Meteorológica",
     "widget_subtitle_current": "Ubicación actual",
     "widget_subtitle_select": "Selecciona municipio",
-    "widget_subtitle_municipality": "{municipality}",
+    "widget_subtitle_municipality": "{{municipality}}",
     "search_municipality": "Buscar municipio",
     "change_municipality": "Cambiar",
     "refresh": "Actualizar",
@@ -975,7 +975,7 @@
     "create_account": "Crear Cuenta",
     "account_created": "Cuenta creada con éxito. Ya puedes iniciar sesión.",
     "email_exists": "Este email ya está registrado",
-    "redirect_login": "Serás redirigido en {seconds} segundos...",
+    "redirect_login": "Serás redirigido en {{seconds}} segundos...",
     "go_to_login": "Ir al Inicio de Sesión"
   },
   "quota": {
@@ -1065,12 +1065,12 @@
       "edit_title": "Editar Usuario",
       "edit": "Editar",
       "delete": "Eliminar",
-      "delete_confirm": "¿Estás seguro de que deseas eliminar al usuario {email}?",
+      "delete_confirm": "¿Estás seguro de que deseas eliminar al usuario {{email}}?",
       "deleted_success": "Usuario eliminado correctamente.",
       "delete_error": "Error al eliminar usuario",
       "reset_password": "Resetear Contraseña",
       "reset_confirm": "¿Estás seguro de que deseas resetear la contraseña de este usuario?",
-      "reset_success": "Contraseña reseteada. Nueva contraseña temporal: {password}",
+      "reset_success": "Contraseña reseteada. Nueva contraseña temporal: {{password}}",
       "reset_error": "Error al resetear contraseña",
       "generated": "generada",
       "updated_success": "Usuario actualizado correctamente.",
@@ -1287,17 +1287,17 @@
     },
     "cadastral": {
       "not_found": "No se encontró información catastral para esta ubicación.",
-      "error": "Error al consultar el servicio catastral: {errorMsg}"
+      "error": "Error al consultar el servicio catastral: {{errorMsg}}"
     },
     "parcel": {
       "new_parcel": "Nueva Parcela",
-      "cadastral_data": "Datos catastrales: {reference}",
-      "area": "Área: {area} ha"
+      "cadastral_data": "Datos catastrales: {{reference}}",
+      "area": "Área: {{area}} ha"
     },
     "timeline": {
       "button": "Timeline",
       "label": "Timeline - Control temporal unificado",
-      "current_date": "Fecha actual: {date}"
+      "current_date": "Fecha actual: {{date}}"
     },
     "sensor": {
       "iot_sensor": "Sensor IoT",
@@ -1311,12 +1311,12 @@
       "select_entity": "Selecciona una entidad del mapa o de la lista para ver sus detalles y opciones de control",
       "yes": "Sí",
       "no": "No",
-      "elements_count": "{count} elemento(s)",
+      "elements_count": "{{count}} elemento(s)",
       "empty_list": "Vacío",
-      "polygon_points": "Polígono ({count} puntos)",
+      "polygon_points": "Polígono ({{count}} puntos)",
       "details": "Detalles",
       "properties": "Propiedades",
-      "more_properties": "+{count} propiedades más",
+      "more_properties": "+{{count}} propiedades más",
       "change_history": "Historial de Cambios",
       "change_history_unavailable": "El historial de cambios se mostrará aquí cuando esté disponible",
       "clear_selection": "Limpiar selección"
@@ -1377,7 +1377,7 @@
       "linestring_instruction": "Click izquierdo para añadir puntos. Click derecho para terminar.",
       "multilinestring_instruction": "Click izquierdo para añadir puntos. Click derecho para terminar la línea actual.",
       "default_instruction": "Click en el mapa para dibujar",
-      "type_label": "Dibujando: {type}",
+      "type_label": "Dibujando: {{type}}",
       "pick_location": "Haga clic en el mapa para seleccionar ubicación"
     },
     "toolbar": {
