@@ -82,8 +82,8 @@
   "route": "Bidea",
   "not_installed": "Ez dago instalatua",
   "installed": "Instalatua",
-  "module_requires_plan": "Moduluak {plan} plana behar du",
-  "current_plan_insufficient": "Zure egungo planak ({current}) ez du baldintza betetzen",
+  "module_requires_plan": "Moduluak {{plan}} plana behar du",
+  "current_plan_insufficient": "Zure egungo planak ({{current}}) ez du baldintza betetzen",
   "module_can_be_installed": "Modulua instala daiteke",
   "module_not_found": "Modulua ez da aurkitu",
   "module_not_active": "Modulua ez dago aktibo merkatuan",
@@ -103,8 +103,8 @@
     "saved": "Terms saved successfully",
     "saving": "Saving...",
     "select_language": "Select language",
-    "terms_for_language": "Terms for {language}",
-    "confirm_delete_tenant": "Are you sure you want to purge tenant '{tenantId}'? This action cannot be undone.",
+    "terms_for_language": "Terms for {{language}}",
+    "confirm_delete_tenant": "Are you sure you want to purge tenant '{{tenantId}}'? This action cannot be undone.",
     "tenant_purged": "Tenant purged successfully",
     "tenant_purge_error": "Error purging tenant",
     "email_prompt": "Recipient email:",
@@ -125,7 +125,7 @@
     "contact_email_prompt": "Contact email (metadata):",
     "tenant_updated": "Tenant updated successfully",
     "tenant_update_error": "Error updating tenant",
-    "confirm_delete_user": "Are you sure you want to delete user '{email}'?",
+    "confirm_delete_user": "Are you sure you want to delete user '{{email}}'?",
     "delete_user": "Delete user",
     "user_deleted": "User deleted successfully",
     "user_delete_error": "Error deleting user",
@@ -167,7 +167,7 @@
     "grafana_desc": "Dashboards and metrics visualization",
     "keycloak_admin": "Keycloak Admin",
     "keycloak_admin_desc": "Advanced user and role management",
-    "last_update": "Last update: {date}",
+    "last_update": "Last update: {{date}}",
     "logout": "Log Out",
     "manage_devices": "Manage Devices",
     "manage_devices_desc": "Administer robots and sensors",
@@ -237,14 +237,14 @@
       "all_ok": "Dena ondo",
       "all_systems_ok": "Sistema guztiak behar bezala funtzionatzen ari dira",
       "charging": "Kargatzen",
-      "robots_charging_one": "{count} robota kargatzen",
-      "robots_charging_other": "{count} robotak kargatzen",
+      "robots_charging_one": "{{count}} robota kargatzen",
+      "robots_charging_other": "{{count}} robotak kargatzen",
       "online": "Linean",
       "mqtt_stable": "MQTT konexioa egonkorra"
     },
     "sensors": {
       "humidity_unit_label": "% hezetasuna",
-      "view_all_count": "Sensorea guztiak ikusi ({count})"
+      "view_all_count": "Sensorea guztiak ikusi ({{count}})"
     },
     "livestock": {
       "title": "Abereak",
@@ -273,21 +273,21 @@
       "enterprise": "Plana Enpresa",
       "no_expiration_data": "Ez dago iraungipen-daturik",
       "expired": "Plana iraungia",
-      "expires_one": "{days} egunean iraungiko da",
-      "expires_other": "{days} egunetan iraungiko da",
+      "expires_one": "{{days}} egunean iraungiko da",
+      "expires_other": "{{days}} egunetan iraungiko da",
       "description": "Tenantaren mugak eta erabilera zentralizatuta kudeatzea",
       "users": "Erabiltzaileak",
       "users_allowed": "Planaren arabera baimendutako erabiltzaileak",
       "robots": "Robotak",
-      "in_use_of_limit": "{count} erabilera {limit}",
+      "in_use_of_limit": "{{count}} erabilera {{limit}}",
       "robots_usage": "Roboten erabilera",
       "sensors": "Sensoreak",
       "sensors_usage": "Sensoreen erabilera",
       "monitored_area": "Monitorizatutako lursail-neurria",
-      "area_in_use": "{value} ha {limit}",
+      "area_in_use": "{{value}} ha {{limit}}",
       "area_coverage": "Estaldura",
-      "updated": "Datuak eguneratu {time}",
-      "plan_label": "Plana: {plan}"
+      "updated": "Datuak eguneratu {{time}}",
+      "plan_label": "Plana: {{plan}}"
     },
     "progress": {
       "default_label": "Aurrerapena"
@@ -309,13 +309,13 @@
         "medium": "Erdikoa",
         "low": "Baxua"
       },
-      "alert_count_one": "{count} alerta",
-      "alert_count_other": "{count} alerta",
+      "alert_count_one": "{{count}} alerta",
+      "alert_count_other": "{{count}} alerta",
       "refresh_button": "Eguneratu",
       "no_alerts": "Ez dago alerta aktiboak",
       "next_eval": "Hurrengo automatikoko ebaluazioa ordua barruan.",
-      "more_evaluations": "+{count} ebaluazio gehiago",
-      "updated_time": "Eguneratu {time}",
+      "more_evaluations": "+{{count}} ebaluazio gehiago",
+      "updated_time": "Eguneratu {{time}}",
       "view_panel": "Arrisku panela ikusi"
     },
     "tenant_info": {
@@ -544,7 +544,7 @@
     "save_changes": "Guardar Cambios",
     "save_error": "Error al guardar el sensor",
     "search_placeholder": "Buscar sensores...",
-    "sensor_list": "Lista de Sensores ({count})",
+    "sensor_list": "Lista de Sensores ({{count}})",
     "sensor_location": "Ubicación de Sensores",
     "station_id": "Estación (opcional)",
     "station_id_placeholder": "Ej: Estacion_Principal",
@@ -858,7 +858,7 @@
     "create_account": "Sortu kontua",
     "account_created": "Kontua ondo sortu da. Jada saioa hasi dezakezu.",
     "email_exists": "Email hori jadanik erregistratuta dago",
-    "redirect_login": "{seconds} segundo barru birbideratuko zaitugu...",
+    "redirect_login": "{{seconds}} segundo barru birbideratuko zaitugu...",
     "go_to_login": "Joan saio-hasierara"
   },
   "quota": {
@@ -897,17 +897,17 @@
     },
     "cadastral": {
       "not_found": "Ez da katastrala informatzioa aurkitu kokaleku honetan.",
-      "error": "Katastrala zerbitzuaren errorea: {errorMsg}"
+      "error": "Katastrala zerbitzuaren errorea: {{errorMsg}}"
     },
     "parcel": {
       "new_parcel": "Lursail Berria",
-      "cadastral_data": "Katastrala datuak: {reference}",
-      "area": "Neurria: {area} ha"
+      "cadastral_data": "Katastrala datuak: {{reference}}",
+      "area": "Neurria: {{area}} ha"
     },
     "timeline": {
       "button": "Denbora-lerroa",
       "label": "Denbora-lerroa - Denborala batutako kontrola",
-      "current_date": "Egungo data: {date}"
+      "current_date": "Egungo data: {{date}}"
     },
     "sensor": {
       "iot_sensor": "IoT Sensorea",
@@ -921,12 +921,12 @@
       "select_entity": "Hautatu entitate bat mapatatik edo zerratatik bere xehetasunak eta kontrol aukera ikusteko",
       "yes": "Bai",
       "no": "Ez",
-      "elements_count": "{count} elementu(a)",
+      "elements_count": "{{count}} elementu(a)",
       "empty_list": "Hutsik",
-      "polygon_points": "Poligonoa ({count} puntu)",
+      "polygon_points": "Poligonoa ({{count}} puntu)",
       "details": "Xehetasunak",
       "properties": "Propietateak",
-      "more_properties": "+{count} propietate gehiago",
+      "more_properties": "+{{count}} propietate gehiago",
       "change_history": "Aldaketen Historia",
       "change_history_unavailable": "Aldaketen historia hemen agertuko da disponible dagoenean",
       "clear_selection": "Hautapena garbitu"
@@ -971,7 +971,7 @@
       "linestring_instruction": "Ezkerreko klika puntuak gehitzeko. Eskuineko klika amaitzeko.",
       "multilinestring_instruction": "Ezkerreko klika puntuak gehitzeko. Eskuineko klika lerroa amaitzeko.",
       "default_instruction": "Sakatu mapatan marrazteko",
-      "type_label": "Marrazten: {type}",
+      "type_label": "Marrazten: {{type}}",
       "pick_location": "Sakatu mapatan kokapena hautatzeko"
     },
     "toolbar": {

@@ -82,8 +82,8 @@
   "route": "Route",
   "not_installed": "Non installé",
   "installed": "Installé",
-  "module_requires_plan": "Le module nécessite le plan {plan}",
-  "current_plan_insufficient": "Votre plan actuel ({current}) ne répond pas aux exigences",
+  "module_requires_plan": "Le module nécessite le plan {{plan}}",
+  "current_plan_insufficient": "Votre plan actuel ({{current}}) ne répond pas aux exigences",
   "module_can_be_installed": "Le module peut être installé",
   "module_not_found": "Module introuvable",
   "module_not_active": "Le module n'est pas actif sur le marché",
@@ -103,8 +103,8 @@
     "saved": "Terms saved successfully",
     "saving": "Saving...",
     "select_language": "Select language",
-    "terms_for_language": "Terms for {language}",
-    "confirm_delete_tenant": "Are you sure you want to purge tenant '{tenantId}'? This action cannot be undone.",
+    "terms_for_language": "Terms for {{language}}",
+    "confirm_delete_tenant": "Are you sure you want to purge tenant '{{tenantId}}'? This action cannot be undone.",
     "tenant_purged": "Tenant purged successfully",
     "tenant_purge_error": "Error purging tenant",
     "email_prompt": "Recipient email:",
@@ -125,7 +125,7 @@
     "contact_email_prompt": "Contact email (metadata):",
     "tenant_updated": "Tenant updated successfully",
     "tenant_update_error": "Error updating tenant",
-    "confirm_delete_user": "Are you sure you want to delete user '{email}'?",
+    "confirm_delete_user": "Are you sure you want to delete user '{{email}}'?",
     "delete_user": "Delete user",
     "user_deleted": "User deleted successfully",
     "user_delete_error": "Error deleting user",
@@ -167,7 +167,7 @@
     "grafana_desc": "Dashboards and metrics visualization",
     "keycloak_admin": "Keycloak Admin",
     "keycloak_admin_desc": "Advanced user and role management",
-    "last_update": "Last update: {date}",
+    "last_update": "Last update: {{date}}",
     "logout": "Log Out",
     "manage_devices": "Manage Devices",
     "manage_devices_desc": "Administer robots and sensors",
@@ -237,14 +237,14 @@
       "all_ok": "Tout OK",
       "all_systems_ok": "Tous les systèmes fonctionnent correctement",
       "charging": "En charge",
-      "robots_charging_one": "{count} robot en charge",
-      "robots_charging_other": "{count} robots en charge",
+      "robots_charging_one": "{{count}} robot en charge",
+      "robots_charging_other": "{{count}} robots en charge",
       "online": "En ligne",
       "mqtt_stable": "Connexion MQTT stable"
     },
     "sensors": {
       "humidity_unit_label": "% humidité",
-      "view_all_count": "Voir tous les capteurs ({count})"
+      "view_all_count": "Voir tous les capteurs ({{count}})"
     },
     "livestock": {
       "title": "Bétail",
@@ -273,21 +273,21 @@
       "enterprise": "Plan Enterprise",
       "no_expiration_data": "Aucune donnée d'expiration",
       "expired": "Plan expiré",
-      "expires_one": "Expire dans {days} jour",
-      "expires_other": "Expire dans {days} jours",
+      "expires_one": "Expire dans {{days}} jour",
+      "expires_other": "Expire dans {{days}} jours",
       "description": "Gestion centralisée des limites et de l'utilisation du tenant",
       "users": "Utilisateurs",
       "users_allowed": "Utilisateurs autorisés par plan",
       "robots": "Robots",
-      "in_use_of_limit": "{count} en utilisation {limit}",
+      "in_use_of_limit": "{{count}} en utilisation {{limit}}",
       "robots_usage": "Utilisation des robots",
       "sensors": "Capteurs",
       "sensors_usage": "Utilisation des capteurs",
       "monitored_area": "Surface surveillée",
-      "area_in_use": "{value} ha {limit}",
+      "area_in_use": "{{value}} ha {{limit}}",
       "area_coverage": "Couverture",
-      "updated": "Données mises à jour {time}",
-      "plan_label": "Plan : {plan}"
+      "updated": "Données mises à jour {{time}}",
+      "plan_label": "Plan : {{plan}}"
     },
     "progress": {
       "default_label": "Progression"
@@ -309,13 +309,13 @@
         "medium": "Moyen",
         "low": "Faible"
       },
-      "alert_count_one": "{count} alerte",
-      "alert_count_other": "{count} alertes",
+      "alert_count_one": "{{count}} alerte",
+      "alert_count_other": "{{count}} alertes",
       "refresh_button": "Actualiser",
       "no_alerts": "Aucune alerte active",
       "next_eval": "Prochaine évaluation automatique dans l'heure.",
-      "more_evaluations": "+{count} évaluations supplémentaires",
-      "updated_time": "Mis à jour {time}",
+      "more_evaluations": "+{{count}} évaluations supplémentaires",
+      "updated_time": "Mis à jour {{time}}",
       "view_panel": "Voir le panneau des risques"
     },
     "tenant_info": {
@@ -543,7 +543,7 @@
     "save_changes": "Guardar Cambios",
     "save_error": "Error al guardar el sensor",
     "search_placeholder": "Buscar sensores...",
-    "sensor_list": "Lista de Sensores ({count})",
+    "sensor_list": "Lista de Sensores ({{count}})",
     "sensor_location": "Ubicación de Sensores",
     "station_id": "Estación (opcional)",
     "station_id_placeholder": "Ej: Estacion_Principal",
@@ -857,17 +857,17 @@
     },
     "cadastral": {
       "not_found": "Aucune information cadastrale trouvée pour cette localisation.",
-      "error": "Erreur du service cadastral : {errorMsg}"
+      "error": "Erreur du service cadastral : {{errorMsg}}"
     },
     "parcel": {
       "new_parcel": "Nouvelle Parcelle",
-      "cadastral_data": "Données cadastrales : {reference}",
-      "area": "Surface : {area} ha"
+      "cadastral_data": "Données cadastrales : {{reference}}",
+      "area": "Surface : {{area}} ha"
     },
     "timeline": {
       "button": "Timeline",
       "label": "Timeline - Contrôle temporel unifié",
-      "current_date": "Date actuelle : {date}"
+      "current_date": "Date actuelle : {{date}}"
     },
     "sensor": {
       "iot_sensor": "Capteur IoT",
@@ -881,12 +881,12 @@
       "select_entity": "Sélectionnez une entité sur la carte ou dans la liste pour voir ses détails et les options de contrôle",
       "yes": "Oui",
       "no": "Non",
-      "elements_count": "{count} élément(s)",
+      "elements_count": "{{count}} élément(s)",
       "empty_list": "Vide",
-      "polygon_points": "Polygone ({count} points)",
+      "polygon_points": "Polygone ({{count}} points)",
       "details": "Détails",
       "properties": "Propriétés",
-      "more_properties": "+{count} propriétés supplémentaires",
+      "more_properties": "+{{count}} propriétés supplémentaires",
       "change_history": "Historique des Modifications",
       "change_history_unavailable": "L'historique des modifications s'affichera ici lorsqu'il sera disponible",
       "clear_selection": "Effacer la sélection"
@@ -931,7 +931,7 @@
       "linestring_instruction": "Clic gauche pour ajouter des points. Clic droit pour terminer.",
       "multilinestring_instruction": "Clic gauche pour ajouter des points. Clic droit pour terminer la ligne actuelle.",
       "default_instruction": "Cliquez sur la carte pour dessiner",
-      "type_label": "Dessin : {type}",
+      "type_label": "Dessin : {{type}}",
       "pick_location": "Cliquez sur la carte pour sélectionner l'emplacement"
     },
     "toolbar": {

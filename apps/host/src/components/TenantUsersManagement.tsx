@@ -121,7 +121,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
   const handleResetPassword = async (userId: string) => {
     const password = await userActions.resetPassword(userId);
     if (password) {
-      setUsersSuccess(t('settings.users.reset_success').replace('{password}', password));
+      setUsersSuccess(t('settings.users.reset_success', { password }));
       setTimeout(() => setUsersSuccess(null), 10000);
     }
   };

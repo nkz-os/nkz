@@ -82,8 +82,8 @@
   "route": "Route",
   "not_installed": "Not installed",
   "installed": "Installed",
-  "module_requires_plan": "Module requires {plan} plan",
-  "current_plan_insufficient": "Your current plan ({current}) does not meet the requirement",
+  "module_requires_plan": "Module requires {{plan}} plan",
+  "current_plan_insufficient": "Your current plan ({{current}}) does not meet the requirement",
   "module_can_be_installed": "Module can be installed",
   "module_not_found": "Module not found",
   "module_not_active": "Module is not active in marketplace",
@@ -108,8 +108,8 @@
     "saved": "Terms saved successfully",
     "saving": "Saving...",
     "select_language": "Select language",
-    "terms_for_language": "Terms for {language}",
-    "confirm_delete_tenant": "Are you sure you want to purge tenant '{tenantId}'? This action cannot be undone.",
+    "terms_for_language": "Terms for {{language}}",
+    "confirm_delete_tenant": "Are you sure you want to purge tenant '{{tenantId}}'? This action cannot be undone.",
     "tenant_purged": "Tenant purged successfully",
     "tenant_purge_error": "Error purging tenant",
     "email_prompt": "Recipient email:",
@@ -130,7 +130,7 @@
     "contact_email_prompt": "Contact email (metadata):",
     "tenant_updated": "Tenant updated successfully",
     "tenant_update_error": "Error updating tenant",
-    "confirm_delete_user": "Are you sure you want to delete user '{email}'?",
+    "confirm_delete_user": "Are you sure you want to delete user '{{email}}'?",
     "delete_user": "Delete user",
     "user_deleted": "User deleted successfully",
     "user_delete_error": "Error deleting user",
@@ -172,7 +172,7 @@
     "grafana_desc": "Dashboards and metrics visualization",
     "keycloak_admin": "Keycloak Admin",
     "keycloak_admin_desc": "Advanced user and role management",
-    "last_update": "Last update: {date}",
+    "last_update": "Last update: {{date}}",
     "logout": "Log Out",
     "manage_devices": "Manage Devices",
     "manage_devices_desc": "Administer robots and sensors",
@@ -273,14 +273,14 @@
       "all_ok": "All OK",
       "all_systems_ok": "All systems operating normally",
       "charging": "Charging",
-      "robots_charging_one": "{count} robot charging",
-      "robots_charging_other": "{count} robots charging",
+      "robots_charging_one": "{{count}} robot charging",
+      "robots_charging_other": "{{count}} robots charging",
       "online": "Online",
       "mqtt_stable": "MQTT connection stable"
     },
     "sensors": {
       "humidity_unit_label": "% humidity",
-      "view_all_count": "View all sensors ({count})"
+      "view_all_count": "View all sensors ({{count}})"
     },
     "livestock": {
       "title": "Livestock",
@@ -309,21 +309,21 @@
       "enterprise": "Enterprise Plan",
       "no_expiration_data": "No expiration data",
       "expired": "Plan expired",
-      "expires_one": "Expires in {days} day",
-      "expires_other": "Expires in {days} days",
+      "expires_one": "Expires in {{days}} day",
+      "expires_other": "Expires in {{days}} days",
       "description": "Centralized management of tenant limits and usage",
       "users": "Users",
       "users_allowed": "Users allowed by plan",
       "robots": "Robots",
-      "in_use_of_limit": "{count} in use {limit}",
+      "in_use_of_limit": "{{count}} in use {{limit}}",
       "robots_usage": "Robot usage",
       "sensors": "Sensors",
       "sensors_usage": "Sensor usage",
       "monitored_area": "Monitored area",
-      "area_in_use": "{value} ha {limit}",
+      "area_in_use": "{{value}} ha {{limit}}",
       "area_coverage": "Coverage",
-      "updated": "Data updated {time}",
-      "plan_label": "Plan: {plan}"
+      "updated": "Data updated {{time}}",
+      "plan_label": "Plan: {{plan}}"
     },
     "progress": {
       "default_label": "Progress"
@@ -345,13 +345,13 @@
         "medium": "Medium",
         "low": "Low"
       },
-      "alert_count_one": "{count} alert",
-      "alert_count_other": "{count} alerts",
+      "alert_count_one": "{{count}} alert",
+      "alert_count_other": "{{count}} alerts",
       "refresh_button": "Refresh",
       "no_alerts": "No active alerts",
       "next_eval": "Next automatic evaluation within the hour.",
-      "more_evaluations": "+{count} more evaluations",
-      "updated_time": "Updated {time}",
+      "more_evaluations": "+{{count}} more evaluations",
+      "updated_time": "Updated {{time}}",
       "view_panel": "View risk panel"
     },
     "tenant_info": {
@@ -602,7 +602,7 @@
     "save_changes": "Guardar Cambios",
     "save_error": "Error al guardar el sensor",
     "search_placeholder": "Buscar sensores...",
-    "sensor_list": "Lista de Sensores ({count})",
+    "sensor_list": "Lista de Sensores ({{count}})",
     "sensor_location": "Ubicación de Sensores",
     "station_id": "Estación (opcional)",
     "station_id_placeholder": "Ej: Estacion_Principal",
@@ -915,7 +915,7 @@
     "create_account": "Create Account",
     "account_created": "Account created successfully. You can now log in.",
     "email_exists": "This email is already registered",
-    "redirect_login": "You will be redirected in {seconds} seconds...",
+    "redirect_login": "You will be redirected in {{seconds}} seconds...",
     "go_to_login": "Go to Login"
   },
   "quota": {
@@ -1005,12 +1005,12 @@
       "edit_title": "Edit User",
       "edit": "Edit",
       "delete": "Delete",
-      "delete_confirm": "Are you sure you want to delete user {email}?",
+      "delete_confirm": "Are you sure you want to delete user {{email}}?",
       "deleted_success": "User deleted successfully.",
       "delete_error": "Error deleting user",
       "reset_password": "Reset Password",
       "reset_confirm": "Are you sure you want to reset this user's password?",
-      "reset_success": "Password reset. New temporary password: {password}",
+      "reset_success": "Password reset. New temporary password: {{password}}",
       "reset_error": "Error resetting password",
       "generated": "generated",
       "updated_success": "User updated successfully.",
@@ -1227,17 +1227,17 @@
     },
     "cadastral": {
       "not_found": "No cadastral information found for this location.",
-      "error": "Cadastral service error: {errorMsg}"
+      "error": "Cadastral service error: {{errorMsg}}"
     },
     "parcel": {
       "new_parcel": "New Parcel",
-      "cadastral_data": "Cadastral data: {reference}",
-      "area": "Area: {area} ha"
+      "cadastral_data": "Cadastral data: {{reference}}",
+      "area": "Area: {{area}} ha"
     },
     "timeline": {
       "button": "Timeline",
       "label": "Timeline - Unified temporal control",
-      "current_date": "Current date: {date}"
+      "current_date": "Current date: {{date}}"
     },
     "sensor": {
       "iot_sensor": "IoT Sensor",
@@ -1251,12 +1251,12 @@
       "select_entity": "Select an entity from the map or the list to see its details and control options",
       "yes": "Yes",
       "no": "No",
-      "elements_count": "{count} element(s)",
+      "elements_count": "{{count}} element(s)",
       "empty_list": "Empty",
-      "polygon_points": "Polygon ({count} points)",
+      "polygon_points": "Polygon ({{count}} points)",
       "details": "Details",
       "properties": "Properties",
-      "more_properties": "+{count} more properties",
+      "more_properties": "+{{count}} more properties",
       "change_history": "Change History",
       "change_history_unavailable": "Change history will be shown here when available",
       "clear_selection": "Clear selection"
@@ -1317,7 +1317,7 @@
       "linestring_instruction": "Left click to add points. Right click to finish.",
       "multilinestring_instruction": "Left click to add points. Right click to finish current line.",
       "default_instruction": "Click on the map to draw",
-      "type_label": "Drawing: {type}",
+      "type_label": "Drawing: {{type}}",
       "pick_location": "Click on the map to select location"
     },
     "toolbar": {
