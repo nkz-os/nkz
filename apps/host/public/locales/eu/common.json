@@ -1034,5 +1034,16 @@
     "categories": {
       "all": "Guztiak"
     }
+  },
+  "parcelModules": {
+    "title": "Moduluak",
+    "loading": "Moduluak kargatzen...",
+    "loadError": "Ezin izan da partzela honen moduluen egoera kargatu",
+    "noModules": "Instalatutako modulu batek ere ez du partzelakako aktibazioa onartzen",
+    "statusOk": "Aktibo",
+    "statusPending": "Zain",
+    "statusError": "Errorea",
+    "setupFailed": "{{module}} konfigurazioak huts egin du. Erabili berriro saiatu.",
+    "lastError": "Azken errorea: {{error}}"
   }
 }

@@ -1472,5 +1472,16 @@
     "search_error": "Búsqueda no disponible",
     "search_open": "Buscar ubicación"
   },
-  "save_changes_error": "Error al guardar los cambios"
+  "save_changes_error": "Error al guardar los cambios",
+  "parcelModules": {
+    "title": "Módulos",
+    "loading": "Cargando módulos...",
+    "loadError": "No se pudo cargar el estado de los módulos de esta parcela",
+    "noModules": "Ningún módulo instalado admite activación por parcela",
+    "statusOk": "Activo",
+    "statusPending": "Pendiente",
+    "statusError": "Error",
+    "setupFailed": "Falló la configuración de {{module}}. Usa reintentar para probar de nuevo.",
+    "lastError": "Último error: {{error}}"
+  }
 }

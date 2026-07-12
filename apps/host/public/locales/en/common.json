@@ -1412,5 +1412,16 @@
     "search_error": "Search unavailable",
     "search_open": "Search location"
   },
-  "save_changes_error": "Error saving changes"
+  "save_changes_error": "Error saving changes",
+  "parcelModules": {
+    "title": "Modules",
+    "loading": "Loading modules...",
+    "loadError": "Could not load module status for this parcel",
+    "noModules": "No installed module supports per-parcel activation",
+    "statusOk": "Active",
+    "statusPending": "Pending",
+    "statusError": "Error",
+    "setupFailed": "Setup failed for {{module}}. Use retry to try again.",
+    "lastError": "Last error: {{error}}"
+  }
 }
