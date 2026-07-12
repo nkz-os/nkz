@@ -276,3 +276,54 @@ def test_run_once_isolates_tenant_failure():
                       side_effect=[RuntimeError("boom"), {"tenant": "good"}]) as rec:
         pr.run_once()  # must not raise
     assert rec.call_count == 2
+
+
+def test_teardown_honors_backoff():
+    """A dead-parcel row whose next_retry_at is in the future is NOT dispatched."""
+    future = datetime.now(timezone.utc) + timedelta(hours=1)
+    rows = [{"parcel_id": "urn:ngsi-ld:AgriParcel:dead", "module_id": "soil",
+             "setup_status": "error", "retry_count": 3, "next_retry_at": future}]
+    with patch.object(pr, "get_live_parcel_ids", return_value=set()), \
+         patch.object(pr, "get_rows", return_value=rows), \
+         patch.object(pr, "get_auto_provision_modules", return_value=[]), \
+         patch.object(pr, "dispatch_to_module") as disp, \
+         patch.object(pr, "delete_row") as drow, \
+         patch.object(pr, "find_backstop_orphans", return_value=[]):
+        pr.reconcile_tenant("montiko")
+    disp.assert_not_called()
+    drow.assert_not_called()
+
+
+def test_teardown_abandoned_after_max_retries():
+    """After TEARDOWN_MAX_RETRIES failures the row is deleted without dispatch."""
+    rows = [{"parcel_id": "urn:ngsi-ld:AgriParcel:dead", "module_id": "soil",
+             "setup_status": "error", "retry_count": pr.TEARDOWN_MAX_RETRIES,
+             "next_retry_at": None}]
+    with patch.object(pr, "get_live_parcel_ids", return_value=set()), \
+         patch.object(pr, "get_rows", return_value=rows), \
+         patch.object(pr, "get_auto_provision_modules", return_value=[]), \
+         patch.object(pr, "dispatch_to_module") as disp, \
+         patch.object(pr, "delete_row") as drow, \
+         patch.object(pr, "find_backstop_orphans", return_value=[]):
+        result = pr.reconcile_tenant("montiko")
+    disp.assert_not_called()
+    drow.assert_called_once_with("montiko", "urn:ngsi-ld:AgriParcel:dead", "soil")
+    assert result["teardown_abandoned"] == 1
+
+
+def test_teardown_failure_marks_error_with_backoff():
+    """A failed teardown under the cap re-schedules via mark_error (backoff)."""
+    rows = [{"parcel_id": "urn:ngsi-ld:AgriParcel:dead", "module_id": "soil",
+             "setup_status": "error", "retry_count": 2, "next_retry_at": None}]
+    with patch.object(pr, "get_live_parcel_ids", return_value=set()), \
+         patch.object(pr, "get_rows", return_value=rows), \
+         patch.object(pr, "get_auto_provision_modules", return_value=[]), \
+         patch.object(pr, "dispatch_to_module", return_value=(502, {})), \
+         patch.object(pr, "mark_error") as merr, \
+         patch.object(pr, "delete_row") as drow, \
+         patch.object(pr, "find_backstop_orphans", return_value=[]):
+        result = pr.reconcile_tenant("montiko")
+    merr.assert_called_once()
+    assert merr.call_args.args[3] == "teardown 502"
+    drow.assert_not_called()
+    assert result["errors"] == 1
