@@ -885,6 +885,16 @@
       "expand": "Zabaldu panela",
       "expand_tooltip": "Zabaldu"
     },
+    "moduleLayers": {
+      "empty": "Ez dago modulu-geruzarik erabilgarri",
+      "opacityLabel": "Opakotasuna",
+      "status": {
+        "loading": "Kargatzen…",
+        "empty": "Geruza honetarako daturik ez",
+        "error": "Errorea geruza hau kargatzean",
+        "noSelection": "Hautatu entitate bat geruza hau ikusteko"
+      }
+    },
     "header": {
       "main_section": "Nagusia",
       "addons_section": "Gehigarriak",

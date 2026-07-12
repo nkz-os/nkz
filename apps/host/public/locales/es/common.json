@@ -1275,6 +1275,16 @@
     "layersGroupModules": "Módulos",
     "layersSubmenuOpen": "Abrir submenú de capas",
     "layersSubmenuClose": "Cerrar submenú de capas",
+    "moduleLayers": {
+      "empty": "No hay capas de módulos disponibles",
+      "opacityLabel": "Opacidad",
+      "status": {
+        "loading": "Cargando…",
+        "empty": "Sin datos para esta capa",
+        "error": "Error al cargar esta capa",
+        "noSelection": "Selecciona una entidad para ver esta capa"
+      }
+    },
     "header": {
       "main_section": "Principal",
       "addons_section": "Addons",

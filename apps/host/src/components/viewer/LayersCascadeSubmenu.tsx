@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { AlertTriangle, ChevronDown, ChevronRight, Layers } from 'lucide-react'
 import CoreLayerToggles from '@/components/viewer/CoreLayerToggles'
-import { SlotRenderer } from '@/components/SlotRenderer'
+import { ModuleLayersSection } from '@/components/viewer/ModuleLayersSection'
 import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay'
 import { useI18n } from '@/context/I18nContext'
 import type { SubmenuSide } from './positionFlip'
@@ -127,7 +127,7 @@ export const LayersCascadeSubmenu: React.FC<LayersCascadeSubmenuProps> = ({
             defaultOpen={true}
             title={t('viewer.layersGroupModules')}
           >
-            <SlotRenderer slot="layer-toggle" />
+            <ModuleLayersSection />
           </CollapsibleGroup>
         </>
       )}
