@@ -1,4 +1,5 @@
 import type { NKZModuleRegistration, ModuleViewerSlots, SlotWidgetDefinition } from '@nekazari/sdk';
+import { registerViewerLayers } from '@nekazari/sdk';
 import type * as React from 'react';
 import { ModuleDefinitionSchema, type ModuleDefinition } from './schema';
 
@@ -29,6 +30,15 @@ export function defineModule(options: ModuleDefinition): ModuleDefinition {
       .join('\n');
     throw new Error(`defineModule: invalid module definition\n${issues}`);
   }
+
+  // Unified viewer layers (contract frozen 2026-07-12, plan §B1): declaring
+  // viewerLayers registers them into the SDK's LayerRegistry singleton at
+  // module definition time (the remote's entry eval). Idempotent per module —
+  // re-evaluating the definition replaces this module's previous entries.
+  if (result.data.viewerLayers && result.data.viewerLayers.length > 0) {
+    registerViewerLayers(result.data.id, result.data.viewerLayers);
+  }
+
   return result.data;
 }
 

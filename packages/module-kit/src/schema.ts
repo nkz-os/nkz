@@ -58,6 +58,18 @@ const DataSchema = z.object({
 
 const I18nSchema = z.record(Lang, z.any()); // values are () => Promise<unknown> — Zod can't validate functions
 
+// Unified viewer layers (contract frozen 2026-07-12, plan §B1) — mirrors
+// ViewerLayerDecl from @nekazari/sdk. Kept as its own Zod object (Zod can't
+// derive a schema from an imported TS interface) but must stay field-for-field
+// identical to that type — see the registerViewerLayers() call in defineModule.ts.
+const ViewerLayerDeclSchema = z.object({
+  id: KebabCase,
+  titleKey: z.string().min(1),
+  group: z.string().optional(),
+  supportsOpacity: z.boolean().optional(),
+  defaultVisible: z.boolean().optional(),
+}).strict();
+
 export const ModuleDefinitionSchema = z.object({
   // Identity
   id: KebabCase,
@@ -88,6 +100,11 @@ export const ModuleDefinitionSchema = z.object({
 
   // Data dependencies
   data: DataSchema.optional(),
+
+  // Unified viewer layers (contract frozen 2026-07-12) — registered into
+  // @nekazari/sdk's LayerRegistry when the module is defined. HARD CUT:
+  // no fallback to module-local layer-toggle contexts.
+  viewerLayers: z.array(ViewerLayerDeclSchema).optional(),
 }).strict();
 
 export type ModuleDefinition = z.infer<typeof ModuleDefinitionSchema>;
