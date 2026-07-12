@@ -299,6 +299,59 @@ class ParcelApiService {
             return null;
         }
     }
+
+    /**
+     * List per-parcel module activation state (entity-manager parcel_activation).
+     * Only returns rows for modules that have been activated/deactivated at
+     * least once for this parcel — modules never touched are simply absent.
+     */
+    async getParcelModules(parcelId: string): Promise<ParcelModuleActivation[]> {
+        const response = await this.client.get(
+            `/api/entities/parcels/${encodeURIComponent(parcelId)}/modules`
+        );
+        return Array.isArray(response.data?.modules) ? response.data.modules : [];
+    }
+
+    /**
+     * Activate a module for a parcel. Idempotent: re-POST retries the dispatch
+     * to the module's setup-parcel endpoint (e.g. after a transient error).
+     */
+    async activateParcelModule(parcelId: string, moduleId: string): Promise<ParcelModuleActivateResult> {
+        const response = await this.client.post(
+            `/api/entities/parcels/${encodeURIComponent(parcelId)}/modules/${encodeURIComponent(moduleId)}/activate`
+        );
+        return response.data;
+    }
+
+    /**
+     * Deactivate a module for a parcel (soft: entities/data are preserved).
+     */
+    async deactivateParcelModule(parcelId: string, moduleId: string): Promise<ParcelModuleActivateResult> {
+        const response = await this.client.post(
+            `/api/entities/parcels/${encodeURIComponent(parcelId)}/modules/${encodeURIComponent(moduleId)}/deactivate`
+        );
+        return response.data;
+    }
+}
+
+/**
+ * A single row from GET /api/entities/parcels/{id}/modules — mirrors
+ * entity-manager's parcel_activation.get_activated_modules().
+ */
+export interface ParcelModuleActivation {
+    module_id: string;
+    enabled: boolean;
+    setup_status: 'pending' | 'ok' | 'error';
+    last_error: string | null;
+    updated_at: string | null;
+}
+
+export interface ParcelModuleActivateResult {
+    message?: string;
+    error?: string;
+    setup_status?: 'ok' | 'error';
+    detail?: string;
+    retry?: string;
 }
 
 export const parcelApi = new ParcelApiService();
