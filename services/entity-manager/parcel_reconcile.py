@@ -24,6 +24,7 @@ ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
 CONTEXT_URL = os.getenv("CONTEXT_URL", "")
 RECONCILE_INTERVAL_S = int(os.getenv("RECONCILE_INTERVAL_S", "25"))
 BACKSTOP_ENABLED = os.getenv("RECONCILE_BACKSTOP_ENABLED", "true").lower() == "true"
+TEARDOWN_MAX_RETRIES = int(os.getenv("TEARDOWN_MAX_RETRIES", "10"))
 ORION_TIMEOUT_S = 15
 PAGE_SIZE = 1000
 
@@ -408,9 +409,22 @@ def reconcile_tenant(tenant_id: str) -> dict:
             _dispatch(tenant_id, r["parcel_id"], r["module_id"], "activate",
                       r.get("retry_count", 0), metrics, "retried")
 
-    # 5. TEARDOWN: rows whose parcel is gone
+    # 5. TEARDOWN: rows whose parcel is gone. Honors the same backoff as
+    # activation retries and gives up after TEARDOWN_MAX_RETRIES: the parcel
+    # no longer exists, so endless retries only hammer module backends
+    # (incident 2026-07-12: 66k teardown retries on a deleted parcel).
     for r in rows:
         if r["parcel_id"] in live:
+            continue
+        if not is_due_for_retry(r, now):
+            continue
+        retry_count = r.get("retry_count", 0)
+        if retry_count >= TEARDOWN_MAX_RETRIES:
+            logger.warning(
+                "Teardown abandoned after %s attempts (tenant=%s parcel=%s module=%s)",
+                retry_count, tenant_id, r["parcel_id"], r["module_id"])
+            delete_row(tenant_id, r["parcel_id"], r["module_id"])
+            metrics["teardown_abandoned"] = metrics.get("teardown_abandoned", 0) + 1
             continue
         status, _ = dispatch_to_module(
             module_id=r["module_id"], tenant_id=tenant_id,
@@ -421,7 +435,7 @@ def reconcile_tenant(tenant_id: str) -> dict:
             metrics["torn_down"] += 1
         else:
             mark_error(tenant_id, r["parcel_id"], r["module_id"],
-                       f"teardown {status}", r.get("retry_count", 0))
+                       f"teardown {status}", retry_count)
             metrics["errors"] += 1
 
     # 6. BACKSTOP: legacy orphans with no owning row
