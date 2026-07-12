@@ -1215,6 +1215,16 @@
     "layersGroupModules": "Modules",
     "layersSubmenuOpen": "Open layers submenu",
     "layersSubmenuClose": "Close layers submenu",
+    "moduleLayers": {
+      "empty": "No module layers available",
+      "opacityLabel": "Opacity",
+      "status": {
+        "loading": "Loading…",
+        "empty": "No data for this layer",
+        "error": "Error loading this layer",
+        "noSelection": "Select an entity to view this layer"
+      }
+    },
     "header": {
       "main_section": "Main",
       "addons_section": "Addons",
