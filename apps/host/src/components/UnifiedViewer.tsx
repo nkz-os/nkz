@@ -27,7 +27,6 @@ import { CoreTimelineControls } from '@/components/viewer/CoreTimelineControls';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { logger } from '@/utils/logger';
 import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay';
-import { useLayerRegistryPersistence } from '@/hooks/useLayerRegistryPersistence';
 import { useViewerProfile } from '@/context/ThemeContext';
 import { ThemeProvider } from '@nekazari/design-tokens';
 import { SidebarShell } from '@nekazari/viewer-kit';
@@ -59,16 +58,10 @@ const PanelLoadingFallback: React.FC = () => (
 
 /** Inner viewer component that uses SlotRegistry */
 const UnifiedViewerInner: React.FC = () => {
-    const { hasAnyRole: _hasAnyRole, tenantId } = useAuth();
+    const { hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
     const { t } = useI18n();
     const { showNotification } = useNotification();
-
-    // Wire LayerRegistry (unified viewer layers, @nekazari/sdk) to tenant-scoped
-    // localStorage as early as possible in the viewer bootstrap — before any
-    // module remote evaluates `defineModule({ viewerLayers })` and registers
-    // its entries, so the first registration already reads persisted state.
-    useLayerRegistryPersistence(tenantId);
 
     // Combined state logic for sidebar
     const {

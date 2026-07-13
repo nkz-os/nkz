@@ -5,8 +5,10 @@ import { LayersCascadeSubmenu } from '../LayersCascadeSubmenu'
 vi.mock('@/components/viewer/CoreLayerToggles', () => ({
   default: () => <div data-testid="core-layer-toggles">core-toggles</div>,
 }))
-vi.mock('@/components/viewer/ModuleLayersSection', () => ({
-  ModuleLayersSection: () => <div data-testid="module-layers-section-mock">module-layers</div>,
+vi.mock('@/components/SlotRenderer', () => ({
+  SlotRenderer: ({ slot }: { slot: string }) => (
+    <div data-testid="slot-renderer">{`slot:${slot}`}</div>
+  ),
 }))
 vi.mock('@/hooks/cesium/useRiskOverlay', () => ({
   useRiskOverlay: () => ({ enabled: false, setEnabled: vi.fn() }),
@@ -55,7 +57,7 @@ describe('LayersCascadeSubmenu', () => {
   it('renders Core group and Módulos group when open', () => {
     setup(true)
     expect(screen.getByTestId('core-layer-toggles')).toBeInTheDocument()
-    expect(screen.getByTestId('module-layers-section-mock')).toBeInTheDocument()
+    expect(screen.getByTestId('slot-renderer')).toHaveTextContent('slot:layer-toggle')
   })
 
   it('persists Core group collapse state under nkz.viewer.layersSubmenu.core.open', () => {
