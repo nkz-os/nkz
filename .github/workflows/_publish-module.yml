@@ -141,10 +141,18 @@ jobs:
           set -euo pipefail
           SHA=$(echo "${{ github.sha }}" | cut -c1-40)
           # 1) Pointer flip: resolve-url returns the active deployed_version.
-          curl -sS -o /tmp/resolve.json -w 'resolve HTTP %{http_code}\n' \
-               "$EM/api/internal/modules/$MODULE/resolve-url"
-          cat /tmp/resolve.json; echo
-          active=$(node -e "console.log(require('/tmp/resolve.json').version||'')")
+          #    The flip can briefly 500 right after publish (transient race);
+          #    poll up to 6x (sleep 5 between) before declaring failure.
+          active=""
+          for attempt in 1 2 3 4 5 6; do
+            curl -sS -o /tmp/resolve.json -w 'resolve HTTP %{http_code}\n' \
+                 "$EM/api/internal/modules/$MODULE/resolve-url" || true
+            cat /tmp/resolve.json; echo
+            active=$(node -e "try{console.log(require('/tmp/resolve.json').version||'')}catch(e){console.log('')}")
+            [ "$active" = "$SHA" ] && break
+            echo "resolve-url attempt $attempt/6: active=$active, expected=$SHA"
+            if [ "$attempt" -lt 6 ]; then sleep 5; fi
+          done
           [ "$active" = "$SHA" ] || { echo "::error::pointer not flipped (active=$active, expected=$SHA)"; exit 1; }
           # 2) Bytes served from the immutable <sha>/ path (public).
           murl="$STATIC/modules/$MODULE/$SHA/mf-manifest.json"
