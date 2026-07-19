@@ -195,13 +195,15 @@ def get_tenant_modules():
         with get_db_connection_with_tenant(tenant_id) as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Query: Get enabled modules for tenant, filtered by user roles
-            # Includes new columns route_path, label, is_local with fallback to metadata
-            # PlatformAdmin can see all modules regardless of required_roles
+            # Query: Get enabled modules for tenant, filtered by user roles.
+            # PlatformAdmin and TenantAdmin see all installed modules for the
+            # tenant (admins must not be locked out by required_roles drift).
+            # Other roles intersect JWT roles with marketplace_modules.required_roles.
             is_platform_admin = 'PlatformAdmin' in user_roles
+            is_tenant_admin = 'TenantAdmin' in user_roles
 
-            if is_platform_admin:
-                # PlatformAdmin sees all installed modules
+            if is_platform_admin or is_tenant_admin:
+                # Admins see every enabled module installed on their tenant
                 query = """
                     SELECT DISTINCT
                         mm.id,
@@ -228,7 +230,7 @@ def get_tenant_modules():
                 """
                 cur.execute(query, (tenant_id,))
             else:
-                # Regular users see modules filtered by required_roles
+                # Farmer / TechnicalConsultant / etc.: filter by required_roles
                 query = """
                     SELECT DISTINCT
                         mm.id,
