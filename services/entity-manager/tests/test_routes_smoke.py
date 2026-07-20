@@ -352,7 +352,7 @@ class TestAdminRoutes:
     @pytest.mark.parametrize(
         "method,path,expected_status",
         [
-            ("GET", "/api/admin/tenant-limits", 200),
+            ("GET", "/api/admin/tenant-limits", 404),
             ("GET", "/api/admin/tenant-usage", 200),
             ("GET", "/api/admin/tenants", 200),
             ("GET", "/api/admin/activations", 200),
@@ -409,7 +409,7 @@ class TestAdminRoutes:
             content_type="application/json",
             data=json.dumps({"maxUsers": 10}),
         )
-        a = (200, 500)
+        a = (404,)
         assert r.status_code in a, f"PATCH tenant-limits got {r.status_code}"
         r.get_json()
 

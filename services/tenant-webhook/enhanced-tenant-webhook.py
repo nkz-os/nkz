@@ -2327,9 +2327,8 @@ def list_activation_codes():
 @app.route("/webhook/admin/tenant-limits", methods=["GET"])
 @require_platform_admin
 def get_tenant_limits():
-    """Get tenant limits for current user"""
+    """Get tenant limits from canonical tenants table."""
     try:
-        # Get tenant_id from authenticated user or query param
         tenant_id = getattr(g, "tenant_id", None) or request.args.get("tenant_id")
 
         if not tenant_id:
@@ -2342,61 +2341,51 @@ def get_tenant_limits():
         webhook_service._apply_tenant_context(conn, tenant_id)
 
         cursor = conn.cursor()
-
-        # Get tenant limits from activation_codes or tenants table
         cursor.execute(
             """
-            SELECT plan, max_users, max_robots, max_sensors, expires_at
-            FROM activation_codes
-            WHERE email = (SELECT email FROM farmers WHERE tenant_id = %s LIMIT 1)
-            ORDER BY created_at DESC
+            SELECT plan_type, plan_level, max_users, max_robots, max_sensors,
+                   max_area_hectares, max_parcels, max_entities_total
+            FROM tenants
+            WHERE tenant_id = %s
             LIMIT 1
-        """,
+            """,
             (tenant_id,),
         )
-
-        code_data = cursor.fetchone()
-
-        if not code_data:
-            # Try tenants table
-            cursor.execute(
-                """
-                SELECT plan_type, max_users, max_robots, max_sensors
-                FROM tenants
-                WHERE tenant_id = %s
-                LIMIT 1
-            """,
-                (tenant_id,),
-            )
-            tenant_data = cursor.fetchone()
-
-            if tenant_data:
-                limits = {
-                    "planType": tenant_data["plan_type"],
-                    "maxUsers": tenant_data["max_users"],
-                    "maxRobots": tenant_data["max_robots"],
-                    "maxSensors": tenant_data["max_sensors"],
-                    "maxAreaHectares": None,  # TODO: Add to schema
-                }
-            else:
-                limits = {
-                    "planType": "basic",
-                    "maxUsers": 1,
-                    "maxRobots": 3,
-                    "maxSensors": 10,
-                    "maxAreaHectares": None,
-                }
-        else:
-            limits = {
-                "planType": code_data["plan"],
-                "maxUsers": code_data["max_users"],
-                "maxRobots": code_data["max_robots"],
-                "maxSensors": code_data["max_sensors"],
-                "maxAreaHectares": None,  # TODO: Add to schema
-            }
+        tenant_data = cursor.fetchone()
 
         cursor.close()
         conn.close()
+
+        if not tenant_data:
+            return jsonify({"error": f"Tenant {tenant_id!r} not found"}), 404
+
+        from common.tier_quotas import LEVEL_TO_TIER, limits_camel_for_tier
+
+        plan_type = tenant_data["plan_type"]
+        plan_level = tenant_data["plan_level"]
+        resolved_plan = plan_type or LEVEL_TO_TIER.get(plan_level, "basic")
+        tier_defaults = limits_camel_for_tier(resolved_plan)
+
+        limits = {
+            "planType": resolved_plan,
+            "planLevel": plan_level,
+            "effective": {
+                "maxUsers": tenant_data["max_users"],
+                "maxRobots": tenant_data["max_robots"],
+                "maxSensors": tenant_data["max_sensors"],
+                "maxAreaHectares": tenant_data["max_area_hectares"],
+                "maxParcels": tenant_data["max_parcels"],
+                "maxEntitiesTotal": tenant_data["max_entities_total"],
+            },
+            "tierDefaults": tier_defaults,
+            # Backward compatible top-level fields for existing clients.
+            "maxUsers": tenant_data["max_users"],
+            "maxRobots": tenant_data["max_robots"],
+            "maxSensors": tenant_data["max_sensors"],
+            "maxAreaHectares": tenant_data["max_area_hectares"],
+            "maxParcels": tenant_data["max_parcels"],
+            "maxEntitiesTotal": tenant_data["max_entities_total"],
+        }
 
         return jsonify(limits), 200
 
@@ -2410,9 +2399,9 @@ def get_tenant_limits():
 @app.route("/webhook/admin/tenant-limits", methods=["PATCH"])
 @require_platform_admin
 def update_tenant_limits():
-    """Update tenant limits (admin only)"""
+    """Update tenant limits in canonical tenants table."""
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         tenant_id = data.get("tenant_id") or request.args.get("tenant_id")
 
         if not tenant_id:
@@ -2423,42 +2412,48 @@ def update_tenant_limits():
             return jsonify({"error": "Database connection error"}), 500
 
         cursor = conn.cursor()
-
-        # Update activation_codes limits (latest active code)
         updates = []
         params = []
+        payload_to_column = {
+            "maxUsers": "max_users",
+            "maxRobots": "max_robots",
+            "maxSensors": "max_sensors",
+            "maxAreaHectares": "max_area_hectares",
+            "maxParcels": "max_parcels",
+            "maxEntitiesTotal": "max_entities_total",
+        }
 
-        if "maxUsers" in data:
-            updates.append("max_users = %s")
-            params.append(data["maxUsers"])
-        if "maxRobots" in data:
-            updates.append("max_robots = %s")
-            params.append(data["maxRobots"])
-        if "maxSensors" in data:
-            updates.append("max_sensors = %s")
-            params.append(data["maxSensors"])
+        for payload_key, column_name in payload_to_column.items():
+            if payload_key in data:
+                updates.append(f"{column_name} = %s")
+                params.append(data[payload_key])
+
         if "planType" in data:
-            updates.append("plan = %s")
-            params.append(data["planType"])
+            from common.tier_quotas import PLAN_LEVELS
 
-        if updates:
-            # Find latest code for this tenant
-            cursor.execute(
-                """
-                SELECT id FROM activation_codes
-                WHERE email = (SELECT email FROM farmers WHERE tenant_id = %s LIMIT 1)
-                ORDER BY created_at DESC LIMIT 1
-            """,
-                (tenant_id,),
-            )
-            code_row = cursor.fetchone()
+            new_plan = (data.get("planType") or "").strip().lower()
+            if new_plan not in PLAN_LEVELS:
+                return jsonify({"error": f"Invalid planType {new_plan!r}"}), 400
+            updates.append("plan_type = %s")
+            params.append(new_plan)
+            updates.append("plan_level = %s")
+            params.append(PLAN_LEVELS[new_plan])
 
-            if code_row:
-                code_id = code_row["id"]
-                params.append(code_id)
-                query = f"UPDATE activation_codes SET {', '.join(updates)}, updated_at = NOW() WHERE id = %s"  # noqa: E501
-                cursor.execute(query, params)
-                conn.commit()
+        if not updates:
+            return jsonify({"error": "No valid limit fields provided"}), 400
+
+        params.append(tenant_id)
+        query = (
+            f"UPDATE tenants SET {', '.join(updates)}, updated_at = NOW() "
+            "WHERE tenant_id = %s"
+        )
+        cursor.execute(query, params)
+        if cursor.rowcount == 0:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return jsonify({"error": f"Tenant {tenant_id!r} not found"}), 404
+        conn.commit()
 
         cursor.close()
         conn.close()
@@ -3206,11 +3201,22 @@ def update_tenant_info(tenant_id):
             params.append(json.dumps(metadata))
 
         if plan_type:
-            from common.tier_quotas import PLAN_LEVELS
-            if plan_type not in PLAN_LEVELS:
+            from common.tier_quotas import PLAN_LEVELS, limits_columns_for_tier
+
+            normalized_plan = (plan_type or "").strip().lower()
+            if normalized_plan not in PLAN_LEVELS:
                 return jsonify({"error": f"Invalid plan: {plan_type}. Allowed: {list(PLAN_LEVELS)}"}), 400
+
             updates.append("plan_type = %s")
-            params.append(plan_type)
+            params.append(normalized_plan)
+            updates.append("plan_level = %s")
+            params.append(PLAN_LEVELS[normalized_plan])
+
+            # Design decision: on plan change, reset limits to plan defaults.
+            defaults = limits_columns_for_tier(normalized_plan)
+            for column, value in defaults.items():
+                updates.append(f"{column} = %s")
+                params.append(value)
 
         if status:
             if status not in ("active", "suspended", "inactive"):
@@ -3230,6 +3236,11 @@ def update_tenant_info(tenant_id):
         )
 
         cursor.execute(query, params)
+        if cursor.rowcount == 0:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            return jsonify({"error": f"Tenant {tenant_id!r} not found"}), 404
         conn.commit()
 
         cursor.close()

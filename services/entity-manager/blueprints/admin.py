@@ -52,29 +52,7 @@ admin_bp = Blueprint('admin', __name__)
 @admin_bp.route('/api/admin/tenant-limits', methods=['GET'])
 @require_auth
 def api_get_tenant_limits():
-    """Devuelve límites efectivos del tenant actual (dinámicos si existen en Orion)."""
-    try:
-        tenant = getattr(g, 'tenant', 'master')
-        limits = get_limits_for_tenant(tenant) or {}
-        result = {
-            'planType': limits.get('planType'),
-            'maxUsers': int(limits.get('maxUsers') or 0) if limits.get('maxUsers') is not None else None,
-            'maxRobots': int(limits.get('maxRobots') or 0) if limits.get('maxRobots') is not None else None,
-            'maxSensors': int(limits.get('maxSensors') or 0) if limits.get('maxSensors') is not None else None,
-            'maxAreaHectares': float(limits.get('maxAreaHectares') or 0.0) if limits.get('maxAreaHectares') is not None else None,
-            'maxParcels': int(limits.get('maxParcels') or 0) if limits.get('maxParcels') is not None else None,
-            'maxEntitiesTotal': int(limits.get('maxEntitiesTotal') or 0) if limits.get('maxEntitiesTotal') is not None else None,
-            'defaults': {
-                'maxUsers': None,
-                'maxRobots': int(os.getenv('MAX_ROBOTS', '999999')),
-                'maxSensors': int(os.getenv('MAX_SENSORS', '999999')),
-                'maxAreaHectares': float(os.getenv('MAX_AREA_HECTARES', '1000000000'))
-            }
-        }
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Error getting tenant limits: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+    return jsonify({'error': 'Route moved to tenant-webhook'}), 404
 
 # === Lines 1094-1158 from entity_management_api.py ===
 @admin_bp.route('/api/admin/tenant-usage', methods=['GET'])
@@ -147,38 +125,7 @@ def api_get_tenant_usage():
 @admin_bp.route('/api/admin/tenant-limits', methods=['PATCH'])
 @require_auth
 def api_update_tenant_limits():
-    """Update tenant limits in PostgreSQL (admin_platform.tenant_limits)."""
-    try:
-        tenant = getattr(g, 'tenant', 'master')
-        data = request.get_json() or {}
-        # Mapear claves esperadas
-        allowed = {
-            'planType': data.get('planType'),
-            'maxUsers': data.get('maxUsers'),
-            'maxRobots': data.get('maxRobots'),
-            'maxSensors': data.get('maxSensors'),
-            'maxAreaHectares': data.get('maxAreaHectares')
-        }
-        # Limpiar None
-        update = {k: v for k, v in allowed.items() if v is not None}
-        if not update:
-            return jsonify({'error': 'No limits provided'}), 400
-        ok = upsert_limits_in_orion(tenant, update)
-        if not ok:
-            return jsonify({'error': 'Failed to update tenant limits'}), 500
-        # invalidar cache
-        _limits_cache.pop(tenant, None)
-        _limits_cache_ts.pop(tenant, None)
-        audit_log(
-            action='admin.tenant_limits.update',
-            resource_type='tenant_limits',
-            resource_id=tenant,
-            metadata=update,
-        )
-        return jsonify({'success': True})
-    except Exception as e:
-        logger.error(f"Error updating tenant limits: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+    return jsonify({'error': 'Route moved to tenant-webhook'}), 404
 
 # === Lines 2572-2602 from entity_management_api.py ===
 @admin_bp.route('/api/admin/terms/<language>', methods=['GET'])
