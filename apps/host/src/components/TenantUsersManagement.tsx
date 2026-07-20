@@ -33,6 +33,8 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [planType, setPlanType] = useState<string | null>(null);
+  const [maxUsersLimit, setMaxUsersLimit] = useState<number | null>(null);
   const [newUser, setNewUser] = useState({
     email: '',
     firstName: '',
@@ -47,8 +49,20 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
   useEffect(() => {
     if (canManageUsers) {
       loadTenantUsers();
+      loadTenantProfile();
     }
   }, [canManageUsers]);
+
+  const loadTenantProfile = async () => {
+    try {
+      const response = await api.get('/api/tenant/profile');
+      const profile = response?.data || {};
+      setPlanType(profile.plan_type || null);
+      setMaxUsersLimit(profile.max_users === null ? null : Number(profile.max_users));
+    } catch (err) {
+      if (import.meta.env.DEV) logger.warn('Error loading tenant profile limits:', err);
+    }
+  };
 
   const loadTenantUsers = async () => {
     setLoadingUsers(true);
@@ -92,7 +106,9 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
       await loadTenantUsers();
       setTimeout(() => setUsersSuccess(null), 5000);
     } catch (err: any) {
-      setUsersError(t('settings.users.create_error') + ': ' + (err.response?.data?.error || err.message));
+      const payload = err?.response?.data || {};
+      const displayError = payload?.message || payload?.message_en || payload?.error || err?.message;
+      setUsersError(t('settings.users.create_error') + ': ' + displayError);
       setUsersSuccess(null);
     } finally {
       setLoadingUsers(false);
@@ -137,6 +153,9 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
     createdAt: typeof (u as any).createdAt === 'number' ? (u as any).createdAt : undefined,
   }));
 
+  const reachedUserLimit = maxUsersLimit !== null && tenantUsers.length >= maxUsersLimit;
+  const limitLabel = maxUsersLimit === null ? '∞' : String(maxUsersLimit);
+
   if (!canManageUsers) return null;
 
   return (
@@ -157,16 +176,26 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
             <div>
               <h2 className="text-lg font-semibold text-gray-900">{t('settings.users.title')}</h2>
               <p className="text-sm text-gray-600">{t('settings.users.subtitle')}</p>
+              <p className="text-xs text-gray-500">
+                {t('settings.users.usage_hint', { defaultValue: 'Users' })}: {tenantUsers.length} / {limitLabel}
+                {planType ? ` (${planType})` : ''}
+              </p>
             </div>
           </div>
           <Button
             onClick={() => setShowCreateUserModal(true)}
+            disabled={reachedUserLimit}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
           >
             <Plus className="w-4 h-4" />
             {t('settings.users.new_user')}
           </Button>
         </div>
+        {reachedUserLimit && (
+          <p className="text-sm text-amber-700 mb-4">
+            {t('settings.users.limit_reached', { defaultValue: 'You reached your plan user limit.' })}
+          </p>
+        )}
 
         <UserTable
           users={userRows}

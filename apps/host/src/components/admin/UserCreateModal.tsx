@@ -61,8 +61,9 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
       });
       onCreated();
     } catch (err: any) {
+      const payload = err?.response?.data || {};
       setError(
-        err?.response?.data?.error || err.message || t('settings.users.create_error')
+        payload?.message || payload?.message_en || payload?.error || err.message || t('settings.users.create_error')
       );
     } finally {
       setLoading(false);

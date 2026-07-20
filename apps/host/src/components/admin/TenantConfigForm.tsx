@@ -18,19 +18,26 @@ interface TenantLimits {
   maxRobots?: number | null;
   maxSensors?: number | null;
   maxAreaHectares?: number | null;
+  maxParcels?: number | null;
+  maxEntitiesTotal?: number | null;
   planType?: string;
+  effective?: {
+    maxUsers?: number | null;
+    maxRobots?: number | null;
+    maxSensors?: number | null;
+    maxAreaHectares?: number | null;
+  };
+  tierDefaults?: {
+    maxUsers?: number | null;
+    maxRobots?: number | null;
+    maxSensors?: number | null;
+    maxAreaHectares?: number | null;
+  };
 }
 
 interface TenantConfigFormProps {
   tenantId: string;
 }
-
-const PLAN_DEFAULTS: Record<string, { maxUsers: number; maxRobots: number; maxSensors: number; maxAreaHectares: number | null }> = {
-  basic: { maxUsers: 3, maxRobots: 5, maxSensors: 15, maxAreaHectares: 100 },
-  premium: { maxUsers: 10, maxRobots: 20, maxSensors: 50, maxAreaHectares: 500 },
-  pro: { maxUsers: 25, maxRobots: 50, maxSensors: 200, maxAreaHectares: 2000 },
-  enterprise: { maxUsers: 100, maxRobots: 200, maxSensors: 1000, maxAreaHectares: null },
-};
 
 export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) => {
   const { t } = useI18n();
@@ -55,6 +62,7 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
   const [maxRobots, setMaxRobots] = useState<number | null>(null);
   const [maxSensors, setMaxSensors] = useState<number | null>(null);
   const [maxAreaHectares, setMaxAreaHectares] = useState<number | null>(null);
+  const [tierDefaults, setTierDefaults] = useState<TenantLimits['tierDefaults']>({});
 
   useEffect(() => {
     if (!tenantId) return;
@@ -89,10 +97,11 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
       const lr = await client.get(`/api/admin/tenant-limits?tenant_id=${tenantId}`);
       const ld = lr.data || {};
       setLimits(ld);
-      setMaxUsers(ld.maxUsers ?? null);
-      setMaxRobots(ld.maxRobots ?? null);
-      setMaxSensors(ld.maxSensors ?? null);
-      setMaxAreaHectares(ld.maxAreaHectares ?? null);
+      setTierDefaults(ld.tierDefaults || {});
+      setMaxUsers(ld?.effective?.maxUsers ?? ld.maxUsers ?? null);
+      setMaxRobots(ld?.effective?.maxRobots ?? ld.maxRobots ?? null);
+      setMaxSensors(ld?.effective?.maxSensors ?? ld.maxSensors ?? null);
+      setMaxAreaHectares(ld?.effective?.maxAreaHectares ?? ld.maxAreaHectares ?? null);
     } catch (err: any) {
       setError(err?.response?.data?.error || err.message || 'Failed to load tenant config');
     } finally {
@@ -143,7 +152,12 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
     );
   }
 
-  const defaults = PLAN_DEFAULTS[planType] || PLAN_DEFAULTS.basic;
+  const defaults = {
+    maxUsers: tierDefaults?.maxUsers ?? null,
+    maxRobots: tierDefaults?.maxRobots ?? null,
+    maxSensors: tierDefaults?.maxSensors ?? null,
+    maxAreaHectares: tierDefaults?.maxAreaHectares ?? null,
+  };
 
   const limitField = (
     label: string,
@@ -276,6 +290,9 @@ export const TenantConfigForm: React.FC<TenantConfigFormProps> = ({ tenantId }) 
           </h4>
           <p className="text-nkz-xs text-nkz-text-secondary mb-3">
             {t('admin.limits_hint', { defaultValue: 'Leave empty to use plan defaults (shown as placeholder).' })}
+          </p>
+          <p className="text-nkz-xs text-nkz-text-secondary mb-3">
+            {t('admin.plan_change_limits_warning', { defaultValue: 'Changing plan and saving will reset limits to that plan defaults.' })}
           </p>
           <div className="grid grid-cols-2 gap-4">
             {limitField(t('common.max_users'), maxUsers, setMaxUsers, defaults.maxUsers, 'maxUsers')}

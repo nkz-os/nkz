@@ -74,3 +74,30 @@ def quotas_for_level(level: int) -> Dict[str, Any]:
     if level not in LEVEL_TO_TIER:
         raise KeyError(f"Unknown plan_level: {level!r}")
     return quotas_for_tier(LEVEL_TO_TIER[level])
+
+
+def limits_columns_for_tier(tier: str) -> Dict[str, Any]:
+    """Return default tenant limit columns for a plan tier."""
+    q = quotas_for_tier(tier)
+    area = q["max_area_hectares"]
+    return {
+        "max_users": q["max_users"],
+        "max_robots": q["max_robots"],
+        "max_sensors": q["max_sensors"],
+        "max_area_hectares": float(area) if area is not None else None,
+        "max_parcels": q["max_parcels"],
+        "max_entities_total": q["max_entities_total"],
+    }
+
+
+def limits_camel_for_tier(tier: str) -> Dict[str, Any]:
+    """Return default tenant limits with camelCase keys for API payloads."""
+    defaults = limits_columns_for_tier(tier)
+    return {
+        "maxUsers": defaults["max_users"],
+        "maxRobots": defaults["max_robots"],
+        "maxSensors": defaults["max_sensors"],
+        "maxAreaHectares": defaults["max_area_hectares"],
+        "maxParcels": defaults["max_parcels"],
+        "maxEntitiesTotal": defaults["max_entities_total"],
+    }
