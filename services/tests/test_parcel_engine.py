@@ -252,4 +252,27 @@ class TestCentroidExtraction:
         assert centroid is None
 
 
+class TestDbTenantDiscoveryQuery:
+    """The SQL query must use the real tenant_installed_modules column (module_id),
+    not a column that doesn't exist (module_name) — that bug silently broke DB
+    discovery for every tenant except whatever PARCEL_ENGINE_TENANTS hardcoded."""
+
+    @patch("psycopg2.connect")
+    def test_discover_uses_module_id_column(self, mock_connect, monkeypatch):
+        monkeypatch.setenv("POSTGRES_URL", "postgresql://u:p@h:5432/db")
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [("montiko",), ("asociacion-allotarra",)]
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_conn
+
+        engine = ParcelWeatherEngine()
+        tenants = engine._discover_tenants_from_db()
+
+        assert tenants == ["montiko", "asociacion-allotarra"]
+        executed_sql = mock_cursor.execute.call_args[0][0]
+        assert "module_id" in executed_sql
+        assert "module_name" not in executed_sql
+
+
 print("All parcel engine tests passed.")
