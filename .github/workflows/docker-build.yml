@@ -102,10 +102,6 @@ jobs:
           - service: risk-worker
             context: .
             dockerfile: services/risk-worker/Dockerfile
-          - service: isobus-bridge
-            context: .
-            dockerfile: services/isobus-bridge/Dockerfile
-
           # Frontend
           - service: host
             context: .
