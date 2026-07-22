@@ -98,7 +98,7 @@ class ParcelWeatherEngine:
                 cur = conn.cursor()
                 cur.execute(
                     "SELECT DISTINCT tenant_id FROM tenant_installed_modules "
-                    "WHERE module_name = 'weather' "
+                    "WHERE module_id = 'weather' AND is_enabled = true "
                     "AND tenant_id IS NOT NULL AND tenant_id != '' "
                     "AND tenant_id != 'platform' "
                     "ORDER BY tenant_id"
