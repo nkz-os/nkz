@@ -13,7 +13,7 @@ def _patch_auth(monkeypatch, gw, tenant="montiko"):
 class _Resp:
     content = b'{"ok": true}'
     status_code = 200
-    headers = {}
+    headers = {"Content-Type": "application/json"}
 
 
 def test_jd_status_forwards_with_hmac(monkeypatch):

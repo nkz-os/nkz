@@ -3637,15 +3637,14 @@ def _forward_jd(inject_signature: bool):
             params=dict(request.args),
             timeout=30,
         )
-        response_headers = dict(response.headers)
-        response_headers.pop("Content-Encoding", None)
-        response_headers.pop("Transfer-Encoding", None)
+        # Never reflect upstream HTML — CodeQL py/reflective-xss (canonical helper).
         cors_origin = get_cors_origin()
+        extra_headers: dict[str, str] = {}
         if cors_origin:
-            response_headers["Access-Control-Allow-Origin"] = cors_origin
-            response_headers["Access-Control-Allow-Credentials"] = "true"
-            response_headers["Vary"] = "Origin"
-        return make_response((response.content, response.status_code, response_headers))
+            extra_headers["Access-Control-Allow-Origin"] = cors_origin
+            extra_headers["Access-Control-Allow-Credentials"] = "true"
+            extra_headers["Vary"] = "Origin"
+        return safe_json_proxy_response(response, extra_headers)
     except requests.exceptions.Timeout:
         logger.error(f"Timeout connecting to jd-connect for {request.path}")
         return jsonify({"error": "JD connect service timeout"}), 504
