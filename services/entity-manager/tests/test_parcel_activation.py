@@ -97,6 +97,46 @@ def test_dispatch_includes_config_when_provided():
     assert kwargs["json"]["config"] == {"cover_type": "glass", "zones": 3}
 
 
+def test_persist_activation_enabled_none_preserves_stored_value_in_sql():
+    """enabled=None must not overwrite the stored enabled flag.
+
+    The status-callback endpoint reports setup_status/last_error only — it
+    has no opinion on enablement. Verifies the actual UPSERT: the `enabled`
+    column in the DO UPDATE clause is driven by COALESCE(bound-param, current
+    column value), never unconditionally EXCLUDED.enabled, and the bound
+    `enabled` param is None (SQL NULL) rather than True.
+    """
+    with patch.object(pa, "_get_db") as db:
+        cur = MagicMock()
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+        db.return_value = conn
+        ok = pa.persist_activation(
+            "t1", "urn:ngsi-ld:AgriParcel:t1:P1", "hydrology",
+            enabled=None, setup_status="ok",
+        )
+    assert ok is True
+    query, params = cur.execute.call_args[0]
+    assert "COALESCE" in query
+    assert "tenant_parcel_modules.enabled" in query
+    assert params["enabled"] is None
+
+
+def test_persist_activation_explicit_enabled_still_written():
+    """activate/deactivate callers pass an explicit bool — must still be bound as-is."""
+    with patch.object(pa, "_get_db") as db:
+        cur = MagicMock()
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+        db.return_value = conn
+        pa.persist_activation(
+            "t1", "urn:ngsi-ld:AgriParcel:t1:P1", "hydrology",
+            enabled=False, setup_status="ok",
+        )
+    _, params = cur.execute.call_args[0]
+    assert params["enabled"] is False
+
+
 def test_dispatch_omits_config_when_not_provided():
     with patch.object(pa, "_get_setup_url",
                       return_value="http://soil-module-service:8000/v1/soil/internal/setup-parcel"), \

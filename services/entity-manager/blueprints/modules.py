@@ -1758,6 +1758,12 @@ def module_status_callback(parcel_id, module_id):
 
     Auth: X-Internal-Service-Secret (module -> entity-manager; the reverse
     direction of the outbound-only dispatch_to_module call).
+
+    Does NOT touch `enabled` — this endpoint has no opinion on whether the
+    module is enabled for the parcel, only on setup_status/last_error.
+    Enablement is owned exclusively by activate/deactivate above; forcing
+    enabled=True here would silently re-enable a module a user deactivated
+    while the async job was still running.
     """
     expected = os.getenv('INTERNAL_SERVICE_SECRET', '')
     provided = request.headers.get('X-Internal-Service-Secret', '')
@@ -1777,7 +1783,7 @@ def module_status_callback(parcel_id, module_id):
     detail = body.get('detail')
     ok = persist_activation(
         tenant_id, parcel_urn, module_id,
-        enabled=True, setup_status=status,
+        enabled=None, setup_status=status,
         last_error=(detail[:500] if status == 'error' and detail else None),
     )
     if not ok:

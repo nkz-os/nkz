@@ -1007,6 +1007,31 @@ class TestModuleRoutes:
         assert call_kwargs.get("setup_status") == "error"
         assert call_kwargs.get("last_error") == "DEM analysis failed: bad geometry"
 
+    @pytest.mark.parametrize("status", ["ok", "error"])
+    @patch("blueprints.modules.persist_activation")
+    def test_status_callback_does_not_force_enabled_true(self, mock_persist, client, monkeypatch, status):
+        """A user can deactivate a module mid-job; the async outcome callback
+        (e.g. hydrology's DEM analysis finishing after a mid-job deactivate)
+        must not silently re-enable it. This endpoint has no opinion on
+        `enabled` — it must pass enabled=None through to persist_activation,
+        never enabled=True, regardless of status=ok or status=error.
+        """
+        monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "test-secret")
+        mock_persist.return_value = True
+        resp = client.patch(
+            "/api/internal/parcels/urn:ngsi-ld:AgriParcel:p1/modules/hydrology/status",
+            content_type="application/json",
+            data=json.dumps({"status": status, "tenant_id": "t1"}),
+            headers={"X-Internal-Service-Secret": "test-secret"},
+        )
+        assert resp.status_code == 200
+        mock_persist.assert_called_once()
+        _, call_kwargs = mock_persist.call_args
+        assert call_kwargs.get("enabled") is None, (
+            "status-callback must never force enabled=True — that would flip "
+            "a module back on after a user explicitly deactivated it"
+        )
+
 
 # ============================================================================
 # Robot routes (1 route)
