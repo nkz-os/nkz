@@ -18,12 +18,14 @@ import api from '@/services/api';
 import { Button, Input } from '@nekazari/ui-kit';
 
 // ── Entity type options for bulk import (point-geometry assets) ───────────────
-const ENTITY_TYPES = [
+// AgriCrop is deliberately excluded: crop assignment must go through
+// BioOrchestrator's canonical assign-crop flow (patches AgriParcel.hasAgriCrop),
+// never a generic point-geometry create with no parcel reference at all.
+export const ENTITY_TYPES = [
   { value: 'AgriTree',    label: 'Árbol genérico (AgriTree)' },
   { value: 'OliveTree',   label: 'Olivo (OliveTree)' },
   { value: 'FruitTree',   label: 'Árbol frutal (FruitTree)' },
   { value: 'Vine',        label: 'Cepa de viña (Vine)' },
-  { value: 'AgriCrop',    label: 'Cultivo (AgriCrop)' },
   { value: 'AgriSensor',  label: 'Sensor agro (AgriSensor)' },
   { value: 'Device',      label: 'Dispositivo IoT (Device)' },
   { value: 'WaterSource', label: 'Punto de agua (WaterSource)' },
