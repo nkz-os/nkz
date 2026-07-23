@@ -1008,6 +1008,30 @@ class TestModuleRoutes:
         assert r.status_code in (200, 500), f"PUT visibility got {r.status_code}"
         r.get_json()
 
+    @patch("blueprints.modules.requests.get")
+    def test_parcel_in_tenant_real_call_no_nameerror(self, mock_get, client):
+        """Regression: `_parcel_in_tenant` referenced `ORION_URL` without
+        that name ever being defined in this module. Every other test of
+        activate/deactivate mocks `_parcel_in_tenant` itself, so this was
+        never caught — the real function raised NameError on every call,
+        caught by its own try/except and silently turned into a false
+        "parcel not found", 404ing every activate/deactivate for every
+        module, on every tenant (found via live production testing).
+        """
+        import blueprints.modules as bm
+
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {"name": "Test Parcel"}
+
+        ok, name = bm._parcel_in_tenant(
+            "test-tenant", "urn:ngsi-ld:AgriParcel:test-tenant:P1"
+        )
+
+        assert ok is True
+        assert name == "Test Parcel"
+        called_url = mock_get.call_args[0][0]
+        assert "urn:ngsi-ld:AgriParcel:test-tenant:P1" in called_url
+
     def test_status_callback_missing_secret_returns_401(self, client):
         resp = client.patch(
             "/api/internal/parcels/urn:ngsi-ld:AgriParcel:p1/modules/hydrology/status",
