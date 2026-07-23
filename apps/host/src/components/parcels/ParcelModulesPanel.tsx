@@ -130,8 +130,12 @@ export const ParcelModulesPanel: React.FC<ParcelModulesPanelProps> = ({ parcelId
                         <SettingsList>
                             {activatableModules.map((m) => {
                                 const activation = activations[m.id];
-                                const enabled = activation?.enabled ?? false;
                                 const status = activation?.setup_status;
+                                // Only show the switch as ON when setup actually
+                                // succeeded — enabled=true with status='error' means
+                                // the user asked to activate it but it didn't work;
+                                // showing ON next to the error badge reads as broken.
+                                const enabled = (activation?.enabled ?? false) && status !== 'error';
                                 const isBusy = busyModuleId === m.id;
                                 const label = m.label || m.displayName;
 
