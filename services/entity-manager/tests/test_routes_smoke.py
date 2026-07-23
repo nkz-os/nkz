@@ -946,6 +946,54 @@ class TestModuleRoutes:
         assert r.status_code in (200, 201, 500), f"POST activate got {r.status_code}"
         r.get_json()
 
+    @patch("parcel_activation.requests.post")
+    @patch(
+        "parcel_activation._get_setup_url",
+        return_value="http://soil-module-service:8000/v1/soil/internal/setup-parcel",
+    )
+    @patch("blueprints.modules.persist_activation")
+    @patch("blueprints.modules.check_parcel_limit", return_value=(True, ""))
+    @patch("blueprints.modules._parcel_in_tenant", return_value=(True, "Test Parcel"))
+    @patch("blueprints.modules.is_module_installed", return_value=True)
+    def test_activate_module_202_is_treated_as_success(
+        self,
+        mock_installed,
+        mock_parcel_in_tenant,
+        mock_check_limit,
+        mock_persist,
+        mock_get_setup_url,
+        mock_post,
+        client,
+    ):
+        """Regression test: soil's real /internal/setup-parcel endpoint is
+        declared `status_code=202` (correct REST semantics for "job
+        enqueued"). Before this fix, only (200, 201, 204) counted as a
+        successful dispatch, so this exact response made entity-manager
+        record setup_status='error' and return 502 for every real soil
+        activation despite the module doing its job correctly.
+
+        `requests.post` is mocked at the seam `dispatch_to_module` actually
+        calls (inside parcel_activation) so the real dispatch_to_module and
+        route logic run unmodified against a 202 response.
+        """
+        mock_post.return_value.status_code = 202
+        mock_post.return_value.content = b"{}"
+        mock_post.return_value.json.return_value = {}
+
+        r = client.post(
+            "/api/entities/parcels/urn:ngsi-ld:AgriParcel:test-tenant:P1/modules/soil/activate",
+            content_type="application/json",
+            data=json.dumps({}),
+        )
+
+        assert r.status_code == 201, f"POST activate (202 dispatch) got {r.status_code}"
+        body = r.get_json()
+        assert body["setup_status"] == "ok"
+
+        # Last persist_activation call must record success, not 'error'.
+        _, last_kwargs = mock_persist.call_args
+        assert last_kwargs.get("setup_status") == "ok"
+
     @patch("blueprints.modules.get_db_connection_with_tenant")
     @patch("blueprints.modules.get_db_connection_simple")
     def test_put_visibility_ok(self, mock_bp_db_simple, mock_bp_db_tenant, client):
