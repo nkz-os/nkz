@@ -122,11 +122,16 @@ def dispatch_to_module(
     parcel_id: str,
     parcel_name: str = "",
     action: str = "activate",
+    config: dict | None = None,
 ) -> tuple:
     """POST to the module's internal setup-parcel endpoint.
 
     The URL MUST be declared in marketplace_modules.metadata.setup_parcel_url.
     No convention-based fallback — fail fast with an actionable error.
+
+    `config` is an optional, module-specific dict (e.g. Greenhouse-DT's
+    cover_type/orientation/zones) forwarded as-is when provided. Modules that
+    don't read it are unaffected — additive, backward compatible.
     """
     url = _get_setup_url(module_id)
     if not url:
@@ -142,6 +147,8 @@ def dispatch_to_module(
         "parcel_name": parcel_name,
         "action": action,
     }
+    if config:
+        payload["config"] = config
     headers = {
         "Content-Type": "application/json",
         "X-Internal-Service-Secret": INTERNAL_SERVICE_SECRET,
@@ -161,10 +168,19 @@ def persist_activation(
     tenant_id: str,
     parcel_id: str,
     module_id: str,
-    enabled: bool,
+    enabled: bool | None,
     setup_status: str,
     last_error: str | None = None,
 ) -> bool:
+    """Upsert (tenant, parcel, module) activation state.
+
+    `enabled=None` leaves the stored `enabled` flag untouched on conflict (a
+    brand-new row still gets the table's DEFAULT true). This is for callers
+    that have no opinion on enablement — currently the async status-callback
+    endpoint, which only reports setup_status/last_error. Enablement is owned
+    exclusively by activate_module_for_parcel / deactivate_module_for_parcel,
+    which always pass an explicit bool.
+    """
     try:
         conn = _get_db()
         try:
@@ -173,14 +189,22 @@ def persist_activation(
                 """
                 INSERT INTO tenant_parcel_modules
                     (tenant_id, parcel_id, module_id, enabled, setup_status, last_error)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES (%(tenant_id)s, %(parcel_id)s, %(module_id)s,
+                        COALESCE(%(enabled)s, true), %(setup_status)s, %(last_error)s)
                 ON CONFLICT (tenant_id, parcel_id, module_id)
-                DO UPDATE SET enabled = EXCLUDED.enabled,
+                DO UPDATE SET enabled = COALESCE(%(enabled)s, tenant_parcel_modules.enabled),
                               setup_status = EXCLUDED.setup_status,
                               last_error = EXCLUDED.last_error,
                               updated_at = NOW()
                 """,
-                (tenant_id, parcel_id, module_id, enabled, setup_status, last_error),
+                {
+                    "tenant_id": tenant_id,
+                    "parcel_id": parcel_id,
+                    "module_id": module_id,
+                    "enabled": enabled,
+                    "setup_status": setup_status,
+                    "last_error": last_error,
+                },
             )
             conn.commit()
             cur.close()

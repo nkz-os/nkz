@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import json
+import hmac
 import logging
 from typing import Dict, Any, Optional, List, Mapping
 from datetime import datetime
@@ -1718,9 +1719,13 @@ def activate_module_for_parcel(parcel_id, module_id):
     ok, reason = check_parcel_limit(tenant_id, module_id)
     if not ok:
         return jsonify({'error': 'Parcel limit reached', 'reason': reason, 'action_required': 'upgrade_plan'}), 403
+    body = request.get_json(silent=True)
+    body = body if isinstance(body, dict) else {}
+    raw_config = body.get('config')
+    config = raw_config if isinstance(raw_config, dict) else None
     persist_activation(tenant_id, parcel_urn, module_id, enabled=True, setup_status='pending')
-    status, result = dispatch_to_module(module_id=module_id, tenant_id=tenant_id, parcel_id=parcel_urn, parcel_name=parcel_name, action='activate')
-    if status in (200, 201, 204):
+    status, result = dispatch_to_module(module_id=module_id, tenant_id=tenant_id, parcel_id=parcel_urn, parcel_name=parcel_name, action='activate', config=config)
+    if status in (200, 201, 202, 204):
         persist_activation(tenant_id, parcel_urn, module_id, enabled=True, setup_status='ok')
         return jsonify({'message': f'Module {module_id} activated', 'setup_status': 'ok', 'module_response': result}), 201
     error_detail = result.get('error') or f'HTTP {status}'
@@ -1739,8 +1744,53 @@ def deactivate_module_for_parcel(parcel_id, module_id):
         return jsonify({'error': 'Insufficient permissions'}), 403
     parcel_urn = _normalize_parcel_urn(parcel_id)
     status, result = dispatch_to_module(module_id=module_id, tenant_id=tenant_id, parcel_id=parcel_urn, action='deactivate')
-    persist_activation(tenant_id, parcel_urn, module_id, enabled=False, setup_status='ok' if status in (200, 201, 204) else 'error', last_error=None if status in (200, 201, 204) else str(result)[:500])
+    persist_activation(tenant_id, parcel_urn, module_id, enabled=False, setup_status='ok' if status in (200, 201, 202, 204) else 'error', last_error=None if status in (200, 201, 202, 204) else str(result)[:500])
     return jsonify({'message': f'Module {module_id} deactivated', 'module_response': result}), 200
+
+
+@modules_bp.route('/api/internal/parcels/<path:parcel_id>/modules/<module_id>/status', methods=['PATCH'])
+def module_status_callback(parcel_id, module_id):
+    """A module's rich action reports its real outcome after activation.
+
+    For synchronous setup (soil ingest, hydrology subscription, carbon Tier-0
+    stock) entity-manager already records setup_status directly from the
+    dispatch response. This endpoint is for actions whose real outcome isn't
+    known at dispatch time — an async job (hydrology DEM analysis) or an
+    action that can fail independently of setup (carbon's calculate).
+
+    Auth: X-Internal-Service-Secret (module -> entity-manager; the reverse
+    direction of the outbound-only dispatch_to_module call).
+
+    Does NOT touch `enabled` — this endpoint has no opinion on whether the
+    module is enabled for the parcel, only on setup_status/last_error.
+    Enablement is owned exclusively by activate/deactivate above; forcing
+    enabled=True here would silently re-enable a module a user deactivated
+    while the async job was still running.
+    """
+    expected = os.getenv('INTERNAL_SERVICE_SECRET', '')
+    provided = request.headers.get('X-Internal-Service-Secret', '')
+    if not expected or not hmac.compare_digest(provided, expected):
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    body = request.get_json(silent=True) or {}
+    status = body.get('status')
+    if status not in ('pending', 'ok', 'error'):
+        return jsonify({'error': "status must be one of: pending, ok, error"}), 422
+
+    tenant_id = body.get('tenant_id')
+    if not tenant_id:
+        return jsonify({'error': 'tenant_id is required'}), 422
+
+    parcel_urn = _normalize_parcel_urn(parcel_id)
+    detail = body.get('detail')
+    ok = persist_activation(
+        tenant_id, parcel_urn, module_id,
+        enabled=None, setup_status=status,
+        last_error=(detail[:500] if status == 'error' and detail else None),
+    )
+    if not ok:
+        return jsonify({'error': 'Failed to persist status'}), 502
+    return jsonify({'message': 'Status recorded'}), 200
 
 
 @modules_bp.route('/api/entities/parcels/<path:parcel_id>/modules', methods=['GET'])
