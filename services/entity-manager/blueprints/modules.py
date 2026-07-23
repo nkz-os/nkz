@@ -41,6 +41,8 @@ from parcel_activation import (
 
 logger = logging.getLogger(__name__)
 
+ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
+
 
 # Replicated from entity_management_api - shared helper used by module routes
 def _get_user_roles():
