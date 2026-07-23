@@ -80,3 +80,30 @@ def test_dispatch_posts_payload_with_secret():
     assert kwargs["headers"]["X-Internal-Service-Secret"] == "s3cret"
     assert kwargs["json"]["action"] == "activate"
     assert kwargs["timeout"] == 5
+
+
+def test_dispatch_includes_config_when_provided():
+    with patch.object(pa, "_get_setup_url",
+                      return_value="http://greenhouse-dt-backend:8420/api/internal/setup-parcel"), \
+         patch.object(pa.requests, "post") as post:
+        post.return_value.status_code = 201
+        post.return_value.content = b"{}"
+        post.return_value.json.return_value = {}
+        pa.dispatch_to_module(
+            "greenhouse-dt", "t1", "urn:ngsi-ld:AgriParcel:t1:P1", parcel_name="P1",
+            config={"cover_type": "glass", "zones": 3},
+        )
+    _, kwargs = post.call_args
+    assert kwargs["json"]["config"] == {"cover_type": "glass", "zones": 3}
+
+
+def test_dispatch_omits_config_when_not_provided():
+    with patch.object(pa, "_get_setup_url",
+                      return_value="http://soil-module-service:8000/v1/soil/internal/setup-parcel"), \
+         patch.object(pa.requests, "post") as post:
+        post.return_value.status_code = 201
+        post.return_value.content = b"{}"
+        post.return_value.json.return_value = {}
+        pa.dispatch_to_module("soil", "t1", "urn:ngsi-ld:AgriParcel:t1:P1", parcel_name="P1")
+    _, kwargs = post.call_args
+    assert "config" not in kwargs["json"]

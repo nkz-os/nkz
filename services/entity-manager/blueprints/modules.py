@@ -1718,8 +1718,10 @@ def activate_module_for_parcel(parcel_id, module_id):
     ok, reason = check_parcel_limit(tenant_id, module_id)
     if not ok:
         return jsonify({'error': 'Parcel limit reached', 'reason': reason, 'action_required': 'upgrade_plan'}), 403
+    body = request.get_json(silent=True) or {}
+    config = body.get('config') if isinstance(body.get('config'), dict) else None
     persist_activation(tenant_id, parcel_urn, module_id, enabled=True, setup_status='pending')
-    status, result = dispatch_to_module(module_id=module_id, tenant_id=tenant_id, parcel_id=parcel_urn, parcel_name=parcel_name, action='activate')
+    status, result = dispatch_to_module(module_id=module_id, tenant_id=tenant_id, parcel_id=parcel_urn, parcel_name=parcel_name, action='activate', config=config)
     if status in (200, 201, 204):
         persist_activation(tenant_id, parcel_urn, module_id, enabled=True, setup_status='ok')
         return jsonify({'message': f'Module {module_id} activated', 'setup_status': 'ok', 'module_response': result}), 201

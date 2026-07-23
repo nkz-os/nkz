@@ -122,11 +122,16 @@ def dispatch_to_module(
     parcel_id: str,
     parcel_name: str = "",
     action: str = "activate",
+    config: dict | None = None,
 ) -> tuple:
     """POST to the module's internal setup-parcel endpoint.
 
     The URL MUST be declared in marketplace_modules.metadata.setup_parcel_url.
     No convention-based fallback — fail fast with an actionable error.
+
+    `config` is an optional, module-specific dict (e.g. Greenhouse-DT's
+    cover_type/orientation/zones) forwarded as-is when provided. Modules that
+    don't read it are unaffected — additive, backward compatible.
     """
     url = _get_setup_url(module_id)
     if not url:
@@ -142,6 +147,8 @@ def dispatch_to_module(
         "parcel_name": parcel_name,
         "action": action,
     }
+    if config:
+        payload["config"] = config
     headers = {
         "Content-Type": "application/json",
         "X-Internal-Service-Secret": INTERNAL_SERVICE_SECRET,
