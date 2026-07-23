@@ -960,6 +960,53 @@ class TestModuleRoutes:
         assert r.status_code in (200, 500), f"PUT visibility got {r.status_code}"
         r.get_json()
 
+    def test_status_callback_missing_secret_returns_401(self, client):
+        resp = client.patch(
+            "/api/internal/parcels/urn:ngsi-ld:AgriParcel:p1/modules/hydrology/status",
+            content_type="application/json",
+            data=json.dumps({"status": "ok"}),
+        )
+        assert resp.status_code == 401
+
+    def test_status_callback_wrong_secret_returns_401(self, client):
+        resp = client.patch(
+            "/api/internal/parcels/urn:ngsi-ld:AgriParcel:p1/modules/hydrology/status",
+            content_type="application/json",
+            data=json.dumps({"status": "ok"}),
+            headers={"X-Internal-Service-Secret": "wrong"},
+        )
+        assert resp.status_code == 401
+
+    def test_status_callback_invalid_status_returns_422(self, client, monkeypatch):
+        monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "test-secret")
+        resp = client.patch(
+            "/api/internal/parcels/urn:ngsi-ld:AgriParcel:p1/modules/hydrology/status",
+            content_type="application/json",
+            data=json.dumps({"status": "not-a-real-status", "tenant_id": "t1"}),
+            headers={"X-Internal-Service-Secret": "test-secret"},
+        )
+        assert resp.status_code == 422
+
+    @patch("blueprints.modules.persist_activation")
+    def test_status_callback_persists_and_returns_200(self, mock_persist, client, monkeypatch):
+        monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "test-secret")
+        mock_persist.return_value = True
+        resp = client.patch(
+            "/api/internal/parcels/urn:ngsi-ld:AgriParcel:p1/modules/hydrology/status",
+            content_type="application/json",
+            data=json.dumps({
+                "status": "error",
+                "tenant_id": "t1",
+                "detail": "DEM analysis failed: bad geometry",
+            }),
+            headers={"X-Internal-Service-Secret": "test-secret"},
+        )
+        assert resp.status_code == 200
+        mock_persist.assert_called_once()
+        call_args, call_kwargs = mock_persist.call_args
+        assert call_kwargs.get("setup_status") == "error"
+        assert call_kwargs.get("last_error") == "DEM analysis failed: bad geometry"
+
 
 # ============================================================================
 # Robot routes (1 route)
