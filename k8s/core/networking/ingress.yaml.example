@@ -239,13 +239,6 @@ spec:
           #       name: ros2-web-bridge-service
           #       port:
           #         number: 9090
-          # - path: /api/v1/telemetry/isobus
-          #   pathType: Prefix
-          #   backend:
-          #     service:
-          #       name: isobus-bridge-service
-          #       port:
-          #         number: 5000
           - path: /api/gis
             pathType: Prefix
             backend:
