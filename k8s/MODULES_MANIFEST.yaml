@@ -228,20 +228,6 @@ addons:
       - ROS2 network (via VPN)
     notes: "Requires WireGuard VPN for robot connectivity"
 
-  isobus:
-    id: "isobus"
-    name: "ISOBUS Bridge"
-    description: "Integration with ISOBUS-compatible agricultural machinery"
-    category: robotics
-    plan_required: enterprise
-    pricing_tier: ENTERPRISE
-    path: addons/robotics/
-    files:
-      - isobus-bridge-deployment.yaml
-    dependencies:
-      - orion-ld
-    external_services: []
-
   # ---------------------------------------------------------------------------
   # Visualization Modules
   # ---------------------------------------------------------------------------
