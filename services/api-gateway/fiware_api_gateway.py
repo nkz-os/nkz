@@ -183,6 +183,7 @@ ROUTING_API_URL = os.getenv(
     "ROUTING_API_URL", "http://nkz-module-gis-routing-service:8000"
 )
 SOIL_API_URL = os.getenv("SOIL_API_URL", "http://soil-module-service:8000")
+JD_CONNECT_URL = os.getenv("JD_CONNECT_URL", "http://jd-connect-service:8000")
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
 ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
@@ -3551,6 +3552,106 @@ def proxy_weather_requests(subpath):
     except Exception as e:
         logger.error(f"Error in proxy_weather_requests: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+# /oauth/callback is PUBLIC: JD redirects the browser here — NO user JWT,
+# NO X-Tenant-ID, NO valid HMAC signature. Forward WITHOUT a signature;
+# the module recovers the tenant from the signed OAuth `state`.
+@app.route("/api/jd/oauth/callback", methods=["GET", "OPTIONS"])
+def proxy_jd_callback():
+    if request.method == "OPTIONS":
+        response = make_response()
+        cors_origin = get_cors_origin()
+        if cors_origin:
+            response.headers["Access-Control-Allow-Origin"] = cors_origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = (
+            "Authorization, Content-Type, X-Tenant-ID, Cookie"
+        )
+        response.headers["Access-Control-Max-Age"] = "3600"
+        response.headers["Vary"] = "Origin"
+        return response, 200
+    return _forward_jd(inject_signature=False)
+
+
+# User-initiated JD routes carry X-Tenant-ID + Authorization → HMAC-signed.
+@app.route("/api/jd/oauth/start", methods=["GET", "OPTIONS"])
+@app.route("/api/jd/machines", methods=["GET", "OPTIONS"])
+@app.route("/api/jd/status", methods=["GET", "OPTIONS"])
+def proxy_jd_connect():
+    if request.method == "OPTIONS":
+        response = make_response()
+        cors_origin = get_cors_origin()
+        if cors_origin:
+            response.headers["Access-Control-Allow-Origin"] = cors_origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = (
+            "Authorization, Content-Type, X-Tenant-ID, Cookie"
+        )
+        response.headers["Access-Control-Max-Age"] = "3600"
+        response.headers["Vary"] = "Origin"
+        return response, 200
+    return _forward_jd(inject_signature=True)
+
+
+def _forward_jd(inject_signature: bool):
+    """Forward /api/jd/* to nkz-module-jd-connect backend."""
+    tenant = request.headers.get("X-Tenant-ID", "")
+    token = get_request_token()
+
+    if inject_signature:
+        if not token:
+            return jsonify({"error": "Missing or invalid authorization"}), 401
+        payload = validate_jwt_token(token)
+        if not payload:
+            return jsonify({"error": "Invalid or expired token"}), 401
+        tenant = extract_tenant_id(payload) or tenant
+        if not tenant:
+            return jsonify({"error": "missing tenant"}), 401
+        if not rate_limit(tenant):
+            return jsonify({"error": "Rate limit exceeded"}), 429
+
+    headers = {
+        "Content-Type": request.content_type or "application/json",
+        "X-Tenant-ID": tenant,
+        "X-User-ID": request.headers.get("X-User-ID", ""),
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if inject_signature and KEYCLOAK_AUTH_AVAILABLE:
+        try:
+            signature = generate_hmac_signature(token, tenant)
+            if signature:
+                headers["X-Auth-Signature"] = signature
+        except Exception as e:
+            logger.warning(f"Failed to generate HMAC signature for JD proxy: {e}")
+
+    target_url = f"{JD_CONNECT_URL}{request.path}"
+    try:
+        response = requests.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            params=dict(request.args),
+            timeout=30,
+        )
+        response_headers = dict(response.headers)
+        response_headers.pop("Content-Encoding", None)
+        response_headers.pop("Transfer-Encoding", None)
+        cors_origin = get_cors_origin()
+        if cors_origin:
+            response_headers["Access-Control-Allow-Origin"] = cors_origin
+            response_headers["Access-Control-Allow-Credentials"] = "true"
+            response_headers["Vary"] = "Origin"
+        return make_response((response.content, response.status_code, response_headers))
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout connecting to jd-connect for {request.path}")
+        return jsonify({"error": "JD connect service timeout"}), 504
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error proxying JD request: {e}")
+        return jsonify({"error": "Failed to connect to jd-connect service"}), 502
 
 
 @app.route(
