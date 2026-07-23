@@ -1095,7 +1095,7 @@ Páginas internas de la plataforma, bundleadas con el host. Se activan/desactiva
 | tenant-webhook | **Funcional** | Tenant lifecycle, activation codes. Fixed 2026-05-24: 1 worker + startupProbe (#330). |
 | email-service | **Funcional** | SMTP notifications |
 | mqtt-credentials-manager | **Funcional** | Dynamic MQTT provisioning |
-| isobus-bridge | **Funcional** | J1939/ISOBUS protocol (tractores) |
+| isobus-bridge | **Retirado 2026-07** | Code complete, never deployed to prod (0 pods, no ArgoCD app). Superseded by Connectivity Device Profiles (ISOBUS) + planned OEM-cloud module. |
 | intelligence-service | **Parcial** | 1 réplica. Monitorear CPU |
 | keycloak | **Funcional** | OIDC/OAuth2, RS256, custom image 26.4.7 |
 | orion-ld | **Funcional** | FIWARE Context Broker |
@@ -1651,7 +1651,7 @@ All phases implemented: routes, Celery workers, models, 6 migrations, Phase 5 (A
 | GR-1 | High | **Reconstruir frontend con datos reales** — eliminar mocks, poblar desplegables desde Orion-LD (AgriParcel, ManufacturingMachine), añadir mapa 2D Leaflet, slot map-layer CesiumJS | `nkz-module-gis-routing/src/`. Plan detallado: Fases 1-6 |
 | GR-2 | High | **Sync real para mobile** — WatermelonDB pull/push con collections `parcels`, `equipment`, `operations` via `/api/core/sync/vectorial`. Actualmente mockeado. | `nkz-module-gis-routing/backend/`, `nkz/services/entity-manager/` |
 | GR-3 | Medium | **PMTiles real (no mock)** — tippecanoe + pmtiles-convert → MinIO cache → streaming. | `nkz-module-gis-routing/backend/app/services/pmtiles_generator.py` |
-| GR-4 | High | **ISOBUS file push automatizado** — Cerrar el gap entre generacion ISOXML y carga en terminal del tractor. El ISOXML se genera correctamente (`GET /api/routing/export/{id}?format=isoxml`) y se descarga manual (USB / upload a John Deere Operations Center). Opciones a evaluar: (a) MQTT file transfer via mosquitto → ESP32 → CAN bus, (b) API John Deere Operations Center / CNH AFS para push remoto, (c) endpoint en isobus-bridge que reciba ISOXML y reenvie al gateway telematico. Documentado en `internal-docs/specs/2026-04-30-gis-routing-sota-design.md`. | `nkz-module-gis-routing/backend/`, `nkz/services/isobus-bridge/` |
+| GR-4 | High | **ISOBUS file push automatizado** — Cerrar el gap entre generacion ISOXML y carga en terminal del tractor. El ISOXML se genera correctamente (`GET /api/routing/export/{id}?format=isoxml`) y se descarga manual (USB / upload a John Deere Operations Center). Opciones a evaluar: (a) MQTT file transfer via mosquitto → ESP32 → CAN bus, (b) API John Deere Operations Center / CNH AFS para push remoto. Documentado en `internal-docs/specs/2026-04-30-gis-routing-sota-design.md`. | `nkz-module-gis-routing/backend/` |
 | GR-5 | Low | **XTE/Lightbar en nkz-mobile** — Componente nativo React Native de guiado visual para cabina (ISO 11783-6). Depende de GR-2 (sync real con A-B lines). UDP listener ya existe en `nkz-mobile/src/services/telemetryUdp.ts`. | `nkz-mobile/`, ACTION_PLAN.md |
 
 ---

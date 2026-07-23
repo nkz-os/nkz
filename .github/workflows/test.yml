@@ -92,7 +92,6 @@ jobs:
       matrix:
         service:
           - email-service
-          - isobus-bridge
           - mqtt-credentials-manager
           - pmtiles-packager
           - push-notification-service
