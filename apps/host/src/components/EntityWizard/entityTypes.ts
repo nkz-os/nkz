@@ -19,7 +19,6 @@ export const ENTITY_TYPE_METADATA: Record<string, EntityTypeInfo> = {
   AgriParcel:               { keywords: ['parcela', 'terreno', 'finca', 'campo', 'parcel', 'field'],  macroCategory: 'assets',  icon: MapPin,     description: 'Parcela agrícola',            color: 'green'  },
   Vineyard:                 { keywords: ['viñedo', 'viña', 'uva', 'vineyard', 'grape'],               macroCategory: 'assets',  icon: Leaf,       description: 'Viñedo',                      color: 'purple' },
   OliveGrove:               { keywords: ['olivar', 'olivo', 'aceite', 'olive'],                       macroCategory: 'assets',  icon: Trees,      description: 'Olivar',                      color: 'green'  },
-  AgriCrop:                 { keywords: ['cultivo', 'cosecha', 'crop', 'harvest'],                    macroCategory: 'assets',  icon: Leaf,       description: 'Cultivo agrícola',            color: 'green'  },
   AgriTree:                 { keywords: ['árbol', 'frutal', 'tree'],                                  macroCategory: 'assets',  icon: Trees,      description: 'Árbol individual',            color: 'green'  },
   OliveTree:                { keywords: ['olivo', 'olive tree'],                                      macroCategory: 'assets',  icon: Trees,      description: 'Olivo individual',            color: 'green'  },
   Vine:                     { keywords: ['vid', 'cepa', 'vine'],                                      macroCategory: 'assets',  icon: Leaf,       description: 'Cepa de vid',                 color: 'purple' },
@@ -76,7 +75,7 @@ export const MACRO_CATEGORIES = {
 // ─── Category → types grouping (for the category browser in StepTypeSelection) ─
 
 export const ENTITY_CATEGORIES: Record<string, string[]> = {
-  'Cultivos':        ['AgriCrop', 'Vineyard', 'OliveGrove', 'AgriParcel'],
+  'Cultivos':        ['Vineyard', 'OliveGrove', 'AgriParcel'],
   'Árboles':         ['AgriTree', 'OliveTree', 'Vine', 'FruitTree'],
   'Agua':            ['WaterSource', 'Well', 'IrrigationOutlet', 'Spring', 'Pond'],
   'Robótica':        ['AutonomousMobileRobot', 'ManufacturingMachine'],

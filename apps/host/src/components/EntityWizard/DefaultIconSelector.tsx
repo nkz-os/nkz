@@ -60,7 +60,6 @@ const ENTITY_ICON_SUGGESTIONS: Record<string, string[]> = {
   AgriParcel: ['mappin', 'leaf', 'sprout'],
   Vineyard: ['leaf', 'sprout', 'mappin'],
   OliveGrove: ['trees', 'leaf', 'mappin'],
-  AgriCrop: ['sprout', 'leaf', 'mappin'],
   AgriTree: ['trees', 'leaf', 'sprout'],
   AgriBuilding: ['building', 'warehouse', 'factory'],
   WaterSource: ['droplets', 'cloudrain'],

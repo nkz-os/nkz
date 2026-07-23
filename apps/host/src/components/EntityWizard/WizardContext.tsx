@@ -13,7 +13,7 @@ import { ENTITY_TYPE_METADATA } from './entityTypes';
 // ─── Initial form data factories ─────────────────────────────────────────────
 
 const POLYGON_ASSET_TYPES = new Set([
-  'AgriParcel', 'Vineyard', 'OliveGrove', 'AgriCrop',
+  'AgriParcel', 'Vineyard', 'OliveGrove',
   'AgriBuilding', 'IrrigationSystem', 'PhotovoltaicInstallation',
   'AgriGreenhouse',
 ]);
