@@ -1145,6 +1145,39 @@
       "save_error": "Error al guardar la credencial.",
       "delete_error": "Error al eliminar la credencial."
     },
+    "copernicus": {
+      "title": "Copernicus Data Space",
+      "description": "Credenciales para Sentinel Hub (índices de vegetación)",
+      "read_only": "Las credenciales de Copernicus son gestionadas por el administrador del tenant.",
+      "client_id": "Client ID",
+      "client_secret": "Client Secret",
+      "secret_placeholder": "cdse-secret-...",
+      "secret_keep_hint": "Dejar vacío para conservar el secret actual",
+      "save": "Guardar credenciales",
+      "saving": "Guardando...",
+      "saved": "Credenciales guardadas. Sentinel Hub se activará en la próxima solicitud.",
+      "delete": "Eliminar",
+      "deleting": "Eliminando...",
+      "deleted": "Credenciales eliminadas. Se usará el fallback de plataforma.",
+      "confirm_delete": "¿Eliminar tus credenciales de Copernicus? El sistema usará las credenciales de la plataforma si están disponibles.",
+      "register_hint": "¿No tienes credenciales? Regístrate en",
+      "register_hint_suffix": "y crea un OAuth Client. El consumo de Processing Units (PUs) irá a tu cuenta.",
+      "status": {
+        "byok": "🟢 Sentinel Hub activo — usando tus credenciales",
+        "platform": "🟡 Sentinel Hub activo — usando credenciales de plataforma",
+        "legacy": "⚪ Modo legacy — descarga y procesado local",
+        "byok_hint": "El consumo de Processing Units (PUs) va a tu cuenta de CDSE.",
+        "platform_hint": "Consume PUs de la cuenta de plataforma. Configura tus propias credenciales para evitar límites compartidos.",
+        "legacy_hint": "Sin credenciales configuradas. Contacta al administrador o añade tus claves CDSE."
+      },
+      "errors": {
+        "load": "Error al cargar configuración",
+        "save": "Error al guardar credenciales",
+        "delete": "Error al eliminar credenciales",
+        "client_id_required": "Client ID es obligatorio",
+        "secret_required": "Client Secret es obligatorio para nuevas credenciales"
+      }
+    },
     "risk_webhooks": {
       "title": "Webhooks de Riesgo",
       "subtitle": "Configura endpoints para recibir notificaciones de alertas de riesgo.",

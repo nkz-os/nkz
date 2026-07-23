@@ -2,9 +2,9 @@
 // Copernicus BYOK Credentials Component
 // =============================================================================
 // Tenant self-service for Copernicus Data Space Ecosystem credentials.
-// Calls vegetation-health backend: GET/PUT/DELETE /api/vegetation/config
+// Calls the vegetation module backend: GET/PUT/DELETE /api/vegetation/config
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
@@ -26,9 +26,6 @@ interface CopernicusConfig {
   tenant_id: string;
   copernicus_client_id: string | null;
   copernicus_configured: boolean;
-  default_index_type: string;
-  cloud_coverage_threshold: number;
-  auto_process: boolean;
 }
 
 interface CredentialStatus {
@@ -40,6 +37,18 @@ interface CredentialStatus {
 
 type EngineStatus = 'byok' | 'platform' | 'legacy';
 
+const STATUS_LABELS: Record<EngineStatus, string> = {
+  byok: 'settings.copernicus.status.byok',
+  platform: 'settings.copernicus.status.platform',
+  legacy: 'settings.copernicus.status.legacy',
+};
+
+const STATUS_HINTS: Record<EngineStatus, string> = {
+  byok: 'settings.copernicus.status.byok_hint',
+  platform: 'settings.copernicus.status.platform_hint',
+  legacy: 'settings.copernicus.status.legacy_hint',
+};
+
 export const CopernicusCredentials: React.FC = () => {
   const { user, tenantId } = useAuth();
   const { t } = useI18n();
@@ -48,14 +57,16 @@ export const CopernicusCredentials: React.FC = () => {
   const [credStatus, setCredStatus] = useState<CredentialStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Form state
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [showSecret, setShowSecret] = useState(false);
   const [hasExistingSecret, setHasExistingSecret] = useState(false);
+
+  const successTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const isTenantAdmin = user?.roles?.includes('TenantAdmin');
   const isPlatformAdmin = user?.roles?.includes('PlatformAdmin');
@@ -63,19 +74,23 @@ export const CopernicusCredentials: React.FC = () => {
 
   const engineStatus = getEngineStatus(config, credStatus);
 
-  useEffect(() => {
-    if (canManageCredentials && tenantId) {
-      loadConfig();
-      loadCredentialStatus();
+  const clearSuccessTimer = useCallback(() => {
+    if (successTimerRef.current) {
+      clearTimeout(successTimerRef.current);
+      successTimerRef.current = undefined;
     }
-  }, [canManageCredentials, tenantId]);
+  }, []);
 
-  const loadConfig = async () => {
+  const showTimedSuccess = useCallback((msg: string) => {
+    clearSuccessTimer();
+    setSuccess(msg);
+    successTimerRef.current = setTimeout(() => setSuccess(null), 5000);
+  }, [clearSuccessTimer]);
+
+  const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/vegetation/config', {
-        headers: { 'X-Tenant-ID': tenantId },
-      });
+      const response = await api.get('/api/vegetation/config');
       const data = response.data;
       setConfig(data);
       if (data.copernicus_client_id) {
@@ -83,30 +98,39 @@ export const CopernicusCredentials: React.FC = () => {
         setHasExistingSecret(!!data.copernicus_configured);
       }
     } catch (err: any) {
-      // 404 = no config yet, that's OK
       if (err?.response?.status !== 404) {
-        setError('Error al cargar configuración');
+        setError(t('settings.copernicus.errors.load'));
         logger.error('Error loading Copernicus config:', err);
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
-  const loadCredentialStatus = async () => {
+  const loadCredentialStatus = useCallback(async () => {
     try {
-      const response = await api.get('/api/vegetation/config/credentials-status', {
-        headers: { 'X-Tenant-ID': tenantId },
-      });
+      const response = await api.get('/api/vegetation/config/credentials-status');
       setCredStatus(response.data);
     } catch (err: any) {
       logger.debug('Credential status not available:', err);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (canManageCredentials && tenantId) {
+      loadConfig();
+      loadCredentialStatus();
+    }
+    return clearSuccessTimer;
+  }, [canManageCredentials, tenantId, loadConfig, loadCredentialStatus, clearSuccessTimer]);
 
   const handleSave = async () => {
-    if (!clientId.trim() || !clientSecret.trim()) {
-      setError('Client ID y Client Secret son obligatorios');
+    if (!clientId.trim()) {
+      setError(t('settings.copernicus.errors.client_id_required'));
+      return;
+    }
+    if (!hasExistingSecret && !clientSecret.trim()) {
+      setError(t('settings.copernicus.errors.secret_required'));
       return;
     }
 
@@ -115,21 +139,22 @@ export const CopernicusCredentials: React.FC = () => {
       setError(null);
       setSuccess(null);
 
-      await api.put('/api/vegetation/config', {
+      const payload: Record<string, string> = {
         copernicus_client_id: clientId.trim(),
-        copernicus_client_secret: clientSecret,
-      }, {
-        headers: { 'X-Tenant-ID': tenantId },
-      });
+      };
+      if (clientSecret) {
+        payload.copernicus_client_secret = clientSecret;
+      }
 
-      setSuccess('Credenciales guardadas. Sentinel Hub se activará en la próxima solicitud.');
+      await api.put('/api/vegetation/config', payload);
+
+      showTimedSuccess(t('settings.copernicus.saved'));
       setHasExistingSecret(true);
-      setClientSecret(''); // Clear secret from memory
+      setClientSecret('');
       await loadConfig();
       await loadCredentialStatus();
-      setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || 'Error al guardar credenciales';
+      const msg = err?.response?.data?.detail || t('settings.copernicus.errors.save');
       setError(msg);
     } finally {
       setSaving(false);
@@ -137,34 +162,35 @@ export const CopernicusCredentials: React.FC = () => {
   };
 
   const handleDelete = async () => {
-    if (!confirm('¿Eliminar tus credenciales de Copernicus? El sistema usará las credenciales de la plataforma si están disponibles.')) {
+    if (!confirm(t('settings.copernicus.confirm_delete'))) {
       return;
     }
 
     try {
+      setDeleting(true);
       setError(null);
       setSuccess(null);
-      await api.delete('/api/vegetation/config', {
-        headers: { 'X-Tenant-ID': tenantId },
-      });
-      setSuccess('Credenciales eliminadas. Se usará el fallback de plataforma.');
+      await api.delete('/api/vegetation/config');
+      showTimedSuccess(t('settings.copernicus.deleted'));
       setClientId('');
       setHasExistingSecret(false);
       await loadConfig();
       await loadCredentialStatus();
-      setTimeout(() => setSuccess(null), 5000);
     } catch (err: any) {
-      setError('Error al eliminar credenciales');
+      setError(t('settings.copernicus.errors.delete'));
+    } finally {
+      setDeleting(false);
     }
   };
 
+  // Render: read-only for non-admins
   if (!canManageCredentials) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6 mb-6">
         <div className="flex items-center gap-3 mb-2">
           <Cloud className="w-5 h-5 text-nkz-info" />
           <span className="text-sm text-nkz-muted">
-            Las credenciales de Copernicus son gestionadas por el administrador del tenant.
+            {t('settings.copernicus.read_only')}
           </span>
         </div>
       </div>
@@ -181,10 +207,10 @@ export const CopernicusCredentials: React.FC = () => {
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              ☁️ Copernicus Data Space
+              ☁️ {t('settings.copernicus.title')}
             </h2>
             <p className="text-sm text-gray-600">
-              {t('settings.copernicus.description', { defaultValue: 'Credenciales para Sentinel Hub (índices de vegetación)' })}
+              {t('settings.copernicus.description')}
             </p>
           </div>
         </div>
@@ -210,14 +236,10 @@ export const CopernicusCredentials: React.FC = () => {
         }`} />
         <div>
           <p className="text-sm font-medium">
-            {engineStatus === 'byok' && '🟢 Sentinel Hub activo — usando tus credenciales'}
-            {engineStatus === 'platform' && '🟡 Sentinel Hub activo — usando credenciales de plataforma'}
-            {engineStatus === 'legacy' && '⚪ Modo legacy — descarga y procesado local'}
+            {t(STATUS_LABELS[engineStatus])}
           </p>
           <p className="text-xs text-gray-600 mt-0.5">
-            {engineStatus === 'byok' && 'El consumo de Processing Units (PUs) va a tu cuenta de CDSE.'}
-            {engineStatus === 'platform' && 'Consume PUs de la cuenta de plataforma. Configura tus propias credenciales para evitar límites compartidos.'}
-            {engineStatus === 'legacy' && 'Sin credenciales configuradas. Contacta al administrador o añade tus claves CDSE.'}
+            {t(STATUS_HINTS[engineStatus])}
           </p>
         </div>
       </div>
@@ -240,12 +262,12 @@ export const CopernicusCredentials: React.FC = () => {
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Client ID
+            {t('settings.copernicus.client_id')}
           </label>
           <Input
             type="text"
             value={clientId}
-            onChange={(e: any) => setClientId(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setClientId(e.target.value)}
             placeholder="cdse-client-id-..."
             className="w-full font-mono text-sm"
             disabled={saving}
@@ -254,14 +276,16 @@ export const CopernicusCredentials: React.FC = () => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Client Secret
+            {t('settings.copernicus.client_secret')}
           </label>
           <div className="relative">
             <Input
               type={showSecret ? 'text' : 'password'}
               value={clientSecret}
-              onChange={(e: any) => setClientSecret(e.target.value)}
-              placeholder={hasExistingSecret ? '•••••••• (dejar vacío para no cambiar)' : 'cdse-secret-...'}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setClientSecret(e.target.value)}
+              placeholder={hasExistingSecret
+                ? t('settings.copernicus.secret_keep_hint')
+                : t('settings.copernicus.secret_placeholder')}
               className="w-full font-mono text-sm pr-10"
               disabled={saving}
             />
@@ -276,7 +300,7 @@ export const CopernicusCredentials: React.FC = () => {
           </div>
           {hasExistingSecret && (
             <p className="text-xs text-nkz-muted mt-1">
-              Ya hay un secret guardado. Deja este campo vacío para conservarlo.
+              {t('settings.copernicus.secret_keep_hint')}
             </p>
           )}
         </div>
@@ -289,16 +313,17 @@ export const CopernicusCredentials: React.FC = () => {
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
           >
             <Save className="w-4 h-4" />
-            {saving ? 'Guardando...' : 'Guardar credenciales'}
+            {saving ? t('settings.copernicus.saving') : t('settings.copernicus.save')}
           </Button>
 
           {(config?.copernicus_configured || hasExistingSecret) && (
             <Button
               onClick={handleDelete}
+              disabled={deleting}
               className="flex items-center gap-2 px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 text-sm"
             >
               <Trash2 className="w-4 h-4" />
-              Eliminar
+              {deleting ? t('settings.copernicus.deleting') : t('settings.copernicus.delete')}
             </Button>
           )}
         </div>
@@ -306,7 +331,7 @@ export const CopernicusCredentials: React.FC = () => {
         {/* Info */}
         <div className="mt-4 p-3 bg-nkz-bg-secondary rounded-lg border border-nkz-border">
           <p className="text-xs text-gray-600">
-            <strong>¿No tienes credenciales?</strong> Regístrate en{' '}
+            {t('settings.copernicus.register_hint')}{' '}
             <a
               href="https://dataspace.copernicus.eu/"
               target="_blank"
@@ -315,7 +340,7 @@ export const CopernicusCredentials: React.FC = () => {
             >
               Copernicus Data Space Ecosystem <ExternalLink className="w-3 h-3" />
             </a>
-            {' '}y crea un OAuth Client. El consumo de Processing Units (PUs) irá a tu cuenta.
+            {t('settings.copernicus.register_hint_suffix')}
           </p>
           {tenantId && (
             <p className="text-xs text-gray-500 mt-1 font-mono">
@@ -332,10 +357,7 @@ function getEngineStatus(
   config: CopernicusConfig | null,
   credStatus: CredentialStatus | null,
 ): EngineStatus {
-  // Tenant has its own BYOK credentials
   if (config?.copernicus_configured) return 'byok';
-  // Platform fallback is available
   if (credStatus?.available) return 'platform';
-  // Nothing configured → legacy
   return 'legacy';
 }
