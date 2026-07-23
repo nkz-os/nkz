@@ -8,6 +8,7 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ExternalApiCredentials } from '@/components/ExternalApiCredentials';
+import { CopernicusCredentials } from '@/components/CopernicusCredentials';
 import { TenantUsersManagement } from '@/components/TenantUsersManagement';
 import { ModuleVisibilitySettings } from '@/components/ModuleVisibilitySettings';
 import { RiskAlertSubscriptions } from '@/components/RiskAlertSubscriptions';
@@ -312,6 +313,13 @@ export const Settings: React.FC = () => {
         {canModifySettings && (
           <div className="mb-6">
             <TenantProfileEditor />
+          </div>
+        )}
+
+        {/* Copernicus BYOK — Tenant self-service */}
+        {canModifySettings && (
+          <div className="mb-6">
+            <CopernicusCredentials />
           </div>
         )}
 
