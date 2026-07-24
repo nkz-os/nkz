@@ -35,6 +35,13 @@ interface CredentialStatus {
   client_id_preview: string | null;
 }
 
+interface UsageInfo {
+  used: number;
+  limit: number | null;
+  remaining: number | null;
+  period: string;
+}
+
 type EngineStatus = 'byok' | 'platform' | 'legacy';
 
 const STATUS_LABELS: Record<EngineStatus, string> = {
@@ -55,6 +62,7 @@ export const CopernicusCredentials: React.FC = () => {
 
   const [config, setConfig] = useState<CopernicusConfig | null>(null);
   const [credStatus, setCredStatus] = useState<CredentialStatus | null>(null);
+  const [usage, setUsage] = useState<UsageInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -116,13 +124,23 @@ export const CopernicusCredentials: React.FC = () => {
     }
   }, []);
 
+  const loadUsage = useCallback(async () => {
+    try {
+      const response = await api.get('/api/vegetation/config/usage');
+      setUsage(response.data);
+    } catch (err: any) {
+      logger.debug('Usage info not available:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (canManageCredentials && tenantId) {
       loadConfig();
       loadCredentialStatus();
+      loadUsage();
     }
     return clearSuccessTimer;
-  }, [canManageCredentials, tenantId, loadConfig, loadCredentialStatus, clearSuccessTimer]);
+  }, [canManageCredentials, tenantId, loadConfig, loadCredentialStatus, loadUsage, clearSuccessTimer]);
 
   const handleSave = async () => {
     if (!clientId.trim()) {
@@ -243,6 +261,26 @@ export const CopernicusCredentials: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Usage Meter */}
+      {usage && (
+        <div className={`mb-4 p-3 rounded-lg border ${
+          usage.limit !== null && usage.remaining === 0
+            ? 'bg-nkz-warning-light border-yellow-200'
+            : 'bg-nkz-bg-secondary border-nkz-border'
+        }`}>
+          <p className="text-sm font-medium text-gray-700">
+            {usage.limit === null
+              ? t('settings.copernicus.usageUnlimited', { used: usage.used })
+              : t('settings.copernicus.usage', { used: usage.used, limit: usage.limit })}
+          </p>
+          {usage.limit !== null && usage.remaining === 0 && (
+            <p className="text-xs text-nkz-warning mt-0.5">
+              {t('settings.copernicus.usageLimitReached')}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Error / Success */}
       {error && (

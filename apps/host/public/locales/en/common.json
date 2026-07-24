@@ -1116,7 +1116,10 @@
         "delete": "Error deleting credentials",
         "client_id_required": "Client ID is required",
         "secret_required": "Client Secret is required for new credentials"
-      }
+      },
+      "usage": "Satellite computations this month: {{used}} / {{limit}}",
+      "usageUnlimited": "Satellite computations this month: {{used}} / ∞",
+      "usageLimitReached": "Monthly satellite computation limit reached. Contact your administrator to increase your quota."
     },
     "platformCredentials": {
       "copernicus": {

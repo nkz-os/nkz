@@ -1176,7 +1176,10 @@
         "delete": "Error al eliminar credenciales",
         "client_id_required": "Client ID es obligatorio",
         "secret_required": "Client Secret es obligatorio para nuevas credenciales"
-      }
+      },
+      "usage": "Cómputos satelitales este mes: {{used}} / {{limit}}",
+      "usageUnlimited": "Cómputos satelitales este mes: {{used}} / ∞",
+      "usageLimitReached": "Límite mensual de cómputos satelitales alcanzado. Contacta con el administrador para ampliar tu cuota."
     },
     "platformCredentials": {
       "copernicus": {
