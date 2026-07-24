@@ -148,6 +148,7 @@ class TestVegetationConfigHmacForwarding:
         headers = captured["headers"]
         assert headers["Authorization"] == "Bearer tok-abc"
         assert headers["X-Tenant-ID"] == "montiko"
+        assert headers["X-User-ID"] == "user-1"
         assert "X-Auth-Signature" in headers
         assert HMAC_SIG_RE.match(headers["X-Auth-Signature"]), (
             f"X-Auth-Signature not well-formed hex:timestamp: {headers['X-Auth-Signature']!r}"
@@ -168,6 +169,7 @@ class TestVegetationConfigHmacForwarding:
         headers = captured["headers"]
         assert headers["Authorization"] == "Bearer tok-abc"
         assert headers["X-Tenant-ID"] == "montiko"
+        assert headers["X-User-ID"] == "user-1"
         assert HMAC_SIG_RE.match(headers["X-Auth-Signature"])
 
     def test_get_credentials_status_forwards_hmac_and_auth_headers(self, gw, monkeypatch):
@@ -185,6 +187,7 @@ class TestVegetationConfigHmacForwarding:
         headers = captured["headers"]
         assert headers["Authorization"] == "Bearer tok-abc"
         assert headers["X-Tenant-ID"] == "montiko"
+        assert headers["X-User-ID"] == "user-1"
         assert HMAC_SIG_RE.match(headers["X-Auth-Signature"])
 
     def test_delete_config_forwards_hmac_and_auth_headers(self, gw, monkeypatch):
@@ -201,6 +204,7 @@ class TestVegetationConfigHmacForwarding:
         headers = captured["headers"]
         assert headers["Authorization"] == "Bearer tok-abc"
         assert headers["X-Tenant-ID"] == "montiko"
+        assert headers["X-User-ID"] == "user-1"
         assert HMAC_SIG_RE.match(headers["X-Auth-Signature"])
 
     def test_signature_differs_per_tenant(self, gw, monkeypatch):
@@ -244,4 +248,5 @@ class TestVegetationConfigPutBodyPassthrough:
         headers = captured["headers"]
         assert headers["Authorization"] == "Bearer tok-abc"
         assert headers["X-Tenant-ID"] == "montiko"
+        assert headers["X-User-ID"] == "user-1"
         assert HMAC_SIG_RE.match(headers["X-Auth-Signature"])
