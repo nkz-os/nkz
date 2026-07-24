@@ -105,8 +105,8 @@ export const CopernicusCredentials: React.FC = () => {
         setClientId(data.copernicus_client_id);
         setHasExistingSecret(!!data.copernicus_configured);
       }
-    } catch (err: any) {
-      if (err?.response?.status !== 404) {
+    } catch (err: unknown) {
+      if ((err as { response?: { status?: number } })?.response?.status !== 404) {
         setError(t('settings.copernicus.errors.load'));
         logger.error('Error loading Copernicus config:', err);
       }
@@ -119,7 +119,7 @@ export const CopernicusCredentials: React.FC = () => {
     try {
       const response = await api.get('/api/vegetation/config/credentials-status');
       setCredStatus(response.data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.debug('Credential status not available:', err);
     }
   }, []);
@@ -128,7 +128,7 @@ export const CopernicusCredentials: React.FC = () => {
     try {
       const response = await api.get('/api/vegetation/config/usage');
       setUsage(response.data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.debug('Usage info not available:', err);
     }
   }, []);
@@ -171,8 +171,8 @@ export const CopernicusCredentials: React.FC = () => {
       setClientSecret('');
       await loadConfig();
       await loadCredentialStatus();
-    } catch (err: any) {
-      const msg = err?.response?.data?.detail || t('settings.copernicus.errors.save');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || t('settings.copernicus.errors.save');
       setError(msg);
     } finally {
       setSaving(false);
@@ -194,7 +194,7 @@ export const CopernicusCredentials: React.FC = () => {
       setHasExistingSecret(false);
       await loadConfig();
       await loadCredentialStatus();
-    } catch (err: any) {
+    } catch {
       setError(t('settings.copernicus.errors.delete'));
     } finally {
       setDeleting(false);
