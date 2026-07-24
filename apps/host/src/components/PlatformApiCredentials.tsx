@@ -5,6 +5,7 @@
 // These are stored in Kubernetes secrets and synchronized with database
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import api from '@/services/api';
 import { Button, Input } from '@nekazari/ui-kit';
@@ -37,6 +38,7 @@ interface AemetCredentials {
 }
 
 export const PlatformApiCredentials: React.FC = () => {
+  const { t } = useTranslation('common');
   const { user, getToken } = useAuth();
   const [copernicus, setCopernicus] = useState<CopernicusCredentials>({
     username: '',
@@ -268,7 +270,7 @@ export const PlatformApiCredentials: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Client ID (Usuario) *
+                {t('settings.platformCredentials.copernicus.clientId', 'OAuth Client ID')} *
               </label>
               <Input
                 type="text"
@@ -282,7 +284,7 @@ export const PlatformApiCredentials: React.FC = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Client Secret (Contraseña) *
+                {t('settings.platformCredentials.copernicus.clientSecret', 'OAuth Client Secret')} *
               </label>
               <div className="relative">
                 <Input

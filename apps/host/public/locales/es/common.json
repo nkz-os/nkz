@@ -1178,6 +1178,12 @@
         "secret_required": "Client Secret es obligatorio para nuevas credenciales"
       }
     },
+    "platformCredentials": {
+      "copernicus": {
+        "clientId": "OAuth Client ID",
+        "clientSecret": "OAuth Client Secret"
+      }
+    },
     "risk_webhooks": {
       "title": "Webhooks de Riesgo",
       "subtitle": "Configura endpoints para recibir notificaciones de alertas de riesgo.",
