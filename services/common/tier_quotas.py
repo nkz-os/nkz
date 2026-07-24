@@ -24,6 +24,7 @@ TIER_QUOTAS: Dict[str, Dict[str, Any]] = {
         "max_parcels": 0,
         "max_area_hectares": Decimal("0.20"),
         "max_entities_total": 2,
+        "max_satellite_computations": 0,
     },
     "pro": {
         "max_users": 5,
@@ -32,6 +33,7 @@ TIER_QUOTAS: Dict[str, Dict[str, Any]] = {
         "max_parcels": 5,
         "max_area_hectares": Decimal("50.00"),
         "max_entities_total": None,
+        "max_satellite_computations": 100,
     },
     "premium": {
         "max_users": 10,
@@ -40,6 +42,7 @@ TIER_QUOTAS: Dict[str, Dict[str, Any]] = {
         "max_parcels": 20,
         "max_area_hectares": Decimal("500.00"),
         "max_entities_total": None,
+        "max_satellite_computations": 500,
     },
     "enterprise": {
         "max_users": None,
@@ -48,6 +51,7 @@ TIER_QUOTAS: Dict[str, Dict[str, Any]] = {
         "max_parcels": None,
         "max_area_hectares": None,
         "max_entities_total": None,
+        "max_satellite_computations": None,
     },
 }
 
@@ -87,6 +91,7 @@ def limits_columns_for_tier(tier: str) -> Dict[str, Any]:
         "max_area_hectares": float(area) if area is not None else None,
         "max_parcels": q["max_parcels"],
         "max_entities_total": q["max_entities_total"],
+        "max_satellite_computations": q["max_satellite_computations"],
     }
 
 
@@ -100,4 +105,5 @@ def limits_camel_for_tier(tier: str) -> Dict[str, Any]:
         "maxAreaHectares": defaults["max_area_hectares"],
         "maxParcels": defaults["max_parcels"],
         "maxEntitiesTotal": defaults["max_entities_total"],
+        "maxSatelliteComputations": defaults["max_satellite_computations"],
     }
