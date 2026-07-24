@@ -4333,6 +4333,33 @@ def vegetation_tiles_proxy(path):
         return jsonify({"error": "Gateway proxy error"}), 502
 
 
+@app.route("/api/vegetation/config", methods=["GET", "PUT", "DELETE"])
+def vegetation_config_proxy():
+    """Proxy BYOK Copernicus config CRUD to the vegetation-prime backend.
+
+    Auth + HMAC forwarding via `_proxy_authenticated_request` (same helper
+    used by intelligence_proxy/bioorchestrator_proxy/risk_proxy and
+    auto_proxy_module) — Authorization, X-Tenant-ID, X-User-ID and
+    X-Auth-Signature are all forwarded; vegetation's require_auth needs
+    X-User-ID in addition to X-Tenant-ID.
+    """
+    return _proxy_authenticated_request(f"{VEGETATION_API_URL}/api/vegetation/config")
+
+
+@app.route("/api/vegetation/config/credentials-status", methods=["GET"])
+def vegetation_config_credentials_status_proxy():
+    """Proxy Copernicus credentials-status check to the vegetation-prime backend."""
+    return _proxy_authenticated_request(
+        f"{VEGETATION_API_URL}/api/vegetation/config/credentials-status"
+    )
+
+
+@app.route("/api/vegetation/config/usage", methods=["GET"])
+def vegetation_config_usage_proxy():
+    """Proxy BYOK satellite-computation usage/quota to the vegetation-prime backend."""
+    return _proxy_authenticated_request(f"{VEGETATION_API_URL}/api/vegetation/config/usage")
+
+
 @app.route(
     "/api/intelligence/<path:path>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
