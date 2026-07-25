@@ -407,6 +407,21 @@ class MeteoAlertsEngine:
                     f"UPSERT batch: {len(entities)} entities → Orion-LD OK"
                 )
                 return True
+            elif resp.status_code == 207:
+                # Orion-LD returns 207 Multi-Status for entityOperations/upsert
+                # even on full success; the body carries success/errors arrays.
+                body = resp.json() if resp.content else {}
+                errors = body.get("errors", []) if isinstance(body, dict) else []
+                if errors:
+                    logger.error(
+                        f"UPSERT batch partial failure: {len(errors)} of "
+                        f"{len(entities)} entities failed — {str(errors[:2])[:400]}"
+                    )
+                    return False
+                logger.debug(
+                    f"UPSERT batch: {len(entities)} entities → Orion-LD OK (207)"
+                )
+                return True
             else:
                 logger.error(
                     f"UPSERT batch failed: HTTP {resp.status_code} — "
