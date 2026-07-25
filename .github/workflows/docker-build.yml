@@ -80,6 +80,9 @@ jobs:
           - service: timeseries-reader
             context: .
             dockerfile: services/timeseries-reader/Dockerfile
+          - service: sensor-health-beat
+            context: .
+            dockerfile: services/sensor-health-beat/Dockerfile
 
           # Integrations
           - service: sdm-integration
