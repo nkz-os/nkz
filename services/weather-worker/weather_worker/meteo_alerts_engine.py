@@ -324,14 +324,15 @@ class MeteoAlertsEngine:
             "category": {"type": "Property", "value": ["meteorological"]},
             "subCategory": {"type": "Property", "value": [subcategory]},
             "severity": {"type": "Property", "value": severity},
-            "validFrom": {
-                "type": "Property",
-                "value": {"@type": "DateTime", "@value": valid_from},
-            },
-            "validTo": {
-                "type": "Property",
-                "value": {"@type": "DateTime", "@value": valid_to},
-            },
+            # Temporal values are stored as plain ISO8601 strings, NOT the
+            # JSON-LD typed form {"@type":"DateTime","@value":...}. Orion-LD
+            # stores the typed form as a compound object its `q` relational
+            # operators cannot compare into, so validTo</> matched nothing —
+            # breaking the active-alert query and expired-alert prune
+            # (incident 2026-07-25). ISO8601 sorts lexicographically, so a
+            # String value makes q=validTo</> work server-side.
+            "validFrom": {"type": "Property", "value": valid_from},
+            "validTo": {"type": "Property", "value": valid_to},
             "description": {
                 "type": "Property",
                 "value": event,
