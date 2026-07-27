@@ -4,18 +4,27 @@ import os
 import sys
 from unittest.mock import MagicMock
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# risk-worker dir (risk_models) + services dir (real `common`, needed by the
+# factory's import of water_stress_model → common.ngsi_headers).
+_RISK_WORKER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_SERVICES = os.path.dirname(_RISK_WORKER)
+for _p in (_RISK_WORKER, _SERVICES):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-# The factory imports all models in one try-block; water_stress_model imports
-# common.ngsi_headers, absent in the test env. Stub it so the factory dispatch
-# test can import every sibling (pattern used across nkz worker tests).
-sys.modules.setdefault("common", MagicMock())
-sys.modules.setdefault("common.ngsi_headers", MagicMock())
 
-from risk_models.weather_alert_model import WeatherAlertRiskModel
+def _unpoison_risk_models():
+    """Drop any MagicMock risk_models entry a sibling test left in sys.modules
+    so the real package (re)loads from disk."""
+    for _m in [m for m in list(sys.modules) if m == "risk_models" or m.startswith("risk_models.")]:
+        if isinstance(sys.modules[_m], MagicMock):
+            del sys.modules[_m]
 
 
 def _model(config=None):
+    _unpoison_risk_models()
+    from risk_models.weather_alert_model import WeatherAlertRiskModel
+
     return WeatherAlertRiskModel("weather_alert", config or {})
 
 
@@ -78,6 +87,7 @@ def test_config_overrides_severity_score():
 
 
 def test_factory_dispatches_weather_alert():
+    _unpoison_risk_models()
     from risk_models.factory import RiskModelFactory
 
     m = RiskModelFactory.create_model("weather_alert", "agronomic", {}, "weather_alert")
