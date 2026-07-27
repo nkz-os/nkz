@@ -78,6 +78,7 @@ def _ensure_tenant_subscriptions(tenant_id: str):
         response = requests.get(
             f"{ORION_URL}/ngsi-ld/v1/subscriptions",
             headers=headers,
+            timeout=30,
         )
         response.raise_for_status()
         existing_subs = response.json() if isinstance(response.json(), list) else []
@@ -100,6 +101,7 @@ def _ensure_tenant_subscriptions(tenant_id: str):
                     f"{ORION_URL}/ngsi-ld/v1/subscriptions",
                     json=sub_def,
                     headers=headers,
+                    timeout=30,
                 )
                 if res.status_code in [200, 201]:
                     logger.info(
