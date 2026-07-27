@@ -21,6 +21,7 @@ from xml.etree import ElementTree as ET
 import requests
 
 from common.ngsi_headers import inject_fiware_headers
+from weather_worker.emma_zones import EmmaZoneIndex
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,10 @@ ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
 
 # MeteoAlarm legacy Atom feed base URL
 METEOALARM_FEED_BASE = "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom"
+
+# EMMA awareness-zone geometry source (bundled GeoJSON path or URL). Empty → no
+# geometry attached (alerts stored without `location`). See emma_zones.py.
+EMMA_ZONE_SOURCE = os.getenv("EMMA_ZONE_SOURCE", "")
 
 # EU+EEA countries with MeteoAlarm coverage (verified 2026-06-05)
 _EU_COUNTRIES: List[str] = [
@@ -106,10 +111,12 @@ class MeteoAlertsEngine:
         self,
         orion_url: str = "",
         interval_hours: int = 1,
+        emma_source: str = "",
     ):
         self.orion_url = orion_url or ORION_URL
         self.interval_hours = interval_hours
         self._session = requests.Session()
+        self._zones = EmmaZoneIndex(emma_source or EMMA_ZONE_SOURCE)
 
     # ------------------------------------------------------------------
     # Public API
@@ -350,6 +357,12 @@ class MeteoAlertsEngine:
                 "value": emma_id,
             },
         }
+
+        # Attach zone geometry as a location GeoProperty so alerts can be matched
+        # spatially against parcels. Absent zone → no location (non-fatal).
+        geometry = self._zones.geometry_for(emma_id)
+        if geometry:
+            entity["location"] = {"type": "GeoProperty", "value": geometry}
 
         # Include optional CAP metadata
         if alert.get("certainty"):
