@@ -34,9 +34,12 @@ ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
 # MeteoAlarm legacy Atom feed base URL
 METEOALARM_FEED_BASE = "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom"
 
-# EMMA awareness-zone geometry source (bundled GeoJSON path or URL). Empty → no
-# geometry attached (alerts stored without `location`). See emma_zones.py.
+# EMMA awareness-zone geometry source: a bundled GeoJSON path OR the MeteoAlarm
+# Metadata API URL. Empty → no geometry attached (alerts stored without
+# `location`). METEOALARM_API_KEY (K8s SealedSecret) authenticates the URL fetch;
+# never hardcode it. See emma_zones.py / 2026-07-27-emma-zone-source.md.
 EMMA_ZONE_SOURCE = os.getenv("EMMA_ZONE_SOURCE", "")
+METEOALARM_API_KEY = os.getenv("METEOALARM_API_KEY", "")
 
 # EU+EEA countries with MeteoAlarm coverage (verified 2026-06-05)
 _EU_COUNTRIES: List[str] = [
@@ -112,11 +115,15 @@ class MeteoAlertsEngine:
         orion_url: str = "",
         interval_hours: int = 1,
         emma_source: str = "",
+        emma_api_key: str = "",
     ):
         self.orion_url = orion_url or ORION_URL
         self.interval_hours = interval_hours
         self._session = requests.Session()
-        self._zones = EmmaZoneIndex(emma_source or EMMA_ZONE_SOURCE)
+        self._zones = EmmaZoneIndex(
+            emma_source or EMMA_ZONE_SOURCE,
+            api_key=emma_api_key or METEOALARM_API_KEY,
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -136,6 +143,9 @@ class MeteoAlertsEngine:
         }
 
         try:
+            # 0. Refresh EMMA zone geometry if the daily interval elapsed (URL source)
+            self._zones.maybe_refresh()
+
             # 1. Fetch alerts from all MeteoAlarm country feeds
             raw_alerts = self._fetch_all_alerts()
             stats["alerts_fetched"] = len(raw_alerts)

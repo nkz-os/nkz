@@ -25,62 +25,15 @@ import sys
 
 import requests
 
+# Reuse the runtime normalisation so the bundled file matches what EmmaZoneIndex
+# expects (single source of truth for the zone contract).
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from weather_worker.emma_zones import normalize_zone_payload  # noqa: E402
+
 DEFAULT_URL = os.getenv(
     "METEOALARM_REGIONS_URL",
     "https://api.meteoalarm.org/metadata/v1/regions",
 )
-_ID_KEYS = ("emma_id", "code", "EMMA_ID", "id")
-
-
-def _emma_id(props: dict):
-    return next((str(props[k]) for k in _ID_KEYS if props.get(k)), None)
-
-
-def _to_feature_collection(payload) -> dict:
-    """Normalise the API payload into a FeatureCollection keyed by emma_id."""
-    # Case 1: already a FeatureCollection.
-    if isinstance(payload, dict) and payload.get("type") == "FeatureCollection":
-        feats = []
-        for f in payload.get("features", []):
-            props = f.get("properties") or {}
-            zid = _emma_id(props)
-            geom = f.get("geometry")
-            if zid and isinstance(geom, dict) and geom.get("type") in (
-                "Polygon",
-                "MultiPolygon",
-            ):
-                feats.append({
-                    "type": "Feature",
-                    "properties": {"emma_id": zid, "name": props.get("name", "")},
-                    "geometry": geom,
-                })
-        if feats:
-            return {"type": "FeatureCollection", "features": feats}
-
-    # Case 2: a list of region objects each carrying a geometry.
-    regions = payload if isinstance(payload, list) else (
-        payload.get("regions") if isinstance(payload, dict) else None
-    )
-    if isinstance(regions, list):
-        feats = []
-        for r in regions:
-            if not isinstance(r, dict):
-                continue
-            zid = _emma_id(r)
-            geom = r.get("geometry") or r.get("geom")
-            if zid and isinstance(geom, dict) and geom.get("type") in (
-                "Polygon",
-                "MultiPolygon",
-            ):
-                feats.append({
-                    "type": "Feature",
-                    "properties": {"emma_id": zid, "name": r.get("name", "")},
-                    "geometry": geom,
-                })
-        if feats:
-            return {"type": "FeatureCollection", "features": feats}
-
-    raise ValueError("Could not locate zone geometries in the API response")
 
 
 def main() -> int:
@@ -103,7 +56,7 @@ def main() -> int:
     payload = resp.json()
 
     try:
-        fc = _to_feature_collection(payload)
+        fc = normalize_zone_payload(payload)
     except ValueError as e:
         raw = args.out + ".raw.json"
         os.makedirs(os.path.dirname(raw) or ".", exist_ok=True)
