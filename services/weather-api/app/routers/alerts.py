@@ -12,11 +12,12 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import requests
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 from fastapi.responses import JSONResponse
 
 from app.auth import require_auth
 from app.config import settings
+from app.geo import active_alert_filter, parcel_centroid
 from common.api_errors import fastapi_internal_error
 from common.ngsi_headers import inject_fiware_headers
 
@@ -124,3 +125,71 @@ def get_weather_alerts(
 
     except Exception as e:
         fastapi_internal_error(e, "weather_alerts", user_message="Failed to query alerts")
+
+
+@router.get("/parcel/{parcel_id}/alerts")
+def get_parcel_alerts(
+    parcel_id: str = Path(...),
+    tenant_id: str = Depends(require_auth),
+):
+    """Active WeatherAlerts (validTo>now) whose zone geometry contains the parcel.
+
+    Parcel geometry is read from the caller's tenant store; alerts are geo-queried
+    in tenant 'default' (georel=intersects, Point = parcel centroid).
+    """
+    try:
+        # 1. Fetch the parcel from the caller's tenant store to get its geometry.
+        p_headers = _orion_headers(tenant_id)
+        p_resp = requests.get(
+            f"{settings.orion_url}/ngsi-ld/v1/entities/{parcel_id}",
+            params={"options": "keyValues"},
+            headers=p_headers,
+            timeout=10,
+        )
+        if p_resp.status_code != 200:
+            return {"alerts": [], "count": 0, "source": "orion-ld"}
+
+        centroid = parcel_centroid(p_resp.json())
+        if not centroid:
+            return {"alerts": [], "count": 0, "source": "orion-ld"}
+        lon, lat = centroid
+
+        # 2. Geo-query active alerts in tenant 'default'.
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        a_headers = _orion_headers("default")
+        a_resp = requests.get(
+            f"{settings.orion_url}/ngsi-ld/v1/entities",
+            params={
+                "type": "WeatherAlert",
+                "georel": "intersects",
+                "geometry": "Point",
+                "coordinates": f"[{lon},{lat}]",
+                "geoproperty": "location",
+                "q": active_alert_filter(now_iso),
+                "options": "keyValues",
+                "limit": 100,
+            },
+            headers=a_headers,
+            timeout=10,
+        )
+        if a_resp.status_code != 200:
+            logger.warning(
+                "parcel-alerts geo-query %s: %s",
+                a_resp.status_code,
+                a_resp.text[:200],
+            )
+            return {"alerts": [], "count": 0, "source": "orion-ld"}
+
+        raw = a_resp.json()
+        if isinstance(raw, dict):
+            alerts = [raw]
+        elif isinstance(raw, list):
+            alerts = raw
+        else:
+            alerts = []
+        return {"alerts": alerts, "count": len(alerts), "source": "orion-ld"}
+
+    except Exception as e:
+        fastapi_internal_error(
+            e, "parcel_alerts", user_message="Failed to query parcel alerts"
+        )

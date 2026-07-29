@@ -64,6 +64,7 @@ CONTEXT_URL = os.getenv(
     "CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json"
 )
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis-service:6379")
+WEATHER_API_URL = os.getenv("WEATHER_API_URL", "http://weather-api-service:8000")
 
 
 def _make_headers(tenant_id: str) -> dict:
@@ -416,6 +417,32 @@ class RiskProcessor:
             logger.error(f"Failed to get telemetry data: {e}")
             return None
 
+    def _get_weather_alerts_for_parcel(
+        self, tenant_id: str, parcel_id: str
+    ) -> List[Dict[str, Any]]:
+        """Active WeatherAlerts covering a parcel, via weather-api.
+
+        weather-api require_auth reads X-Tenant-ID (no HMAC); X-User-ID is added
+        defensively (internal-call 401 lesson). Errors → [] (non-fatal).
+        """
+        try:
+            resp = requests.get(
+                f"{WEATHER_API_URL}/api/weather/parcel/{parcel_id}/alerts",
+                headers={"X-Tenant-ID": tenant_id, "X-User-ID": "risk-worker"},
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                return resp.json().get("alerts", []) or []
+            logger.warning(
+                "weather-alerts fetch %s for %s: %s",
+                resp.status_code,
+                parcel_id,
+                resp.text[:200],
+            )
+        except Exception as e:
+            logger.debug("weather-alerts fetch failed for %s: %s", parcel_id, e)
+        return []
+
     def _prepare_data_sources(
         self, tenant_id: str, risk: Dict[str, Any], entity: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -493,6 +520,14 @@ class RiskProcessor:
                         if alt_telemetry:
                             data_sources["telemetry"] = alt_telemetry[0]
                             break
+
+        # Covering weather alerts (for the weather_alert model)
+        if "weather_alerts" in required_sources:
+            entity_id = entity.get("id")
+            if entity_id:
+                data_sources["weather_alerts"] = self._get_weather_alerts_for_parcel(
+                    tenant_id, entity_id
+                )
 
         return data_sources
 

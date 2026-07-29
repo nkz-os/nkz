@@ -34,6 +34,35 @@ def _alert():
     }
 
 
+_FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "emma_zones_sample.geojson")
+
+
+def test_build_attaches_location_for_known_zone():
+    eng = mae.MeteoAlertsEngine(orion_url="http://orion.test:1026", emma_source=_FIXTURE)
+    alert = _alert()
+    alert["emma_id"] = "ES190"
+    entity = eng._build_single_entity(alert)
+
+    assert entity["location"]["type"] == "GeoProperty"
+    assert entity["location"]["value"]["type"] in ("Polygon", "MultiPolygon")
+    assert isinstance(entity["location"]["value"]["coordinates"], list)
+
+
+def test_build_omits_location_for_unknown_zone():
+    eng = mae.MeteoAlertsEngine(orion_url="http://orion.test:1026", emma_source=_FIXTURE)
+    alert = _alert()
+    alert["emma_id"] = "ZZ999"
+    entity = eng._build_single_entity(alert)
+
+    assert "location" not in entity
+
+
+def test_build_omits_location_when_no_zone_source():
+    entity = _engine()._build_single_entity(_alert())
+
+    assert "location" not in entity
+
+
 def test_validto_stored_as_plain_iso_string_for_orion_q():
     entity = _engine()._build_single_entity(_alert())
 
