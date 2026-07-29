@@ -11,6 +11,7 @@ They live in tenant 'default'.
 No API key required — MeteoAlarm legacy Atom feeds are public.
 """
 
+import json
 import logging
 import os
 import time
@@ -95,6 +96,38 @@ def _normalize_event(event: str) -> str:
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated)."""
     return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
+
+
+# Orion-LD rejects request bodies over its `-inReqPayloadMaxSize` (compiled
+# default 1 MB) with `400 BadRequestData {"title":"payload missing"}`. The
+# EU-wide alert batch grew past 1 MB (~1600 alerts), silently stopping all
+# WeatherAlert writes (incident 2026-07-25 / root-caused 2026-07-29); location
+# GeoProperties inflate it further. Chunk each POST to stay well under the limit.
+_MAX_UPSERT_BYTES = 800_000
+
+
+def _chunk_by_size(entities: List[Dict[str, Any]], max_bytes: int) -> List[List[Dict[str, Any]]]:
+    """Split entities into chunks whose JSON body stays under max_bytes.
+
+    Chunks by cumulative serialized size (robust to variable entity size, e.g.
+    alerts with vs without a location polygon). A lone entity larger than
+    max_bytes is emitted by itself — best effort so one oversized entity can't
+    stall the rest of the batch.
+    """
+    chunks: List[List[Dict[str, Any]]] = []
+    current: List[Dict[str, Any]] = []
+    current_bytes = 2  # the enclosing "[]"
+    for entity in entities:
+        entity_bytes = len(json.dumps(entity).encode()) + 1  # +1 for the joining comma
+        if current and current_bytes + entity_bytes > max_bytes:
+            chunks.append(current)
+            current = []
+            current_bytes = 2
+        current.append(entity)
+        current_bytes += entity_bytes
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 # ---------------------------------------------------------------------------
@@ -407,6 +440,23 @@ class MeteoAlertsEngine:
 
     def _upsert_batch(self, tenant_id: str, entities: List[Dict[str, Any]]) -> bool:
         """Batch UPSERT WeatherAlert entities into Orion-LD.
+
+        Splits the batch into chunks under Orion-LD's request payload limit
+        (see `_MAX_UPSERT_BYTES`) and POSTs each. Attempts every chunk even if
+        one fails (so as much data as possible lands); returns True only if all
+        chunks succeeded.
+        """
+        if not entities:
+            return True
+
+        all_ok = True
+        for chunk in _chunk_by_size(entities, _MAX_UPSERT_BYTES):
+            if not self._post_upsert_chunk(tenant_id, chunk):
+                all_ok = False
+        return all_ok
+
+    def _post_upsert_chunk(self, tenant_id: str, entities: List[Dict[str, Any]]) -> bool:
+        """POST a single upsert chunk to Orion-LD.
 
         Uses POST /ngsi-ld/v1/entityOperations/upsert?options=update.
         Content-Type: application/json + Link header (no @context per entity).
