@@ -119,6 +119,20 @@ def test_build_attaches_location_when_geometry_provided():
     assert entity["location"]["value"]["type"] == "Polygon"
 
 
+def test_build_strips_crs_from_geometry():
+    """MeteoAlarm geo+json carries geometry.crs; Orion-LD rejects non-standard
+    GeoProperty members (400 BadRequestData "Unexpected Field in value of
+    GeoProperty"), so the built location must keep only {type, coordinates}."""
+    geom = _polygon()
+    geom["crs"] = {"type": "name", "properties": {"name": "EPSG:4326"}}
+    entity = _engine()._build_single_entity(_CAP, _FEATURE, geom)
+    assert entity is not None
+    loc = entity["location"]["value"]
+    assert set(loc.keys()) == {"type", "coordinates"}
+    assert "crs" not in loc
+    assert loc["type"] == "Polygon"
+
+
 def test_build_omits_location_when_geometry_is_none():
     entity = _engine()._build_single_entity(_CAP, _FEATURE, geometry=None)
     assert entity is not None

@@ -325,7 +325,17 @@ class MeteoAlertsEngine:
         # Attach the exact awareness-zone polygon so parcel-alert geo-queries
         # (georel=intersects + geoproperty=location) work.
         if geometry and isinstance(geometry, dict) and geometry.get("type") in ("Polygon", "MultiPolygon"):
-            entity["location"] = {"type": "GeoProperty", "value": geometry}
+            # Orion-LD rejects non-standard GeoJSON members on a GeoProperty
+            # (MeteoAlarm's geo+json carries `crs` → 400 BadRequestData
+            # "Unexpected Field in value of GeoProperty"). Keep only canonical
+            # {type, coordinates}.
+            entity["location"] = {
+                "type": "GeoProperty",
+                "value": {
+                    "type": geometry["type"],
+                    "coordinates": geometry.get("coordinates", []),
+                },
+            }
 
         # Optional CAP metadata
         certainty = info.get("certainty")
