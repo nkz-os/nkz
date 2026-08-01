@@ -1,14 +1,14 @@
 """
-MeteoAlertsEngine — EU-wide weather alerts via MeteoAlarm (EUMETNET).
+MeteoAlertsEngine — EU-wide weather alerts via MeteoAlarm EDR API.
 
-Replaces the Spain-only AemetAlertsEngine. Fetches CAP alerts from
-MeteoAlarm Atom feeds for all EU+EEA countries, parses them, and
-persists as WeatherAlert entities in Orion-LD via batch UPSERT.
+Fetches active warnings from the MeteoAlarm EDR /warnings/locations/ALL
+endpoint, resolves per-warning CAP-JSON attributes and GeoJSON geometry,
+and persists as WeatherAlert entities in Orion-LD via batch UPSERT.
 
-Alerts are geographic (CAP standard, EMMA_ID zones), cross-tenant.
-They live in tenant 'default'.
+Supersedes the legacy Atom-feed + EMMA-zone approach (now removed).
+Alerts carry an exact location polygon so parcel↔alert geo-queries work.
 
-No API key required — MeteoAlarm legacy Atom feeds are public.
+Alerts are geographic, cross-tenant. They live in tenant 'default'.
 """
 
 import json
@@ -17,12 +17,11 @@ import os
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from xml.etree import ElementTree as ET
 
 import requests
 
 from common.ngsi_headers import inject_fiware_headers
-from weather_worker.emma_zones import EmmaZoneIndex
+from weather_worker.edr_client import EdrWarningsClient
 
 logger = logging.getLogger(__name__)
 
@@ -32,28 +31,16 @@ logger = logging.getLogger(__name__)
 
 ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
 
-# MeteoAlarm legacy Atom feed base URL
-METEOALARM_FEED_BASE = "https://feeds.meteoalarm.org/feeds/meteoalarm-legacy-atom"
-
-# EMMA awareness-zone geometry source: a bundled GeoJSON path OR the MeteoAlarm
-# Metadata API URL. Empty → no geometry attached (alerts stored without
-# `location`). METEOALARM_API_KEY (K8s SealedSecret) authenticates the URL fetch;
-# never hardcode it. See emma_zones.py / 2026-07-27-emma-zone-source.md.
-EMMA_ZONE_SOURCE = os.getenv("EMMA_ZONE_SOURCE", "")
+# MeteoAlarm API key (Bearer token for the EDR API).
+# Provided via K8s Secret weather-secrets key 'meteoalarm-api-key'.
 METEOALARM_API_KEY = os.getenv("METEOALARM_API_KEY", "")
 
-# EU+EEA countries with MeteoAlarm coverage (verified 2026-06-05)
-_EU_COUNTRIES: List[str] = [
-    "austria", "belgium", "bulgaria", "croatia", "cyprus", "czechia",
-    "denmark", "estonia", "finland", "france", "germany", "greece",
-    "hungary", "iceland", "ireland", "italy", "latvia", "lithuania",
-    "luxembourg", "malta", "netherlands", "norway", "poland", "portugal",
-    "romania", "slovakia", "slovenia", "spain", "sweden", "switzerland",
-    "united-kingdom",
-]
+# EDR API defaults (overridable via env).
+EDR_BASE_URL = os.getenv("EDR_BASE_URL", "https://api.meteoalarm.org/edr/v1")
+EDR_SENT_WINDOW_HOURS = int(os.getenv("EDR_SENT_WINDOW_HOURS", "23"))
+EDR_ACTIVE_WINDOW_HOURS = int(os.getenv("EDR_ACTIVE_WINDOW_HOURS", "6"))
 
-# CAP severity → WeatherAlert SDM severity mapping
-# MeteoAlarm uses: Minor, Moderate, Severe, Extreme
+# CAP severity → WeatherAlert SDM severity mapping (unchanged from legacy).
 _CAP_SEVERITY_MAP: Dict[str, str] = {
     "MINOR": "minor",
     "MODERATE": "moderate",
@@ -61,21 +48,21 @@ _CAP_SEVERITY_MAP: Dict[str, str] = {
     "EXTREME": "critical",
 }
 
-# CAP event → WeatherAlert subCategory mapping
+# CAP event → WeatherAlert subCategory mapping (unchanged from legacy).
 _CAP_EVENT_MAP: Dict[str, str] = {
+    "THUNDERSTORM": "thunderstorm",
+    "AVALANCHE": "avalanche",
+    "COASTAL": "coastalEvent",
+    "WILDFIRE": "wildfire",
+    "FROST": "frost",
+    "FLOOD": "flood",
+    "HEAT": "heat",
+    "COLD": "cold",
     "WIND": "wind",
     "RAIN": "rain",
     "SNOW": "snow",
-    "THUNDERSTORM": "thunderstorm",
-    "FOG": "fog",
-    "HEAT": "heat",
-    "COLD": "cold",
-    "FROST": "frost",
     "ICE": "ice",
-    "FLOOD": "flood",
-    "COASTAL": "coastalEvent",
-    "AVALANCHE": "avalanche",
-    "WILDFIRE": "wildfire",
+    "FOG": "fog",
 }
 
 
@@ -85,8 +72,25 @@ def _normalize_event(event: str) -> str:
     for key, value in _CAP_EVENT_MAP.items():
         if key in upper:
             return value
-    # Fallback: lowercase the first word
     return event.split()[0].lower() if event else "unknown"
+
+
+def _extract_emma_id(geocode: Any) -> str:
+    """Return the EMMA_ID string from a CAP-JSON area ``geocode`` field.
+
+    EDR detail ``geocode`` is a list of ``{"value", "valueName"}`` objects;
+    legacy Atom exposed a bare string. Return the entry whose ``valueName``
+    is ``EMMA_ID``; fall back to the first entry's value, then "".
+    """
+    if isinstance(geocode, str):
+        return geocode
+    if isinstance(geocode, list):
+        for gc in geocode:
+            if isinstance(gc, dict) and gc.get("valueName") == "EMMA_ID":
+                return str(gc.get("value", ""))
+        if geocode and isinstance(geocode[0], dict):
+            return str(geocode[0].get("value", ""))
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -136,37 +140,46 @@ def _chunk_by_size(entities: List[Dict[str, Any]], max_bytes: int) -> List[List[
 
 
 class MeteoAlertsEngine:
-    """Downloads EU-wide weather alerts from MeteoAlarm, persists as WeatherAlert
-    entities in Orion-LD.
+    """Downloads EU-wide weather alerts from MeteoAlarm EDR API, persists as
+    WeatherAlert entities in Orion-LD.
 
-    Runs on its own thread in main.py. No API key, no catalog_municipalities,
-    no AEMET dependency. Pure coordinates + CAP standard.
+    Runs on its own thread in main.py. Uses the EDR REST API
+    (/collections/warnings/locations/ALL) for index paging and resolves
+    per-warning detail payloads (CAP-JSON attributes + GeoJSON geometry).
     """
 
     def __init__(
         self,
         orion_url: str = "",
         interval_hours: int = 1,
-        emma_source: str = "",
-        emma_api_key: str = "",
+        edr_base_url: str = "",
+        edr_api_key: str = "",
+        edr_sent_window_hours: int = 23,
+        edr_active_window_hours: int = 6,
     ):
         self.orion_url = orion_url or ORION_URL
         self.interval_hours = interval_hours
         self._session = requests.Session()
-        self._zones = EmmaZoneIndex(
-            emma_source or EMMA_ZONE_SOURCE,
-            api_key=emma_api_key or METEOALARM_API_KEY,
+
+        self._client = EdrWarningsClient(
+            base_url=edr_base_url or EDR_BASE_URL,
+            api_key=edr_api_key or METEOALARM_API_KEY,
+            sent_window_hours=edr_sent_window_hours or EDR_SENT_WINDOW_HOURS,
+            active_window_hours=edr_active_window_hours or EDR_ACTIVE_WINDOW_HOURS,
+            session=self._session,
         )
+        self._seen: set = set()  # set[alertId] — in-memory dedup
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
     def run_once(self) -> Dict[str, int]:
-        """Execute one complete pass: fetch → parse → build → upsert.
+        """Execute one complete pass: fetch → build → upsert.
 
-        Returns:
-            Dict with counts: {'alerts_fetched': N, 'entities_upserted': N, 'errors': N}
+        Pages through EDR index features, resolves detail for new (unseen,
+        non-superseded) alerts, builds WeatherAlert entities, and upserts
+        in tenant 'default' under Orion-LD's request payload limit.
         """
         stats: Dict[str, int] = {
             "alerts_fetched": 0,
@@ -176,198 +189,106 @@ class MeteoAlertsEngine:
         }
 
         try:
-            # 0. Refresh EMMA zone geometry if the daily interval elapsed (URL source)
-            self._zones.maybe_refresh()
+            entities: List[Dict[str, Any]] = []
 
-            # 1. Fetch alerts from all MeteoAlarm country feeds
-            raw_alerts = self._fetch_all_alerts()
-            stats["alerts_fetched"] = len(raw_alerts)
+            for feature in self._client.iter_index():
+                props = feature.get("properties", {})
+                if props.get("supersededByAlertId"):
+                    continue  # superseded alerts are stale — skip
+                aid = props.get("alertId")
+                if not aid or aid in self._seen:
+                    continue
+                stats["alerts_fetched"] += 1
 
-            if raw_alerts:
-                # 2. Build WeatherAlert entities
-                entities = self._build_entities(raw_alerts)
+                cap, geometry = self._client.fetch_detail(feature)
+                if cap is None:
+                    # detail fetch failed → log inside fetch_detail, skip this alert
+                    stats["errors"] += 1
+                    continue
 
-                if entities:
-                    # 3. UPSERT batch into Orion-LD (tenant 'default')
-                    ok = self._upsert_batch("default", entities)
-                    if ok:
-                        stats["entities_upserted"] = len(entities)
-                        logger.info(
-                            f"MeteoAlertsEngine: upserted {len(entities)} WeatherAlert entities"
-                        )
-                    else:
-                        stats["errors"] += 1
+                entity = self._build_single_entity(cap, feature, geometry)
+                if entity:
+                    entities.append(entity)
+                    self._seen.add(aid)
+
+            if entities:
+                ok = self._upsert_batch("default", entities)
+                if ok:
+                    stats["entities_upserted"] = len(entities)
+                    logger.info(
+                        "MeteoAlertsEngine: upserted %d WeatherAlert entities",
+                        len(entities),
+                    )
                 else:
-                    logger.info("MeteoAlertsEngine: no valid entities built")
+                    stats["errors"] += 1
             else:
-                logger.info("MeteoAlertsEngine: no alerts fetched")
+                logger.info("MeteoAlertsEngine: no new entities built")
 
-            # 4. Prune expired alerts (runs every cycle — upsert never removes stale rows)
+            # Prune expired alerts (reaper: upsert never removes stale rows).
             pruned = self._prune_expired_alerts("default")
             stats["entities_pruned"] = pruned
             if pruned:
-                logger.info(f"MeteoAlertsEngine: pruned {pruned} expired WeatherAlert entities")
+                logger.info(
+                    "MeteoAlertsEngine: pruned %d expired WeatherAlert entities",
+                    pruned,
+                )
 
         except Exception as e:
-            logger.error(f"MeteoAlertsEngine run_once failed: {e}", exc_info=True)
+            logger.error("MeteoAlertsEngine run_once failed: %s", e, exc_info=True)
             stats["errors"] += 1
 
         return stats
 
     # ------------------------------------------------------------------
-    # MeteoAlarm data fetching
-    # ------------------------------------------------------------------
-
-    def _fetch_all_alerts(self) -> List[Dict[str, Any]]:
-        """Fetch all active CAP alerts from MeteoAlarm country feeds.
-
-        Iterates over EU+EEA country Atom feeds, parses CAP entries,
-        and deduplicates by CAP identifier.
-        """
-        all_alerts: Dict[str, Dict[str, Any]] = {}
-
-        for country in _EU_COUNTRIES:
-            try:
-                feed_url = f"{METEOALARM_FEED_BASE}-{country}"
-                resp = self._session.get(feed_url, timeout=30)
-                if resp.status_code != 200:
-                    logger.debug(
-                        f"MeteoAlertsEngine: feed {country} returned {resp.status_code}"
-                    )
-                    continue
-
-                country_alerts = self._parse_atom_feed(resp.text)
-
-                # Deduplicate by CAP identifier (same alert may appear in
-                # multiple feeds for border regions)
-                for alert in country_alerts:
-                    aid = alert.get("alert_id")
-                    if aid and aid not in all_alerts:
-                        all_alerts[aid] = alert
-
-            except Exception as e:
-                logger.debug(
-                    f"MeteoAlertsEngine: error fetching feed for {country}: {e}"
-                )
-                continue
-
-        alerts_list = list(all_alerts.values())
-        logger.info(
-            f"MeteoAlertsEngine: fetched {len(alerts_list)} unique alerts "
-            f"across {len(_EU_COUNTRIES)} countries"
-        )
-        return alerts_list
-
-    def _parse_atom_feed(self, xml_text: str) -> List[Dict[str, Any]]:
-        """Parse a MeteoAlarm Atom feed and extract CAP alert entries.
-
-        The Atom feed structure:
-        <feed xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">
-          <entry>
-            <cap:identifier>2.49.0.0.724.0.ES...</cap:identifier>
-            <cap:event>Moderate thunderstorm warning</cap:event>
-            <cap:severity>Moderate</cap:severity>
-            <cap:onset>2026-06-04T18:00:00+00:00</cap:onset>
-            <cap:expires>2026-06-04T21:59:59+00:00</cap:expires>
-            <cap:areaDesc>Prelitoral norte de Tarragona</cap:areaDesc>
-            <cap:geocode>
-              <valueName>EMMA_ID</valueName>
-              <value>ES190</value>
-            </cap:geocode>
-          </entry>
-        </feed>
-        """
-        try:
-            ns = {
-                "atom": "http://www.w3.org/2005/Atom",
-                "cap": "urn:oasis:names:tc:emergency:cap:1.2",
-            }
-            root = ET.fromstring(xml_text)
-
-            alerts: List[Dict[str, Any]] = []
-            for entry in root.findall("atom:entry", ns):
-                identifier = _text(entry, "cap:identifier", ns)
-                if not identifier:
-                    continue
-
-                alert: Dict[str, Any] = {
-                    "alert_id": identifier,
-                    "event": _text(entry, "cap:event", ns),
-                    "severity": _text(entry, "cap:severity", ns),
-                    "onset": _text(entry, "cap:onset", ns),
-                    "expires": _text(entry, "cap:expires", ns),
-                    "area_desc": _text(entry, "cap:areaDesc", ns),
-                    "emma_id": _text(
-                        entry.find("cap:geocode", ns), "cap:value", ns
-                    )
-                    if entry.find("cap:geocode", ns) is not None
-                    else None,
-                    "sent": _text(entry, "cap:sent", ns),
-                    "certainty": _text(entry, "cap:certainty", ns),
-                    "urgency": _text(entry, "cap:urgency", ns),
-                }
-                alerts.append(alert)
-
-            return alerts
-
-        except ET.ParseError as e:
-            logger.error(f"MeteoAlertsEngine: XML parse error: {e}")
-            return []
-        except Exception as e:
-            logger.error(f"MeteoAlertsEngine: error parsing Atom feed: {e}")
-            return []
-
-    # ------------------------------------------------------------------
     # Entity building (SDM WeatherAlert)
     # ------------------------------------------------------------------
 
-    def _build_entities(self, alerts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Build NGSI-LD WeatherAlert entities from MeteoAlarm CAP alerts.
+    def _build_single_entity(
+        self,
+        cap: Dict[str, Any],
+        feature: Dict[str, Any],
+        geometry: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Build a WeatherAlert NGSI-LD entity from EDR detail payloads.
 
-        Each entity follows the FIWARE Smart Data Model for WeatherAlert:
-        https://github.com/smart-data-models/dataModel.Weather/tree/master/WeatherAlert
+        Args:
+            cap: the CAP-JSON detail dict (from the ``application/json`` link).
+            feature: the index feature dict (for alertId, countryCode, etc.).
+            geometry: the GeoJSON Polygon/MultiPolygon from the
+                      ``application/geo+json`` link (already extracted from
+                      its Feature wrapper).  May be None.
         """
-        entities: List[Dict[str, Any]] = []
-
-        for alert in alerts:
-            try:
-                entity = self._build_single_entity(alert)
-                if entity:
-                    entities.append(entity)
-            except Exception as e:
-                logger.warning(
-                    f"MeteoAlertsEngine: error building entity for alert "
-                    f"{alert.get('alert_id')}: {e}"
-                )
-
-        return entities
-
-    def _build_single_entity(self, alert: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Build a single WeatherAlert NGSI-LD entity from a CAP alert."""
-        alert_id = alert.get("alert_id")
+        props = feature.get("properties", {})
+        alert_id = props.get("alertId")
         if not alert_id:
             return None
 
-        # --- Entity ID (deterministic for UPSERT) ---
+        # --- Entity ID (deterministic for UPSERT; UUID from EDR) ---
         entity_id = f"urn:ngsi-ld:WeatherAlert:meteoalarm:{alert_id}"
 
-        # --- Severity mapping ---
-        cap_severity = (alert.get("severity") or "").upper()
+        # --- Select the English-language info block ---
+        info = _select_english_info(cap.get("info", []))
+
+        # --- Severity (CAP string, language-independent) ---
+        cap_severity = (info.get("severity") or "").upper()
         severity = _CAP_SEVERITY_MAP.get(cap_severity, "informational")
 
-        # --- subCategory from CAP event ---
-        event = alert.get("event") or ""
+        # --- subCategory from CAP event (English block → existing map works) ---
+        event = info.get("event") or ""
         subcategory = _normalize_event(event)
 
-        # --- Timestamps ---
-        valid_from = self._parse_datetime(alert.get("onset"))
-        valid_to = self._parse_datetime(alert.get("expires"))
+        # --- Timestamps (plain ISO strings — preserve 2026-07-25 fix) ---
+        #   EDR detail: 'effective' is null; 'onset' is the valid-from time.
+        valid_from = self._parse_datetime(info.get("onset"))
+        valid_to = self._parse_datetime(info.get("expires"))
 
-        # --- Area description ---
-        area_desc = alert.get("area_desc") or ""
-        emma_id = alert.get("emma_id") or ""
+        # --- Area fields ---
+        area = (info.get("area") or [{}])[0]  # first area block
+        area_desc = area.get("areaDesc", "") if isinstance(area, dict) else ""
+        emma_id = (
+            _extract_emma_id(area.get("geocode")) if isinstance(area, dict) else ""
+        )
 
-        # --- Build entity ---
         entity: Dict[str, Any] = {
             "id": entity_id,
             "type": "WeatherAlert",
@@ -385,7 +306,7 @@ class MeteoAlertsEngine:
             "validTo": {"type": "Property", "value": valid_to},
             "description": {
                 "type": "Property",
-                "value": event,
+                "value": info.get("headline") or event,
             },
             "address": {
                 "type": "Property",
@@ -401,23 +322,18 @@ class MeteoAlertsEngine:
             },
         }
 
-        # Attach zone geometry as a location GeoProperty so alerts can be matched
-        # spatially against parcels. Absent zone → no location (non-fatal).
-        geometry = self._zones.geometry_for(emma_id)
-        if geometry:
+        # Attach the exact awareness-zone polygon so parcel-alert geo-queries
+        # (georel=intersects + geoproperty=location) work.
+        if geometry and isinstance(geometry, dict) and geometry.get("type") in ("Polygon", "MultiPolygon"):
             entity["location"] = {"type": "GeoProperty", "value": geometry}
 
-        # Include optional CAP metadata
-        if alert.get("certainty"):
-            entity["certainty"] = {
-                "type": "Property",
-                "value": alert["certainty"],
-            }
-        if alert.get("urgency"):
-            entity["urgency"] = {
-                "type": "Property",
-                "value": alert["urgency"],
-            }
+        # Optional CAP metadata
+        certainty = info.get("certainty")
+        urgency = info.get("urgency")
+        if certainty:
+            entity["certainty"] = {"type": "Property", "value": certainty}
+        if urgency:
+            entity["urgency"] = {"type": "Property", "value": urgency}
 
         return entity
 
@@ -481,8 +397,6 @@ class MeteoAlertsEngine:
                 )
                 return True
             elif resp.status_code == 207:
-                # Orion-LD returns 207 Multi-Status for entityOperations/upsert
-                # even on full success; the body carries success/errors arrays.
                 body = resp.json() if resp.content else {}
                 errors = body.get("errors", []) if isinstance(body, dict) else []
                 if errors:
@@ -597,18 +511,21 @@ class MeteoAlertsEngine:
 
 
 # ---------------------------------------------------------------------------
-# XML helper
+# Internal helpers
 # ---------------------------------------------------------------------------
 
 
-def _text(element, tag, ns):
-    """Safely extract text from an XML element with namespace."""
-    child = element.find(tag, ns)
-    return child.text.strip() if child is not None and child.text else ""
+def _select_english_info(info_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return the English-language ``info`` block from a CAP info array.
 
-
-# ---------------------------------------------------------------------------
-# Backward-compat alias (for existing imports)
-# ---------------------------------------------------------------------------
-
-AemetAlertsEngine = MeteoAlertsEngine
+    Falls back to the first block if no ``language`` starts with ``en``.
+    Using the English block is essential because CAP ``event`` strings are
+    localized (de-DE "GEWITTER", tr "gök gürültülü", …) and the
+    ``_normalize_event`` substring matcher only understands English.
+    """
+    if not info_list:
+        return {}
+    for block in info_list:
+        if isinstance(block, dict) and (block.get("language") or "").startswith("en"):
+            return block
+    return info_list[0] if isinstance(info_list[0], dict) else {}
