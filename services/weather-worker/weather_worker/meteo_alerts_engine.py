@@ -75,6 +75,24 @@ def _normalize_event(event: str) -> str:
     return event.split()[0].lower() if event else "unknown"
 
 
+def _extract_emma_id(geocode: Any) -> str:
+    """Return the EMMA_ID string from a CAP-JSON area ``geocode`` field.
+
+    EDR detail ``geocode`` is a list of ``{"value", "valueName"}`` objects;
+    legacy Atom exposed a bare string. Return the entry whose ``valueName``
+    is ``EMMA_ID``; fall back to the first entry's value, then "".
+    """
+    if isinstance(geocode, str):
+        return geocode
+    if isinstance(geocode, list):
+        for gc in geocode:
+            if isinstance(gc, dict) and gc.get("valueName") == "EMMA_ID":
+                return str(gc.get("value", ""))
+        if geocode and isinstance(geocode[0], dict):
+            return str(geocode[0].get("value", ""))
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Header helpers
 # ---------------------------------------------------------------------------
@@ -267,7 +285,9 @@ class MeteoAlertsEngine:
         # --- Area fields ---
         area = (info.get("area") or [{}])[0]  # first area block
         area_desc = area.get("areaDesc", "") if isinstance(area, dict) else ""
-        emma_id = area.get("geocode", "") if isinstance(area, dict) else ""
+        emma_id = (
+            _extract_emma_id(area.get("geocode")) if isinstance(area, dict) else ""
+        )
 
         entity: Dict[str, Any] = {
             "id": entity_id,

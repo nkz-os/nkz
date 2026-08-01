@@ -160,7 +160,11 @@ def test_build_populates_area_fields():
     """meteoalarmZoneId ← area[0].geocode, addressLocality ← area[0].areaDesc."""
     entity = _engine()._build_single_entity(_CAP, _FEATURE)
     assert entity is not None
-    assert entity["meteoalarmZoneId"]["value"], "meteoalarmZoneId should not be empty"
+    # geocode in EDR CAP-JSON is a list of {value, valueName}; we must store
+    # the EMMA_ID string (e.g. "DE094"), not the raw array.
+    assert entity["meteoalarmZoneId"]["value"] == "DE094", (
+        "meteoalarmZoneId must be the EMMA_ID string extracted from the geocode array"
+    )
     addr = entity["address"]["value"]
     assert isinstance(addr, dict)
     assert addr.get("addressLocality"), "addressLocality should not be empty"
