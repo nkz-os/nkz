@@ -15,13 +15,14 @@ import json
 import logging
 import os
 import time
+from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
 
 from common.ngsi_headers import inject_fiware_headers
-from weather_worker.edr_client import EdrWarningsClient
+from weather_worker.edr_client import EdrWarningsClient, _find_link
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +170,8 @@ class MeteoAlertsEngine:
             session=self._session,
         )
         self._seen: set = set()  # set[alertId] — in-memory dedup
+        self._dedup_keys: deque = deque()  # (alertId, hubTime) — MQTT dedup, MRU
+        self._dedup_set: set = set()  # companion set for O(1) lookup
 
     # ------------------------------------------------------------------
     # Public API
@@ -497,6 +500,131 @@ class MeteoAlertsEngine:
                 break
 
         return deleted
+
+    # ------------------------------------------------------------------
+    # MQTT handler (WIS 2.0 push ingestion)
+    # ------------------------------------------------------------------
+
+    _MQTT_DEDUP_MAX = 20000
+
+    def handle_notification(self, notification: dict) -> bool:
+        """Process a single WIS2 notification from the MQTT stream.
+
+        Deduplicates by ``(alertId, hubTime)``, resolves CAP-JSON
+        attributes and GeoJSON geometry from pre-signed archive links,
+        builds/upserts a ``WeatherAlert`` entity, and deletes any
+        entities referenced in ``referencedAlertIds`` (supersede).
+
+        Returns ``True`` on success or benign skip; ``False`` if the
+        notification is malformed or detail fetches fail.
+        """
+        props = notification.get("properties", {})
+        alert_id = props.get("alertId")
+        if not alert_id:
+            logger.debug("MeteoAlertsEngine: notification missing alertId — skipped")
+            return False
+
+        # Dedup: same alertId at the same hubTime is a repeat.
+        hub_time = props.get("hubTime")
+        dedup_key = (alert_id, hub_time) if hub_time else (alert_id, props.get("pubtime", ""))
+        if dedup_key in self._dedup_set:
+            logger.debug(
+                "MeteoAlertsEngine: duplicate notification %s @ %s", alert_id, hub_time,
+            )
+            return True
+
+        # Resolve detail links from the pre-signed archive (no auth).
+        cap_href = _find_link(notification, "application/json")
+        geo_href = _find_link(notification, "application/geo+json")
+
+        if not cap_href:
+            logger.debug("MeteoAlertsEngine: notification %s has no CAP-JSON link", alert_id)
+            return False
+
+        cap = self._client._get_detail(cap_href)
+        if cap is None:
+            logger.debug("MeteoAlertsEngine: notification %s CAP fetch failed", alert_id)
+            return False
+
+        geometry = None
+        if geo_href:
+            geo_feature = self._client._get_detail(geo_href)
+            if isinstance(geo_feature, dict):
+                geometry = geo_feature.get("geometry", geo_feature)
+
+        entity = self._build_single_entity(cap, notification, geometry)
+        if entity:
+            ok = self._upsert_batch("default", [entity])
+            if ok:
+                logger.info(
+                    "MeteoAlertsEngine: MQTT upserted WeatherAlert %s (%s)",
+                    entity["id"],
+                    (entity.get("subCategory", {}).get("value", ["?"]) or ["?"])[0],
+                )
+        else:
+            logger.debug("MeteoAlertsEngine: notification %s produced no entity", alert_id)
+
+        # Register the dedup key AFTER processing (so a retry-on-failure
+        # could reprocess — safe because UPSERT is idempotent).
+        self._dedup_keys.append(dedup_key)
+        self._dedup_set.add(dedup_key)
+        while len(self._dedup_keys) > self._MQTT_DEDUP_MAX:
+            oldest = self._dedup_keys.popleft()
+            self._dedup_set.discard(oldest)
+
+        # Supersede: delete entities referenced by the new alert revision.
+        for ref in props.get("referencedAlertIds") or []:
+            if ref and isinstance(ref, str):
+                self._delete_entity(
+                    "default", f"urn:ngsi-ld:WeatherAlert:meteoalarm:{ref}"
+                )
+
+        return True
+
+    def prune_once(self) -> int:
+        """Delete expired WeatherAlert entities from tenant 'default'.
+
+        Thin wrapper so prune keeps running while the EDR poll loop is
+        disabled (EDR_ENABLED=false).
+        """
+        pruned = self._prune_expired_alerts("default")
+        if pruned:
+            logger.info(
+                "MeteoAlertsEngine: pruned %d expired WeatherAlert entities",
+                pruned,
+            )
+        return pruned
+
+    def _delete_entity(self, tenant_id: str, entity_id: str) -> bool:
+        """DELETE a single entity from Orion-LD.
+
+        Returns ``True`` on 204 (deleted) or 404 (already gone);
+        ``False`` on any other HTTP status or transport error.
+        """
+        headers = _make_headers(tenant_id)
+        try:
+            resp = self._session.delete(
+                f"{self.orion_url}/ngsi-ld/v1/entities/{entity_id}",
+                headers=headers,
+                timeout=30,
+            )
+            if resp.status_code in (204, 404):
+                if resp.status_code == 404:
+                    logger.debug(
+                        "MeteoAlertsEngine: delete skipped — %s not found (404)",
+                        entity_id,
+                    )
+                return True
+            logger.error(
+                "MeteoAlertsEngine: delete %s failed: HTTP %d — %s",
+                entity_id,
+                resp.status_code,
+                resp.text[:300],
+            )
+            return False
+        except Exception as e:
+            logger.error("MeteoAlertsEngine: delete %s error: %s", entity_id, e)
+            return False
 
     # ------------------------------------------------------------------
     # Loop (run by main.py thread)
