@@ -202,8 +202,20 @@ def test_start_connects_and_loops(mock_cls):
     assert call_kwargs.get("max_delay") == 300
 
     lst.start()
-    client.connect.assert_called_once_with("broker.local", 8883, keepalive=30)
+    client.connect_async.assert_called_once_with("broker.local", 8883, keepalive=30)
+    client.connect.assert_not_called()
     client.loop_start.assert_called_once()
+
+
+def test_start_failure_does_not_raise(mock_cls):
+    cls, client = mock_cls
+    client.connect_async.side_effect = OSError("dns boom")
+    lst = MqttWarningsListener(
+        host="broker.local", port=8883, topic="t/x", api_key="k",
+        on_notification=lambda n: True,
+    )
+    lst.start()  # must not raise — the caller thread (hourly loop) survives
+    client.loop_start.assert_not_called()
 
 
 def test_stop_disconnects(mock_cls):

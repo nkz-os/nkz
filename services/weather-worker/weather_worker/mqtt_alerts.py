@@ -49,6 +49,7 @@ class MqttWarningsListener:
         if not client_id:
             client_id = f"nekazari-weather-worker-{socket.gethostname()}"
         self._client_id = client_id
+        self._keepalive = keepalive
 
         self._client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
@@ -68,7 +69,12 @@ class MqttWarningsListener:
     # ------------------------------------------------------------------
 
     def start(self):
-        """Connect to the broker and start the paho network loop thread."""
+        """Connect to the broker and start the paho network loop thread.
+
+        Uses ``connect_async`` so an unreachable broker at startup does not
+        raise here (and kill the caller thread) — paho retries from its own
+        loop thread using the configured reconnect back-off.
+        """
         logger.info(
             "MqttWarningsListener: connecting %s:%d topic=%s client=%s",
             self._host,
@@ -76,8 +82,13 @@ class MqttWarningsListener:
             self._topic,
             self._client_id,
         )
-        self._client.connect(self._host, self._port, keepalive=30)
-        self._client.loop_start()
+        try:
+            self._client.connect_async(self._host, self._port, keepalive=self._keepalive)
+            self._client.loop_start()
+        except Exception:
+            logger.exception(
+                "MqttWarningsListener: failed to start MQTT client — listener disabled"
+            )
 
     def stop(self):
         """Disconnect and stop the paho loop thread."""
