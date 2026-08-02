@@ -1,0 +1,90 @@
+{
+  "id": "a64e5478-8409-4398-9d37-c9da29050e6c",
+  "links": [
+    {
+      "type": "text/html",
+      "title": "CC BY 4.0 Deed | Attribution 4.0 International | Creative Commons",
+      "rel": "license",
+      "href": "https://creativecommons.org/licenses/by/4.0/"
+    },
+    {
+      "type": "application/xml",
+      "rel": "canonical",
+      "href": "https://meteo.fra1.digitaloceanspaces.com/api/archive/warnings/0766a657-f9b3-4261-8b66-0046b57ba1ed.xml?AWSAccessKeyId=DO00LYPLJBWUUWC6D6NU&Expires=1785653738&Signature=VgciDpwqgfZ8bhNCQuUNsjmEwg0%3D"
+    },
+    {
+      "type": "application/json",
+      "rel": "json",
+      "href": "https://meteo.fra1.digitaloceanspaces.com/api/archive/warnings/0766a657-f9b3-4261-8b66-0046b57ba1ed.json?AWSAccessKeyId=DO00LYPLJBWUUWC6D6NU&Expires=1785653738&Signature=1XQYB6ZGrjkNakfVo1oc6B9DrNE%3D"
+    },
+    {
+      "type": "application/xml",
+      "rel": "xml",
+      "href": "https://meteo.fra1.digitaloceanspaces.com/api/archive/warnings/0766a657-f9b3-4261-8b66-0046b57ba1ed.xml?AWSAccessKeyId=DO00LYPLJBWUUWC6D6NU&Expires=1785653738&Signature=VgciDpwqgfZ8bhNCQuUNsjmEwg0%3D"
+    },
+    {
+      "type": "application/geo+json",
+      "rel": "geometry",
+      "href": "https://meteo.fra1.digitaloceanspaces.com/api/archive/features/acf92f7f-2cc2-4cb3-9ddf-59e8597bc613.geojson?AWSAccessKeyId=DO00LYPLJBWUUWC6D6NU&Expires=1785653738&Signature=MJbe4vlS30w%2BnK5QqOnuLWc%2FjEc%3D"
+    }
+  ],
+  "type": "Feature",
+  "properties": {
+    "type": "Feature",
+    "rights": "Users are granted free and unrestricted access to this data, without charge and with no conditions on use. Users are requested to attribute the producer of this data. WMO Unified Data Policy (Resolution 1 (Cg-Ext 2021))",
+    "datetime": "2026-08-02T07:54:44+02:00",
+    "pubtime": "2026-08-02T05:55:38.515880Z",
+    "geometryDescription": "geometry is bbox only, link (member of the feature's links array) with type application/geo+json points to geojson describing the exact shape",
+    "geometryType": "bbox",
+    "OBJECTID": "acf92f7f-2cc2-4cb3-9ddf-59e8597bc613",
+    "alertId": "0766a657-f9b3-4261-8b66-0046b57ba1ed",
+    "countryCode": "NL",
+    "featureType": "geocode",
+    "hubLanguage": "en-GB",
+    "indexArea": 0,
+    "indexFeature": 0,
+    "indexInfo": 1,
+    "hubTime": "2026-08-02T05:55:38Z",
+    "referencedAlertIds": [
+      "a8804512-3ada-47f5-b181-efbf39f862d2"
+    ],
+    "hubLink": "https://meteo.fra1.digitaloceanspaces.com/api/archive/warnings/0766a657-f9b3-4261-8b66-0046b57ba1ed.xml?AWSAccessKeyId=DO00LYPLJBWUUWC6D6NU&Expires=1785653738&Signature=VgciDpwqgfZ8bhNCQuUNsjmEwg0%3D",
+    "data_id": "eu-eumetnet-warnings/a64e5478-8409-4398-9d37-c9da29050e6c"
+  },
+  "geometry": {
+    "coordinates": [
+      [
+        [
+          4.994,
+          51.7336
+        ],
+        [
+          4.994,
+          52.5187
+        ],
+        [
+          6.8324,
+          52.5187
+        ],
+        [
+          6.8324,
+          51.7336
+        ],
+        [
+          4.994,
+          51.7336
+        ]
+      ]
+    ],
+    "crs": {
+      "properties": {
+        "name": "EPSG:4326"
+      },
+      "type": "name"
+    },
+    "type": "Polygon"
+  },
+  "conformsTo": [
+    "http://wis.wmo.int/spec/wnm/1/conf/core"
+  ]
+}

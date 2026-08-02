@@ -121,7 +121,7 @@ class TimescaleDBWriter:
         alerts: List[Dict[str, Any]],
         tenant_id: str
     ) -> int:
-        """DEPRECATED: alerts now flow through AemetAlertsEngine → Orion-LD →
+        """DEPRECATED: alerts now flow through MeteoAlertsEngine → Orion-LD →
         telemetry-worker subscription → TimescaleDB.
 
         This method is kept as a no-op stub for backward compatibility.
@@ -129,7 +129,7 @@ class TimescaleDBWriter:
         """
         logger.debug(
             "write_alerts() is deprecated — alerts flow through "
-            "AemetAlertsEngine → Orion-LD → telemetry-worker"
+            "MeteoAlertsEngine → Orion-LD → telemetry-worker"
         )
         return 0
 

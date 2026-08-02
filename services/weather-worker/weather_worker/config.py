@@ -37,10 +37,26 @@ class WeatherWorkerConfig:
     # Municipality worker (DEPRECATED — disabled by default, use ParcelEngine)
     MUNICIPALITY_WORKER_ENABLED: bool = os.getenv('MUNICIPALITY_WORKER_ENABLED', 'false').lower() == 'true'
 
-    # MeteoAlarm Alerts Engine (EU-wide, replaces AEMET)
+    # MeteoAlarm Alerts Engine (EU-wide, WIS 2.0 MQTT primary + EDR backfill)
     METEOALARM_ENABLED: bool = os.getenv('METEOALARM_ENABLED', 'true').lower() == 'true'
     AEMET_ALERTS_ENABLED: bool = os.getenv('AEMET_ALERTS_ENABLED', 'true').lower() == 'true'  # backward compat
     AEMET_ALERTS_INTERVAL_HOURS: int = int(os.getenv('AEMET_ALERTS_INTERVAL_HOURS', '1'))
+
+    # MeteoAlarm MQTT (WIS 2.0 push — primary ingestion, recommended)
+    METEOALARM_MQTT_ENABLED: bool = os.getenv('METEOALARM_MQTT_ENABLED', 'true').lower() == 'true'
+    METEOALARM_MQTT_HOST: str = os.getenv('METEOALARM_MQTT_HOST', 'mqtt.meteoalarm.org')
+    METEOALARM_MQTT_PORT: int = int(os.getenv('METEOALARM_MQTT_PORT', '8883'))
+    METEOALARM_MQTT_TOPIC: str = os.getenv(
+        'METEOALARM_MQTT_TOPIC',
+        'origin/a/wis2/eu-eumetnet-warnings/data/core/weather/advisories-warnings',
+    )
+
+    # MeteoAlarm EDR API (backfill — disabled by default; MQTT is primary)
+    EDR_ENABLED: bool = os.getenv('EDR_ENABLED', 'false').lower() == 'true'
+    EDR_BASE_URL: str = os.getenv('EDR_BASE_URL', 'https://api.meteoalarm.org/edr/v1')
+    EDR_SENT_WINDOW_HOURS: int = int(os.getenv('EDR_SENT_WINDOW_HOURS', '23'))
+    EDR_ACTIVE_WINDOW_HOURS: int = int(os.getenv('EDR_ACTIVE_WINDOW_HOURS', '6'))
+    METEOALARM_API_KEY: str = os.getenv('METEOALARM_API_KEY', '')
     
     # Metrics
     METRICS_HOST: str = os.getenv('METRICS_HOST', '0.0.0.0')
