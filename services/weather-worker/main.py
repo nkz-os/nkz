@@ -436,6 +436,12 @@ def main():
     # Handle graceful shutdown
     def signal_handler(sig, frame):
         logger.info("Received shutdown signal")
+        listener = getattr(worker, "_mqtt_listener", None)
+        if listener is not None:
+            try:
+                listener.stop()
+            except Exception:
+                logger.exception("Error stopping MQTT listener")
         worker.storage.close()
         sys.exit(0)
     

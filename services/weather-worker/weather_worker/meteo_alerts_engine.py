@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from common.ngsi_headers import inject_fiware_headers
-from weather_worker.edr_client import EdrWarningsClient
+from weather_worker.edr_client import EdrWarningsClient, _find_link
 
 logger = logging.getLogger(__name__)
 
@@ -518,8 +518,6 @@ class MeteoAlertsEngine:
         Returns ``True`` on success or benign skip; ``False`` if the
         notification is malformed or detail fetches fail.
         """
-        from weather_worker.edr_client import _find_link
-
         props = notification.get("properties", {})
         alert_id = props.get("alertId")
         if not alert_id:
@@ -552,7 +550,7 @@ class MeteoAlertsEngine:
         if geo_href:
             geo_feature = self._client._get_detail(geo_href)
             if isinstance(geo_feature, dict):
-                geometry = geo_feature.get("geometry")
+                geometry = geo_feature.get("geometry", geo_feature)
 
         entity = self._build_single_entity(cap, notification, geometry)
         if entity:

@@ -182,7 +182,8 @@ def test_on_disconnect_logs_warning(mock_cls):
     )
     rc = MagicMock()
     rc.value = 1
-    lst._on_disconnect(client, None, rc, None)
+    flags = MagicMock()
+    lst._on_disconnect(client, None, flags, rc, None)
 
 
 # ---------------------------------------------------------------------------

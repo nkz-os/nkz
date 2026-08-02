@@ -133,6 +133,8 @@ class MqttWarningsListener:
                 "MqttWarningsListener: unhandled error in notification callback"
             )
 
-    def _on_disconnect(self, client, userdata, reason_code, properties=None):
+    def _on_disconnect(
+        self, client, userdata, disconnect_flags, reason_code, properties=None
+    ):
         rc = reason_code.value if hasattr(reason_code, "value") else reason_code
         logger.warning("MqttWarningsListener: disconnected (rc=%s)", rc)
