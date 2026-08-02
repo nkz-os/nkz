@@ -297,7 +297,12 @@ class WeatherWorker:
             time.sleep(interval_seconds)
 
     def _run_meteoalerts_loop(self):
-        """Run MeteoAlarm alerts engine in a background thread."""
+        """Run MeteoAlarm alerts engine in a background thread.
+
+        MQTT (WIS 2.0) is the primary ingestion path (push, near real-time).
+        EDR polling runs hourly IF EDR_ENABLED=true; otherwise only the
+        expired-alert prune fires each cycle.
+        """
         enabled = (
             self.config.METEOALARM_ENABLED
             or self.config.AEMET_ALERTS_ENABLED  # backward compat
@@ -310,7 +315,9 @@ class WeatherWorker:
             return
 
         logger.info(
-            f"MeteoAlertsEngine starting: interval={self.config.AEMET_ALERTS_INTERVAL_HOURS}h"
+            f"MeteoAlertsEngine starting: interval={self.config.AEMET_ALERTS_INTERVAL_HOURS}h, "
+            f"edr_enabled={self.config.EDR_ENABLED}, "
+            f"mqtt_enabled={self.config.METEOALARM_MQTT_ENABLED}"
         )
 
         # Small delay to let DB connection settle
@@ -323,7 +330,34 @@ class WeatherWorker:
             interval_hours=self.config.AEMET_ALERTS_INTERVAL_HOURS,
         )
 
-        engine.run_loop()
+        # Start the MQTT push listener if enabled (primary ingestion path).
+        if self.config.METEOALARM_MQTT_ENABLED and self.config.METEOALARM_API_KEY:
+            from weather_worker.mqtt_alerts import MqttWarningsListener
+
+            self._mqtt_listener = MqttWarningsListener(
+                host=self.config.METEOALARM_MQTT_HOST,
+                port=self.config.METEOALARM_MQTT_PORT,
+                topic=self.config.METEOALARM_MQTT_TOPIC,
+                api_key=self.config.METEOALARM_API_KEY,
+                on_notification=engine.handle_notification,
+            )
+            self._mqtt_listener.start()
+            logger.info("MeteoAlarms MQTT listener started")
+
+        # Hourly loop: EDR poll or prune-only.
+        interval_seconds = self.config.AEMET_ALERTS_INTERVAL_HOURS * 3600
+        while True:
+            try:
+                if self.config.EDR_ENABLED:
+                    stats = engine.run_once()
+                    logger.info("MeteoAlertsEngine EDR cycle: %s", stats)
+                else:
+                    engine.prune_once()
+            except Exception as e:
+                logger.error(
+                    "MeteoAlertsEngine cycle failed: %s", e, exc_info=True
+                )
+            time.sleep(interval_seconds)
 
     def run(self):
         """Run worker in continuous mode.
