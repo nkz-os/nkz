@@ -331,18 +331,24 @@ class WeatherWorker:
         )
 
         # Start the MQTT push listener if enabled (primary ingestion path).
+        # Failures here must NOT kill this thread (the hourly prune depends on it).
         if self.config.METEOALARM_MQTT_ENABLED and self.config.METEOALARM_API_KEY:
-            from weather_worker.mqtt_alerts import MqttWarningsListener
+            try:
+                from weather_worker.mqtt_alerts import MqttWarningsListener
 
-            self._mqtt_listener = MqttWarningsListener(
-                host=self.config.METEOALARM_MQTT_HOST,
-                port=self.config.METEOALARM_MQTT_PORT,
-                topic=self.config.METEOALARM_MQTT_TOPIC,
-                api_key=self.config.METEOALARM_API_KEY,
-                on_notification=engine.handle_notification,
-            )
-            self._mqtt_listener.start()
-            logger.info("MeteoAlarms MQTT listener started")
+                self._mqtt_listener = MqttWarningsListener(
+                    host=self.config.METEOALARM_MQTT_HOST,
+                    port=self.config.METEOALARM_MQTT_PORT,
+                    topic=self.config.METEOALARM_MQTT_TOPIC,
+                    api_key=self.config.METEOALARM_API_KEY,
+                    on_notification=engine.handle_notification,
+                )
+                self._mqtt_listener.start()
+                logger.info("MeteoAlarms MQTT listener started")
+            except Exception:
+                logger.exception(
+                    "Failed to start MQTT listener — continuing with prune-only loop"
+                )
 
         # Hourly loop: EDR poll or prune-only.
         interval_seconds = self.config.AEMET_ALERTS_INTERVAL_HOURS * 3600
