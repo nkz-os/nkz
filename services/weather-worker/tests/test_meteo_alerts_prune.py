@@ -65,7 +65,7 @@ def test_prune_skips_on_query_error():
 def test_run_once_prunes_even_when_no_alerts_fetched():
     eng = _engine()
 
-    with patch.object(eng, "_fetch_all_alerts", return_value=[]), \
+    with patch.object(eng._client, "iter_index", return_value=[]), \
          patch.object(eng, "_prune_expired_alerts", return_value=3) as prune:
         stats = eng.run_once()
 

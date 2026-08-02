@@ -7,8 +7,6 @@ import logging
 import secrets
 from typing import Any
 
-from flask import jsonify
-
 logger = logging.getLogger(__name__)
 
 
@@ -22,6 +20,11 @@ def internal_error(
     extra: dict[str, Any] | None = None,
 ):
     """Log full exception server-side; return a generic body to the client."""
+    # Lazy import: this Flask helper lives beside the FastAPI variant, but
+    # FastAPI services (e.g. weather-api) import the module without Flask
+    # installed. A module-level Flask import crash-loops them on startup.
+    from flask import jsonify
+
     request_id = secrets.token_hex(8)
     logger.error(
         "[%s] request_id=%s: %s: %s",

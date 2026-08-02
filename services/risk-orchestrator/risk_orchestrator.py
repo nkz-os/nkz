@@ -98,11 +98,35 @@ class RiskOrchestrator:
             except Exception as e:
                 logger.warning(f"PostgreSQL not available for webhook dispatch: {e}")
 
+    def _ensure_postgres(self) -> bool:
+        """Ensure a live PostgreSQL connection, reconnecting if needed.
+
+        The connection is opened once and reused; a PostgreSQL restart or a
+        network blip can leave it closed/broken. Without reconnect the
+        orchestrator silently stops dispatching webhooks/notifications until
+        the pod is restarted.
+        """
+        if not POSTGRES_URL:
+            return False
+        if self.postgres is not None and getattr(self.postgres, "closed", 1) == 0:
+            return True
+        try:
+            self.postgres = psycopg2.connect(
+                POSTGRES_URL, cursor_factory=RealDictCursor
+            )
+            self.postgres.autocommit = True
+            logger.info("PostgreSQL (re)connected (webhook dispatch)")
+            return True
+        except Exception as e:
+            logger.warning(f"PostgreSQL not available for webhook dispatch: {e}")
+            self.postgres = None
+            return False
+
     def _get_active_webhooks(
         self, tenant_id: str, severity: str, event_type: str
     ) -> List[Dict[str, Any]]:
         """Fetch active webhooks for this tenant that match the event severity"""
-        if not self.postgres:
+        if not self._ensure_postgres():
             return []
         try:
             cursor = self.postgres.cursor()
@@ -116,6 +140,10 @@ class RiskOrchestrator:
             )
             rows = cursor.fetchall()
             cursor.close()
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+            logger.error(f"Failed to query webhooks (connection lost): {e}")
+            self.postgres = None
+            return []
         except Exception as e:
             logger.error(f"Failed to query webhooks: {e}")
             return []
@@ -211,7 +239,7 @@ class RiskOrchestrator:
         self, tenant_id: str, risk_code: str
     ) -> dict | None:
         """Look up tenant email and risk notification preferences."""
-        if not self.postgres:
+        if not self._ensure_postgres():
             return None
         try:
             cursor = self.postgres.cursor()
@@ -236,6 +264,9 @@ class RiskOrchestrator:
                     "email": row["email"],
                     "email_enabled": channels.get("email", True),
                 }
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+            logger.warning(f"Could not query tenant email for {tenant_id} (connection lost): {e}")
+            self.postgres = None
         except Exception as e:
             logger.warning(f"Could not query tenant email for {tenant_id}: {e}")
         return None
