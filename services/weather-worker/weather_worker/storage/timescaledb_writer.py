@@ -99,23 +99,6 @@ class TimescaleDBWriter:
             self._ensure_connection()
             yield self.conn
 
-    def write_observations(
-        self,
-        observations: List[Dict[str, Any]],
-        tenant_id: str
-    ) -> int:
-        """DEPRECATED - no-op. Weather data now flows through Orion-LD via ParcelWeatherEngine.
-
-        Previously wrote directly to weather_observations (TimescaleDB).
-        Kept as no-op for backward compatibility when MUNICIPALITY_WORKER_ENABLED=true.
-        """
-        logger.warning(
-            "write_observations is DEPRECATED and does nothing. "
-            "Weather data now flows through ParcelWeatherEngine → Orion-LD → TimescaleDB. "
-            "Set MUNICIPALITY_WORKER_ENABLED=false (default) to suppress this warning."
-        )
-        return 0
-
     def write_alerts(
         self,
         alerts: List[Dict[str, Any]],
