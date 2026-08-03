@@ -98,6 +98,11 @@ class ModuleApp(FastAPI):
             **fastapi_kwargs,
         )
         self.module_id = id
+        # Per-tenant client cache: reuse the same OrionClient/TimescaleClient
+        # (and their underlying pooled httpx.AsyncClient) across requests
+        # for a given tenant instead of opening a fresh connection every call.
+        self._orion_clients: dict[str, OrionClient] = {}
+        self._timescale_clients: dict[str, TimescaleClient] = {}
 
         if configure_logging:
             _configure_json_logging(id)
@@ -167,9 +172,38 @@ class ModuleApp(FastAPI):
         return require_auth(roles)
 
     def orion(self, ctx: AuthContext) -> OrionClient:
-        """Create an OrionClient scoped to the authenticated tenant."""
-        return OrionClient(ctx.tenant_id)
+        """Return an OrionClient scoped to the authenticated tenant.
+
+        Cached per tenant_id so the underlying pooled httpx client is reused
+        across requests instead of opening a new connection every call.
+        """
+        client = self._orion_clients.get(ctx.tenant_id)
+        if client is None:
+            client = OrionClient(ctx.tenant_id)
+            self._orion_clients[ctx.tenant_id] = client
+        return client
 
     def timescale(self, ctx: AuthContext) -> TimescaleClient:
-        """Create a TimescaleClient scoped to the authenticated tenant."""
-        return TimescaleClient(ctx.tenant_id)
+        """Return a TimescaleClient scoped to the authenticated tenant.
+
+        Cached per tenant_id so the underlying pooled httpx client is reused
+        across requests instead of opening a new connection every call.
+        """
+        client = self._timescale_clients.get(ctx.tenant_id)
+        if client is None:
+            client = TimescaleClient(ctx.tenant_id)
+            self._timescale_clients[ctx.tenant_id] = client
+        return client
+
+    async def aclose(self) -> None:
+        """Close all cached per-tenant Orion/Timescale clients.
+
+        Call from a FastAPI shutdown handler (or equivalent) so pooled
+        connections are released cleanly on process exit.
+        """
+        for client in self._orion_clients.values():
+            await client.close()
+        for client in self._timescale_clients.values():
+            await client.close()
+        self._orion_clients.clear()
+        self._timescale_clients.clear()

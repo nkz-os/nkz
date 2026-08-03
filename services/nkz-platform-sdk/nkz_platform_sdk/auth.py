@@ -14,14 +14,14 @@ Set REQUIRE_HMAC_SIGNATURE=true + HMAC_SECRET to enable HMAC verification.
 Without it, any pod in the namespace can spoof X-Tenant-ID.
 """
 
-import hashlib
-import hmac
 import os
 import re
 import time
 from dataclasses import dataclass
 from typing import Sequence
 from fastapi import Request, HTTPException, Depends
+
+from nkz_platform_sdk.crypto import verify_hmac_signature
 
 # ---------------------------------------------------------------------------
 # HMAC configuration (defense-in-depth against tenant spoofing)
@@ -116,7 +116,7 @@ def require_auth(roles: Sequence[str] | None = None):
                         status_code=401,
                         detail="Invalid HMAC signature format (expected sig:ts)",
                     )
-                provided_sig, timestamp_str = parts
+                _provided_sig, timestamp_str = parts
                 timestamp = int(timestamp_str)
 
                 # 5-minute window
@@ -126,17 +126,18 @@ def require_auth(roles: Sequence[str] | None = None):
                         detail="HMAC signature timestamp outside 5-minute window",
                     )
 
-                # Recompute expected signature
+                # Recompute expected signature via the canonical crypto
+                # primitive (nkz_platform_sdk.crypto — single source of
+                # truth for the platform's HMAC format).
                 # token is '' for internal service-to-service calls
                 token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-                payload = f"{token}|{tenant_id}|{timestamp}"
-                expected = hmac.new(
-                    HMAC_SECRET.encode("utf-8"),
-                    payload.encode("utf-8"),
-                    hashlib.sha256,
-                ).hexdigest()
-
-                if not hmac.compare_digest(provided_sig, expected):
+                if not verify_hmac_signature(
+                    HMAC_SECRET,
+                    hmac_header,
+                    token,
+                    tenant_id,
+                    fail_open=False,
+                ):
                     raise HTTPException(
                         status_code=401,
                         detail="Invalid HMAC signature",

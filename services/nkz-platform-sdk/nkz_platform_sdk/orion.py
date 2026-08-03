@@ -19,6 +19,18 @@ CONTEXT_URL = os.getenv(
 )
 
 
+def _http_retries() -> int:
+    """Connection-level retry count for the async httpx transport.
+
+    NKZ_HTTP_RETRIES (default 3). httpx.AsyncHTTPTransport retries only
+    retry connection-establishment errors, not response statuses — safe to
+    apply uniformly across GET/PUT/DELETE/POST (POST entity creation is not
+    idempotent, but a connect-level retry never resends a request that
+    reached the server).
+    """
+    return int(os.getenv("NKZ_HTTP_RETRIES", "3"))
+
+
 class OrionClient:
     """NGSI-LD client scoped to a single tenant."""
 
@@ -33,7 +45,8 @@ class OrionClient:
             "ORION_LD_URL", "http://orion-ld-service:1026"
         )
         self.context_url = context_url or CONTEXT_URL
-        self._client = httpx.AsyncClient(timeout=30.0)
+        transport = httpx.AsyncHTTPTransport(retries=_http_retries())
+        self._client = httpx.AsyncClient(timeout=30.0, transport=transport)
 
     def _headers(self, content_type: str = "application/ld+json") -> dict[str, str]:
         headers = {
