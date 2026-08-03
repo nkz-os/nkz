@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import secrets
+import signal
 import subprocess
 import sys
 import time
@@ -30,6 +31,7 @@ from flask_cors import CORS, cross_origin
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from psycopg2 import errors as psycopg2_errors
+from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 
 # Configure logging first
@@ -3722,7 +3724,12 @@ def _purge_phase_relational(tenant_id: str) -> dict:
         """)
         for schema, table in cursor.fetchall():
             try:
-                cursor.execute('DELETE FROM "%s"."%s" WHERE tenant_id = %%s' % (schema, table), (tenant_id,))
+                cursor.execute(
+                    sql.SQL("DELETE FROM {}.{} WHERE tenant_id = %s").format(
+                        sql.Identifier(schema), sql.Identifier(table)
+                    ),
+                    (tenant_id,),
+                )
                 tables_cleaned += 1
             except Exception as e:
                 logger.warning(f"SQL purge failed for table {schema}.{table}: {e}")
@@ -6566,6 +6573,14 @@ if __name__ == "__main__":
             logger.error(f"Startup migration failed: {e}")
     else:
         logger.warning("POSTGRES_URL not configured, skipping startup migrations")
+
+    # Graceful shutdown on rolling deploys (SIGTERM) / Ctrl-C (SIGINT)
+    def _graceful_shutdown(signum, frame):
+        logger.info(f"Received signal {signum}, shutting down tenant-webhook")
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, _graceful_shutdown)
+    signal.signal(signal.SIGINT, _graceful_shutdown)
 
     # Run the Flask app
     app.run(
