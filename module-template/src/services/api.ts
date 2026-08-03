@@ -8,9 +8,8 @@
 import { NKZClient, useAuth } from '@nekazari/sdk';
 
 // The frontend host and the API can live on different domains (MF2 modules
-// run inside the host's origin, e.g. nekazari.robotika.cloud, while the API
-// is served from a separate host, e.g. nkz.robotika.cloud) — a relative
-// baseUrl silently breaks cross-origin. There is NO useConfig() hook in
+// run inside the host's origin while the API is served from a separate
+// host) — a relative baseUrl silently breaks cross-origin. There is NO useConfig() hook in
 // @nekazari/sdk; read the API base at build time via VITE_API_URL, with a
 // placeholder fallback so this never silently points at a real domain.
 const API_BASE = (import.meta as any).env?.VITE_API_URL || 'https://your-api-domain';
