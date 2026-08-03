@@ -912,6 +912,11 @@ def health_check():
 @app.route("/internal/cache/invalidate", methods=["POST"])
 def internal_cache_invalidate():
     """Invalidate cache entries. Called internally by backend services after state changes."""
+    expected = os.getenv("INTERNAL_SERVICE_SECRET", "")
+    provided = request.headers.get("X-Internal-Service-Secret", "")
+    if not expected or not hmac.compare_digest(provided, expected):
+        return jsonify({"error": "Invalid or missing internal service secret"}), 401
+
     data = request.get_json(silent=True) or {}
     key = data.get("key", "")
     if key.startswith("suspended:"):

@@ -163,7 +163,7 @@
   "POST /api/zulip/messages": 401,
   "POST /api/zulip/messages/<int:message_id>/reactions": 401,
   "POST /api/zulip/provisioning/<path:subpath>": 401,
-  "POST /internal/cache/invalidate": 200,
+  "POST /internal/cache/invalidate": 401,
   "POST /n8n/<tenant_id>": 404,
   "POST /n8n/<tenant_id>/<path:subpath>": 404,
   "POST /ngsi-ld/v1/entities": 401,
