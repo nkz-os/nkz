@@ -29,6 +29,21 @@ from fastapi import Request, HTTPException, Depends
 HMAC_SECRET = os.getenv("HMAC_SECRET", "")
 REQUIRE_HMAC = os.getenv("REQUIRE_HMAC_SIGNATURE", "").lower() in ("1", "true", "yes")
 
+# ---------------------------------------------------------------------------
+# Canonical tenant_id format (mirrors services/common/tenant_utils.py):
+# hyphen-separated lowercase alphanumeric segments, no underscores, no
+# leading/trailing/double hyphens, length 3-63.
+# ---------------------------------------------------------------------------
+_TENANT_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def _validate_tenant_format(tenant_id: str) -> None:
+    if not (3 <= len(tenant_id) <= 63) or not _TENANT_RE.match(tenant_id):
+        raise HTTPException(
+            status_code=401,
+            detail=f"Invalid X-Tenant-ID format: {tenant_id}",
+        )
+
 
 @dataclass(frozen=True)
 class AuthContext:
@@ -79,12 +94,8 @@ def require_auth(roles: Sequence[str] | None = None):
                 detail="Missing X-User-ID header — gateway misconfiguration?",
             )
 
-        # Validate tenant_id format (alphanumeric + underscore + hyphen, 3-63 chars)
-        if not re.match(r"^[a-z0-9_-]{3,63}$", tenant_id):
-            raise HTTPException(
-                status_code=401,
-                detail=f"Invalid X-Tenant-ID format: {tenant_id}",
-            )
+        # Validate tenant_id format (canonical hyphen-separated pattern)
+        _validate_tenant_format(tenant_id)
 
         # HMAC signature verification (defense-in-depth against tenant spoofing)
         # Enabled when REQUIRE_HMAC_SIGNATURE=true + HMAC_SECRET is configured.
