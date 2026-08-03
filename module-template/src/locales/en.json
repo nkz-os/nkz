@@ -1,0 +1,11 @@
+{
+  "example": {
+    "title": "MODULE_DISPLAY_NAME",
+    "loading": "Loading…",
+    "authRequired": "Authentication required.",
+    "entity": "Entity",
+    "user": "User",
+    "refresh": "Refresh",
+    "replaceHint": "Replace this component with your module's functionality."
+  }
+}

@@ -1,23 +1,30 @@
 /**
  * API Client for MODULE_DISPLAY_NAME
- * 
+ *
  * This is a template for creating an API client that uses the Nekazari SDK.
  * Replace with your actual API endpoints and methods.
  */
 
 import { NKZClient, useAuth } from '@nekazari/sdk';
 
+// The frontend host and the API can live on different domains (MF2 modules
+// run inside the host's origin while the API is served from a separate
+// host) — a relative baseUrl silently breaks cross-origin. There is NO useConfig() hook in
+// @nekazari/sdk; read the API base at build time via VITE_API_URL, with a
+// placeholder fallback so this never silently points at a real domain.
+const API_BASE = (import.meta as any).env?.VITE_API_URL || 'https://your-api-domain';
+
 /**
  * Hook to get API client instance
  * Automatically handles authentication and tenant context
  */
 export function useModuleApi() {
-  const { getToken, tenantId } = useAuth();
-  
+  const { getToken, getTenantId } = useAuth();
+
   const client = new NKZClient({
-    baseUrl: '/api/MODULE_NAME',
+    baseUrl: `${API_BASE}/api/MODULE_NAME`,
     getToken,
-    getTenantId: () => tenantId,
+    getTenantId,
   });
 
   return {

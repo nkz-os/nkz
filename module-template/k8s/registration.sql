@@ -28,7 +28,7 @@ INSERT INTO marketplace_modules (
     'MODULE_NAME',
     'MODULE_DISPLAY_NAME',
     'MODULE_DISPLAY_NAME — Description of your module',
-    '/modules/MODULE_NAME/nkz-module.js',
+    '/modules/MODULE_NAME/mf-manifest.json',
     '1.0.0',
     'YOUR_ORG',
     'analytics',

@@ -35,6 +35,14 @@ spec:
           ports:
             - name: http
               containerPort: 8000
+          # Non-secret config (service URLs, CORS origins) belongs in a
+          # ConfigMap overlay in gitops-config/overlays/modules/MODULE_NAME/ —
+          # NOT in this public repo. `optional: true` so config.py's own
+          # defaults apply when the ConfigMap doesn't exist (e.g. local dev).
+          envFrom:
+            - configMapRef:
+                name: MODULE_NAME-config
+                optional: true
           env:
             - name: APP_NAME
               value: "MODULE_DISPLAY_NAME"
@@ -42,25 +50,25 @@ spec:
               value: "false"
             - name: API_PREFIX
               value: "/api/MODULE_NAME"
-            # CORS — explicit origin whitelist (never *)
+            # CORS — explicit origin whitelist (never *). This is a local
+            # placeholder; the production value lives in the ConfigMap overlay.
             - name: CORS_ORIGINS
               value: '["https://your-frontend-domain"]'
-            # Keycloak Configuration
-            - name: KEYCLOAK_URL
-              value: "https://auth.your-domain/auth"  # Override per environment
-            - name: KEYCLOAK_REALM
-              value: "nekazari"
-            - name: JWT_AUDIENCE
-              value: "account"
-            # Service-to-service auth (optional)
-            - name: MODULE_MANAGEMENT_KEY
+            # Auth: this module trusts gateway-injected headers (X-Tenant-ID,
+            # X-User-ID, X-User-Roles) via nkz_platform_sdk.auth.require_auth —
+            # no Keycloak/JWT config needed here (see app/middleware).
+            # Internal service-to-service auth (/internal/* routes only) —
+            # shared K8s Secret, hmac.compare_digest verification.
+            - name: INTERNAL_SERVICE_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: module-secrets
-                  key: management-key
+                  name: internal-service-secret
+                  key: secret
                   optional: true
-          # Database (if needed - uncomment and configure)
-          # - name: DATABASE_URL
+          # Database (only if this module writes admin/metadata to PostgreSQL —
+          # NEVER for time-series/telemetry, which flows through Orion-LD
+          # subscriptions only. See app/config.py:require_postgres_url.)
+          # - name: POSTGRES_URL
           #   valueFrom:
           #     secretKeyRef:
           #       name: postgresql-secret

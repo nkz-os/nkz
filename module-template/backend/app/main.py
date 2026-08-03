@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.api import router as api_router
+from app.api.internal import router as internal_router
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,11 @@ def create_app() -> FastAPI:
     
     # Include API routes
     app.include_router(api_router, prefix=settings.api_prefix)
-    
+
+    # Internal routes (entity-manager, other in-cluster callers) — authenticated
+    # by X-Internal-Service-Secret, NOT gateway headers. See app/api/internal.py.
+    app.include_router(internal_router, prefix=settings.api_prefix)
+
     return app
 
 

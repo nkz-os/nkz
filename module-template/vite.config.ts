@@ -6,7 +6,7 @@ const MODULE_ID = 'MODULE_NAME';
 
 export default defineConfig(nkzModulePreset({
   moduleId: MODULE_ID,
-  entry: 'src/moduleEntry.ts',
+  entry: './src/moduleEntry.ts',
   viteConfig: {
     resolve: {
       alias: { '@': path.resolve(__dirname, './src') },
