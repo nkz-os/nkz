@@ -9,6 +9,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field
 
+from nkz_platform_sdk import OrionClient
+
 from app.middleware import TokenPayload, get_current_user, get_tenant_id, require_roles
 
 
@@ -215,14 +217,41 @@ async def get_stats(
 ):
     """
     Get module statistics.
-    
+
     Requires TenantAdmin or PlatformAdmin role.
     """
     total_tenants = len(_data_store)
     total_items = sum(len(store) for store in _data_store.values())
-    
+
     return {
         "total_tenants": total_tenants,
         "total_items": total_items,
-        "user": user.email,
+        "user": user.user_id,
     }
+
+
+# =============================================================================
+# Orion-LD Example (nkz_platform_sdk)
+# =============================================================================
+# Replace "AgriParcel" with the entity type your module actually reads/writes.
+# Always use OrionClient/SyncOrionClient for Orion-LD access — never raw
+# requests/httpx (see nkz platform CLAUDE.md, "NEVER use raw requests.get()").
+
+@router.get("/entities")
+async def list_orion_entities(
+    entity_type: Optional[str] = Query(None, alias="type"),
+    limit: int = Query(20, ge=1, le=100),
+    tenant_id: str = Depends(get_tenant_id),
+    user: TokenPayload = Depends(get_current_user),
+):
+    """
+    Example: query NGSI-LD entities from Orion-LD, scoped to the caller's tenant.
+
+    OrionClient injects NGSILD-Tenant / Fiware-Service / @context headers
+    automatically — do not build these by hand.
+    """
+    orion = OrionClient(tenant_id)
+    try:
+        return await orion.query_entities(type=entity_type, limit=limit)
+    finally:
+        await orion.close()

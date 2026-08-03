@@ -11,7 +11,8 @@ cd my-module
 
 ## 2. Replace placeholders
 
-Find-and-replace across all files:
+Find-and-replace across all files (this includes `src/locales/*.json` and
+`src/moduleEntry.ts` — the substitution walks every file, not just config):
 
 | Placeholder | Replace with | Example |
 |-------------|--------------|---------|
@@ -31,7 +32,7 @@ npm install
 
 ```bash
 cp env.example .env
-# Edit .env — set VITE_PROXY_TARGET to your API domain
+# Edit .env — set VITE_PROXY_TARGET and VITE_API_URL to your API domain
 ```
 
 ## 5. Develop
@@ -45,16 +46,21 @@ npm run dev
 
 ```bash
 npm run build:module
-# → dist/nkz-module.js
+# → dist/remoteEntry.js, dist/mf-manifest.json, dist/assets/*
+#   (Module Federation 2.0 remote — see vite.config.ts / @nekazari/module-builder)
 ```
+
+Fill in your real i18n strings in `src/locales/en.json` / `es.json` before
+shipping — `ca.json` / `eu.json` / `fr.json` / `pt.json` ship as empty `{}`
+skeletons (i18next falls back to `en` for missing keys).
 
 ## 7. Upload to MinIO
 
 ```bash
-# On the server with port-forward active:
-mc cp dist/nkz-module.js \
-   minio/nekazari-frontend/modules/MODULE_NAME/nkz-module.js \
-   --attr "Content-Type=application/javascript"
+# On the server with port-forward active — upload the whole dist/ directory,
+# not a single file. The host's federation runtime fetches remoteEntry.js and
+# chunks relative to mf-manifest.json's publicPath.
+mc cp -r dist/ minio/nekazari-frontend/modules/MODULE_NAME/
 ```
 
 ## 8. Register in database (required)
@@ -89,6 +95,12 @@ kubectl apply -f k8s/backend-deployment.yaml -n nekazari
 ```
 
 Do not add a dedicated `/api/MODULE_NAME` Ingress rule. Module API traffic should go through the platform `/api` catch-all and gateway auto-proxy, except for explicitly approved direct-ingress exceptions.
+
+This backend trusts api-gateway-injected headers (`X-Tenant-ID`, `X-User-ID`,
+`X-User-Roles`) — it never talks to Keycloak directly. Set
+`INTERNAL_SERVICE_SECRET` (K8s Secret `internal-service-secret`, org-level)
+for the `/internal/*` routes called by entity-manager and other in-cluster
+services; without it those routes always reject with 401.
 
 ## 10. Activate for tenants
 

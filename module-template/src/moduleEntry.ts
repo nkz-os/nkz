@@ -1,18 +1,32 @@
 /**
- * IIFE entry point — called when the host injects this bundle via <script>.
- * Must call window.__NKZ__.register() to activate the module.
+ * Module entry point — canonical `defineModule()` pattern (Module Federation 2.0).
  *
- * MODULE_ID must match the `id` column in marketplace_modules exactly.
+ * @nekazari/module-builder's `nkzModulePreset()` exposes this file as `./Module`
+ * and builds it into `dist/remoteEntry.js`. The host loads it at runtime via
+ * `registerRemotes` + `loadRemote('MODULE_NAME/Module')`.
+ *
+ * Do NOT call `window.__NKZ__.register()` here — that IIFE pattern no longer
+ * works under Module Federation 2.0. Export the `defineModule()` result instead;
+ * the builder + host runtime derive registration, slots and manifest from it.
+ *
+ * MODULE_NAME must match the `id` column in marketplace_modules exactly.
  */
+import { defineModule } from '@nekazari/module-kit';
+import { lazy } from 'react';
+import './i18n';
 import { moduleSlots } from './slots';
 import pkg from '../package.json';
 
-const MODULE_ID = 'MODULE_NAME';
+const MainPage = lazy(() => import('./App'));
 
-if (typeof window !== 'undefined' && window.__NKZ__) {
-  window.__NKZ__.register({
-    id: MODULE_ID,
-    viewerSlots: moduleSlots,
-    version: pkg.version,
-  });
-}
+export default defineModule({
+  id: 'MODULE_NAME',
+  displayName: 'MODULE_DISPLAY_NAME',
+  version: pkg.version,
+  hostApiVersion: '^2.0.0',
+  description: 'MODULE_DISPLAY_NAME — Nekazari Platform Module',
+  accent: { base: '#3B82F6', soft: '#DBEAFE', strong: '#1D4ED8' },
+  icon: 'puzzle',
+  main: MainPage,
+  slots: moduleSlots as never,
+});

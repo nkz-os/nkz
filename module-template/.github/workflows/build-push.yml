@@ -3,12 +3,14 @@
 # =============================================================================
 # On push to main or a version tag:
 #   1. Type-check frontend + run backend tests
-#   2. Build the IIFE bundle (dist/nkz-module.js) — uploaded as artifact
+#   2. Build the Module Federation 2.0 remote (dist/remoteEntry.js,
+#      dist/mf-manifest.json, dist/assets/*) — uploaded as artifact
 #   3. Build and push the backend Docker image to GHCR (if module has a backend)
 #
-# After this workflow succeeds, manually upload dist/nkz-module.js to MinIO:
-#   mc cp nkz-module.js minio/nekazari-frontend/modules/MODULE_NAME/nkz-module.js \
-#      --attr "Content-Type=application/javascript"
+# After this workflow succeeds, upload the WHOLE dist/ directory to MinIO
+# (the federation runtime fetches remoteEntry.js and chunks relative to
+# mf-manifest.json's publicPath — a single-file copy is not enough):
+#   mc cp -r dist/ minio/nekazari-frontend/modules/MODULE_NAME/
 # =============================================================================
 
 name: Build and Push
@@ -67,10 +69,10 @@ jobs:
               run: cd backend && python -m pytest tests/ -v
 
     # ==========================================================================
-    # Build IIFE bundle
+    # Build Module Federation 2.0 remote
     # ==========================================================================
     build-module:
-        name: Build IIFE Bundle
+        name: Build MF2 Bundle
         runs-on: ubuntu-latest
         needs: test
         steps:
@@ -96,7 +98,7 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                   name: nkz-module
-                  path: dist/nkz-module.js
+                  path: dist/
                   retention-days: 30
 
     # ==========================================================================

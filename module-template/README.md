@@ -24,25 +24,32 @@ npm run dev
 ```
 module-template/
 ├── src/
-│   ├── moduleEntry.ts          # IIFE entry — calls window.__NKZ__.register()
+│   ├── moduleEntry.ts          # export default defineModule({...}) — MF2 entry
+│   ├── i18n.ts                 # i18next resource bundle registration
+│   ├── locales/                # en/es filled in; ca/eu/fr/pt ship as {} skeletons
 │   ├── slots/index.ts          # Slot component declarations
-│   ├── components/slots/       # Slot React components
-│   ├── services/api.ts         # API client template
+│   ├── components/slots/       # Slot React components (wrapped in <SlotShell>)
+│   ├── services/api.ts         # API client template (VITE_API_URL base)
 │   └── types/global.d.ts       # Host globals (window.__NKZ__, etc.)
 ├── backend/                    # FastAPI backend (optional)
+│   └── app/
+│       ├── middleware/         # Gateway-header auth (nkz_platform_sdk.auth) —
+│       │                       # NO JWKS/JWT validation in the module.
+│       └── api/internal.py     # /internal/* — X-Internal-Service-Secret only
 ├── k8s/
 │   ├── backend-deployment.yaml
 │   └── registration.sql
 ├── scripts/init-module.sh      # Interactive initializer
 ├── manifest.json
-└── vite.config.ts              # Uses @nekazari/module-builder preset
+└── vite.config.ts              # Uses @nekazari/module-builder preset (MF2)
 ```
 
 ## Build
 
 ```bash
 npm run build:module
-# → dist/nkz-module.js  (IIFE bundle, upload to MinIO)
+# → dist/remoteEntry.js, dist/mf-manifest.json, dist/assets/*
+#   (Module Federation 2.0 remote — upload the whole dist/ directory to MinIO)
 ```
 
 See `SETUP.md` for full deployment steps.

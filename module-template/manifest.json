@@ -34,8 +34,8 @@
     "external_requests": []
   },
   "build_config": {
-    "type": "iife",
-    "remote_entry_url": "/modules/MODULE_NAME/nkz-module.js"
+    "type": "module-federation",
+    "remote_entry_url": "/modules/MODULE_NAME/mf-manifest.json"
   },
   "slots": {
     "map-layer": [],

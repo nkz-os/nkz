@@ -2,7 +2,8 @@
 # MODULE_DISPLAY_NAME - Local Development with Docker Compose
 # =============================================================================
 # Runs the backend API locally. The frontend is a Vite dev server (npm run dev),
-# not a Docker container — IIFE modules don't ship a standalone frontend image.
+# not a Docker container — Module Federation 2.0 remotes don't ship a
+# standalone frontend image, they are built and uploaded to MinIO.
 #
 # Usage:
 #   docker-compose up        # Start backend
@@ -24,10 +25,10 @@ services:
       - APP_NAME=MODULE_DISPLAY_NAME
       - DEBUG=true
       - API_PREFIX=/api/MODULE_NAME
-      - KEYCLOAK_URL=https://auth.example.com/auth
-      - KEYCLOAK_REALM=nekazari
-      - JWT_AUDIENCE=account
       - CORS_ORIGINS=["http://localhost:5003","http://localhost:5173"]
+      # Auth: this module trusts gateway-injected headers (X-Tenant-ID,
+      # X-User-ID, X-User-Roles) — no Keycloak/JWT config needed here.
+      - INTERNAL_SERVICE_SECRET=dev-only-secret-change-me
     volumes:
       - ./backend/app:/app/app:ro
     healthcheck:
