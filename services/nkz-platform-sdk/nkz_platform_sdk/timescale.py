@@ -36,6 +36,15 @@ def _iso(value: str | datetime) -> str:
     return value
 
 
+def _http_retries() -> int:
+    """Connection-level retry count for the async httpx transport.
+
+    NKZ_HTTP_RETRIES (default 3). httpx.AsyncHTTPTransport retries only
+    retry connection-establishment errors, not response statuses.
+    """
+    return int(os.getenv("NKZ_HTTP_RETRIES", "3"))
+
+
 class TimescaleClient:
     """Read-only timeseries client scoped to a single tenant.
 
@@ -53,7 +62,8 @@ class TimescaleClient:
             "TIMESERIES_READER_URL",
             "http://timeseries-reader-service:5000",
         )
-        self._client = httpx.AsyncClient(timeout=30.0)
+        transport = httpx.AsyncHTTPTransport(retries=_http_retries())
+        self._client = httpx.AsyncClient(timeout=30.0, transport=transport)
 
     def _headers(self) -> dict[str, str]:
         return {
