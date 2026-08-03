@@ -194,21 +194,10 @@ PUBLIC_ALLOWLIST_UNAUTH_2XX = {
 # job, not this suite's.
 #
 # *** SUSPICIOUS — REVIEW BEFORE/DURING REFACTOR ***
-SUSPICIOUS_UNAUTH_2XX = {
-    "POST /internal/cache/invalidate": (
-        "SUSPICIOUS — review: no auth check of ANY kind (not even "
-        "X-Internal-Service-Secret), despite the docstring claiming it's "
-        "'called internally by backend services'. Mutates gateway process "
-        "state: with key='routes' or 'modules' it forces "
-        "_refresh_route_registry() to re-query marketplace_modules on the "
-        "next request (cheap DoS via cache-busting); with "
-        "key='suspended:<tenant>' it evicts that tenant from the in-memory "
-        "suspension cache, which — until the next DB check repopulates it — "
-        "could let a suspended tenant's requests evaluate as not-suspended "
-        "if this cache is consulted as an allow signal elsewhere. Reachable "
-        "by any anonymous caller who can route to the gateway."
-    ),
-}
+# (empty — POST /internal/cache/invalidate was fixed to require
+# X-Internal-Service-Secret via hmac.compare_digest(), so it no longer
+# returns 2xx unauthenticated. See golden: now 401.)
+SUSPICIOUS_UNAUTH_2XX = {}
 
 
 def test_gateway_characterization_matches_golden(gateway, monkeypatch):
