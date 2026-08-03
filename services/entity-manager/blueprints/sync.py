@@ -140,7 +140,7 @@ def _map_entity_to_mobile(ent):
                     dt = datetime.fromisoformat(val)
                 return int(dt.timestamp() * 1000)
             return 0
-        except:
+        except (ValueError, TypeError, AttributeError):
             return 0
 
     if 'createdAt' in props:
