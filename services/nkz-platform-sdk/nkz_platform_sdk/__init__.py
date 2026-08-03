@@ -9,6 +9,11 @@ Provides:
 - TimescaleClient: Typed timeseries reader, tenant headers auto-injected
 - ModuleLifecycle: Base class for install/uninstall/enable/disable hooks
 - ModuleConfig: Per-tenant encrypted configuration storage
+- generate_hmac_signature / verify_hmac_signature: canonical platform HMAC
+  primitive (payload `{data}|{tenant_id}|{timestamp}`, output
+  `{hexdigest}:{timestamp}`), the single source of truth used internally by
+  require_auth() and available for services that need to produce/verify the
+  same signature format (e.g. api-gateway → module backend HMAC).
 
 License: Apache-2.0 — modules using this SDK may use any license.
 """
@@ -23,6 +28,7 @@ from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
 from nkz_platform_sdk.activation import ModuleActivation
 from nkz_platform_sdk.ngsi_headers import inject_fiware_headers
 from nkz_platform_sdk.constants import SensorFidelity
+from nkz_platform_sdk.crypto import generate_hmac_signature, verify_hmac_signature
 from nkz_platform_sdk.agronomy import (
     AgronomicValue,
     Source,
@@ -50,4 +56,6 @@ __all__ = [
     "confidence_from_match",
     "confidence_from_fidelity",
     "SensorFidelity",
+    "generate_hmac_signature",
+    "verify_hmac_signature",
 ]

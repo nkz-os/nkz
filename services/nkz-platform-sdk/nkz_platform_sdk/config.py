@@ -33,6 +33,21 @@ class ModuleConfig:
         if self._secret:
             key = urlsafe_b64encode(sha256(self._secret.encode()).digest())
             self._fernet = Fernet(key)
+        self._timeout = float(os.getenv("MODULE_CONFIG_TIMEOUT", "10.0"))
+        self._client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        """Lazily create and reuse a single AsyncClient across requests
+        (connection pooling) instead of opening a new one per call."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self._timeout)
+        return self._client
+
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client, if one was ever created."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
     async def get(self, key: str) -> str | None:
         resp = await self._request("GET", key)
@@ -63,15 +78,15 @@ class ModuleConfig:
         url = f"{self._api_url}/{self.module_id}/{self.tenant_id}"
         if key:
             url = f"{url}/{key}"
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            headers = {
-                "X-Internal-Service": "nkz-platform-sdk",
-                "Content-Type": "application/json",
-            }
-            if method == "GET":
-                return await client.get(url, headers=headers)
-            elif method == "POST":
-                return await client.post(url, json=data, headers=headers)
-            elif method == "DELETE":
-                return await client.delete(url, headers=headers)
-            raise ValueError(f"Unknown method: {method}")
+        client = self._get_client()
+        headers = {
+            "X-Internal-Service": "nkz-platform-sdk",
+            "Content-Type": "application/json",
+        }
+        if method == "GET":
+            return await client.get(url, headers=headers)
+        elif method == "POST":
+            return await client.post(url, json=data, headers=headers)
+        elif method == "DELETE":
+            return await client.delete(url, headers=headers)
+        raise ValueError(f"Unknown method: {method}")
