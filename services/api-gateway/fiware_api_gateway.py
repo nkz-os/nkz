@@ -875,10 +875,17 @@ def safe_proxy_response(response):
 
 
 def get_cors_origin():
-    """Return the validated CORS origin or None if not allowed"""
+    """Return the validated CORS origin or None if not allowed.
+
+    Returns the matching entry FROM the trusted allowlist rather than the
+    client-supplied Origin string, so the reflected value never originates
+    from request input (avoids reflected-XSS taint on the CORS header).
+    """
     origin = request.headers.get("Origin")
-    if origin and origin in ALLOWED_ORIGINS:
-        return origin
+    if origin:
+        for allowed in ALLOWED_ORIGINS:
+            if origin == allowed:
+                return allowed
     return None
 
 
