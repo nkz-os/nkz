@@ -164,7 +164,7 @@ def _collect_route_statuses(gateway) -> dict:
 # Format: "<METHOD> <rule>": "why".
 # =============================================================================
 PUBLIC_ALLOWLIST_UNAUTH_2XX = {
-    # n8n.robotika.cloud root landing page — static text, no tenant/user data.
+    # n8n root landing page — static text, no tenant/user data.
     "GET /": "n8n tenant-proxy landing page; static text, no sensitive data.",
     # K8s liveness/readiness probe target — must be reachable pre-auth or the
     # pod never becomes Ready.
