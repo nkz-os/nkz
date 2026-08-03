@@ -76,7 +76,7 @@ class TimescaleDBWriter:
             if self.conn:
                 try:
                     self.conn.close()
-                except:
+                except Exception:
                     pass
             self.connect()
 
@@ -92,7 +92,7 @@ class TimescaleDBWriter:
             if self.conn:
                 try:
                     self.conn.close()
-                except:
+                except Exception:
                     pass
             self.conn = None
             # Retry once with new connection
@@ -264,7 +264,7 @@ class TimescaleDBWriter:
             try:
                 if conn:
                     conn.rollback()
-            except:
+            except Exception:
                 pass
             return []
 

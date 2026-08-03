@@ -12,6 +12,7 @@ permissions:
 jobs:
   frontend-tests:
     name: Frontend Unit Tests
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     env:
       # GitHub Actions: opt into Node 24 for JS actions before the 2026-06 default (deprecation of Node 20 runtime).
@@ -55,6 +56,7 @@ jobs:
 
   backend-tests:
     name: Backend Unit Tests
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -87,6 +89,7 @@ jobs:
 
   service-smoke-tests:
     name: Service Smoke Tests
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -121,6 +124,7 @@ jobs:
 
   production-domain-check:
     name: Production Domain Check
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -21,7 +21,7 @@ from module_csp import is_entity_type_allowed, is_timeseries_allowed
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
-import time
+import hmac
 import uuid
 import boto3
 import re
@@ -116,8 +116,18 @@ except ImportError:
 
 
 app = Flask(__name__)
+# Cap request bodies: unbounded uploads are a trivial memory-DoS vector
+app.config["MAX_CONTENT_LENGTH"] = int(
+    os.getenv("MAX_CONTENT_LENGTH_BYTES", str(16 * 1024 * 1024))
+)
 # Trust X-Forwarded-For from Traefik (needed for GitHub Actions IP allowlist)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+
+@app.errorhandler(requests.exceptions.Timeout)
+def _upstream_timeout(_e):
+    return jsonify({"error": "Upstream service timeout"}), 504
+
 # CORS: Handled by Traefik Middleware at infrastructure level
 
 # Configuration - All environment variables are REQUIRED for security
@@ -196,9 +206,9 @@ REQUESTS_PER_MINUTE = int(
 ALLOW_JWT_FALLBACK = os.getenv("ALLOW_JWT_FALLBACK", "false").lower() == "true"
 COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", ".robotika.cloud")
 
-# CORS whitelist — configured via CORS_ORIGINS env var (comma-separated)
-_cors_env = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
-ALLOWED_ORIGINS = {o.strip() for o in _cors_env.split(",") if o.strip()}
+# Default timeout for proxied backend calls: a hung backend must never
+# exhaust the gunicorn worker pool
+PROXY_TIMEOUT = int(os.getenv("PROXY_TIMEOUT_SECONDS", "30"))
 
 
 # =========================================================================
@@ -684,7 +694,7 @@ def enforce_agriparcel_single_writer():
     # Allow entity-manager (identified by internal service secret)
     internal_secret = request.headers.get("X-Internal-Service-Secret", "")
     expected = os.getenv("INTERNAL_SERVICE_SECRET", "")
-    if expected and internal_secret == expected:
+    if expected and hmac.compare_digest(internal_secret, expected):
         return None
 
     # Check body for AgriParcel type
@@ -970,14 +980,13 @@ def entity_by_id(entity_id):
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
         if request.method == "GET":
-            response = requests.get(orion_url, headers=headers, params=request.args)
+            response = requests.get(orion_url, headers=headers, params=request.args, timeout=PROXY_TIMEOUT)
         elif request.method == "PUT":
-            response = requests.put(orion_url, headers=headers, json=request.json)
+            response = requests.put(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
         elif request.method == "PATCH":
-            response = requests.patch(orion_url, headers=headers, json=request.json)
+            response = requests.patch(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
         elif request.method == "DELETE":
-            response = requests.delete(orion_url, headers=headers)
-
+            response = requests.delete(orion_url, headers=headers, timeout=PROXY_TIMEOUT)
         if response.status_code >= 400:
             logger.error(
                 f"Orion-LD error {response.status_code} for entity {entity_id}: {response.text}"
@@ -1067,16 +1076,15 @@ def entities():
             params = dict(request.args)
             if hasattr(g, "pat_entity_limit"):
                 params["limit"] = str(g.pat_entity_limit)
-            response = requests.get(orion_url, headers=headers, params=params)
+            response = requests.get(orion_url, headers=headers, params=params, timeout=PROXY_TIMEOUT)
         elif request.method == "POST":
-            response = requests.post(orion_url, headers=headers, json=json_body)
+            response = requests.post(orion_url, headers=headers, json=json_body, timeout=PROXY_TIMEOUT)
         elif request.method == "PUT":
-            response = requests.put(orion_url, headers=headers, json=json_body)
+            response = requests.put(orion_url, headers=headers, json=json_body, timeout=PROXY_TIMEOUT)
         elif request.method == "PATCH":
-            response = requests.patch(orion_url, headers=headers, json=json_body)
+            response = requests.patch(orion_url, headers=headers, json=json_body, timeout=PROXY_TIMEOUT)
         elif request.method == "DELETE":
-            response = requests.delete(orion_url, headers=headers)
-
+            response = requests.delete(orion_url, headers=headers, timeout=PROXY_TIMEOUT)
         if response.status_code >= 400:
             logger.error(f"Orion-LD error {response.status_code}: {response.text}")
 
@@ -1203,16 +1211,15 @@ def subscriptions():
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/subscriptions"
         if request.method == "GET":
-            response = requests.get(orion_url, headers=headers, params=request.args)
+            response = requests.get(orion_url, headers=headers, params=request.args, timeout=PROXY_TIMEOUT)
         elif request.method == "POST":
-            response = requests.post(orion_url, headers=headers, json=request.json)
+            response = requests.post(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
         elif request.method == "PUT":
-            response = requests.put(orion_url, headers=headers, json=request.json)
+            response = requests.put(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
         elif request.method == "PATCH":
-            response = requests.patch(orion_url, headers=headers, json=request.json)
+            response = requests.patch(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
         elif request.method == "DELETE":
-            response = requests.delete(orion_url, headers=headers)
-
+            response = requests.delete(orion_url, headers=headers, timeout=PROXY_TIMEOUT)
         return make_response(
             response.content, response.status_code, dict(response.headers)
         )
@@ -1342,8 +1349,7 @@ def get_sensors():
         # Merge with existing query params
         params.update(request.args)
 
-        response = requests.get(orion_url, headers=headers, params=params)
-
+        response = requests.get(orion_url, headers=headers, params=params, timeout=PROXY_TIMEOUT)
         if response.status_code >= 400:
             logger.error(f"Orion-LD error {response.status_code}: {response.text}")
 

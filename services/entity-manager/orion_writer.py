@@ -160,10 +160,8 @@ def create_weather_observed_entity(
         if headers is None:
             headers = {}
 
-        headers["Content-Type"] = "application/ld+json"
-
-        # Inject FIWARE headers
-        headers = inject_fiware_headers(headers, tenant_id)
+        # Entity body carries @context -> must go as application/ld+json, no Link
+        headers = inject_fiware_headers(headers, tenant_id, has_context_in_body=True)
 
         # Try to create entity
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
@@ -296,9 +294,7 @@ def update_weather_observed_entity(
         if headers is None:
             headers = {}
 
-        headers["Content-Type"] = "application/ld+json"
-
-        # Inject FIWARE headers
+        # Attr fragment carries no @context -> application/json + Link header
         headers = inject_fiware_headers(headers, tenant_id)
 
         # Update entity
