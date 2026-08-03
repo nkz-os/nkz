@@ -395,37 +395,41 @@ class WeatherWorker:
             alerts_thread.start()
             logger.info("MeteoAlertsEngine thread started")
 
-        # Municipality worker is OFF by default
-        if self.config.MUNICIPALITY_WORKER_ENABLED:
-            logger.info("Municipality worker enabled (legacy mode)")
-            self.run_ingestion_cycle()
-            interval_seconds = self.config.WEATHER_INGESTION_INTERVAL_HOURS * 3600
-            logger.info(
-                f"Scheduling municipality ingestion every "
-                f"{self.config.WEATHER_INGESTION_INTERVAL_HOURS} hours"
-            )
-            try:
-                while True:
-                    time.sleep(interval_seconds)
-                    self.run_ingestion_cycle()
-            except KeyboardInterrupt:
-                logger.info("Weather Worker stopped by user")
-            finally:
-                self.storage.close()
-        else:
-            logger.info(
-                "Municipality worker disabled — parcel engine only. "
-                "Municipality forecasts are served statelessly by weather-api."
-            )
-            try:
-                while True:
-                    time.sleep(60)  # keep main thread alive
-            except KeyboardInterrupt:
-                logger.info("Weather Worker stopped by user")
+        # Municipality worker legacy path removed (2026-08-03): its writes are
+        # a no-op since the Orion-LD migration (TimescaleDBWriter.write_observations
+        # deprecated stub). validate_startup_config() refuses to start if
+        # MUNICIPALITY_WORKER_ENABLED=true, so this branch is unreachable by
+        # the time run() executes — only the parcel-engine-only path remains.
+        logger.info(
+            "Municipality worker disabled — parcel engine only. "
+            "Municipality forecasts are served statelessly by weather-api."
+        )
+        try:
+            while True:
+                time.sleep(60)  # keep main thread alive
+        except KeyboardInterrupt:
+            logger.info("Weather Worker stopped by user")
+
+
+def validate_startup_config(config):
+    """Fail fast on startup config that would silently discard data.
+
+    MUNICIPALITY_WORKER_ENABLED enables a legacy ingestion path whose writes
+    are a no-op since the Orion-LD migration (TimescaleDBWriter.write_observations
+    is a deprecated stub returning 0). Running it would silently discard
+    weather data instead of erroring, so refuse to start (fail-safe).
+    """
+    if config.MUNICIPALITY_WORKER_ENABLED:
+        raise SystemExit(
+            "MUNICIPALITY_WORKER_ENABLED=true is no longer supported: "
+            "weather data flows via ParcelWeatherEngine -> Orion-LD. Unset the flag."
+        )
 
 
 def main():
     """Main entry point"""
+    validate_startup_config(WeatherWorkerConfig)
+
     # Start Prometheus metrics server
     try:
         start_http_server(

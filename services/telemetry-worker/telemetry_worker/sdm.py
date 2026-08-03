@@ -328,7 +328,7 @@ def process_payload_dict(
         if m.get('observedAt'):
             try:
                 observed_at = datetime.fromisoformat(m['observedAt'].replace('Z', '+00:00'))
-            except:
+            except (ValueError, TypeError):
                 observed_at = datetime.utcnow()
         
         measurements.append(Measurement(
@@ -555,7 +555,7 @@ def _persist_to_timescaledb(
             try:
                 conn.rollback()
                 conn.close()
-            except:
+            except Exception:
                 pass
 
 
@@ -648,7 +648,7 @@ class TelemetryBatch:
                     if m.get('observedAt'):
                         try:
                             observed_at = datetime.fromisoformat(m['observedAt'].replace('Z', '+00:00'))
-                        except:
+                        except (ValueError, TypeError):
                             observed_at = datetime.utcnow()
                     else:
                         observed_at = datetime.utcnow()
@@ -784,5 +784,5 @@ def _batch_insert_timescaledb(rows: List[tuple], settings: Settings) -> None:
             try:
                 conn.rollback()
                 conn.close()
-            except:
+            except Exception:
                 pass

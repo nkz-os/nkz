@@ -200,7 +200,9 @@ def _cleanup_broken_subscriptions(tenant_id: str):
     """Delete subscriptions with wrong port (legacy bug)."""
     headers = _make_headers(tenant_id)
     try:
-        r = requests.get(f"{ORION_URL}/ngsi-ld/v1/subscriptions", headers=headers)
+        r = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/subscriptions", headers=headers, timeout=30
+        )
         if r.status_code != 200:
             return
         for sub in r.json():
@@ -210,6 +212,7 @@ def _cleanup_broken_subscriptions(tenant_id: str):
                 requests.delete(
                     f"{ORION_URL}/ngsi-ld/v1/subscriptions/{sub_id}",
                     headers=headers,
+                    timeout=30,
                 )
                 logger.info(f"Deleted broken subscription {sub_id} (port 8080)")
     except Exception as e:
@@ -224,6 +227,7 @@ def _ensure_tenant_subscriptions(tenant_id: str):
         response = requests.get(
             f"{ORION_URL}/ngsi-ld/v1/subscriptions",
             headers=headers,
+            timeout=30,
         )
         response.raise_for_status()
         existing_subs = response.json()
@@ -244,6 +248,7 @@ def _ensure_tenant_subscriptions(tenant_id: str):
                     f"{ORION_URL}/ngsi-ld/v1/subscriptions",
                     json=sub,
                     headers=headers,
+                    timeout=30,
                 )
                 if res.status_code in [200, 201]:
                     logger.info(f"Created: {sub['description']} for {tenant_id}")
