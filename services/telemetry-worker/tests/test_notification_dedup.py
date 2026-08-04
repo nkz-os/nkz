@@ -1,10 +1,14 @@
-"""Tests for NotificationDedup (Redis-backed telemetry notification dedup)."""
+"""Tests for NotificationDedup (Redis-backed telemetry notification dedup).
 
+Async coroutines are driven with ``asyncio.run`` in sync test functions —
+the telemetry-worker smoke lane has no pytest-asyncio plugin (mirrors the
+sensor-health-beat test pattern).
+"""
+
+import asyncio
 import os
 import sys
 from datetime import datetime, timezone
-
-import pytest
 
 # ── Path setup (mirrors other telemetry-worker tests) ──────────────────────
 _TEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -68,91 +72,88 @@ def _dedup_with_fake_redis(enabled: bool = True) -> NotificationDedup:
     return dedup
 
 
-@pytest.mark.asyncio
-async def test_first_event_is_new():
+def test_first_event_is_new():
     """A never-before-seen event must NOT be flagged as a duplicate."""
     dedup = _dedup_with_fake_redis()
-    result = await dedup.is_duplicate(
-        TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5}
+    result = asyncio.run(
+        dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5})
     )
     assert result is False
 
 
-@pytest.mark.asyncio
-async def test_second_identical_event_is_duplicate():
+def test_second_identical_event_is_duplicate():
     """The exact same (tenant, entity, observedAt, measurements) seen twice
     must be flagged as a duplicate on the second delivery."""
     dedup = _dedup_with_fake_redis()
     measurements = {"temperature": 21.5, "humidity": 60}
 
-    first = await dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, measurements)
-    second = await dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, measurements)
+    first = asyncio.run(
+        dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, measurements)
+    )
+    second = asyncio.run(
+        dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, measurements)
+    )
 
     assert first is False
     assert second is True
 
 
-@pytest.mark.asyncio
-async def test_different_measurements_same_timestamp_not_collapsed():
+def test_different_measurements_same_timestamp_not_collapsed():
     """Two DIFFERENT readings sharing the same observedAt must both be
     treated as new — the measurement hash must prevent collapsing them."""
     dedup = _dedup_with_fake_redis()
 
-    first = await dedup.is_duplicate(
-        TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5}
+    first = asyncio.run(
+        dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5})
     )
-    second = await dedup.is_duplicate(
-        TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 30.0}
+    second = asyncio.run(
+        dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 30.0})
     )
 
     assert first is False
     assert second is False
 
 
-@pytest.mark.asyncio
-async def test_redis_error_on_set_fails_open():
+def test_redis_error_on_set_fails_open():
     """If the Redis SET call itself raises, dedup must fail open: return
     False (not a duplicate) so the write is never dropped."""
     dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=True)
     dedup._redis = BrokenRedis()
 
-    result = await dedup.is_duplicate(
-        TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5}
+    result = asyncio.run(
+        dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5})
     )
 
     assert result is False
 
 
-@pytest.mark.asyncio
-async def test_redis_never_connected_fails_open():
+def test_redis_never_connected_fails_open():
     """If Redis was unreachable at start() time (_redis stays None), dedup
     must fail open rather than blocking every subsequent write."""
     dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=True)
     assert dedup._redis is None
 
-    result = await dedup.is_duplicate(
-        TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5}
+    result = asyncio.run(
+        dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5})
     )
 
     assert result is False
 
 
-@pytest.mark.asyncio
-async def test_start_failure_is_non_fatal():
+def test_start_failure_is_non_fatal():
     """start() must never raise even if Redis is completely unreachable —
     the worker must still boot without a working dedup cache."""
     original_from_url = dedup_module.aioredis.from_url
     dedup_module.aioredis.from_url = lambda url, decode_responses=True: BrokenRedis()
     try:
         dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=True)
-        await dedup.start()  # must not raise
+        asyncio.run(dedup.start())  # must not raise
         assert dedup._redis is None
     finally:
         dedup_module.aioredis.from_url = original_from_url
 
 
-@pytest.mark.asyncio
-async def test_start_connects_and_pings_on_success():
+def test_start_connects_and_pings_on_success():
     """start() should wire up the aioredis client, mirroring HealthChecker's
     connect-and-ping pattern."""
     fake = FakeRedis()
@@ -160,28 +161,26 @@ async def test_start_connects_and_pings_on_success():
     dedup_module.aioredis.from_url = lambda url, decode_responses=True: fake
     try:
         dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=True)
-        await dedup.start()
+        asyncio.run(dedup.start())
         assert dedup._redis is fake
     finally:
         dedup_module.aioredis.from_url = original_from_url
 
 
-@pytest.mark.asyncio
-async def test_disabled_bypasses_redis_entirely():
+def test_disabled_bypasses_redis_entirely():
     """TELEMETRY_DEDUP_ENABLED=false (enabled=False) must short-circuit
     before touching Redis at all — even a broken client must not raise."""
     dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=False)
     dedup._redis = BrokenRedis()  # would raise on any call if touched
 
-    result = await dedup.is_duplicate(
-        TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5}
+    result = asyncio.run(
+        dedup.is_duplicate(TENANT_ID, ENTITY_ID, OBSERVED_AT, {"temperature": 21.5})
     )
 
     assert result is False
 
 
-@pytest.mark.asyncio
-async def test_disabled_start_does_not_connect():
+def test_disabled_start_does_not_connect():
     """start() with enabled=False must not attempt a Redis connection."""
     original_from_url = dedup_module.aioredis.from_url
 
@@ -191,7 +190,7 @@ async def test_disabled_start_does_not_connect():
     dedup_module.aioredis.from_url = _boom
     try:
         dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=False)
-        await dedup.start()
+        asyncio.run(dedup.start())
         assert dedup._redis is None
     finally:
         dedup_module.aioredis.from_url = original_from_url
