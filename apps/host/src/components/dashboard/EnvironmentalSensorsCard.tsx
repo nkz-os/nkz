@@ -73,7 +73,7 @@ export const EnvironmentalSensorsCard: React.FC<EnvironmentalSensorsCardProps> =
         {sensors.length > 4 && (
           <Button
             onClick={() => navigate('/sensors')}
-            className="w-full mt-4 py-3 text-nkz-success hover:bg-nkz-success-light rounded-xl transition font-medium"
+            className="w-full mt-4 py-3 text-nkz-success-strong hover:bg-nkz-success-light rounded-xl transition font-medium"
           >
             {t('dashboard.sensors.view_all_count', { count: sensors.length })}
           </Button>

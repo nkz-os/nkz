@@ -295,7 +295,7 @@ export const TenantProfileEditor: React.FC = () => {
           </Button>
 
           {message && (
-            <span className={`text-sm ${message.type === 'success' ? 'text-nkz-success' : 'text-nkz-error'}`}>
+            <span className={`text-sm ${message.type === 'success' ? 'text-nkz-success-strong' : 'text-nkz-error'}`}>
               {message.text}
             </span>
           )}

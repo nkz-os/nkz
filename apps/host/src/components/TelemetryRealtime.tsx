@@ -194,7 +194,7 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
               <Droplets className="w-5 h-5 text-nkz-success" />
               <span className="text-xs text-gray-600">{getMeasurementUnit('moisture')}</span>
             </div>
-            <div className="text-2xl font-bold text-nkz-success">{moisture.toFixed(1)}</div>
+            <div className="text-2xl font-bold text-nkz-success-strong">{moisture.toFixed(1)}</div>
             <div className="text-xs text-gray-600 mt-1">{t('sensors.soil_moisture')}</div>
           </div>
         )}
@@ -227,7 +227,7 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
               <Sun className="w-5 h-5 text-nkz-warning" />
               <span className="text-xs text-gray-600">{getMeasurementUnit('solarRadiation')}</span>
             </div>
-            <div className="text-2xl font-bold text-nkz-warning">{solarRadiation.toFixed(1)}</div>
+            <div className="text-2xl font-bold text-nkz-warning-strong">{solarRadiation.toFixed(1)}</div>
             <div className="text-xs text-gray-600 mt-1">{t('sensors.solar_radiation')}</div>
           </div>
         )}

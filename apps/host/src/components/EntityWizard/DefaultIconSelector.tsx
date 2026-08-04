@@ -136,7 +136,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
                 <Icon className={`w-6 h-6 ${selectedIcon === key ? 'text-nkz-success' : 'text-gray-600'}`} />
                 <span className="text-xs text-gray-600">{label}</span>
                 {selectedIcon === key && (
-                  <Check className="w-3 h-3 text-nkz-success absolute top-1 right-1" />
+                  <Check className="w-3 h-3 text-nkz-success-strong absolute top-1 right-1" />
                 )}
               </Button>
             ))}
@@ -174,7 +174,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
 
       {/* Selected indicator */}
       {selectedIcon && (
-        <div className="flex items-center gap-2 text-sm text-nkz-success bg-nkz-success-light px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-nkz-success-strong bg-nkz-success-light px-3 py-2 rounded-lg">
           {(() => {
             const iconData = DEFAULT_ICONS[selectedIcon];
             if (iconData) {

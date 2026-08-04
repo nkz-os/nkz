@@ -246,22 +246,22 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                         <h4 className="text-sm font-semibold text-green-800 mb-2 flex items-center gap-2">
                             🌱 Crop Health Sensors
                         </h4>
-                        <p className="text-xs text-nkz-success mb-3">
+                        <p className="text-xs text-nkz-success-strong mb-3">
                             For crop water stress monitoring, use these attributes. Templates available in the <code className="bg-nkz-success-light px-1 rounded">nkz-module-crop-health/templates/</code> folder.
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
                             <div className="bg-white rounded-lg p-2 border border-green-200">
-                                <span className="font-semibold text-nkz-success">IR Canopy</span>
+                                <span className="font-semibold text-nkz-success-strong">IR Canopy</span>
                                 <p className="text-gray-600">→ <code>leafTemperature</code> (CEL)</p>
                                 <p className="text-nkz-muted">for CWSI calculation</p>
                             </div>
                             <div className="bg-white rounded-lg p-2 border border-green-200">
-                                <span className="font-semibold text-nkz-success">Dendrometer</span>
+                                <span className="font-semibold text-nkz-success-strong">Dendrometer</span>
                                 <p className="text-gray-600">→ <code>trunkDiameter</code> (µm)</p>
                                 <p className="text-nkz-muted">for MDS calculation</p>
                             </div>
                             <div className="bg-white rounded-lg p-2 border border-green-200">
-                                <span className="font-semibold text-nkz-success">TDR Probe</span>
+                                <span className="font-semibold text-nkz-success-strong">TDR Probe</span>
                                 <p className="text-gray-600">→ <code>soilMoisture</code> (%)</p>
                                 <p className="text-nkz-muted">for Water Balance</p>
                             </div>

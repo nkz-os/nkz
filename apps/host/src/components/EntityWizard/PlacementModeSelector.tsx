@@ -55,7 +55,7 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                     <div>
                         <div className="font-semibold text-gray-900 flex items-center gap-2">
                             Stamp Mode (Pincel)
-                            <span className="bg-nkz-success-light text-nkz-success text-xs px-2 py-0.5 rounded-full font-bold">GPU INSTANCED</span>
+                            <span className="bg-nkz-success-light text-nkz-success-strong text-xs px-2 py-0.5 rounded-full font-bold">GPU INSTANCED</span>
                         </div>
                         <p className="text-sm text-nkz-muted mt-1">
                             Pinta vegetación masiva usando instanciado GPU.
@@ -66,7 +66,7 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                 </div>
 
                 {!isVegetation && mode === 'stamp' && (
-                    <div className="mt-3 p-2 bg-nkz-warning-light text-nkz-warning text-xs rounded border border-yellow-200 flex items-center gap-2">
+                    <div className="mt-3 p-2 bg-nkz-warning-light text-nkz-warning-strong text-xs rounded border border-yellow-200 flex items-center gap-2">
                         <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                         Este modo está diseñado para vegetación (Árboles/Cultivos).
                     </div>

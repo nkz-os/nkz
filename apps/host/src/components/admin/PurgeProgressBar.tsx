@@ -40,10 +40,10 @@ export const PurgeProgressBar: React.FC<PurgeProgressBarProps> = ({ phases, runn
               {!done && isCurrent && <Loader2 className="h-5 w-5 animate-spin text-nkz-accent-base" />}
               {!done && !isCurrent && <Circle className="h-5 w-5 text-nkz-text-muted" />}
             </div>
-            <span className={`text-sm ${isCurrent ? 'font-bold text-nkz-accent-base' : done?.ok === false ? 'text-nkz-danger' : 'text-nkz-text-secondary'}`}>
+            <span className={`text-sm ${isCurrent ? 'font-bold text-nkz-accent-base' : done?.ok === false ? 'text-nkz-danger-strong' : 'text-nkz-text-secondary'}`}>
               {PHASE_LABELS[phaseName] || phaseName}
             </span>
-            {done?.error && <span className="text-xs text-nkz-danger ml-auto">{done.error}</span>}
+            {done?.error && <span className="text-xs text-nkz-danger-strong ml-auto">{done.error}</span>}
           </div>
         );
       })}

@@ -131,7 +131,7 @@ export const TenantSidebar: React.FC<TenantSidebarProps> = ({
                           <span
                             className={`text-xs font-bold px-2 py-1 rounded ${
                               isPurgable
-                                ? 'bg-nkz-danger-soft text-nkz-danger'
+                                ? 'bg-nkz-danger-soft text-nkz-danger-strong'
                                 : 'bg-nkz-warning-soft text-nkz-warning-strong'
                             }`}
                             title={isPurgable ? t('admin.purgable_tooltip') : t('admin.suspended_since', { days: daysAgo, admin: tenant.deleted_by || '?' })}

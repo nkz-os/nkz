@@ -430,7 +430,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                         {/* Status Badge */}
                         {status && (
                             <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${status === 'active' || status === 'online' || status === 'working'
-                                ? 'bg-nkz-success-light text-nkz-success'
+                                ? 'bg-nkz-success-light text-nkz-success-strong'
                                 : status === 'idle'
                                     ? 'bg-amber-100 text-amber-700'
                                     : status === 'error'
@@ -681,7 +681,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                                     <Droplets className="w-4 h-4 text-nkz-success" />
                                     <span className="text-xs text-slate-600">{getMeasurementUnit('moisture') || '%'}</span>
                                 </div>
-                                <div className="text-lg font-bold text-nkz-success">{moisture.toFixed(1)}</div>
+                                <div className="text-lg font-bold text-nkz-success-strong">{moisture.toFixed(1)}</div>
                                 <div className="text-xs text-slate-600 mt-0.5">{t('viewer.telemetry.soil_moisture')}</div>
                             </div>
                         )}

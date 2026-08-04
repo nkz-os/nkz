@@ -145,7 +145,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
         )}
 
         {currentModelUrl && (
-          <div className="flex items-center gap-1 text-xs text-nkz-success">
+          <div className="flex items-center gap-1 text-xs text-nkz-success-strong">
             <Check className="w-3 h-3" />
             <span>3D model uploaded successfully</span>
           </div>

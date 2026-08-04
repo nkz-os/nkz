@@ -222,7 +222,7 @@ export const Settings: React.FC = () => {
                     title={t('settings.copy_tenant_id')}
                   >
                     {copiedTenantId ? (
-                      <Check className="w-4 h-4 text-nkz-success" />
+                      <Check className="w-4 h-4 text-nkz-success-strong" />
                     ) : (
                       <Copy className="w-4 h-4" />
                     )}
@@ -264,7 +264,7 @@ export const Settings: React.FC = () => {
               </div>
               <div>
                 <label className="text-sm font-medium text-nkz-muted">{t('settings.subscription.status', { defaultValue: 'Status' })}</label>
-                <p className={`font-semibold ${tenantProfile.status === 'active' ? 'text-nkz-success' : 'text-nkz-error'}`}>
+                <p className={`font-semibold ${tenantProfile.status === 'active' ? 'text-nkz-success-strong' : 'text-nkz-error'}`}>
                   {tenantProfile.status}
                 </p>
               </div>

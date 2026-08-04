@@ -103,7 +103,7 @@ export const CookieBanner: React.FC = () => {
                   <span className="font-medium">{t('cookies.policy_label')} </span>
                   <a
                     href={policyHref}
-                    className="text-nkz-success hover:text-green-800 dark:text-green-400 font-semibold underline"
+                    className="text-nkz-success-strong hover:text-green-800 dark:text-green-400 font-semibold underline"
                     target="_blank"
                     rel="noopener noreferrer"
                   >

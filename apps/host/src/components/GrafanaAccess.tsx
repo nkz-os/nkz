@@ -137,7 +137,7 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
             </div>
           )}
           {membershipGranted && (
-            <div className="mb-3 p-2 bg-nkz-success-light border border-green-200 rounded text-xs text-nkz-success flex items-center gap-2">
+            <div className="mb-3 p-2 bg-nkz-success-light border border-green-200 rounded text-xs text-nkz-success-strong flex items-center gap-2">
               <ShieldCheck className="w-4 h-4" /> Acceso verificado para tu organización en Grafana.
             </div>
           )}

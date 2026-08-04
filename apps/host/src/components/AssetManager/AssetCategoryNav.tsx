@@ -93,7 +93,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
             },
             parcels: {
               active: 'bg-green-600 text-white',
-              inactive: 'bg-nkz-success-light text-nkz-success hover:bg-nkz-success-light'
+              inactive: 'bg-nkz-success-light text-nkz-success-strong hover:bg-nkz-success-light'
             },
             sensors: {
               active: 'bg-teal-600 text-white',

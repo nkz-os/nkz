@@ -195,7 +195,7 @@ export const OSSLanding: React.FC = () => {
                 </Button>
                 <Button
                   onClick={handleLogin}
-                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-nkz-success text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
+                  className="inline-flex items-center justify-center px-8 py-4 bg-white text-nkz-success-strong text-lg font-bold rounded-xl border-2 border-green-600 shadow-sm hover:shadow-md transform hover:-translate-y-1 transition-all duration-300 sm:w-auto"
                 >
                   {t('landing.access')}
                 </Button>
@@ -281,7 +281,7 @@ export const OSSLanding: React.FC = () => {
           </p>
           <Button
             onClick={handleLogin}
-            className="inline-flex items-center px-10 py-5 bg-white text-nkz-success text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
+            className="inline-flex items-center px-10 py-5 bg-white text-nkz-success-strong text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
           >
             <span className="flex items-center">
               {t('landing.cta_section_button') || t('landing.cta') || 'Empezar'}

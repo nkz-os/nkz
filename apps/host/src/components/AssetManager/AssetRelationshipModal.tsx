@@ -316,7 +316,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
               </div>
             )}
             {success && (
-              <div className="flex items-center gap-2 text-nkz-success">
+              <div className="flex items-center gap-2 text-nkz-success-strong">
                 <CheckCircle className="w-4 h-4" />
                 Relación actualizada
               </div>

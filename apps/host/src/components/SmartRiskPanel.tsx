@@ -158,7 +158,7 @@ export const SmartRiskPanel: React.FC = () => {
           </div>
           <div>
             <h3 className="text-sm font-bold text-green-900">Sistema de Inteligencia Híbrido</h3>
-            <p className="text-xs text-nkz-success">Priorizando sensores locales con respaldo en modelos climáticos regionales.</p>
+            <p className="text-xs text-nkz-success-strong">Priorizando sensores locales con respaldo en modelos climáticos regionales.</p>
           </div>
         </div>
         <div className="hidden sm:flex items-center gap-4 text-xs font-semibold">
@@ -180,7 +180,7 @@ export const SmartRiskPanel: React.FC = () => {
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 selectedCategory === cat.id 
-                  ? 'bg-white text-nkz-success shadow-sm' 
+                  ? 'bg-white text-nkz-success-strong shadow-sm' 
                   : 'text-nkz-muted hover:text-gray-700'
               }`}
             >
@@ -211,7 +211,7 @@ export const SmartRiskPanel: React.FC = () => {
             <Plus className="h-8 w-8" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-gray-900 group-hover:text-nkz-success">Crear Riesgo Personalizado</h3>
+            <h3 className="text-lg font-bold text-gray-900 group-hover:text-nkz-success-strong">Crear Riesgo Personalizado</h3>
             <p className="text-xs text-nkz-muted mt-1 max-w-[200px]">Define tu propia lógica multivariable con persistencia temporal.</p>
           </div>
         </div>
@@ -236,7 +236,7 @@ export const SmartRiskPanel: React.FC = () => {
             >
               <div className="p-5 space-y-4">
                 <div className="flex justify-between items-start">
-                  <div className={`p-2.5 rounded-xl ${isActive ? 'bg-nkz-success-light text-nkz-success' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
+                  <div className={`p-2.5 rounded-xl ${isActive ? 'bg-nkz-success-light text-nkz-success-strong' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
                     <Icon className="h-6 w-6" />
                   </div>
                   <Button
@@ -247,7 +247,7 @@ export const SmartRiskPanel: React.FC = () => {
                     {isSaving ? (
                       <Loader2 className="h-8 w-8 animate-spin text-gray-300" />
                     ) : isActive ? (
-                      <ToggleRight className="h-9 w-9 text-nkz-success cursor-pointer" />
+                      <ToggleRight className="h-9 w-9 text-nkz-success-strong cursor-pointer" />
                     ) : (
                       <ToggleLeft className="h-9 w-9 text-gray-300 cursor-pointer hover:text-nkz-muted" />
                     )}
@@ -283,7 +283,7 @@ export const SmartRiskPanel: React.FC = () => {
                   </div>
                   
                   <div className="flex items-center justify-between text-[10px] font-bold">
-                    <span className={`px-2 py-0.5 rounded-full ${dataQuality === 'high' ? 'bg-nkz-success-light text-nkz-success' : 'bg-orange-100 text-orange-700'}`}>
+                    <span className={`px-2 py-0.5 rounded-full ${dataQuality === 'high' ? 'bg-nkz-success-light text-nkz-success-strong' : 'bg-orange-100 text-orange-700'}`}>
                       {dataQuality === 'high' ? 'ALTA PRECISIÓN' : 'ESTIMADO'}
                     </span>
                     <span className="text-nkz-muted uppercase tracking-tighter">

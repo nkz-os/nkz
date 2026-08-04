@@ -165,7 +165,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
           )}
 
           {currentIconUrl && currentIconUrl !== preview && (
-            <div className="flex items-center gap-1 text-xs text-nkz-success">
+            <div className="flex items-center gap-1 text-xs text-nkz-success-strong">
               <Check className="w-3 h-3" />
               <span>Icon uploaded successfully</span>
             </div>

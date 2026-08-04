@@ -324,7 +324,7 @@ export const GlobalAssetManager: React.FC = () => {
                     </div>
                 )}
                 {success && (
-                    <div className="mt-4 p-3 bg-nkz-success-light text-nkz-success rounded-md flex items-center gap-2">
+                    <div className="mt-4 p-3 bg-nkz-success-light text-nkz-success-strong rounded-md flex items-center gap-2">
                         <CheckCircle className="w-5 h-5 shrink-0" />
                         {success}
                     </div>

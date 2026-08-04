@@ -93,7 +93,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
   
   // Status colors
   const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
-    active: { bg: 'bg-nkz-success-light', text: 'text-nkz-success', dot: 'bg-nkz-success-light0' },
+    active: { bg: 'bg-nkz-success-light', text: 'text-nkz-success-strong', dot: 'bg-nkz-success-light0' },
     inactive: { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' },
     maintenance: { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500' },
     error: { bg: 'bg-nkz-error-light', text: 'text-nkz-error', dot: 'bg-nkz-error-light0' },

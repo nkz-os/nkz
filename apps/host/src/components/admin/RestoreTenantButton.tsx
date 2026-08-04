@@ -48,7 +48,7 @@ export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) =
 
   return (
     <Button onClick={() => setConfirming(true)}
-      className="inline-flex items-center gap-1 text-sm px-3 py-1 border border-nkz-success text-nkz-success rounded hover:bg-nkz-success-soft">
+      className="inline-flex items-center gap-1 text-sm px-3 py-1 border border-nkz-success text-nkz-success-strong rounded hover:bg-nkz-success-soft">
       <RotateCcw className="h-4 w-4" />
       {t('admin.restore_tenant')}
     </Button>

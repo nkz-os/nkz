@@ -197,14 +197,14 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
           <div className="flex items-start justify-between">
             <div>
               <p className="font-semibold text-green-900">Parcela seleccionada</p>
-              <p className="text-sm text-nkz-success">{selectedParcel.reference}</p>
-              <p className="text-sm text-nkz-success mt-1">
+              <p className="text-sm text-nkz-success-strong">{selectedParcel.reference}</p>
+              <p className="text-sm text-nkz-success-strong mt-1">
                 {selectedParcel.municipality}, {selectedParcel.province}
               </p>
             </div>
             <Button
               onClick={handleClear}
-              className="text-sm text-nkz-success hover:text-green-900 underline"
+              className="text-sm text-nkz-success-strong hover:text-green-900 underline"
             >
               Cambiar
             </Button>

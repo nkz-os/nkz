@@ -94,7 +94,7 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
 
       {displayError && (
         <div className="p-2 bg-nkz-danger-soft border border-nkz-danger rounded-nkz-md">
-          <p className="text-nkz-xs text-nkz-danger">{displayError}</p>
+          <p className="text-nkz-xs text-nkz-danger-strong">{displayError}</p>
         </div>
       )}
 
@@ -147,7 +147,7 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
               ) : (
                 <Minus className="w-3.5 h-3.5 text-nkz-text-muted flex-shrink-0" />
               )}
-              <span className={`text-nkz-xs ${item.met ? 'text-nkz-success' : 'text-nkz-text-muted'}`}>
+              <span className={`text-nkz-xs ${item.met ? 'text-nkz-success-strong' : 'text-nkz-text-muted'}`}>
                 {item.label}
               </span>
             </div>
@@ -182,7 +182,7 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
           </Button>
         </div>
         {formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword && (
-          <p className="text-nkz-xs text-nkz-danger mt-1">
+          <p className="text-nkz-xs text-nkz-danger-strong mt-1">
             {t('activation.passwords_mismatch') || 'Passwords do not match'}
           </p>
         )}

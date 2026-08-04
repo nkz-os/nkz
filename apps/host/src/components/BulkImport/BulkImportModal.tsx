@@ -175,7 +175,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
         <div className="flex items-center gap-2 px-6 py-3 bg-nkz-bg-secondary dark:bg-gray-750 text-xs text-nkz-muted flex-shrink-0 border-b border-gray-100">
           {(['upload', 'preview', 'results'] as const).map((s, i) => (
             <React.Fragment key={s}>
-              <span className={`font-medium ${step === s || (step === 'creating' && s === 'preview') ? 'text-nkz-success' : step === 'results' && i < 2 ? 'text-nkz-muted' : ''}`}>
+              <span className={`font-medium ${step === s || (step === 'creating' && s === 'preview') ? 'text-nkz-success-strong' : step === 'results' && i < 2 ? 'text-nkz-muted' : ''}`}>
                 {i + 1}. {s === 'upload' ? 'Subir fichero' : s === 'preview' ? 'Vista previa' : 'Resultado'}
               </span>
               {i < 2 && <ChevronRight className="w-3 h-3" />}
@@ -265,7 +265,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
 
               {/* Warnings */}
               {warnings.length > 0 && (
-                <div className="bg-nkz-warning-light border border-yellow-200 rounded-lg p-3 text-xs text-nkz-warning space-y-0.5 max-h-28 overflow-y-auto">
+                <div className="bg-nkz-warning-light border border-yellow-200 rounded-lg p-3 text-xs text-nkz-warning-strong space-y-0.5 max-h-28 overflow-y-auto">
                   <p className="font-medium mb-1">{warnings.length} advertencia(s):</p>
                   {warnings.map((w, i) => <p key={i}>• {w}</p>)}
                 </div>
@@ -310,7 +310,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               )}
 
               {step === 'creating' && (
-                <div className="flex items-center justify-center gap-2 text-nkz-success py-2">
+                <div className="flex items-center justify-center gap-2 text-nkz-success-strong py-2">
                   <Loader2 className="w-5 h-5 animate-spin" />
                   <span className="text-sm font-medium">Creando {rows.length} entidades…</span>
                 </div>

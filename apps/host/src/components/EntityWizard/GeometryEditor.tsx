@@ -718,7 +718,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                       <AlertCircle className="w-3 h-3" /> {validationError}
                     </span>
                   ) : (
-                    <span className="text-xs text-nkz-success flex items-center gap-1 font-medium">
+                    <span className="text-xs text-nkz-success-strong flex items-center gap-1 font-medium">
                       <CheckCircle2 className="w-3 h-3" /> Valid
                     </span>
                   )}
@@ -759,7 +759,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                 <span>{validationError}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 text-nkz-success">
+              <div className="flex items-center gap-2 text-nkz-success-strong">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Geometry valid</span>
               </div>

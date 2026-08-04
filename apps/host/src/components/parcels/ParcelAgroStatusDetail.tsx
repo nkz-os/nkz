@@ -235,7 +235,7 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
             {metrics?.water_balance != null && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Balance hídrico:</span>
-                <span className={`font-semibold ${metrics.water_balance >= 0 ? 'text-nkz-success' : 'text-nkz-error'}`}>
+                <span className={`font-semibold ${metrics.water_balance >= 0 ? 'text-nkz-success-strong' : 'text-nkz-error'}`}>
                   {metrics.water_balance > 0 ? '+' : ''}{safeFixed(metrics.water_balance)} mm
                 </span>
               </div>

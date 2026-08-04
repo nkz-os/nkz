@@ -26,7 +26,7 @@ export const AlertsCard: React.FC<AlertsCardProps> = ({ chargingRobots }) => {
               </div>
               <span className="font-semibold text-green-900">{t('dashboard.alerts.all_ok')}</span>
             </div>
-            <p className="text-sm text-nkz-success">
+            <p className="text-sm text-nkz-success-strong">
               {t('dashboard.alerts.all_systems_ok')}
             </p>
           </div>
@@ -39,7 +39,7 @@ export const AlertsCard: React.FC<AlertsCardProps> = ({ chargingRobots }) => {
                 </div>
                 <span className="font-semibold text-yellow-900">{t('dashboard.alerts.charging')}</span>
               </div>
-              <p className="text-sm text-nkz-warning">
+              <p className="text-sm text-nkz-warning-strong">
                 {t('dashboard.alerts.robots_charging', { count: chargingRobots })}
               </p>
             </div>

@@ -227,7 +227,7 @@ export const RegistrationWizard: React.FC<RegistrationWizardProps> = ({
         {/* Error Display */}
         {error && (
           <div className="mb-4 p-3 bg-nkz-danger-soft border border-nkz-danger rounded-nkz-md">
-            <p className="text-nkz-sm font-medium text-nkz-danger">{error}</p>
+            <p className="text-nkz-sm font-medium text-nkz-danger-strong">{error}</p>
             {errorDetail && (
               <p className="text-nkz-xs text-nkz-text-secondary mt-1">{errorDetail}</p>
             )}

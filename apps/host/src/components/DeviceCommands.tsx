@@ -160,7 +160,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
         {success && (
           <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg flex items-center">
             <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-            <span className="text-nkz-success text-sm">{success}</span>
+            <span className="text-nkz-success-strong text-sm">{success}</span>
           </div>
         )}
 
@@ -270,8 +270,8 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
                       {getStatusIcon(cmd.status)}
                       <span className="font-medium text-gray-900">{cmd.command_type}</span>
                       <span className={`text-xs px-2 py-1 rounded ${
-                        cmd.status === 'executed' ? 'bg-nkz-success-light text-nkz-success' :
-                        cmd.status === 'sent' ? 'bg-nkz-warning-light text-nkz-warning' :
+                        cmd.status === 'executed' ? 'bg-nkz-success-light text-nkz-success-strong' :
+                        cmd.status === 'sent' ? 'bg-nkz-warning-light text-nkz-warning-strong' :
                         cmd.status === 'failed' ? 'bg-nkz-error-light text-nkz-error' :
                         'bg-nkz-bg-secondary text-gray-700'
                       }`}>

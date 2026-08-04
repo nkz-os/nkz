@@ -183,13 +183,13 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
         {formData.tenantName && tenantValidation && (
           <div className="mt-1">
             {!tenantValidation.isValid && tenantValidation.errorKey && (
-              <p className="text-nkz-xs text-nkz-danger flex items-center gap-1">
+              <p className="text-nkz-xs text-nkz-danger-strong flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
                 {t(tenantValidation.errorKey, tenantValidation.errorParams as Record<string, unknown> | undefined)}
               </p>
             )}
             {tenantValidation.isValid && tenantValidation.warningKey && (
-              <p className="text-nkz-xs text-nkz-warning flex items-center gap-1">
+              <p className="text-nkz-xs text-nkz-warning-strong flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
                 {t(tenantValidation.warningKey, tenantValidation.warningParams as Record<string, unknown> | undefined)}
               </p>
@@ -204,13 +204,13 @@ export const StepAccountDetails: React.FC<StepAccountDetailsProps> = ({
           </p>
         )}
         {!checkingTenant && tenantAvailable === true && (
-          <p className="text-nkz-xs text-nkz-success flex items-center gap-1 mt-1">
+          <p className="text-nkz-xs text-nkz-success-strong flex items-center gap-1 mt-1">
             <CheckCircle className="w-3 h-3" />
             {t('registration.org_name_available')}
           </p>
         )}
         {!checkingTenant && tenantAvailable === false && (
-          <p className="text-nkz-xs text-nkz-danger flex items-center gap-1 mt-1">
+          <p className="text-nkz-xs text-nkz-danger-strong flex items-center gap-1 mt-1">
             <AlertCircle className="w-3 h-3" />
             {t('registration.org_name_taken')}
           </p>
