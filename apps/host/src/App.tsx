@@ -16,7 +16,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/KeycloakAuthContext';
-import { I18nextProvider } from 'react-i18next';
+import { I18nextProvider, useTranslation } from 'react-i18next';
 import { i18n } from '@nekazari/sdk';
 import { I18nProvider } from '@/context/I18nContext';
 import { CookieConsentProvider } from '@/context/CookieConsentContext';
@@ -25,6 +25,7 @@ import { ModuleProvider, useModules } from '@/context/ModuleContext';
 import { ViewerProvider } from '@/context/ViewerContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { ToastProvider } from '@/context/ToastContext';
+import { ConfirmProvider } from '@/context/ConfirmContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AdminRoute, FarmerRoute, ModulesRoute } from '@/components/KeycloakProtectedRoute';
 import { RemoteModuleLoader } from '@/components/RemoteModuleLoader';
@@ -236,6 +237,7 @@ const AppRoutes = () => {
 };
 
 const AppInitializer = () => {
+  const { t } = useTranslation();
   const [editorState, setEditorState] = useState<EditorEventDetail | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
 
@@ -264,7 +266,7 @@ const AppInitializer = () => {
           role="alert"
           className="fixed top-0 left-0 right-0 z-[9999] bg-red-600 text-white px-4 py-3 text-center text-sm font-medium"
         >
-          <span>Tu sesión ha expirado. Redirigiendo al inicio de sesión…</span>
+          <span>{t('auth.session_expired_banner')}</span>
         </div>
       )}
       <AppRoutes />
@@ -342,10 +344,12 @@ function App() {
                           <ThemeProvider>
                             <ErrorBoundary componentName="ToastProvider" fallback={renderFallback}>
                               <ToastProvider>
-                                <VersionCheckWrapper />
-                                <ErrorBoundary componentName="AppInitializer" fallback={renderFallback}>
-                                  <AppInitializer />
-                                </ErrorBoundary>
+                                <ConfirmProvider>
+                                  <VersionCheckWrapper />
+                                  <ErrorBoundary componentName="AppInitializer" fallback={renderFallback}>
+                                    <AppInitializer />
+                                  </ErrorBoundary>
+                                </ConfirmProvider>
                               </ToastProvider>
                             </ErrorBoundary>
                           </ThemeProvider>

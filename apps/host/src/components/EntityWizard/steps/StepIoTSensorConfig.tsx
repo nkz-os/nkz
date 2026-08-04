@@ -1,15 +1,17 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Cable, Activity, Zap, HelpCircle, Settings, Plus, Trash2 } from 'lucide-react';
 import { useWizard } from '../WizardContext';
 import { listDeviceProfiles, createDeviceProfile, type DeviceProfile } from '@/services/deviceProfilesApi';
 import { DeviceProfileHelpModal } from '../../DeviceProfileHelpModal';
 import type { IoTSensorFormData } from '../types';
-import { useNotification } from '@/hooks/useNotification';
+import { useToastContext } from '@/context/ToastContext';
 import { Button, Input } from '@nekazari/ui-kit';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function StepIoTSensorConfig() {
-  const { showNotification } = useNotification();
+  const { t } = useTranslation();
+  const toast = useToastContext();
   const { entityType, formData, updateFormData } = useWizard();
   const [deviceProfiles, setDeviceProfiles] = useState<DeviceProfile[]>([]);
   const [showHelp, setShowHelp] = useState(false);
@@ -151,14 +153,14 @@ export function StepIoTSensorConfig() {
             mappings: json.mappings,
             is_public: false,
           });
-          alert(`Perfil "${json.name}" importado. Selecciónalo de la lista.`);
+          toast.success(t('wizard.iot_profile.imported', { name: json.name }));
           const updated = await listDeviceProfiles({ sdm_entity_type: entityType ?? undefined });
           setDeviceProfiles(updated);
         } else {
-          showNotification({ type: 'error', message: 'El JSON debe contener: name, sdm_entity_type y mappings[]' });
+          toast.error(t('wizard.iot_profile.invalid_json'));
         }
       } catch {
-        showNotification({ type: 'error', message: 'Error al leer el archivo JSON. Verifica el formato.' });
+        toast.error(t('wizard.iot_profile.read_error'));
       }
     };
     reader.readAsText(file);

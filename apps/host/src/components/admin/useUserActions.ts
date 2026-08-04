@@ -2,7 +2,9 @@
 // Shared user action hooks — used by both PlatformAdmin and TenantAdmin views
 // =============================================================================
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '@/services/api';
+import { useConfirm } from '@/context/ConfirmContext';
 
 interface UserActionsOptions {
   /** Which API base to use: /api/admin for PlatformAdmin, /api/tenant for TenantAdmin */
@@ -20,6 +22,8 @@ export interface UserActions {
 }
 
 export function useUserActions({ apiBase }: UserActionsOptions): UserActions {
+  const { t } = useTranslation();
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -30,9 +34,12 @@ export function useUserActions({ apiBase }: UserActionsOptions): UserActions {
   };
 
   const deleteUser = async (userId: string, userEmail: string): Promise<boolean> => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete user ${userEmail}? This action cannot be undone.`
-    );
+    const confirmed = await confirm({
+      message: t('admin.confirm_delete_user', { email: userEmail }),
+      confirmLabel: t('admin.delete_user'),
+      cancelLabel: t('cancel'),
+      tone: 'danger',
+    });
     if (!confirmed) return false;
 
     setLoading(true);
@@ -54,7 +61,11 @@ export function useUserActions({ apiBase }: UserActionsOptions): UserActions {
   };
 
   const resetPassword = async (userId: string): Promise<string | null> => {
-    const confirmed = window.confirm('Are you sure you want to reset this user\'s password?');
+    const confirmed = await confirm({
+      message: t('admin.confirm_reset_password'),
+      confirmLabel: t('admin.reset_password'),
+      cancelLabel: t('cancel'),
+    });
     if (!confirmed) return null;
 
     setLoading(true);

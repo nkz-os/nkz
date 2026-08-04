@@ -20,7 +20,11 @@ export interface ModuleGroupProps {
   onDragStart?: (e: React.DragEvent) => void;
   tenantId: string;
   userId: string;
-  /** Localised "Hide" label. Defaults to Spanish "Ocultar". */
+  /**
+   * Localised "Hide" label. viewer-kit has no i18n runtime of its own —
+   * consumers own translation and inject the string here. Defaults to
+   * plain English for callers that don't pass it.
+   */
   hideLabel?: string;
 }
 
@@ -35,7 +39,7 @@ function ModuleGroup({
   onDragStart,
   tenantId,
   userId,
-  hideLabel = 'Ocultar',
+  hideLabel = 'Hide',
 }: ModuleGroupProps) {
   const state = useModuleGroupState(tenantId, userId, slot, moduleId);
 

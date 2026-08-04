@@ -5,11 +5,13 @@
 // Integrates drawing tools and form
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '@/utils/logger';
 import { ParcelForm } from './ParcelForm';
 import { CesiumPolygonDrawer, type CesiumPolygonDrawerRef } from '@/components/CesiumPolygonDrawer';
 import type { Parcel } from '@/types';
 import { Button } from '@nekazari/ui-kit';
+import { useToastContext } from '@/context/ToastContext';
 
 interface ParcelEditorProps {
     mode: 'create' | 'edit';
@@ -24,6 +26,8 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
     onSave,
     onCancel,
 }) => {
+    const { t } = useTranslation();
+    const toast = useToastContext();
     const [geometry, setGeometry] = useState<any>(parcel?.geometry || null);
     const [method, setMethod] = useState<'manual' | 'cadastral'>('manual');
     const drawerRef = React.useRef<CesiumPolygonDrawerRef>(null);
@@ -35,7 +39,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
 
     const handleFormSave = (formData: Partial<Parcel>) => {
         if (!geometry) {
-            alert('Por favor, dibuja la geometría de la parcela en el mapa');
+            toast.error(t('parcel.draw_geometry'));
             return;
         }
 
