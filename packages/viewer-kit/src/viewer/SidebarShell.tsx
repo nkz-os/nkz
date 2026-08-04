@@ -46,7 +46,13 @@ interface SidebarShellRootProps {
   maxWidth?: number;
   children: React.ReactNode;
   className?: string;
-  /** Localised labels for the toggle button. Defaults to Spanish. */
+  /**
+   * Localised labels for the toggle button. viewer-kit has no i18n runtime
+   * of its own (it's a framework-agnostic-to-language shared package used by
+   * ~20 modules) — consumers own translation and inject strings here. The
+   * defaults below are a plain-English fallback for callers that don't pass
+   * `labels`, not a substitute for passing translated ones.
+   */
   labels?: SidebarLabels;
 }
 
@@ -74,12 +80,12 @@ function SidebarShellRoot({
   labels: labelsProp,
 }: SidebarShellRootProps) {
   const labels: Required<SidebarLabels> = {
-    openLabel: 'Abrir panel',
-    expandLabel: 'Expandir panel',
-    closeLabel: 'Cerrar panel',
-    openTooltip: 'Abrir panel',
-    expandTooltip: 'Expandir',
-    closeTooltip: 'Cerrar panel',
+    openLabel: 'Open panel',
+    expandLabel: 'Expand panel',
+    closeLabel: 'Close panel',
+    openTooltip: 'Open panel',
+    expandTooltip: 'Expand',
+    closeTooltip: 'Close panel',
     ...labelsProp,
   };
   const isOpen = state !== 'closed';

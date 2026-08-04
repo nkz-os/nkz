@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { RotateCcw, Loader2 } from 'lucide-react';
 import client from '@/services/api';
 import { Button } from '@nekazari/ui-kit';
+import { useToastContext } from '@/context/ToastContext';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 
 export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) => {
   const { t } = useTranslation();
+  const toast = useToastContext();
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
@@ -21,7 +23,7 @@ export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) =
       await client.post(`/api/admin/tenants/${tenantId}/restore`);
       onRestored();
     } catch (e: any) {
-      alert(e?.response?.data?.error || 'Restore failed');
+      toast.error(e?.response?.data?.error || t('admin.restore_failed'));
     } finally {
       setRestoring(false);
       setConfirming(false);
@@ -38,7 +40,7 @@ export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) =
         </Button>
         <Button onClick={() => setConfirming(false)}
           className="text-sm px-3 py-1 border border-nkz-border rounded text-nkz-text-secondary">
-          {t('common.cancel')}
+          {t('cancel')}
         </Button>
       </span>
     );

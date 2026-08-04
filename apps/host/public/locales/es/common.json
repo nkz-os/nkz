@@ -3,6 +3,7 @@
   "refresh": "Actualizar",
   "save": "Guardar",
   "cancel": "Cancelar",
+  "confirm": "Confirmar",
   "delete": "Eliminar",
   "edit": "Editar",
   "close": "Cerrar",
@@ -146,6 +147,10 @@
     "iot_configuration_desc": "Perfiles de procesamiento y estadísticas de telemetría",
     "global_assets": "Gestor de Activos Globales",
     "global_assets_desc": "Gestionar modelos 3D e iconos públicos",
+    "global_asset_confirm_delete_public_title": "Eliminar activo público",
+    "global_asset_confirm_delete_public_message": "¿Eliminar este activo público? Puede afectar a usuarios que lo estén usando.",
+    "global_asset_confirm_delete_tenant_title": "Eliminar activo del tenant",
+    "global_asset_confirm_delete_tenant_message": "¿Eliminar este activo del tenant?",
     "device_library": "Librería de Dispositivos",
     "device_library_desc": "Perfiles de mapeo IoT para sensores",
     "grafana": "Grafana",
@@ -225,6 +230,10 @@
     "purge_tenant_button": "Purgar",
     "restore_tenant": "Recuperar",
     "confirm_restore": "Confirmar recuperación",
+    "restore_failed": "No se pudo recuperar el tenant. Inténtalo de nuevo.",
+    "reassign_failed": "No se pudo reasignar el usuario. Inténtalo de nuevo.",
+    "reset_password": "Restablecer contraseña",
+    "confirm_reset_password": "¿Restablecer la contraseña de este usuario? Se generará una contraseña temporal.",
     "reassign_user_title": "Reasignar {{user}} a otro tenant",
     "reassign_user_current_tenant": "Tenant actual: {{tenant}}",
     "select_tenant": "Seleccionar tenant...",
@@ -753,6 +762,11 @@
       "nominalPower": "Potencia nominal por tracker",
       "solarHint": "{{total}} trackers × {{power}} kWp total estimado"
     },
+    "iot_profile": {
+      "imported": "Perfil «{{name}}» importado. Selecciónalo en la lista.",
+      "invalid_json": "El JSON debe incluir name, sdm_entity_type y mappings[].",
+      "read_error": "No se pudo leer el archivo JSON. Comprueba el formato."
+    },
     "sdm_guide": {
       "title": "Guía de Entidades y Datos SDM",
       "intro": "Nekazari utiliza el estándar internacional Smart Data Models (SDM) para asegurar que todos los datos sean compatibles entre diferentes sensores y aplicaciones.",
@@ -977,6 +991,21 @@
     "email_exists": "Este email ya está registrado",
     "redirect_login": "Serás redirigido en {{seconds}} segundos...",
     "go_to_login": "Ir al Inicio de Sesión"
+  },
+  "auth": {
+    "session_expired_banner": "Tu sesión ha expirado. Redirigiendo al inicio de sesión…",
+    "session_expired_message": "Sesión expirada. Inicia sesión de nuevo.",
+    "session_expired_title": "Sesión expirada",
+    "connecting_to_keycloak": "Conectando con Keycloak…",
+    "redirecting_to_keycloak": "Redirigiendo a Keycloak…",
+    "processing_keycloak_response": "Procesando respuesta de Keycloak…",
+    "authentication_error_redirecting": "Error de autenticación. Redirigiendo…",
+    "login_error_retry": "Error al iniciar sesión. Usa el botón para reintentar.",
+    "retrying_login": "Reintentando inicio de sesión…",
+    "login_error_retry_again": "Error al iniciar sesión. Inténtalo de nuevo.",
+    "retry_login_button": "Reintentar inicio de sesión",
+    "forgot_password_link": "¿Olvidaste tu contraseña?",
+    "create_free_account": "Crear cuenta gratuita"
   },
   "quota": {
     "parcel_count_exceeded": "Límite de parcelas alcanzado",
@@ -1450,7 +1479,8 @@
       "add": "Añadir",
       "retry": "Reintentar",
       "delete_success": "{{count}} entidad(es) eliminada(s) correctamente",
-      "delete_error": "Error al eliminar entidades"
+      "delete_error": "Error al eliminar entidades",
+      "export_empty": "No hay assets para exportar"
     },
     "filters": {
       "title": "Filtros",

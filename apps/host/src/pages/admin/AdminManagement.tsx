@@ -7,6 +7,7 @@ import {
   FileText, Activity, Box, Monitor, Puzzle, UserPlus, UserCheck,
 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
+import { useConfirm } from '@/context/ConfirmContext';
 import client from '@/services/api';
 import { format } from 'date-fns';
 import { useModules } from '@/context/ModuleContext';
@@ -117,6 +118,7 @@ const PLATFORM_ADMIN_ROLES = [
 export const AdminManagement: React.FC = () => {
   const { t } = useI18n();
   const { showNotification } = useNotification();
+  const confirm = useConfirm();
   const { modules } = useModules();
 
   // Global tab state: null = master-detail (sidebar + tenant/user panels)
@@ -389,7 +391,13 @@ export const AdminManagement: React.FC = () => {
   };
 
   const handleRevokeCode = async (codeId: number) => {
-    if (!window.confirm(t('admin.confirm_revoke_code'))) {
+    const confirmed = await confirm({
+      message: t('admin.confirm_revoke_code'),
+      confirmLabel: t('admin.revoke_code'),
+      cancelLabel: t('cancel'),
+      tone: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
     try {

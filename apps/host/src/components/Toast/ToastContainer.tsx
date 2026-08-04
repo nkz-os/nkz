@@ -4,6 +4,7 @@
 // Simple, lightweight toast notification system for user feedback.
 
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 import { Button } from '@nekazari/ui-kit';
 
@@ -59,6 +60,8 @@ interface ToastItemProps {
 }
 
 const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
+  const { t } = useTranslation();
+
   const getIcon = () => {
     switch (toast.type) {
       case 'success':
@@ -99,7 +102,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
       <Button
         onClick={() => onRemove(toast.id)}
         className="flex-shrink-0 text-nkz-muted hover:text-gray-600 transition-colors"
-        aria-label="Cerrar"
+        aria-label={t('close')}
       >
         <X className="w-4 h-4" />
       </Button>

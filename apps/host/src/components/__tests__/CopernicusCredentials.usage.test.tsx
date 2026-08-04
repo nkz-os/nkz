@@ -43,6 +43,13 @@ vi.mock('@/context/I18nContext', () => ({
   }),
 }));
 
+// CopernicusCredentials uses useConfirm() (design-system confirm dialog) for
+// its delete-credentials flow — not exercised by these usage-meter tests,
+// but the hook throws outside a ConfirmProvider, so it needs a stub.
+vi.mock('@/context/ConfirmContext', () => ({
+  useConfirm: () => vi.fn().mockResolvedValue(false),
+}));
+
 function mockConfigAndStatus() {
   mockGet.mockImplementation((url: string) => {
     if (url.includes('credentials-status')) {

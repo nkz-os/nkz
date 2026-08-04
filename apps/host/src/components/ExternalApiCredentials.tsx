@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
+import { useConfirm } from '@/context/ConfirmContext';
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
@@ -55,6 +56,7 @@ interface ApiCredentialForm {
 export const ExternalApiCredentials: React.FC = () => {
   const { user, getToken } = useAuth();
   const { t } = useI18n();
+  const confirm = useConfirm();
   const [credentials, setCredentials] = useState<ApiCredential[]>([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -185,7 +187,14 @@ export const ExternalApiCredentials: React.FC = () => {
   };
 
   const handleDelete = async (id: string, serviceName: string) => {
-    if (!confirm(`¿Estás seguro de eliminar las credenciales de ${serviceName}?`)) {
+    const confirmed = await confirm({
+      title: serviceName,
+      message: t('settings.external_apis.delete_confirm'),
+      confirmLabel: t('delete'),
+      cancelLabel: t('cancel'),
+      tone: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -540,14 +549,14 @@ export const ExternalApiCredentials: React.FC = () => {
                       <Button
                         onClick={() => handleEdit(credential)}
                         className="text-nkz-info hover:text-blue-900"
-                        title="Editar"
+                        title={t('edit')}
                       >
                         <Edit2 className="w-4 h-4" />
                       </Button>
                       <Button
                         onClick={() => handleDelete(credential.id, credential.service_name)}
                         className="text-nkz-error hover:text-red-900"
-                        title="Eliminar"
+                        title={t('delete')}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

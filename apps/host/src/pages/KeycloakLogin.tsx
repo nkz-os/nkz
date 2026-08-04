@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { Lock } from 'lucide-react';
 import { logger } from '@/utils/logger';
@@ -7,12 +8,13 @@ import { Button } from '@nekazari/ui-kit';
 
 const KeycloakLogin: React.FC = () => {
   logger.debug('[KeycloakLogin] Component mounted/re-rendered');
+  const { t } = useTranslation();
   const { login, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const sessionExpired = searchParams.get('session_expired') === '1';
   const [status, setStatus] = useState<string>(
-    sessionExpired ? 'Sesión expirada. Inicia sesión de nuevo.' : 'Redirigiendo a Keycloak…'
+    sessionExpired ? t('auth.session_expired_message') : t('auth.redirecting_to_keycloak')
   );
   const loginInitiatedRef = React.useRef(false);
   const sessionExpiredShownRef = React.useRef(sessionExpired);
@@ -20,9 +22,9 @@ const KeycloakLogin: React.FC = () => {
   useEffect(() => {
     if (sessionExpired) {
       sessionExpiredShownRef.current = true;
-      setStatus('Sesión expirada. Inicia sesión de nuevo.');
+      setStatus(t('auth.session_expired_message'));
     }
-  }, [sessionExpired]);
+  }, [sessionExpired, t]);
 
   useEffect(() => {
     logger.debug('[KeycloakLogin] useEffect executing');
@@ -44,13 +46,13 @@ const KeycloakLogin: React.FC = () => {
 
       if (hasError) {
         logger.debug('[KeycloakLogin] Error detectado - AuthProvider lo manejará');
-        setStatus('Error de autenticación. Redirigiendo...');
+        setStatus(t('auth.authentication_error_redirecting'));
         return; // Dejar que AuthProvider maneje el error
       }
 
       if (hasCode) {
         logger.debug('[KeycloakLogin] Callback detected, waiting for AuthProvider to process...');
-        setStatus('Procesando respuesta de Keycloak…');
+        setStatus(t('auth.processing_keycloak_response'));
         return;
       }
     }
@@ -70,10 +72,10 @@ const KeycloakLogin: React.FC = () => {
     // Si no hay callback ni error, simplemente iniciar login - REDIRIGIR A KEYCLOAK
     logger.debug('[KeycloakLogin] No callback, starting login - redirecting to Keycloak');
     loginInitiatedRef.current = true;
-    setStatus('Redirigiendo a Keycloak…');
+    setStatus(t('auth.redirecting_to_keycloak'));
     login().catch(err => {
       logger.error('[KeycloakLogin] Login error', err);
-      setStatus('Error al iniciar sesión. Usa el botón para reintentar.');
+      setStatus(t('auth.login_error_retry'));
       loginInitiatedRef.current = false;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -86,7 +88,7 @@ const KeycloakLogin: React.FC = () => {
           <Lock className="w-8 h-8 text-white" />
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          {sessionExpired ? 'Sesión expirada' : 'Conectando con Keycloak…'}
+          {sessionExpired ? t('auth.session_expired_title') : t('auth.connecting_to_keycloak')}
         </h1>
         <p className="text-gray-600 mb-6">{status}</p>
         <div className="flex items-center justify-center mb-6">
@@ -96,30 +98,30 @@ const KeycloakLogin: React.FC = () => {
           <Button
             onClick={async () => {
               loginInitiatedRef.current = false; // Reset flag para permitir reintentar
-              setStatus('Reintentando inicio de sesión…');
+              setStatus(t('auth.retrying_login'));
               try {
                 await login();
               } catch (e) {
                 logger.error('Login error', e);
-                setStatus('Error al iniciar sesión. Intenta nuevamente.');
+                setStatus(t('auth.login_error_retry_again'));
               }
             }}
             className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
           >
-            Reintentar inicio de sesión
+            {t('auth.retry_login_button')}
           </Button>
           <Link
             to="/forgot-password"
             className="text-sm text-gray-600 hover:text-gray-900 transition underline"
           >
-            ¿Olvidaste tu contraseña?
+            {t('auth.forgot_password_link')}
           </Link>
           <div className="border-t border-nkz-border pt-3 mt-2 w-full">
             <Link
               to="/register"
               className="w-full block px-6 py-3 bg-white border-2 border-green-600 text-nkz-success rounded-lg hover:bg-nkz-success-light transition font-medium text-center"
             >
-              Crear cuenta gratuita
+              {t('auth.create_free_account')}
             </Link>
           </div>
         </div>
