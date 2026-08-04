@@ -172,10 +172,13 @@ const motionHmi: TokenMotion = {
 };
 
 const semanticColors = {
-  success: '#10B981', successSoft: '#D1FAE5', successStrong: '#059669',
-  warning: '#F59E0B', warningSoft: '#FEF3C7', warningStrong: '#D97706',
+  // -strong variants carry text on light surfaces → must meet WCAG AA 4.5:1.
+  // successStrong/warningStrong were below (3.8 / 3.2) and info base (#3B82F6,
+  // 3.7:1) was used as text and failed; darkened to AA-passing values.
+  success: '#10B981', successSoft: '#D1FAE5', successStrong: '#047857',
+  warning: '#F59E0B', warningSoft: '#FEF3C7', warningStrong: '#B45309',
   danger:  '#EF4444', dangerSoft: '#FEE2E2', dangerStrong: '#DC2626',
-  info:    '#3B82F6', infoSoft: '#DBEAFE',   infoStrong: '#2563EB',
+  info:    '#2563EB', infoSoft: '#DBEAFE',   infoStrong: '#1D4ED8',
 };
 
 const semanticColorsField = {
