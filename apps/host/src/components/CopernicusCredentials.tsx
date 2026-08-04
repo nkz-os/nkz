@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
+import { useConfirm } from '@/context/ConfirmContext';
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
@@ -59,6 +60,7 @@ const STATUS_HINTS: Record<EngineStatus, string> = {
 export const CopernicusCredentials: React.FC = () => {
   const { user, tenantId } = useAuth();
   const { t } = useI18n();
+  const confirm = useConfirm();
 
   const [config, setConfig] = useState<CopernicusConfig | null>(null);
   const [credStatus, setCredStatus] = useState<CredentialStatus | null>(null);
@@ -180,7 +182,13 @@ export const CopernicusCredentials: React.FC = () => {
   };
 
   const handleDelete = async () => {
-    if (!confirm(t('settings.copernicus.confirm_delete'))) {
+    const confirmed = await confirm({
+      message: t('settings.copernicus.confirm_delete'),
+      confirmLabel: t('settings.copernicus.delete'),
+      cancelLabel: t('cancel'),
+      tone: 'danger',
+    });
+    if (!confirmed) {
       return;
     }
 

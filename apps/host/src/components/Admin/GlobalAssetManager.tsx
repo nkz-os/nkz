@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Upload, Trash2, FileIcon, Box, Loader2, AlertCircle, CheckCircle, Globe, Building2 } from 'lucide-react';
 import { useAuth } from '@/context/KeycloakAuthContext';
+import { useConfirm } from '@/context/ConfirmContext';
 import api from '@/services/api';
 import { Button, Input } from '@nekazari/ui-kit';
 
@@ -56,6 +58,8 @@ function normalizeTenantAsset(raw: {
 
 export const GlobalAssetManager: React.FC = () => {
     const { user } = useAuth();
+    const { t } = useTranslation();
+    const confirm = useConfirm();
     const [activeTab, setActiveTab] = useState<AssetTab>('public');
     const [assets, setAssets] = useState<Asset[]>([]);
     const [tenantAssets, setTenantAssets] = useState<Asset[]>([]);
@@ -178,7 +182,14 @@ export const GlobalAssetManager: React.FC = () => {
     };
 
     const handleDeletePublic = async (key: string) => {
-        if (!confirm('Are you sure you want to delete this public asset? This might affect users currently using it.')) return;
+        const confirmed = await confirm({
+            title: t('admin.global_asset_confirm_delete_public_title'),
+            message: t('admin.global_asset_confirm_delete_public_message'),
+            confirmLabel: t('delete'),
+            cancelLabel: t('cancel'),
+            tone: 'danger',
+        });
+        if (!confirmed) return;
         try {
             await api.delete(`/api/assets/public/${key}`);
             setSuccess('Asset deleted successfully.');
@@ -190,7 +201,14 @@ export const GlobalAssetManager: React.FC = () => {
     };
 
     const handleDeleteTenant = async (asset: Asset) => {
-        if (!confirm('Are you sure you want to delete this tenant asset?')) return;
+        const confirmed = await confirm({
+            title: t('admin.global_asset_confirm_delete_tenant_title'),
+            message: t('admin.global_asset_confirm_delete_tenant_message'),
+            confirmLabel: t('delete'),
+            cancelLabel: t('cancel'),
+            tone: 'danger',
+        });
+        if (!confirmed) return;
         const assetId = asset.asset_id ?? asset.key.split('/').pop()?.replace(/\.[^.]+$/, '') ?? '';
         const type = asset.asset_type || 'model';
         const extension = asset.extension || (asset.filename.endsWith('.gltf') ? '.gltf' : '.glb');

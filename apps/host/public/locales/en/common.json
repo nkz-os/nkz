@@ -3,6 +3,7 @@
   "refresh": "Refresh",
   "save": "Save",
   "cancel": "Cancel",
+  "confirm": "Confirm",
   "delete": "Delete",
   "edit": "Edit",
   "close": "Close",
@@ -166,6 +167,10 @@
     "iot_configuration_desc": "Processing profiles and telemetry statistics",
     "global_assets": "Global Asset Manager",
     "global_assets_desc": "Manage public 3D models and icons",
+    "global_asset_confirm_delete_public_title": "Delete public asset",
+    "global_asset_confirm_delete_public_message": "Delete this public asset? This may affect users currently using it.",
+    "global_asset_confirm_delete_tenant_title": "Delete tenant asset",
+    "global_asset_confirm_delete_tenant_message": "Delete this tenant asset?",
     "device_library": "Device Library",
     "device_library_desc": "IoT mapping profiles for sensors",
     "grafana": "Grafana",
@@ -225,6 +230,10 @@
     "purge_tenant_button": "Purge",
     "restore_tenant": "Restore",
     "confirm_restore": "Confirm restore",
+    "restore_failed": "Couldn't restore the tenant. Try again.",
+    "reassign_failed": "Couldn't reassign the user. Try again.",
+    "reset_password": "Reset password",
+    "confirm_reset_password": "Reset this user's password? A temporary password will be generated.",
     "reassign_user_title": "Reassign {{user}} to another tenant",
     "reassign_user_current_tenant": "Current tenant: {{tenant}}",
     "select_tenant": "Select tenant...",
@@ -707,6 +716,11 @@
       "tiltVertical": "Vertical",
       "nominalPower": "Nominal power per tracker",
       "solarHint": "{{total}} trackers × {{power}} kWp total estimated"
+    },
+    "iot_profile": {
+      "imported": "Profile \"{{name}}\" imported. Select it from the list.",
+      "invalid_json": "The JSON must include name, sdm_entity_type and mappings[].",
+      "read_error": "Couldn't read the JSON file. Check the format."
     }
   },
   "livestock": {
@@ -917,6 +931,21 @@
     "email_exists": "This email is already registered",
     "redirect_login": "You will be redirected in {{seconds}} seconds...",
     "go_to_login": "Go to Login"
+  },
+  "auth": {
+    "session_expired_banner": "Your session has expired. Redirecting to login…",
+    "session_expired_message": "Session expired. Log in again.",
+    "session_expired_title": "Session expired",
+    "connecting_to_keycloak": "Connecting to Keycloak…",
+    "redirecting_to_keycloak": "Redirecting to Keycloak…",
+    "processing_keycloak_response": "Processing Keycloak response…",
+    "authentication_error_redirecting": "Authentication error. Redirecting…",
+    "login_error_retry": "Login failed. Use the button to retry.",
+    "retrying_login": "Retrying login…",
+    "login_error_retry_again": "Login failed. Try again.",
+    "retry_login_button": "Retry login",
+    "forgot_password_link": "Forgot your password?",
+    "create_free_account": "Create a free account"
   },
   "quota": {
     "parcel_count_exceeded": "Parcel limit reached",
@@ -1431,7 +1460,8 @@
       "add": "Add",
       "retry": "Retry",
       "delete_success": "{{count}} entity(ies) deleted successfully",
-      "delete_error": "Error deleting entities"
+      "delete_error": "Error deleting entities",
+      "export_empty": "There are no assets to export"
     },
     "filters": {
       "title": "Filters",

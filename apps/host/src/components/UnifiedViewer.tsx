@@ -34,6 +34,7 @@ type SidebarState = 'closed' | 'compact' | 'expanded';
 import '@nekazari/design-tokens/css';
 import type { Robot, Sensor, Parcel, AgriculturalMachine, LivestockAnimal, WeatherStation, GeoPolygon } from '@/types';
 import { useNotification } from '@/hooks/useNotification';
+import { useToastContext } from '@/context/ToastContext';
 import { Button } from '@nekazari/ui-kit';
 import {
 
@@ -62,6 +63,7 @@ const UnifiedViewerInner: React.FC = () => {
     const { modules } = useModules();
     const { t } = useI18n();
     const { showNotification } = useNotification();
+    const toast = useToastContext();
 
     // Combined state logic for sidebar
     const {
@@ -337,9 +339,9 @@ const UnifiedViewerInner: React.FC = () => {
         } catch (error: any) {
             logger.error('[UnifiedViewer] Error querying cadastral:', error);
             const errorMsg = error.response?.data?.error || error.message || 'Error desconocido';
-            alert(t('viewer.cadastral.error', { errorMsg }));
+            toast.error(t('viewer.cadastral.error', { errorMsg }));
         }
-    }, [mapMode, setMapMode, t]);
+    }, [mapMode, setMapMode, t, toast, showNotification]);
 
     // Handle map click for PICK_LOCATION mode
     const handleMapClickForPicking = useCallback((lat: number, lon: number) => {
@@ -425,11 +427,11 @@ const UnifiedViewerInner: React.FC = () => {
             handleCancelDrawing();
         } catch (error: any) {
             logger.error('[UnifiedViewer] Error creating parcel:', error);
-            const errorMessage = error.response?.data?.detail || error.response?.data?.error || error.message || 'Error al guardar la parcela';
-            alert(errorMessage);
+            const errorMessage = error.response?.data?.detail || error.response?.data?.error || error.message || t('parcel.save_error');
+            toast.error(errorMessage);
             throw error;
         }
-    }, [drawnGeometry, drawnArea, cadastralData, loadAllEntities, handleCancelDrawing]);
+    }, [drawnGeometry, drawnArea, cadastralData, loadAllEntities, handleCancelDrawing, t, toast]);
 
 
     // Handle map entity selection

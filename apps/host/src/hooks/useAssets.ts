@@ -4,9 +4,11 @@
 // Provides centralized state management for all assets in the platform.
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '@/utils/logger';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
+import { useToastContext } from '@/context/ToastContext';
 import {
   UnifiedAsset,
   AssetFilters,
@@ -101,7 +103,10 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
     ...initialFilters,
   });
   const [sort, setSort] = useState<SortConfig>(initialSort);
-  
+
+  const { t } = useTranslation();
+  const toast = useToastContext();
+
   // ==========================================================================
   // Fetch Logic
   // ==========================================================================
@@ -342,7 +347,7 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
       : filteredAssets;
     
     if (assetsToExport.length === 0) {
-      alert('No hay assets para exportar');
+      toast.error(t('entities.assets.export_empty'));
       return;
     }
     
@@ -382,7 +387,7 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [assets, filteredAssets]);
+  }, [assets, filteredAssets, t, toast]);
   
   // ==========================================================================
   // Utility Functions

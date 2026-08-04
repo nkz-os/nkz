@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Loader2, UserCheck } from 'lucide-react';
 import client from '@/services/api';
 import { Button } from '@nekazari/ui-kit';
+import { useToastContext } from '@/context/ToastContext';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 interface Props {
@@ -17,6 +18,7 @@ export const ReassignTenantDialog: React.FC<Props> = ({
   userId, username, currentTenantId, onClose, onReassigned,
 }) => {
   const { t } = useTranslation();
+  const toast = useToastContext();
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,7 +42,7 @@ export const ReassignTenantDialog: React.FC<Props> = ({
       await client.put(`/api/admin/users/${userId}/tenant`, { tenant_id: selectedTenantId });
       onReassigned();
     } catch (e: any) {
-      alert(e?.response?.data?.error || 'Reassign failed');
+      toast.error(e?.response?.data?.error || t('admin.reassign_failed'));
     } finally {
       setReassigning(false);
     }
@@ -73,7 +75,7 @@ export const ReassignTenantDialog: React.FC<Props> = ({
         )}
 
         <div className="mt-6 flex justify-end gap-3">
-          <Button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">{t('common.cancel')}</Button>
+          <Button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">{t('cancel')}</Button>
           <Button onClick={handleReassign}
             disabled={!selectedTenantId || reassigning}
             className="px-4 py-2 bg-nkz-accent-base text-white rounded disabled:opacity-50">

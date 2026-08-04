@@ -12,6 +12,7 @@ import { Card } from '@nekazari/ui-kit';
 import { Button } from '@nekazari/ui-kit';
 import { CheckCircle2, XCircle, Package, RefreshCw } from 'lucide-react';
 import { getConfig } from '@/config/environment';
+import { useToastContext } from '@/context/ToastContext';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl || '/api';
@@ -41,6 +42,7 @@ export const Modules: React.FC = () => {
   const { modules: rawInstalledModules, refresh: refreshInstalled } = useModules();
   const { getToken, tenantId, hasRole } = useAuth();
   const { t } = useTranslation('common');
+  const toast = useToastContext();
   const [marketplaceModules, setMarketplaceModules] = useState<MarketplaceModule[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -208,9 +210,9 @@ export const Modules: React.FC = () => {
       setError(displayMessage);
       logger.error('[Modules] Error toggling module:', err);
 
-      // Show alert to user with detailed information
+      // Surface detailed information to the user
       if (err?.response?.data?.action_required === 'upgrade_plan') {
-        alert(displayMessage);
+        toast.error(displayMessage);
       }
     } finally {
       setToggling(prev => {

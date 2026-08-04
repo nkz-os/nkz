@@ -5,6 +5,13 @@ import React from 'react';
 import clsx from 'clsx';
 import { IconButton } from '@nekazari/ui-kit';
 
+export interface TimelinePlaybackLabels {
+  skipBack?: string;
+  skipForward?: string;
+  play?: string;
+  pause?: string;
+}
+
 interface TimelinePlaybackProps {
   isPlaying: boolean;
   onTogglePlay: () => void;
@@ -14,6 +21,12 @@ interface TimelinePlaybackProps {
   onSkipBack: () => void;
   onSkipForward: () => void;
   className?: string;
+  /**
+   * Localised control labels. viewer-kit has no i18n runtime of its own —
+   * consumers own translation and inject strings here. Defaults to plain
+   * English for callers that don't pass `labels`.
+   */
+  labels?: TimelinePlaybackLabels;
 }
 
 const speeds = [0.5, 1, 2, 5, 10];
@@ -27,7 +40,15 @@ export function TimelinePlayback({
   onSkipBack,
   onSkipForward,
   className,
+  labels: labelsProp,
 }: TimelinePlaybackProps) {
+  const labels: Required<TimelinePlaybackLabels> = {
+    skipBack: 'Skip back',
+    skipForward: 'Skip forward',
+    play: 'Play',
+    pause: 'Pause',
+    ...labelsProp,
+  };
   const d = new Date(cursor);
   const dateStr = d.toLocaleDateString('es-ES', {
     day: '2-digit',
@@ -42,7 +63,7 @@ export function TimelinePlayback({
   return (
     <div className={clsx('flex items-center gap-nkz-inline', className)}>
       {/* Skip back 1 step */}
-      <IconButton aria-label="Retroceder" size="sm" onClick={onSkipBack}>
+      <IconButton aria-label={labels.skipBack} size="sm" onClick={onSkipBack}>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M3 3v8M5 7l6-4v8L5 7z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
@@ -50,7 +71,7 @@ export function TimelinePlayback({
 
       {/* Play/Pause */}
       <IconButton
-        aria-label={isPlaying ? 'Pausa' : 'Reproducir'}
+        aria-label={isPlaying ? labels.pause : labels.play}
         size="sm"
         onClick={onTogglePlay}
       >
@@ -67,7 +88,7 @@ export function TimelinePlayback({
       </IconButton>
 
       {/* Skip forward 1 step */}
-      <IconButton aria-label="Avanzar" size="sm" onClick={onSkipForward}>
+      <IconButton aria-label={labels.skipForward} size="sm" onClick={onSkipForward}>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M11 3v8M9 7l-6-4v8l6-4z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
