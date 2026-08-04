@@ -178,7 +178,7 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
                     onClick={() => setSeverity(s)}
                     className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${
                       severity === s 
-                        ? 'bg-white text-nkz-success shadow-sm' 
+                        ? 'bg-white text-nkz-success-strong shadow-sm' 
                         : 'text-nkz-muted hover:text-gray-600'
                     }`}
                   >
@@ -272,7 +272,7 @@ const RuleGroupView: React.FC<RuleGroupViewProps> = ({
           <select 
             value={group.logical_operator}
             onChange={(e: any) => onUpdateGroup(path, { logical_operator: e.target.value as LogicalOperator })}
-            className="text-[10px] font-black text-nkz-success uppercase bg-transparent outline-none cursor-pointer"
+            className="text-[10px] font-black text-nkz-success-strong uppercase bg-transparent outline-none cursor-pointer"
           >
             <option value="AND">TODAS SE CUMPLEN (AND)</option>
             <option value="OR">UNA O VARIAS (OR)</option>
@@ -321,7 +321,7 @@ const RuleGroupView: React.FC<RuleGroupViewProps> = ({
       <div className="flex gap-3 pt-2">
         <Button 
           onClick={() => onAddCondition(path)}
-          className="text-[10px] font-black bg-nkz-success-light text-nkz-success px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-200 transition-all active:scale-95"
+          className="text-[10px] font-black bg-nkz-success-light text-nkz-success-strong px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-200 transition-all active:scale-95"
         >
           <Plus className="w-3.5 h-3.5" /> AÑADIR CONDICIÓN
         </Button>

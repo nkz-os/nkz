@@ -327,8 +327,8 @@ export const Modules: React.FC = () => {
                       </span>
                       {module.moduleType && (
                         <span className={`text-xs px-2 py-0.5 rounded ${module.moduleType === 'CORE' ? 'bg-nkz-info-light text-nkz-info' :
-                          module.moduleType === 'ADDON_FREE' ? 'bg-nkz-success-light text-nkz-success' :
-                            module.moduleType === 'ADDON_PAID' ? 'bg-nkz-warning-light text-nkz-warning' :
+                          module.moduleType === 'ADDON_FREE' ? 'bg-nkz-success-light text-nkz-success-strong' :
+                            module.moduleType === 'ADDON_PAID' ? 'bg-nkz-warning-light text-nkz-warning-strong' :
                               'bg-purple-100 text-purple-700'
                           }`}>
                           {module.moduleType === 'CORE' ? t('core') :

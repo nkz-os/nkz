@@ -119,7 +119,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                   setSearchTerm('');
                 }}
                 className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-nkz-bg-secondary ${
-                  !selectedParentId ? 'bg-nkz-success-light text-nkz-success' : ''
+                  !selectedParentId ? 'bg-nkz-success-light text-nkz-success-strong' : ''
                 }`}
               >
                 <span className="font-medium">None (independent entity)</span>
@@ -143,7 +143,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                     setSearchTerm('');
                   }}
                   className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-nkz-bg-secondary flex items-center gap-2 ${
-                    selectedParentId === parent.id ? 'bg-nkz-success-light text-nkz-success' : ''
+                    selectedParentId === parent.id ? 'bg-nkz-success-light text-nkz-success-strong' : ''
                   }`}
                 >
                   {getEntityIcon(parent.type)}

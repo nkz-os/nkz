@@ -394,7 +394,7 @@ export const AuditLogsPanel: React.FC = () => {
                       <td className="px-4 py-3 text-sm">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(log.success)}
-                          <span className={log.success ? 'text-nkz-success' : 'text-nkz-error'}>
+                          <span className={log.success ? 'text-nkz-success-strong' : 'text-nkz-error'}>
                             {log.success ? 'Success' : 'Failed'}
                           </span>
                         </div>

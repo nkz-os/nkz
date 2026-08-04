@@ -283,7 +283,7 @@ export const CopernicusCredentials: React.FC = () => {
               : t('settings.copernicus.usage', { used: usage.used, limit: usage.limit })}
           </p>
           {usage.limit !== null && usage.remaining === 0 && (
-            <p className="text-xs text-nkz-warning mt-0.5">
+            <p className="text-xs text-nkz-warning-strong mt-0.5">
               {t('settings.copernicus.usageLimitReached')}
             </p>
           )}

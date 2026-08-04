@@ -87,7 +87,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
 
         {error && (
           <div className="mt-4 p-3 bg-nkz-danger-soft rounded">
-            <p className="text-nkz-sm text-nkz-danger">{error}</p>
+            <p className="text-nkz-sm text-nkz-danger-strong">{error}</p>
           </div>
         )}
 
@@ -115,7 +115,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
                   <td className="py-2 font-mono text-nkz-xs">{name}</td>
                   <td className="py-2">
                     <span className={`text-xs px-2 py-0.5 rounded ${
-                      info.status === 'found' ? 'bg-nkz-danger-soft text-nkz-danger' :
+                      info.status === 'found' ? 'bg-nkz-danger-soft text-nkz-danger-strong' :
                       info.status === 'not_found' ? 'bg-nkz-bg-muted text-nkz-text-muted' :
                       'bg-nkz-warning-soft text-nkz-warning-strong'
                     }`}>
@@ -134,7 +134,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
         {inventory?.warnings && inventory.warnings.length > 0 && (
           <div className="mt-4 p-3 bg-nkz-danger-soft rounded-lg">
             {inventory.warnings.map((w, i) => (
-              <p key={i} className="text-nkz-sm text-nkz-danger">{w}</p>
+              <p key={i} className="text-nkz-sm text-nkz-danger-strong">{w}</p>
             ))}
           </div>
         )}

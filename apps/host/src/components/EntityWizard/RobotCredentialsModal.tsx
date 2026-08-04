@@ -47,7 +47,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
           title="Copy to clipboard"
         >
           {copiedField === fieldName
-            ? <Check className="w-4 h-4 text-nkz-success" />
+            ? <Check className="w-4 h-4 text-nkz-success-strong" />
             : <Copy className="w-4 h-4" />
           }
         </Button>

@@ -810,7 +810,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-gray-600">{t('weather.agro_panel.balance_3_days')}</span>
-                  <span className={`font-medium ${irrigation.balance < 0 ? 'text-nkz-error' : 'text-nkz-success'}`}>
+                  <span className={`font-medium ${irrigation.balance < 0 ? 'text-nkz-error' : 'text-nkz-success-strong'}`}>
                     {irrigation.balance > 0 ? '+' : ''}{irrigation.balance.toFixed(1)} mm
                   </span>
                 </div>

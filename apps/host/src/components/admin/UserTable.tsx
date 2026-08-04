@@ -135,7 +135,7 @@ export const UserTable: React.FC<UserTableProps> = ({
               </div>
             </td>
             <td className="px-6 py-4 text-nkz-sm">
-              <div className={`flex items-center gap-1.5 font-medium ${user.enabled ? 'text-nkz-success' : 'text-nkz-danger'}`}>
+              <div className={`flex items-center gap-1.5 font-medium ${user.enabled ? 'text-nkz-success-strong' : 'text-nkz-danger-strong'}`}>
                 <div className={`h-2 w-2 rounded-full ${user.enabled ? 'bg-nkz-success' : 'bg-nkz-danger'}`} />
                 {user.enabled ? 'Active' : 'Disabled'}
               </div>

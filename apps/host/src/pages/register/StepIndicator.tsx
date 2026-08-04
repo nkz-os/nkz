@@ -35,7 +35,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep }) => 
         const labelClasses = clsx(
           'text-nkz-xs mt-1 text-center whitespace-nowrap',
           isActive && 'text-nkz-accent-base font-medium',
-          isCompleted && 'text-nkz-success',
+          isCompleted && 'text-nkz-success-strong',
           isPending && 'text-nkz-text-muted',
         );
 

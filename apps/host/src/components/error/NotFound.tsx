@@ -52,16 +52,16 @@ export const NotFound: React.FC = () => {
           <div className="mt-12 pt-8 border-t border-nkz-border">
             <p className="text-sm text-nkz-muted mb-4">Enlaces útiles:</p>
             <div className="flex flex-wrap gap-4 justify-center">
-              <Link to="/dashboard" className="text-nkz-success hover:text-nkz-success text-sm">
+              <Link to="/dashboard" className="text-nkz-success-strong hover:text-nkz-success-strong text-sm">
                 Dashboard
               </Link>
-              <Link to="/entities" className="text-nkz-success hover:text-nkz-success text-sm">
+              <Link to="/entities" className="text-nkz-success-strong hover:text-nkz-success-strong text-sm">
                 Entidades
               </Link>
-              <Link to="/alerts" className="text-nkz-success hover:text-nkz-success text-sm">
+              <Link to="/alerts" className="text-nkz-success-strong hover:text-nkz-success-strong text-sm">
                 Alertas
               </Link>
-              <Link to="/settings" className="text-nkz-success hover:text-nkz-success text-sm">
+              <Link to="/settings" className="text-nkz-success-strong hover:text-nkz-success-strong text-sm">
                 Configuración
               </Link>
             </div>

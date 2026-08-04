@@ -218,11 +218,11 @@ export const ViewerHeader: React.FC = () => {
                                     to={item.path}
                                     onClick={() => setIsMenuOpen(false)}
                                     className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all ${active
-                                        ? 'bg-nkz-success-light dark:bg-green-900/30 text-nkz-success dark:text-green-400'
+                                        ? 'bg-nkz-success-light dark:bg-green-900/30 text-nkz-success-strong dark:text-green-400'
                                         : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                                         }`}
                                 >
-                                    <Icon className={`w-5 h-5 ${active ? 'text-nkz-success dark:text-green-400' : 'text-slate-500'}`} />
+                                    <Icon className={`w-5 h-5 ${active ? 'text-nkz-success-strong dark:text-green-400' : 'text-slate-500'}`} />
                                     <span className="font-medium">
                                         {t(item.label)}
                                     </span>

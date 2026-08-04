@@ -186,11 +186,11 @@ export const Navigation: React.FC = () => {
                           to={item.path}
                           onClick={() => setIsMenuOpen(false)}
                           className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all ${active
-                            ? 'bg-nkz-success-light dark:bg-green-900/20 text-nkz-success dark:text-green-400'
+                            ? 'bg-nkz-success-light dark:bg-green-900/20 text-nkz-success-strong dark:text-green-400'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                         >
-                          <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-nkz-success dark:text-green-400' : 'text-nkz-muted'}`} />
+                          <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-nkz-success-strong dark:text-green-400' : 'text-nkz-muted'}`} />
                           <span className="font-medium truncate">
                             {t(item.label)}
                           </span>

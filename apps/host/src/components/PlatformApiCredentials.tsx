@@ -227,7 +227,7 @@ export const PlatformApiCredentials: React.FC = () => {
             <CheckCircle className="w-5 h-5 text-nkz-success flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-green-800">Éxito</p>
-              <p className="text-sm text-nkz-success">{success}</p>
+              <p className="text-sm text-nkz-success-strong">{success}</p>
             </div>
           </div>
         )}

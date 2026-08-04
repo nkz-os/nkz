@@ -66,7 +66,7 @@ export const EntityList: React.FC<EntityListProps> = ({
             case 'working':
             case 'active':
             case 'online':
-                return 'bg-nkz-success-light text-nkz-success';
+                return 'bg-nkz-success-light text-nkz-success-strong';
             case 'idle':
             case 'standby':
                 return 'bg-nkz-info-light text-nkz-info';
@@ -75,7 +75,7 @@ export const EntityList: React.FC<EntityListProps> = ({
             case 'maintenance':
                 return 'bg-nkz-error-light text-nkz-error';
             case 'charging':
-                return 'bg-nkz-warning-light text-nkz-warning';
+                return 'bg-nkz-warning-light text-nkz-warning-strong';
             default:
                 return 'bg-nkz-bg-secondary text-gray-600';
         }

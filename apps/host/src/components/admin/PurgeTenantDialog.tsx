@@ -78,21 +78,21 @@ export const PurgeTenantDialog: React.FC<Props> = ({ tenantId, tenantName, onClo
       <div className="bg-nkz-surface rounded-lg p-8 max-w-2xl w-full mx-4 my-8">
         <div className="flex items-center gap-2 mb-6">
           <Skull className="h-6 w-6 text-nkz-danger" />
-          <h2 className="text-nkz-xl font-bold text-nkz-danger">
+          <h2 className="text-nkz-xl font-bold text-nkz-danger-strong">
             {t('admin.purge_tenant_title', { name: tenantName })}
           </h2>
         </div>
 
         {error && (
           <div className="mb-4 p-3 bg-nkz-danger-soft rounded">
-            <p className="text-nkz-sm text-nkz-danger">{error}</p>
+            <p className="text-nkz-sm text-nkz-danger-strong">{error}</p>
           </div>
         )}
 
         {step === 'inventory' && (
           <>
             <div className="p-4 bg-nkz-danger-soft rounded-lg mb-4">
-              <p className="text-sm font-bold text-nkz-danger">
+              <p className="text-sm font-bold text-nkz-danger-strong">
                 {t('admin.purge_irreversible_warning')}
               </p>
             </div>
@@ -106,8 +106,8 @@ export const PurgeTenantDialog: React.FC<Props> = ({ tenantId, tenantName, onClo
         {step === 'confirm' && (
           <>
             <div className="p-4 bg-nkz-danger-soft rounded-lg mb-4">
-              <p className="text-sm font-bold text-nkz-danger">{t('admin.purge_irreversible_warning')}</p>
-              <p className="text-sm text-nkz-danger mt-2">{t('admin.purge_double_confirm')}</p>
+              <p className="text-sm font-bold text-nkz-danger-strong">{t('admin.purge_irreversible_warning')}</p>
+              <p className="text-sm text-nkz-danger-strong mt-2">{t('admin.purge_double_confirm')}</p>
             </div>
             <div className="space-y-4">
               <Input type="text" value={confirmName}

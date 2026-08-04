@@ -137,7 +137,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                     </p>
                     <Button
                         onClick={onRefresh}
-                        className="text-nkz-success hover:text-nkz-success font-medium"
+                        className="text-nkz-success-strong hover:text-nkz-success-strong font-medium"
                     >
                         Actualizar lista
                     </Button>
@@ -232,7 +232,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                                 e.stopPropagation();
                                 onEdit(parcel);
                             }) as any}
-                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-success bg-nkz-success-light rounded-md hover:bg-nkz-success-light transition-colors"
+                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-success-strong bg-nkz-success-light rounded-md hover:bg-nkz-success-light transition-colors"
                             title="Editar"
                         >
                             <Edit className="w-4 h-4 mr-1" />

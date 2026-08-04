@@ -119,7 +119,7 @@ const KeycloakLogin: React.FC = () => {
           <div className="border-t border-nkz-border pt-3 mt-2 w-full">
             <Link
               to="/register"
-              className="w-full block px-6 py-3 bg-white border-2 border-green-600 text-nkz-success rounded-lg hover:bg-nkz-success-light transition font-medium text-center"
+              className="w-full block px-6 py-3 bg-white border-2 border-green-600 text-nkz-success-strong rounded-lg hover:bg-nkz-success-light transition font-medium text-center"
             >
               {t('auth.create_free_account')}
             </Link>

@@ -216,7 +216,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
           ) : (
             <>
               {otpMessage && (
-                <p className="text-nkz-xs text-nkz-success text-center">{otpMessage}</p>
+                <p className="text-nkz-xs text-nkz-success-strong text-center">{otpMessage}</p>
               )}
               <div>
                 <label htmlFor="reg-otp" className="block text-nkz-sm text-nkz-text-secondary font-medium mb-1 text-center">

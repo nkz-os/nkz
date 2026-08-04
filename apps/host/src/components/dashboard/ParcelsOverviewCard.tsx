@@ -64,7 +64,7 @@ export const ParcelsOverviewCard: React.FC<ParcelsOverviewCardProps> = ({ parcel
             ))}
 
             {parcels.length > 4 && (
-              <Button className="w-full py-3 text-nkz-warning hover:bg-nkz-warning-light rounded-xl transition font-medium">
+              <Button className="w-full py-3 text-nkz-warning-strong hover:bg-nkz-warning-light rounded-xl transition font-medium">
                 {t('common.view_all_parcels')} ({parcels.length})
               </Button>
             )}

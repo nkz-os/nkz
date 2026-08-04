@@ -25,10 +25,10 @@ const SemaphoreIcon: React.FC<{
     switch (status) {
       case 'optimal':
       case 'satisfied':
-        return 'text-nkz-success bg-nkz-success-light border-green-300';
+        return 'text-nkz-success-strong bg-nkz-success-light border-green-300';
       case 'caution':
       case 'alert':
-        return 'text-nkz-warning bg-nkz-warning-light border-yellow-300';
+        return 'text-nkz-warning-strong bg-nkz-warning-light border-yellow-300';
       case 'not_suitable':
       case 'too_wet':
       case 'too_dry':

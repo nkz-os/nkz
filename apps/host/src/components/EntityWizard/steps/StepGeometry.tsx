@@ -163,7 +163,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
           {assetData?.isSubdivision && assetData.parentEntity && (
             <div className="p-3 bg-nkz-warning-light border border-yellow-200 rounded-lg text-sm text-yellow-800">
               <strong>Padre:</strong> {assetData.parentEntity.name} ({assetData.parentEntity.type})<br />
-              <span className="text-xs text-nkz-warning">La geometría debe quedar completamente dentro de los límites del padre.</span>
+              <span className="text-xs text-nkz-warning-strong">La geometría debe quedar completamente dentro de los límites del padre.</span>
             </div>
           )}
         </>

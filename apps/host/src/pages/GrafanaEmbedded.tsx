@@ -134,7 +134,7 @@ export const GrafanaEmbedded: React.FC = () => {
           )}
 
           {membershipGranted && (
-            <div className="mt-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg text-xs text-nkz-success">
+            <div className="mt-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg text-xs text-nkz-success-strong">
               ✓ Acceso verificado para tu organización en Grafana
             </div>
           )}

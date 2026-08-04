@@ -241,7 +241,7 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
           {status === 'connected' && (
             <div className="mt-2 flex items-center gap-2">
               <Wifi className="w-4 h-4 text-nkz-success" />
-              <span className="text-sm text-nkz-success">
+              <span className="text-sm text-nkz-success-strong">
                 Primer heartbeat recibido
               </span>
             </div>
