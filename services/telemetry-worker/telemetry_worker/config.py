@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     orion_url: str = "http://orion-ld-service:1026"
     context_url: str = "http://api-gateway-service:5000/ngsi-ld-context.json"
+    telemetry_dedup_enabled: bool = True
 
     model_config = {"env_prefix": "", "case_sensitive": False}
 

@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from telemetry_worker.calibration import CalibrationService
 from telemetry_worker.config import Settings
+from telemetry_worker.dedup import NotificationDedup
 from telemetry_worker.event_sink import PostgreSQLSink
 from telemetry_worker.health_checker import HealthChecker
 from telemetry_worker.notification_handler import (
@@ -57,8 +58,15 @@ async def lifespan(app: FastAPI):
     )
     await calibration_service.start()
 
+    # Notification dedup (drops duplicate Orion-LD redeliveries before write)
+    dedup = NotificationDedup(
+        redis_url=settings.redis_url,
+        enabled=settings.telemetry_dedup_enabled,
+    )
+    await dedup.start()
+
     # Wire dependencies into notification handler
-    init_handler(settings, profile_service, sink, health_checker, calibration_service)
+    init_handler(settings, profile_service, sink, health_checker, calibration_service, dedup)
 
     # Check/create NGSI-LD subscriptions for all tenants (sync, run in executor)
     try:
@@ -85,6 +93,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown: cancel periodic task and close pool
     periodic_task.cancel()
+    await dedup.stop()
     await calibration_service.stop()
     await health_checker.stop()
     await sink.stop()

@@ -16,6 +16,7 @@ from .event_sink import EventSink, TelemetryEvent
 from .health_checker import HealthChecker, _severity
 from .profiles import ProfileService
 from .calibration import CalibrationService
+from .dedup import NotificationDedup
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ _profile_service: Optional[ProfileService] = None
 _event_sink: Optional[EventSink] = None
 _health_checker: Optional[HealthChecker] = None
 _calibration_service: Optional[CalibrationService] = None
+_dedup: Optional[NotificationDedup] = None
 
 
 def init_handler(
@@ -35,14 +37,16 @@ def init_handler(
     event_sink: EventSink,
     health_checker: Optional[HealthChecker] = None,
     calibration_service: Optional[CalibrationService] = None,
+    dedup: Optional[NotificationDedup] = None,
 ) -> None:
     """Wire dependencies from app lifespan."""
-    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service
+    global _settings, _profile_service, _event_sink, _health_checker, _calibration_service, _dedup
     _settings = settings
     _profile_service = profile_service
     _event_sink = event_sink
     _health_checker = health_checker
     _calibration_service = calibration_service
+    _dedup = dedup
 
 
 async def process_notification_task(
@@ -173,6 +177,24 @@ async def _process_entity(
 
     # Extract observedAt timestamp
     observed_at = _extract_observed_at(entity)
+
+    # Deduplicate against Orion-LD notification redelivery (network retries,
+    # subscription replay). Per-event check so a batch with some new +
+    # some duplicate events keeps only the new ones. Fail-open: if Redis is
+    # unavailable, _dedup.is_duplicate() returns False and the write proceeds.
+    if _dedup is not None:
+        is_dup = await _dedup.is_duplicate(
+            tenant_id=tenant_id,
+            entity_id=entity_id,
+            observed_at=observed_at,
+            measurements=filtered,
+        )
+        if is_dup:
+            logger.debug(
+                f"Duplicate notification skipped for entity={entity_id} "
+                f"observed_at={observed_at.isoformat()}"
+            )
+            return None
 
     # Update last values cache for future delta checks
     _profile_service.update_last_values(device_id, measurements)
