@@ -177,7 +177,7 @@ const semanticColors = {
   // 3.7:1) was used as text and failed; darkened to AA-passing values.
   success: '#10B981', successSoft: '#D1FAE5', successStrong: '#047857',
   warning: '#F59E0B', warningSoft: '#FEF3C7', warningStrong: '#B45309',
-  danger:  '#EF4444', dangerSoft: '#FEE2E2', dangerStrong: '#DC2626',
+  danger:  '#EF4444', dangerSoft: '#FEE2E2', dangerStrong: '#B91C1C',
   info:    '#2563EB', infoSoft: '#DBEAFE',   infoStrong: '#1D4ED8',
 };
 
