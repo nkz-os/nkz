@@ -1768,26 +1768,50 @@ def health_check():
     )
 
 
+def _authenticate_keycloak_webhook():
+    """Fail-closed auth check for the Keycloak webhook endpoint.
+
+    Returns None when authenticated, or a (response, status) tuple the
+    caller must return immediately otherwise. Without this, an empty
+    WEBHOOK_SECRET would let `Bearer ` (or any non-empty token)
+    authenticate, opening a tenant-creation surface to the world.
+    """
+    expected_secret = (WEBHOOK_SECRET or "").strip()
+    if not expected_secret:
+        logger.error("WEBHOOK_SECRET not configured; refusing keycloak webhook request")
+        return jsonify({"error": "Webhook not configured"}), 503
+
+    auth_header = request.headers.get("Authorization") or ""
+    if not auth_header.startswith("Bearer "):
+        logger.warning("Unauthorized webhook request: missing Bearer token")
+        return jsonify({"error": "Unauthorized"}), 401
+    provided = auth_header[len("Bearer "):].strip().encode("utf-8")
+    if not hmac.compare_digest(provided, expected_secret.encode("utf-8")):
+        logger.warning("Unauthorized webhook request: token mismatch")
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
+
+
+def _dispatch_keycloak_event(event_type, tenant_id, payload):
+    """Route a parsed Keycloak webhook event to its handler."""
+    if event_type == "TENANT_CREATED":
+        return handle_tenant_created(tenant_id, payload)
+    elif event_type == "TENANT_UPDATED":
+        return handle_tenant_updated(tenant_id, payload)
+    elif event_type == "TENANT_DELETED":
+        return handle_tenant_deleted(tenant_id, payload)
+    else:
+        logger.info(f"Unhandled event type: {event_type}")
+        return jsonify({"message": "Event type not handled"}), 200
+
+
 @app.route("/webhook/keycloak", methods=["POST"])
 def keycloak_webhook():
     """Handle Keycloak webhook events"""
     try:
-        # Fail-closed if the shared webhook secret is not configured. Without
-        # this, an empty WEBHOOK_SECRET would let `Bearer ` (or any non-empty
-        # token) authenticate, opening a tenant-creation surface to the world.
-        expected_secret = (WEBHOOK_SECRET or "").strip()
-        if not expected_secret:
-            logger.error("WEBHOOK_SECRET not configured; refusing keycloak webhook request")
-            return jsonify({"error": "Webhook not configured"}), 503
-
-        auth_header = request.headers.get("Authorization") or ""
-        if not auth_header.startswith("Bearer "):
-            logger.warning("Unauthorized webhook request: missing Bearer token")
-            return jsonify({"error": "Unauthorized"}), 401
-        provided = auth_header[len("Bearer "):].strip().encode("utf-8")
-        if not hmac.compare_digest(provided, expected_secret.encode("utf-8")):
-            logger.warning("Unauthorized webhook request: token mismatch")
-            return jsonify({"error": "Unauthorized"}), 401
+        auth_error = _authenticate_keycloak_webhook()
+        if auth_error is not None:
+            return auth_error
 
         # Parse webhook payload
         payload = request.get_json()
@@ -1811,15 +1835,7 @@ def keycloak_webhook():
             logger.warning(f"Rejected webhook with invalid tenant_id format: {tenant_id!r}")
             return jsonify({"error": "Invalid tenant_id format"}), 400
 
-        if event_type == "TENANT_CREATED":
-            return handle_tenant_created(tenant_id, payload)
-        elif event_type == "TENANT_UPDATED":
-            return handle_tenant_updated(tenant_id, payload)
-        elif event_type == "TENANT_DELETED":
-            return handle_tenant_deleted(tenant_id, payload)
-        else:
-            logger.info(f"Unhandled event type: {event_type}")
-            return jsonify({"message": "Event type not handled"}), 200
+        return _dispatch_keycloak_event(event_type, tenant_id, payload)
 
     except Exception as e:
         logger.error(f"Error processing Keycloak webhook: {e}")
