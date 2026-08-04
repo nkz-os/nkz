@@ -983,6 +983,146 @@ class EnhancedTenantWebhookService:
             cursor.close()
             conn.close()
 
+    def _build_keycloak_user_payload(
+        self,
+        email: str,
+        tenant_id: str,
+        plan_info: dict[str, Any],
+        first_name: str,
+        last_name: str,
+        is_owner: bool = False,
+    ) -> dict[str, Any]:
+        """Build the Keycloak user create/update payload. Pure — no I/O.
+
+        Used for all three call sites in `create_keycloak_user` (reuse
+        update, create-new, and search-failed-create) which previously
+        inlined this identical dict three times.
+        """
+        return {
+            "username": email,
+            "email": email,
+            "enabled": True,
+            "emailVerified": True,
+            "firstName": first_name,
+            "lastName": last_name,
+            "attributes": {
+                "tenant_id": [tenant_id],
+                "plan": [plan_info["plan"]],
+                "max_users": [str(plan_info["max_users"])],
+                "max_robots": [str(plan_info["max_robots"])],
+                "max_sensors": [str(plan_info["max_sensors"])],
+                "activation_code": [plan_info.get("code", "")],
+                "created_by": ["activation_code" if is_owner else "tenant_admin"],
+                "is_owner": [str(is_owner).lower()],
+            },
+        }
+
+    def _recover_user_after_409(
+        self,
+        search_url: str,
+        search_params: dict[str, str],
+        headers: dict[str, str],
+        post_response_text: str,
+        email: str,
+    ) -> str:
+        """Search for the user a 409 on user creation indicates already
+        exists. Shared by the two 409-recovery branches of
+        `_create_user_or_recover`'s callers. Raises if the user can't
+        be found (mirrors the original inline `raise Exception(...)`).
+        """
+        logger.warning(f"User creation returned 409 for {email}, searching again...")
+        search_response = requests.get(
+            search_url, headers=headers, params=search_params, timeout=10
+        )  # noqa: E501
+        if search_response.status_code == 200:
+            existing_users = search_response.json()
+            if existing_users and len(existing_users) > 0:
+                user_id = existing_users[0]["id"]
+                logger.info(f"Found existing user after 409: {user_id}")
+                return user_id
+            raise Exception(
+                f"Failed to create user and user not found: {post_response_text}"
+            )  # noqa: E501
+        raise Exception(
+            f"Failed to create user (409) and search failed: {post_response_text}"
+        )  # noqa: E501
+
+    def _create_user_or_recover(
+        self,
+        post_url: str,
+        search_url: str,
+        search_params: dict[str, str],
+        user_data: dict[str, Any],
+        headers: dict[str, str],
+        email: str,
+    ) -> str:
+        """POST a new Keycloak user; on 409, recover the existing user's
+        id instead of failing.
+        """
+        response = requests.post(post_url, json=user_data, headers=headers, timeout=10)
+        if response.status_code == 409:
+            return self._recover_user_after_409(
+                search_url, search_params, headers, response.text, email
+            )
+        response.raise_for_status()
+        return response.headers["Location"].split("/")[-1]
+
+    def _update_existing_keycloak_user(
+        self,
+        keycloak_url: str,
+        user_id: str,
+        user_data: dict[str, Any],
+        headers: dict[str, str],
+        email: str,
+    ) -> None:
+        """Best-effort PUT to refresh an existing Keycloak user's
+        attributes. Must never raise — the call site doesn't catch.
+        """
+        update_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
+        update_response = requests.put(update_url, json=user_data, headers=headers, timeout=10)  # noqa: E501
+        if update_response.status_code in (204, 200):
+            logger.info(f"Updated existing Keycloak user: {email}")
+        else:
+            logger.warning(
+                f"Failed to update existing user: "
+                f"{update_response.status_code} {update_response.text}"
+            )
+
+    def _resolve_user_id(
+        self,
+        keycloak_url: str,
+        user_data: dict[str, Any],
+        email: str,
+        headers: dict[str, str],
+    ) -> str:
+        """Search for an existing Keycloak user by email; reuse (and
+        refresh via PUT) if found, otherwise create via POST (with 409
+        recovery). Covers 3 of the 4 branches of the original inline
+        logic — the `fail_if_exists` early-return is handled by the
+        caller before this runs, since it must not mutate anything.
+        """
+        search_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
+        search_params = {"email": email.lower(), "exact": "true"}
+        search_response = requests.get(
+            search_url, headers=headers, params=search_params, timeout=10
+        )  # noqa: E501
+
+        if search_response.status_code == 200:
+            existing_users = search_response.json()
+            if existing_users and len(existing_users) > 0:
+                user_id = existing_users[0]["id"]
+                logger.info(
+                    f"User {email} already exists in Keycloak, using existing user: {user_id}"
+                )  # noqa: E501
+                self._update_existing_keycloak_user(
+                    keycloak_url, user_id, user_data, headers, email
+                )
+                return user_id
+
+        return self._create_user_or_recover(
+            search_url, search_url, search_params, user_data, headers, email
+        )
+
     def create_keycloak_user(
         self,
         email: str,
@@ -1022,150 +1162,32 @@ class EnhancedTenantWebhookService:
                 first_name = name_parts[0].title() if name_parts else "User"
                 last_name = name_parts[1].title() if len(name_parts) > 1 else last_name
 
-            # Check if user already exists in Keycloak
-            search_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users"
-            search_params = {"email": email.lower(), "exact": "true"}
-            search_response = requests.get(
-                search_url, headers=headers, params=search_params, timeout=10
-            )  # noqa: E501
+            user_data = self._build_keycloak_user_payload(
+                email, tenant_id, plan_info, first_name, last_name, is_owner=is_owner
+            )
 
-            if search_response.status_code == 200:
-                existing_users = search_response.json()
-                if existing_users and len(existing_users) > 0:
-                    if fail_if_exists:
+            if fail_if_exists:
+                # Check if user already exists before creating/reusing anything —
+                # the caller wants a hard conflict, not silent reuse.
+                search_url = user_url
+                search_params = {"email": email.lower(), "exact": "true"}
+                search_response = requests.get(
+                    search_url, headers=headers, params=search_params, timeout=10
+                )  # noqa: E501
+                if search_response.status_code == 200:
+                    existing_users = search_response.json()
+                    if existing_users and len(existing_users) > 0:
                         logger.warning(f"Registration aborted: User {email} already exists.")
                         return {
                             "success": False,
                             "error": "Email already registered",
                             "conflict": True
                         }
-
-                    # User already exists, use existing user_id
-                    user_id = existing_users[0]["id"]
-                    logger.info(
-                        f"User {email} already exists in Keycloak, using existing user: {user_id}"
-                    )  # noqa: E501
-
-                    # Update user attributes if needed
-                    update_url = f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}/users/{user_id}"
-                    user_data = {
-                        "username": email,
-                        "email": email,
-                        "enabled": True,
-                        "emailVerified": True,
-                        "firstName": first_name,
-                        "lastName": last_name,
-                        "attributes": {
-                            "tenant_id": [tenant_id],
-                            "plan": [plan_info["plan"]],
-                            "max_users": [str(plan_info["max_users"])],
-                            "max_robots": [str(plan_info["max_robots"])],
-                            "max_sensors": [str(plan_info["max_sensors"])],
-                            "activation_code": [plan_info.get("code", "")],
-                            "created_by": ["activation_code" if is_owner else "tenant_admin"],
-                            "is_owner": [str(is_owner).lower()],
-                        },
-                    }
-                    update_response = requests.put(
-                        update_url, json=user_data, headers=headers, timeout=10
-                    )  # noqa: E501
-                    if update_response.status_code in (204, 200):
-                        logger.info(f"Updated existing Keycloak user: {email}")
-                    else:
-                        logger.warning(
-                            f"Failed to update existing user: "
-                            f"{update_response.status_code} {update_response.text}"
-                        )
-                else:
-                    # User doesn't exist, create new one
-                    user_data = {
-                        "username": email,
-                        "email": email,
-                        "enabled": True,
-                        "emailVerified": True,
-                        "firstName": first_name,
-                        "lastName": last_name,
-                        "attributes": {
-                            "tenant_id": [tenant_id],
-                            "plan": [plan_info["plan"]],
-                            "max_users": [str(plan_info["max_users"])],
-                            "max_robots": [str(plan_info["max_robots"])],
-                            "max_sensors": [str(plan_info["max_sensors"])],
-                            "activation_code": [plan_info.get("code", "")],
-                            "created_by": ["activation_code" if is_owner else "tenant_admin"],
-                            "is_owner": [str(is_owner).lower()],
-                        },
-                    }
-                    response = requests.post(user_url, json=user_data, headers=headers, timeout=10)
-                    if response.status_code == 409:
-                        # Conflict - user might have been created between check and create
-                        logger.warning(
-                            f"User {email} was created by another process, searching again..."
-                        )  # noqa: E501
-                        search_response = requests.get(
-                            search_url, headers=headers, params=search_params, timeout=10
-                        )  # noqa: E501
-                        if search_response.status_code == 200:
-                            existing_users = search_response.json()
-                            if existing_users and len(existing_users) > 0:
-                                user_id = existing_users[0]["id"]
-                                logger.info(f"Found existing user after conflict: {user_id}")
-                            else:
-                                raise Exception(
-                                    f"Failed to create user and user not found: {response.text}"
-                                )  # noqa: E501
-                        else:
-                            raise Exception(
-                                f"Failed to create user (409) and search failed: {response.text}"
-                            )  # noqa: E501
-                    else:
-                        response.raise_for_status()
-                        # Get user ID from location header
-                        user_id = response.headers["Location"].split("/")[-1]
+                user_id = self._create_user_or_recover(
+                    user_url, search_url, search_params, user_data, headers, email
+                )
             else:
-                # Search failed, try to create anyway
-                user_data = {
-                    "username": email,
-                    "email": email,
-                    "enabled": True,
-                    "emailVerified": True,
-                    "firstName": first_name,
-                    "lastName": last_name,
-                    "attributes": {
-                        "tenant_id": [tenant_id],
-                        "plan": [plan_info["plan"]],
-                        "max_users": [str(plan_info["max_users"])],
-                        "max_robots": [str(plan_info["max_robots"])],
-                        "max_sensors": [str(plan_info["max_sensors"])],
-                        "activation_code": [plan_info.get("code", "")],
-                        "created_by": ["activation_code" if is_owner else "tenant_admin"],
-                        "is_owner": [str(is_owner).lower()],
-                    },
-                }
-                response = requests.post(user_url, json=user_data, headers=headers, timeout=10)
-                if response.status_code == 409:
-                    # User exists but search failed, try to find it
-                    logger.warning("User creation returned 409, attempting to find user...")
-                    search_response = requests.get(
-                        search_url, headers=headers, params=search_params, timeout=10
-                    )  # noqa: E501
-                    if search_response.status_code == 200:
-                        existing_users = search_response.json()
-                        if existing_users and len(existing_users) > 0:
-                            user_id = existing_users[0]["id"]
-                            logger.info(f"Found existing user after 409: {user_id}")
-                        else:
-                            raise Exception(
-                                "User creation failed with 409 but user not found in search"
-                            )  # noqa: E501
-                    else:
-                        raise Exception(
-                            f"Failed to create user (409) and search failed: {response.text}"
-                        )  # noqa: E501
-                else:
-                    response.raise_for_status()
-                    # Get user ID from location header
-                    user_id = response.headers["Location"].split("/")[-1]
+                user_id = self._resolve_user_id(keycloak_url, user_data, email, headers)
 
             # Ensure tenant group exists and assign roles
             tenant_group_name = tenant_id
@@ -1768,26 +1790,50 @@ def health_check():
     )
 
 
+def _authenticate_keycloak_webhook():
+    """Fail-closed auth check for the Keycloak webhook endpoint.
+
+    Returns None when authenticated, or a (response, status) tuple the
+    caller must return immediately otherwise. Without this, an empty
+    WEBHOOK_SECRET would let `Bearer ` (or any non-empty token)
+    authenticate, opening a tenant-creation surface to the world.
+    """
+    expected_secret = (WEBHOOK_SECRET or "").strip()
+    if not expected_secret:
+        logger.error("WEBHOOK_SECRET not configured; refusing keycloak webhook request")
+        return jsonify({"error": "Webhook not configured"}), 503
+
+    auth_header = request.headers.get("Authorization") or ""
+    if not auth_header.startswith("Bearer "):
+        logger.warning("Unauthorized webhook request: missing Bearer token")
+        return jsonify({"error": "Unauthorized"}), 401
+    provided = auth_header[len("Bearer "):].strip().encode("utf-8")
+    if not hmac.compare_digest(provided, expected_secret.encode("utf-8")):
+        logger.warning("Unauthorized webhook request: token mismatch")
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
+
+
+def _dispatch_keycloak_event(event_type, tenant_id, payload):
+    """Route a parsed Keycloak webhook event to its handler."""
+    if event_type == "TENANT_CREATED":
+        return handle_tenant_created(tenant_id, payload)
+    elif event_type == "TENANT_UPDATED":
+        return handle_tenant_updated(tenant_id, payload)
+    elif event_type == "TENANT_DELETED":
+        return handle_tenant_deleted(tenant_id, payload)
+    else:
+        logger.info(f"Unhandled event type: {event_type}")
+        return jsonify({"message": "Event type not handled"}), 200
+
+
 @app.route("/webhook/keycloak", methods=["POST"])
 def keycloak_webhook():
     """Handle Keycloak webhook events"""
     try:
-        # Fail-closed if the shared webhook secret is not configured. Without
-        # this, an empty WEBHOOK_SECRET would let `Bearer ` (or any non-empty
-        # token) authenticate, opening a tenant-creation surface to the world.
-        expected_secret = (WEBHOOK_SECRET or "").strip()
-        if not expected_secret:
-            logger.error("WEBHOOK_SECRET not configured; refusing keycloak webhook request")
-            return jsonify({"error": "Webhook not configured"}), 503
-
-        auth_header = request.headers.get("Authorization") or ""
-        if not auth_header.startswith("Bearer "):
-            logger.warning("Unauthorized webhook request: missing Bearer token")
-            return jsonify({"error": "Unauthorized"}), 401
-        provided = auth_header[len("Bearer "):].strip().encode("utf-8")
-        if not hmac.compare_digest(provided, expected_secret.encode("utf-8")):
-            logger.warning("Unauthorized webhook request: token mismatch")
-            return jsonify({"error": "Unauthorized"}), 401
+        auth_error = _authenticate_keycloak_webhook()
+        if auth_error is not None:
+            return auth_error
 
         # Parse webhook payload
         payload = request.get_json()
@@ -1811,15 +1857,7 @@ def keycloak_webhook():
             logger.warning(f"Rejected webhook with invalid tenant_id format: {tenant_id!r}")
             return jsonify({"error": "Invalid tenant_id format"}), 400
 
-        if event_type == "TENANT_CREATED":
-            return handle_tenant_created(tenant_id, payload)
-        elif event_type == "TENANT_UPDATED":
-            return handle_tenant_updated(tenant_id, payload)
-        elif event_type == "TENANT_DELETED":
-            return handle_tenant_deleted(tenant_id, payload)
-        else:
-            logger.info(f"Unhandled event type: {event_type}")
-            return jsonify({"message": "Event type not handled"}), 200
+        return _dispatch_keycloak_event(event_type, tenant_id, payload)
 
     except Exception as e:
         logger.error(f"Error processing Keycloak webhook: {e}")
@@ -2580,6 +2618,161 @@ def internal_list_expired_tenants():
         logger.error(f"Error listing expired tenants: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+
+def _parse_license_expires_at(expires_at_raw):
+    """Parse the billing payload's `expires_at` field (ISO8601 or null).
+
+    Returns (parsed_datetime_or_None, None) on success, or
+    (None, (response, status)) on validation failure.
+    """
+    if expires_at_raw is None:
+        return None, None
+    if not isinstance(expires_at_raw, str):
+        return None, (jsonify({"error": "expires_at must be ISO8601 string or null"}), 400)
+    try:
+        return datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00")), None
+    except Exception:
+        return None, (jsonify({"error": "Invalid expires_at"}), 400)
+
+
+def _parse_license_plan_tier(plan_tier_raw):
+    """Validate + normalize the billing payload's `plan_tier` field.
+
+    Returns (plan_type, plan_level, None) on success, or
+    (None, None, (response, status)) on validation failure.
+    """
+    if plan_tier_raw is None:
+        return None, None, None
+    if not isinstance(plan_tier_raw, str):
+        return None, None, (jsonify({"error": "plan_tier must be string or null"}), 400)
+    plan_type = plan_tier_raw.strip().lower() or None
+    if plan_type and plan_type not in _BILLING_PLAN_LEVELS:
+        return None, None, (jsonify({"error": f"Invalid plan_tier: {plan_type}"}), 400)
+    plan_level = _BILLING_PLAN_LEVELS[plan_type] if plan_type else None
+    return plan_type, plan_level, None
+
+
+def _validate_license_payload(tenant_id, data):
+    """Validate + normalize a billing license-update request body.
+
+    Returns (validated, None) on success, or (None, (response,
+    status)) on the first validation failure. `validated` carries
+    raw_status, desired_status, expires_at, plan_type, plan_level.
+    """
+    raw_status = (data.get("subscription_status") or "").strip().lower()
+    if raw_status not in _BILLING_ACTIVE_STATUSES and raw_status not in _BILLING_INACTIVE_STATUSES:
+        return None, (jsonify({"error": "Invalid subscription_status"}), 400)
+
+    expires_at, err = _parse_license_expires_at(data.get("expires_at"))
+    if err:
+        return None, err
+
+    plan_type, plan_level, err = _parse_license_plan_tier(data.get("plan_tier"))
+    if err:
+        return None, err
+
+    desired_status = "active" if raw_status in _BILLING_ACTIVE_STATUSES else "cancelled"
+
+    return {
+        "raw_status": raw_status,
+        "desired_status": desired_status,
+        "expires_at": expires_at,
+        "plan_type": plan_type,
+        "plan_level": plan_level,
+    }, None
+
+
+def _build_license_update_sql(validated, tenant_id):
+    """Build the parameterized UPDATE for a license change.
+
+    plan_type/plan_level columns are only appended when provided,
+    mirroring the original conditional column list.
+    """
+    updates: list[str] = ["expires_at = %s", "status = %s", "updated_at = NOW()"]
+    params: list[Any] = [validated["expires_at"], validated["desired_status"]]
+    if validated["plan_type"] is not None:
+        updates.append("plan_type = %s")
+        params.append(validated["plan_type"])
+    if validated["plan_level"] is not None:
+        updates.append("plan_level = %s")
+        params.append(validated["plan_level"])
+    params.append(tenant_id)
+
+    sql = (
+        f"UPDATE tenants SET {', '.join(updates)} WHERE tenant_id = %s "
+        "RETURNING tenant_id, expires_at, status, plan_type, plan_level"
+    )
+    return sql, params
+
+
+def _normalize_license_row(row):
+    """Bridge dict-cursor and tuple-cursor result shapes into one dict."""
+    if isinstance(row, dict):
+        return row
+    if row is None:
+        return {}
+    return {
+        "tenant_id": row[0],
+        "expires_at": row[1],
+        "status": row[2],
+        "plan_type": row[3],
+        "plan_level": row[4],
+    }
+
+
+def _serialize_license_row(result_row):
+    """Build the JSON-friendly license response body."""
+    return {
+        "tenant_id": result_row.get("tenant_id"),
+        "expires_at": (
+            result_row["expires_at"].isoformat()
+            if isinstance(result_row.get("expires_at"), datetime)
+            else result_row.get("expires_at")
+        ),
+        "status": result_row.get("status"),
+        "plan_type": result_row.get("plan_type"),
+        "plan_level": result_row.get("plan_level"),
+    }
+
+
+def _persist_license_update(conn, tenant_id, sql, params, validated):
+    """Execute the license UPDATE, audit-log it, and build the response.
+
+    Returns (response, status). A missing tenant returns 404 without
+    committing anything.
+    """
+    webhook_service._apply_admin_context(conn)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT tenant_id FROM tenants WHERE tenant_id = %s",
+        (tenant_id,),
+    )
+    if not cursor.fetchone():
+        cursor.close()
+        return jsonify({"error": "Tenant not found"}), 404
+
+    cursor.execute(sql, params)
+    row = cursor.fetchone()
+    conn.commit()
+    cursor.close()
+
+    audit_log(
+        action="billing.tenant.license.update",
+        resource_type="tenant",
+        resource_id=tenant_id,
+        metadata={
+            "subscription_status": validated["raw_status"],
+            "expires_at": (
+                validated["expires_at"].isoformat() if validated["expires_at"] else None
+            ),
+            "plan_tier": validated["plan_type"],
+        },
+    )
+
+    result_row = _normalize_license_row(row)
+    return jsonify(_serialize_license_row(result_row)), 200
+
+
 @app.route(
     "/internal/billing/tenants/<tenant_id>/license",
     methods=["POST"],
@@ -2612,102 +2805,17 @@ def internal_update_tenant_license(tenant_id):
         return jsonify({"error": "platform tenant is not billable"}), 400
 
     data = request.get_json(silent=True) or {}
-    raw_status = (data.get("subscription_status") or "").strip().lower()
-    if raw_status not in _BILLING_ACTIVE_STATUSES and raw_status not in _BILLING_INACTIVE_STATUSES:
-        return jsonify({"error": "Invalid subscription_status"}), 400
+    validated, err = _validate_license_payload(tenant_id, data)
+    if err:
+        return err
 
-    expires_at_raw = data.get("expires_at")
-    expires_at: datetime | None = None
-    if expires_at_raw is not None:
-        if not isinstance(expires_at_raw, str):
-            return jsonify({"error": "expires_at must be ISO8601 string or null"}), 400
-        try:
-            expires_at = datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00"))
-        except Exception:
-            return jsonify({"error": "Invalid expires_at"}), 400
-
-    plan_tier_raw = data.get("plan_tier")
-    plan_type: str | None = None
-    plan_level: int | None = None
-    if plan_tier_raw is not None:
-        if not isinstance(plan_tier_raw, str):
-            return jsonify({"error": "plan_tier must be string or null"}), 400
-        plan_type = plan_tier_raw.strip().lower() or None
-        if plan_type and plan_type not in _BILLING_PLAN_LEVELS:
-            return jsonify({"error": f"Invalid plan_tier: {plan_type}"}), 400
-        if plan_type:
-            plan_level = _BILLING_PLAN_LEVELS[plan_type]
-
-    desired_status = "active" if raw_status in _BILLING_ACTIVE_STATUSES else "cancelled"
-
-    updates: list[str] = ["expires_at = %s", "status = %s", "updated_at = NOW()"]
-    params: list[Any] = [expires_at, desired_status]
-    if plan_type is not None:
-        updates.append("plan_type = %s")
-        params.append(plan_type)
-    if plan_level is not None:
-        updates.append("plan_level = %s")
-        params.append(plan_level)
-    params.append(tenant_id)
+    sql, params = _build_license_update_sql(validated, tenant_id)
 
     conn = webhook_service.get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection error"}), 500
     try:
-        webhook_service._apply_admin_context(conn)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT tenant_id FROM tenants WHERE tenant_id = %s",
-            (tenant_id,),
-        )
-        if not cursor.fetchone():
-            cursor.close()
-            return jsonify({"error": "Tenant not found"}), 404
-
-        cursor.execute(
-            f"UPDATE tenants SET {', '.join(updates)} WHERE tenant_id = %s "
-            "RETURNING tenant_id, expires_at, status, plan_type, plan_level",
-            params,
-        )
-        row = cursor.fetchone()
-        conn.commit()
-        cursor.close()
-
-        audit_log(
-            action="billing.tenant.license.update",
-            resource_type="tenant",
-            resource_id=tenant_id,
-            metadata={
-                "subscription_status": raw_status,
-                "expires_at": expires_at.isoformat() if expires_at else None,
-                "plan_tier": plan_type,
-            },
-        )
-
-        if isinstance(row, dict):
-            result_row = row
-        elif row is None:
-            result_row = {}
-        else:
-            result_row = {
-                "tenant_id": row[0],
-                "expires_at": row[1],
-                "status": row[2],
-                "plan_type": row[3],
-                "plan_level": row[4],
-            }
-
-        return jsonify({
-            "tenant_id": result_row.get("tenant_id"),
-            "expires_at": (
-                result_row["expires_at"].isoformat()
-                if isinstance(result_row.get("expires_at"), datetime)
-                else result_row.get("expires_at")
-            ),
-            "status": result_row.get("status"),
-            "plan_type": result_row.get("plan_type"),
-            "plan_level": result_row.get("plan_level"),
-        }), 200
+        return _persist_license_update(conn, tenant_id, sql, params, validated)
 
     except Exception as exc:
         logger.error(f"internal_update_tenant_license({tenant_id}): {exc}")
@@ -4506,6 +4614,79 @@ def delete_user_directly(user_id: str):
         return _internal_error(e, "delete_user_admin", user_message="Failed to delete user")
 
 
+def _parse_roles_payload(data):
+    """Validate the PUT .../roles request body.
+
+    Returns (roles, None) on success or (None, (response, status)) on
+    validation failure.
+    """
+    if not data or "roles" not in data:
+        return None, (jsonify({"error": "roles array is required"}), 400)
+
+    new_roles = data.get("roles", [])
+    if not isinstance(new_roles, list):
+        return None, (jsonify({"error": "roles must be an array"}), 400)
+
+    return new_roles, None
+
+
+def _clear_user_realm_roles(keycloak_url, user_id, headers):
+    """Best-effort clear of a user's current realm role-mappings.
+
+    Failures are silently swallowed — the caller is about to assign a
+    fresh set of roles anyway.
+    """
+    current_roles_url = (
+        f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+        f"/users/{user_id}/role-mappings/realm"
+    )
+    current_response = requests.get(
+        current_roles_url, headers=headers, timeout=10
+    )
+    current_roles = []
+    if current_response.status_code == 200:
+        current_roles = current_response.json()
+
+    if current_roles:
+        requests.delete(
+            current_roles_url,
+            headers=headers,
+            json=current_roles,
+            timeout=10,
+        )
+
+
+def _assign_realm_roles_to_user(keycloak_url, user_id, roles, headers):
+    """Assign each requested realm role to the user.
+
+    Returns the list of role names that were successfully assigned;
+    the caller surfaces this so clients can detect partial
+    application.
+    """
+    assigned = []
+    for role_name in roles:
+        role_url = (
+            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+            f"/roles/{role_name}"
+        )
+        role_response = requests.get(role_url, headers=headers, timeout=10)
+        if role_response.status_code == 200:
+            role_data = role_response.json()
+            mapping_url = (
+                f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+                f"/users/{user_id}/role-mappings/realm"
+            )
+            assign_resp = requests.post(
+                mapping_url,
+                headers=headers,
+                json=[role_data],
+                timeout=10,
+            )
+            if assign_resp.status_code in [200, 204]:
+                assigned.append(role_name)
+    return assigned
+
+
 @app.route("/api/admin/users/<user_id>/roles", methods=["PUT"])
 @require_platform_admin
 def update_user_roles(user_id: str):
@@ -4518,12 +4699,9 @@ def update_user_roles(user_id: str):
     """
     try:
         data = request.get_json()
-        if not data or "roles" not in data:
-            return jsonify({"error": "roles array is required"}), 400
-
-        new_roles = data.get("roles", [])
-        if not isinstance(new_roles, list):
-            return jsonify({"error": "roles must be an array"}), 400
+        new_roles, err = _parse_roles_payload(data)
+        if err:
+            return err
 
         token = webhook_service.get_keycloak_token()
         if not token:
@@ -4557,49 +4735,13 @@ def update_user_roles(user_id: str):
                 "available_roles": sorted(available_roles),
             }), 400
 
-        # Get current user roles
-        current_roles_url = (
-            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-            f"/users/{user_id}/role-mappings/realm"
-        )
-        current_response = requests.get(
-            current_roles_url, headers=headers, timeout=10
-        )
-        current_roles = []
-        if current_response.status_code == 200:
-            current_roles = current_response.json()
-
         # Remove all current realm roles
-        if current_roles:
-            requests.delete(
-                current_roles_url,
-                headers=headers,
-                json=current_roles,
-                timeout=10,
-            )
+        _clear_user_realm_roles(keycloak_url, user_id, headers)
 
         # Assign new roles
-        assigned = []
-        for role_name in new_roles:
-            role_url = (
-                f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-                f"/roles/{role_name}"
-            )
-            role_response = requests.get(role_url, headers=headers, timeout=10)
-            if role_response.status_code == 200:
-                role_data = role_response.json()
-                mapping_url = (
-                    f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-                    f"/users/{user_id}/role-mappings/realm"
-                )
-                assign_resp = requests.post(
-                    mapping_url,
-                    headers=headers,
-                    json=[role_data],
-                    timeout=10,
-                )
-                if assign_resp.status_code in [200, 204]:
-                    assigned.append(role_name)
+        assigned = _assign_realm_roles_to_user(
+            keycloak_url, user_id, new_roles, headers
+        )
 
         logger.info(
             f"Roles updated for user {user_email}: {assigned}"
