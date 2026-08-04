@@ -14,8 +14,18 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import asyncpg
+from prometheus_client import Counter
 
 logger = logging.getLogger(__name__)
+
+# Poison telemetry records isolated into telemetry_events_dlq instead of
+# failing the whole batch (see write_batch()). Labelled by tenant/entity_type
+# so a spike in one tenant/device-type is visible without reading logs.
+TELEMETRY_DLQ_TOTAL = Counter(
+    "telemetry_dlq_total",
+    "Total telemetry records dead-lettered after failing individual insert",
+    ["tenant_id", "entity_type"],
+)
 
 
 class TelemetryEvent:
@@ -100,6 +110,18 @@ class PostgreSQLSink(EventSink):
         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
     """
 
+    # Dead-letter queue for records that fail their individual insert during
+    # the write_batch() COPY fallback. Same column shape as INSERT_SQL plus
+    # error_message. See migration 098_telemetry_events_dlq.sql.
+    INSERT_DLQ_SQL = """
+        INSERT INTO telemetry_events_dlq (
+            tenant_id, observed_at, device_id,
+            entity_id, entity_type, payload,
+            quality_flag, error_message
+        )
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+    """
+
     COLUMNS = [
         "tenant_id",
         "observed_at",
@@ -160,7 +182,13 @@ class PostgreSQLSink(EventSink):
         """
         Persist a batch of events using copy_records_to_table for maximum throughput.
 
-        Falls back to individual inserts if COPY fails (e.g., schema mismatch).
+        Falls back to per-record inserts if COPY fails (e.g., schema mismatch).
+        Each fallback insert is its own error boundary (no wrapping
+        conn.transaction()): a poison record — bad data, constraint
+        violation — must not roll back the other, valid records in the same
+        batch. A record whose individual insert still fails is dead-lettered
+        into telemetry_events_dlq (see _dead_letter()) and processing
+        continues with the rest of the batch.
         """
         if not self._pool:
             raise RuntimeError("PostgreSQLSink not started")
@@ -178,9 +206,70 @@ class PostgreSQLSink(EventSink):
                     columns=self.COLUMNS,
                 )
             except Exception as e:
-                logger.warning(f"COPY failed ({e}), falling back to individual inserts")
-                async with conn.transaction():
-                    for record in records:
+                logger.warning(f"COPY failed ({e}), falling back to per-record inserts")
+                dlq_count = 0
+                for event, record in zip(events, records):
+                    try:
                         await conn.execute(self.INSERT_SQL, *record)
+                    except Exception as insert_err:
+                        logger.warning(
+                            "Poison telemetry record (entity_id=%s, device_id=%s, "
+                            "tenant_id=%s): %s - dead-lettering",
+                            event.entity_id,
+                            event.device_id,
+                            event.tenant_id,
+                            insert_err,
+                        )
+                        await self._dead_letter(conn, record, str(insert_err), event)
+                        dlq_count += 1
+
+                if dlq_count:
+                    logger.warning(
+                        "Batch fallback complete: %d/%d persisted, %d dead-lettered",
+                        len(events) - dlq_count,
+                        len(events),
+                        dlq_count,
+                    )
 
         logger.debug(f"Batch persisted {len(events)} events")
+
+    async def _dead_letter(
+        self,
+        conn: asyncpg.Connection,
+        record: tuple,
+        error_message: str,
+        event: TelemetryEvent,
+    ) -> None:
+        """
+        Insert a single poison record into telemetry_events_dlq.
+
+        Last-resort path: this record already failed to persist into
+        telemetry_events. Never raises — a failure here must not take down
+        the rest of the batch. Handles the pre-migration case where
+        telemetry_events_dlq doesn't exist yet (deploy landed before
+        migration 098) by logging a clear warning instead of crashing
+        ingestion.
+        """
+        try:
+            await conn.execute(self.INSERT_DLQ_SQL, *record, error_message)
+            TELEMETRY_DLQ_TOTAL.labels(
+                tenant_id=event.tenant_id or "unknown",
+                entity_type=event.entity_type or "unknown",
+            ).inc()
+        except asyncpg.exceptions.UndefinedTableError:
+            logger.warning(
+                "telemetry_events_dlq table does not exist yet (pending migration "
+                "098_telemetry_events_dlq.sql) - poison record for entity_id=%s "
+                "dropped (original error: %s)",
+                event.entity_id,
+                error_message,
+            )
+        except Exception as dlq_err:
+            logger.error(
+                "Failed to dead-letter poison record (entity_id=%s, device_id=%s): "
+                "%s (original error: %s)",
+                event.entity_id,
+                event.device_id,
+                dlq_err,
+                error_message,
+            )
