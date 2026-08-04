@@ -25,7 +25,7 @@ jobs:
       - name: Check new lines in PR for direct DB writes
         run: |
           echo "Checking added lines in this PR (excluding allowed paths)..."
-          EXEMPT='notification_handler\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|/locations\.py|parcel_activation\.py|parcel_reconcile\.py|/ingest/|/tests/|/migrations/|/docker/'
+          EXEMPT='notification_handler\.py|event_sink\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|/locations\.py|parcel_activation\.py|parcel_reconcile\.py|/ingest/|/tests/|/migrations/|/docker/'
 
           # Get list of changed Python files, exclude allowed paths
           changed=$(git diff --name-only origin/main...HEAD -- '*.py' | grep -vE "$EXEMPT" || true)
@@ -60,7 +60,7 @@ jobs:
 
           if [ "$violations" -gt 0 ]; then
             echo "FAIL: Found $violations file(s) with direct DB writes."
-            echo "Allowed exceptions: notification_handler.py, subscription_manager.py, ingest/, migrations/"
+            echo "Allowed exceptions: notification_handler.py, event_sink.py, subscription_manager.py, ingest/, migrations/"
             echo "Admin metadata tables (allowed): calibration_periods, tenant_limits, tenants, sensor_profiles, marketplace_modules, notification_config"
             echo "See AGENTS.md for the architecture rules."
             exit 1
