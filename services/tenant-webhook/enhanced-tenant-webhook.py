@@ -2618,6 +2618,161 @@ def internal_list_expired_tenants():
         logger.error(f"Error listing expired tenants: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+
+def _parse_license_expires_at(expires_at_raw):
+    """Parse the billing payload's `expires_at` field (ISO8601 or null).
+
+    Returns (parsed_datetime_or_None, None) on success, or
+    (None, (response, status)) on validation failure.
+    """
+    if expires_at_raw is None:
+        return None, None
+    if not isinstance(expires_at_raw, str):
+        return None, (jsonify({"error": "expires_at must be ISO8601 string or null"}), 400)
+    try:
+        return datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00")), None
+    except Exception:
+        return None, (jsonify({"error": "Invalid expires_at"}), 400)
+
+
+def _parse_license_plan_tier(plan_tier_raw):
+    """Validate + normalize the billing payload's `plan_tier` field.
+
+    Returns (plan_type, plan_level, None) on success, or
+    (None, None, (response, status)) on validation failure.
+    """
+    if plan_tier_raw is None:
+        return None, None, None
+    if not isinstance(plan_tier_raw, str):
+        return None, None, (jsonify({"error": "plan_tier must be string or null"}), 400)
+    plan_type = plan_tier_raw.strip().lower() or None
+    if plan_type and plan_type not in _BILLING_PLAN_LEVELS:
+        return None, None, (jsonify({"error": f"Invalid plan_tier: {plan_type}"}), 400)
+    plan_level = _BILLING_PLAN_LEVELS[plan_type] if plan_type else None
+    return plan_type, plan_level, None
+
+
+def _validate_license_payload(tenant_id, data):
+    """Validate + normalize a billing license-update request body.
+
+    Returns (validated, None) on success, or (None, (response,
+    status)) on the first validation failure. `validated` carries
+    raw_status, desired_status, expires_at, plan_type, plan_level.
+    """
+    raw_status = (data.get("subscription_status") or "").strip().lower()
+    if raw_status not in _BILLING_ACTIVE_STATUSES and raw_status not in _BILLING_INACTIVE_STATUSES:
+        return None, (jsonify({"error": "Invalid subscription_status"}), 400)
+
+    expires_at, err = _parse_license_expires_at(data.get("expires_at"))
+    if err:
+        return None, err
+
+    plan_type, plan_level, err = _parse_license_plan_tier(data.get("plan_tier"))
+    if err:
+        return None, err
+
+    desired_status = "active" if raw_status in _BILLING_ACTIVE_STATUSES else "cancelled"
+
+    return {
+        "raw_status": raw_status,
+        "desired_status": desired_status,
+        "expires_at": expires_at,
+        "plan_type": plan_type,
+        "plan_level": plan_level,
+    }, None
+
+
+def _build_license_update_sql(validated, tenant_id):
+    """Build the parameterized UPDATE for a license change.
+
+    plan_type/plan_level columns are only appended when provided,
+    mirroring the original conditional column list.
+    """
+    updates: list[str] = ["expires_at = %s", "status = %s", "updated_at = NOW()"]
+    params: list[Any] = [validated["expires_at"], validated["desired_status"]]
+    if validated["plan_type"] is not None:
+        updates.append("plan_type = %s")
+        params.append(validated["plan_type"])
+    if validated["plan_level"] is not None:
+        updates.append("plan_level = %s")
+        params.append(validated["plan_level"])
+    params.append(tenant_id)
+
+    sql = (
+        f"UPDATE tenants SET {', '.join(updates)} WHERE tenant_id = %s "
+        "RETURNING tenant_id, expires_at, status, plan_type, plan_level"
+    )
+    return sql, params
+
+
+def _normalize_license_row(row):
+    """Bridge dict-cursor and tuple-cursor result shapes into one dict."""
+    if isinstance(row, dict):
+        return row
+    if row is None:
+        return {}
+    return {
+        "tenant_id": row[0],
+        "expires_at": row[1],
+        "status": row[2],
+        "plan_type": row[3],
+        "plan_level": row[4],
+    }
+
+
+def _serialize_license_row(result_row):
+    """Build the JSON-friendly license response body."""
+    return {
+        "tenant_id": result_row.get("tenant_id"),
+        "expires_at": (
+            result_row["expires_at"].isoformat()
+            if isinstance(result_row.get("expires_at"), datetime)
+            else result_row.get("expires_at")
+        ),
+        "status": result_row.get("status"),
+        "plan_type": result_row.get("plan_type"),
+        "plan_level": result_row.get("plan_level"),
+    }
+
+
+def _persist_license_update(conn, tenant_id, sql, params, validated):
+    """Execute the license UPDATE, audit-log it, and build the response.
+
+    Returns (response, status). A missing tenant returns 404 without
+    committing anything.
+    """
+    webhook_service._apply_admin_context(conn)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT tenant_id FROM tenants WHERE tenant_id = %s",
+        (tenant_id,),
+    )
+    if not cursor.fetchone():
+        cursor.close()
+        return jsonify({"error": "Tenant not found"}), 404
+
+    cursor.execute(sql, params)
+    row = cursor.fetchone()
+    conn.commit()
+    cursor.close()
+
+    audit_log(
+        action="billing.tenant.license.update",
+        resource_type="tenant",
+        resource_id=tenant_id,
+        metadata={
+            "subscription_status": validated["raw_status"],
+            "expires_at": (
+                validated["expires_at"].isoformat() if validated["expires_at"] else None
+            ),
+            "plan_tier": validated["plan_type"],
+        },
+    )
+
+    result_row = _normalize_license_row(row)
+    return jsonify(_serialize_license_row(result_row)), 200
+
+
 @app.route(
     "/internal/billing/tenants/<tenant_id>/license",
     methods=["POST"],
@@ -2650,102 +2805,17 @@ def internal_update_tenant_license(tenant_id):
         return jsonify({"error": "platform tenant is not billable"}), 400
 
     data = request.get_json(silent=True) or {}
-    raw_status = (data.get("subscription_status") or "").strip().lower()
-    if raw_status not in _BILLING_ACTIVE_STATUSES and raw_status not in _BILLING_INACTIVE_STATUSES:
-        return jsonify({"error": "Invalid subscription_status"}), 400
+    validated, err = _validate_license_payload(tenant_id, data)
+    if err:
+        return err
 
-    expires_at_raw = data.get("expires_at")
-    expires_at: datetime | None = None
-    if expires_at_raw is not None:
-        if not isinstance(expires_at_raw, str):
-            return jsonify({"error": "expires_at must be ISO8601 string or null"}), 400
-        try:
-            expires_at = datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00"))
-        except Exception:
-            return jsonify({"error": "Invalid expires_at"}), 400
-
-    plan_tier_raw = data.get("plan_tier")
-    plan_type: str | None = None
-    plan_level: int | None = None
-    if plan_tier_raw is not None:
-        if not isinstance(plan_tier_raw, str):
-            return jsonify({"error": "plan_tier must be string or null"}), 400
-        plan_type = plan_tier_raw.strip().lower() or None
-        if plan_type and plan_type not in _BILLING_PLAN_LEVELS:
-            return jsonify({"error": f"Invalid plan_tier: {plan_type}"}), 400
-        if plan_type:
-            plan_level = _BILLING_PLAN_LEVELS[plan_type]
-
-    desired_status = "active" if raw_status in _BILLING_ACTIVE_STATUSES else "cancelled"
-
-    updates: list[str] = ["expires_at = %s", "status = %s", "updated_at = NOW()"]
-    params: list[Any] = [expires_at, desired_status]
-    if plan_type is not None:
-        updates.append("plan_type = %s")
-        params.append(plan_type)
-    if plan_level is not None:
-        updates.append("plan_level = %s")
-        params.append(plan_level)
-    params.append(tenant_id)
+    sql, params = _build_license_update_sql(validated, tenant_id)
 
     conn = webhook_service.get_db_connection()
     if not conn:
         return jsonify({"error": "Database connection error"}), 500
     try:
-        webhook_service._apply_admin_context(conn)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT tenant_id FROM tenants WHERE tenant_id = %s",
-            (tenant_id,),
-        )
-        if not cursor.fetchone():
-            cursor.close()
-            return jsonify({"error": "Tenant not found"}), 404
-
-        cursor.execute(
-            f"UPDATE tenants SET {', '.join(updates)} WHERE tenant_id = %s "
-            "RETURNING tenant_id, expires_at, status, plan_type, plan_level",
-            params,
-        )
-        row = cursor.fetchone()
-        conn.commit()
-        cursor.close()
-
-        audit_log(
-            action="billing.tenant.license.update",
-            resource_type="tenant",
-            resource_id=tenant_id,
-            metadata={
-                "subscription_status": raw_status,
-                "expires_at": expires_at.isoformat() if expires_at else None,
-                "plan_tier": plan_type,
-            },
-        )
-
-        if isinstance(row, dict):
-            result_row = row
-        elif row is None:
-            result_row = {}
-        else:
-            result_row = {
-                "tenant_id": row[0],
-                "expires_at": row[1],
-                "status": row[2],
-                "plan_type": row[3],
-                "plan_level": row[4],
-            }
-
-        return jsonify({
-            "tenant_id": result_row.get("tenant_id"),
-            "expires_at": (
-                result_row["expires_at"].isoformat()
-                if isinstance(result_row.get("expires_at"), datetime)
-                else result_row.get("expires_at")
-            ),
-            "status": result_row.get("status"),
-            "plan_type": result_row.get("plan_type"),
-            "plan_level": result_row.get("plan_level"),
-        }), 200
+        return _persist_license_update(conn, tenant_id, sql, params, validated)
 
     except Exception as exc:
         logger.error(f"internal_update_tenant_license({tenant_id}): {exc}")
