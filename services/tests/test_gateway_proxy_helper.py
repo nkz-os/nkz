@@ -270,3 +270,97 @@ def test_resolve_request_auth_header_mode_raw_has_no_signature_or_link(gateway, 
     assert "X-Auth-Signature" not in headers
     assert "Link" not in headers
     assert "Fiware-ServicePath" not in headers
+
+
+# =============================================================================
+# End-to-end: migrated route /ngsi-ld/v1/entityOperations/query (increment 2)
+#
+# header_mode="canonical" like /ngsi-ld/v1/entities, but with
+# pat_rate_limit=False and block_expired_mutations=False — this route's
+# original inline auth block never called rate_limit() in the PAT branch and
+# never checked role_pro_expired at all. The flags must reproduce that
+# exactly, not the resolve_request_auth defaults.
+# =============================================================================
+
+
+def test_entity_operations_query_forwards_canonical_tenant_headers(gateway, monkeypatch):
+    """A valid JWT on POST /ngsi-ld/v1/entityOperations/query must forward
+    NGSILD-Tenant/Fiware-Service/X-Tenant-ID/X-Auth-Signature — the exact
+    canonical header family the removed inline auth block built by hand."""
+    tenant = "montiko"
+    _patch_jwt_auth(monkeypatch, gateway, tenant=tenant)
+
+    fake_response = _FakeUpstreamResponse()
+    fake_post = MagicMock(return_value=fake_response)
+    monkeypatch.setattr(gateway.requests, "post", fake_post)
+
+    client = gateway.app.test_client()
+    resp = client.post(
+        "/ngsi-ld/v1/entityOperations/query",
+        json={"entities": [{"type": "AgriParcel"}]},
+    )
+
+    assert resp.status_code == 200
+    assert fake_post.called
+    _, kwargs = fake_post.call_args
+    forwarded_headers = kwargs["headers"]
+    assert forwarded_headers["X-Tenant-ID"] == tenant
+    assert forwarded_headers["NGSILD-Tenant"] == tenant
+    assert forwarded_headers["Fiware-Service"] == tenant
+    assert forwarded_headers["X-Auth-Signature"] == "sig123"
+    assert kwargs["json"] == {"entities": [{"type": "AgriParcel"}]}
+
+
+def test_entity_operations_query_without_token_returns_401(gateway, monkeypatch):
+    monkeypatch.setattr(gateway, "get_request_token", lambda: None)
+    fake_post = MagicMock()
+    monkeypatch.setattr(gateway.requests, "post", fake_post)
+
+    client = gateway.app.test_client()
+    resp = client.post("/ngsi-ld/v1/entityOperations/query", json={})
+
+    assert resp.status_code == 401
+    fake_post.assert_not_called()
+
+
+def test_entity_operations_query_role_pro_expired_does_not_block_post(gateway, monkeypatch):
+    """Unlike /ngsi-ld/v1/entities, this route's original code never checked
+    role_pro_expired. block_expired_mutations=False must preserve that: a
+    role_pro_expired user's POST still reaches the upstream call."""
+    _patch_jwt_auth(monkeypatch, gateway, tenant="montiko", roles=["role_pro_expired"])
+    fake_response = _FakeUpstreamResponse()
+    fake_post = MagicMock(return_value=fake_response)
+    monkeypatch.setattr(gateway.requests, "post", fake_post)
+
+    client = gateway.app.test_client()
+    resp = client.post("/ngsi-ld/v1/entityOperations/query", json={})
+
+    assert resp.status_code == 200
+    fake_post.assert_called_once()
+
+
+def test_entity_operations_query_pat_branch_skips_rate_limit(gateway, monkeypatch):
+    """The original PAT branch never called rate_limit() — pat_rate_limit=False
+    must keep it that way. Calls the view function directly inside a request
+    context (like the resolve_request_auth unit tests above) to set
+    g.pat_tenant_id without routing through the enforce_pat_scopes
+    before_request hook, which needs a real PAT-webhook lookup."""
+    monkeypatch.setattr(gateway, "get_request_token", lambda: "nkz_pat_something")
+    monkeypatch.setattr(gateway, "is_pat_token", lambda t: True)
+    monkeypatch.setattr(gateway, "obtain_gateway_service_jwt", lambda: "svc-jwt")
+    rate_limit_mock = MagicMock(return_value=True)
+    monkeypatch.setattr(gateway, "rate_limit", rate_limit_mock)
+
+    fake_response = _FakeUpstreamResponse()
+    fake_post = MagicMock(return_value=fake_response)
+    monkeypatch.setattr(gateway.requests, "post", fake_post)
+
+    with gateway.app.test_request_context(
+        "/ngsi-ld/v1/entityOperations/query", method="POST", json={}
+    ):
+        gateway.g.pat_tenant_id = "montiko"
+        resp = gateway.entity_operations_query()
+
+    assert resp.status_code == 200
+    rate_limit_mock.assert_not_called()
+    fake_post.assert_called_once()
