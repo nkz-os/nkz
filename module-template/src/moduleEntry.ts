@@ -29,4 +29,10 @@ export default defineModule({
   icon: 'puzzle',
   main: MainPage,
   slots: moduleSlots as never,
+  // Declares which SDM entities / timeseries this module reads, for api-gateway
+  // data-CSP enforcement. List the entity types and timeseries your module consumes.
+  data: {
+    entities: ['AgriParcel'],
+    timeseries: [],
+  },
 });
