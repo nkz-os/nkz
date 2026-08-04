@@ -6,7 +6,12 @@ import type { ModuleViewerSlots } from '@nekazari/sdk';
 
 declare global {
   interface Window {
-    /** Host module registry — call .register() from moduleEntry.ts */
+    /**
+     * Host module registry. Under Module Federation 2.0 the host calls
+     * `.register()` internally (via `toNKZRegistration()` in `@nekazari/module-kit`,
+     * fed by your `defineModule()` export in moduleEntry.ts) — module authors
+     * must NOT call this directly.
+     */
     __NKZ__: {
       register(module: {
         id: string;
