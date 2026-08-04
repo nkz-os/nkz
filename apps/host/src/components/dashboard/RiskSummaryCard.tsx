@@ -31,8 +31,8 @@ interface SeverityCfg { badge: string; bar: string; dot: string; key: string; }
 const SEVERITY_CONFIG: Record<string, SeverityCfg> = {
   critical: { badge: 'bg-nkz-error-light text-red-800 dark:bg-red-900/40 dark:text-red-300',         bar: 'bg-nkz-error-light0',    dot: 'bg-nkz-error-light0',    key: 'dashboard.risks.severity.critical' },
   high:     { badge: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300', bar: 'bg-orange-500', dot: 'bg-orange-500', key: 'dashboard.risks.severity.high' },
-  medium:   { badge: 'bg-nkz-warning-light text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300', bar: 'bg-nkz-warning-light0', dot: 'bg-nkz-warning-light0', key: 'dashboard.risks.severity.medium' },
-  low:      { badge: 'bg-nkz-info-light text-nkz-info dark:bg-blue-900/40 dark:text-blue-300',     bar: 'bg-blue-400',   dot: 'bg-blue-400',   key: 'dashboard.risks.severity.low' },
+  medium:   { badge: 'bg-nkz-warning-soft text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300', bar: 'bg-nkz-warning-light0', dot: 'bg-nkz-warning-light0', key: 'dashboard.risks.severity.medium' },
+  low:      { badge: 'bg-nkz-info-soft text-nkz-info dark:bg-blue-900/40 dark:text-blue-300',     bar: 'bg-blue-400',   dot: 'bg-blue-400',   key: 'dashboard.risks.severity.low' },
 };
 
 function computeSeverity(score: number, severity: string | null | undefined): string {

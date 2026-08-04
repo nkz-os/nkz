@@ -67,10 +67,10 @@ const badgeColor = (value: Semaphore) => {
   switch (value) {
     case 'optimal':
     case 'satisfied':
-      return 'bg-nkz-success-light text-nkz-success border-green-200';
+      return 'bg-nkz-success-soft text-nkz-success border-green-200';
     case 'caution':
     case 'alert':
-      return 'bg-nkz-warning-light text-nkz-warning border-yellow-200';
+      return 'bg-nkz-warning-soft text-nkz-warning border-yellow-200';
     case 'not_suitable':
     case 'too_wet':
     case 'too_dry':

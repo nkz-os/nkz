@@ -122,7 +122,7 @@ export const TermsManagement: React.FC = () => {
 
           {/* Last Updated Info */}
           {lastUpdated && (
-            <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-3">
+            <div className="bg-nkz-info-soft border border-blue-200 rounded-lg p-3">
               <p className="text-sm text-nkz-info">
                 <strong>{t('admin.current_content')}:</strong> {formatDate(lastUpdated)}
               </p>
@@ -134,7 +134,7 @@ export const TermsManagement: React.FC = () => {
             <div
               className={`flex items-center gap-2 p-4 rounded-lg ${
                 message.type === 'success'
-                  ? 'bg-nkz-success-light border border-green-200 text-green-800'
+                  ? 'bg-nkz-success-soft border border-green-200 text-green-800'
                   : 'bg-nkz-error-light border border-red-200 text-red-800'
               }`}
             >

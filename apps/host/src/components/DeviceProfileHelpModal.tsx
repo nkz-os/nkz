@@ -109,15 +109,15 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                 <div className="p-6 space-y-6">
 
                     {/* Introduction */}
-                    <div className="bg-nkz-info-light border border-blue-100 rounded-xl p-4">
+                    <div className="bg-nkz-info-soft border border-blue-100 rounded-xl p-4">
                         <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
                             <HelpCircle className="w-5 h-5 text-nkz-info" />
                             What is a Device Profile?
                         </h3>
                         <p className="text-blue-800 text-sm leading-relaxed">
                             A profile acts as a translator between your physical device and the platform.
-                            It defines how each sensor field (e.g. <code className="bg-nkz-info-light px-1 rounded">temp_c</code>) maps to a
-                            standard SDM attribute (e.g. <code className="bg-nkz-info-light px-1 rounded">airTemperature</code>).
+                            It defines how each sensor field (e.g. <code className="bg-nkz-info-soft px-1 rounded">temp_c</code>) maps to a
+                            standard SDM attribute (e.g. <code className="bg-nkz-info-soft px-1 rounded">airTemperature</code>).
                             Only mapped attributes reach the digital twin.
                         </p>
                     </div>
@@ -242,12 +242,12 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                     </div>
 
                     {/* Crop Health Sensors */}
-                    <div className="bg-nkz-success-light -mx-6 px-6 py-4 border-t border-b border-green-100 mt-4">
+                    <div className="bg-nkz-success-soft -mx-6 px-6 py-4 border-t border-b border-green-100 mt-4">
                         <h4 className="text-sm font-semibold text-green-800 mb-2 flex items-center gap-2">
                             🌱 Crop Health Sensors
                         </h4>
                         <p className="text-xs text-nkz-success-strong mb-3">
-                            For crop water stress monitoring, use these attributes. Templates available in the <code className="bg-nkz-success-light px-1 rounded">nkz-module-crop-health/templates/</code> folder.
+                            For crop water stress monitoring, use these attributes. Templates available in the <code className="bg-nkz-success-soft px-1 rounded">nkz-module-crop-health/templates/</code> folder.
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
                             <div className="bg-white rounded-lg p-2 border border-green-200">

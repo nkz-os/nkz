@@ -147,7 +147,7 @@ export const IntelligenceInfoPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-nkz-success-light text-nkz-success-strong flex items-center justify-center font-semibold">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-nkz-success-soft text-nkz-success-strong flex items-center justify-center font-semibold">
                     3
                   </div>
                   <div>

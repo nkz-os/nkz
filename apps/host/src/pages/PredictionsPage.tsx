@@ -71,8 +71,8 @@ export const PredictionsPage: React.FC = () => {
                                         <div className={`p-2 rounded-lg ${selectedAlgo === algo.id ? 'bg-purple-200' : 'bg-nkz-bg-secondary'}`}>
                                             <algo.icon className={`h-5 w-5 ${selectedAlgo === algo.id ? 'text-purple-700' : 'text-gray-600'}`} />
                                         </div>
-                                        {algo.status === 'beta' && <span className="text-xs bg-nkz-warning-light text-yellow-800 px-2 py-0.5 rounded-full">Beta</span>}
-                                        {algo.status === 'training' && <span className="text-xs bg-nkz-info-light text-blue-800 px-2 py-0.5 rounded-full">Training</span>}
+                                        {algo.status === 'beta' && <span className="text-xs bg-nkz-warning-soft text-yellow-800 px-2 py-0.5 rounded-full">Beta</span>}
+                                        {algo.status === 'training' && <span className="text-xs bg-nkz-info-soft text-blue-800 px-2 py-0.5 rounded-full">Training</span>}
                                     </div>
                                     <h3 className={`font-medium ${selectedAlgo === algo.id ? 'text-purple-900' : 'text-gray-900'}`}>{algo.name}</h3>
                                     <p className="text-xs text-nkz-muted mt-1 line-clamp-2">{algo.description}</p>

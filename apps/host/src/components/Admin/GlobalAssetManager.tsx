@@ -286,7 +286,7 @@ export const GlobalAssetManager: React.FC = () => {
                 {/* Upload Area */}
                 {showUpload && (
                     <div
-                        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive ? 'border-blue-500 bg-nkz-info-light' : 'border-nkz-border hover:border-gray-400'} ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive ? 'border-blue-500 bg-nkz-info-soft' : 'border-nkz-border hover:border-gray-400'} ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                         onDragEnter={handleDrag}
                         onDragLeave={handleDrag}
                         onDragOver={handleDrag}
@@ -324,7 +324,7 @@ export const GlobalAssetManager: React.FC = () => {
                     </div>
                 )}
                 {success && (
-                    <div className="mt-4 p-3 bg-nkz-success-light text-nkz-success-strong rounded-md flex items-center gap-2">
+                    <div className="mt-4 p-3 bg-nkz-success-soft text-nkz-success-strong rounded-md flex items-center gap-2">
                         <CheckCircle className="w-5 h-5 shrink-0" />
                         {success}
                     </div>

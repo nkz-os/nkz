@@ -264,7 +264,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
 
       {/* AgriEnergyTracker-specific controls */}
       {entityType === 'AgriEnergyTracker' && (
-        <div className="p-3 bg-nkz-warning-light rounded-lg border border-yellow-200 space-y-3">
+        <div className="p-3 bg-nkz-warning-soft rounded-lg border border-yellow-200 space-y-3">
           <div className="flex items-center gap-2 text-xs font-semibold text-nkz-warning-strong">
             <Sun className="w-3 h-3" />
             {t('wizard.array.solarParams')}
@@ -305,7 +305,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
               <span className="text-xs text-nkz-muted whitespace-nowrap">W</span>
             </div>
           </div>
-          <div className="text-xs text-nkz-warning-strong bg-nkz-warning-light rounded p-2">
+          <div className="text-xs text-nkz-warning-strong bg-nkz-warning-soft rounded p-2">
             {t('wizard.array.solarHint', {
               total: String(settings.rows * settings.columns),
               power: ((settings.rows * settings.columns * settings.nominalPower) / 1000).toFixed(1),

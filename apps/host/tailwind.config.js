@@ -38,27 +38,6 @@ export default {
           800: '#854d0e',
           900: '#713f12',
         },
-        // Semantic colors for better consistency
-        success: {
-          light: '#d1fae5',
-          DEFAULT: '#10b981',
-          dark: '#059669',
-        },
-        warning: {
-          light: '#fef3c7',
-          DEFAULT: '#f59e0b',
-          dark: '#d97706',
-        },
-        error: {
-          light: '#fee2e2',
-          DEFAULT: '#ef4444',
-          dark: '#dc2626',
-        },
-        info: {
-          light: '#dbeafe',
-          DEFAULT: '#3b82f6',
-          dark: '#2563eb',
-        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],

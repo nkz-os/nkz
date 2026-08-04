@@ -326,9 +326,9 @@ export const Modules: React.FC = () => {
                         v{module.version || '1.0.0'}
                       </span>
                       {module.moduleType && (
-                        <span className={`text-xs px-2 py-0.5 rounded ${module.moduleType === 'CORE' ? 'bg-nkz-info-light text-nkz-info' :
-                          module.moduleType === 'ADDON_FREE' ? 'bg-nkz-success-light text-nkz-success-strong' :
-                            module.moduleType === 'ADDON_PAID' ? 'bg-nkz-warning-light text-nkz-warning-strong' :
+                        <span className={`text-xs px-2 py-0.5 rounded ${module.moduleType === 'CORE' ? 'bg-nkz-info-soft text-nkz-info' :
+                          module.moduleType === 'ADDON_FREE' ? 'bg-nkz-success-soft text-nkz-success-strong' :
+                            module.moduleType === 'ADDON_PAID' ? 'bg-nkz-warning-soft text-nkz-warning-strong' :
                               'bg-purple-100 text-purple-700'
                           }`}>
                           {module.moduleType === 'CORE' ? t('core') :
@@ -467,9 +467,9 @@ export const Modules: React.FC = () => {
                         )}
                         {/* Module Type Badge */}
                         {module.module_type && (
-                          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${module.module_type === 'CORE' ? 'bg-nkz-info-light text-blue-800' :
-                            module.module_type === 'ADDON_FREE' ? 'bg-nkz-success-light text-green-800' :
-                              module.module_type === 'ADDON_PAID' ? 'bg-nkz-warning-light text-yellow-800' :
+                          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${module.module_type === 'CORE' ? 'bg-nkz-info-soft text-blue-800' :
+                            module.module_type === 'ADDON_FREE' ? 'bg-nkz-success-soft text-green-800' :
+                              module.module_type === 'ADDON_PAID' ? 'bg-nkz-warning-soft text-yellow-800' :
                                 'bg-purple-100 text-purple-800'
                             }`}>
                             {module.module_type === 'CORE' ? t('core') :
@@ -480,13 +480,13 @@ export const Modules: React.FC = () => {
                         )}
                         {/* Inactive Badge */}
                         {isInactive && isPlatformAdmin && (
-                          <span className="inline-block px-2 py-0.5 text-xs font-medium bg-nkz-warning-light text-yellow-800 rounded">
+                          <span className="inline-block px-2 py-0.5 text-xs font-medium bg-nkz-warning-soft text-yellow-800 rounded">
                             {t('inactive')}
                           </span>
                         )}
                         {/* Plan Requirement Badge */}
                         {module.required_plan_type && !isPlatformAdmin && (
-                          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${module.required_plan_type === 'premium' ? 'bg-nkz-warning-light text-yellow-800' :
+                          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded ${module.required_plan_type === 'premium' ? 'bg-nkz-warning-soft text-yellow-800' :
                             'bg-purple-100 text-purple-800'
                             }`}>
                             {t('requires_plan')} {t(module.required_plan_type)}

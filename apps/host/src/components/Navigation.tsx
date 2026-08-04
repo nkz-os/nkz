@@ -186,7 +186,7 @@ export const Navigation: React.FC = () => {
                           to={item.path}
                           onClick={() => setIsMenuOpen(false)}
                           className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all ${active
-                            ? 'bg-nkz-success-light dark:bg-green-900/20 text-nkz-success-strong dark:text-green-400'
+                            ? 'bg-nkz-success-soft dark:bg-green-900/20 text-nkz-success-strong dark:text-green-400'
                             : 'text-gray-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                         >
@@ -266,7 +266,7 @@ export const Navigation: React.FC = () => {
                             to={item.path}
                             onClick={() => setIsMenuOpen(false)}
                             className={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg transition-all ${active
-                              ? 'bg-nkz-info-light dark:bg-blue-900/20 text-nkz-info dark:text-blue-400'
+                              ? 'bg-nkz-info-soft dark:bg-blue-900/20 text-nkz-info dark:text-blue-400'
                               : 'text-gray-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                               }`}
                           >
@@ -301,7 +301,7 @@ export const Navigation: React.FC = () => {
 
                 {/* Admin Badge */}
                 {isAdmin && (
-                  <div className="flex items-center px-2 py-1 bg-nkz-info-light dark:bg-blue-900/30 rounded-md">
+                  <div className="flex items-center px-2 py-1 bg-nkz-info-soft dark:bg-blue-900/30 rounded-md">
                     <Shield className="w-4 h-4 text-nkz-info dark:text-blue-400 mr-1" />
                     <span className="text-xs text-nkz-info dark:text-blue-400 font-medium hidden xl:inline">
                       {t('navigation.admin_badge', { defaultValue: 'Admin' })}

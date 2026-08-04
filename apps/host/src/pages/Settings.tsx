@@ -139,7 +139,7 @@ export const Settings: React.FC = () => {
             </div>
           )}
           {nameSuccess && (
-            <div className="mb-4 p-3 bg-nkz-success-light border border-nkz-success rounded-lg">
+            <div className="mb-4 p-3 bg-nkz-success-soft border border-nkz-success rounded-lg">
               <p className="text-sm text-nkz-success-strong">{nameSuccess}</p>
             </div>
           )}
@@ -236,10 +236,10 @@ export const Settings: React.FC = () => {
                 {(user?.roles || []).length > 0 ? (user?.roles || []).map((role: string) => (
                   <span key={role} className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                     role === 'PlatformAdmin' ? 'bg-purple-100 text-purple-800' :
-                    role === 'TenantAdmin' ? 'bg-nkz-info-light text-blue-800' :
+                    role === 'TenantAdmin' ? 'bg-nkz-info-soft text-blue-800' :
                     role === 'GestorCUE' ? 'bg-rose-100 text-rose-800' :
-                    role === 'TechnicalConsultant' ? 'bg-nkz-success-light text-green-800' :
-                    role === 'Farmer' ? 'bg-nkz-warning-light text-yellow-800' :
+                    role === 'TechnicalConsultant' ? 'bg-nkz-success-soft text-green-800' :
+                    role === 'Farmer' ? 'bg-nkz-warning-soft text-yellow-800' :
                     role === 'role_pro_expired' ? 'bg-nkz-error-light text-red-800' :
                     'bg-nkz-bg-secondary text-gray-600'
                   }`}>
@@ -360,7 +360,7 @@ export const Settings: React.FC = () => {
 
         {/* Read-only mode info for TechnicalConsultant */}
         {isReadOnly && (
-          <div className="mb-6 bg-nkz-info-light border border-blue-200 rounded-lg p-4">
+          <div className="mb-6 bg-nkz-info-soft border border-blue-200 rounded-lg p-4">
             <p className="text-blue-800 text-sm">
               <strong>{t('settings.read_only_mode')}:</strong> {t('settings.read_only_description')}
             </p>

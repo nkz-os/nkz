@@ -89,7 +89,7 @@ export const GrafanaEmbedded: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-nkz-info-light rounded-lg">
+              <div className="p-2 bg-nkz-info-soft rounded-lg">
                 <BarChart3 className="w-6 h-6 text-nkz-info" />
               </div>
               <div>
@@ -134,7 +134,7 @@ export const GrafanaEmbedded: React.FC = () => {
           )}
 
           {membershipGranted && (
-            <div className="mt-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg text-xs text-nkz-success-strong">
+            <div className="mt-4 p-3 bg-nkz-success-soft border border-green-200 rounded-lg text-xs text-nkz-success-strong">
               ✓ Acceso verificado para tu organización en Grafana
             </div>
           )}
@@ -178,7 +178,7 @@ export const GrafanaEmbedded: React.FC = () => {
         </div>
 
         {/* Info note */}
-        <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-4">
+        <div className="bg-nkz-info-soft border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-800">
             <strong>Nota:</strong> Si Grafana no se carga en el iframe (debido a restricciones de seguridad del navegador),
             puedes usar el botón "Abrir en nueva ventana" para acceder a Grafana directamente.

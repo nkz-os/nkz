@@ -298,12 +298,12 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           </div>
 
           {/* Instructions */}
-          <div className="bg-nkz-info-light border border-blue-200 rounded-xl p-4">
+          <div className="bg-nkz-info-soft border border-blue-200 rounded-xl p-4">
             <h4 className="font-medium text-blue-900 mb-2">Próximos pasos:</h4>
             <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
               <li>Descarga el archivo de configuración JSON</li>
               <li>Configura tu dispositivo con la API Key y los topics</li>
-              <li>Conecta por MQTT a <code className="bg-nkz-info-light px-1 rounded">{credentials.host}:{credentials.port}</code></li>
+              <li>Conecta por MQTT a <code className="bg-nkz-info-soft px-1 rounded">{credentials.host}:{credentials.port}</code></li>
               <li>Envía datos al topic de publicación en formato JSON</li>
               <li>Verifica en el visor que los datos aparecen correctamente</li>
             </ol>

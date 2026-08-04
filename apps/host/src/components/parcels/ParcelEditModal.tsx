@@ -87,7 +87,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
 
                 {/* Zone Info */}
                 {isZone && parentParcel && (
-                    <div className="p-4 bg-nkz-info-light border-b border-blue-200">
+                    <div className="p-4 bg-nkz-info-soft border-b border-blue-200">
                         <div className="flex items-start gap-2">
                             <Info className="w-4 h-4 text-nkz-info mt-0.5 flex-shrink-0" />
                             <div className="flex-1">

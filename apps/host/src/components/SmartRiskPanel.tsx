@@ -151,9 +151,9 @@ export const SmartRiskPanel: React.FC = () => {
       />
 
       {/* Hybrid Source Indicator */}
-      <div className="bg-nkz-success-light border border-green-100 rounded-2xl p-4 flex items-center justify-between">
+      <div className="bg-nkz-success-soft border border-green-100 rounded-2xl p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-nkz-success-light rounded-lg">
+          <div className="p-2 bg-nkz-success-soft rounded-lg">
             <ShieldCheck className="h-6 w-6 text-nkz-success" />
           </div>
           <div>
@@ -205,9 +205,9 @@ export const SmartRiskPanel: React.FC = () => {
         {/* Special Card: Create Custom Risk */}
         <div 
           onClick={() => setIsModalOpen(true)}
-          className="group relative bg-white rounded-2xl border-2 border-dashed border-green-200 hover:border-green-500 hover:bg-nkz-success-light/30 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center p-8 text-center space-y-4"
+          className="group relative bg-white rounded-2xl border-2 border-dashed border-green-200 hover:border-green-500 hover:bg-nkz-success-soft/30 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center p-8 text-center space-y-4"
         >
-          <div className="p-4 bg-nkz-success-light rounded-2xl text-nkz-success group-hover:scale-110 transition-transform shadow-sm">
+          <div className="p-4 bg-nkz-success-soft rounded-2xl text-nkz-success group-hover:scale-110 transition-transform shadow-sm">
             <Plus className="h-8 w-8" />
           </div>
           <div>
@@ -236,7 +236,7 @@ export const SmartRiskPanel: React.FC = () => {
             >
               <div className="p-5 space-y-4">
                 <div className="flex justify-between items-start">
-                  <div className={`p-2.5 rounded-xl ${isActive ? 'bg-nkz-success-light text-nkz-success-strong' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
+                  <div className={`p-2.5 rounded-xl ${isActive ? 'bg-nkz-success-soft text-nkz-success-strong' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
                     <Icon className="h-6 w-6" />
                   </div>
                   <Button
@@ -271,7 +271,7 @@ export const SmartRiskPanel: React.FC = () => {
                         key={param}
                         className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
                           availableSensors[param] === 'iot' 
-                            ? 'bg-nkz-info-light text-nkz-info' 
+                            ? 'bg-nkz-info-soft text-nkz-info' 
                             : 'bg-orange-50 text-orange-700'
                         }`}
                         title={availableSensors[param] === 'iot' ? 'Sensor real detectado' : 'Usando estimación meteorológica'}
@@ -283,7 +283,7 @@ export const SmartRiskPanel: React.FC = () => {
                   </div>
                   
                   <div className="flex items-center justify-between text-[10px] font-bold">
-                    <span className={`px-2 py-0.5 rounded-full ${dataQuality === 'high' ? 'bg-nkz-success-light text-nkz-success-strong' : 'bg-orange-100 text-orange-700'}`}>
+                    <span className={`px-2 py-0.5 rounded-full ${dataQuality === 'high' ? 'bg-nkz-success-soft text-nkz-success-strong' : 'bg-orange-100 text-orange-700'}`}>
                       {dataQuality === 'high' ? 'ALTA PRECISIÓN' : 'ESTIMADO'}
                     </span>
                     <span className="text-nkz-muted uppercase tracking-tighter">
@@ -294,7 +294,7 @@ export const SmartRiskPanel: React.FC = () => {
 
                 {/* Active Settings */}
                 {isActive && (
-                  <div className="bg-nkz-success-light/50 rounded-xl p-3 flex items-center justify-between border border-green-100 animate-in fade-in slide-in-from-top-1">
+                  <div className="bg-nkz-success-soft/50 rounded-xl p-3 flex items-center justify-between border border-green-100 animate-in fade-in slide-in-from-top-1">
                     <div className="flex items-center gap-2 text-[10px] font-bold text-green-800 uppercase">
                       <BellRing className="h-3.5 w-3.5" />
                       Monitorización ON

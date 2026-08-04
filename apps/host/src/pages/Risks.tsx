@@ -15,9 +15,9 @@ import { Button } from '@nekazari/ui-kit';
 const SEVERITY_CONFIG = {
   critical: { label: 'Crítico',  bg: 'bg-nkz-error-light',    text: 'text-red-800',    bar: 'bg-nkz-error-light0',    dot: 'bg-nkz-error-light0'    },
   high:     { label: 'Alto',     bg: 'bg-orange-100', text: 'text-orange-800', bar: 'bg-orange-500', dot: 'bg-orange-500' },
-  medium:   { label: 'Medio',    bg: 'bg-nkz-warning-light', text: 'text-yellow-800', bar: 'bg-nkz-warning-light0', dot: 'bg-nkz-warning-light0' },
+  medium:   { label: 'Medio',    bg: 'bg-nkz-warning-soft', text: 'text-yellow-800', bar: 'bg-nkz-warning-light0', dot: 'bg-nkz-warning-light0' },
   low:      { label: 'Bajo',     bg: 'bg-nkz-bg-secondary',   text: 'text-gray-700',   bar: 'bg-gray-400',   dot: 'bg-gray-400'   },
-  null:     { label: 'Sin datos',bg: 'bg-nkz-info-light',    text: 'text-nkz-info',   bar: 'bg-blue-300',   dot: 'bg-blue-300'   },
+  null:     { label: 'Sin datos',bg: 'bg-nkz-info-soft',    text: 'text-nkz-info',   bar: 'bg-blue-300',   dot: 'bg-blue-300'   },
 } as const;
 
 const DOMAIN_EMOJI: Record<string, string> = {
@@ -341,7 +341,7 @@ function MonitorTab() {
       </div>
 
       {triggerMsg && (
-        <div className={`p-3 border rounded-lg text-sm ${triggerMsg.includes('Error') ? 'bg-nkz-error-light border-red-200 text-red-800' : 'bg-nkz-info-light border-blue-200 text-blue-800'}`}>
+        <div className={`p-3 border rounded-lg text-sm ${triggerMsg.includes('Error') ? 'bg-nkz-error-light border-red-200 text-red-800' : 'bg-nkz-info-soft border-blue-200 text-blue-800'}`}>
           {triggerMsg}
         </div>
       )}

@@ -170,7 +170,7 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
           {results.map((parcel) => (
             <div
               key={parcel.reference}
-              className="p-4 border border-nkz-border rounded-lg hover:border-blue-500 hover:bg-nkz-info-light cursor-pointer transition-colors"
+              className="p-4 border border-nkz-border rounded-lg hover:border-blue-500 hover:bg-nkz-info-soft cursor-pointer transition-colors"
               onClick={() => handleSelect(parcel)}
             >
               <div className="flex items-start justify-between">
@@ -193,7 +193,7 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
       )}
 
       {selectedParcel && (
-        <div className="p-4 bg-nkz-success-light border border-green-200 rounded-lg">
+        <div className="p-4 bg-nkz-success-soft border border-green-200 rounded-lg">
           <div className="flex items-start justify-between">
             <div>
               <p className="font-semibold text-green-900">Parcela seleccionada</p>

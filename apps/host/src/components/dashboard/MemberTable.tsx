@@ -39,11 +39,11 @@ const getRoleBadge = (role: string) => {
     case 'PlatformAdmin':
       return `${base} bg-purple-100 text-purple-800`;
     case 'TenantAdmin':
-      return `${base} bg-nkz-info-light text-blue-800`;
+      return `${base} bg-nkz-info-soft text-blue-800`;
     case 'TechnicalConsultant':
-      return `${base} bg-nkz-success-light text-green-800`;
+      return `${base} bg-nkz-success-soft text-green-800`;
     case 'Farmer':
-      return `${base} bg-nkz-warning-light text-yellow-800`;
+      return `${base} bg-nkz-warning-soft text-yellow-800`;
     default:
       return `${base} bg-nkz-bg-secondary text-gray-800`;
   }
@@ -140,7 +140,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 {member.enabled ? (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-nkz-success-light text-green-800">
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-nkz-success-soft text-green-800">
                     <CheckCircle className="w-3 h-3 mr-1" /> {t('dashboard.members.status_active')}
                   </span>
                 ) : (

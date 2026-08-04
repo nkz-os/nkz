@@ -158,7 +158,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
         )}
 
         {success && (
-          <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg flex items-center">
+          <div className="mb-4 p-3 bg-nkz-success-soft border border-green-200 rounded-lg flex items-center">
             <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
             <span className="text-nkz-success-strong text-sm">{success}</span>
           </div>
@@ -205,7 +205,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
           </div>
 
           {mqttTopics && (
-            <div className="p-3 bg-nkz-info-light border border-blue-200 rounded-lg">
+            <div className="p-3 bg-nkz-info-soft border border-blue-200 rounded-lg">
               <p className="text-xs text-blue-800">
                 <strong>{t('sensors.mqtt_topic_commands')}</strong> {mqttTopics.commands}
               </p>
@@ -270,8 +270,8 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
                       {getStatusIcon(cmd.status)}
                       <span className="font-medium text-gray-900">{cmd.command_type}</span>
                       <span className={`text-xs px-2 py-1 rounded ${
-                        cmd.status === 'executed' ? 'bg-nkz-success-light text-nkz-success-strong' :
-                        cmd.status === 'sent' ? 'bg-nkz-warning-light text-nkz-warning-strong' :
+                        cmd.status === 'executed' ? 'bg-nkz-success-soft text-nkz-success-strong' :
+                        cmd.status === 'sent' ? 'bg-nkz-warning-soft text-nkz-warning-strong' :
                         cmd.status === 'failed' ? 'bg-nkz-error-light text-nkz-error' :
                         'bg-nkz-bg-secondary text-gray-700'
                       }`}>

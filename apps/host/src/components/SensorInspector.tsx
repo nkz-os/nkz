@@ -414,7 +414,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                     <div className="flex items-center gap-1">
                         <Button
                             onClick={() => openEntityEditor(entity.id, entity.type)}
-                            className="px-3 py-1.5 text-xs bg-nkz-info-light text-nkz-info rounded-lg hover:bg-nkz-info-light transition flex items-center gap-1"
+                            className="px-3 py-1.5 text-xs bg-nkz-info-soft text-nkz-info rounded-lg hover:bg-nkz-info-soft transition flex items-center gap-1"
                             title="Editar entidad"
                         >
                             <Pencil className="w-3.5 h-3.5" />

@@ -640,7 +640,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
           // Global Viewer Mode UI
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
             <div className="mb-4">
-              <div className="w-16 h-16 bg-nkz-info-light rounded-full flex items-center justify-center mx-auto mb-3">
+              <div className="w-16 h-16 bg-nkz-info-soft rounded-full flex items-center justify-center mx-auto mb-3">
                 {geometryType === 'Point' ? (
                   <MapPin className="w-8 h-8 text-nkz-info" />
                 ) : (
@@ -800,7 +800,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
       </div>
 
       {parentGeometry && (
-        <div className="text-xs text-gray-600 bg-nkz-warning-light border border-yellow-200 rounded px-3 py-2">
+        <div className="text-xs text-gray-600 bg-nkz-warning-soft border border-yellow-200 rounded px-3 py-2">
           <strong>Parent:</strong> {parentGeometry.name} (shown in gray)
         </div>
       )}

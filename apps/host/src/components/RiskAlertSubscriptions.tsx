@@ -18,9 +18,9 @@ interface RiskAlertSubscriptionsProps {
 }
 
 const DOMAIN_COLORS: Record<string, string> = {
-  agronomic: 'bg-nkz-success-light text-green-800',
-  energy: 'bg-nkz-warning-light text-yellow-800',
-  robotic: 'bg-nkz-info-light text-blue-800',
+  agronomic: 'bg-nkz-success-soft text-green-800',
+  energy: 'bg-nkz-warning-soft text-yellow-800',
+  robotic: 'bg-nkz-info-soft text-blue-800',
   livestock: 'bg-orange-100 text-orange-800',
   other: 'bg-nkz-bg-secondary text-gray-800',
 };

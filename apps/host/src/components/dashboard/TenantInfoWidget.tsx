@@ -82,7 +82,7 @@ export const TenantInfoWidget: React.FC = () => {
                         👋 {t('dashboard.welcome', { name: user?.name || 'User' })}
                     </h1>
                     <div className="flex items-center gap-4 text-gray-600 dark:text-gray-300">
-                        <span className="flex items-center gap-1 bg-nkz-info-light text-nkz-info px-3 py-1 rounded-full text-sm font-medium">
+                        <span className="flex items-center gap-1 bg-nkz-info-soft text-nkz-info px-3 py-1 rounded-full text-sm font-medium">
                             {tenantName || user?.tenant || t('dashboard.tenant_info.tenant_label')}
                         </span>
                         <span className="flex items-center gap-1 bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">

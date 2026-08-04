@@ -481,7 +481,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
               key={attr}
               className={`px-3 py-1.5 text-sm rounded-lg cursor-pointer transition-colors ${
                 selectedAttributes.includes(attr)
-                  ? 'bg-nkz-info-light text-nkz-info border border-blue-300'
+                  ? 'bg-nkz-info-soft text-nkz-info border border-blue-300'
                   : 'bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200'
               }`}
             >
