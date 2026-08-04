@@ -1170,48 +1170,26 @@ def entities():
 @app.route("/ngsi-ld/v1/entityOperations/query", methods=["POST", "GET"])
 def entity_operations_query():
     """Proxy NGSI-LD entityOperations/query to Orion-LD (complex queries with filters in body)."""
-    token = get_request_token()
-    if not token:
-        return jsonify({"error": "Missing or invalid authorization"}), 401
-
     # Use PAT-modified body if present (from pagination interceptor)
     json_body = getattr(g, "pat_modified_body", None)
 
-    if is_pat_token(token):
-        tenant = getattr(g, "pat_tenant_id", None)
-        if not tenant:
-            return jsonify({"error": "PAT tenant not resolved"}), 401
-        gw_jwt = obtain_gateway_service_jwt()
-        if not gw_jwt:
-            return jsonify({"error": "Service authentication not configured"}), 503
-        headers = {
-            "Authorization": f"Bearer {gw_jwt}",
-            "X-Delegated-Tenant-ID": tenant,
-            "X-Tenant-ID": tenant,
-        }
-        headers = inject_fiware_headers(headers, tenant)
-        if json_body is None:
-            json_body = request.get_json(silent=True) or {}
-    else:
-        payload = validate_jwt_token(token)
-        if not payload:
-            return jsonify({"error": "Invalid or expired token"}), 401
+    # header_mode="canonical" matches this route's pre-existing header build
+    # 1:1 in both branches (PAT: gw_jwt + X-Delegated-Tenant-ID + X-Tenant-ID
+    # + inject_fiware_headers; JWT: inject_fiware_headers + X-Tenant-ID +
+    # X-Auth-Signature). pat_rate_limit=False and block_expired_mutations=False
+    # because neither check exists in this route's original code — passing
+    # the defaults here would add behavior, not just deduplicate it.
+    tenant, headers, err = resolve_request_auth(
+        header_mode="canonical",
+        pat_rate_limit=False,
+        block_expired_mutations=False,
+        pat_tenant_missing_message="PAT tenant not resolved",
+    )
+    if err:
+        return err
 
-        tenant = extract_tenant_id(payload)
-        if not tenant:
-            return jsonify({"error": "Tenant not present in token"}), 401
-
-        if not rate_limit(tenant):
-            return jsonify({"error": "Rate limit exceeded"}), 429
-
-        headers = {}
-        headers = inject_fiware_headers(headers, tenant)
-        headers["X-Tenant-ID"] = tenant
-        signature = generate_hmac_signature(token, tenant)
-        if signature:
-            headers["X-Auth-Signature"] = signature
-        if json_body is None:
-            json_body = request.get_json(silent=True) or {}
+    if json_body is None:
+        json_body = request.get_json(silent=True) or {}
 
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entityOperations/query"
