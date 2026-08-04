@@ -4506,6 +4506,79 @@ def delete_user_directly(user_id: str):
         return _internal_error(e, "delete_user_admin", user_message="Failed to delete user")
 
 
+def _parse_roles_payload(data):
+    """Validate the PUT .../roles request body.
+
+    Returns (roles, None) on success or (None, (response, status)) on
+    validation failure.
+    """
+    if not data or "roles" not in data:
+        return None, (jsonify({"error": "roles array is required"}), 400)
+
+    new_roles = data.get("roles", [])
+    if not isinstance(new_roles, list):
+        return None, (jsonify({"error": "roles must be an array"}), 400)
+
+    return new_roles, None
+
+
+def _clear_user_realm_roles(keycloak_url, user_id, headers):
+    """Best-effort clear of a user's current realm role-mappings.
+
+    Failures are silently swallowed — the caller is about to assign a
+    fresh set of roles anyway.
+    """
+    current_roles_url = (
+        f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+        f"/users/{user_id}/role-mappings/realm"
+    )
+    current_response = requests.get(
+        current_roles_url, headers=headers, timeout=10
+    )
+    current_roles = []
+    if current_response.status_code == 200:
+        current_roles = current_response.json()
+
+    if current_roles:
+        requests.delete(
+            current_roles_url,
+            headers=headers,
+            json=current_roles,
+            timeout=10,
+        )
+
+
+def _assign_realm_roles_to_user(keycloak_url, user_id, roles, headers):
+    """Assign each requested realm role to the user.
+
+    Returns the list of role names that were successfully assigned;
+    the caller surfaces this so clients can detect partial
+    application.
+    """
+    assigned = []
+    for role_name in roles:
+        role_url = (
+            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+            f"/roles/{role_name}"
+        )
+        role_response = requests.get(role_url, headers=headers, timeout=10)
+        if role_response.status_code == 200:
+            role_data = role_response.json()
+            mapping_url = (
+                f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
+                f"/users/{user_id}/role-mappings/realm"
+            )
+            assign_resp = requests.post(
+                mapping_url,
+                headers=headers,
+                json=[role_data],
+                timeout=10,
+            )
+            if assign_resp.status_code in [200, 204]:
+                assigned.append(role_name)
+    return assigned
+
+
 @app.route("/api/admin/users/<user_id>/roles", methods=["PUT"])
 @require_platform_admin
 def update_user_roles(user_id: str):
@@ -4518,12 +4591,9 @@ def update_user_roles(user_id: str):
     """
     try:
         data = request.get_json()
-        if not data or "roles" not in data:
-            return jsonify({"error": "roles array is required"}), 400
-
-        new_roles = data.get("roles", [])
-        if not isinstance(new_roles, list):
-            return jsonify({"error": "roles must be an array"}), 400
+        new_roles, err = _parse_roles_payload(data)
+        if err:
+            return err
 
         token = webhook_service.get_keycloak_token()
         if not token:
@@ -4557,49 +4627,13 @@ def update_user_roles(user_id: str):
                 "available_roles": sorted(available_roles),
             }), 400
 
-        # Get current user roles
-        current_roles_url = (
-            f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-            f"/users/{user_id}/role-mappings/realm"
-        )
-        current_response = requests.get(
-            current_roles_url, headers=headers, timeout=10
-        )
-        current_roles = []
-        if current_response.status_code == 200:
-            current_roles = current_response.json()
-
         # Remove all current realm roles
-        if current_roles:
-            requests.delete(
-                current_roles_url,
-                headers=headers,
-                json=current_roles,
-                timeout=10,
-            )
+        _clear_user_realm_roles(keycloak_url, user_id, headers)
 
         # Assign new roles
-        assigned = []
-        for role_name in new_roles:
-            role_url = (
-                f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-                f"/roles/{role_name}"
-            )
-            role_response = requests.get(role_url, headers=headers, timeout=10)
-            if role_response.status_code == 200:
-                role_data = role_response.json()
-                mapping_url = (
-                    f"{keycloak_url}/admin/realms/{KEYCLOAK_REALM}"
-                    f"/users/{user_id}/role-mappings/realm"
-                )
-                assign_resp = requests.post(
-                    mapping_url,
-                    headers=headers,
-                    json=[role_data],
-                    timeout=10,
-                )
-                if assign_resp.status_code in [200, 204]:
-                    assigned.append(role_name)
+        assigned = _assign_realm_roles_to_user(
+            keycloak_url, user_id, new_roles, headers
+        )
 
         logger.info(
             f"Roles updated for user {user_email}: {assigned}"
