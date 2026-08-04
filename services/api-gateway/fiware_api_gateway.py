@@ -1575,9 +1575,13 @@ def greenhouse_proxy(path=""):
     """
     # Internal paths: skip JWT, require X-Internal-Service-Secret
     if path.startswith("internal/"):
-        internal_secret = request.headers.get("X-Internal-Service-Secret", "")
-        if not internal_secret:
-            return jsonify({"error": "Missing X-Internal-Service-Secret"}), 401
+        expected = os.getenv("INTERNAL_SERVICE_SECRET", "")
+        provided = request.headers.get("X-Internal-Service-Secret", "")
+        if not expected or not hmac.compare_digest(provided, expected):
+            return jsonify({"error": "Invalid or missing internal service secret"}), 401
+        # NOTE: normalize_tenant_id() is not imported in this module, so the
+        # tenant is forwarded as received. If a platform-wide normalizer is
+        # ever imported here, apply it to this value too.
         tenant = request.headers.get("X-Tenant-ID", "")
         user_id = request.headers.get("X-User-ID", "internal")
         user_roles = request.headers.get("X-User-Roles", "internal")
