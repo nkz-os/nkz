@@ -439,7 +439,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             </Button>
             <Button
               onClick={handleBulkDelete}
-              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-nkz-error bg-white rounded border border-red-200 hover:bg-nkz-error-light"
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-nkz-danger-strong bg-white rounded border border-red-200 hover:bg-nkz-danger-soft"
             >
               <Trash2 className="w-3 h-3" />
               {t('entities.assets.delete')}
@@ -716,9 +716,9 @@ const AssetGridCard: React.FC<AssetGridCardProps> = ({
 
       {/* Status */}
       <div className="flex items-center gap-1 mt-2">
-        <span className={`w-1.5 h-1.5 rounded-full ${asset.status === 'active' ? 'bg-nkz-success-light0' :
+        <span className={`w-1.5 h-1.5 rounded-full ${asset.status === 'active' ? 'bg-nkz-success' :
           asset.status === 'inactive' ? 'bg-slate-400' :
-            asset.status === 'error' ? 'bg-nkz-error-light0' :
+            asset.status === 'error' ? 'bg-nkz-danger' :
               asset.status === 'maintenance' ? 'bg-amber-500' :
                 'bg-slate-300'
           }`} />
@@ -794,7 +794,7 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
 
       <Button
         onClick={onDelete}
-        className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-nkz-error-light text-nkz-error"
+        className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-nkz-danger-soft text-nkz-danger-strong"
       >
         <Trash2 className="w-4 h-4" />
         Eliminar

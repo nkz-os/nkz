@@ -219,8 +219,8 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
         {/* Status Indicator */}
         <div className="flex-shrink-0">
           <span className={`w-2 h-2 rounded-full inline-block ${
-            asset.status === 'active' ? 'bg-nkz-success-light0' :
-            asset.status === 'error' ? 'bg-nkz-error-light0' :
+            asset.status === 'active' ? 'bg-nkz-success' :
+            asset.status === 'error' ? 'bg-nkz-danger' :
             asset.status === 'maintenance' ? 'bg-amber-500' :
             'bg-slate-300'
           }`} />

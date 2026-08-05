@@ -220,7 +220,7 @@ export const CustomRiskModal: React.FC<CustomRiskModalProps> = ({
           </div>
 
           {error && (
-            <div className="bg-nkz-error-light border border-red-100 p-4 rounded-xl flex items-center gap-3 text-nkz-error text-sm font-medium">
+            <div className="bg-nkz-danger-soft border border-red-100 p-4 rounded-xl flex items-center gap-3 text-nkz-danger-strong text-sm font-medium">
               <AlertTriangle className="w-5 h-5" />
               {error}
             </div>
@@ -299,7 +299,7 @@ const RuleGroupView: React.FC<RuleGroupViewProps> = ({
                 />
                 <Button 
                   onClick={() => onRemoveItem(path, idx)}
-                  className="absolute -left-2 top-0 bg-white text-gray-300 hover:text-nkz-error p-1 rounded-full shadow-sm border border-gray-100 transition-colors"
+                  className="absolute -left-2 top-0 bg-white text-gray-300 hover:text-nkz-danger-strong p-1 rounded-full shadow-sm border border-gray-100 transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
@@ -390,7 +390,7 @@ const ConditionRow: React.FC<ConditionRowProps> = ({ condition, onUpdate, onRemo
 
       <Button 
         onClick={onRemove}
-        className="p-2 text-gray-300 hover:text-nkz-error transition-colors"
+        className="p-2 text-gray-300 hover:text-nkz-danger-strong transition-colors"
       >
         <Trash2 className="w-5 h-5" />
       </Button>

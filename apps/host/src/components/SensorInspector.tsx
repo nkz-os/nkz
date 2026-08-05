@@ -401,7 +401,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
             <div className="p-4 border-b border-gray-700/50 flex-shrink-0">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-nkz-info-light0/20 rounded-lg">
+                        <div className="p-2 bg-nkz-info/20 rounded-lg">
                             <Cpu className="w-5 h-5 text-blue-400" />
                         </div>
                         <div>
@@ -436,7 +436,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                             key={range}
                             onClick={() => setTimeRange(range)}
                             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${timeRange === range
-                                ? 'bg-nkz-info-light0 text-white'
+                                ? 'bg-nkz-info text-white'
                                 : 'bg-gray-800 text-nkz-muted hover:bg-gray-700'
                                 }`}
                         >

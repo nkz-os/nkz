@@ -117,26 +117,26 @@ export class ModuleErrorBoundary extends Component<
 
             // Default error UI
             return (
-                <div className="p-4 bg-nkz-error-light border border-red-200 rounded-lg">
+                <div className="p-4 bg-nkz-danger-soft border border-red-200 rounded-lg">
                     <div className="flex items-start gap-3">
-                        <div className="p-2 bg-nkz-error-light rounded-lg flex-shrink-0">
-                            <AlertTriangle className="w-5 h-5 text-nkz-error" />
+                        <div className="p-2 bg-nkz-danger-soft rounded-lg flex-shrink-0">
+                            <AlertTriangle className="w-5 h-5 text-nkz-danger-strong" />
                         </div>
                         <div className="flex-1 min-w-0">
                             <h4 className="font-semibold text-red-900 mb-1">
                                 Error en módulo: {this.props.moduleName}
                             </h4>
-                            <p className="text-sm text-nkz-error mb-3">
-                                El módulo <code className="text-xs bg-nkz-error-light px-1 py-0.5 rounded">{this.props.moduleId}</code> no está disponible temporalmente.
+                            <p className="text-sm text-nkz-danger-strong mb-3">
+                                El módulo <code className="text-xs bg-nkz-danger-soft px-1 py-0.5 rounded">{this.props.moduleId}</code> no está disponible temporalmente.
                             </p>
 
                             {/* Show error details in development */}
                             {process.env.NODE_ENV === 'development' && this.state.error && (
                                 <details className="mt-2 text-xs">
-                                    <summary className="cursor-pointer text-nkz-error hover:text-red-800 mb-1">
+                                    <summary className="cursor-pointer text-nkz-danger-strong hover:text-red-800 mb-1">
                                         Detalles técnicos (solo desarrollo)
                                     </summary>
-                                    <pre className="mt-2 p-2 bg-nkz-error-light rounded text-red-900 overflow-auto max-h-40">
+                                    <pre className="mt-2 p-2 bg-nkz-danger-soft rounded text-red-900 overflow-auto max-h-40">
                                         {this.state.error.toString()}
                                         {this.state.errorInfo?.componentStack && (
                                             <>
@@ -158,7 +158,7 @@ export class ModuleErrorBoundary extends Component<
                                 </Button>
                                 <Button
                                     onClick={this.handleDismiss}
-                                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light hover:bg-red-200 rounded-lg transition-colors"
+                                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-nkz-danger-strong bg-nkz-danger-soft hover:bg-red-200 rounded-lg transition-colors"
                                 >
                                     <X className="w-4 h-4" />
                                     Ocultar

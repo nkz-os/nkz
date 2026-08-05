@@ -173,7 +173,7 @@ export const RiskAlertSubscriptions: React.FC<RiskAlertSubscriptionsProps> = ({ 
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg">
+        <div className="mb-4 p-3 bg-nkz-danger-soft border border-red-200 rounded-lg">
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}

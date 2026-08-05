@@ -292,8 +292,8 @@ export const CopernicusCredentials: React.FC = () => {
 
       {/* Error / Success */}
       {error && (
-        <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-nkz-error flex-shrink-0" />
+        <div className="mb-4 p-3 bg-nkz-danger-soft border border-red-200 rounded-lg flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-nkz-danger-strong flex-shrink-0" />
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}

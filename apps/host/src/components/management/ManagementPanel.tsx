@@ -207,7 +207,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
 
             {/* Messages Area */}
             {error && (
-                <div className="m-4 mb-0 p-3 bg-nkz-error-light border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-800 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="m-4 mb-0 p-3 bg-nkz-danger-soft border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-800 animate-in fade-in slide-in-from-top-2 duration-200">
                     <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                     <span>{error}</span>
                 </div>
@@ -284,13 +284,13 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                 {!showDeleteConfirm ? (
                     <Button
                         onClick={() => setShowDeleteConfirm(true)}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-nkz-error bg-nkz-error-light hover:bg-nkz-error-light rounded-lg border border-red-200 transition-colors font-medium"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-nkz-danger-strong bg-nkz-danger-soft hover:bg-nkz-danger-soft rounded-lg border border-red-200 transition-colors font-medium"
                     >
                         <Trash2 className="w-4 h-4" />
                         Eliminar Entidad
                     </Button>
                 ) : (
-                    <div className="bg-nkz-error-light rounded-lg border border-red-200 p-4 animate-in zoom-in-95 duration-200">
+                    <div className="bg-nkz-danger-soft rounded-lg border border-red-200 p-4 animate-in zoom-in-95 duration-200">
                         <h4 className="font-bold text-red-900 mb-2 flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5" />
                             ¿Estás seguro?

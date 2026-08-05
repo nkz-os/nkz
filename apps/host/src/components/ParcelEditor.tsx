@@ -218,7 +218,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
               </Button>
               <Button
                 onClick={handleClearGeometry}
-                className="px-3 py-2 bg-nkz-error-light text-nkz-error rounded-lg hover:bg-red-200 transition-colors flex items-center gap-2 text-sm"
+                className="px-3 py-2 bg-nkz-danger-soft text-nkz-danger-strong rounded-lg hover:bg-red-200 transition-colors flex items-center gap-2 text-sm"
               >
                 <Trash2 className="w-4 h-4" />
                 Eliminar

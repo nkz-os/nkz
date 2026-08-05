@@ -144,7 +144,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                     <CheckCircle className="w-3 h-3 mr-1" /> {t('dashboard.members.status_active')}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-nkz-error-light text-red-800">
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full bg-nkz-danger-soft text-red-800">
                     <AlertTriangle className="w-3 h-3 mr-1" /> {t('dashboard.members.status_inactive')}
                   </span>
                 )}
@@ -173,7 +173,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                     {onDelete ? (
                       <Button
                         onClick={() => onDelete(member)}
-                        className="text-nkz-error hover:text-red-900"
+                        className="text-nkz-danger-strong hover:text-red-900"
                         title={t('admin.delete_user')}
                       >
                         <Trash2 className="w-4 h-4" />

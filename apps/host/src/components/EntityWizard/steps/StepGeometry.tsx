@@ -83,7 +83,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
               onScaleChange={s => updateFormData({ modelScale: s })}
             />
             {!formData.model3DUrl && (
-              <p className="text-nkz-error text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
+              <p className="text-nkz-danger-strong text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
             )}
           </div>
           <StampTool
@@ -112,7 +112,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
               onScaleChange={s => updateFormData({ modelScale: s })}
             />
             {!formData.model3DUrl && (
-              <p className="text-nkz-error text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
+              <p className="text-nkz-danger-strong text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
             )}
           </div>
           <ArrayTool

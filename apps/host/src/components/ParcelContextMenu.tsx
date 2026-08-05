@@ -116,7 +116,7 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
       <div className="space-y-3">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
-            {t('parcels.parcel_name')} <span className="text-nkz-error">*</span>
+            {t('parcels.parcel_name')} <span className="text-nkz-danger-strong">*</span>
           </label>
           <Input
             type="text"

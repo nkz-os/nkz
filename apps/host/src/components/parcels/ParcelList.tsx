@@ -247,7 +247,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                                         onDeleteZone(parcel, parent);
                                     }
                                 }) as any}
-                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light rounded-md hover:bg-nkz-error-light transition-colors"
+                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-danger-strong bg-nkz-danger-soft rounded-md hover:bg-nkz-danger-soft transition-colors"
                                 title="Eliminar zona"
                             >
                                 <Trash2 className="w-4 h-4 mr-1" />
@@ -259,7 +259,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                                     e.stopPropagation();
                                     onDelete(parcel);
                                 }) as any}
-                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-error bg-nkz-error-light rounded-md hover:bg-nkz-error-light transition-colors"
+                                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-danger-strong bg-nkz-danger-soft rounded-md hover:bg-nkz-danger-soft transition-colors"
                                 title="Eliminar parcela"
                             >
                                 <Trash2 className="w-4 h-4 mr-1" />

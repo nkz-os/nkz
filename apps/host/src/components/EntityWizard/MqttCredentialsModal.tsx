@@ -215,9 +215,9 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           {/* Credentials Sections */}
           <div className="space-y-4">
             {/* API Key Section - MOST IMPORTANT */}
-            <div className="bg-nkz-error-light rounded-xl p-4 border-2 border-red-300">
+            <div className="bg-nkz-danger-soft rounded-xl p-4 border-2 border-red-300">
               <div className="flex items-center gap-2 mb-3">
-                <Key className="w-5 h-5 text-nkz-error" />
+                <Key className="w-5 h-5 text-nkz-danger-strong" />
                 <h4 className="font-bold text-red-900">API Key (Secreto)</h4>
                 <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-full">Una sola vez</span>
               </div>

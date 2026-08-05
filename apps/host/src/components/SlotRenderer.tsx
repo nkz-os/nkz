@@ -150,7 +150,7 @@ const RemoteSlotWidget: React.FC<{
     if (error) {
         return (
             <ModuleErrorBoundary moduleId={moduleId} moduleName={moduleName}>
-                <div className="p-3 bg-nkz-error-light border border-red-200 rounded-lg text-sm text-nkz-error">
+                <div className="p-3 bg-nkz-danger-soft border border-red-200 rounded-lg text-sm text-nkz-danger-strong">
                     Failed to load {widget.component}: {error.message}
                 </div>
             </ModuleErrorBoundary>

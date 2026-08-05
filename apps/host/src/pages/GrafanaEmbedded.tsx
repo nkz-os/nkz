@@ -127,7 +127,7 @@ export const GrafanaEmbedded: React.FC = () => {
           </div>
 
           {error && !error.includes('401') && !error.includes('Request failed with status code 401') && (
-            <div className="mt-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg text-sm text-nkz-error flex items-center gap-2">
+            <div className="mt-4 p-3 bg-nkz-danger-soft border border-red-200 rounded-lg text-sm text-nkz-danger-strong flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
               <span>{error}</span>
             </div>

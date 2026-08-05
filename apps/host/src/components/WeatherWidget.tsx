@@ -597,11 +597,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
       {/* Content */}
       <div className="p-6">
         {error && (
-          <div className="mb-4 p-4 bg-nkz-error-light border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
+          <div className="mb-4 p-4 bg-nkz-danger-soft border border-red-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-nkz-danger-strong flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-red-800 text-sm font-medium">Error</p>
-              <p className="text-nkz-error text-sm">{error}</p>
+              <p className="text-nkz-danger-strong text-sm">{error}</p>
             </div>
           </div>
         )}
@@ -613,7 +613,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               const alertColors: Record<string, string> = {
                 RED: 'bg-red-600 border-red-700',
                 ORANGE: 'bg-orange-500 border-orange-600',
-                YELLOW: 'bg-nkz-warning-light0 border-yellow-600',
+                YELLOW: 'bg-nkz-warning border-yellow-600',
               };
               const alertLabels: Record<string, string> = {
                 RED: 'Alerta Roja',
