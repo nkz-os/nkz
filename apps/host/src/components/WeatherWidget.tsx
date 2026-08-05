@@ -572,8 +572,8 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                   <Button
                     key={parcel.id}
                     onClick={() => handleParcelSelect(parcel.id, parcel.name)}
-                    className={`w-full px-4 py-2 text-left hover:bg-nkz-success-light transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
-                      effectiveParcelId === parcel.id ? 'bg-nkz-success-light font-medium' : ''
+                    className={`w-full px-4 py-2 text-left hover:bg-nkz-success-soft transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
+                      effectiveParcelId === parcel.id ? 'bg-nkz-success-soft font-medium' : ''
                     }`}
                   >
                     <MapPin className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -719,7 +719,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
 
             {/* Downscaling indicator */}
             {downscaling === 'applied' && (
-              <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg flex items-center gap-2">
+              <div className="mb-4 p-3 bg-nkz-success-soft border border-green-200 rounded-lg flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-nkz-success" />
                 <p className="text-xs text-green-800">
                   {t('weather.downscaling_active')}
@@ -750,7 +750,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="mt-4 p-3 bg-nkz-warning-light border border-yellow-200 rounded-lg">
+              <div className="mt-4 p-3 bg-nkz-warning-soft border border-yellow-200 rounded-lg">
                 <p className="text-xs text-yellow-800">
                   ⚠️ Previsión no disponible. Los datos se están cargando en segundo plano.
                 </p>

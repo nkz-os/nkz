@@ -255,7 +255,7 @@ export function StepIoTSensorConfig() {
               <Activity className="w-3 h-3" /> Ver Plantillas
             </Button>
 
-            <label className="flex items-center justify-center gap-2 text-xs font-medium text-nkz-info bg-nkz-info-light hover:bg-blue-200 py-2 rounded-lg border border-blue-200 cursor-pointer">
+            <label className="flex items-center justify-center gap-2 text-xs font-medium text-nkz-info bg-nkz-info-soft hover:bg-blue-200 py-2 rounded-lg border border-blue-200 cursor-pointer">
               <Input
                 type="file"
                 accept=".json,application/json"

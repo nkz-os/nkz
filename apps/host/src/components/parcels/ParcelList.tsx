@@ -154,7 +154,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
         return (
             <tr
                 key={parcel.id}
-                className={`hover:bg-nkz-bg-secondary cursor-pointer transition-colors ${isSelected ? 'bg-nkz-info-light border-l-4 border-blue-500' : ''} ${isZone ? 'bg-nkz-bg-secondary/50' : ''}`}
+                className={`hover:bg-nkz-bg-secondary cursor-pointer transition-colors ${isSelected ? 'bg-nkz-info-soft border-l-4 border-blue-500' : ''} ${isZone ? 'bg-nkz-bg-secondary/50' : ''}`}
                 onClick={() => onSelect(parcel)}
                 style={{ paddingLeft: `${indent * 24}px` }}
             >
@@ -211,8 +211,8 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                 <td className="px-4 py-4 whitespace-nowrap">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         parcel.category === 'cadastral'
-                            ? 'bg-nkz-info-light text-blue-800'
-                            : 'bg-nkz-success-light text-green-800'
+                            ? 'bg-nkz-info-soft text-blue-800'
+                            : 'bg-nkz-success-soft text-green-800'
                     }`}>
                         {parcel.category === 'cadastral' ? 'Catastral' : parcel.category === 'managementZone' ? 'Zona' : 'Parcela'}
                     </span>
@@ -232,7 +232,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                                 e.stopPropagation();
                                 onEdit(parcel);
                             }) as any}
-                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-success-strong bg-nkz-success-light rounded-md hover:bg-nkz-success-light transition-colors"
+                            className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-nkz-success-strong bg-nkz-success-soft rounded-md hover:bg-nkz-success-soft transition-colors"
                             title="Editar"
                         >
                             <Edit className="w-4 h-4 mr-1" />

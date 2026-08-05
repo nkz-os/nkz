@@ -105,7 +105,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-slate-700">{t('entities.filters.title')}</span>
           {activeFilterCount > 0 && (
-            <span className="text-xs px-1.5 py-0.5 rounded-full bg-nkz-info-light text-nkz-info">
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-nkz-info-soft text-nkz-info">
               {activeFilterCount}
             </span>
           )}

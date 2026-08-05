@@ -214,7 +214,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
             )}
 
             {success && (
-                <div className="m-4 mb-0 p-3 bg-nkz-success-light border border-green-200 rounded-lg flex items-center gap-2 text-sm text-green-800 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="m-4 mb-0 p-3 bg-nkz-success-soft border border-green-200 rounded-lg flex items-center gap-2 text-sm text-green-800 animate-in fade-in slide-in-from-top-2 duration-200">
                     <Check className="w-4 h-4 flex-shrink-0" />
                     <span>{success}</span>
                 </div>
@@ -251,7 +251,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                                 <Button
                                     onClick={handleSave}
                                     disabled={loading}
-                                    className="p-1 text-nkz-success-strong hover:text-nkz-success-strong hover:bg-nkz-success-light rounded"
+                                    className="p-1 text-nkz-success-strong hover:text-nkz-success-strong hover:bg-nkz-success-soft rounded"
                                     title="Guardar"
                                 >
                                     <Save className="w-4 h-4" />

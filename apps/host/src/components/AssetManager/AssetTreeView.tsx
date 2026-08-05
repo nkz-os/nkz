@@ -167,7 +167,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
       <div
         className={`flex items-center gap-2 py-2 px-2 cursor-pointer transition-colors group ${
           isSelected
-            ? 'bg-nkz-info-light hover:bg-nkz-info-light'
+            ? 'bg-nkz-info-soft hover:bg-nkz-info-soft'
             : 'hover:bg-slate-50'
         }`}
         style={{ paddingLeft }}

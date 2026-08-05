@@ -155,7 +155,7 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
         return {
           icon: Loader2,
           color: 'text-blue-500',
-          bgColor: 'bg-nkz-info-light',
+          bgColor: 'bg-nkz-info-soft',
           borderColor: 'border-blue-200',
           text: 'Verificando...',
           subtext: 'Comprobando estado de conexión',
@@ -165,7 +165,7 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
         return {
           icon: Check,
           color: 'text-nkz-success',
-          bgColor: 'bg-nkz-success-light',
+          bgColor: 'bg-nkz-success-soft',
           borderColor: 'border-green-300',
           text: '¡Conectado!',
           subtext: 'El dispositivo está online y enviando datos.',

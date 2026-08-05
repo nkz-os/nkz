@@ -188,7 +188,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
 
           {/* Dependency Info (if not blocked but has dependencies) */}
           {!isBlockedByDependencies && hasDependencies && (
-            <div className="mb-6 p-4 bg-nkz-warning-light border border-yellow-200 rounded-lg">
+            <div className="mb-6 p-4 bg-nkz-warning-soft border border-yellow-200 rounded-lg">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-nkz-warning flex-shrink-0 mt-0.5" />
                 <div className="flex-1">

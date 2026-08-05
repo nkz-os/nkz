@@ -417,7 +417,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                     <div className="p-4 space-y-4">
                         {/* Entity Header */}
                         <div className="flex items-start gap-3">
-                            <div className="p-2 rounded-lg bg-nkz-info-light">
+                            <div className="p-2 rounded-lg bg-nkz-info-soft">
                                 {getEntityIcon()}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -430,7 +430,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                         {/* Status Badge */}
                         {status && (
                             <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${status === 'active' || status === 'online' || status === 'working'
-                                ? 'bg-nkz-success-light text-nkz-success-strong'
+                                ? 'bg-nkz-success-soft text-nkz-success-strong'
                                 : status === 'idle'
                                     ? 'bg-amber-100 text-amber-700'
                                     : status === 'error'
@@ -611,7 +611,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                     {t('viewer.telemetry.realtime')}
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected || hasEntityData ? 'bg-nkz-success-light0 animate-pulse' : 'bg-gray-400'}`} />
+                    <div className={`w-2 h-2 rounded-full ${isConnected || hasEntityData ? 'bg-nkz-success-soft0 animate-pulse' : 'bg-gray-400'}`} />
                     {displayTimestamp && (
                         <span className="text-xs text-slate-500">
                             {new Date(displayTimestamp).toLocaleTimeString('es-ES', {

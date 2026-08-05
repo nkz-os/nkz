@@ -245,7 +245,7 @@ export const ExternalApiCredentials: React.FC = () => {
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-nkz-info-light rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-nkz-info-soft rounded-lg flex items-center justify-center">
             <Key className="w-5 h-5 text-nkz-info" />
           </div>
           <div>
@@ -284,7 +284,7 @@ export const ExternalApiCredentials: React.FC = () => {
       )}
 
       {success && (
-        <div className="mb-4 p-4 bg-nkz-success-light border border-green-200 rounded-lg flex items-start gap-3">
+        <div className="mb-4 p-4 bg-nkz-success-soft border border-green-200 rounded-lg flex items-start gap-3">
           <CheckCircle className="w-5 h-5 text-nkz-success flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-green-800">Éxito</p>
@@ -524,13 +524,13 @@ export const ExternalApiCredentials: React.FC = () => {
                     </a>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-nkz-info-light text-blue-800">
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-nkz-info-soft text-blue-800">
                       {getAuthTypeLabel(credential.auth_type)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {credential.is_active ? (
-                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-nkz-success-light text-green-800">
+                      <span className="px-2 py-1 text-xs font-medium rounded-full bg-nkz-success-soft text-green-800">
                         Activo
                       </span>
                     ) : (

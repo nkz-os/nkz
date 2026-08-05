@@ -91,7 +91,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
         {/* Content */}
         <div className="p-4 space-y-4">
           {/* Asset Type Info */}
-          <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-3">
+          <div className="bg-nkz-info-soft border border-blue-200 rounded-lg p-3">
             <p className="text-sm font-medium text-blue-900">{assetType.name}</p>
             <p className="text-xs text-nkz-info mt-1">
               Tipo: {assetType.geometryType === 'Point' ? 'Punto' : 

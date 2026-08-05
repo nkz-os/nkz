@@ -193,7 +193,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                 onDrop={handleDrop}
                 onDragOver={e => e.preventDefault()}
                 onClick={() => fileRef.current?.click()}
-                className="border-2 border-dashed border-nkz-border dark:border-gray-600 rounded-xl p-10 text-center cursor-pointer hover:border-green-400 hover:bg-nkz-success-light/30 transition"
+                className="border-2 border-dashed border-nkz-border dark:border-gray-600 rounded-xl p-10 text-center cursor-pointer hover:border-green-400 hover:bg-nkz-success-soft/30 transition"
               >
                 <FileText className="w-12 h-12 text-nkz-muted mx-auto mb-3" />
                 <p className="font-medium text-gray-700 dark:text-gray-200">
@@ -216,7 +216,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                 </div>
               )}
 
-              <div className="bg-nkz-info-light border border-blue-100 rounded-lg p-4 text-sm text-nkz-info space-y-1">
+              <div className="bg-nkz-info-soft border border-blue-100 rounded-lg p-4 text-sm text-nkz-info space-y-1">
                 <p className="font-medium">Formatos soportados</p>
                 <p><strong>CSV</strong>: columnas <code>lat</code>, <code>lng</code>, <code>name</code> (opcionales: <code>description</code>, otras). Delimitador coma o punto-coma.</p>
                 <p><strong>GeoJSON</strong>: FeatureCollection de puntos. Las propiedades <code>name</code>/<code>description</code> se mapean automáticamente.</p>
@@ -265,7 +265,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
 
               {/* Warnings */}
               {warnings.length > 0 && (
-                <div className="bg-nkz-warning-light border border-yellow-200 rounded-lg p-3 text-xs text-nkz-warning-strong space-y-0.5 max-h-28 overflow-y-auto">
+                <div className="bg-nkz-warning-soft border border-yellow-200 rounded-lg p-3 text-xs text-nkz-warning-strong space-y-0.5 max-h-28 overflow-y-auto">
                   <p className="font-medium mb-1">{warnings.length} advertencia(s):</p>
                   {warnings.map((w, i) => <p key={i}>• {w}</p>)}
                 </div>
@@ -387,7 +387,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
             {step === 'results' && results && results.created > 0 && (
               <Button
                 onClick={() => { reset(); }}
-                className="px-4 py-2 text-sm bg-nkz-info-light text-nkz-info border border-blue-200 rounded-lg hover:bg-nkz-info-light transition"
+                className="px-4 py-2 text-sm bg-nkz-info-soft text-nkz-info border border-blue-200 rounded-lg hover:bg-nkz-info-soft transition"
               >
                 Importar otro fichero
               </Button>

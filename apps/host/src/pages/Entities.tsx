@@ -376,7 +376,7 @@ export const Entities: React.FC = () => {
             <Button
               onClick={() => setActiveTab('fleet')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'fleet'
-                ? 'border-blue-500 text-nkz-info bg-nkz-info-light/50'
+                ? 'border-blue-500 text-nkz-info bg-nkz-info-soft/50'
                 : 'border-transparent text-nkz-muted hover:text-gray-700 hover:bg-nkz-bg-secondary'
                 }`}
             >

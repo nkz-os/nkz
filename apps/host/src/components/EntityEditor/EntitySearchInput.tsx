@@ -121,7 +121,7 @@ export const EntitySearchInput: React.FC<Props> = ({
                 <Button
                   key={r.id}
                   onClick={() => handleSelect(r)}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-nkz-info-light flex items-center gap-2 border-b border-gray-100 last:border-b-0"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-nkz-info-soft flex items-center gap-2 border-b border-gray-100 last:border-b-0"
                 >
                   <MapPin className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
                   <span className="text-gray-900 truncate">{r.name}</span>

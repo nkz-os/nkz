@@ -92,7 +92,7 @@ export function StepSummary() {
 
       {/* Robot-specific note */}
       {entityType === 'AutonomousMobileRobot' && (
-        <div className="p-3 bg-nkz-warning-light border border-yellow-200 rounded-lg text-sm text-yellow-800">
+        <div className="p-3 bg-nkz-warning-soft border border-yellow-200 rounded-lg text-sm text-yellow-800">
           <strong>Nota:</strong> Tras crear el robot, ve a <a href="/devices" className="underline font-medium">Device Management</a> para activar su acceso a la red SDN con el Claim Code del chasis.
         </div>
       )}

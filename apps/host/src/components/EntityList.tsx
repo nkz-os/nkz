@@ -66,16 +66,16 @@ export const EntityList: React.FC<EntityListProps> = ({
             case 'working':
             case 'active':
             case 'online':
-                return 'bg-nkz-success-light text-nkz-success-strong';
+                return 'bg-nkz-success-soft text-nkz-success-strong';
             case 'idle':
             case 'standby':
-                return 'bg-nkz-info-light text-nkz-info';
+                return 'bg-nkz-info-soft text-nkz-info';
             case 'error':
             case 'offline':
             case 'maintenance':
                 return 'bg-nkz-error-light text-nkz-error';
             case 'charging':
-                return 'bg-nkz-warning-light text-nkz-warning-strong';
+                return 'bg-nkz-warning-soft text-nkz-warning-strong';
             default:
                 return 'bg-nkz-bg-secondary text-gray-600';
         }
@@ -126,7 +126,7 @@ export const EntityList: React.FC<EntityListProps> = ({
             <div key={entity.id} className="w-full">
                 <div
                     onClick={() => onEntityClick(entity)}
-                    className={`w-full p-3 flex items-center gap-3 text-left hover:bg-nkz-bg-secondary rounded-lg transition border border-gray-100 cursor-pointer group ${isSelected ? 'bg-nkz-info-light border-blue-500 ring-1 ring-blue-500' : ''
+                    className={`w-full p-3 flex items-center gap-3 text-left hover:bg-nkz-bg-secondary rounded-lg transition border border-gray-100 cursor-pointer group ${isSelected ? 'bg-nkz-info-soft border-blue-500 ring-1 ring-blue-500' : ''
                         } ${isChild ? 'ml-6 border-l-2 border-l-gray-300' : ''}`}
                 >
                     {hasChildren && (
@@ -138,7 +138,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                         </Button>
                     )}
 
-                    <div className={`p-2 rounded-lg transition-colors ${isSelected ? 'bg-nkz-info-light text-nkz-info' : 'bg-nkz-bg-secondary text-nkz-muted group-hover:bg-gray-200'}`}>
+                    <div className={`p-2 rounded-lg transition-colors ${isSelected ? 'bg-nkz-info-soft text-nkz-info' : 'bg-nkz-bg-secondary text-nkz-muted group-hover:bg-gray-200'}`}>
                         <Icon className="w-5 h-5" />
                     </div>
 
@@ -151,7 +151,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                                         e.stopPropagation();
                                         openEntityEditor(entity.id, entity.type);
                                     }) as any}
-                                    className="p-1 text-gray-300 hover:text-nkz-info hover:bg-nkz-info-light rounded opacity-0 group-hover:opacity-100 transition"
+                                    className="p-1 text-gray-300 hover:text-nkz-info hover:bg-nkz-info-soft rounded opacity-0 group-hover:opacity-100 transition"
                                     title="Editar"
                                 >
                                     <Pencil className="w-3.5 h-3.5" />

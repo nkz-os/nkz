@@ -93,7 +93,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
   
   // Status colors
   const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
-    active: { bg: 'bg-nkz-success-light', text: 'text-nkz-success-strong', dot: 'bg-nkz-success-light0' },
+    active: { bg: 'bg-nkz-success-soft', text: 'text-nkz-success-strong', dot: 'bg-nkz-success-soft0' },
     inactive: { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' },
     maintenance: { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500' },
     error: { bg: 'bg-nkz-error-light', text: 'text-nkz-error', dot: 'bg-nkz-error-light0' },
@@ -105,13 +105,13 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
   
   // Category colors for icon background
   const categoryColors: Record<string, string> = {
-    parcels: 'bg-nkz-success-light text-nkz-success',
+    parcels: 'bg-nkz-success-soft text-nkz-success',
     sensors: 'bg-teal-100 text-teal-600',
     fleet: 'bg-indigo-100 text-indigo-600',
     infrastructure: 'bg-slate-100 text-slate-600',
     vegetation: 'bg-emerald-100 text-emerald-600',
     livestock: 'bg-amber-100 text-amber-600',
-    water: 'bg-nkz-info-light text-nkz-info',
+    water: 'bg-nkz-info-soft text-nkz-info',
     weather: 'bg-sky-100 text-sky-600',
   };
   

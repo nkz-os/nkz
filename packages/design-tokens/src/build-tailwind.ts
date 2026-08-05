@@ -33,19 +33,34 @@ module.exports = {
           accent: {
             base: 'var(--nkz-color-accent-base)',
             soft: 'var(--nkz-color-accent-soft)',
+            // 'light' is a deprecated alias of 'soft' (canonical); kept so existing
+            // module code using nkz-*-light still resolves. Prefer 'soft' in new code.
+            light: 'var(--nkz-color-accent-soft)',
             strong: 'var(--nkz-color-accent-strong)',
           },
           success: 'var(--nkz-color-success)',
           'success-soft': 'var(--nkz-color-success-soft)',
+          // 'success-light' is a deprecated alias of 'success-soft' (canonical); kept so
+          // existing module code using nkz-success-light still resolves. Prefer '-soft' in new code.
+          'success-light': 'var(--nkz-color-success-soft)',
           'success-strong': 'var(--nkz-color-success-strong)',
           warning: 'var(--nkz-color-warning)',
           'warning-soft': 'var(--nkz-color-warning-soft)',
+          // 'warning-light' is a deprecated alias of 'warning-soft' (canonical); kept so
+          // existing module code using nkz-warning-light still resolves. Prefer '-soft' in new code.
+          'warning-light': 'var(--nkz-color-warning-soft)',
           'warning-strong': 'var(--nkz-color-warning-strong)',
           danger: 'var(--nkz-color-danger)',
           'danger-soft': 'var(--nkz-color-danger-soft)',
+          // 'danger-light' is a deprecated alias of 'danger-soft' (canonical); kept so
+          // existing module code using nkz-danger-light still resolves. Prefer '-soft' in new code.
+          'danger-light': 'var(--nkz-color-danger-soft)',
           'danger-strong': 'var(--nkz-color-danger-strong)',
           info: 'var(--nkz-color-info)',
           'info-soft': 'var(--nkz-color-info-soft)',
+          // 'info-light' is a deprecated alias of 'info-soft' (canonical); kept so
+          // existing module code using nkz-info-light still resolves. Prefer '-soft' in new code.
+          'info-light': 'var(--nkz-color-info-soft)',
           'info-strong': 'var(--nkz-color-info-strong)',
         },
       },

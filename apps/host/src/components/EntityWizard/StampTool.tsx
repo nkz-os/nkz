@@ -139,7 +139,7 @@ export const StampTool: React.FC<StampToolProps> = ({
       </div>
 
       {/* Info Box */}
-      <div className="bg-nkz-info-light border border-blue-100 rounded-lg p-3 text-sm text-blue-800">
+      <div className="bg-nkz-info-soft border border-blue-100 rounded-lg p-3 text-sm text-blue-800">
         <p className="flex items-center gap-2">
           🖌️ <strong>Modo Pintura Activo:</strong> Haz clic y arrastra sobre el mapa principal para añadir elementos.
         </p>

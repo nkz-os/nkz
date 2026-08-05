@@ -99,7 +99,7 @@ export const ParcelModulesPanel: React.FC<ParcelModulesPanelProps> = ({ parcelId
     };
 
     return (
-        <div className="bg-nkz-info-light rounded-lg border border-blue-200">
+        <div className="bg-nkz-info-soft rounded-lg border border-blue-200">
             <Button
                 className="w-full flex items-center justify-between p-4 text-left"
                 onClick={() => setCollapsed((c) => !c)}

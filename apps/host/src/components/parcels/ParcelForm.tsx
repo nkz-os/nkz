@@ -200,8 +200,8 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
             {/* Geometry Status */}
             <div className="mb-6">
                 <div className={`p-3 rounded-md ${geometry
-                    ? 'bg-nkz-success-light border border-green-200'
-                    : 'bg-nkz-warning-light border border-yellow-200'
+                    ? 'bg-nkz-success-soft border border-green-200'
+                    : 'bg-nkz-warning-soft border border-yellow-200'
                     }`}>
                     <div className="flex items-center">
                         {geometry ? (

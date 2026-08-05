@@ -111,7 +111,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
         onClick={onClose}
         className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-colors ${
           isActive
-            ? 'bg-nkz-success-light dark:bg-green-900/30 text-nkz-success-strong dark:text-green-400'
+            ? 'bg-nkz-success-soft dark:bg-green-900/30 text-nkz-success-strong dark:text-green-400'
             : 'text-gray-700 dark:text-gray-300 hover:bg-nkz-bg-secondary dark:hover:bg-gray-800'
         }`}
       >
