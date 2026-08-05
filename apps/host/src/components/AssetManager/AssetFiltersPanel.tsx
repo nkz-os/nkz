@@ -91,10 +91,10 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
   
   // Status options
   const statusOptions: { value: AssetStatus; label: string; color: string }[] = [
-    { value: 'active', label: t('entities.status.active'), color: 'bg-nkz-success-light0' },
+    { value: 'active', label: t('entities.status.active'), color: 'bg-nkz-success' },
     { value: 'inactive', label: t('entities.status.inactive'), color: 'bg-slate-400' },
     { value: 'maintenance', label: t('entities.status.maintenance'), color: 'bg-amber-500' },
-    { value: 'error', label: t('entities.status.error'), color: 'bg-nkz-error-light0' },
+    { value: 'error', label: t('entities.status.error'), color: 'bg-nkz-danger' },
     { value: 'offline', label: t('entities.status.offline'), color: 'bg-slate-300' },
   ];
   

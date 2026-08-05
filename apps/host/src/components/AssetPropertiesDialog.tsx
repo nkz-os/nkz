@@ -149,7 +149,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
               />
             </div>
             {errors.scale && (
-              <p className="text-xs text-nkz-error mt-1">{errors.scale}</p>
+              <p className="text-xs text-nkz-danger-strong mt-1">{errors.scale}</p>
             )}
           </div>
 
@@ -186,7 +186,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
                 />
               </div>
               {errors.rotation && (
-                <p className="text-xs text-nkz-error mt-1">{errors.rotation}</p>
+                <p className="text-xs text-nkz-danger-strong mt-1">{errors.rotation}</p>
               )}
             </div>
           )}

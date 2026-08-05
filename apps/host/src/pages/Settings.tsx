@@ -134,7 +134,7 @@ export const Settings: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('settings.account_info')}</h2>
           {nameError && (
-            <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg">
+            <div className="mb-4 p-3 bg-nkz-danger-soft border border-red-200 rounded-lg">
               <p className="text-sm text-red-800">{nameError}</p>
             </div>
           )}
@@ -240,7 +240,7 @@ export const Settings: React.FC = () => {
                     role === 'GestorCUE' ? 'bg-rose-100 text-rose-800' :
                     role === 'TechnicalConsultant' ? 'bg-nkz-success-soft text-green-800' :
                     role === 'Farmer' ? 'bg-nkz-warning-soft text-yellow-800' :
-                    role === 'role_pro_expired' ? 'bg-nkz-error-light text-red-800' :
+                    role === 'role_pro_expired' ? 'bg-nkz-danger-soft text-red-800' :
                     'bg-nkz-bg-secondary text-gray-600'
                   }`}>
                     {role === 'role_pro_expired' ? 'Expired' : role}
@@ -264,7 +264,7 @@ export const Settings: React.FC = () => {
               </div>
               <div>
                 <label className="text-sm font-medium text-nkz-muted">{t('settings.subscription.status', { defaultValue: 'Status' })}</label>
-                <p className={`font-semibold ${tenantProfile.status === 'active' ? 'text-nkz-success-strong' : 'text-nkz-error'}`}>
+                <p className={`font-semibold ${tenantProfile.status === 'active' ? 'text-nkz-success-strong' : 'text-nkz-danger-strong'}`}>
                   {tenantProfile.status}
                 </p>
               </div>

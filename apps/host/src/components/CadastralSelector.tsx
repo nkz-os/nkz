@@ -159,8 +159,8 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
       </form>
 
       {error && (
-        <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg flex items-start gap-2">
-          <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
+        <div className="mb-4 p-3 bg-nkz-danger-soft border border-red-200 rounded-lg flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-nkz-danger-strong flex-shrink-0 mt-0.5" />
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}

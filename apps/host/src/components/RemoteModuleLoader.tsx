@@ -51,9 +51,9 @@ class RemoteModuleErrorBoundary extends React.Component<
         return this.props.fallback(this.state.error);
       }
       return (
-        <div className="p-4 bg-nkz-error-light border border-red-200 rounded-md">
+        <div className="p-4 bg-nkz-danger-soft border border-red-200 rounded-md">
           <h3 className="text-red-800 font-semibold">Error loading module</h3>
-          <p className="text-nkz-error text-sm mt-1">
+          <p className="text-nkz-danger-strong text-sm mt-1">
             {this.state.error.message || 'Failed to load remote module'}
           </p>
           <details className="mt-2">
@@ -185,9 +185,9 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
       return <>{errorFallback(loadError)}</>;
     }
     return (
-      <div className="p-4 bg-nkz-error-light border border-red-200 rounded-md">
+      <div className="p-4 bg-nkz-danger-soft border border-red-200 rounded-md">
         <h3 className="text-red-800 font-semibold">Error loading module: {module.displayName}</h3>
-        <p className="text-nkz-error text-sm mt-1">{loadError.message}</p>
+        <p className="text-nkz-danger-strong text-sm mt-1">{loadError.message}</p>
         {!isLocal && module.remoteEntry && (
           <p className="text-nkz-muted text-xs mt-2">
             Remote Entry: {module.remoteEntry}

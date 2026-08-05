@@ -225,7 +225,7 @@ export const HeartbeatListener: React.FC<HeartbeatListenerProps> = ({
                     className="h-1 flex-1 bg-gray-300 rounded-full overflow-hidden"
                   >
                     <div
-                      className="h-full bg-nkz-info-light0 rounded-full animate-pulse"
+                      className="h-full bg-nkz-info rounded-full animate-pulse"
                       style={{
                         animationDelay: `${i * 200}ms`,
                         width: '100%',

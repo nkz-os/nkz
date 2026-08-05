@@ -122,11 +122,11 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-lg ${
               isBlockedByDependencies 
-                ? 'bg-nkz-error-light' 
+                ? 'bg-nkz-danger-soft' 
                 : 'bg-orange-100'
             }`}>
               {isBlockedByDependencies ? (
-                <AlertCircle className="w-5 h-5 text-nkz-error" />
+                <AlertCircle className="w-5 h-5 text-nkz-danger-strong" />
               ) : (
                 <AlertTriangle className="w-5 h-5 text-orange-600" />
               )}
@@ -158,9 +158,9 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
         <div className="flex-1 overflow-y-auto p-6">
           {/* Dependency Warning (if blocked) */}
           {isBlockedByDependencies && hasDependencies && (
-            <div className="mb-6 p-4 bg-nkz-error-light border border-red-200 rounded-lg">
+            <div className="mb-6 p-4 bg-nkz-danger-soft border border-red-200 rounded-lg">
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-nkz-danger-strong flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <h4 className="font-medium text-red-900 mb-2">
                     Dependencias encontradas
@@ -170,7 +170,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
                   </p>
                   <ul className="space-y-2">
                     {dependencies.map((dep, idx) => (
-                      <li key={idx} className="text-sm text-nkz-error">
+                      <li key={idx} className="text-sm text-nkz-danger-strong">
                         <span className="font-medium">{dep.entityName}</span>
                         {' '}tiene{' '}
                         <span className="font-semibold">{dep.dependentCount} {dep.dependentType}</span>
@@ -178,7 +178,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
                       </li>
                     ))}
                   </ul>
-                  <p className="text-sm text-nkz-error mt-3 font-medium">
+                  <p className="text-sm text-nkz-danger-strong mt-3 font-medium">
                     Por favor, elimine o mueva los elementos dependientes antes de continuar.
                   </p>
                 </div>
@@ -237,7 +237,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
           {!isBlockedByDependencies && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Escribe <strong className="text-nkz-error">{REQUIRED_CONFIRM_TEXT}</strong> para confirmar:
+                Escribe <strong className="text-nkz-danger-strong">{REQUIRED_CONFIRM_TEXT}</strong> para confirmar:
               </label>
               <Input
                 type="text"

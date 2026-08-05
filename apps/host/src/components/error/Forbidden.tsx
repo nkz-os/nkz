@@ -17,8 +17,8 @@ export const Forbidden: React.FC = () => {
         <div className="text-center max-w-2xl">
           {/* Icon */}
           <div className="mb-8 flex justify-center">
-            <div className="p-6 bg-nkz-error-light rounded-full">
-              <Lock className="w-16 h-16 text-nkz-error" />
+            <div className="p-6 bg-nkz-danger-soft rounded-full">
+              <Lock className="w-16 h-16 text-nkz-danger-strong" />
             </div>
           </div>
 

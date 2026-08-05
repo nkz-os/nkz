@@ -89,7 +89,7 @@ export const EntitySearchInput: React.FC<Props> = ({
         <div className="flex items-center gap-2 px-3 py-2 bg-nkz-bg-secondary border border-nkz-border rounded-lg text-sm">
           <MapPin className="w-3.5 h-3.5 text-nkz-muted" />
           <span className="flex-1 truncate text-gray-700">{displayName}</span>
-          <Button onClick={handleClear} className="text-nkz-muted hover:text-nkz-error">
+          <Button onClick={handleClear} className="text-nkz-muted hover:text-nkz-danger-strong">
             <X className="w-4 h-4" />
           </Button>
         </div>

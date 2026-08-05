@@ -75,7 +75,7 @@ const badgeColor = (value: Semaphore) => {
     case 'too_wet':
     case 'too_dry':
     case 'deficit':
-      return 'bg-nkz-error-light text-nkz-error border-red-200';
+      return 'bg-nkz-danger-soft text-nkz-danger-strong border-red-200';
     default:
       return 'bg-nkz-bg-secondary text-gray-600 border-nkz-border';
   }
@@ -119,7 +119,7 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 text-sm text-nkz-error bg-nkz-error-light border border-red-200 rounded px-3 py-2">
+      <div className="flex items-center gap-2 text-sm text-nkz-danger-strong bg-nkz-danger-soft border border-red-200 rounded px-3 py-2">
         <AlertCircle className="w-4 h-4" />
         <span>{error}</span>
       </div>
@@ -235,7 +235,7 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
             {metrics?.water_balance != null && (
               <div className="flex justify-between">
                 <span className="text-gray-600">Balance hídrico:</span>
-                <span className={`font-semibold ${metrics.water_balance >= 0 ? 'text-nkz-success-strong' : 'text-nkz-error'}`}>
+                <span className={`font-semibold ${metrics.water_balance >= 0 ? 'text-nkz-success-strong' : 'text-nkz-danger-strong'}`}>
                   {metrics.water_balance > 0 ? '+' : ''}{safeFixed(metrics.water_balance)} mm
                 </span>
               </div>

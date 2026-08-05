@@ -165,7 +165,7 @@ export const AuditLogsPanel: React.FC = () => {
     if (success) {
       return <CheckCircle className="w-4 h-4 text-nkz-success" />;
     }
-    return <XCircle className="w-4 h-4 text-nkz-error" />;
+    return <XCircle className="w-4 h-4 text-nkz-danger-strong" />;
   };
 
   const formatDate = (dateString: string) => {
@@ -325,9 +325,9 @@ export const AuditLogsPanel: React.FC = () => {
 
       {/* Error Message */}
       {error && (
-        <div className="bg-nkz-error-light border border-red-200 rounded-lg p-4 flex items-center gap-2">
-          <AlertCircle className="w-5 h-5 text-nkz-error" />
-          <span className="text-nkz-error">{error}</span>
+        <div className="bg-nkz-danger-soft border border-red-200 rounded-lg p-4 flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-nkz-danger-strong" />
+          <span className="text-nkz-danger-strong">{error}</span>
         </div>
       )}
 
@@ -394,7 +394,7 @@ export const AuditLogsPanel: React.FC = () => {
                       <td className="px-4 py-3 text-sm">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(log.success)}
-                          <span className={log.success ? 'text-nkz-success-strong' : 'text-nkz-error'}>
+                          <span className={log.success ? 'text-nkz-success-strong' : 'text-nkz-danger-strong'}>
                             {log.success ? 'Success' : 'Failed'}
                           </span>
                         </div>

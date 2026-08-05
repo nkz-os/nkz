@@ -33,7 +33,7 @@ const SemaphoreIcon: React.FC<{
       case 'too_wet':
       case 'too_dry':
       case 'deficit':
-        return 'text-nkz-error bg-nkz-error-light border-red-300';
+        return 'text-nkz-danger-strong bg-nkz-danger-soft border-red-300';
       default:
         return 'text-nkz-muted bg-nkz-bg-secondary border-nkz-border';
     }

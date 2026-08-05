@@ -123,7 +123,7 @@ export const ParcelModulesPanel: React.FC<ParcelModulesPanelProps> = ({ parcelId
                             <span>{t('parcelModules.loading')}</span>
                         </div>
                     ) : loadError ? (
-                        <p className="text-sm text-nkz-error italic">{t('parcelModules.loadError')}</p>
+                        <p className="text-sm text-nkz-danger-strong italic">{t('parcelModules.loadError')}</p>
                     ) : activatableModules.length === 0 ? (
                         <p className="text-sm text-nkz-muted italic">{t('parcelModules.noModules')}</p>
                     ) : (

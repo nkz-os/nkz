@@ -73,7 +73,7 @@ export const EntityList: React.FC<EntityListProps> = ({
             case 'error':
             case 'offline':
             case 'maintenance':
-                return 'bg-nkz-error-light text-nkz-error';
+                return 'bg-nkz-danger-soft text-nkz-danger-strong';
             case 'charging':
                 return 'bg-nkz-warning-soft text-nkz-warning-strong';
             default:

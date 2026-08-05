@@ -159,7 +159,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                 {canEdit && editingId !== parcel.id && (
                   <Button
                     onClick={() => onRemove(parcel.id)}
-                    className="p-1.5 text-red-400 hover:text-nkz-error hover:bg-nkz-error-light rounded transition-colors"
+                    className="p-1.5 text-red-400 hover:text-nkz-danger-strong hover:bg-nkz-danger-soft rounded transition-colors"
                     title={t('parcels.remove_parcel')}
                   >
                     <Trash2 className="w-4 h-4" />

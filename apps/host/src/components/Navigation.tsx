@@ -321,7 +321,7 @@ export const Navigation: React.FC = () => {
               {/* Logout Button (Desktop) */}
               <Button
                 onClick={handleLogout}
-                className="hidden md:flex p-2 text-nkz-muted hover:text-nkz-error hover:bg-nkz-error-light dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                className="hidden md:flex p-2 text-nkz-muted hover:text-nkz-danger-strong hover:bg-nkz-danger-soft dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 title={t('layout.logout', { defaultValue: 'Cerrar sesión' })}
               >
                 <LogOut className="w-5 h-5" />

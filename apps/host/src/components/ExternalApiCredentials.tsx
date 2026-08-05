@@ -229,7 +229,7 @@ export const ExternalApiCredentials: React.FC = () => {
     return (
       <div className="bg-white rounded-lg shadow p-6">
         <div className="text-center py-8">
-          <AlertCircle className="w-12 h-12 text-nkz-error mx-auto mb-4" />
+          <AlertCircle className="w-12 h-12 text-nkz-danger-strong mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Acceso Denegado
           </h3>
@@ -274,11 +274,11 @@ export const ExternalApiCredentials: React.FC = () => {
       </div>
 
       {error && (
-        <div className="mb-4 p-4 bg-nkz-error-light border border-red-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
+        <div className="mb-4 p-4 bg-nkz-danger-soft border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-nkz-danger-strong flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-red-800">Error</p>
-            <p className="text-sm text-nkz-error">{error}</p>
+            <p className="text-sm text-nkz-danger-strong">{error}</p>
           </div>
         </div>
       )}
@@ -555,7 +555,7 @@ export const ExternalApiCredentials: React.FC = () => {
                       </Button>
                       <Button
                         onClick={() => handleDelete(credential.id, credential.service_name)}
-                        className="text-nkz-error hover:text-red-900"
+                        className="text-nkz-danger-strong hover:text-red-900"
                         title={t('delete')}
                       >
                         <Trash2 className="w-4 h-4" />

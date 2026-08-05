@@ -87,7 +87,7 @@ const CoreLayerToggles: React.FC<CoreLayerTogglesProps> = ({ compact = false }) 
                 >
                     <span className={layer.color}>{layer.icon}</span>
                     <span className="flex-1 text-left text-sm">{t(layer.labelKey)}</span>
-                    <div className={`w-3 h-3 rounded-full transition-colors ${isLayerActive(layer.id) ? 'bg-nkz-info-light0' : 'bg-slate-300'
+                    <div className={`w-3 h-3 rounded-full transition-colors ${isLayerActive(layer.id) ? 'bg-nkz-info' : 'bg-slate-300'
                         }`} />
                 </Button>
             ))}

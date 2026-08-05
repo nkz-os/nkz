@@ -37,12 +37,12 @@ const formatExpiration = (t: TFn, daysRemaining?: number | null): { label: strin
     return { label: t('dashboard.plan.no_expiration_data'), tone: 'text-nkz-muted' };
   }
   if (daysRemaining <= 0) {
-    return { label: t('dashboard.plan.expired'), tone: 'text-nkz-error font-semibold' };
+    return { label: t('dashboard.plan.expired'), tone: 'text-nkz-danger-strong font-semibold' };
   }
   const key = daysRemaining === 1 ? 'dashboard.plan.expires_one' : 'dashboard.plan.expires_other';
   const label = t(key, { days: daysRemaining });
   const tone = daysRemaining <= 3
-    ? 'text-nkz-error font-semibold'
+    ? 'text-nkz-danger-strong font-semibold'
     : daysRemaining <= 7
       ? 'text-orange-500 font-semibold'
       : 'text-emerald-600 font-semibold';

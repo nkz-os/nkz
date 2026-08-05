@@ -89,7 +89,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
             {/* Name */}
             <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre de la Parcela <span className="text-nkz-error">*</span>
+                    Nombre de la Parcela <span className="text-nkz-danger-strong">*</span>
                 </label>
                 <Input
                     type="text"
@@ -151,7 +151,7 @@ export const ParcelForm: React.FC<ParcelFormProps> = ({
             {/* Crop Type */}
             <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tipo de Cultivo <span className="text-nkz-error">*</span>
+                    Tipo de Cultivo <span className="text-nkz-danger-strong">*</span>
                 </label>
                 <select
                     value={formData.cropType}

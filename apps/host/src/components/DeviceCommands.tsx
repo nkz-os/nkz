@@ -120,7 +120,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
       case 'sent':
         return <Clock className="w-4 h-4 text-yellow-500" />;
       case 'failed':
-        return <XCircle className="w-4 h-4 text-nkz-error" />;
+        return <XCircle className="w-4 h-4 text-nkz-danger-strong" />;
       default:
         return <Clock className="w-4 h-4 text-nkz-muted" />;
     }
@@ -151,9 +151,9 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
         </h3>
 
         {error && (
-          <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg flex items-center">
-            <AlertCircle className="w-5 h-5 text-nkz-error mr-2" />
-            <span className="text-nkz-error text-sm">{error}</span>
+          <div className="mb-4 p-3 bg-nkz-danger-soft border border-red-200 rounded-lg flex items-center">
+            <AlertCircle className="w-5 h-5 text-nkz-danger-strong mr-2" />
+            <span className="text-nkz-danger-strong text-sm">{error}</span>
           </div>
         )}
 
@@ -272,7 +272,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
                       <span className={`text-xs px-2 py-1 rounded ${
                         cmd.status === 'executed' ? 'bg-nkz-success-soft text-nkz-success-strong' :
                         cmd.status === 'sent' ? 'bg-nkz-warning-soft text-nkz-warning-strong' :
-                        cmd.status === 'failed' ? 'bg-nkz-error-light text-nkz-error' :
+                        cmd.status === 'failed' ? 'bg-nkz-danger-soft text-nkz-danger-strong' :
                         'bg-nkz-bg-secondary text-gray-700'
                       }`}>
                         {cmd.status}

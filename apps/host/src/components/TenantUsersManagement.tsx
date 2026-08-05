@@ -162,7 +162,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
     <>
       <div className="bg-white rounded-lg shadow-sm border border-nkz-border p-6">
         {(usersError || usersSuccess || userActions.error || userActions.success) && (
-          <div className={`mb-4 p-3 rounded-lg ${(usersSuccess || userActions.success) ? 'bg-nkz-success-soft border border-green-200' : 'bg-nkz-error-light border border-red-200'}`}>
+          <div className={`mb-4 p-3 rounded-lg ${(usersSuccess || userActions.success) ? 'bg-nkz-success-soft border border-green-200' : 'bg-nkz-danger-soft border border-red-200'}`}>
             <p className={`text-sm ${(usersSuccess || userActions.success) ? 'text-green-800' : 'text-red-800'}`}>
               {usersSuccess || userActions.success || usersError || userActions.error}
             </p>

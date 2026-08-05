@@ -555,7 +555,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
       case 'yellow':
         return <AlertCircle className="w-6 h-6 text-nkz-warning" />;
       case 'red':
-        return <XCircle className="w-6 h-6 text-nkz-error" />;
+        return <XCircle className="w-6 h-6 text-nkz-danger-strong" />;
       default:
         return <AlertCircle className="w-6 h-6 text-nkz-muted" />;
     }
@@ -568,7 +568,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
       case 'yellow':
         return 'bg-nkz-warning-soft border-yellow-200';
       case 'red':
-        return 'bg-nkz-error-light border-red-200';
+        return 'bg-nkz-danger-soft border-red-200';
       default:
         return 'bg-nkz-bg-secondary border-nkz-border';
     }
@@ -699,11 +699,11 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
       {/* Content */}
       <div className="p-6">
         {error && (
-          <div className="mb-4 p-4 bg-nkz-error-light border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-nkz-error flex-shrink-0 mt-0.5" />
+          <div className="mb-4 p-4 bg-nkz-danger-soft border border-red-200 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-nkz-danger-strong flex-shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-red-800 text-sm font-medium">{t('weather.agro_panel.error')}</p>
-              <p className="text-nkz-error text-sm">{error}</p>
+              <p className="text-nkz-danger-strong text-sm">{error}</p>
             </div>
           </div>
         )}
@@ -810,7 +810,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-gray-600">{t('weather.agro_panel.balance_3_days')}</span>
-                  <span className={`font-medium ${irrigation.balance < 0 ? 'text-nkz-error' : 'text-nkz-success-strong'}`}>
+                  <span className={`font-medium ${irrigation.balance < 0 ? 'text-nkz-danger-strong' : 'text-nkz-success-strong'}`}>
                     {irrigation.balance > 0 ? '+' : ''}{irrigation.balance.toFixed(1)} mm
                   </span>
                 </div>

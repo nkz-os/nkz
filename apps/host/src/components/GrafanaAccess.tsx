@@ -131,7 +131,7 @@ export const GrafanaAccess: React.FC<GrafanaAccessProps> = ({
             )}
           </p>
           {error && (
-            <div className="mb-3 p-2 bg-nkz-error-light border border-red-200 rounded text-sm text-nkz-error flex items-center gap-2">
+            <div className="mb-3 p-2 bg-nkz-danger-soft border border-red-200 rounded text-sm text-nkz-danger-strong flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
               <span>{error}</span>
             </div>

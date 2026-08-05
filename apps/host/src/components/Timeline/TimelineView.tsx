@@ -364,8 +364,8 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
   if (error) {
     return (
-      <div className="border border-red-200 rounded-lg p-4 bg-nkz-error-light/50">
-        <div className="flex items-center gap-2 text-sm text-nkz-error">
+      <div className="border border-red-200 rounded-lg p-4 bg-nkz-danger-soft/50">
+        <div className="flex items-center gap-2 text-sm text-nkz-danger-strong">
           <AlertCircle className="w-4 h-4" />
           <span>{error}</span>
         </div>
@@ -518,7 +518,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             />
             {/* Current time indicator info */}
             {isCurrentTimeInRange && (
-              <div className="absolute top-2 right-2 px-2 py-1 bg-nkz-error-light0/90 text-white text-xs rounded shadow-sm animate-pulse">
+              <div className="absolute top-2 right-2 px-2 py-1 bg-nkz-danger/90 text-white text-xs rounded shadow-sm animate-pulse">
                 Tiempo actual visible
               </div>
             )}

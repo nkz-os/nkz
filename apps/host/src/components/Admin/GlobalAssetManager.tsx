@@ -318,7 +318,7 @@ export const GlobalAssetManager: React.FC = () => {
                 )}
 
                 {error && (
-                    <div className="mt-4 p-3 bg-nkz-error-light text-nkz-error rounded-md flex items-center gap-2">
+                    <div className="mt-4 p-3 bg-nkz-danger-soft text-nkz-danger-strong rounded-md flex items-center gap-2">
                         <AlertCircle className="w-5 h-5 shrink-0" />
                         {error}
                     </div>
@@ -363,7 +363,7 @@ export const GlobalAssetManager: React.FC = () => {
                                     )}
                                     <Button
                                         onClick={() => activeTab === 'public' ? handleDeletePublic(asset.key) : handleDeleteTenant(asset)}
-                                        className="p-2 text-nkz-muted hover:text-nkz-error transition-colors rounded-full hover:bg-nkz-error-light"
+                                        className="p-2 text-nkz-muted hover:text-nkz-danger-strong transition-colors rounded-full hover:bg-nkz-danger-soft"
                                         title="Delete"
                                     >
                                         <Trash2 className="w-5 h-5" />

@@ -224,9 +224,9 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
 
   if (error) {
     return (
-      <div className="p-4 bg-nkz-error-light rounded-lg border border-red-200" style={{ height: `${height}px` }}>
+      <div className="p-4 bg-nkz-danger-soft rounded-lg border border-red-200" style={{ height: `${height}px` }}>
         <div className="flex items-center justify-center h-full">
-          <span className="text-nkz-error">{error}</span>
+          <span className="text-nkz-danger-strong">{error}</span>
         </div>
       </div>
     );

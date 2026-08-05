@@ -185,7 +185,7 @@ export const Sensors: React.FC = () => {
     switch (status) {
       case 'online': return 'bg-nkz-success-soft text-green-800 border-green-200';
       case 'warning': return 'bg-nkz-warning-soft text-yellow-800 border-yellow-200';
-      case 'offline': return 'bg-nkz-error-light text-red-800 border-red-200';
+      case 'offline': return 'bg-nkz-danger-soft text-red-800 border-red-200';
       default: return 'bg-nkz-bg-secondary text-gray-800 border-nkz-border';
     }
   };
@@ -295,7 +295,7 @@ export const Sensors: React.FC = () => {
             </div>
           </div>
           <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
-            <div className="p-2 bg-nkz-error-light rounded-lg"><WifiOff className="w-5 h-5 text-nkz-error" /></div>
+            <div className="p-2 bg-nkz-danger-soft rounded-lg"><WifiOff className="w-5 h-5 text-nkz-danger-strong" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.offline}</div>
               <div className="text-xs text-nkz-muted">{t('sensors.offline')}</div>
@@ -422,8 +422,8 @@ export const Sensors: React.FC = () => {
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(status)}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${status === 'online' ? 'bg-nkz-success-light0 animate-pulse' :
-                                status === 'warning' ? 'bg-nkz-warning-light0' : 'bg-gray-400'
+                            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${status === 'online' ? 'bg-nkz-success animate-pulse' :
+                                status === 'warning' ? 'bg-nkz-warning' : 'bg-gray-400'
                               }`}></span>
                             {getStatusLabel(status)}
                           </span>
@@ -449,13 +449,13 @@ export const Sensors: React.FC = () => {
                           {battery !== undefined ? (
                             <div className="flex items-center gap-2">
                               <Battery className={`w-4 h-4 ${battery > 50 ? 'text-green-500' :
-                                  battery > 20 ? 'text-yellow-500' : 'text-nkz-error'
+                                  battery > 20 ? 'text-yellow-500' : 'text-nkz-danger-strong'
                                 }`} />
                               <span className="text-sm font-medium text-gray-700">{battery}%</span>
                               <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full ${battery > 50 ? 'bg-nkz-success-light0' :
-                                      battery > 20 ? 'bg-nkz-warning-light0' : 'bg-nkz-error-light0'
+                                  className={`h-full rounded-full ${battery > 50 ? 'bg-nkz-success' :
+                                      battery > 20 ? 'bg-nkz-warning' : 'bg-nkz-danger'
                                     }`}
                                   style={{ width: `${Math.min(100, Math.max(0, battery))}%` }}
                                 ></div>
@@ -489,7 +489,7 @@ export const Sensors: React.FC = () => {
                             {canEdit && (
                               <Button
                                 onClick={() => handleDelete(sensor)}
-                                className="inline-flex items-center gap-1 text-sm font-medium text-nkz-error hover:text-red-800 transition px-3 py-1.5 rounded-lg hover:bg-nkz-error-light"
+                                className="inline-flex items-center gap-1 text-sm font-medium text-nkz-danger-strong hover:text-red-800 transition px-3 py-1.5 rounded-lg hover:bg-nkz-danger-soft"
                                 title={t('common.delete')}
                               >
                                 <Trash2 className="w-4 h-4" />

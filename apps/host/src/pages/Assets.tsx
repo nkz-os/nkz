@@ -196,8 +196,8 @@ export const Assets: React.FC = () => {
         )}
 
         {saveError && (
-          <div className="mb-4 p-4 bg-nkz-error-light border border-red-200 rounded-lg flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-nkz-error" />
+          <div className="mb-4 p-4 bg-nkz-danger-soft border border-red-200 rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-nkz-danger-strong" />
             <p className="text-sm font-medium text-red-900">{saveError}</p>
           </div>
         )}

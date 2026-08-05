@@ -67,7 +67,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
       case 'success':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
       case 'error':
-        return <AlertCircle className="w-5 h-5 text-nkz-error" />;
+        return <AlertCircle className="w-5 h-5 text-nkz-danger-strong" />;
       case 'warning':
         return <AlertTriangle className="w-5 h-5 text-yellow-500" />;
       case 'info':
@@ -80,7 +80,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
       case 'success':
         return 'bg-nkz-success-soft border-green-200 text-green-800';
       case 'error':
-        return 'bg-nkz-error-light border-red-200 text-red-800';
+        return 'bg-nkz-danger-soft border-red-200 text-red-800';
       case 'warning':
         return 'bg-nkz-warning-soft border-yellow-200 text-yellow-800';
       case 'info':
