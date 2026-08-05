@@ -140,7 +140,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-nkz-error-light border border-red-200 rounded-lg text-sm text-red-800 flex items-start gap-2">
+        <div className="mb-4 p-3 bg-nkz-danger-soft border border-red-200 rounded-lg text-sm text-red-800 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5" />
           <span>{error}</span>
         </div>

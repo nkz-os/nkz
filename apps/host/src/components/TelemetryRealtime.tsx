@@ -134,10 +134,10 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
 
   if (error && !latestTelemetry) {
     return (
-      <div className="p-4 bg-nkz-error-light rounded-lg border border-red-200">
+      <div className="p-4 bg-nkz-danger-soft rounded-lg border border-red-200">
         <div className="flex items-center">
-          <AlertCircle className="w-5 h-5 text-nkz-error mr-2" />
-          <span className="text-nkz-error">{error}</span>
+          <AlertCircle className="w-5 h-5 text-nkz-danger-strong mr-2" />
+          <span className="text-nkz-danger-strong">{error}</span>
         </div>
       </div>
     );
@@ -156,7 +156,7 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">{deviceName}</h3>
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-nkz-success-light0 animate-pulse' : 'bg-gray-400'}`} />
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-nkz-success animate-pulse' : 'bg-gray-400'}`} />
           <span className="text-xs text-gray-600">
             {isConnected 
               ? (latestTelemetry ? formatTimestamp(latestTelemetry.observed_at) : 'Conectado')
@@ -169,10 +169,10 @@ export const TelemetryRealtime: React.FC<TelemetryRealtimeProps> = ({
         {temperature !== null && (
           <div className="bg-gradient-to-br from-red-50 to-orange-50 p-3 rounded-lg border border-red-100">
             <div className="flex items-center justify-between mb-1">
-              <Thermometer className="w-5 h-5 text-nkz-error" />
+              <Thermometer className="w-5 h-5 text-nkz-danger-strong" />
               <span className="text-xs text-gray-600">{getMeasurementUnit('temperature')}</span>
             </div>
-            <div className="text-2xl font-bold text-nkz-error">{temperature.toFixed(1)}</div>
+            <div className="text-2xl font-bold text-nkz-danger-strong">{temperature.toFixed(1)}</div>
             <div className="text-xs text-gray-600 mt-1">{t('sensors.temperature')}</div>
           </div>
         )}

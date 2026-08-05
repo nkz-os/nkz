@@ -15,8 +15,8 @@ interface ParcelRiskPanelProps {
 
 const SEVERITY_STYLES: Record<string, { badge: string; bar: string; label: string }> = {
     critical: {
-        badge: 'bg-nkz-error-light text-red-800 border border-red-200',
-        bar: 'bg-nkz-error-light0',
+        badge: 'bg-nkz-danger-soft text-red-800 border border-red-200',
+        bar: 'bg-nkz-danger',
         label: 'Crítico',
     },
     high: {
@@ -26,7 +26,7 @@ const SEVERITY_STYLES: Record<string, { badge: string; bar: string; label: strin
     },
     medium: {
         badge: 'bg-nkz-warning-soft text-yellow-800 border border-yellow-200',
-        bar: 'bg-nkz-warning-light0',
+        bar: 'bg-nkz-warning',
         label: 'Medio',
     },
     low: {
@@ -72,7 +72,7 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
     );
 
     return (
-        <div className="bg-nkz-error-light rounded-lg border border-red-200">
+        <div className="bg-nkz-danger-soft rounded-lg border border-red-200">
             {/* Section header */}
             <Button
                 className="w-full flex items-center justify-between p-4 text-left"
@@ -82,15 +82,15 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
                     <AlertTriangle className="w-4 h-4" />
                     Riesgos activos
                     {!loading && criticalOrHigh.length > 0 && (
-                        <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-nkz-error-light0 text-white text-xs font-bold">
+                        <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-nkz-danger text-white text-xs font-bold">
                             {criticalOrHigh.length}
                         </span>
                     )}
                 </h4>
                 {collapsed ? (
-                    <ChevronDown className="w-4 h-4 text-nkz-error" />
+                    <ChevronDown className="w-4 h-4 text-nkz-danger-strong" />
                 ) : (
-                    <ChevronUp className="w-4 h-4 text-nkz-error" />
+                    <ChevronUp className="w-4 h-4 text-nkz-danger-strong" />
                 )}
             </Button>
 
@@ -149,7 +149,7 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
 
                     {/* Configure alerts shortcut */}
                     <Button
-                        className="flex items-center gap-1 text-xs text-nkz-error hover:text-red-900 hover:underline"
+                        className="flex items-center gap-1 text-xs text-nkz-danger-strong hover:text-red-900 hover:underline"
                         onClick={() => navigate('/alerts')}
                     >
                         <Settings2 className="w-3 h-3" />

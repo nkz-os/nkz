@@ -323,7 +323,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
         <Button
           type="button"
           onClick={handleClear}
-          className="px-3 py-1.5 bg-white border border-nkz-border rounded text-sm hover:bg-nkz-error-light hover:text-nkz-error hover:border-red-200 flex items-center gap-1 transition-colors"
+          className="px-3 py-1.5 bg-white border border-nkz-border rounded text-sm hover:bg-nkz-danger-soft hover:text-nkz-danger-strong hover:border-red-200 flex items-center gap-1 transition-colors"
         >
           <Eraser className="w-4 h-4" /> {t('wizard.array.clearAnchor')}
         </Button>

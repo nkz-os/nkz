@@ -19,7 +19,7 @@ const SEVERITY_COLORS: Record<string, string> = {
   low: 'bg-nkz-bg-secondary text-gray-700',
   medium: 'bg-nkz-warning-soft text-yellow-800',
   high: 'bg-orange-100 text-orange-800',
-  critical: 'bg-nkz-error-light text-red-800',
+  critical: 'bg-nkz-danger-soft text-red-800',
 };
 
 export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly = false }) => {
@@ -110,7 +110,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
       {showForm && !readOnly && (
         <form onSubmit={handleCreate} className="px-6 py-4 bg-nkz-bg-secondary dark:bg-gray-700/40 border-b border-nkz-border dark:border-gray-700 space-y-3">
           {formError && (
-            <p className="text-sm text-nkz-error dark:text-red-400">{formError}</p>
+            <p className="text-sm text-nkz-danger-strong dark:text-red-400">{formError}</p>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
@@ -184,7 +184,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
             <div className="inline-block w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : error ? (
-          <div className="px-6 py-4 text-sm text-nkz-error dark:text-red-400">{error}</div>
+          <div className="px-6 py-4 text-sm text-nkz-danger-strong dark:text-red-400">{error}</div>
         ) : webhooks.length === 0 ? (
           <div className="px-6 py-8 text-center text-sm text-nkz-muted dark:text-nkz-muted">
             <Webhook className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -206,7 +206,7 @@ export const RiskWebhooksPanel: React.FC<RiskWebhooksPanelProps> = ({ readOnly =
               {!readOnly && (
                 <Button
                   onClick={() => handleDelete(wh.id)}
-                  className="shrink-0 p-1.5 text-nkz-muted hover:text-nkz-error transition rounded"
+                  className="shrink-0 p-1.5 text-nkz-muted hover:text-nkz-danger-strong transition rounded"
                   title={t('settings.users.delete')}
                 >
                   <Trash2 className="w-4 h-4" />

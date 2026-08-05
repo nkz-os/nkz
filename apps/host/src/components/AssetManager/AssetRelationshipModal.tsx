@@ -225,7 +225,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
               </div>
               <Button
                 onClick={handleRemove}
-                className="flex items-center gap-1 text-xs text-nkz-error hover:text-nkz-error px-2 py-1 rounded hover:bg-nkz-error-light"
+                className="flex items-center gap-1 text-xs text-nkz-danger-strong hover:text-nkz-danger-strong px-2 py-1 rounded hover:bg-nkz-danger-soft"
               >
                 <Unlink className="w-3 h-3" />
                 Quitar
@@ -310,7 +310,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
           {/* Status */}
           <div className="text-sm">
             {error && (
-              <div className="flex items-center gap-2 text-nkz-error">
+              <div className="flex items-center gap-2 text-nkz-danger-strong">
                 <AlertCircle className="w-4 h-4" />
                 {error}
               </div>

@@ -107,7 +107,7 @@ export const ParcelConfirmationModal: React.FC<ParcelConfirmationModalProps> = (
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {t('parcels.parcel_name')} <span className="text-nkz-error">{t('parcels.parcel_name_required')}</span>
+              {t('parcels.parcel_name')} <span className="text-nkz-danger-strong">{t('parcels.parcel_name_required')}</span>
             </label>
             <Input
               type="text"

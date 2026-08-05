@@ -714,7 +714,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-semibold text-gray-700">Selected Geometry</span>
                   {validationError ? (
-                    <span className="text-xs text-nkz-error flex items-center gap-1 font-medium">
+                    <span className="text-xs text-nkz-danger-strong flex items-center gap-1 font-medium">
                       <AlertCircle className="w-3 h-3" /> {validationError}
                     </span>
                   ) : (
@@ -754,7 +754,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
         {currentGeometry && (
           <div className="absolute bottom-4 left-4 bg-white/90 px-3 py-2 rounded shadow text-sm z-10">
             {validationError ? (
-              <div className="flex items-center gap-2 text-nkz-error">
+              <div className="flex items-center gap-2 text-nkz-danger-strong">
                 <AlertCircle className="w-4 h-4" />
                 <span>{validationError}</span>
               </div>

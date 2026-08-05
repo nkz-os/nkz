@@ -95,8 +95,8 @@ export const ForgotPassword: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-nkz-error-light border border-red-200 rounded-lg p-4 flex items-start">
-              <AlertCircle className="h-5 w-5 text-nkz-error mr-3 flex-shrink-0 mt-0.5" />
+            <div className="bg-nkz-danger-soft border border-red-200 rounded-lg p-4 flex items-start">
+              <AlertCircle className="h-5 w-5 text-nkz-danger-strong mr-3 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}

@@ -96,7 +96,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
     active: { bg: 'bg-nkz-success-soft', text: 'text-nkz-success-strong', dot: 'bg-nkz-success-soft0' },
     inactive: { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' },
     maintenance: { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500' },
-    error: { bg: 'bg-nkz-error-light', text: 'text-nkz-error', dot: 'bg-nkz-error-light0' },
+    error: { bg: 'bg-nkz-danger-soft', text: 'text-nkz-danger-strong', dot: 'bg-nkz-danger' },
     offline: { bg: 'bg-slate-100', text: 'text-slate-500', dot: 'bg-slate-400' },
     unknown: { bg: 'bg-slate-50', text: 'text-slate-500', dot: 'bg-slate-300' },
   };

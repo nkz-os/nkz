@@ -82,7 +82,7 @@ const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> =
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
           {saveError && (
-            <div className="p-3 bg-nkz-error-light border border-red-200 rounded-lg text-sm text-nkz-error">{saveError}</div>
+            <div className="p-3 bg-nkz-danger-soft border border-red-200 rounded-lg text-sm text-nkz-danger-strong">{saveError}</div>
           )}
 
           <BasicAttributes />
@@ -167,7 +167,7 @@ export const EntityEditorModal: React.FC<EntityEditorProps> = ({ entityId, entit
       ) : fetchError ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl p-8 text-center max-w-md">
-            <p className="text-nkz-error font-medium mb-2">Error</p>
+            <p className="text-nkz-danger-strong font-medium mb-2">Error</p>
             <p className="text-gray-600 text-sm">{fetchError}</p>
             <Button onClick={onClose} className="mt-4 px-4 py-2 bg-gray-200 rounded-lg text-sm">Cerrar</Button>
           </div>

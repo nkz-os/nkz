@@ -210,7 +210,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               </div>
 
               {parseError && (
-                <div className="flex items-start gap-2 text-sm text-nkz-error bg-nkz-error-light border border-red-200 rounded-lg p-3">
+                <div className="flex items-start gap-2 text-sm text-nkz-danger-strong bg-nkz-danger-soft border border-red-200 rounded-lg p-3">
                   <TriangleAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <span>{parseError}</span>
                 </div>
@@ -303,7 +303,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               </div>
 
               {createError && (
-                <div className="flex items-start gap-2 text-sm text-nkz-error bg-nkz-error-light border border-red-200 rounded-lg p-3">
+                <div className="flex items-start gap-2 text-sm text-nkz-danger-strong bg-nkz-danger-soft border border-red-200 rounded-lg p-3">
                   <TriangleAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <span>{createError}</span>
                 </div>
@@ -324,7 +324,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               {results.created > 0 ? (
                 <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
               ) : (
-                <AlertTriangle className="w-16 h-16 text-nkz-error mx-auto" />
+                <AlertTriangle className="w-16 h-16 text-nkz-danger-strong mx-auto" />
               )}
 
               <div>
@@ -332,7 +332,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                   {results.created} entidad{results.created !== 1 ? 'es' : ''} creada{results.created !== 1 ? 's' : ''}
                 </p>
                 {results.errors.length > 0 && (
-                  <p className="text-sm text-nkz-error mt-1">
+                  <p className="text-sm text-nkz-danger-strong mt-1">
                     {results.errors.length} error{results.errors.length !== 1 ? 'es' : ''}
                   </p>
                 )}
@@ -344,7 +344,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               </div>
 
               {results.errors.length > 0 && (
-                <div className="bg-nkz-error-light border border-red-200 rounded-lg p-3 text-xs text-nkz-error text-left max-h-32 overflow-y-auto">
+                <div className="bg-nkz-danger-soft border border-red-200 rounded-lg p-3 text-xs text-nkz-danger-strong text-left max-h-32 overflow-y-auto">
                   {results.errors.map((e: any, i: number) => (
                     <p key={i}>• {typeof e === 'string' ? e : JSON.stringify(e)}</p>
                   ))}

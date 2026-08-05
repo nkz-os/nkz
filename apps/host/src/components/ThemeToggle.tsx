@@ -66,7 +66,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
         )}
       </div>
       {theme === 'system' && (
-        <span className="absolute -top-1 -right-1 w-2 h-2 bg-nkz-info-light0 rounded-full ring-2 ring-white dark:ring-gray-800" />
+        <span className="absolute -top-1 -right-1 w-2 h-2 bg-nkz-info rounded-full ring-2 ring-white dark:ring-gray-800" />
       )}
     </Button>
   );

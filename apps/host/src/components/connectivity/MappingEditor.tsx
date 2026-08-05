@@ -167,7 +167,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
             </div>
 
             {/* Info Banner */}
-            <div className="flex items-start gap-2 p-3 bg-nkz-info-light0/10 border border-blue-500/30 rounded-lg">
+            <div className="flex items-start gap-2 p-3 bg-nkz-info/10 border border-blue-500/30 rounded-lg">
                 <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-blue-300">
                     Configura cómo los datos del sensor se traducen a atributos estándar SDM.
@@ -229,7 +229,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                 {!readonly && (
                                     <Button
                                         onClick={() => removeMapping(index)}
-                                        className="mt-5 p-2 text-red-400 hover:text-red-300 hover:bg-nkz-error-light0/10 rounded-lg transition-colors"
+                                        className="mt-5 p-2 text-red-400 hover:text-red-300 hover:bg-nkz-danger/10 rounded-lg transition-colors"
                                         title="Eliminar mapeo"
                                     >
                                         <Trash2 className="w-4 h-4" />
@@ -298,7 +298,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
 
             {/* Validation Summary */}
             {Object.keys(errors).length > 0 && (
-                <div className="flex items-center gap-2 p-3 bg-nkz-error-light0/10 border border-red-500/30 rounded-lg">
+                <div className="flex items-center gap-2 p-3 bg-nkz-danger/10 border border-red-500/30 rounded-lg">
                     <AlertCircle className="w-4 h-4 text-red-400" />
                     <p className="text-xs text-red-300">
                         Hay {Object.keys(errors).length} mapeo(s) con errores de validación

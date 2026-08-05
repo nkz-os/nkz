@@ -346,7 +346,7 @@ export const ViewerHeader: React.FC = () => {
                     <div className="py-2 border-t border-slate-200 dark:border-slate-700">
                         <Button
                             onClick={handleLogout}
-                            className="flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg w-[calc(100%-16px)] text-left text-slate-600 dark:text-slate-400 hover:bg-nkz-error-light dark:hover:bg-red-900/20 hover:text-nkz-error dark:hover:text-red-400 transition-all"
+                            className="flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg w-[calc(100%-16px)] text-left text-slate-600 dark:text-slate-400 hover:bg-nkz-danger-soft dark:hover:bg-red-900/20 hover:text-nkz-danger-strong dark:hover:text-red-400 transition-all"
                         >
                             <LogOut className="w-5 h-5" />
                             <span className="font-medium">{t('layout.logout', { defaultValue: 'Cerrar sesión' })}</span>

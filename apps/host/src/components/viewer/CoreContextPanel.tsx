@@ -434,7 +434,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                                 : status === 'idle'
                                     ? 'bg-amber-100 text-amber-700'
                                     : status === 'error'
-                                        ? 'bg-nkz-error-light text-nkz-error'
+                                        ? 'bg-nkz-danger-soft text-nkz-danger-strong'
                                         : 'bg-slate-100 text-slate-600'
                                 }`}>
                                 {status}
@@ -644,8 +644,8 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                     </div>
                 </div>
             ) : telemetryError && !entityData ? (
-                <div className="border border-red-200 rounded-lg p-4 bg-nkz-error-light dark:bg-red-950/30">
-                    <div className="flex items-center gap-2 text-sm text-nkz-error">
+                <div className="border border-red-200 rounded-lg p-4 bg-nkz-danger-soft dark:bg-red-950/30">
+                    <div className="flex items-center gap-2 text-sm text-nkz-danger-strong">
                         <AlertCircle className="w-4 h-4" />
                         <span>{telemetryError}</span>
                     </div>
@@ -656,10 +656,10 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                         {temperature !== null && (
                             <div className="bg-gradient-to-br from-red-50 to-orange-50 p-2 rounded-lg border border-red-100">
                                 <div className="flex items-center justify-between mb-1">
-                                    <Thermometer className="w-4 h-4 text-nkz-error" />
+                                    <Thermometer className="w-4 h-4 text-nkz-danger-strong" />
                                     <span className="text-xs text-slate-600">{getMeasurementUnit('temperature') || '°C'}</span>
                                 </div>
-                                <div className="text-lg font-bold text-nkz-error">{temperature.toFixed(1)}</div>
+                                <div className="text-lg font-bold text-nkz-danger-strong">{temperature.toFixed(1)}</div>
                                 <div className="text-xs text-slate-600 mt-0.5">{t('weather.temperature')}</div>
                             </div>
                         )}

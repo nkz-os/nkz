@@ -187,7 +187,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                     </Button>
                     <Button
                         onClick={handleConfirm}
-                        className="w-9 h-9 rounded-lg bg-nkz-success-light0 hover:bg-green-600 flex items-center justify-center transition-colors"
+                        className="w-9 h-9 rounded-lg bg-nkz-success hover:bg-green-600 flex items-center justify-center transition-colors"
                         title="Confirmar"
                     >
                         <Check className="w-5 h-5 text-white" />

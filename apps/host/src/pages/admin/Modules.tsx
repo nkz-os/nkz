@@ -237,7 +237,7 @@ export const Modules: React.FC = () => {
       <div className="p-6">
         <Card>
           <div className="text-center py-8">
-            <XCircle className="w-12 h-12 text-nkz-error mx-auto mb-4" />
+            <XCircle className="w-12 h-12 text-nkz-danger-strong mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
             <p className="text-gray-600">You need TenantAdmin or PlatformAdmin role to manage modules.</p>
           </div>
@@ -269,7 +269,7 @@ export const Modules: React.FC = () => {
       </div>
 
       {error && (
-        <div className="bg-nkz-error-light border border-red-200 rounded-md p-4">
+        <div className="bg-nkz-danger-soft border border-red-200 rounded-md p-4">
           <p className="text-red-800 text-sm">{error}</p>
         </div>
       )}
@@ -540,7 +540,7 @@ export const Modules: React.FC = () => {
                               >
                                 Install
                               </Button>
-                              <span className="text-xs text-nkz-error mt-1 text-right max-w-[120px]">
+                              <span className="text-xs text-nkz-danger-strong mt-1 text-right max-w-[120px]">
                                 {eligibilityCheck?.reason || t('cannot_install')}
                               </span>
                             </div>

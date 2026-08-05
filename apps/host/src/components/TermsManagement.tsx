@@ -135,7 +135,7 @@ export const TermsManagement: React.FC = () => {
               className={`flex items-center gap-2 p-4 rounded-lg ${
                 message.type === 'success'
                   ? 'bg-nkz-success-soft border border-green-200 text-green-800'
-                  : 'bg-nkz-error-light border border-red-200 text-red-800'
+                  : 'bg-nkz-danger-soft border border-red-200 text-red-800'
               }`}
             >
               {message.type === 'success' ? (
