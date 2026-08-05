@@ -21,6 +21,8 @@ from weather_worker.config import WeatherWorkerConfig
 from weather_worker.providers import OpenMeteoProvider, AEMETProvider
 from weather_worker.processors import MetricsCalculator, DataTransformer
 from weather_worker.storage import TimescaleDBWriter
+from weather_worker.heartbeat import heartbeat
+from weather_worker.health_server import start_health_server
 
 # Configure logging
 logging.basicConfig(
@@ -95,6 +97,7 @@ class WeatherWorker:
             f"ParcelWeatherEngine starting: interval={self.config.PARCEL_ENGINE_INTERVAL_HOURS}h, "
             f"cluster_radius={self.config.PARCEL_ENGINE_CLUSTER_RADIUS_KM}km"
         )
+        heartbeat("parcel-engine")
 
         # Wait for initial DB connection and first municipality cycle
         time.sleep(10)
@@ -113,6 +116,7 @@ class WeatherWorker:
         interval_seconds = self.config.PARCEL_ENGINE_INTERVAL_HOURS * 3600
 
         while True:
+            heartbeat("parcel-engine")
             try:
                 logger.info("ParcelWeatherEngine: starting cycle")
                 stats = parcel_engine.run_once()
@@ -145,6 +149,7 @@ class WeatherWorker:
             f"edr_enabled={self.config.EDR_ENABLED}, "
             f"mqtt_enabled={self.config.METEOALARM_MQTT_ENABLED}"
         )
+        heartbeat("meteoalarm-engine")
 
         # Small delay to let DB connection settle
         time.sleep(5)
@@ -179,6 +184,7 @@ class WeatherWorker:
         # Hourly loop: EDR poll or prune-only.
         interval_seconds = self.config.AEMET_ALERTS_INTERVAL_HOURS * 3600
         while True:
+            heartbeat("meteoalarm-engine")
             try:
                 if self.config.EDR_ENABLED:
                     stats = engine.run_once()
@@ -230,11 +236,30 @@ class WeatherWorker:
             "Municipality worker disabled — parcel engine only. "
             "Municipality forecasts are served statelessly by weather-api."
         )
+        heartbeat("main")
         try:
             while True:
+                heartbeat("main")
                 time.sleep(60)  # keep main thread alive
         except KeyboardInterrupt:
             logger.info("Weather Worker stopped by user")
+
+
+def _thread_staleness_thresholds(config) -> dict:
+    """Per-thread max-staleness (seconds) for the /readyz liveness check.
+
+    Only includes threads that are actually going to be started (mirrors the
+    enable checks in WeatherWorker.run()) -- a disabled engine's thread never
+    exists, so it must never be checked.
+    """
+    thresholds = {
+        "main": config.MAIN_LOOP_HEARTBEAT_MAX_STALENESS_SECONDS,
+    }
+    if config.PARCEL_ENGINE_ENABLED:
+        thresholds["parcel-engine"] = config.PARCEL_ENGINE_HEARTBEAT_MAX_STALENESS_SECONDS
+    if config.METEOALARM_ENABLED or config.AEMET_ALERTS_ENABLED:
+        thresholds["meteoalarm-engine"] = config.METEOALARM_HEARTBEAT_MAX_STALENESS_SECONDS
+    return thresholds
 
 
 def validate_startup_config(config):
@@ -265,7 +290,20 @@ def main():
         logger.info(f"Prometheus metrics server started on {WeatherWorkerConfig.METRICS_HOST}:{WeatherWorkerConfig.METRICS_PORT}")
     except Exception as e:
         logger.warning(f"Failed to start metrics server: {e}")
-    
+
+    # Start the thread-liveness health server (/healthz, /readyz) on a
+    # separate port -- does not touch the Prometheus server above.
+    try:
+        start_health_server(
+            WeatherWorkerConfig.HEALTH_HOST,
+            WeatherWorkerConfig.HEALTH_PORT,
+            _thread_staleness_thresholds(WeatherWorkerConfig),
+            startup_grace_seconds=WeatherWorkerConfig.HEARTBEAT_STARTUP_GRACE_SECONDS,
+        )
+        logger.info(f"Health server started on {WeatherWorkerConfig.HEALTH_HOST}:{WeatherWorkerConfig.HEALTH_PORT}")
+    except Exception as e:
+        logger.warning(f"Failed to start health server: {e}")
+
     # Initialize and run worker
     worker = WeatherWorker()
     

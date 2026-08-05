@@ -61,7 +61,39 @@ class WeatherWorkerConfig:
     # Metrics
     METRICS_HOST: str = os.getenv('METRICS_HOST', '0.0.0.0')
     METRICS_PORT: int = int(os.getenv('METRICS_PORT', '9106'))
-    
+
+    # Thread liveness health check (separate tiny HTTP server; does not
+    # replace/touch the Prometheus /metrics server above)
+    HEALTH_HOST: str = os.getenv('HEALTH_HOST', METRICS_HOST)
+    HEALTH_PORT: int = int(os.getenv('HEALTH_PORT', str(METRICS_PORT + 1)))
+
+    # Generous, per-thread max time (seconds) allowed since a daemon
+    # thread's last heartbeat before /readyz reports it stale. Default is
+    # 3x the thread's own loop interval + a fixed margin, so a slow-but-
+    # alive cycle never trips a false positive -- only a thread that
+    # stopped calling heartbeat() entirely (crashed silently, or hung
+    # forever inside a blocking call) crosses it. Override per-thread via
+    # env if a deployment needs tighter or looser detection.
+    PARCEL_ENGINE_HEARTBEAT_MAX_STALENESS_SECONDS: float = float(os.getenv(
+        'PARCEL_ENGINE_HEARTBEAT_MAX_STALENESS_SECONDS',
+        str(3 * PARCEL_ENGINE_INTERVAL_HOURS * 3600 + 600),
+    ))
+    METEOALARM_HEARTBEAT_MAX_STALENESS_SECONDS: float = float(os.getenv(
+        'METEOALARM_HEARTBEAT_MAX_STALENESS_SECONDS',
+        str(3 * AEMET_ALERTS_INTERVAL_HOURS * 3600 + 600),
+    ))
+    # Main loop just sleeps 60s between iterations -- 3x + a smaller margin.
+    MAIN_LOOP_HEARTBEAT_MAX_STALENESS_SECONDS: float = float(os.getenv(
+        'MAIN_LOOP_HEARTBEAT_MAX_STALENESS_SECONDS', '300'
+    ))
+
+    # Grace period (seconds since process start) before a thread that has
+    # never beaten yet (still inside its startup delay / first cycle) is
+    # reported stale instead of "starting".
+    HEARTBEAT_STARTUP_GRACE_SECONDS: float = float(os.getenv(
+        'HEARTBEAT_STARTUP_GRACE_SECONDS', '180'
+    ))
+
     # Logging
     LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
     
