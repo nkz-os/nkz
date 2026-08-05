@@ -60,7 +60,7 @@ const CoreLayerToggles: React.FC<CoreLayerTogglesProps> = ({ compact = false }) 
                         key={layer.id}
                         onClick={() => toggleLayer(layer.id)}
                         className={`p-2 rounded-lg transition-all ${isLayerActive(layer.id)
-                            ? 'bg-nkz-info-light text-nkz-info border border-blue-200'
+                            ? 'bg-nkz-info-soft text-nkz-info border border-blue-200'
                             : 'hover:bg-slate-50 text-slate-400 border border-transparent'
                             }`}
                         title={t(layer.labelKey)}
@@ -81,7 +81,7 @@ const CoreLayerToggles: React.FC<CoreLayerTogglesProps> = ({ compact = false }) 
                     key={layer.id}
                     onClick={() => toggleLayer(layer.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isLayerActive(layer.id)
-                        ? 'bg-nkz-info-light text-nkz-info border border-blue-200'
+                        ? 'bg-nkz-info-soft text-nkz-info border border-blue-200'
                         : 'hover:bg-slate-50 text-slate-600'
                         }`}
                 >

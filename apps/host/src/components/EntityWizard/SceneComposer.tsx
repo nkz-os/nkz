@@ -178,7 +178,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
             type="button"
             onClick={() => setAutoRotate(!autoRotate)}
             className={`p-1.5 rounded transition ${
-              autoRotate ? 'bg-nkz-info-light text-nkz-info' : 'bg-nkz-bg-secondary text-nkz-muted'
+              autoRotate ? 'bg-nkz-info-soft text-nkz-info' : 'bg-nkz-bg-secondary text-nkz-muted'
             }`}
             title={autoRotate ? 'Detener rotación' : 'Auto-rotar'}
           >

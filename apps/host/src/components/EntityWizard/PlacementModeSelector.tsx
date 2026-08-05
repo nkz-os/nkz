@@ -22,12 +22,12 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                 type="button"
                 onClick={() => onChange('single')}
                 className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'single'
-                        ? 'border-blue-500 bg-nkz-info-light shadow-sm'
+                        ? 'border-blue-500 bg-nkz-info-soft shadow-sm'
                         : 'border-nkz-border hover:border-blue-200 hover:bg-nkz-bg-secondary'
                     }`}
             >
                 <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${mode === 'single' ? 'bg-nkz-info-light text-nkz-info' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
+                    <div className={`p-2 rounded-lg ${mode === 'single' ? 'bg-nkz-info-soft text-nkz-info' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
                         <MousePointer2 className="w-6 h-6" />
                     </div>
                     <div>
@@ -44,18 +44,18 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                 type="button"
                 onClick={() => onChange('stamp')}
                 className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'stamp'
-                        ? 'border-green-500 bg-nkz-success-light shadow-sm'
+                        ? 'border-green-500 bg-nkz-success-soft shadow-sm'
                         : 'border-nkz-border hover:border-green-200 hover:bg-nkz-bg-secondary'
                     }`}
             >
                 <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${mode === 'stamp' ? 'bg-nkz-success-light text-nkz-success' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
+                    <div className={`p-2 rounded-lg ${mode === 'stamp' ? 'bg-nkz-success-soft text-nkz-success' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
                         <Brush className="w-6 h-6" />
                     </div>
                     <div>
                         <div className="font-semibold text-gray-900 flex items-center gap-2">
                             Stamp Mode (Pincel)
-                            <span className="bg-nkz-success-light text-nkz-success-strong text-xs px-2 py-0.5 rounded-full font-bold">GPU INSTANCED</span>
+                            <span className="bg-nkz-success-soft text-nkz-success-strong text-xs px-2 py-0.5 rounded-full font-bold">GPU INSTANCED</span>
                         </div>
                         <p className="text-sm text-nkz-muted mt-1">
                             Pinta vegetación masiva usando instanciado GPU.
@@ -66,7 +66,7 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                 </div>
 
                 {!isVegetation && mode === 'stamp' && (
-                    <div className="mt-3 p-2 bg-nkz-warning-light text-nkz-warning-strong text-xs rounded border border-yellow-200 flex items-center gap-2">
+                    <div className="mt-3 p-2 bg-nkz-warning-soft text-nkz-warning-strong text-xs rounded border border-yellow-200 flex items-center gap-2">
                         <AlertTriangle className="w-3 h-3 flex-shrink-0" />
                         Este modo está diseñado para vegetación (Árboles/Cultivos).
                     </div>

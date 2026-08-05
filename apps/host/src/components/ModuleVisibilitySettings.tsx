@@ -147,13 +147,13 @@ export const ModuleVisibilitySettings: React.FC = () => {
       )}
 
       {success && (
-        <div className="mb-4 p-3 bg-nkz-success-light border border-green-200 rounded-lg text-sm text-green-800">
+        <div className="mb-4 p-3 bg-nkz-success-soft border border-green-200 rounded-lg text-sm text-green-800">
           {success}
         </div>
       )}
 
       {isReadOnly && (
-        <div className="mb-4 p-3 bg-nkz-info-light border border-blue-200 rounded-lg text-sm text-blue-800 flex items-start gap-2">
+        <div className="mb-4 p-3 bg-nkz-info-soft border border-blue-200 rounded-lg text-sm text-blue-800 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 mt-0.5" />
           <span>
             {t('settings.module_visibility.platform_admin_hint', {

@@ -187,7 +187,7 @@ export const Assets: React.FC = () => {
 
         {/* Success/Error Messages */}
         {saveSuccess && (
-          <div className="mb-4 p-4 bg-nkz-success-light border border-green-200 rounded-lg flex items-center gap-2">
+          <div className="mb-4 p-4 bg-nkz-success-soft border border-green-200 rounded-lg flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-nkz-success" />
             <p className="text-sm font-medium text-green-900">
               Activo creado exitosamente

@@ -321,13 +321,13 @@ const RuleGroupView: React.FC<RuleGroupViewProps> = ({
       <div className="flex gap-3 pt-2">
         <Button 
           onClick={() => onAddCondition(path)}
-          className="text-[10px] font-black bg-nkz-success-light text-nkz-success-strong px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-200 transition-all active:scale-95"
+          className="text-[10px] font-black bg-nkz-success-soft text-nkz-success-strong px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-200 transition-all active:scale-95"
         >
           <Plus className="w-3.5 h-3.5" /> AÑADIR CONDICIÓN
         </Button>
         <Button 
           onClick={() => onAddSubgroup(path)}
-          className="text-[10px] font-black bg-nkz-info-light text-nkz-info px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-nkz-info-light transition-all active:scale-95"
+          className="text-[10px] font-black bg-nkz-info-soft text-nkz-info px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-nkz-info-soft transition-all active:scale-95"
         >
           <Layers className="w-3.5 h-3.5" /> AÑADIR SUBGRUPO
         </Button>
@@ -376,7 +376,7 @@ const ConditionRow: React.FC<ConditionRowProps> = ({ condition, onUpdate, onRemo
         className="bg-nkz-bg-secondary border-none rounded-xl text-sm font-bold w-full md:w-24 px-4 py-2 outline-none focus:ring-2 focus:ring-green-500" 
       />
 
-      <div className="flex items-center gap-3 bg-nkz-info-light/50 px-4 py-2 rounded-xl border border-blue-100 ml-auto w-full md:w-auto">
+      <div className="flex items-center gap-3 bg-nkz-info-soft/50 px-4 py-2 rounded-xl border border-blue-100 ml-auto w-full md:w-auto">
         <Clock className="w-4 h-4 text-nkz-info" />
         <span className="text-[10px] font-black text-nkz-info uppercase tracking-tighter">Persistencia:</span>
         <Input 

@@ -71,7 +71,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
       {/* Stamp mode: asset library + paint tool */}
       {placementState.mode === 'stamp' && (
         <>
-          <div className="bg-nkz-info-light border border-blue-200 rounded-xl p-4">
+          <div className="bg-nkz-info-soft border border-blue-200 rounded-xl p-4">
             <h4 className="font-semibold text-blue-900 mb-2">Selecciona el activo a pintar</h4>
             <AssetBrowser
               selectedUrl={formData.model3DUrl}
@@ -100,7 +100,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
       {/* Array mode: asset library + grid tool */}
       {placementState.mode === 'array' && (
         <>
-          <div className="bg-nkz-info-light border border-blue-200 rounded-xl p-4">
+          <div className="bg-nkz-info-soft border border-blue-200 rounded-xl p-4">
             <h4 className="font-semibold text-blue-900 mb-2">Selecciona el activo a colocar</h4>
             <AssetBrowser
               selectedUrl={formData.model3DUrl}
@@ -138,7 +138,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
                     key={gt}
                     type="button"
                     onClick={() => updateFormData({ geometryType: gt, geometry: null })}
-                    className={`p-2 rounded border text-sm ${geometryType === gt ? 'border-green-500 bg-nkz-success-light' : 'border-nkz-border hover:border-green-200'}`}
+                    className={`p-2 rounded border text-sm ${geometryType === gt ? 'border-green-500 bg-nkz-success-soft' : 'border-nkz-border hover:border-green-200'}`}
                   >
                     {gt}
                   </Button>
@@ -161,7 +161,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
           />
 
           {assetData?.isSubdivision && assetData.parentEntity && (
-            <div className="p-3 bg-nkz-warning-light border border-yellow-200 rounded-lg text-sm text-yellow-800">
+            <div className="p-3 bg-nkz-warning-soft border border-yellow-200 rounded-lg text-sm text-yellow-800">
               <strong>Padre:</strong> {assetData.parentEntity.name} ({assetData.parentEntity.type})<br />
               <span className="text-xs text-nkz-warning-strong">La geometría debe quedar completamente dentro de los límites del padre.</span>
             </div>

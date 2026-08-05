@@ -289,7 +289,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                 <ParcelModulesPanel parcelId={parcel.id} />
 
                 {/* Ubicación */}
-                <div className="bg-nkz-success-light rounded-lg p-4 border border-green-200">
+                <div className="bg-nkz-success-soft rounded-lg p-4 border border-green-200">
                     <h4 className="text-sm font-semibold text-green-900 mb-3 flex items-center gap-2">
                         <Building2 className="w-4 h-4" />
                         Ubicación
@@ -383,8 +383,8 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                         <div>
                             <span className="text-gray-600">Categoría:</span>
                             <span className={`ml-2 px-2 py-1 rounded-full text-xs font-semibold ${parcel.category === 'cadastral'
-                                ? 'bg-nkz-info-light text-blue-800'
-                                : 'bg-nkz-success-light text-green-800'
+                                ? 'bg-nkz-info-soft text-blue-800'
+                                : 'bg-nkz-success-soft text-green-800'
                                 }`}>
                                 {parcel.category === 'cadastral' ? 'Catastral' : parcel.category === 'managementZone' ? 'Zona de Gestión' : 'Parcela'}
                             </span>
@@ -400,7 +400,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
 
                 {/* Notas */}
                 {parcel.notes && (
-                    <div className="bg-nkz-warning-light rounded-lg p-4 border border-yellow-200">
+                    <div className="bg-nkz-warning-soft rounded-lg p-4 border border-yellow-200">
                         <h4 className="text-sm font-semibold text-yellow-900 mb-2 flex items-center gap-2">
                             <FileText className="w-4 h-4" />
                             Notas

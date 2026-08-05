@@ -129,7 +129,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
                 onClick={() => onSelect(selectedIcon === key ? null : key)}
                 className={`p-3 rounded-lg border-2 transition flex flex-col items-center gap-1 min-w-[70px] ${
                   selectedIcon === key
-                    ? 'border-green-500 bg-nkz-success-light'
+                    ? 'border-green-500 bg-nkz-success-soft'
                     : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary'
                 }`}
               >
@@ -158,7 +158,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
                     onClick={() => onSelect(selectedIcon === key ? null : key)}
                     className={`p-2 rounded-lg border transition flex items-center gap-2 ${
                       selectedIcon === key
-                        ? 'border-green-500 bg-nkz-success-light'
+                        ? 'border-green-500 bg-nkz-success-soft'
                         : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary'
                     }`}
                   >
@@ -174,7 +174,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
 
       {/* Selected indicator */}
       {selectedIcon && (
-        <div className="flex items-center gap-2 text-sm text-nkz-success-strong bg-nkz-success-light px-3 py-2 rounded-lg">
+        <div className="flex items-center gap-2 text-sm text-nkz-success-strong bg-nkz-success-soft px-3 py-2 rounded-lg">
           {(() => {
             const iconData = DEFAULT_ICONS[selectedIcon];
             if (iconData) {

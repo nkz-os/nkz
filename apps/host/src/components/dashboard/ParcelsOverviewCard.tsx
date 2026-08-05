@@ -39,7 +39,7 @@ export const ParcelsOverviewCard: React.FC<ParcelsOverviewCardProps> = ({ parcel
                 className="flex items-center justify-between p-4 bg-nkz-bg-secondary rounded-xl hover:bg-nkz-bg-secondary transition cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-nkz-warning-light text-nkz-warning rounded-lg flex items-center justify-center">
+                  <div className="w-10 h-10 bg-nkz-warning-soft text-nkz-warning rounded-lg flex items-center justify-center">
                     <MapPin className="w-5 h-5" />
                   </div>
                   <div>
@@ -64,7 +64,7 @@ export const ParcelsOverviewCard: React.FC<ParcelsOverviewCardProps> = ({ parcel
             ))}
 
             {parcels.length > 4 && (
-              <Button className="w-full py-3 text-nkz-warning-strong hover:bg-nkz-warning-light rounded-xl transition font-medium">
+              <Button className="w-full py-3 text-nkz-warning-strong hover:bg-nkz-warning-soft rounded-xl transition font-medium">
                 {t('common.view_all_parcels')} ({parcels.length})
               </Button>
             )}

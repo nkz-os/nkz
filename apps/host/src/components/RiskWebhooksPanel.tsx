@@ -17,7 +17,7 @@ interface RiskWebhooksPanelProps {
 
 const SEVERITY_COLORS: Record<string, string> = {
   low: 'bg-nkz-bg-secondary text-gray-700',
-  medium: 'bg-nkz-warning-light text-yellow-800',
+  medium: 'bg-nkz-warning-soft text-yellow-800',
   high: 'bg-orange-100 text-orange-800',
   critical: 'bg-nkz-error-light text-red-800',
 };

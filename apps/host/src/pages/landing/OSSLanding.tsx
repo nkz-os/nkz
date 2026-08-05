@@ -126,7 +126,7 @@ export const OSSLanding: React.FC = () => {
                     onClick={() => handleLanguageChange(code)}
                     className={`block w-full text-left px-4 py-2 text-sm transition-colors ${
                       language === code 
-                        ? 'bg-nkz-success-light text-green-900 font-medium' 
+                        ? 'bg-nkz-success-soft text-green-900 font-medium' 
                         : 'text-gray-700 hover:bg-nkz-bg-secondary'
                     }`}
                   >
@@ -149,7 +149,7 @@ export const OSSLanding: React.FC = () => {
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-green-200/20 rounded-full blur-3xl animate-pulse"></div>
           <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-200/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-nkz-success-light/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-nkz-success-soft/10 rounded-full blur-3xl"></div>
         </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full">

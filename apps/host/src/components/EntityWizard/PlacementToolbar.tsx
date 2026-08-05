@@ -91,7 +91,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
             <div className="bg-white rounded-2xl shadow-2xl border border-nkz-border p-3 flex items-center gap-4">
                 {/* Mode Indicator */}
                 <div className="flex items-center gap-2 pr-3 border-r border-nkz-border">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isPreviewMode ? 'bg-nkz-info-light text-nkz-info' : 'bg-nkz-success-light text-nkz-success'
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isPreviewMode ? 'bg-nkz-info-soft text-nkz-info' : 'bg-nkz-success-soft text-nkz-success'
                         }`}>
                         {isPreviewMode ? <Maximize2 className="w-4 h-4" /> : <Paintbrush className="w-4 h-4" />}
                     </div>

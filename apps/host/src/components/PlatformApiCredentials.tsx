@@ -193,7 +193,7 @@ export const PlatformApiCredentials: React.FC = () => {
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-nkz-info-light rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-nkz-info-soft rounded-lg flex items-center justify-center">
               <Key className="w-5 h-5 text-nkz-info" />
             </div>
             <div>
@@ -223,7 +223,7 @@ export const PlatformApiCredentials: React.FC = () => {
         )}
 
         {success && (
-          <div className="mb-4 p-4 bg-nkz-success-light border border-green-200 rounded-lg flex items-start gap-3">
+          <div className="mb-4 p-4 bg-nkz-success-soft border border-green-200 rounded-lg flex items-start gap-3">
             <CheckCircle className="w-5 h-5 text-nkz-success flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-green-800">Éxito</p>
@@ -236,7 +236,7 @@ export const PlatformApiCredentials: React.FC = () => {
       {/* Copernicus CDSE Section */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-nkz-success-light rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-nkz-success-soft rounded-lg flex items-center justify-center">
             <Globe className="w-5 h-5 text-nkz-success" />
           </div>
           <div className="flex-1">
@@ -246,14 +246,14 @@ export const PlatformApiCredentials: React.FC = () => {
             </p>
           </div>
           {copernicus.configured && (
-            <span className="px-3 py-1 text-xs font-medium rounded-full bg-nkz-success-light text-green-800">
+            <span className="px-3 py-1 text-xs font-medium rounded-full bg-nkz-success-soft text-green-800">
               Configurado
             </span>
           )}
         </div>
 
         <div className="space-y-4">
-          <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-4">
+          <div className="bg-nkz-info-soft border border-blue-200 rounded-lg p-4">
             <div className="flex items-start gap-2">
               <Info className="w-5 h-5 text-nkz-info flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-800">
@@ -345,14 +345,14 @@ export const PlatformApiCredentials: React.FC = () => {
             </p>
           </div>
           {aemet.configured && (
-            <span className="px-3 py-1 text-xs font-medium rounded-full bg-nkz-success-light text-green-800">
+            <span className="px-3 py-1 text-xs font-medium rounded-full bg-nkz-success-soft text-green-800">
               Configurado
             </span>
           )}
         </div>
 
         <div className="space-y-4">
-          <div className="bg-nkz-info-light border border-blue-200 rounded-lg p-4">
+          <div className="bg-nkz-info-soft border border-blue-200 rounded-lg p-4">
             <div className="flex items-start gap-2">
               <Info className="w-5 h-5 text-nkz-info flex-shrink-0 mt-0.5" />
               <div className="text-sm text-blue-800">

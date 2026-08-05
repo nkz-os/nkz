@@ -11,7 +11,7 @@ export const SDMGuideInfo: React.FC = () => {
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-nkz-info-light text-nkz-info hover:bg-nkz-info-light rounded-full text-xs font-semibold transition-colors border border-blue-200"
+        className="flex items-center gap-2 px-3 py-1.5 bg-nkz-info-soft text-nkz-info hover:bg-nkz-info-soft rounded-full text-xs font-semibold transition-colors border border-blue-200"
       >
         <HelpCircle className="w-4 h-4" />
         {t('wizard.sdm_guide.help_button')}
@@ -20,7 +20,7 @@ export const SDMGuideInfo: React.FC = () => {
   }
 
   return (
-    <div className="bg-nkz-info-light border-2 border-blue-200 rounded-xl p-5 relative animate-in fade-in slide-in-from-top-2 duration-200">
+    <div className="bg-nkz-info-soft border-2 border-blue-200 rounded-xl p-5 relative animate-in fade-in slide-in-from-top-2 duration-200">
       <Button 
         onClick={() => setIsOpen(false)}
         className="absolute top-3 right-3 text-blue-400 hover:text-nkz-info transition-colors"

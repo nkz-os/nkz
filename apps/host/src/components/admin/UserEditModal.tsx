@@ -126,7 +126,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
               ))}
 
               {!isPlatformContext && (
-                <div className="bg-nkz-warning-light border border-yellow-200 rounded-lg p-3 mt-3">
+                <div className="bg-nkz-warning-soft border border-yellow-200 rounded-lg p-3 mt-3">
                   <p className="text-xs text-yellow-800">
                     <AlertTriangle className="w-3 h-3 inline mr-1" />
                     {t('settings.users.platform_only_roles_warning', {

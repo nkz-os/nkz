@@ -183,8 +183,8 @@ export const Sensors: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'online': return 'bg-nkz-success-light text-green-800 border-green-200';
-      case 'warning': return 'bg-nkz-warning-light text-yellow-800 border-yellow-200';
+      case 'online': return 'bg-nkz-success-soft text-green-800 border-green-200';
+      case 'warning': return 'bg-nkz-warning-soft text-yellow-800 border-yellow-200';
       case 'offline': return 'bg-nkz-error-light text-red-800 border-red-200';
       default: return 'bg-nkz-bg-secondary text-gray-800 border-nkz-border';
     }
@@ -281,14 +281,14 @@ export const Sensors: React.FC = () => {
       {!loading && sensors.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
-            <div className="p-2 bg-nkz-success-light rounded-lg"><Wifi className="w-5 h-5 text-nkz-success" /></div>
+            <div className="p-2 bg-nkz-success-soft rounded-lg"><Wifi className="w-5 h-5 text-nkz-success" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.online}</div>
               <div className="text-xs text-nkz-muted">{t('sensors.online')}</div>
             </div>
           </div>
           <div className="bg-white rounded-xl border border-nkz-border p-4 flex items-center gap-3">
-            <div className="p-2 bg-nkz-warning-light rounded-lg"><AlertTriangle className="w-5 h-5 text-nkz-warning" /></div>
+            <div className="p-2 bg-nkz-warning-soft rounded-lg"><AlertTriangle className="w-5 h-5 text-nkz-warning" /></div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{healthSummary.warning}</div>
               <div className="text-xs text-nkz-muted">{t('sensors.intermittent')}</div>

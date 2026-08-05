@@ -78,13 +78,13 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
   const getStyles = () => {
     switch (toast.type) {
       case 'success':
-        return 'bg-nkz-success-light border-green-200 text-green-800';
+        return 'bg-nkz-success-soft border-green-200 text-green-800';
       case 'error':
         return 'bg-nkz-error-light border-red-200 text-red-800';
       case 'warning':
-        return 'bg-nkz-warning-light border-yellow-200 text-yellow-800';
+        return 'bg-nkz-warning-soft border-yellow-200 text-yellow-800';
       case 'info':
-        return 'bg-nkz-info-light border-blue-200 text-blue-800';
+        return 'bg-nkz-info-soft border-blue-200 text-blue-800';
     }
   };
 

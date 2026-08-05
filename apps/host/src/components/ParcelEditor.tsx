@@ -147,7 +147,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
       </div>
 
       {/* Drawing Tools */}
-      <div className="mb-6 p-4 bg-nkz-info-light border border-blue-200 rounded-lg">
+      <div className="mb-6 p-4 bg-nkz-info-soft border border-blue-200 rounded-lg">
         <div className="flex items-center gap-2 mb-3">
           <MapIcon className="w-5 h-5 text-nkz-info" />
           <h4 className="font-semibold text-blue-900">Dibujar en Mapa</h4>

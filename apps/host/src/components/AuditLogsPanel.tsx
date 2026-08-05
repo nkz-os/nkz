@@ -387,7 +387,7 @@ export const AuditLogsPanel: React.FC = () => {
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700">
-                        <code className="text-xs bg-nkz-info-light text-nkz-info px-2 py-1 rounded">
+                        <code className="text-xs bg-nkz-info-soft text-nkz-info px-2 py-1 rounded">
                           {log.action}
                         </code>
                       </td>

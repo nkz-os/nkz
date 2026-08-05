@@ -25,12 +25,12 @@ const SEVERITY_STYLES: Record<string, { badge: string; bar: string; label: strin
         label: 'Alto',
     },
     medium: {
-        badge: 'bg-nkz-warning-light text-yellow-800 border border-yellow-200',
+        badge: 'bg-nkz-warning-soft text-yellow-800 border border-yellow-200',
         bar: 'bg-nkz-warning-light0',
         label: 'Medio',
     },
     low: {
-        badge: 'bg-nkz-info-light text-blue-800 border border-blue-200',
+        badge: 'bg-nkz-info-soft text-blue-800 border border-blue-200',
         bar: 'bg-blue-400',
         label: 'Bajo',
     },

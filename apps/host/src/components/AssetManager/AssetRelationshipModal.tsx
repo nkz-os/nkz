@@ -195,7 +195,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-nkz-info-light flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-nkz-info-soft flex items-center justify-center">
               <Link2 className="w-5 h-5 text-nkz-info" />
             </div>
             <div>
@@ -273,12 +273,12 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
                       onClick={() => setSelectedParentId(parent.id)}
                       className={`w-full px-6 py-3 flex items-center gap-3 text-left transition-colors ${
                         isSelected
-                          ? 'bg-nkz-info-light border-l-2 border-blue-500'
+                          ? 'bg-nkz-info-soft border-l-2 border-blue-500'
                           : 'hover:bg-slate-50 border-l-2 border-transparent'
                       }`}
                     >
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                        parent.category === 'parcels' ? 'bg-nkz-success-light' : 'bg-slate-100'
+                        parent.category === 'parcels' ? 'bg-nkz-success-soft' : 'bg-slate-100'
                       }`}>
                         {parent.category === 'parcels' 
                           ? <MapPin className="w-4 h-4 text-nkz-success" />

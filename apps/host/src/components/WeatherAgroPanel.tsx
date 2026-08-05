@@ -564,9 +564,9 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   const getStatusBgColor = (color: string) => {
     switch (color) {
       case 'green':
-        return 'bg-nkz-success-light border-green-200';
+        return 'bg-nkz-success-soft border-green-200';
       case 'yellow':
-        return 'bg-nkz-warning-light border-yellow-200';
+        return 'bg-nkz-warning-soft border-yellow-200';
       case 'red':
         return 'bg-nkz-error-light border-red-200';
       default:
@@ -608,8 +608,8 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                         setSelectedParcelName(p.name);
                         setShowParcelSearch(false);
                       }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-nkz-success-light transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
-                        p.id === selectedParcelId ? 'bg-nkz-success-light' : ''
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-nkz-success-soft transition flex items-center gap-2 border-b border-gray-100 last:border-b-0 ${
+                        p.id === selectedParcelId ? 'bg-nkz-success-soft' : ''
                       }`}
                     >
                       <MapPin className="w-3 h-3 text-green-500 flex-shrink-0" />
@@ -679,7 +679,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                     setCurrentWeather(null);
                     setHistoricalWeather([]);
                   }}
-                  className="w-full px-4 py-2 text-left hover:bg-nkz-success-light transition flex items-center gap-2 border-b border-gray-100 last:border-b-0"
+                  className="w-full px-4 py-2 text-left hover:bg-nkz-success-soft transition flex items-center gap-2 border-b border-gray-100 last:border-b-0"
                 >
                   <MapPin className="w-4 h-4 text-green-500 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-900">

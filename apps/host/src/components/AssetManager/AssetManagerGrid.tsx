@@ -307,7 +307,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               className={`p-1.5 rounded-lg transition-colors ${showFilters || Object.values(filters).some(v =>
                 Array.isArray(v) ? v.length > 0 : v !== '' && v !== null
               )
-                ? 'bg-nkz-info-light text-nkz-info'
+                ? 'bg-nkz-info-soft text-nkz-info'
                 : 'hover:bg-white/10 text-white/60 hover:text-white'
                 }`}
               title={t('entities.assets.filters')}
@@ -410,7 +410,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
       {/* Bulk Actions Bar */}
       {selectedAssets.size > 0 && (
-        <div className="flex-shrink-0 px-4 py-2 bg-nkz-info-light border-b border-blue-100 flex items-center justify-between">
+        <div className="flex-shrink-0 px-4 py-2 bg-nkz-info-soft border-b border-blue-100 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-blue-800">
             <CheckSquare className="w-4 h-4" />
             <span className="font-medium">{t('entities.assets.selected_count', { count: selectedAssets.size })}</span>
@@ -676,7 +676,7 @@ const AssetGridCard: React.FC<AssetGridCardProps> = ({
   return (
     <div
       className={`relative p-3 rounded-xl border transition-all cursor-pointer ${isSelected
-        ? 'border-blue-500 bg-nkz-info-light ring-2 ring-blue-500/20'
+        ? 'border-blue-500 bg-nkz-info-soft ring-2 ring-blue-500/20'
         : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
         }`}
       onClick={onClick}

@@ -191,8 +191,8 @@ export const AssetLibrary: React.FC<AssetLibraryProps> = ({
                   onClick={() => onSelectAsset(asset)}
                   className={`w-full p-3 rounded-lg border-2 transition-all text-left ${
                     isSelected
-                      ? 'border-blue-600 bg-nkz-info-light'
-                      : 'border-nkz-border bg-white hover:border-blue-300 hover:bg-nkz-info-light'
+                      ? 'border-blue-600 bg-nkz-info-soft'
+                      : 'border-nkz-border bg-white hover:border-blue-300 hover:bg-nkz-info-soft'
                   }`}
                 >
                   <div className="flex items-start gap-3">
