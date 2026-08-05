@@ -5,6 +5,10 @@
  * @see https://github.com/nkz-os/nekazari-public/tree/main/packages/sdk
  */
 
+// Ambient window-global declarations (__nekazariAuthContext, __nekazariViewerContextInstance)
+// Side-effect import so the `declare global` augmentation is bundled into dist/index.d.ts.
+import './types/global';
+
 export * from './auth/useAuth';
 export * from './i18n/provider';
 export * from './i18n/config';

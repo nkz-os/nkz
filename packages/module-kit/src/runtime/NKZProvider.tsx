@@ -1,6 +1,7 @@
 import React, { type ReactNode, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NKZContext, type NKZRuntime } from './NKZContext';
+import './globals';
 import type {
   AuthInfo,
   PlanTier,
@@ -18,10 +19,18 @@ import {
   orionEntitiesPath,
 } from './orionPaths';
 
-declare global {
-  interface Window {
-    __nekazariAuthContext?: AuthInfo;
-  }
+/**
+ * Defensive shape of the auth bridge the host may expose on
+ * `window.__nekazariAuthContext` (declared `unknown` — see ./globals.ts).
+ * See apps/host/src/context/KeycloakAuthContext.tsx for the real shape;
+ * only the fields this provider reads are narrowed here.
+ */
+interface HostAuthBridge {
+  user?: { id?: string; email?: string; username?: string; name?: string } | null;
+  tenantId?: string | null;
+  tenantName?: string | null;
+  roles?: string[];
+  isAuthenticated?: boolean;
 }
 
 const PLAN_ORDER: Record<PlanTier, number> = { basic: 0, pro: 1, premium: 2, enterprise: 3 };
@@ -205,12 +214,19 @@ export function NKZProvider({
   queryClient,
   children,
 }: NKZProviderProps): React.ReactElement {
-  const authSnapshot: AuthInfo = window.__nekazariAuthContext ?? {
-    user: null,
-    tenantId: null,
-    tenantName: null,
-    roles: [],
-    isAuthenticated: false,
+  const hostAuth = window.__nekazariAuthContext as HostAuthBridge | undefined;
+  const authSnapshot: AuthInfo = {
+    user: hostAuth?.user
+      ? {
+          id: hostAuth.user.id ?? '',
+          email: hostAuth.user.email ?? '',
+          name: hostAuth.user.name ?? hostAuth.user.username ?? '',
+        }
+      : null,
+    tenantId: hostAuth?.tenantId ?? null,
+    tenantName: hostAuth?.tenantName ?? null,
+    roles: hostAuth?.roles ?? [],
+    isAuthenticated: hostAuth?.isAuthenticated ?? false,
   };
 
   const [lang, setLang] = useState<string>(() => {
@@ -228,21 +244,17 @@ export function NKZProvider({
         hasPlan: (p) => (tenantPlan ? PLAN_ORDER[tenantPlan] >= PLAN_ORDER[p] : false),
       },
       i18n: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        t: (key, vars) => ((window as any).__NKZ_SDK__?.i18n?.t?.(key, vars) ?? key) as string,
+        t: (key, vars) => window.__NKZ_SDK__?.i18n?.t?.(key, vars) ?? key,
         lang,
         setLang: (l) => {
           setLang(l);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (window as any).__NKZ_SDK__?.i18n?.changeLanguage?.(l);
+          window.__NKZ_SDK__?.i18n?.changeLanguage?.(l);
         },
       },
       events: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        emit: (ev, payload) => (window as any).__NKZ__?.events?.emit?.(ev, payload),
+        emit: (ev, payload) => window.__NKZ__?.events?.emit?.(ev, payload),
         on: (ev, handler) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const off = (window as any).__NKZ__?.events?.on?.(ev, handler);
+          const off = window.__NKZ__?.events?.on?.(ev, handler);
           return typeof off === 'function' ? off : () => {};
         },
       },

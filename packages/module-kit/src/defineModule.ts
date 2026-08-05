@@ -45,6 +45,17 @@ export function defineModule(options: ModuleDefinition): ModuleDefinition {
 export type { ModuleDefinition };
 
 /**
+ * A slot widget's real prop shape is unknown here — Zod can't express "is a
+ * React component" so `SlotEntrySchema` validates `component`/`localComponent`
+ * with `z.any()` — and component prop types are contravariant, so no narrower
+ * placeholder could accept every real component. Mirrors
+ * `SlotWidgetDefinition.localComponent` in @nekazari/sdk's types/slots.ts,
+ * which documents the same tradeoff for the same reason.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyComponentRef = React.ComponentType<any> & { displayName?: string; name?: string };
+
+/**
  * Convert a validated ModuleDefinition into the runtime NKZModuleRegistration
  * shape that `window.__NKZ__.register()` accepts.
  *
@@ -62,11 +73,9 @@ export function toNKZRegistration(def: ModuleDefinition): NKZModuleRegistration 
         // Legacy shape: { component: '<string-name>', localComponent: ReactComp }
         // Modern shape: { component: ReactComp } (localComponent absent)
         const legacyLocal = (entry as { localComponent?: unknown }).localComponent as
-          | (React.ComponentType<any> & { displayName?: string; name?: string })
+          | AnyComponentRef
           | undefined;
-        const localRef =
-          legacyLocal ??
-          (entry.component as React.ComponentType<any> & { displayName?: string; name?: string });
+        const localRef = legacyLocal ?? (entry.component as AnyComponentRef);
         const componentName =
           typeof entry.component === 'string'
             ? entry.component
@@ -89,6 +98,8 @@ export function toNKZRegistration(def: ModuleDefinition): NKZModuleRegistration 
     id: def.id,
     version: def.version,
     viewerSlots,
-    main: def.main as React.ComponentType<any> | undefined,
+    // Cast to the field's own declared type (already a justified, documented
+    // `any` in @nekazari/sdk's types/module.ts) rather than restating `any` here.
+    main: def.main as NKZModuleRegistration['main'],
   };
 }

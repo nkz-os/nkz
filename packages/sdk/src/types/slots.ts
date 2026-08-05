@@ -34,8 +34,16 @@ export interface SlotWidgetDefinition {
     layerActive?: string[];
   };
   /** Default props passed to the widget component */
-  defaultProps?: Record<string, any>;
-  /** For local (bundled) widgets: the actual React component reference */
+  defaultProps?: Record<string, unknown>;
+  /**
+   * For local (bundled) widgets: the actual React component reference.
+   * Typed `any` deliberately: a slot widget's real prop shape is unknown to
+   * the host/registry (it's whatever the owning module declared), and prop
+   * types are contravariant — any narrower placeholder (e.g.
+   * `ComponentType<Record<string, unknown>>`) would reject real, specifically
+   * typed components on assignment. This is one of the few defensible `any`s.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   localComponent?: React.ComponentType<any>;
 }
 
