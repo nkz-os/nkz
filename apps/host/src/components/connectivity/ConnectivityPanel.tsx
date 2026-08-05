@@ -224,7 +224,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
             {/* Notifications */}
             {error && (
                 <div className="flex items-center gap-2 p-3 bg-nkz-danger/10 border border-red-500/30 rounded-lg">
-                    <AlertCircle className="w-4 h-4 text-nkz-danger" />
+                    <AlertCircle className="w-4 h-4 text-nkz-danger-strong" />
                     <p className="text-sm text-red-300">{error}</p>
                 </div>
             )}
@@ -355,7 +355,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                             <div className="bg-gray-800 rounded-xl max-w-sm w-full p-6 border border-gray-700 shadow-2xl">
                                 <div className="flex flex-col items-center text-center gap-4">
                                     <div className="p-3 bg-nkz-danger/20 rounded-full">
-                                        <TriangleAlert className="w-8 h-8 text-nkz-danger" />
+                                        <TriangleAlert className="w-8 h-8 text-nkz-danger-strong" />
                                     </div>
                                     <h3 className="text-lg font-bold text-white">¿Regenerar API Key?</h3>
                                     <p className="text-sm text-nkz-muted">
