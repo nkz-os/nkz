@@ -18,8 +18,9 @@ export interface PlatformEvents {
  * Idempotent — safe to call multiple times.
  */
 export function initPlatformEvents(): PlatformEvents {
-  if ((window as any).__NKZ__?.events) {
-    return (window as any).__NKZ__.events;
+  const bridge = window.__NKZ__;
+  if (bridge?.events) {
+    return bridge.events;
   }
 
   const listeners = new Map<string, Set<EventCallback>>();
@@ -29,7 +30,7 @@ export function initPlatformEvents(): PlatformEvents {
       const event: PlatformEvent = {
         type,
         payload,
-        source: (window as any).__NKZ_MODULE_ID__ ?? 'unknown',
+        source: window.__NKZ_MODULE_ID__ ?? 'unknown',
         timestamp: Date.now(),
       };
 
@@ -60,8 +61,8 @@ export function initPlatformEvents(): PlatformEvents {
     },
   };
 
-  if ((window as any).__NKZ__) {
-    (window as any).__NKZ__.events = events;
+  if (bridge) {
+    bridge.events = events;
   }
 
   return events;

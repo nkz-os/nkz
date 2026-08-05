@@ -13,7 +13,13 @@ export interface NKZModuleRegistration {
   viewerSlots?: ModuleViewerSlots;
   /** Optional React provider for module-level context shared across slots */
   provider?: React.ComponentType<{ children: React.ReactNode }>;
-  /** Optional main page component for standalone routing (/modules/<id>) */
+  /**
+   * Optional main page component for standalone routing (/modules/<id>).
+   * Typed `any` deliberately — see {@link SlotWidgetDefinition.localComponent}
+   * in ./slots.ts for the rationale (contravariant component props make any
+   * narrower placeholder reject real, specifically typed components).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   main?: React.ComponentType<any>;
   /** Module version (semver) */
   version?: string;

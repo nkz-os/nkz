@@ -1,6 +1,12 @@
 import { useMemo } from 'react';
 import { NKZClient } from '@nekazari/sdk';
 import { useNKZRuntime } from '../runtime/NKZContext';
+import '../runtime/globals';
+
+/** See runtime/NKZProvider.tsx's HostAuthBridge — only the field this hook reads. */
+interface HostAuthBridgeTenant {
+  tenantId?: string;
+}
 
 /**
  * Preconfigured NKZClient hook. Reads basePath from the module
@@ -18,13 +24,13 @@ export function useAPI(basePath?: string): NKZClient {
     const resolvedBasePath =
       basePath ??
       moduleApi.basePath ??
-      ((typeof window !== 'undefined' &&
-        (window as any).__NKZ_MODULE_BASE_PATH__) as string | undefined) ??
+      (typeof window !== 'undefined' ? window.__NKZ_MODULE_BASE_PATH__ : undefined) ??
       '/api/modules/unknown';
 
-    const getTenantId = () =>
-      (typeof window !== 'undefined' &&
-        (window as any).__nekazariAuthContext?.tenantId) as string | undefined;
+    const getTenantId = (): string | undefined =>
+      typeof window !== 'undefined'
+        ? (window.__nekazariAuthContext as HostAuthBridgeTenant | undefined)?.tenantId
+        : undefined;
 
     return new NKZClient({
       baseUrl: resolvedBasePath,

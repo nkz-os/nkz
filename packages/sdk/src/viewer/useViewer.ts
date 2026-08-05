@@ -9,6 +9,7 @@
  */
 
 import { useContext } from 'react';
+import '../types/global';
 
 // Type definitions for ViewerContext
 export interface ViewerContextValue {
@@ -35,7 +36,16 @@ export interface ViewerContextValue {
   activeContextModule: string | null;
 
   // Cesium viewer reference
-  cesiumViewer: any;
+  /**
+   * Cesium Viewer instance. @nekazari/sdk intentionally does not depend on
+   * `cesium` (kept as a peer-less, lightweight package — see package.json;
+   * the host application itself types this as `any` too, see
+   * apps/host/src/context/ViewerContext.tsx). Typed `unknown` here so it
+   * can't be used accidentally without a cast: consumers that need real
+   * Cesium APIs should narrow at their own call site, e.g.
+   * `cesiumViewer as import('cesium').Viewer`.
+   */
+  cesiumViewer: unknown;
   isViewerReady: boolean;   // true when Cesium Viewer construction is complete
 
   // Entity selection handlers
@@ -53,7 +63,8 @@ export interface ViewerContextValue {
   setLeftPanelOpen: (open: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
   setActiveContextModule: (module: string | null) => void;
-  setCesiumViewer: (viewer: any) => void;
+  /** See {@link ViewerContextValue.cesiumViewer} for why this is `unknown`. */
+  setCesiumViewer: (viewer: unknown) => void;
 }
 
 /**
@@ -80,7 +91,7 @@ export function useViewer(): ViewerContextValue {
   }
 
   // Get the ViewerContext instance from the host
-  const ViewerContext = (window as any).__nekazariViewerContextInstance;
+  const ViewerContext = window.__nekazariViewerContextInstance;
   if (!ViewerContext) {
     throw new Error(
       'ViewerContext is not available. Make sure you are using this hook within the Nekazari platform ' +
@@ -106,7 +117,7 @@ export function useViewerOptional(): ViewerContextValue | null {
   }
 
   // Get the ViewerContext instance from the host
-  const ViewerContext = (window as any).__nekazariViewerContextInstance;
+  const ViewerContext = window.__nekazariViewerContextInstance;
   if (!ViewerContext) {
     return null;
   }

@@ -6,8 +6,17 @@ import type { ComponentType, FC, ReactNode } from 'react';
 interface SlotEntry {
   id: string;
   priority: number;
+  /**
+   * Typed `any` deliberately — a slot widget's real prop shape is unknown
+   * here (it's whatever the owning module declared), and component prop
+   * types are contravariant: any narrower placeholder would reject real,
+   * specifically typed components on assignment. Mirrors
+   * `SlotWidgetDefinition.localComponent` in @nekazari/sdk's types/slots.ts,
+   * which documents the same tradeoff.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   localComponent?: ComponentType<any>;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // ── helper ──────────────────────────────────────────────────────────────────
@@ -52,6 +61,11 @@ export function withModuleProvider(
     result[slotKey] = (entries as SlotEntry[]).map((entry) => {
       const Inner = entry.localComponent;
       if (!Inner) return entry;
+      // `Inner` is `ComponentType<any>` (see SlotEntry above) — the wrapper
+      // forwards whatever props it's given untouched, so it takes on the
+      // same defensible `any` for the same reason (contravariant component
+      // props: no narrower prop type could accept every real component).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const Wrapped: FC<any> = (props: any) =>
         React.createElement(ProviderComponent, null,
           React.createElement(Inner, props),

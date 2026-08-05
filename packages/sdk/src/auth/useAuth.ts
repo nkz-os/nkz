@@ -4,6 +4,7 @@
  */
 
 import { useMemo, useContext } from 'react';
+import '../types/global';
 
 export interface AuthSession {
   token?: string;
@@ -30,22 +31,49 @@ export interface AuthApi {
 }
 
 /**
+ * Defensive shape of the auth bridge the host may expose on
+ * `window.__nekazariAuthContext`. The window global itself is declared
+ * `unknown` (see ../types/global.ts) because the real shape lives in
+ * apps/host's KeycloakAuthContext — an application, not a library the SDK
+ * depends on — and may evolve independently of this package.
+ * `token`/`getToken`/`keycloak.subject` are defensive reads: the current
+ * host intentionally omits the raw token (httpOnly-cookie auth model), but
+ * older/alternate hosts may still expose it this way.
+ */
+interface HostAuthContextLike {
+  token?: string;
+  getToken?: () => string | undefined;
+  tenantId?: string;
+  getTenantId?: () => string | undefined;
+  roles?: string[];
+  isAuthenticated?: boolean;
+  user?: {
+    id?: string;
+    email?: string;
+    username?: string;
+    roles?: string[];
+    tenant?: string;
+  } | null;
+  keycloak?: { subject?: string };
+}
+
+/**
  * Hook que expone la interfaz de autenticación del host.
- * 
+ *
  * Para módulos externos: Intenta acceder al contexto del host a través de window.__nekazariAuthContext
  * Si no está disponible, usa la sesión proporcionada o valores por defecto.
- * 
+ *
  * El host debe exponer el contexto en window.__nekazariAuthContext para que los módulos externos
  * puedan acceder a él sin acoplamiento directo.
  */
 export function useAuth(session?: AuthSession): AuthApi {
   // Try to get auth context from host via window global
   // The host should expose its KeycloakAuthContext here
-  let hostAuthContext: any = null;
-  
+  let hostAuthContext: HostAuthContextLike | null = null;
+
   if (typeof window !== 'undefined') {
     try {
-      hostAuthContext = (window as any).__nekazariAuthContext;
+      hostAuthContext = (window.__nekazariAuthContext as HostAuthContextLike | undefined) ?? null;
     } catch (error) {
       // Silently fall back to session/defaults
     }
