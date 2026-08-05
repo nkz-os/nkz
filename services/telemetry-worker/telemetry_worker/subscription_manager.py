@@ -2,10 +2,20 @@ import os
 import logging
 import requests
 
+from prometheus_client import Counter
 from tenacity import retry, stop_after_attempt, wait_fixed
 from common.ngsi_headers import inject_fiware_headers
 
 logger = logging.getLogger(__name__)
+
+# Incremented whenever creating an Orion-LD subscription fails (non-2xx response
+# or an exception). Ops can alert on a non-zero rate — a persistent failure
+# means a tenant stops receiving telemetry notifications silently.
+SUBSCRIPTION_CREATION_FAILED = Counter(
+    "telemetry_subscription_creation_failed_total",
+    "Orion-LD subscription creations that failed",
+    ["tenant_id", "reason"],
+)
 
 ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
 SERVICE_HOST = os.getenv("SERVICE_HOST", "telemetry-worker-service")
@@ -253,11 +263,17 @@ def _ensure_tenant_subscriptions(tenant_id: str):
                 if res.status_code in [200, 201]:
                     logger.info(f"Created: {sub['description']} for {tenant_id}")
                 else:
+                    SUBSCRIPTION_CREATION_FAILED.labels(
+                        tenant_id=tenant_id, reason=f"http_{res.status_code}"
+                    ).inc()
                     logger.error(
                         f"Failed: {sub['description']} for {tenant_id}: "
                         f"{res.status_code} {res.text}"
                     )
     except Exception as e:
+        SUBSCRIPTION_CREATION_FAILED.labels(
+            tenant_id=tenant_id, reason="exception"
+        ).inc()
         logger.error(f"Error managing subscriptions for {tenant_id}: {e}")
 
 
