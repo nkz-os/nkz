@@ -1,3 +1,8 @@
+// Ambient window-global declarations (__NKZ__, __NKZ_SDK__, __NKZ_MODULE_ID__,
+// __NKZ_MODULE_BASE_PATH__, __nekazariAuthContext). Side-effect import so the
+// `declare global` augmentation is bundled into dist/index.d.ts.
+import './runtime/globals';
+
 // defineModule / schema (A.1)
 export { defineModule, toNKZRegistration } from './defineModule';
 export { withModuleProvider } from './withModuleProvider';
