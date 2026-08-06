@@ -367,7 +367,13 @@ class SyncOrionClient:
         resp.raise_for_status()
         return resp.json()
 
+    def _ensure_context(self, entity: dict[str, Any]) -> dict[str, Any]:
+        if "@context" not in entity:
+            return {"@context": [self.context_url], **entity}
+        return entity
+
     def create_entity(self, entity: dict[str, Any]) -> None:
+        entity = self._ensure_context(entity)
         resp = self._session.post(
             self._url("/ngsi-ld/v1/entities"),
             json=entity,
