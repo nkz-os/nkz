@@ -1586,5 +1586,14 @@
     "statusError": "Error",
     "setupFailed": "Falló la configuración de {{module}}. Usa reintentar para probar de nuevo.",
     "lastError": "Último error: {{error}}"
-  }
+  },
+  "full3DMap": "Mapa 3D Completo",
+  "closeMenu": "Cerrar menú",
+  "openMenu": "Abrir menú",
+  "deleteMapping": "Eliminar mapeo",
+  "spatialPreview": "Previsualización espacial",
+  "selectElevationModel": "Seleccionar modelo de elevación",
+  "deleteVariable": "Eliminar variable",
+  "refreshData": "Refrescar datos",
+  "helpAndTemplates": "Ayuda y plantillas"
 }

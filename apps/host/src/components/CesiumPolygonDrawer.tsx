@@ -1083,7 +1083,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                 type="button"
                 onClick={() => setShowTerrainPicker(!showTerrainPicker)}
                 className="inline-flex items-center justify-center rounded-full bg-black/60 text-white p-2 hover:bg-black/70 transition"
-                aria-label="Seleccionar modelo de elevación"
+                aria-label={t("selectElevationModel")}
                 title={`Modelo actual: ${terrainProvider === 'auto' ? 'Auto' : getTerrainProviderName(terrainProvider as 'idena' | 'ign')}`}
               >
                 <Layers className="w-4 h-4" />

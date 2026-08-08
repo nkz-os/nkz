@@ -136,7 +136,7 @@ export const Navigation: React.FC = () => {
               <Button
                 onClick={() => setMobileDrawerOpen(true)}
                 className="md:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-nkz-bg-secondary dark:hover:bg-gray-800 transition-colors"
-                aria-label="Abrir menú"
+                aria-label={t("openMenu")}
               >
                 <Menu className="h-6 w-6" />
               </Button>

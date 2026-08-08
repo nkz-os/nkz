@@ -9,6 +9,7 @@ import { SmartRiskPanel } from '@/components/SmartRiskPanel';
 import { RiskWebhooksPanel } from '@/components/RiskWebhooksPanel';
 import type { RiskState, RiskCatalog } from '@/types';
 import { Button } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -206,6 +207,7 @@ function ParcelGroup({ entityId, states, catalog }: ParcelGroupProps) {
 // ─── Monitor tab ──────────────────────────────────────────────────────────────
 
 function MonitorTab() {
+  const { t } = useI18n();
   const [states, setStates] = useState<RiskState[]>([]);
   const [catalog, setCatalog] = useState<Map<string, RiskCatalog>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -329,7 +331,7 @@ function MonitorTab() {
             onClick={() => { setLoading(true); loadStates(); }}
             disabled={loading}
             className="p-2 text-nkz-muted hover:text-gray-700 hover:bg-nkz-bg-secondary rounded-lg transition"
-            title="Actualizar"
+            title={t("refresh")}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
@@ -410,7 +412,7 @@ export const Risks: React.FC = () => {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-          <Shield className="text-nkz-success h-8 w-8" />
+          <Shield className="text-nkz-success-strong h-8 w-8" />
           Inteligencia de Riesgos
         </h1>
         <p className="text-nkz-muted mt-1">
