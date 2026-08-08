@@ -404,7 +404,6 @@ function MonitorTab() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export const Risks: React.FC = () => {
-  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TabId>('monitor');
 
   return (
@@ -412,7 +411,7 @@ export const Risks: React.FC = () => {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-          <Shield className="text-nkz-success h-8 w-8" />
+          <Shield className="text-nkz-success-strong h-8 w-8" />
           Inteligencia de Riesgos
         </h1>
         <p className="text-nkz-muted mt-1">
