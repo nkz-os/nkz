@@ -462,9 +462,9 @@ def update_weather_observed_entity(
         if observed_at is None:
             observed_at = datetime.utcnow()
 
-        # Build update payload — @context required for application/ld+json
+        # Build update payload — short attr names only (no @context in attrs body).
+        # The Link header in _make_headers provides the @context for expansion.
         update_payload = {
-            "@context": [CONTEXT_URL] if CONTEXT_URL else [],
             "dateObserved": {
                 "type": "Property",
                 "value": {"@type": "DateTime", "@value": observed_at.isoformat() + "Z"},
@@ -590,12 +590,12 @@ def update_weather_observed_entity(
 
         if headers is None:
             headers = _make_headers(tenant_id)
-        headers["Content-Type"] = "application/ld+json"
-        headers.pop("Link", None)  # @context in body — no Link header per NGSI-LD spec
+        # headers already have application/json + Link from _make_headers.
+        # No Content-Type override — attrs use application/json + Link, no @context in body.
 
-        # Update entity
+        # POST /attrs appends/creates attributes (PATCH only updates pre-existing ones)
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
-        response = requests.patch(
+        response = requests.post(
             orion_url, json=update_payload, headers=headers, timeout=10
         )
 
