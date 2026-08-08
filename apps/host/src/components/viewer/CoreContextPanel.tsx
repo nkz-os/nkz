@@ -625,7 +625,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                         onClick={refreshLatest}
                         disabled={isLoadingLatest}
                         className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
-                        title="Actualizar"
+                        title={t("refresh")}
                     >
                         {isLoadingLatest ? (
                             <Loader2 className="w-3 h-3 animate-spin" />

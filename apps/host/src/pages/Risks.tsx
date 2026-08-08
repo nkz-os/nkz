@@ -9,6 +9,7 @@ import { SmartRiskPanel } from '@/components/SmartRiskPanel';
 import { RiskWebhooksPanel } from '@/components/RiskWebhooksPanel';
 import type { RiskState, RiskCatalog } from '@/types';
 import { Button } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -329,7 +330,7 @@ function MonitorTab() {
             onClick={() => { setLoading(true); loadStates(); }}
             disabled={loading}
             className="p-2 text-nkz-muted hover:text-gray-700 hover:bg-nkz-bg-secondary rounded-lg transition"
-            title="Actualizar"
+            title={t("refresh")}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
@@ -403,6 +404,7 @@ function MonitorTab() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export const Risks: React.FC = () => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TabId>('monitor');
 
   return (

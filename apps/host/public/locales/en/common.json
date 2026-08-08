@@ -1526,5 +1526,14 @@
     "statusError": "Error",
     "setupFailed": "Setup failed for {{module}}. Use retry to try again.",
     "lastError": "Last error: {{error}}"
-  }
+  },
+  "full3DMap": "Full 3D Map",
+  "closeMenu": "Close menu",
+  "openMenu": "Open menu",
+  "deleteMapping": "Delete mapping",
+  "spatialPreview": "Spatial preview",
+  "selectElevationModel": "Select elevation model",
+  "deleteVariable": "Remove variable",
+  "refreshData": "Refresh data",
+  "helpAndTemplates": "Help & templates"
 }

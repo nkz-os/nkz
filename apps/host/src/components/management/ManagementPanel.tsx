@@ -252,7 +252,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                                     onClick={handleSave}
                                     disabled={loading}
                                     className="p-1 text-nkz-success-strong hover:text-nkz-success-strong hover:bg-nkz-success-soft rounded"
-                                    title="Guardar"
+                                    title={t("save")}
                                 >
                                     <Save className="w-4 h-4" />
                                 </Button>

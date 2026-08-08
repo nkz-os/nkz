@@ -6,8 +6,10 @@ import React from 'react';
 import { Layout } from '@/components/Layout';
 import { CesiumMapAdvanced } from '@/components/CesiumMapAdvanced';
 import { Layers } from 'lucide-react';
+import { useI18n } from '@/context/I18nContext';
 
 export const Map3D: React.FC = () => {
+  const { t } = useI18n();
   return (
     <Layout>
       <div className="container mx-auto px-4 py-6">
@@ -23,7 +25,7 @@ export const Map3D: React.FC = () => {
 
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           <CesiumMapAdvanced 
-            title="Mapa 3D Completo"
+            title={t("full3DMap")}
             height="h-[calc(100vh-200px)]"
             showControls={true}
           />
