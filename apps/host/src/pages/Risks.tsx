@@ -9,7 +9,6 @@ import { SmartRiskPanel } from '@/components/SmartRiskPanel';
 import { RiskWebhooksPanel } from '@/components/RiskWebhooksPanel';
 import type { RiskState, RiskCatalog } from '@/types';
 import { Button } from '@nekazari/ui-kit';
-import { useI18n } from '@/context/I18nContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
