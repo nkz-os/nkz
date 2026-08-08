@@ -9,6 +9,7 @@ import { SmartRiskPanel } from '@/components/SmartRiskPanel';
 import { RiskWebhooksPanel } from '@/components/RiskWebhooksPanel';
 import type { RiskState, RiskCatalog } from '@/types';
 import { Button } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -206,6 +207,7 @@ function ParcelGroup({ entityId, states, catalog }: ParcelGroupProps) {
 // ─── Monitor tab ──────────────────────────────────────────────────────────────
 
 function MonitorTab() {
+  const { t } = useI18n();
   const [states, setStates] = useState<RiskState[]>([]);
   const [catalog, setCatalog] = useState<Map<string, RiskCatalog>>(new Map());
   const [loading, setLoading] = useState(true);
