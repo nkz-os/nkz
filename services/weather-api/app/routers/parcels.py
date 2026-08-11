@@ -161,6 +161,18 @@ def _orion_headers(tenant_id: str) -> dict:
     return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
+def _orion_query_headers(tenant_id: str) -> dict:
+    """Headers for Orion READ queries — NO Link/context header.
+
+    The Link header with @context causes Orion-LD to expand attribute names
+    in the q filter (e.g. locatedAt → full URI), which fails to match stored
+    short-name attributes → FALSE-ZERO results.
+    """
+    headers = inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
+    headers.pop("Link", None)
+    return headers
+
+
 def _resolve_parcel_location(parcel_entity: dict) -> Optional[tuple]:
     """Extract (longitude, latitude) from a parcel entity's location attribute."""
     location_attr = parcel_entity.get("location", {})
@@ -264,7 +276,7 @@ def get_parcel_weather(
                 "q": f'locatedAt=="{parcel_id}"',
                 "limit": 1,
             },
-            headers=headers,
+            headers=_orion_query_headers(tenant_id),
             timeout=10,
         )
 
@@ -639,7 +651,7 @@ def get_parcel_agro_status(
         # type (FALSE-ZERO guard: AgriSoilExtended entities won't match type=AgriSoil).
         soil_texture = None
         try:
-            soil_headers = _orion_headers(tenant_id)
+            soil_headers = _orion_query_headers(tenant_id)
             soil_response = requests.get(
                 f"{settings.orion_url}/ngsi-ld/v1/entities",
                 params={
@@ -768,7 +780,7 @@ def get_parcel_agro_status(
                         "q": f'locatedAt=="{parcel_id}"',
                         "limit": 1,
                     },
-                    headers=headers,
+                    headers=_orion_query_headers(tenant_id),
                     timeout=10,
                 )
                 if wo_resp.status_code == 200:
