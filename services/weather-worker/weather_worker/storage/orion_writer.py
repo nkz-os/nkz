@@ -584,13 +584,12 @@ def update_weather_observed_entity(
                 f"Would add parcel {add_parcel_ref} to locatedAt of {entity_id} (not implemented)"
             )
 
-        # Prepare headers
-        if headers is None:
-            headers = {}
-
-        if headers is None:
-            headers = _make_headers(tenant_id)
-        # headers already have application/json + Link from _make_headers.
+        # Prepare headers — always rebuild from scratch. The caller (create
+        # path on 409) may pass headers mutated for ld+json (Link popped,
+        # Content-Type overridden). Attribute fragments MUST use
+        # application/json + Link, never ld+json without @context.
+        headers = _make_headers(tenant_id)
+        # _make_headers returns application/json + Link (has_context_in_body=False).
         # No Content-Type override — attrs use application/json + Link, no @context in body.
 
         # POST /attrs appends/creates attributes (PATCH only updates pre-existing ones)

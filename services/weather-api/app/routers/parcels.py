@@ -255,11 +255,12 @@ def get_parcel_weather(
         if isinstance(ts, dict):
             parcel_slope = float(ts.get("value", 0) or 0)
 
-        # Step 4: Try to find linked WeatherObserved entity in Orion-LD
+        # Step 4: Try to find linked WeatherObserved entity in Orion-LD.
+        # Query by locatedAt relationship only — DO NOT filter by type.
+        # (FALSE-ZERO guard: stored type URI may differ from context expansion.)
         wo_resp = requests.get(
             f"{settings.orion_url}/ngsi-ld/v1/entities",
             params={
-                "type": "WeatherObserved",
                 "q": f'locatedAt=="{parcel_id}"',
                 "limit": 1,
             },
@@ -274,6 +275,17 @@ def get_parcel_weather(
                 wo_entity = wo_data[0]
             elif isinstance(wo_data, dict) and wo_data.get("id"):
                 wo_entity = wo_data
+
+        # Guard: verify the entity has weather-like attributes before using it.
+        # Querying without type filter avoids FALSE-ZERO when the stored type URI
+        # (e.g. saref4agri:WeatherObserved) differs from context expansion.
+        if wo_entity:
+            has_weather_attrs = any(
+                wo_entity.get(k) for k in
+                ("temperature", "dateObserved", "relativeHumidity", "windSpeed")
+            )
+            if not has_weather_attrs:
+                wo_entity = None  # not a WeatherObserved entity — skip
 
         if wo_entity and data_type != "FORECAST":
             # Use cached WeatherObserved for HISTORY only.
@@ -622,14 +634,15 @@ def get_parcel_agro_status(
         if isinstance(ts, dict):
             parcel_slope = float(ts.get("value", 0) or 0)
 
-        # 4.5. Try to get soil texture from AgriSoil entity linked to this parcel
+        # 4.5. Try to get soil texture from AgriSoil/AgriSoilExtended entity
+        # linked to this parcel. Query by relationship only — DO NOT filter by
+        # type (FALSE-ZERO guard: AgriSoilExtended entities won't match type=AgriSoil).
         soil_texture = None
         try:
             soil_headers = _orion_headers(tenant_id)
             soil_response = requests.get(
                 f"{settings.orion_url}/ngsi-ld/v1/entities",
                 params={
-                    "type": "AgriSoil",
                     "q": f"hasAgriParcel=={parcel_id}",
                     "limit": 1,
                 },
@@ -638,6 +651,11 @@ def get_parcel_agro_status(
             )
             if soil_response.status_code == 200:
                 soil_entities = soil_response.json()
+                if isinstance(soil_entities, list) and soil_entities:
+                    soil = soil_entities[0]
+                    # Guard: verify this is actually a soil entity
+                    if not soil.get("horizons"):
+                        soil_entities = []  # skip non-soil entity
                 if isinstance(soil_entities, list) and soil_entities:
                     soil = soil_entities[0]
                     horizons = soil.get("horizons", {}).get("value", [])
@@ -737,13 +755,16 @@ def get_parcel_agro_status(
         except Exception as e:
             logger.warning(f"Could not fetch weather observations: {e}")
 
-        # 5d. Fallback: if no PG data, query WeatherObserved directly from Orion-LD
+        # 5d. Fallback: if no PG data, query WeatherObserved directly from Orion-LD.
+        # Query by locatedAt relationship only — DO NOT filter by type.
+        # The stored entity type may be expanded to a URI (e.g. saref4agri:WeatherObserved)
+        # that differs from the platform context expansion (nkz:WeatherObserved).
+        # Filtering by type=WeatherObserved causes FALSE-ZERO (0 results).
         if not weather_observation:
             try:
                 wo_resp = requests.get(
                     f"{settings.orion_url}/ngsi-ld/v1/entities",
                     params={
-                        "type": "WeatherObserved",
                         "q": f'locatedAt=="{parcel_id}"',
                         "limit": 1,
                     },
@@ -759,6 +780,17 @@ def get_parcel_agro_status(
                         if wo_data.get("id")
                         else []
                     )
+                    if wo_entities:
+                        wo = wo_entities[0]
+                        # Guard: verify the entity has weather-like attributes.
+                        # (Same FALSE-ZERO guard — query without type filter may
+                        # return non-WeatherObserved entities.)
+                        has_weather_attrs = any(
+                            wo.get(k) for k in
+                            ("temperature", "dateObserved", "relativeHumidity", "windSpeed")
+                        )
+                        if not has_weather_attrs:
+                            wo_entities = []  # skip non-weather entity
                     if wo_entities:
                         wo = wo_entities[0]
                         # Normalize NGSI-LD attribute names → internal format

@@ -130,7 +130,9 @@ def orion_router(parcel=None, soil=None, weather_observed=None):
             return orion_response(200, parcel)
         if params.get("type") == "AgriSoil":
             return orion_response(200, soil if soil is not None else [])
-        if params.get("type") == "WeatherObserved":
+        # WeatherObserved queries now match by locatedAt relationship (no type filter —
+        # FALSE-ZERO guard: stored type URI may differ from context expansion).
+        if params.get("q", "").startswith("locatedAt"):
             return orion_response(
                 200, weather_observed if weather_observed is not None else []
             )
