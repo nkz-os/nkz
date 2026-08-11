@@ -33,7 +33,7 @@ spec:
         - name: weather-api
           # Pinned by digest: :latest + pullPolicy Always means a pod restart can
           # silently change running code (frontend-host outage 2026-05-26).
-          image: ghcr.io/nkz-os/nkz/weather-api@sha256:fa59e7408e9c289b45c370a8fc20003bc96f88d1856be0403b0cf93b32c7e2e4  # main c0b19d8: parcel alerts endpoint + lazy flask import fix (#822/#825)
+          image: ghcr.io/nkz-os/nkz/weather-api@sha256:14b54e03b8da8d12b90d9e8284181670feb8fd985012cce3bcbf2044ee136532  # main 7094e26b: fix FALSE-ZERO queries
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
