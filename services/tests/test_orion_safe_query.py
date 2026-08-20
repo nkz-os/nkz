@@ -24,10 +24,10 @@ from common.orion_safe_query import (
 
 class TestSafeCountEntities:
     def test_returns_count_on_200_with_header(self):
-        """Normal case: returns count from X-Total-Count header."""
+        """Normal case: returns count from the NGSI-LD results-count header."""
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.headers = {"X-Total-Count": "42"}
+        mock_resp.headers = {"NGSILD-Results-Count": "42"}
 
         with patch("requests.get", return_value=mock_resp) as mock_get:
             result = safe_count_entities("http://orion:1026", "test", "AgriParcel")
@@ -69,8 +69,12 @@ class TestSafeCountEntities:
             with pytest.raises(OrionQueryError):
                 safe_count_entities("http://orion:1026", "test", "AgriParcel", raise_on_error=True)
 
-    def test_counts_from_response_body_when_no_header(self):
-        """Fallback: count response body when X-Total-Count header is missing."""
+    def test_never_counts_from_response_body(self):
+        """CRITICAL: the body is capped by `limit`, so its length is not a count.
+
+        Returning len(body) here would understate the total and reintroduce the
+        false-zero class of bug this module exists to prevent.
+        """
         mock_resp = Mock()
         mock_resp.status_code = 200
         mock_resp.headers = {}
@@ -78,24 +82,44 @@ class TestSafeCountEntities:
 
         with patch("requests.get", return_value=mock_resp):
             result = safe_count_entities("http://orion:1026", "test", "AgriParcel")
-            assert result == 3
+            assert result == QUERY_FAILED
 
-    def test_graceful_on_malformed_count_header(self):
-        """If X-Total-Count is malformed, fall back to body length."""
+    def test_malformed_count_header_is_a_failure_not_a_guess(self):
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.headers = {"X-Total-Count": "abc"}
+        mock_resp.headers = {"NGSILD-Results-Count": "abc"}
         mock_resp.json.return_value = [{"id": "1"}, {"id": "2"}]
 
         with patch("requests.get", return_value=mock_resp):
             result = safe_count_entities("http://orion:1026", "test", "AgriParcel")
-            assert result == 2, f"Should fall back to body length, got {result}"
+            assert result == QUERY_FAILED
+
+    def test_ignores_ngsi_v2_count_header(self):
+        """X-Total-Count is NGSI-v2. Trusting it silently produced wrong counts."""
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"X-Total-Count": "42"}
+        mock_resp.json.return_value = []
+
+        with patch("requests.get", return_value=mock_resp):
+            assert safe_count_entities("http://orion:1026", "test", "AgriParcel") == QUERY_FAILED
+
+    def test_requests_count_true(self):
+        """The count must be asked for explicitly, or Orion never sends the header."""
+        mock_resp = Mock()
+        mock_resp.status_code = 200
+        mock_resp.headers = {"NGSILD-Results-Count": "7"}
+
+        with patch("requests.get", return_value=mock_resp) as mock_get:
+            safe_count_entities("http://orion:1026", "test", "AgriParcel")
+            url = mock_get.call_args[0][0]
+            assert "count=true" in url
 
     def test_sends_correct_headers(self):
         """Must send NGSILD-Tenant and Link @context headers."""
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.headers = {"X-Total-Count": "0"}
+        mock_resp.headers = {"NGSILD-Results-Count": "0"}
         mock_resp.json.return_value = []
 
         with patch("requests.get", return_value=mock_resp) as mock_get:
@@ -104,6 +128,7 @@ class TestSafeCountEntities:
             headers = kwargs.get("headers", {})
 
             assert headers.get("NGSILD-Tenant") == "tenant-x", "Missing NGSILD-Tenant header"
+            assert headers.get("Fiware-Service") == "tenant-x", "Missing Fiware-Service header"
             assert "Link" in headers, "Missing Link @context header"
             assert "json-ld#context" in headers["Link"], "Link header must reference @context"
 
@@ -111,7 +136,7 @@ class TestSafeCountEntities:
         """Legitimate empty result returns 0, not -1."""
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.headers = {"X-Total-Count": "0"}
+        mock_resp.headers = {"NGSILD-Results-Count": "0"}
 
         with patch("requests.get", return_value=mock_resp):
             result = safe_count_entities("http://orion:1026", "test", "AgriParcel")
