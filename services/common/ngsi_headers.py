@@ -18,11 +18,6 @@ logger = logging.getLogger(__name__)
 # Import the canonical tenant-id normalizer (single source of truth).
 # When running inside a container, /common is on PYTHONPATH.
 try:
-    from log_helpers import redact  # noqa: E402
-except ImportError:
-    def redact(v, _m=200): return str(v)  # fallback
-
-try:
     from tenant_utils import normalize_tenant_id as _canonical_normalize
 except ImportError:
     # Fallback: try relative path (local dev)
@@ -87,8 +82,7 @@ def inject_fiware_headers(
         logger.error(
             "inject_fiware_headers: caller set Content-Type=application/ld+json but no "
             "@context was found in the payload; downgrading to application/json + Link. "
-            "Pass body=<payload> to make the mode explicit. tenant=%s",
-            redact(tenant),
+            "Pass body=<payload> to make the mode explicit."
         )
     # ── Tenant headers (both NGSI-LD standard + legacy FIWARE v2) ──
     if tenant:
