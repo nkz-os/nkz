@@ -280,14 +280,18 @@ def require_auth(_func=None, *, require_hmac: bool = None):
         return decorator
 
 
-def inject_fiware_headers(headers, tenant=None, has_context_in_body=False):
+def inject_fiware_headers(headers, tenant=None, has_context_in_body=False, body=None):
     """Inject NGSI-LD + FIWARE tenant headers for Orion-LD multitenancy.
 
-    Delegates to the canonical implementation in ngsi_headers.py.
+    Delegates to the canonical implementation in ngsi_headers.py. Prefer passing
+    ``body=<payload>`` over the ``has_context_in_body`` flag: the mode is then derived
+    from what is actually sent and cannot drift out of sync with it.
   """
     from ngsi_headers import inject_fiware_headers as _canonical
 
-    return _canonical(headers, tenant=tenant, has_context_in_body=has_context_in_body)
+    return _canonical(
+        headers, tenant=tenant, has_context_in_body=has_context_in_body, body=body
+    )
 
 
 def validate_entity_ownership(entity_id, tenant):
