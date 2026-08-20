@@ -441,10 +441,7 @@ def create_instance(entity_type):
 
         # Send to Orion-LD
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        headers = {
-            'Content-Type': 'application/ld+json'
-        }
-        headers = inject_fiware_headers(headers, g.tenant)
+        headers = inject_fiware_headers({}, g.tenant, body=entity_data)
 
         response = requests.post(orion_url, json=entity_data, headers=headers)
         if response.status_code in [200, 201]:
@@ -506,14 +503,12 @@ def update_instance(entity_type, entity_id):
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
-        # Inject @context for NGSI-LD compliance
-        data['@context'] = CONTEXT_URL
+        # Attribute fragments carry no @context: PATCH /attrs goes as
+        # application/json + Link header (ETSI GS CIM 009 mutual exclusivity).
+        data.pop('@context', None)
 
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
-        headers = {
-            'Content-Type': 'application/ld+json'
-        }
-        headers = inject_fiware_headers(headers, g.tenant)
+        headers = inject_fiware_headers({}, g.tenant, body=data)
 
         response = requests.patch(orion_url, json=data, headers=headers)
         if response.status_code in [200, 204]:
@@ -883,7 +878,7 @@ def provision_robot():
 
         # 4. Create in Orion-LD
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        headers = inject_fiware_headers({'Content-Type': 'application/ld+json'}, tenant_id)
+        headers = inject_fiware_headers({}, tenant_id, body=robot_entity)
         response = requests.post(orion_url, json=robot_entity, headers=headers, timeout=10)
 
         if response.status_code not in [201, 409]:

@@ -543,7 +543,8 @@ def _core_vector_sync_push():
             except Exception as e:
                 logger.debug("Redis cursor check skipped: %s", e)
 
-        headers = inject_fiware_headers({'Content-Type': 'application/ld+json'}, tenant)
+        # Sync pushes attribute fragments (PATCH /attrs), which carry no @context.
+        headers = inject_fiware_headers({}, tenant, has_context_in_body=False)
         # WatermelonDB expects { tableName: [recordId, ...] } (local Watermelon record ids).
         rejected_by_table = {}
 
