@@ -18,6 +18,9 @@ CONTEXT_URL = os.environ.get(
     "http://api-gateway-service:5000/ngsi-ld-context.json"
 )
 
+# Sentinel for "query failed" — distinct from legitimate 0
+QUERY_FAILED = -1
+
 # NGSI-LD returns the total in NGSILD-Results-Count (ETSI GS CIM 009 §6.3.13).
 # X-Total-Count is NGSI-v2 and Orion-LD never sends it. requests exposes headers
 # case-insensitively; the explicit spellings keep plain-dict mocks working too.
@@ -35,9 +38,6 @@ def _read_count_header(headers) -> int:
                 logger.warning("malformed %s=%r", name, raw)
                 return QUERY_FAILED
     return QUERY_FAILED
-
-# Sentinel for "query failed" — distinct from legitimate 0
-QUERY_FAILED = -1
 
 
 class OrionQueryError(Exception):
