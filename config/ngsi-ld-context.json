@@ -607,7 +607,79 @@
       "eppoCode": "https://smartdatamodels.org/dataModel.Agrifood/agroVocConcept",
       "inputMethod": "https://nkz-os.org/ns/inputMethod",
       "refAgriCrop": "https://smartdatamodels.org/dataModel.Agrifood/hasAgriCrop",
-      "Point": "schema:GeoCoordinates"
+      "Point": "schema:GeoCoordinates",
+      "AgriCropDeclaration": {
+        "@id": "https://nkz-os.org/ns/AgriCropDeclaration",
+        "@type": "@id"
+      },
+      "SigpacEnclosure": {
+        "@id": "https://nkz-os.org/ns/SigpacEnclosure",
+        "@type": "@id"
+      },
+      "AgriIrrigation": {
+        "@id": "https://nkz-os.org/ns/AgriIrrigation",
+        "@type": "@id"
+      },
+      "AgriHarvest": {
+        "@id": "https://nkz-os.org/ns/AgriHarvest",
+        "@type": "@id"
+      },
+      "AgriFertilizationPlan": {
+        "@id": "https://nkz-os.org/ns/AgriFertilizationPlan",
+        "@type": "@id"
+      },
+      "AgriSoilCharacterization": {
+        "@id": "https://nkz-os.org/ns/AgriSoilCharacterization",
+        "@type": "@id"
+      },
+      "AgriEcoRegime": {
+        "@id": "https://nkz-os.org/ns/AgriEcoRegime",
+        "@type": "@id"
+      },
+      "dateObserved": "https://smartdatamodels.org/dateObserved",
+      "hasAgriCropDeclaration": {
+        "@id": "https://nkz-os.org/ns/hasAgriCropDeclaration",
+        "@type": "@id"
+      },
+      "hasSigpacEnclosure": {
+        "@id": "https://nkz-os.org/ns/hasSigpacEnclosure",
+        "@type": "@id"
+      },
+      "hasAgriFarm": {
+        "@id": "https://nkz-os.org/ns/hasAgriFarm",
+        "@type": "@id"
+      },
+      "aplicador": "https://nkz-os.org/ns/aplicador",
+      "calidadCosecha": "https://nkz-os.org/ns/calidadCosecha",
+      "campaignYear": "https://nkz-os.org/ns/campaignYear",
+      "cifEntidadHabilitada": "https://nkz-os.org/ns/cifEntidadHabilitada",
+      "contenidoN": "https://nkz-os.org/ns/contenidoN",
+      "contenidoP": "https://nkz-os.org/ns/contenidoP",
+      "declaredArea": "https://nkz-os.org/ns/declaredArea",
+      "declaredCrop": "https://nkz-os.org/ns/declaredCrop",
+      "destinoCosecha": "https://nkz-os.org/ns/destinoCosecha",
+      "dosisAbono": "https://nkz-os.org/ns/dosisAbono",
+      "dosisAplicada": "https://nkz-os.org/ns/dosisAplicada",
+      "dosisFertilizante": "https://nkz-os.org/ns/dosisFertilizante",
+      "ecoregimenTipo": "https://nkz-os.org/ns/ecoregimenTipo",
+      "eligibleArea": "https://nkz-os.org/ns/eligibleArea",
+      "equipoAplicacion": "https://nkz-os.org/ns/equipoAplicacion",
+      "horaAplicacion": "https://nkz-os.org/ns/horaAplicacion",
+      "materiaOrganica": "https://nkz-os.org/ns/materiaOrganica",
+      "parentId": "https://nkz-os.org/ns/parentId",
+      "phSuelo": "https://nkz-os.org/ns/phSuelo",
+      "plagaObjeto": "https://nkz-os.org/ns/plagaObjeto",
+      "produccionCosecha": "https://nkz-os.org/ns/produccionCosecha",
+      "productoROPORef": "https://nkz-os.org/ns/productoROPORef",
+      "regepa": "https://nkz-os.org/ns/regepa",
+      "sigpacReference": "https://nkz-os.org/ns/sigpacReference",
+      "sistemaRiego": "https://nkz-os.org/ns/sistemaRiego",
+      "tenantId": "https://nkz-os.org/ns/tenantId",
+      "texturaSuelo": "https://nkz-os.org/ns/texturaSuelo",
+      "tipoAbono": "https://nkz-os.org/ns/tipoAbono",
+      "tipoFertilizante": "https://nkz-os.org/ns/tipoFertilizante",
+      "volumenRiego": "https://nkz-os.org/ns/volumenRiego",
+      "isActive": "https://nkz-os.org/ns/isActive"
     }
   ]
 }
