@@ -799,10 +799,7 @@ def create_entity_instance(entity_type):
         
         # Send to Orion-LD
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        headers = {
-            'Content-Type': 'application/ld+json'
-        }
-        headers = inject_fiware_headers(headers, g.tenant)
+        headers = inject_fiware_headers({}, g.tenant, body=entity_data)
         
         logger.info(f"Creating entity {entity_id} of type {entity_type} for tenant {g.tenant}")
         logger.debug(f"Entity data: {entity_data}")
@@ -941,10 +938,8 @@ def update_sdm_entity_instance(entity_type, entity_id):
             return jsonify({'error': 'No data provided'}), 400
         
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
-        headers = {
-            'Content-Type': 'application/ld+json'
-        }
-        headers = inject_fiware_headers(headers, g.tenant)
+        # Attribute fragment: no @context in the body -> application/json + Link.
+        headers = inject_fiware_headers({}, g.tenant, body=data)
         
         response = requests.patch(orion_url, json=data, headers=headers)
         if response.status_code in [200, 204]:
@@ -1059,8 +1054,7 @@ def create_entity_batch(entity_type):
 
         # Orion-LD batch create endpoint
         batch_url = f"{ORION_URL}/ngsi-ld/v1/entityOperations/create"
-        headers = {'Content-Type': 'application/ld+json'}
-        headers = inject_fiware_headers(headers, g.tenant)
+        headers = inject_fiware_headers({}, g.tenant, body=ngsi_entities)
 
         response = requests.post(batch_url, json=ngsi_entities, headers=headers)
 

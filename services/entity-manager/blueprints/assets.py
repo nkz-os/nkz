@@ -204,10 +204,7 @@ def create_asset():
 
         # Persist in Orion-LD
         orion_url = f"{os.getenv('ORION_URL')}/ngsi-ld/v1/entities"
-        headers = {
-            'Content-Type': 'application/ld+json'
-        }
-        headers = inject_fiware_headers(headers, tenant_id)
+        headers = inject_fiware_headers({}, tenant_id, body=entity)
 
         response = requests.post(orion_url, json=entity, headers=headers)
 
