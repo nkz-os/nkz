@@ -276,6 +276,25 @@ class TestOrionLdIsolation:
 # PostgreSQL isolation tests (require running PostgreSQL instance)
 # ---------------------------------------------------------------------------
 
+def _pg_connection_is_live(conn) -> bool:
+    """True only if the connection round-trips SELECT 1 as a real database would.
+
+    A stubbed psycopg2 hands back mocks that never raise, so "the connect() call
+    succeeded" proves nothing. A mock cursor returns another mock from fetchone();
+    only a live server returns (1,).
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            row = cur.fetchone()
+    except Exception:
+        return False
+    try:
+        return tuple(row) == (1,)
+    except TypeError:
+        return False
+
+
 @pytest.mark.pg_integration
 class TestPostgresIsolation:
     """Tests that PostgreSQL tenant isolation works.
@@ -286,13 +305,31 @@ class TestPostgresIsolation:
 
     @pytest.fixture(autouse=True)
     def skip_if_no_pg(self):
-        """Skip all tests in this class if PostgreSQL is not reachable."""
+        """Skip all tests in this class unless a real PostgreSQL answers.
+
+        Connecting is not enough to prove that. Several api-gateway test modules
+        install ``sys.modules["psycopg2"] = MagicMock()`` and never remove it, so
+        by the time this runs psycopg2.connect() can return a mock that never
+        raises. The skip then does not fire and the test body asserts against
+        mock rows.
+
+        Round-tripping SELECT 1 is what actually distinguishes a live database
+        from a stub: a mock cursor returns another mock, never (1,).
+        """
         try:
             import psycopg2
             conn = psycopg2.connect(POSTGRES_URL, connect_timeout=2)
-            conn.close()
         except Exception:
             pytest.skip(f"PostgreSQL not reachable at {POSTGRES_URL}")
+
+        try:
+            if not _pg_connection_is_live(conn):
+                pytest.skip("psycopg2 is stubbed in this session — no live PostgreSQL")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def test_pg_insert_and_query_tenant_isolation(self):
         """Insert test rows for two tenants, verify each can only see their own data.
@@ -441,3 +478,53 @@ class TestCrossTenantQuerySafety:
             twice = normalize_tenant_id(once)
             assert once == twice, \
                 f"normalize_tenant_id is NOT idempotent: '{inp}' -> '{once}' -> '{twice}'"
+
+
+# ---------------------------------------------------------------------------
+# Guard for the pg_integration skip fixture
+# ---------------------------------------------------------------------------
+
+
+class TestPgLivenessDiscriminator:
+    """The pg_integration skip must not be fooled by a stubbed psycopg2.
+
+    Five api-gateway test modules install ``sys.modules["psycopg2"] = MagicMock()``
+    and never remove it. Once that has happened, psycopg2.connect() returns a mock
+    that never raises, so a connect-only check reports "PostgreSQL is reachable"
+    and TestPostgresIsolation runs its assertions against mock rows. It then fails
+    for the whole local suite while passing in CI, which deselects the marker.
+    """
+
+    def test_mock_connection_is_not_live(self):
+        from unittest.mock import MagicMock
+
+        assert _pg_connection_is_live(MagicMock()) is False
+
+    def test_real_looking_connection_is_live(self):
+        from unittest.mock import MagicMock
+
+        conn = MagicMock()
+        cur = conn.cursor.return_value.__enter__.return_value
+        cur.fetchone.return_value = (1,)
+        assert _pg_connection_is_live(conn) is True
+
+    def test_unexpected_row_is_not_live(self):
+        from unittest.mock import MagicMock
+
+        conn = MagicMock()
+        conn.cursor.return_value.__enter__.return_value.fetchone.return_value = (42,)
+        assert _pg_connection_is_live(conn) is False
+
+    def test_none_row_is_not_live(self):
+        from unittest.mock import MagicMock
+
+        conn = MagicMock()
+        conn.cursor.return_value.__enter__.return_value.fetchone.return_value = None
+        assert _pg_connection_is_live(conn) is False
+
+    def test_raising_cursor_is_not_live(self):
+        from unittest.mock import MagicMock
+
+        conn = MagicMock()
+        conn.cursor.side_effect = RuntimeError("server closed the connection")
+        assert _pg_connection_is_live(conn) is False
