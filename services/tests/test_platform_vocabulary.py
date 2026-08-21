@@ -18,18 +18,23 @@ A second self-namespace means a second migration.
 
 import json
 import pathlib
+from urllib.parse import urlsplit
 
 import pytest
 
 CONTEXT_FILE = pathlib.Path(__file__).resolve().parents[2] / "config" / "ngsi-ld-context.json"
 PLATFORM_NS = "https://nkz-os.org/ns/"
 
-# Domains that must never appear again, and why.
+# (host, path prefix) pairs that must never appear again, and why. Matched on the parsed
+# host, not as substrings: "nkz-os.org" in a URL also matches evil-nkz-os.org.example.net.
 BANNED = {
-    "nekazari.io": "unregistered domain (NXDOMAIN) — anyone could claim the vocabulary",
-    "smart-data-models.github.io": "returns 404; the canonical host is smartdatamodels.org",
-    "nkz-os.org/sdm-proposals": "second self-namespace — everything platform-owned lives under /ns/",
+    ("nekazari.io", ""): "unregistered domain (NXDOMAIN) — anyone could claim the vocabulary",
+    ("smart-data-models.github.io", ""): "returns 404; the canonical host is smartdatamodels.org",
+    ("nkz-os.org", "/sdm-proposals"): "second self-namespace — platform terms live under /ns/",
 }
+
+PLATFORM_HOST = "nkz-os.org"
+PLATFORM_PATH = "/ns/"
 
 # Terms that have an official Smart Data Model IRI and must use it.
 OFFICIAL = {
@@ -71,6 +76,14 @@ def ctx():
     return doc["@context"][1]
 
 
+def _host_and_path(iri: str):
+    """Split an absolute IRI into (host, path). Non-absolute IRIs yield ("", "")."""
+    parsed = urlsplit(iri)
+    if parsed.scheme not in ("http", "https"):
+        return "", ""
+    return parsed.hostname or "", parsed.path
+
+
 def _iri(v):
     if isinstance(v, str):
         return v
@@ -87,22 +100,34 @@ def test_prefix_points_at_the_platform_namespace(ctx):
     assert ctx["nkz"] == PLATFORM_NS
 
 
-@pytest.mark.parametrize("domain,reason", sorted(BANNED.items()))
-def test_banned_namespace_is_absent(ctx, domain, reason):
-    offenders = [k for k, v in ctx.items() if k != "_comment" and domain in _iri(v)]
-    assert not offenders, f"{domain}: {reason}\nterms: {offenders[:10]}"
-
-
-def test_exactly_one_self_namespace(ctx):
-    """Every platform-owned IRI must sit under the single namespace."""
-    selfish = set()
+@pytest.mark.parametrize("banned,reason", sorted(BANNED.items()))
+def test_banned_namespace_is_absent(ctx, banned, reason):
+    host, path_prefix = banned
+    offenders = []
     for term, v in ctx.items():
         if term == "_comment":
             continue
-        s = _iri(v)
-        if "nkz-os.org" in s or "nekazari" in s:
-            selfish.add(s.rsplit("/", 1)[0] + "/")
-    assert selfish <= {PLATFORM_NS}, f"more than one self-namespace: {selfish}"
+        h, path = _host_and_path(_iri(v))
+        if h == host and path.startswith(path_prefix):
+            offenders.append(term)
+    assert not offenders, f"{host}{path_prefix}: {reason}\nterms: {offenders[:10]}"
+
+
+def test_exactly_one_self_namespace(ctx):
+    """Every platform-owned IRI must sit under the single namespace.
+
+    Host is compared exactly. A substring test would both miss a lookalike host and
+    accept one, which is how vocabularies quietly fork in the first place.
+    """
+    stray = {}
+    for term, v in ctx.items():
+        if term == "_comment":
+            continue
+        iri = _iri(v)
+        host, path = _host_and_path(iri)
+        if host == PLATFORM_HOST and not path.startswith(PLATFORM_PATH):
+            stray[term] = iri
+    assert not stray, f"platform IRIs outside {PLATFORM_NS}: {stray}"
 
 
 @pytest.mark.parametrize("term,expected", sorted(OFFICIAL.items()))
