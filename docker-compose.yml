@@ -35,7 +35,7 @@ services:
       start_period: 10s
 
   mongodb:
-    image: mongo:4.4
+    image: mongo:7.0
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USER:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}
@@ -44,7 +44,7 @@ services:
     volumes:
       - mongo_data:/data/db
     healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.runCommand('ping').ok", "-u", "admin", "-p", "${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}", "--authenticationDatabase", "admin", "--quiet"]
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok", "-u", "admin", "-p", "${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}", "--authenticationDatabase", "admin", "--quiet"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -177,7 +177,7 @@ services:
       start_period: 60s
 
   orion-ld:
-    image: fiware/orion-ld:1.5.1
+    image: fiware/orion-ld:1.12.0
     depends_on:
       mongodb:
         condition: service_healthy
@@ -185,12 +185,12 @@ services:
       ORIONLD_MONGO_HOST: mongodb
       ORIONLD_MONGO_USER: ${MONGODB_ROOT_USER:-admin}
       ORIONLD_MONGO_PASSWORD: ${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev}
-      ORIONLD_MULTI_SERVICE: "TRUE"
-    command: -dbhost mongodb -dbuser ${MONGODB_ROOT_USER:-admin} -dbpwd ${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev} -logLevel WARN
+      ORIONLD_MULTI_TENANCY: "TRUE"
+    command: -dbhost mongodb -dbuser ${MONGODB_ROOT_USER:-admin} -dbpwd ${MONGODB_ROOT_PASSWORD:-nekazari-mongo-dev} -logLevel WARN -mongocOnly -coreContext v1.6
     ports:
       - "1026:1026"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:1026/ngsi-ld/v1/entities?type=Probe&limit=1"]
+      test: ["CMD", "curl", "-f", "http://localhost:1026/version"]
       interval: 10s
       timeout: 5s
       retries: 15
