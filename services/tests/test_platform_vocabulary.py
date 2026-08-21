@@ -5,7 +5,7 @@ The platform vocabulary had fragmented into four self-namespaces:
   https://nekazari.io/vocab       72 terms — the domain was never registered (NXDOMAIN),
                                    so anyone could claim it and define semantics there
   https://nkz-os.org/sdm-proposals  20 terms
-  nkz: -> nekazari.robotika.cloud  82 terms — a vocabulary pinned to a deployment hostname
+  nkz: -> a deployment hostname   82 terms — a vocabulary pinned to where it happens to run
   smart-data-models.github.io       8 terms — a URL shape that 404s, some pointing at a
                                    JSON Schema rather than the type IRI
 
