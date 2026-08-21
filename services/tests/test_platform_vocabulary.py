@@ -64,6 +64,25 @@ ALIASES = [
     ("refVegetationIndex", "hasVegetationIndex"),
 ]
 
+# Entity types the platform actually writes to the broker. A type missing from the
+# context does not fail loudly: NGSI-LD silently expands it against the default
+# vocabulary, so it lands as uri.etsi.org/ngsi-ld/default-context/<Type> and stops
+# matching anything the platform queries for. Three of these were absent and covered
+# most of the entities in the broker.
+WRITTEN_TYPES = [
+    "AgriParcel", "AgriCrop", "AgriSoil", "AgriSoilExtended", "AgriParcelRecord",
+    "AgriParcelOperation", "AgriGreenhouse", "AgriParcelZone", "AgriCropSeason",
+    "WeatherObserved", "WeatherAlert", "EOProduct", "VegetationIndex",
+    "CropHealthAssessment", "CropHealthZoneAssessment", "CropAdvisory",
+    "RiskAssessment", "DiseaseRiskAssessment", "CarbonStock", "CarbonAssessment",
+    "CarbonCalculationRun", "BaselineScenario", "ProjectScenario", "CompostRecipe",
+    "SoilSamplingPoint", "SoilSurvey", "SoilDerivedRaster", "ElevationSource",
+    "DataProcessingJob", "DeviceProfile", "DeviceCommand", "AgriSensor",
+    "WaterStorage", "OpenChannelFlow", "AgriCropDeclaration", "SigpacEnclosure",
+    "AgriPest", "AgriFertilize", "Alert",
+]
+
+
 VALID_TERM_KEYS = {
     "@id", "@type", "@container", "@context", "@language", "@reverse",
     "@prefix", "@protected", "@nest", "@index", "@direction",
@@ -175,3 +194,19 @@ def test_relationship_terms_declare_id_typing(ctx):
         if t not in legal and not (isinstance(t, str) and (t.startswith("http") or ":" in t)):
             bad.append(f"{term}: @type={t!r}")
     assert not bad, bad
+
+
+@pytest.mark.parametrize("entity_type", WRITTEN_TYPES)
+def test_written_type_is_defined(ctx, entity_type):
+    """Every type the platform writes must map to a real IRI.
+
+    An undefined type is not an error at write time — it expands against the default
+    vocabulary and is stored under uri.etsi.org/ngsi-ld/default-context/<Type>, where
+    nothing that queries with this context will find it.
+    """
+    assert entity_type in ctx, (
+        f"{entity_type} is written to the broker but absent from the context; "
+        "it would be stored under the default vocabulary"
+    )
+    iri = _iri(ctx[entity_type])
+    assert iri and not iri.startswith("https://uri.etsi.org/ngsi-ld/default-context/"), iri
