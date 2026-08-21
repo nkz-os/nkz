@@ -266,6 +266,22 @@ class OrionClient:
         resp.raise_for_status()
         return resp.json()
 
+    async def get_subscription(self, subscription_id: str) -> dict[str, Any]:
+        """Retrieve one NGSI-LD subscription by id."""
+        resp = await self._client.get(
+            self._url(f"/ngsi-ld/v1/subscriptions/{subscription_id}"),
+            headers=self._headers("application/json"),
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    async def delete_subscription(self, subscription_id: str) -> None:
+        resp = await self._client.delete(
+            self._url(f"/ngsi-ld/v1/subscriptions/{subscription_id}"),
+            headers=self._headers(),
+        )
+        resp.raise_for_status()
+
     async def create_subscription(self, subscription: dict[str, Any]) -> str:
         """Create an NGSI-LD subscription. Returns the subscription Location."""
         resp = await self._client.post(
@@ -401,6 +417,102 @@ class SyncOrionClient:
         if isinstance(data, dict):
             return data.get("typeList", [])
         return data if isinstance(data, list) else []
+
+    def _batch(self, op: str, entities: list[dict[str, Any]], result_key: str,
+               params: dict[str, str] | None = None) -> dict[str, Any]:
+        """Shared batch driver for create/upsert. Mirrors the async client."""
+        prepared = [self._ensure_context(e) for e in entities]
+        if not prepared:
+            return {result_key: 0, "errors": [], "entity_ids": []}
+
+        resp = self._session.post(
+            self._url(f"/ngsi-ld/v1/entityOperations/{op}"),
+            params=params,
+            json=prepared,
+            headers=self._headers("application/ld+json"),
+            timeout=self.timeout,
+        )
+        entity_ids = [e["id"] for e in prepared if e.get("id")]
+
+        if resp.status_code in (200, 201, 204):
+            return {result_key: len(prepared), "errors": [], "entity_ids": entity_ids}
+
+        if resp.status_code == 207:
+            body = resp.json() if resp.content else {}
+            success = body.get("success", entity_ids)
+            errors = body.get("errors", [])
+            if isinstance(success, list) and success and isinstance(success[0], dict):
+                success_ids = [x.get("id", "") for x in success if x.get("id")]
+            else:
+                success_ids = success if isinstance(success, list) else entity_ids
+            return {result_key: len(success_ids), "errors": errors, "entity_ids": success_ids}
+
+        resp.raise_for_status()
+        return {result_key: 0, "errors": [], "entity_ids": []}
+
+    def create_entities_batch(self, entities: list[dict[str, Any]]) -> dict[str, Any]:
+        """Create multiple entities via POST /ngsi-ld/v1/entityOperations/create."""
+        return self._batch("create", entities, "created")
+
+    def upsert_entities_batch(self, entities: list[dict[str, Any]]) -> dict[str, Any]:
+        """Create-or-update entities via POST /entityOperations/upsert?options=update."""
+        return self._batch("upsert", entities, "upserted", params={"options": "update"})
+
+    def update_entity_attrs(self, entity_id: str, attrs: dict[str, Any]) -> None:
+        # attrs fragments carry no @context -> application/json + Link header.
+        resp = self._session.patch(
+            self._url(f"/ngsi-ld/v1/entities/{entity_id}/attrs"),
+            json=attrs,
+            headers=self._headers("application/json"),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+
+    def append_entity_attrs(
+        self,
+        entity_id: str,
+        attrs: dict[str, Any],
+        overwrite: bool = True,
+    ) -> None:
+        # POST /attrs appends new attributes; PATCH only touches existing ones.
+        params = {} if overwrite else {"options": "noOverwrite"}
+        resp = self._session.post(
+            self._url(f"/ngsi-ld/v1/entities/{entity_id}/attrs"),
+            params=params,
+            json=attrs,
+            headers=self._headers("application/json"),
+            timeout=self.timeout,
+        )
+        if resp.status_code == 207:
+            # Partial append: raise_for_status is a no-op below 400, and silently
+            # dropping rejected attributes violates the platform fail-safe rule.
+            import requests as sync_requests
+
+            raise sync_requests.HTTPError(
+                f"Partial append on {entity_id}: {resp.text[:200]}", response=resp
+            )
+        resp.raise_for_status()
+
+    def create_subscription(self, subscription: dict[str, Any]) -> str:
+        """Create an NGSI-LD subscription. Returns the subscription Location."""
+        resp = self._session.post(
+            self._url("/ngsi-ld/v1/subscriptions"),
+            json=subscription,
+            headers=self._headers("application/json"),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.headers.get("Location", "")
+
+    def get_subscription(self, subscription_id: str) -> dict[str, Any]:
+        """Retrieve one NGSI-LD subscription by id."""
+        resp = self._session.get(
+            self._url(f"/ngsi-ld/v1/subscriptions/{subscription_id}"),
+            headers=self._headers("application/json"),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
 
     def query_subscriptions(self, limit: int = 100) -> list[dict[str, Any]]:
         resp = self._session.get(

@@ -8,15 +8,17 @@ import os
 POSTGRES_URL = os.getenv('POSTGRES_URL')
 ORION_URL = os.getenv('ORION_URL')
 
+# Orion-LD resolves @context from inside the cluster. The public URL hairpins back
+# through the ingress (NAT loopback is refused), so the internal Service URL is the
+# only fallback that works. CONTEXT_URL in the env still wins.
+INTERNAL_CONTEXT_URL = 'http://api-gateway-service:5000/ngsi-ld-context.json'
+
 # Get URLs from config manager or construct from PRODUCTION_DOMAIN
 try:
     from common.config_manager import ConfigManager
 
     KEYCLOAK_PUBLIC_URL = ConfigManager.get_keycloak_public_url()
-    CONTEXT_URL = os.getenv('CONTEXT_URL', '')
-    if not CONTEXT_URL:
-        domain = ConfigManager.get_production_domain()
-        CONTEXT_URL = f'https://{domain}/ngsi-ld-context.json'
+    CONTEXT_URL = os.getenv('CONTEXT_URL', '') or INTERNAL_CONTEXT_URL
 except ImportError:
     PRODUCTION_DOMAIN = os.getenv('PRODUCTION_DOMAIN', '')
     KEYCLOAK_PUBLIC_URL = (
@@ -26,10 +28,7 @@ except ImportError:
         )
         .rstrip('/')
     )
-    CONTEXT_URL = os.getenv(
-        'CONTEXT_URL',
-        f'https://{PRODUCTION_DOMAIN}/ngsi-ld-context.json' if PRODUCTION_DOMAIN else '',
-    )
+    CONTEXT_URL = os.getenv('CONTEXT_URL', '') or INTERNAL_CONTEXT_URL
 
 KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
 

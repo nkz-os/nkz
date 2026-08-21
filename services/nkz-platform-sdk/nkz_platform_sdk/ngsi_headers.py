@@ -38,10 +38,24 @@ except ImportError:
             return n.strip("-") or t
 
 
+def _body_has_context(body: object) -> bool:
+    """True if the payload carries an @context member.
+
+    Handles the two shapes Orion-LD accepts: a single entity (dict) and a batch
+    (list of entities, where NGSI-LD allows @context on the first element only).
+    """
+    if isinstance(body, dict):
+        return "@context" in body
+    if isinstance(body, list):
+        return any(isinstance(e, dict) and "@context" in e for e in body)
+    return False
+
+
 def inject_fiware_headers(
     headers: Dict[str, str],
     tenant: Optional[str] = None,
     has_context_in_body: bool = False,
+    body: object = None,
 ) -> Dict[str, str]:
     """Inject NGSI-LD + FIWARE tenant headers for Orion-LD multitenancy.
 
@@ -49,11 +63,27 @@ def inject_fiware_headers(
         headers: Existing headers dict. Modified in-place AND returned.
         tenant: Raw tenant ID (will be normalized).
         has_context_in_body: True if the JSON body already contains an @context key.
-            Determines Content-Type and whether Link header is added.
+            Determines Content-Type and whether Link header is added. Prefer ``body``.
+        body: The payload about to be sent. When given, the @context delivery mode is
+            derived from it and ``has_context_in_body`` is ignored. This is the safe
+            form: it cannot go out of sync with what is actually posted.
 
     Returns:
         The same dict (modified in-place) for chaining convenience.
     """
+    if body is not None:
+        has_context_in_body = _body_has_context(body)
+
+    # A caller that set ld+json but resolves to application/json is the historical
+    # bug shape: @context stays in the body while Content-Type says plain json, and
+    # Orion-LD answers 400 BadRequestData. Never silent.
+    if headers.get("Content-Type") == "application/ld+json" and not has_context_in_body:
+        logger.error(
+            "inject_fiware_headers: caller set Content-Type=application/ld+json but no "
+            "@context was found in the payload; downgrading to application/json + Link. "
+            "Pass body=<payload> to make the mode explicit."
+        )
+
     # ── Tenant headers (both NGSI-LD standard + legacy FIWARE v2) ──
     if tenant:
         headers["NGSILD-Tenant"] = _normalize_tenant(tenant)

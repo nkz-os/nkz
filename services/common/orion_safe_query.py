@@ -15,11 +15,29 @@ logger = logging.getLogger(__name__)
 # Default context URL — can be overridden via env var
 CONTEXT_URL = os.environ.get(
     "CONTEXT_URL",
-    "http://orion:1026/ngsi-ld-context.json"
+    "http://api-gateway-service:5000/ngsi-ld-context.json"
 )
 
 # Sentinel for "query failed" — distinct from legitimate 0
 QUERY_FAILED = -1
+
+# NGSI-LD returns the total in NGSILD-Results-Count (ETSI GS CIM 009 §6.3.13).
+# X-Total-Count is NGSI-v2 and Orion-LD never sends it. requests exposes headers
+# case-insensitively; the explicit spellings keep plain-dict mocks working too.
+_COUNT_HEADERS = ("NGSILD-Results-Count", "Ngsild-Results-Count", "ngsild-results-count")
+
+
+def _read_count_header(headers) -> int:
+    """Parse the NGSI-LD results count. Returns QUERY_FAILED if absent or malformed."""
+    for name in _COUNT_HEADERS:
+        raw = headers.get(name)
+        if raw is not None:
+            try:
+                return int(raw)
+            except (ValueError, TypeError):
+                logger.warning("malformed %s=%r", name, raw)
+                return QUERY_FAILED
+    return QUERY_FAILED
 
 
 class OrionQueryError(Exception):
@@ -48,30 +66,36 @@ def safe_count_entities(
 
     headers = {
         "NGSILD-Tenant": tenant_id,
+        "Fiware-Service": tenant_id,
+        "Fiware-ServicePath": "/",
         "Accept": "application/json",
         "Link": f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'
     }
 
     try:
+        # limit=1 keeps the payload tiny; count=true is what carries the real total.
         resp = requests.get(
-            f"{orion_url}/ngsi-ld/v1/entities?type={entity_type}&options=count,keyValues",
+            f"{orion_url}/ngsi-ld/v1/entities"
+            f"?type={entity_type}&count=true&limit=1&options=keyValues",
             headers=headers,
             timeout=10
         )
 
         if resp.status_code == 200:
-            count = resp.headers.get("X-Total-Count")
-            if count is not None:
-                try:
-                    return int(count)
-                except (ValueError, TypeError):
-                    logger.warning(
-                        "safe_count_entities: malformed X-Total-Count=%r for "
-                        "tenant=%s type=%s — falling back to body length",
-                        count, tenant_id, entity_type
-                    )
-            data = resp.json()
-            return len(data) if isinstance(data, list) else 0
+            count = _read_count_header(resp.headers)
+            if count != QUERY_FAILED:
+                return count
+            # No usable count header. The response body is capped by `limit`, so its
+            # length is NOT a count — returning it would understate the total and
+            # reintroduce the false-zero class of bug this module exists to prevent.
+            msg = (
+                f"safe_count_entities: no usable NGSILD-Results-Count for "
+                f"tenant={tenant_id} type={entity_type}"
+            )
+            if raise_on_error:
+                raise OrionQueryError(msg)
+            logger.error(msg)
+            return QUERY_FAILED
 
         elif resp.status_code == 404:
             logger.warning(
