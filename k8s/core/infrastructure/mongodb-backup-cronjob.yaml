@@ -38,7 +38,7 @@ spec:
           restartPolicy: OnFailure
           initContainers:
           - name: mongodump
-            image: mongo:5.0
+            image: mongo:7.0
             command:
             - /bin/bash
             - -c
