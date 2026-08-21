@@ -679,7 +679,67 @@
       "tipoAbono": "https://nkz-os.org/ns/tipoAbono",
       "tipoFertilizante": "https://nkz-os.org/ns/tipoFertilizante",
       "volumenRiego": "https://nkz-os.org/ns/volumenRiego",
-      "isActive": "https://nkz-os.org/ns/isActive"
+      "isActive": "https://nkz-os.org/ns/isActive",
+      "WeatherAlert": {
+        "@id": "https://smartdatamodels.org/dataModel.Weather/WeatherAlert",
+        "@type": "@id"
+      },
+      "CropHealthZoneAssessment": {
+        "@id": "nkz:CropHealthZoneAssessment",
+        "@type": "@id"
+      },
+      "AgriParcelZone": {
+        "@id": "nkz:AgriParcelZone",
+        "@type": "@id"
+      },
+      "CropAdvisory": {
+        "@id": "nkz:CropAdvisory",
+        "@type": "@id"
+      },
+      "AgriCropSeason": {
+        "@id": "nkz:AgriCropSeason",
+        "@type": "@id"
+      },
+      "CarbonAssessment": {
+        "@id": "nkz:CarbonAssessment",
+        "@type": "@id"
+      },
+      "CarbonCalculationRun": {
+        "@id": "nkz:CarbonCalculationRun",
+        "@type": "@id"
+      },
+      "BaselineScenario": {
+        "@id": "nkz:BaselineScenario",
+        "@type": "@id"
+      },
+      "ProjectScenario": {
+        "@id": "nkz:ProjectScenario",
+        "@type": "@id"
+      },
+      "CompostRecipe": {
+        "@id": "nkz:CompostRecipe",
+        "@type": "@id"
+      },
+      "ElevationSource": {
+        "@id": "nkz:ElevationSource",
+        "@type": "@id"
+      },
+      "DataProcessingJob": {
+        "@id": "nkz:DataProcessingJob",
+        "@type": "@id"
+      },
+      "DeviceProfile": {
+        "@id": "nkz:DeviceProfile",
+        "@type": "@id"
+      },
+      "WaterStorage": {
+        "@id": "nkz:WaterStorage",
+        "@type": "@id"
+      },
+      "OpenChannelFlow": {
+        "@id": "nkz:OpenChannelFlow",
+        "@type": "@id"
+      }
     }
   ]
 }
