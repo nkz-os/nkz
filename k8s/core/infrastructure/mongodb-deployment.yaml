@@ -11,6 +11,11 @@ metadata:
     layer: database
 spec:
   replicas: 1
+  # Single replica on an RWO volume: with RollingUpdate the new pod starts while
+  # the old one still holds the WiredTiger lock and dies with exitCode 100 in a
+  # loop. Recreate tears down the old pod before creating the new one.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mongodb
