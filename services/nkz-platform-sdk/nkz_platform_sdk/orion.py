@@ -18,6 +18,11 @@ CONTEXT_URL = os.getenv(
     "http://api-gateway-service:5000/ngsi-ld-context.json",
 )
 
+# Orion-LD returns 20 subscriptions when `limit` is omitted and rejects
+# limit > 1000 with 400 BadRequestData, so a listing has to be paginated
+# rather than asked for in one oversized page.
+ORION_PAGE_SIZE = 1000
+
 
 def _http_retries() -> int:
     """Connection-level retry count for the async httpx transport.
@@ -265,6 +270,30 @@ class OrionClient:
         )
         resp.raise_for_status()
         return resp.json()
+
+    async def query_all_subscriptions(self) -> list[dict[str, Any]]:
+        """Every subscription for this tenant, following the listing to its end.
+
+        Callers that decide "does my subscription already exist?" MUST use
+        this and not `query_subscriptions`: a truncated listing hides an
+        existing subscription, so the caller re-creates it on each
+        reconciliation cycle, and the duplicates push the real one further
+        out of the window — the loop never recovers on its own.
+        """
+        subs: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            resp = await self._client.get(
+                self._url("/ngsi-ld/v1/subscriptions"),
+                params={"limit": ORION_PAGE_SIZE, "offset": offset},
+                headers=self._headers("application/json"),
+            )
+            resp.raise_for_status()
+            page = resp.json() or []
+            subs.extend(page)
+            if len(page) < ORION_PAGE_SIZE:
+                return subs
+            offset += ORION_PAGE_SIZE
 
     async def get_subscription(self, subscription_id: str) -> dict[str, Any]:
         """Retrieve one NGSI-LD subscription by id."""
@@ -523,6 +552,27 @@ class SyncOrionClient:
         )
         resp.raise_for_status()
         return resp.json()
+
+    def query_all_subscriptions(self) -> list[dict[str, Any]]:
+        """Every subscription for this tenant, following the listing to its end.
+
+        See OrionClient.query_all_subscriptions — same contract, same reason.
+        """
+        subs: list[dict[str, Any]] = []
+        offset = 0
+        while True:
+            resp = self._session.get(
+                self._url("/ngsi-ld/v1/subscriptions"),
+                params={"limit": ORION_PAGE_SIZE, "offset": offset},
+                headers=self._headers("application/json"),
+                timeout=self.timeout,
+            )
+            resp.raise_for_status()
+            page = resp.json() or []
+            subs.extend(page)
+            if len(page) < ORION_PAGE_SIZE:
+                return subs
+            offset += ORION_PAGE_SIZE
 
     def delete_subscription(self, subscription_id: str) -> None:
         resp = self._session.delete(

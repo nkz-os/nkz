@@ -125,3 +125,34 @@ def test_body_includes_watched_and_condition_when_set():
     assert body["watchedAttributes"] == ["phenologyStage"]
     assert body["condition"] == {"attrs": ["phenologyStage"]}
     assert body["entities"] == [{"type": "CropHealthAssessment"}]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_sees_subscriptions_beyond_the_first_page():
+    """Runaway-duplication regression.
+
+    When the registrar's own subscriptions sit past the first page of the
+    listing, a single-page read reports them missing and re-creates them on
+    every heal cycle. Each cycle pushes the real ones further out of the
+    window, so the loop never recovers on its own.
+    """
+    from nkz_platform_sdk.orion import ORION_PAGE_SIZE
+
+    filler = [
+        {"id": f"urn:ngsi-ld:Subscription:{i}", "description": f"unrelated-{i}"}
+        for i in range(ORION_PAGE_SIZE)
+    ]
+    mine = [
+        {"id": "urn:ngsi-ld:Subscription:a", "description": "nkz-module: EOProduct -> crop-health"},
+        {"id": "urn:ngsi-ld:Subscription:b", "description": "nkz-module: WeatherObserved -> crop-health"},
+    ]
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        side_effect=[Response(200, json=filler), Response(200, json=mine)]
+    )
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/ngsi-ld/v1/subscriptions/urn:x"})
+    )
+    result = await make_registrar().ensure_all(["montiko"])
+    assert result == {"created": 0, "skipped": 2, "errors": []}
+    assert len(post.calls) == 0, "re-created subscriptions that already existed"

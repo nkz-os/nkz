@@ -87,7 +87,7 @@ class SubscriptionRegistrar:
                 tenant_id, base_url=self.orion_url, context_url=self.context_url
             )
             try:
-                existing = await client.query_subscriptions(limit=500)
+                existing = await client.query_all_subscriptions()
                 descriptions = {s.get("description", "") for s in existing}
                 for sub in self._subs:
                     if self._description(sub) in descriptions:
