@@ -25,6 +25,7 @@ ASYNC_ONLY_BEFORE = [
     "append_entity_attrs",
     "create_subscription",
     "get_subscription",
+    "query_all_subscriptions",
 ]
 
 
@@ -140,3 +141,34 @@ class TestSubscriptions:
             out = c.get_subscription(sid)
         assert m.call_args[0][0].endswith(f"/ngsi-ld/v1/subscriptions/{sid}")
         assert out["id"] == sid
+
+
+class TestPaginatedSubscriptionListing:
+    """The sync client must follow the listing too — Flask services and cron
+    jobs are exactly the callers that reconcile subscriptions on a timer."""
+
+    def test_query_all_follows_pagination(self):
+        from nkz_platform_sdk.orion import ORION_PAGE_SIZE
+
+        c = SyncOrionClient("montiko", base_url=ORION, context_url=CTX)
+        page1 = [{"id": f"urn:ngsi-ld:Subscription:{i}"} for i in range(ORION_PAGE_SIZE)]
+        page2 = [{"id": "urn:ngsi-ld:Subscription:last"}]
+        with patch.object(
+            c._session,
+            "get",
+            side_effect=[_resp(200, page1), _resp(200, page2)],
+        ) as m:
+            subs = c.query_all_subscriptions()
+        assert len(subs) == ORION_PAGE_SIZE + 1
+        assert m.call_count == 2
+        assert m.call_args_list[0].kwargs["params"]["offset"] == 0
+        assert m.call_args_list[1].kwargs["params"]["offset"] == ORION_PAGE_SIZE
+
+    def test_query_all_stops_on_a_short_page(self):
+        c = SyncOrionClient("montiko", base_url=ORION, context_url=CTX)
+        with patch.object(
+            c._session, "get", return_value=_resp(200, [{"id": "urn:x"}])
+        ) as m:
+            subs = c.query_all_subscriptions()
+        assert len(subs) == 1
+        assert m.call_count == 1
