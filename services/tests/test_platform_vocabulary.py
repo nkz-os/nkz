@@ -44,6 +44,12 @@ OFFICIAL = {
     "AgriCrop": "https://smartdatamodels.org/dataModel.Agrifood/AgriCrop",
     "EOProduct": "https://smartdatamodels.org/dataModel.SatelliteImagery/EOProduct",
     "hasAgriParcel": "https://smartdatamodels.org/dataModel.Agrifood/hasAgriParcel",
+    "Device": "https://smartdatamodels.org/dataModel.Device/Device",
+    "DeviceMeasurement": "https://smartdatamodels.org/dataModel.Device/DeviceMeasurement",
+    "ManufacturingMachine": "https://smartdatamodels.org/dataModel.ManufacturingMachine/ManufacturingMachine",
+    "controlledAsset": "https://smartdatamodels.org/dataModel.Device/controlledAsset",
+    "controlledProperty": "https://smartdatamodels.org/dataModel.Device/controlledProperty",
+    "measurementType": "https://smartdatamodels.org/dataModel.Device/measurementType",
 }
 
 # Deprecated ref<Type> spellings kept as aliases during the migration window. Each must
@@ -80,6 +86,7 @@ WRITTEN_TYPES = [
     "DataProcessingJob", "DeviceProfile", "DeviceCommand", "AgriSensor",
     "WaterStorage", "OpenChannelFlow", "AgriCropDeclaration", "SigpacEnclosure",
     "AgriPest", "AgriFertilize", "Alert",
+    "Device", "DeviceMeasurement", "ManufacturingMachine",
 ]
 
 
@@ -210,3 +217,32 @@ def test_written_type_is_defined(ctx, entity_type):
     )
     iri = _iri(ctx[entity_type])
     assert iri and not iri.startswith("https://uri.etsi.org/ngsi-ld/default-context/"), iri
+
+
+# Atributos del modelo IoT canónico. Un atributo ausente del contexto no falla al escribir:
+# expande contra el vocabulario por defecto, así que la entidad se guarda con el tipo correcto
+# y los campos en otro namespace, invisibles para quien consulte con este contexto.
+IOT_ATTRIBUTES = [
+    "controlledAsset", "controlledProperty", "measurementType",
+    "numValue", "textValue", "outlier",
+    "serialNumber", "deviceState", "machineModel",
+]
+
+
+@pytest.mark.parametrize("attribute", IOT_ATTRIBUTES)
+def test_iot_attribute_is_defined(ctx, attribute):
+    assert attribute in ctx, (
+        f"{attribute} forma parte del modelo IoT canónico pero no está en el contexto; "
+        "expandiría contra el vocabulario por defecto"
+    )
+    iri = _iri(ctx[attribute])
+    assert iri and not iri.startswith("https://uri.etsi.org/ngsi-ld/default-context/"), iri
+
+
+def test_unit_is_not_repurposed_as_a_measurement_unit(ctx):
+    """`unit` está ocupado por saref:Unit, que es una clase, no una unidad de medida.
+
+    La unidad de una medida viaja en el `unitCode` nativo de la Property NGSI-LD. Rebindar
+    `unit` cambiaría el significado de un término ya en uso.
+    """
+    assert _iri(ctx["unit"]) == "saref:Unit"

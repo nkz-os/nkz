@@ -739,7 +739,35 @@
       "OpenChannelFlow": {
         "@id": "nkz:OpenChannelFlow",
         "@type": "@id"
-      }
+      },
+      "Device": {
+        "@id": "https://smartdatamodels.org/dataModel.Device/Device",
+        "@type": "@id",
+        "_comment": "Official SDM dataModel.Device. Canonical type for a provisioned physical sensor. Replaces the platform extension AgriSensor."
+      },
+      "DeviceMeasurement": {
+        "@id": "https://smartdatamodels.org/dataModel.Device/DeviceMeasurement",
+        "@type": "@id",
+        "_comment": "Official SDM dataModel.Device. Canonical carrier for a reading. One entity per (device, controlledProperty), overwritten; history lives in TimescaleDB."
+      },
+      "ManufacturingMachine": {
+        "@id": "https://smartdatamodels.org/dataModel.ManufacturingMachine/ManufacturingMachine",
+        "@type": "@id",
+        "_comment": "Official SDM. Canonical type for tractors, implements and field robots, discriminated by the category attribute. Already consumed by gis-routing."
+      },
+      "controlledAsset": {
+        "@id": "https://smartdatamodels.org/dataModel.Device/controlledAsset",
+        "@type": "@id",
+        "_comment": "Official SDM Device property. The asset a device monitors — sole canonical device-to-parcel link. Replaces the platform-specific parcelId property."
+      },
+      "controlledProperty": "https://smartdatamodels.org/dataModel.Device/controlledProperty",
+      "measurementType": "https://smartdatamodels.org/dataModel.Device/measurementType",
+      "numValue": "https://smartdatamodels.org/dataModel.Device/numValue",
+      "textValue": "https://smartdatamodels.org/dataModel.Device/textValue",
+      "outlier": "https://smartdatamodels.org/dataModel.Device/outlier",
+      "serialNumber": "https://smartdatamodels.org/dataModel.Device/serialNumber",
+      "deviceState": "https://smartdatamodels.org/dataModel.Device/deviceState",
+      "machineModel": "https://smartdatamodels.org/dataModel.ManufacturingMachine/machineModel"
     }
   ]
 }
