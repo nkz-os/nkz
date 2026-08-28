@@ -4,9 +4,13 @@ Una suscripción guarda el tipo ya expandido en Orion y no lo re-expande nunca. 
 contexto cambia, queda huérfana y deja de disparar en silencio. El test de contrato estático
 no lo ve: valida código, no el broker.
 
-Orion COMPACTA el `type` contra el @context vigente al servir la suscripción: un término
-corto (`AgriSensor`) es sano por construcción (el contexto lo define, si no no podría
-compactarlo); un IRI completo es el fósil (el contexto no tiene con qué compactarlo).
+Contrato vigente (segunda versión — la primera trataba cualquier término compactado como
+sano, lo que es un falso negativo: ver `blueprints/diagnostics.py`): las suscripciones se
+piden a Orion SIN el @context de la plataforma en el Link, solo con el core context que
+Orion pone siempre. Bajo esa condición, un término corto SOLO puede venir de que el `@vocab`
+del core context (`default-context/`) haya compactado el IRI almacenado — así que es
+SIEMPRE stale. Un IRI completo es lo que el core context no pudo compactar por `@vocab`; se
+compara contra el @context vigente para decidir si es sano.
 """
 
 import os
@@ -22,16 +26,16 @@ for _p in (_svc_dir, _services_dir):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-# La suite de entity-manager stubea `common` antes de importar los blueprints.
-_common_mock = MagicMock()
-_common_mock.inject_fiware_headers = lambda h, **kw: dict(h)
-sys.modules.setdefault("common", _common_mock)
-sys.modules.setdefault("common.ngsi_headers", _common_mock)
-
-from blueprints.diagnostics import audit_expansions, diagnostics_bp, ORION_PAGE_SIZE  # noqa: E402
+from blueprints.diagnostics import (  # noqa: E402
+    DEFAULT_CONTEXT_VOCAB,
+    ORION_PAGE_SIZE,
+    audit_expansions,
+    diagnostics_bp,
+)
 
 CTX = {
     "AgriSensor": {"@id": "nkz:AgriSensor"},
+    "WeatherObserved": {"@id": "nkz:WeatherObserved"},
     "nkz": "https://nkz-os.org/ns/",
 }
 
@@ -40,47 +44,77 @@ def _sub(description, entity_type):
     return {"description": description, "entities": [{"type": entity_type}]}
 
 
-def test_a_bare_compacted_term_is_not_reported():
-    """Orion solo devuelve el término corto si el contexto vigente lo define: es sano."""
-    subs = [_sub("current", "AgriSensor")]
+# ── audit_expansions: one test per real behaviour ──────────────────────────────────────
+
+
+def test_a_bare_term_is_stale_with_the_platform_iri_as_expected():
+    """A bare term can only come from the core context's @vocab compacting a
+    default-context/ IRI — that means stale, unconditionally, even though the platform
+    context does define this term under its own namespace."""
+    subs = [_sub("bare-known", "AgriSensor")]
+    with patch("blueprints.diagnostics._load_context", return_value=CTX):
+        result = audit_expansions(subs)
+    assert result["checked"] == 1
+    assert len(result["stale"]) == 1
+    entry = result["stale"][0]
+    assert entry["description"] == "bare-known"
+    assert entry["stored"] == f"{DEFAULT_CONTEXT_VOCAB}AgriSensor"
+    assert entry["expected"] == "https://nkz-os.org/ns/AgriSensor"
+
+
+def test_a_bare_term_the_platform_context_does_not_define_is_stale_with_expected_none():
+    """The dangerous case: a default-context/ orphan for a type the platform context does
+    not even recognize. Cannot be silenced — expected must surface as None, not skipped."""
+    subs = [_sub("bare-unknown", "Device")]
+    with patch("blueprints.diagnostics._load_context", return_value=CTX):
+        result = audit_expansions(subs)
+    assert result["checked"] == 1
+    assert len(result["stale"]) == 1
+    entry = result["stale"][0]
+    assert entry["description"] == "bare-unknown"
+    assert entry["stored"] == f"{DEFAULT_CONTEXT_VOCAB}Device"
+    assert entry["expected"] is None
+
+
+def test_a_full_iri_matching_the_platform_context_is_healthy():
+    """A full IRI the core context couldn't compact, because it's the platform's own
+    namespace — and it matches what the platform context gives that local name. Healthy."""
+    subs = [_sub("healthy", "https://nkz-os.org/ns/AgriSensor")]
     with patch("blueprints.diagnostics._load_context", return_value=CTX):
         result = audit_expansions(subs)
     assert result["checked"] == 1
     assert result["stale"] == []
 
 
-def test_flags_a_full_iri_from_a_retired_namespace():
-    subs = [_sub("pathological", "https://legacy.example.invalid/ngsi-ld/AgriSensor")]
+def test_a_full_iri_from_a_retired_namespace_is_stale():
+    """A full IRI under a namespace the platform no longer uses. The core context can't
+    compact it (not @vocab), and it doesn't match what the platform context gives the local
+    name either — stale, with the platform's current IRI surfaced as `expected`."""
+    subs = [_sub("retired-namespace", "https://saref.example.invalid/saref4agri/WeatherObserved")]
     with patch("blueprints.diagnostics._load_context", return_value=CTX):
         result = audit_expansions(subs)
+    assert result["checked"] == 1
     assert len(result["stale"]) == 1
-    assert result["stale"][0]["description"] == "pathological"
-    assert result["stale"][0]["stored"] == "https://legacy.example.invalid/ngsi-ld/AgriSensor"
-    assert result["stale"][0]["expected"] == "https://nkz-os.org/ns/AgriSensor"
-
-
-def test_a_full_iri_whose_local_name_the_context_does_not_define_is_reported_with_expected_none():
-    """Tipo completamente desconocido: el caso peligroso, no se puede callar."""
-    subs = [_sub("unknown", "https://uri.etsi.org/ngsi-ld/default-context/Device")]
-    with patch("blueprints.diagnostics._load_context", return_value=CTX):
-        result = audit_expansions(subs)
-    assert len(result["stale"]) == 1
-    assert result["stale"][0]["expected"] is None
+    entry = result["stale"][0]
+    assert entry["description"] == "retired-namespace"
+    assert entry["stored"] == "https://saref.example.invalid/saref4agri/WeatherObserved"
+    assert entry["expected"] == "https://nkz-os.org/ns/WeatherObserved"
 
 
 def test_checked_counts_every_entity_examined_healthy_included():
     subs = [
-        _sub("current", "AgriSensor"),
-        _sub("pathological", "https://legacy.example.invalid/ngsi-ld/AgriSensor"),
+        _sub("healthy", "https://nkz-os.org/ns/AgriSensor"),
+        _sub("bare-known", "AgriSensor"),
+        _sub("retired-namespace", "https://saref.example.invalid/saref4agri/WeatherObserved"),
     ]
     with patch("blueprints.diagnostics._load_context", return_value=CTX):
         result = audit_expansions(subs)
-    assert result["checked"] == 2
-    assert len(result["stale"]) == 1
-    assert result["stale"][0]["description"] == "pathological"
+    assert result["checked"] == 3
+    stale_descriptions = {entry["description"] for entry in result["stale"]}
+    assert stale_descriptions == {"bare-known", "retired-namespace"}
 
 
-# Flask route tests
+# ── Flask route tests ───────────────────────────────────────────────────────────────────
 #
 # The route requires X-Internal-Service-Secret before it does anything else. Each test sets
 # INTERNAL_SERVICE_SECRET explicitly via monkeypatch — never relies on ambient environment.
@@ -152,7 +186,8 @@ def test_expansions_route_success_with_stale_subscriptions(mock_fetch, mock_load
     app.register_blueprint(diagnostics_bp)
     client = app.test_client()
 
-    # Mock one stale subscription
+    # A full default-context IRI, as `audit_expansions` would receive it if `_fetch_all_subscriptions`
+    # were mocked with the raw stored value rather than what Orion returns under @vocab compaction.
     mock_fetch.return_value = [
         _sub("legacy", "https://uri.etsi.org/ngsi-ld/default-context/AgriSensor")
     ]
@@ -214,6 +249,44 @@ def test_expansions_route_context_load_fails(mock_fetch, mock_load_ctx, monkeypa
     # Distinct from the subscription-fetch failure message, and no exception leak
     assert "subscriptions" not in data["error"].lower()
     assert "Context server unavailable" not in data["error"]
+
+
+@patch("blueprints.diagnostics._load_context")
+@patch("blueprints.diagnostics.requests.get")
+def test_expansions_route_lists_subscriptions_without_the_platform_context_link(
+    mock_get, mock_load_ctx, monkeypatch
+):
+    """The crux of this fix: the LIST request must carry tenant headers but NO Link header.
+
+    Sending the platform @context here makes stale and healthy subscriptions
+    indistinguishable (see the module docstring) — that was the false negative. This test
+    goes through the real route and the real `_fetch_all_subscriptions`, patching only
+    `requests.get`, so a regression that reintroduces `inject_fiware_headers` (or any Link
+    header) here fails loudly instead of silently.
+    """
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", _SECRET)
+    mock_load_ctx.return_value = CTX
+
+    orion_response = MagicMock()
+    orion_response.json.return_value = []
+    orion_response.raise_for_status = MagicMock()
+    mock_get.return_value = orion_response
+
+    app = Flask(__name__)
+    app.register_blueprint(diagnostics_bp)
+    client = app.test_client()
+
+    response = client.get(
+        "/api/diagnostics/expansions",
+        headers={"X-Internal-Service-Secret": _SECRET, "X-Tenant-ID": "test-tenant"},
+    )
+    assert response.status_code == 200
+
+    assert mock_get.call_count == 1
+    sent_headers = mock_get.call_args.kwargs["headers"]
+    assert sent_headers["NGSILD-Tenant"] == "test-tenant"
+    assert sent_headers["Fiware-Service"] == "test-tenant"
+    assert "Link" not in sent_headers
 
 
 @patch("blueprints.diagnostics.requests.get")
