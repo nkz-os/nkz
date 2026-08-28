@@ -1,8 +1,12 @@
 """Las expansiones almacenadas en el broker deben coincidir con el @context vigente.
 
-Una suscripción guarda el tipo ya expandido y no lo re-expande nunca. Si el contexto cambia,
-queda huérfana y deja de disparar en silencio. El test de contrato estático no lo ve: valida
-código, no el broker.
+Una suscripción guarda el tipo ya expandido en Orion y no lo re-expande nunca. Si el
+contexto cambia, queda huérfana y deja de disparar en silencio. El test de contrato estático
+no lo ve: valida código, no el broker.
+
+Orion COMPACTA el `type` contra el @context vigente al servir la suscripción: un término
+corto (`AgriSensor`) es sano por construcción (el contexto lo define, si no no podría
+compactarlo); un IRI completo es el fósil (el contexto no tiene con qué compactarlo).
 """
 
 import os
@@ -36,38 +40,44 @@ def _sub(description, entity_type):
     return {"description": description, "entities": [{"type": entity_type}]}
 
 
-def test_flags_a_subscription_expanded_under_the_default_vocabulary():
-    subs = [_sub("legacy", "https://uri.etsi.org/ngsi-ld/default-context/AgriSensor")]
+def test_a_bare_compacted_term_is_not_reported():
+    """Orion solo devuelve el término corto si el contexto vigente lo define: es sano."""
+    subs = [_sub("current", "AgriSensor")]
     with patch("blueprints.diagnostics._load_context", return_value=CTX):
         result = audit_expansions(subs)
     assert result["checked"] == 1
-    assert len(result["stale"]) == 1
-    assert result["stale"][0]["description"] == "legacy"
-    assert result["stale"][0]["expected"] == "https://nkz-os.org/ns/AgriSensor"
-
-
-def test_accepts_a_subscription_that_matches_the_current_context():
-    subs = [_sub("current", "https://nkz-os.org/ns/AgriSensor")]
-    with patch("blueprints.diagnostics._load_context", return_value=CTX):
-        result = audit_expansions(subs)
     assert result["stale"] == []
 
 
-def test_flags_an_expansion_from_a_retired_namespace():
+def test_flags_a_full_iri_from_a_retired_namespace():
     subs = [_sub("pathological", "https://legacy.example.invalid/ngsi-ld/AgriSensor")]
     with patch("blueprints.diagnostics._load_context", return_value=CTX):
         result = audit_expansions(subs)
     assert len(result["stale"]) == 1
+    assert result["stale"][0]["description"] == "pathological"
+    assert result["stale"][0]["stored"] == "https://legacy.example.invalid/ngsi-ld/AgriSensor"
     assert result["stale"][0]["expected"] == "https://nkz-os.org/ns/AgriSensor"
 
 
-def test_a_type_absent_from_the_context_is_reported_not_skipped():
-    """Un tipo desconocido es el caso peligroso: no se puede callar."""
+def test_a_full_iri_whose_local_name_the_context_does_not_define_is_reported_with_expected_none():
+    """Tipo completamente desconocido: el caso peligroso, no se puede callar."""
     subs = [_sub("unknown", "https://uri.etsi.org/ngsi-ld/default-context/Device")]
     with patch("blueprints.diagnostics._load_context", return_value=CTX):
         result = audit_expansions(subs)
     assert len(result["stale"]) == 1
     assert result["stale"][0]["expected"] is None
+
+
+def test_checked_counts_every_entity_examined_healthy_included():
+    subs = [
+        _sub("current", "AgriSensor"),
+        _sub("pathological", "https://legacy.example.invalid/ngsi-ld/AgriSensor"),
+    ]
+    with patch("blueprints.diagnostics._load_context", return_value=CTX):
+        result = audit_expansions(subs)
+    assert result["checked"] == 2
+    assert len(result["stale"]) == 1
+    assert result["stale"][0]["description"] == "pathological"
 
 
 # Flask route tests
