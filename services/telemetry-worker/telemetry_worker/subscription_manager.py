@@ -209,16 +209,37 @@ def _get_active_tenants() -> list:
         return []
 
 
+# Orion-LD serves subscription listings one page at a time and falls back to a
+# page of 20 when no limit is given. A dedup built on a single unpaginated page
+# stops recognising its own subscriptions once a tenant holds more than a page
+# of them, and recreates them on every run.
+ORION_PAGE_SIZE = 1000
+
+
+def _fetch_all_subscriptions(headers: dict) -> list:
+    """Return every subscription of a tenant, following Orion's pagination."""
+    subs: list = []
+    offset = 0
+    while True:
+        response = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/subscriptions",
+            headers=headers,
+            params={"limit": ORION_PAGE_SIZE, "offset": offset},
+            timeout=30,
+        )
+        response.raise_for_status()
+        page = response.json() or []
+        subs.extend(page)
+        if len(page) < ORION_PAGE_SIZE:
+            return subs
+        offset += ORION_PAGE_SIZE
+
+
 def _cleanup_broken_subscriptions(tenant_id: str):
     """Delete subscriptions with wrong port (legacy bug)."""
     headers = _make_headers(tenant_id)
     try:
-        r = requests.get(
-            f"{ORION_URL}/ngsi-ld/v1/subscriptions", headers=headers, timeout=30
-        )
-        if r.status_code != 200:
-            return
-        for sub in r.json():
+        for sub in _fetch_all_subscriptions(headers):
             uri = sub.get("notification", {}).get("endpoint", {}).get("uri", "")
             if ":8080" in uri and "telemetry-worker" in uri:
                 sub_id = sub.get("id")
@@ -237,13 +258,7 @@ def _ensure_tenant_subscriptions(tenant_id: str):
     headers = _make_headers(tenant_id)
     headers["Content-Type"] = "application/json"  # needed for POST below
     try:
-        response = requests.get(
-            f"{ORION_URL}/ngsi-ld/v1/subscriptions",
-            headers=headers,
-            timeout=30,
-        )
-        response.raise_for_status()
-        existing_subs = response.json()
+        existing_subs = _fetch_all_subscriptions(headers)
         existing_descriptions = (
             [sub.get("description") for sub in existing_subs] if existing_subs else []
         )
