@@ -41,9 +41,12 @@ SUBSCRIPTIONS = [
         "isActive": True,
     },
     {
-        "description": "Telemetry Worker - Device updates",
+        # "Device" is not a term of the platform @context, so Orion expands it to
+        # the default vocabulary and the subscription can never match anything.
+        # Hardware provisioned through DaTaK is created as "AgriDevice".
+        "description": "Telemetry Worker - AgriDevice updates",
         "type": "Subscription",
-        "entities": [{"type": "Device"}],
+        "entities": [{"type": "AgriDevice"}],
         "notification": {
             "endpoint": {
                 "uri": NOTIFICATION_URL,
