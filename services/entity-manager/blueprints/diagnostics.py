@@ -1,9 +1,17 @@
 """Diagnósticos del vocabulario: expansiones almacenadas contra el @context vigente.
 
-Una suscripción guarda el tipo de entidad ya expandido, en el momento de crearse, y no se
-re-expande nunca. Si el @context cambia después, queda apuntando a un IRI que ya no
-corresponde a nada y deja de disparar en silencio: sin error, sin log, sin notificación.
-El test de contrato estático no puede verlo — valida el código fuente, no el broker.
+Una suscripción guarda el tipo de entidad expandido internamente en Orion, en el momento de
+crearse, y no se re-expande nunca. Si el @context cambia después, ese tipo queda apuntando a
+un IRI que ya no corresponde a nada y deja de disparar en silencio: sin error, sin log, sin
+notificación. El test de contrato estático no puede verlo — valida el código fuente, no el
+broker.
+
+Al leer una suscripción, Orion-LD COMPACTA el tipo almacenado contra el @context que le
+pasamos en el header Link de la petición (via `inject_fiware_headers`, en
+`_fetch_all_subscriptions`): si ese contexto define un término que compacta al IRI guardado,
+Orion devuelve el término corto (`AgriSensor`); si no, devuelve el IRI completo tal cual lo
+tiene almacenado. `audit_expansions` explota exactamente ese comportamiento — ver su
+docstring.
 
 Endpoint interno de operación: no está expuesto por el api-gateway, que enruta por rutas
 explícitas. Eso NO lo hace seguro por sí solo — la NetworkPolicy base del namespace permite
@@ -59,7 +67,24 @@ def _expand(term: str, terms: dict) -> str | None:
 def audit_expansions(subscriptions: list) -> dict:
     """Compara el tipo almacenado de cada suscripción con el @context vigente.
 
-    Un tipo que el contexto no define se reporta con `expected: None` — es el caso
+    `_fetch_all_subscriptions` pide las suscripciones con el @context vigente en el header
+    Link, así que el valor de `type` que llega aquí ya viene COMPACTADO por Orion contra ese
+    contexto, no expandido:
+
+    - si el contexto vigente define un término que compacta al IRI que Orion tiene
+      almacenado, Orion devuelve el término corto (`AgriSensor`) — eso solo es posible si el
+      contexto lo define, así que es sano por construcción;
+    - si no lo define, Orion no tiene con qué compactarlo y devuelve el IRI completo
+      almacenado (`https://.../AgriSensor`) — esa suscripción es un fósil: no volverá a
+      disparar contra una entidad escrita con el contexto actual.
+
+    Por eso el criterio de staleness es la FORMA del valor devuelto (IRI completo con
+    esquema, o término compacto), no una re-expansión y comparación. NO "arreglar" esto
+    volviendo a expandir el término corto y comparándolo contra el IRI — eso es el bug
+    original (todo se reportaba como stale).
+
+    Para una entrada stale, `expected` es el IRI que el contexto vigente le daría al nombre
+    local de ese tipo si lo define, o None si no lo define en absoluto — ese None es el caso
     peligroso y no se puede callar.
     """
     terms = _load_context()
@@ -71,14 +96,16 @@ def audit_expansions(subscriptions: list) -> dict:
             if not stored:
                 continue
             checked += 1
+            if "://" not in stored:
+                # Orion pudo compactar este tipo contra el @context vigente: sano.
+                continue
             local = stored.rsplit("/", 1)[-1]
             expected = _expand(local, terms)
-            if expected != stored:
-                stale.append({
-                    "description": subscription.get("description", ""),
-                    "stored": stored,
-                    "expected": expected,
-                })
+            stale.append({
+                "description": subscription.get("description", ""),
+                "stored": stored,
+                "expected": expected,
+            })
     return {"checked": checked, "stale": stale}
 
 
