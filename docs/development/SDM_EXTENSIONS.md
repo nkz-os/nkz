@@ -1,5 +1,27 @@
 # SDM extensions registry
 
+Every term of the platform vocabulary (`nkz:`) that deviates from Smart Data Models, and why.
+
+A vocabulary consolidation merged the separate proposals namespace into the general one, which
+erased the only machine-readable marker distinguishing a deliberate proposal from a careless
+one-off. This file restores that distinction; `test_sdm_extensions_registry.py` keeps it honest.
+
+Three states, and only these:
+
+- **`propuesta-sdm`** — no SDM equivalent exists. Defined here with a number and tracked in the
+  knowledge graph (`sdmProposal` / `sdmStatus`) with the intent of contributing it upstream.
+- **`extension-declarada`** — a deviation we accept, with the reason stated. The rationale is
+  copied from the term's `_comment` in the context; it is never invented.
+- **`sin-revisar`** — **explicit debt, not an accepted deviation.** Nobody has justified this term
+  yet. Each one should end up either promoted to one of the two states above, or removed from the
+  context if nothing uses it any more. Rationale reads `Not yet reviewed` precisely so that it
+  cannot be mistaken for a justification.
+
+An undeclared extension is forbidden: indistinguishable from an oversight, and the registry test
+fails on it.
+
+| Term | Kind | Status | Rationale |
+|---|---|---|---|
 | `AgriCropDeclaration` | entidad | sin-revisar | Not yet reviewed |
 | `AgriCropObservation` | entidad | extension-declarada | Platform extension of SDM AgriCrop (which lacks observation/image capture semantics) |
 | `AgriCropSeason` | entidad | sin-revisar | Not yet reviewed |
