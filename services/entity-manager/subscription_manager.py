@@ -94,16 +94,40 @@ def _get_active_tenants() -> list:
         return [DEFAULT_TENANT]
 
 
+ORION_PAGE_SIZE = 1000
+
+
+def _fetch_all_subscriptions(headers: dict) -> list:
+    """Return every subscription of a tenant, following Orion's pagination.
+
+    Orion-LD returns 20 subscriptions when `limit` is omitted, so a single-page
+    read hides the service's own subscriptions once a tenant has more than that
+    — and the reconciler then re-creates them on every cycle, pushing the real
+    ones further out of the window. Asking for one oversized page is not a fix
+    either: Orion rejects limit > 1000.
+    """
+    subs: list = []
+    offset = 0
+    while True:
+        response = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/subscriptions",
+            headers=headers,
+            params={"limit": ORION_PAGE_SIZE, "offset": offset},
+            timeout=30,
+        )
+        response.raise_for_status()
+        page = response.json() or []
+        subs.extend(page)
+        if len(page) < ORION_PAGE_SIZE:
+            return subs
+        offset += ORION_PAGE_SIZE
+
+
 def _ensure_tenant_subscriptions(tenant_id: str):
     headers = _make_headers(tenant_id)
     headers["Content-Type"] = "application/json"
     try:
-        response = requests.get(
-            f"{ORION_URL}/ngsi-ld/v1/subscriptions",
-            headers=headers,
-        )
-        response.raise_for_status()
-        existing_subs = response.json() if isinstance(response.json(), list) else []
+        existing_subs = _fetch_all_subscriptions(headers)
         existing_descriptions = [sub.get("description") for sub in existing_subs]
 
         for sub_def in SUBSCRIPTIONS:
