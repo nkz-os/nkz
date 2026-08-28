@@ -58,8 +58,25 @@ def test_every_own_term_is_registered(ctx, registry):
 
 
 def test_registry_does_not_invent_terms(ctx, registry):
-    unknown = sorted(set(registry) - set(ctx))
-    assert not unknown, f"el registro lista términos que el contexto no define: {unknown}"
+    """Cada fila del registro debe ser un término propio (nkz:) — no basta con existir en ctx.
+
+    `test_every_own_term_is_registered` comprueba propio ⊆ registro; este test comprueba
+    registro ⊆ propio. Sin las dos, una fila podría declarar un término oficial de SDM (p.ej.
+    `WeatherObserved`) como `extension-declarada` y ambos tests pasarían, porque "está en el
+    contexto" también es cierto para el vocabulario oficial que el registro no debe listar.
+
+    Única excepción, nombrada explícitamente y no por coincidencia de matching: `category`.
+    Mapea a un IRI de SDM (`smartdatamodels.org`), pero se lista aquí legítimamente porque el
+    esquema SDM de ManufacturingMachine no declara esa propiedad — ver su fila en
+    SDM_EXTENSIONS.md. No es una invención del registro; es una excepción documentada.
+    """
+    own = _own_terms(ctx)
+    allowed_non_own = {"category"}
+    unknown = sorted((set(registry) - own) - allowed_non_own)
+    assert not unknown, (
+        f"el registro lista términos que no son vocabulario propio (nkz:) y no están en la "
+        f"excepción documentada {sorted(allowed_non_own)}: {unknown}"
+    )
 
 
 def test_status_values_are_from_the_closed_set(registry):

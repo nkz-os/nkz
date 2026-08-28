@@ -54,7 +54,7 @@ def test_accepts_a_subscription_that_matches_the_current_context():
 
 
 def test_flags_an_expansion_from_a_retired_namespace():
-    subs = [_sub("pathological", "https://nekazari.robotika.cloud/ngsi-ld/AgriSensor")]
+    subs = [_sub("pathological", "https://legacy.example.invalid/ngsi-ld/AgriSensor")]
     with patch("blueprints.diagnostics._load_context", return_value=CTX):
         result = audit_expansions(subs)
     assert len(result["stale"]) == 1
@@ -71,15 +71,62 @@ def test_a_type_absent_from_the_context_is_reported_not_skipped():
 
 
 # Flask route tests
+#
+# The route requires X-Internal-Service-Secret before it does anything else. Each test sets
+# INTERNAL_SERVICE_SECRET explicitly via monkeypatch — never relies on ambient environment.
+_SECRET = "test-internal-secret"
+
+
 @patch("blueprints.diagnostics._load_context")
 @patch("blueprints.diagnostics._fetch_all_subscriptions")
-def test_expansions_route_missing_tenant_header(mock_fetch, mock_load_ctx):
-    """GET /api/diagnostics/expansions without X-Tenant-ID header returns 400."""
+def test_expansions_route_no_secret_configured_returns_500(mock_fetch, mock_load_ctx, monkeypatch):
+    """GET /api/diagnostics/expansions with no INTERNAL_SERVICE_SECRET configured returns 500."""
+    monkeypatch.delenv("INTERNAL_SERVICE_SECRET", raising=False)
     app = Flask(__name__)
     app.register_blueprint(diagnostics_bp)
     client = app.test_client()
 
-    response = client.get("/api/diagnostics/expansions")
+    response = client.get(
+        "/api/diagnostics/expansions",
+        headers={"X-Internal-Service-Secret": "whatever", "X-Tenant-ID": "test-tenant"},
+    )
+    assert response.status_code == 500
+    mock_fetch.assert_not_called()
+    mock_load_ctx.assert_not_called()
+
+
+@patch("blueprints.diagnostics._load_context")
+@patch("blueprints.diagnostics._fetch_all_subscriptions")
+def test_expansions_route_wrong_secret_returns_401(mock_fetch, mock_load_ctx, monkeypatch):
+    """GET /api/diagnostics/expansions with a non-matching secret returns 401."""
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", _SECRET)
+    app = Flask(__name__)
+    app.register_blueprint(diagnostics_bp)
+    client = app.test_client()
+
+    response = client.get(
+        "/api/diagnostics/expansions",
+        headers={"X-Internal-Service-Secret": "wrong-secret", "X-Tenant-ID": "test-tenant"},
+    )
+    assert response.status_code == 401
+    assert response.get_json()["error"] == "Unauthorized"
+    mock_fetch.assert_not_called()
+    mock_load_ctx.assert_not_called()
+
+
+@patch("blueprints.diagnostics._load_context")
+@patch("blueprints.diagnostics._fetch_all_subscriptions")
+def test_expansions_route_missing_tenant_header(mock_fetch, mock_load_ctx, monkeypatch):
+    """GET /api/diagnostics/expansions with a valid secret but no X-Tenant-ID header returns 400."""
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", _SECRET)
+    app = Flask(__name__)
+    app.register_blueprint(diagnostics_bp)
+    client = app.test_client()
+
+    response = client.get(
+        "/api/diagnostics/expansions",
+        headers={"X-Internal-Service-Secret": _SECRET},
+    )
     assert response.status_code == 400
     assert "X-Tenant-ID required" in response.get_json()["error"]
     mock_fetch.assert_not_called()
@@ -88,8 +135,9 @@ def test_expansions_route_missing_tenant_header(mock_fetch, mock_load_ctx):
 
 @patch("blueprints.diagnostics._load_context")
 @patch("blueprints.diagnostics._fetch_all_subscriptions")
-def test_expansions_route_success_with_stale_subscriptions(mock_fetch, mock_load_ctx):
-    """GET /api/diagnostics/expansions with tenant returns 200 and audit payload."""
+def test_expansions_route_success_with_stale_subscriptions(mock_fetch, mock_load_ctx, monkeypatch):
+    """GET /api/diagnostics/expansions with a valid secret and tenant returns 200 and audit payload."""
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", _SECRET)
     app = Flask(__name__)
     app.register_blueprint(diagnostics_bp)
     client = app.test_client()
@@ -102,7 +150,7 @@ def test_expansions_route_success_with_stale_subscriptions(mock_fetch, mock_load
 
     response = client.get(
         "/api/diagnostics/expansions",
-        headers={"X-Tenant-ID": "test-tenant"},
+        headers={"X-Internal-Service-Secret": _SECRET, "X-Tenant-ID": "test-tenant"},
     )
     assert response.status_code == 200
     data = response.get_json()
@@ -115,8 +163,9 @@ def test_expansions_route_success_with_stale_subscriptions(mock_fetch, mock_load
 
 @patch("blueprints.diagnostics._load_context")
 @patch("blueprints.diagnostics._fetch_all_subscriptions")
-def test_expansions_route_subscription_fetch_fails(mock_fetch, mock_load_ctx):
-    """GET /api/diagnostics/expansions returns 502 when subscription fetch fails, no exception leak."""
+def test_expansions_route_subscription_fetch_fails(mock_fetch, mock_load_ctx, monkeypatch):
+    """GET /api/diagnostics/expansions returns 502 when Orion is unreachable, no exception leak."""
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", _SECRET)
     app = Flask(__name__)
     app.register_blueprint(diagnostics_bp)
     client = app.test_client()
@@ -124,11 +173,11 @@ def test_expansions_route_subscription_fetch_fails(mock_fetch, mock_load_ctx):
     mock_fetch.side_effect = Exception("Orion connection failed")
     response = client.get(
         "/api/diagnostics/expansions",
-        headers={"X-Tenant-ID": "test-tenant"},
+        headers={"X-Internal-Service-Secret": _SECRET, "X-Tenant-ID": "test-tenant"},
     )
     assert response.status_code == 502
     data = response.get_json()
-    assert "audit failed" in data["error"]
+    assert "subscriptions" in data["error"].lower()
     # Ensure exception text is not leaked
     assert "Orion connection failed" not in data["error"]
     assert "connection" not in data["error"].lower()
@@ -136,8 +185,9 @@ def test_expansions_route_subscription_fetch_fails(mock_fetch, mock_load_ctx):
 
 @patch("blueprints.diagnostics._load_context")
 @patch("blueprints.diagnostics._fetch_all_subscriptions")
-def test_expansions_route_context_load_fails(mock_fetch, mock_load_ctx):
-    """GET /api/diagnostics/expansions returns 502 when context load fails."""
+def test_expansions_route_context_load_fails(mock_fetch, mock_load_ctx, monkeypatch):
+    """GET /api/diagnostics/expansions returns 502 with a distinct message when the context fails."""
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", _SECRET)
     app = Flask(__name__)
     app.register_blueprint(diagnostics_bp)
     client = app.test_client()
@@ -146,9 +196,14 @@ def test_expansions_route_context_load_fails(mock_fetch, mock_load_ctx):
     mock_load_ctx.side_effect = Exception("Context server unavailable")
     response = client.get(
         "/api/diagnostics/expansions",
-        headers={"X-Tenant-ID": "test-tenant"},
+        headers={"X-Internal-Service-Secret": _SECRET, "X-Tenant-ID": "test-tenant"},
     )
     assert response.status_code == 502
+    data = response.get_json()
+    assert "context" in data["error"].lower()
+    # Distinct from the subscription-fetch failure message, and no exception leak
+    assert "subscriptions" not in data["error"].lower()
+    assert "Context server unavailable" not in data["error"]
 
 
 @patch("blueprints.diagnostics.requests.get")

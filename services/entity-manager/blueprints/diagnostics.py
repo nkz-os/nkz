@@ -6,9 +6,13 @@ corresponde a nada y deja de disparar en silencio: sin error, sin log, sin notif
 El test de contrato estático no puede verlo — valida el código fuente, no el broker.
 
 Endpoint interno de operación: no está expuesto por el api-gateway, que enruta por rutas
-explícitas. Se consulta desde dentro del clúster.
+explícitas. Eso NO lo hace seguro por sí solo — la NetworkPolicy base del namespace permite
+tráfico pod-a-pod sin restricción, así que cualquier pod (incluido un worker de módulo
+comprometido) podría alcanzarlo. Autenticado con X-Internal-Service-Secret, igual que el
+resto de endpoints internos del servicio.
 """
 
+import hmac
 import logging
 import os
 
@@ -102,12 +106,42 @@ def _fetch_all_subscriptions(headers: dict) -> list:
 
 @diagnostics_bp.route("/api/diagnostics/expansions", methods=["GET"])
 def expansions():
+    """Audita las suscripciones del tenant frente al @context vigente.
+
+    Internal endpoint — authenticated by X-Internal-Service-Secret (not user JWT). Not being
+    routed through the api-gateway does not make it safe on its own: any pod in the namespace
+    can reach it without this secret.
+
+    Headers:
+      X-Internal-Service-Secret  — must match configured secret
+      X-Tenant-ID                — tenant context
+    """
+    provided_secret = request.headers.get("X-Internal-Service-Secret", "")
+    expected_secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
+
+    if not expected_secret:
+        logger.error("INTERNAL_SERVICE_SECRET not configured on server")
+        return jsonify({"error": "Internal server configuration error"}), 500
+
+    if not hmac.compare_digest(provided_secret, expected_secret):
+        logger.warning("Invalid X-Internal-Service-Secret for expansion audit")
+        return jsonify({"error": "Unauthorized"}), 401
+
     tenant = request.headers.get("X-Tenant-ID", "")
     if not tenant:
         return jsonify({"error": "X-Tenant-ID required"}), 400
     headers = inject_fiware_headers({}, tenant=tenant, has_context_in_body=False)
+
     try:
-        return jsonify(audit_expansions(_fetch_all_subscriptions(headers))), 200
+        subscriptions = _fetch_all_subscriptions(headers)
     except Exception as exc:
-        logger.error("expansion audit failed: %s", exc)
-        return jsonify({"error": "audit failed"}), 502
+        logger.error("expansion audit: failed to fetch subscriptions from Orion: %s", exc)
+        return jsonify({"error": "failed to fetch subscriptions"}), 502
+
+    try:
+        result = audit_expansions(subscriptions)
+    except Exception as exc:
+        logger.error("expansion audit: failed to load vocabulary context: %s", exc)
+        return jsonify({"error": "failed to load vocabulary context"}), 502
+
+    return jsonify(result), 200
