@@ -11,3 +11,5 @@ flask-cors>=6.0.5
 requests>=2.34.2
 shapely>=2.0.0
 fastapi>=0.136.3
+tenacity>=9.1.4
+prometheus-client>=0.25.0

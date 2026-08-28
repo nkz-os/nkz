@@ -11,7 +11,13 @@ import json
 
 import pytest
 
-from ._subscription_managers import CONTEXT_FILE, KNOWN, MANAGERS, load, service_id
+from ._subscription_managers import (
+    CONTEXT_FILE,
+    KNOWN,
+    MANAGERS,
+    service_id,
+    subscribed_types,
+)
 
 
 def _context_terms() -> set:
@@ -27,16 +33,6 @@ def _context_terms() -> set:
     return {k for k in terms if isinstance(k, str) and not k.startswith("@")}
 
 
-def _subscribed_types(module) -> set:
-    types = set()
-    for sub in getattr(module, "SUBSCRIPTIONS", []):
-        for entity in sub.get("entities", []):
-            entity_type = entity.get("type")
-            if entity_type:
-                types.add(entity_type)
-    return types
-
-
 def test_the_discovery_actually_found_the_known_managers():
     """Guards every parametrized assertion from passing on an empty glob."""
     found = {service_id(p) for p in MANAGERS}
@@ -45,7 +41,7 @@ def test_the_discovery_actually_found_the_known_managers():
 
 @pytest.mark.parametrize("path", MANAGERS, ids=service_id)
 def test_every_subscribed_type_is_defined_in_the_platform_context(path):
-    types = _subscribed_types(load(path))
+    types = subscribed_types(path)
     assert types, f"{path} declares no subscription types"
     missing = sorted(types - _context_terms())
     assert not missing, (

@@ -5,6 +5,7 @@ from the filesystem on purpose: a hand-maintained list is exactly what lets the
 next service ship a subscription nobody checked.
 """
 
+import ast
 import importlib.util
 import pathlib
 
@@ -44,3 +45,36 @@ def load(path: pathlib.Path):
         spec.loader.exec_module(module)
         _LOADED[key] = module
     return _LOADED[key]
+
+
+def subscribed_types(path: pathlib.Path) -> set:
+    """Entity types a manager subscribes to, read from the source, not imported.
+
+    Parsed rather than imported on purpose: this is the guard that catches a
+    subscription type missing from the platform @context, and it must not stop
+    working the day a service adds a dependency the test environment lacks.
+    Anything built dynamically yields nothing here, which the caller asserts on.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    types: set = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(getattr(t, "id", None) == "SUBSCRIPTIONS" for t in node.targets):
+            continue
+        for entities in _values_for_key(node.value, "entities"):
+            for entity in getattr(entities, "elts", []):
+                for value in _values_for_key(entity, "type"):
+                    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                        types.add(value.value)
+    return types
+
+
+def _values_for_key(node, key: str):
+    """Every value bound to `key` in any dict literal inside `node`."""
+    for sub in ast.walk(node):
+        if not isinstance(sub, ast.Dict):
+            continue
+        for k, v in zip(sub.keys, sub.values):
+            if isinstance(k, ast.Constant) and k.value == key:
+                yield v
