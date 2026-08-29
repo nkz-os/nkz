@@ -85,7 +85,7 @@ fails on it.
 | `calibrationConfig` | atributo | sin-revisar | Not yet reviewed |
 | `calidadCosecha` | atributo | sin-revisar | Not yet reviewed |
 | `campaignYear` | atributo | sin-revisar | Not yet reviewed |
-| `category` | atributo | extension-declarada | SDM ManufacturingMachine does not declare this property; used to discriminate tractor / implement / robot. Already consumed by gis-routing. |
+| `category` | atributo | extension-declarada | SDM ManufacturingMachine does not declare this property; used to discriminate tractor / implement / robot / harvester. Harvester (self-propelled combine) added because the official catalogue offers no canonical type for harvesting machinery, and operation-level telemetry (yield, fuelConsumption, areaWorked, grainLosses, workQuality) appears in no published SDM schema. Already consumed by gis-routing. |
 | `cifEntidadHabilitada` | atributo | sin-revisar | Not yet reviewed |
 | `commandType` | atributo | sin-revisar | Not yet reviewed |
 | `compressionType` | atributo | sin-revisar | Not yet reviewed |
