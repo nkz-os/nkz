@@ -78,7 +78,7 @@ async def process_payload(
         if not profile_mapping:
             logger.warning(f"Profile {payload.profile} not found, using defaults")
             profile_mapping = {
-                'sdm_entity_type': 'AgriSensor',
+                'sdm_entity_type': 'Device',
                 'mapping': {'measurements': []}
             }
         
@@ -375,7 +375,7 @@ def _process_payload_sync(
         if not profile_mapping:
             logger.warning(f"Profile {payload.profile} not found, using defaults")
             profile_mapping = {
-                'sdm_entity_type': 'AgriSensor',
+                'sdm_entity_type': 'Device',
                 'mapping': {'measurements': []}
             }
         
@@ -637,7 +637,7 @@ class TelemetryBatch:
                 # Get profile
                 profile = _get_sensor_profile_sync(profile_code, tenant_id, self.settings)
                 if not profile:
-                    profile = {'sdm_entity_type': 'AgriSensor', 'mapping': {'measurements': []}}
+                    profile = {'sdm_entity_type': 'Device', 'mapping': {'measurements': []}}
                 
                 entity_id = f"urn:ngsi-ld:{profile['sdm_entity_type']}:{tenant_id}:{device_id}"
                 

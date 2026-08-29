@@ -186,7 +186,7 @@ def register_sensor():
                     'error': f'Profile "{profile_code}" not found'
                 }), 404
 
-            sdm_entity_type = profile_row.get('sdm_entity_type') or 'AgriSensor'
+            sdm_entity_type = profile_row.get('sdm_entity_type') or 'Device'
             profile_mapping = profile_row.get('mapping') or {}
 
             cur.close()
@@ -278,9 +278,14 @@ def register_sensor():
                     'value': data['altitude_meters'],
                 }
             if data.get('parcel_id'):
-                orion_entity['parcelId'] = {
-                    'type': 'Property',
-                    'value': data['parcel_id'],
+                # controlledAsset es la relación SDM dispositivo->activo. Sustituye a la
+                # propiedad propia parcelId, que obligaba a probar tres deletreos en orden.
+                parcel_ref = data['parcel_id']
+                if not parcel_ref.startswith('urn:ngsi-ld:'):
+                    parcel_ref = f"urn:ngsi-ld:AgriParcel:{parcel_ref}"
+                orion_entity['controlledAsset'] = {
+                    'type': 'Relationship',
+                    'object': parcel_ref,
                 }
 
             # Health & calibration config
