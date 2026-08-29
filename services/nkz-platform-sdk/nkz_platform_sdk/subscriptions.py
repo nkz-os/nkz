@@ -132,6 +132,17 @@ class SubscriptionRegistrar:
         same description under a random legacy id. Self-disables once no
         legacy duplicates remain, since then every create for this
         subscription hits 409 and this method is never invoked.
+
+        This listing is subject to the same eventually-consistent read
+        cache as any other Orion subscription GET (measured ~10s+ lag on
+        this platform's 60s subscription-cache interval), so it can miss a
+        duplicate created only seconds ago. That is fine and deliberately
+        left as-is: legacy duplicates are old and long since settled in the
+        cache, and a genuinely fresh duplicate — one created moments before
+        this sweep runs — simply gets caught on a later heal cycle instead.
+        Do not "fix" this by reading the id back to confirm freshness; see
+        `_reconcile_ambiguous_create_failure` for why an immediate read
+        cannot be trusted here.
         """
         description = self._description(sub)
         try:
@@ -177,43 +188,86 @@ class SubscriptionRegistrar:
         status: int | None,
         error: Exception,
         errors: list[str],
-    ) -> bool:
-        """Disambiguate a non-409 create failure against the broker itself.
+    ) -> str:
+        """Disambiguate a non-409 create failure by retrying the create, never by reading.
 
-        Verified against the live broker: under real concurrent POSTs of the
-        same deterministic id, Orion intermittently answers 500 instead of
-        409 when it loses the create race (~1 round in 4 in a 5-concurrent
-        x 4-round test, while "exactly one 201 per round" held every time).
-        Treating every non-409 status as an error would then alarm callers
-        on subscriptions that are perfectly healthy. So a non-409 failure
-        doesn't get taken at face value: ask the broker whether the
-        subscription exists now (`get_subscription`).
+        Orion's subscription reads are eventually consistent on this
+        platform (the broker runs with a 60s subscription-cache interval,
+        set deliberately) -- measured against the live broker, a `GET` for
+        a just-created subscription answered 404 at ~0s and ~2s after the
+        create, and only turned 200 at ~10s and ~30s. A read taken right
+        after an ambiguous failure can therefore say "does not exist" for a
+        subscription that in fact exists, which makes a read useless for
+        resolving a race inside that window. **No code should verify a
+        subscription by reading it back immediately after creating one —
+        the cache has not caught up yet.**
 
-        - exists -> another process created it; this was a bad-status echo
-          of a race loss, not a real failure. Counted as skipped, like a
-          409, logged at debug with the original status so the
-          intermittency stays visible in logs.
-        - does not exist (or existence can't be confirmed) -> the create
-          genuinely failed. Recorded in `errors` with the original status.
+        The create path, unlike reads, is strongly consistent: across every
+        concurrent round observed against the live broker, exactly one
+        caller received 201 and every other caller was rejected. So the
+        create itself is the oracle here: retry the POST once, immediately,
+        no sleep (the create path doesn't touch the read cache, so waiting
+        buys nothing).
 
-        Returns True if this should be counted as skipped (already logged);
-        False if it has already been appended to `errors` (already logged).
+        - retry -> 409: someone else holds the id -> skipped, like a plain 409.
+        - retry -> 201: we hold it -> created (caller runs the legacy purge,
+          same as the primary 201 path).
+        - retry -> anything else: a real error. The message names both the
+          original and the retry status.
+
+        Returns "skipped", "created", or "error" (in the "error" case the
+        message is already appended to `errors` and logged).
         """
         try:
-            await client.get_subscription(sub_id)
-        except Exception:
+            await client.create_subscription(self._body(sub))
+        except httpx.HTTPStatusError as e:
+            retry_status = e.response.status_code if e.response is not None else None
+            if retry_status == 409:
+                logger.debug(
+                    "Subscription create retry collided (concurrent create won): "
+                    "%s (tenant=%s, id=%s, first_status=%s)",
+                    self._description(sub), tenant_id, sub_id, status,
+                )
+                return "skipped"
             errors.append(
-                f"{tenant_id}/{sub.type}: create failed (status={status}): {error}"
+                f"{tenant_id}/{sub.type}: create failed twice "
+                f"(status={status}, retry_status={retry_status}): {e}"
             )
             logger.error("Subscription create failed: %s", errors[-1])
-            return False
-        else:
-            logger.debug(
-                "Subscription create answered status=%s but already exists "
-                "(concurrent create won, broker confirmed): %s (tenant=%s, id=%s)",
-                status, self._description(sub), tenant_id, sub_id,
+            return "error"
+        except Exception as e:
+            errors.append(
+                f"{tenant_id}/{sub.type}: create failed twice "
+                f"(status={status}, retry_status=None): {e}"
             )
-            return True
+            logger.error("Subscription create failed: %s", errors[-1])
+            return "error"
+        else:
+            logger.info(
+                "Subscription created on retry: %s (tenant=%s, id=%s, first_status=%s)",
+                self._description(sub), tenant_id, sub_id, status,
+            )
+            return "created"
+
+    async def _record_created(
+        self,
+        client: OrionClient,
+        sub: SubscriptionDef,
+        sub_id: str,
+        tenant_id: str,
+        errors: list[str],
+    ) -> None:
+        """Log a successful create and run the legacy-duplicate sweep.
+
+        Shared by the primary 201 path and the ambiguous-failure retry's
+        201 outcome — both mean this call is the one that made the
+        subscription exist.
+        """
+        logger.info(
+            "Subscription created: %s (tenant=%s, id=%s)",
+            self._description(sub), tenant_id, sub_id,
+        )
+        await self._purge_legacy_duplicates(client, sub, sub_id, tenant_id, errors)
 
     async def ensure_all(self, tenant_ids: list[str]) -> dict:
         """Ensure subscriptions exist for all tenants. Idempotent, never raises.
@@ -225,9 +279,11 @@ class SubscriptionRegistrar:
         concurrent heal cycle won the race, not an error). A non-409
         failure is not trusted at face value — the broker can answer 500
         for the same race loss it would normally answer 409 for — so it is
-        reconciled via `_reconcile_ambiguous_create_failure` before being
-        counted as an error. Legacy subscriptions from before this scheme
-        are converged away after a 201 only, via `_purge_legacy_duplicates`.
+        reconciled via `_reconcile_ambiguous_create_failure`, which retries
+        the create rather than reading (reads are eventually consistent on
+        this platform; see that method's docstring). Legacy subscriptions
+        from before this scheme are converged away after a 201 (first-try
+        or on retry) via `_purge_legacy_duplicates`.
         """
         created, skipped, errors = 0, 0, []
         for tenant_id in tenant_ids:
@@ -248,24 +304,31 @@ class SubscriptionRegistrar:
                                 "%s (tenant=%s, id=%s)",
                                 self._description(sub), tenant_id, sub_id,
                             )
-                        elif await self._reconcile_ambiguous_create_failure(
-                            client, sub, sub_id, tenant_id, status, e, errors
-                        ):
-                            skipped += 1
+                        else:
+                            outcome = await self._reconcile_ambiguous_create_failure(
+                                client, sub, sub_id, tenant_id, status, e, errors
+                            )
+                            if outcome == "skipped":
+                                skipped += 1
+                            elif outcome == "created":
+                                created += 1
+                                await self._record_created(
+                                    client, sub, sub_id, tenant_id, errors
+                                )
                     except Exception as e:
-                        if await self._reconcile_ambiguous_create_failure(
+                        outcome = await self._reconcile_ambiguous_create_failure(
                             client, sub, sub_id, tenant_id, None, e, errors
-                        ):
+                        )
+                        if outcome == "skipped":
                             skipped += 1
+                        elif outcome == "created":
+                            created += 1
+                            await self._record_created(
+                                client, sub, sub_id, tenant_id, errors
+                            )
                     else:
                         created += 1
-                        logger.info(
-                            "Subscription created: %s (tenant=%s, id=%s)",
-                            self._description(sub), tenant_id, sub_id,
-                        )
-                        await self._purge_legacy_duplicates(
-                            client, sub, sub_id, tenant_id, errors
-                        )
+                        await self._record_created(client, sub, sub_id, tenant_id, errors)
             finally:
                 await client.close()
         return {"created": created, "skipped": skipped, "errors": errors}
