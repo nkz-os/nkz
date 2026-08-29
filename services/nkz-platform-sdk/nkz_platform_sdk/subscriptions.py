@@ -1,22 +1,45 @@
 """SubscriptionRegistrar — declarative Orion-LD subscription management.
 
 One subscription per entity type per tenant (not per parcel — filtering
-happens in the module's notification handler). Idempotent by `description`.
-All Orion-LD I/O goes through OrionClient (NGSI-LD compliance at SDK level).
+happens in the module's notification handler). Idempotent via a
+deterministic subscription id (`urn:ngsi-ld:Subscription:{module}:{type}`,
+see `_subscription_id`): every process that wants this subscription POSTs
+the same id, so Orion's own duplicate-id rejection (409) arbitrates
+concurrent heal cycles instead of a check-then-create read that two
+processes can both pass at once. All Orion-LD I/O goes through OrionClient
+(NGSI-LD compliance at SDK level).
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+
+import httpx
 
 from nkz_platform_sdk.orion import OrionClient
 
 logger = logging.getLogger(__name__)
 
 DESCRIPTION_PREFIX = "nkz-module"
+
+# NGSI-LD URNs are free-form after the type segment, but we keep the id
+# segments to the RFC 3986 "unreserved" character set so the id is safe to
+# embed literally and never needs escaping.
+_URN_UNSAFE_CHARS = re.compile(r"[^A-Za-z0-9_.~-]")
+
+
+def _sanitize_urn_segment(value: str) -> str:
+    """Make `value` safe to embed as an NGSI-LD URN segment.
+
+    Deterministic: every character outside [A-Za-z0-9_.~-] is replaced with
+    '-'. Same input always sanitises to the same output, which is what
+    makes the derived subscription id stable across runs and processes.
+    """
+    return _URN_UNSAFE_CHARS.sub("-", value)
 
 
 @dataclass
@@ -61,8 +84,22 @@ class SubscriptionRegistrar:
     def _description(self, sub: SubscriptionDef) -> str:
         return f"{DESCRIPTION_PREFIX}: {sub.type} -> {self.module_name}"
 
+    def _subscription_id(self, sub: SubscriptionDef) -> str:
+        """Deterministic id for this logical subscription.
+
+        `urn:ngsi-ld:Subscription:{module_name}:{type}`, with module_name
+        and type each run through `_sanitize_urn_segment`. Stable across
+        runs and processes — tenant is deliberately not part of it, since
+        each tenant has its own subscription store and module+type is
+        already unique within one.
+        """
+        module = _sanitize_urn_segment(self.module_name)
+        sub_type = _sanitize_urn_segment(sub.type)
+        return f"urn:ngsi-ld:Subscription:{module}:{sub_type}"
+
     def _body(self, sub: SubscriptionDef) -> dict:
         body = {
+            "id": self._subscription_id(sub),
             "type": "Subscription",
             "description": self._description(sub),
             "entities": [{"type": sub.type}],
@@ -79,33 +116,103 @@ class SubscriptionRegistrar:
             body["condition"] = sub.condition
         return body
 
+    async def _purge_legacy_duplicates(
+        self,
+        client: OrionClient,
+        sub: SubscriptionDef,
+        created_id: str,
+        tenant_id: str,
+        errors: list[str],
+    ) -> None:
+        """Delete pre-deterministic-id duplicates of the subscription just created.
+
+        Only called after a 201 (never after a 409 — see `ensure_all`): a
+        201 means this process's create is the one that just succeeded, so
+        it is the right point to sweep for older subscriptions carrying the
+        same description under a random legacy id. Self-disables once no
+        legacy duplicates remain, since then every create for this
+        subscription hits 409 and this method is never invoked.
+        """
+        description = self._description(sub)
+        try:
+            existing = await client.query_all_subscriptions()
+        except Exception as e:
+            errors.append(f"{tenant_id}/{sub.type} legacy-purge list: {e}")
+            logger.warning(
+                "Legacy subscription listing failed for %s/%s: %s", tenant_id, sub.type, e
+            )
+            return
+
+        legacy_ids = [
+            s.get("id")
+            for s in existing
+            if s.get("description") == description and s.get("id") != created_id
+        ]
+        for legacy_id in legacy_ids:
+            try:
+                await client.delete_subscription(legacy_id)
+                logger.info(
+                    "Legacy subscription purged: %s (tenant=%s, id=%s)",
+                    description, tenant_id, legacy_id,
+                )
+            except httpx.HTTPStatusError as e:
+                if e.response is not None and e.response.status_code == 404:
+                    continue  # already removed by someone else
+                errors.append(f"{tenant_id}/{sub.type} legacy-purge delete {legacy_id}: {e}")
+                logger.warning(
+                    "Legacy subscription delete failed: %s", errors[-1]
+                )
+            except Exception as e:
+                errors.append(f"{tenant_id}/{sub.type} legacy-purge delete {legacy_id}: {e}")
+                logger.warning(
+                    "Legacy subscription delete failed: %s", errors[-1]
+                )
+
     async def ensure_all(self, tenant_ids: list[str]) -> dict:
-        """Ensure subscriptions exist for all tenants. Idempotent, never raises."""
+        """Ensure subscriptions exist for all tenants. Idempotent, never raises.
+
+        No listing is done to decide whether to create: each subscription
+        POSTs straight away with its deterministic id (`_subscription_id`)
+        and the create either succeeds (201, this process made it exist)
+        or collides (409, it already existed — the expected outcome when a
+        concurrent heal cycle won the race, not an error). Legacy
+        subscriptions from before this scheme are converged away after a
+        201 only, via `_purge_legacy_duplicates`.
+        """
         created, skipped, errors = 0, 0, []
         for tenant_id in tenant_ids:
             client = OrionClient(
                 tenant_id, base_url=self.orion_url, context_url=self.context_url
             )
             try:
-                existing = await client.query_all_subscriptions()
-                descriptions = {s.get("description", "") for s in existing}
                 for sub in self._subs:
-                    if self._description(sub) in descriptions:
-                        skipped += 1
-                        continue
+                    sub_id = self._subscription_id(sub)
                     try:
                         await client.create_subscription(self._body(sub))
-                        created += 1
-                        logger.info(
-                            "Subscription created: %s (tenant=%s)",
-                            self._description(sub), tenant_id,
-                        )
+                    except httpx.HTTPStatusError as e:
+                        status = e.response.status_code if e.response is not None else None
+                        if status == 409:
+                            skipped += 1
+                            logger.debug(
+                                "Subscription already exists (concurrent create won): "
+                                "%s (tenant=%s, id=%s)",
+                                self._description(sub), tenant_id, sub_id,
+                            )
+                        else:
+                            errors.append(f"{tenant_id}/{sub.type}: {e}")
+                            logger.error("Subscription create failed: %s", errors[-1])
                     except Exception as e:
                         errors.append(f"{tenant_id}/{sub.type}: {e}")
                         logger.error("Subscription create failed: %s", errors[-1])
-            except Exception as e:
-                errors.append(f"tenant {tenant_id}: {e}")
-                logger.warning("Subscription check failed for %s: %s", tenant_id, e)
+                    else:
+                        created += 1
+                        logger.info(
+                            "Subscription created: %s (tenant=%s, id=%s)",
+                            self._description(sub), tenant_id, sub_id,
+                        )
+                        await self._purge_legacy_duplicates(
+                            client, sub, sub_id, tenant_id, errors
+                        )
             finally:
                 await client.close()
         return {"created": created, "skipped": skipped, "errors": errors}

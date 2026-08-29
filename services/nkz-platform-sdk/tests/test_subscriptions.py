@@ -1,6 +1,7 @@
 # tests/test_subscriptions.py
 """Unit tests for SubscriptionRegistrar — delegates to OrionClient."""
 
+import asyncio
 import json
 
 import pytest
@@ -27,10 +28,19 @@ def make_registrar() -> SubscriptionRegistrar:
     )
 
 
+def _one_sub_registrar() -> SubscriptionRegistrar:
+    return SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "EOProduct", "throttling": 30}],
+        module_name="crop-health",
+    )
+
+
 @pytest.mark.asyncio
 @respx.mock
-async def test_ensure_all_creates_missing_subscriptions():
-    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+async def test_ensure_all_creates_missing_subscriptions_with_deterministic_id():
+    get_route = respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
         return_value=Response(200, json=[])
     )
     post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
@@ -40,25 +50,97 @@ async def test_ensure_all_creates_missing_subscriptions():
     assert result == {"created": 2, "skipped": 0, "errors": []}
     assert len(post.calls) == 2
 
+    ids = {json.loads(c.request.content)["id"] for c in post.calls}
+    assert ids == {
+        "urn:ngsi-ld:Subscription:crop-health:EOProduct",
+        "urn:ngsi-ld:Subscription:crop-health:WeatherObserved",
+    }
+    # a 201 triggers the legacy-duplicate sweep
+    assert get_route.calls
+
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_ensure_all_skips_existing_by_description():
-    existing = [{
-        "id": "urn:ngsi-ld:Subscription:existing-1",
+async def test_ensure_all_counts_409_as_skipped_without_error():
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"type": "AlreadyExists", "title": "duplicate"})
+    )
+    result = await _one_sub_registrar().ensure_all(["montiko"])
+    assert result == {"created": 0, "skipped": 1, "errors": []}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_run_twice_creates_once_then_skips():
+    """Same registrar, two runs: first process wins (201), second collides (409)."""
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(return_value=Response(200, json=[]))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        side_effect=[
+            Response(201, headers={"Location": "/x"}),
+            Response(409, json={"title": "duplicate"}),
+        ]
+    )
+    registrar = _one_sub_registrar()
+    first = await registrar.ensure_all(["montiko"])
+    second = await registrar.ensure_all(["montiko"])
+    assert first == {"created": 1, "skipped": 0, "errors": []}
+    assert second == {"created": 0, "skipped": 1, "errors": []}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_purges_legacy_duplicate_after_create():
+    legacy = [{
+        "id": "urn:ngsi-ld:Subscription:legacy-random-uuid",
         "type": "Subscription",
         "description": "nkz-module: EOProduct -> crop-health",
     }]
     respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
-        return_value=Response(200, json=existing)
+        return_value=Response(200, json=legacy)
     )
-    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
         return_value=Response(201, headers={"Location": "/x"})
     )
-    result = await make_registrar().ensure_all(["montiko"])
-    assert result["created"] == 1   # only WeatherObserved
-    assert result["skipped"] == 1
-    assert len(post.calls) == 1
+    delete_route = respx.delete(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:legacy-random-uuid"
+    ).mock(return_value=Response(204))
+
+    result = await _one_sub_registrar().ensure_all(["montiko"])
+
+    assert result == {"created": 1, "skipped": 0, "errors": []}
+    assert len(delete_route.calls) == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_409_does_not_list_or_delete():
+    get_route = respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=[])
+    )
+    delete_route = respx.delete(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:legacy"
+    ).mock(return_value=Response(204))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+
+    result = await _one_sub_registrar().ensure_all(["montiko"])
+
+    assert result == {"created": 0, "skipped": 1, "errors": []}
+    assert not get_route.calls, "409 must not trigger the legacy-duplicate listing"
+    assert not delete_route.calls, "409 must not trigger any delete"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_collects_errors_without_raising():
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(500, text="boom")
+    )
+    result = await _one_sub_registrar().ensure_all(["montiko"])
+    assert result["created"] == 0
+    assert result["skipped"] == 0
+    assert len(result["errors"]) == 1
 
 
 @pytest.mark.asyncio
@@ -70,11 +152,7 @@ async def test_subscription_body_and_headers_are_ngsild_compliant():
     post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
         return_value=Response(201, headers={"Location": "/x"})
     )
-    await SubscriptionRegistrar(
-        orion_url=ORION, notification_url=NOTIFY,
-        subscriptions=[{"type": "EOProduct", "throttling": 30}],
-        module_name="crop-health",
-    ).ensure_all(["montiko"])
+    await _one_sub_registrar().ensure_all(["montiko"])
 
     req = post.calls[0].request
     # Legal NGSI-LD combination: application/json + Link, no @context in body
@@ -83,21 +161,11 @@ async def test_subscription_body_and_headers_are_ngsild_compliant():
     assert req.headers["NGSILD-Tenant"] == "montiko"
     body = json.loads(req.content)
     assert "@context" not in body
+    assert body["id"] == "urn:ngsi-ld:Subscription:crop-health:EOProduct"
     assert body["description"] == "nkz-module: EOProduct -> crop-health"
     assert body["entities"] == [{"type": "EOProduct"}]
     assert body["throttling"] == 30
     assert body["notification"]["endpoint"]["uri"] == NOTIFY
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_ensure_all_collects_errors_without_raising():
-    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
-        return_value=Response(500, text="boom")
-    )
-    result = await make_registrar().ensure_all(["montiko"])
-    assert result["created"] == 0
-    assert len(result["errors"]) == 1
 
 
 def _registrar():
@@ -127,32 +195,103 @@ def test_body_includes_watched_and_condition_when_set():
     assert body["entities"] == [{"type": "CropHealthAssessment"}]
 
 
+def test_subscription_id_is_deterministic_and_stable():
+    reg = _registrar()
+    sub = SubscriptionDef(type="AgriCrop")
+    assert reg._subscription_id(sub) == "urn:ngsi-ld:Subscription:bioorchestrator:AgriCrop"
+    # same input -> same id, every time
+    assert reg._subscription_id(sub) == reg._subscription_id(sub)
+
+
+def test_subscription_id_sanitises_invalid_urn_characters():
+    reg = SubscriptionRegistrar(
+        orion_url="http://orion:1026",
+        notification_url="http://svc/notify",
+        subscriptions=[],
+        module_name="weird module/name!",
+    )
+    sub_id = reg._subscription_id(SubscriptionDef(type="Some Type#With/Slashes"))
+    assert sub_id == "urn:ngsi-ld:Subscription:weird-module-name-:Some-Type-With-Slashes"
+
+
 @pytest.mark.asyncio
 @respx.mock
-async def test_ensure_all_sees_subscriptions_beyond_the_first_page():
-    """Runaway-duplication regression.
-
-    When the registrar's own subscriptions sit past the first page of the
-    listing, a single-page read reports them missing and re-creates them on
-    every heal cycle. Each cycle pushes the real ones further out of the
-    window, so the loop never recovers on its own.
+async def test_legacy_purge_finds_duplicate_beyond_the_first_page():
+    """The legacy-duplicate sweep must use the paginating listing, not a
+    single-page read, or a legacy duplicate sitting past page 1 survives
+    convergence forever.
     """
     from nkz_platform_sdk.orion import ORION_PAGE_SIZE
 
     filler = [
-        {"id": f"urn:ngsi-ld:Subscription:{i}", "description": f"unrelated-{i}"}
+        {"id": f"urn:ngsi-ld:Subscription:filler-{i}", "description": f"unrelated-{i}"}
         for i in range(ORION_PAGE_SIZE)
     ]
-    mine = [
-        {"id": "urn:ngsi-ld:Subscription:a", "description": "nkz-module: EOProduct -> crop-health"},
-        {"id": "urn:ngsi-ld:Subscription:b", "description": "nkz-module: WeatherObserved -> crop-health"},
-    ]
+    legacy = {
+        "id": "urn:ngsi-ld:Subscription:legacy-random-uuid",
+        "description": "nkz-module: EOProduct -> crop-health",
+    }
     respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
-        side_effect=[Response(200, json=filler), Response(200, json=mine)]
+        side_effect=[
+            Response(200, json=filler),    # page 1, full page
+            Response(200, json=[legacy]),  # page 2, short page, stop
+        ]
     )
-    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
-        return_value=Response(201, headers={"Location": "/ngsi-ld/v1/subscriptions/urn:x"})
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
     )
-    result = await make_registrar().ensure_all(["montiko"])
-    assert result == {"created": 0, "skipped": 2, "errors": []}
-    assert len(post.calls) == 0, "re-created subscriptions that already existed"
+    delete_route = respx.delete(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:legacy-random-uuid"
+    ).mock(return_value=Response(204))
+
+    result = await _one_sub_registrar().ensure_all(["montiko"])
+
+    assert result == {"created": 1, "skipped": 0, "errors": []}
+    assert len(delete_route.calls) == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_legacy_purge_ignores_404_on_delete():
+    """A 404 on the legacy delete means someone else already removed it —
+    not an error."""
+    legacy = [{
+        "id": "urn:ngsi-ld:Subscription:legacy-random-uuid",
+        "description": "nkz-module: EOProduct -> crop-health",
+    }]
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=legacy)
+    )
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+    respx.delete(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:legacy-random-uuid"
+    ).mock(return_value=Response(404, json={"title": "not found"}))
+
+    result = await _one_sub_registrar().ensure_all(["montiko"])
+
+    assert result == {"created": 1, "skipped": 0, "errors": []}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_periodic_heal_never_raises_on_heal_cycle_failure(monkeypatch):
+    """A failing ensure_all cycle (Orion returning errors) must not kill the loop."""
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(500, text="boom")
+    )
+    sleep_calls = 0
+
+    async def fake_sleep(_seconds):
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if sleep_calls >= 2:
+            raise asyncio.CancelledError()
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    registrar = _one_sub_registrar()
+    with pytest.raises(asyncio.CancelledError):
+        await registrar.periodic_heal(["montiko"], interval_minutes=60)
+    assert sleep_calls == 2
