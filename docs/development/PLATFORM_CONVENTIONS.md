@@ -40,12 +40,21 @@ The platform follows the **FIWARE IoT Agent JSON** standard for connecting physi
 ### Architecture
 
 ```text
-Device/Gateway → MQTT (Mosquitto) → IoT Agent JSON 3.13.0 → Orion-LD (NGSI-LD)
+Device/Gateway → MQTT (Mosquitto) → IoT Agent JSON 3.13.0 → Orion-LD 1.12.0 (NGSI-LD)
                   ↑                    ↑                          ↓
-           /<tenant_apikey>/<device_id>/attrs    NGSI-LD native   Subscription (throttle 30s)
+           /<tenant_apikey>/<device_id>/attrs    NGSI-LD native   Subscription
            {"attr": value}                       + appendMode      ↓
                                                                   telemetry-worker → TimescaleDB
 ```
+
+> **Orion-LD 1.12.0 in production since 2026-08-03** (ArgoCD `core-services`, overlay
+> `gitops-config/overlays/core/services/orion-ld-deployment.yaml`, args
+> `-mongocOnly -subCacheIval 60 -coreContext v1.6`). `-mongocOnly` replaced `-experimental`:
+> the legacy driver crashes on MongoDB 6/7. `-subCacheIval 60` is required — at 0 the
+> subscription cache never refreshes and replicas diverge.
+> The `nkz/k8s/core/fiware/orion-ld-deployment.yaml` template may still show `1.5.1` — it is NOT the
+> production source of truth. See `internal-docs-local/orion-upgrade/RESULTS.md` and
+> `internal-docs-local/specs/2026-08-02-orion-ld-upgrade-design.md`.
 
 ### Rules (MANDATORY)
 
@@ -54,10 +63,10 @@ Device/Gateway → MQTT (Mosquitto) → IoT Agent JSON 3.13.0 → Orion-LD (NGSI
 | **One apikey per tenant** | `get_or_create_service_group(tenant_id)` in `sdm_api.py` retrieves/creates a tenant-level apikey. All devices in a tenant share it. |
 | **Topic format** | `/<tenant_apikey>/<device_id>/attrs` |
 | **Payload format** | `{"attributeName": value}` (FIWARE IoT Agent JSON standard) |
-| **IoT Agent mode** | NGSI-LD native (`IOTA_CB_NGSI_VERSION=ld`) + `IOTA_APPEND_MODE=true` + `IOTA_EXPLICIT_ATTRS=false` |
+| **IoT Agent mode** | NGSI-LD native (`IOTA_CB_NGSI_VERSION=ld`) + `IOTA_APPEND_MODE=true` + `IOTA_EXPLICIT_ATTRS=true` (Schema-First, see note below) |
 | **IoT Agent version** | 3.13.0 — uses `IOTA_MONGO_URI` (not USER/PASSWORD, driver 6.x bug) |
 | **Mosquitto ACL** | `iot-agent` user MUST have `topic readwrite #` or receives ZERO messages |
-| **Entity types with IoT** | `AgriSensor`, `Sensor`, `Actuator`, `WeatherStation`, `AgriculturalTractor`, `LivestockAnimal`, `AgriculturalMachine` |
+| **Entity types with IoT** | `Device` (sensors and weather stations) and `ManufacturingMachine` (tractors, implements, robots, harvesters), both official Smart Data Models. The platform-specific `AgriSensor`, `AgriculturalTractor`, `AgriculturalImplement`, `AgriculturalRobot` and `AgriOperation` were retired; a machine is discriminated by `sdm_device_category` in `sensor_profiles`. |
 | **MQTT external endpoint** | `MQTT_EXTERNAL_HOST` / `MQTT_EXTERNAL_PORT` in `nekazari-config` ConfigMap |
 | **Credentials** | Shown ONCE at creation. Cannot be recovered. |
 
@@ -69,12 +78,19 @@ Device/Gateway → MQTT (Mosquitto) → IoT Agent JSON 3.13.0 → Orion-LD (NGSI
 - Mix v2 and LD entities in same tenant (type expansion conflict)
 - Hardcode `MQTT_EXTERNAL_HOST` — always use ConfigMap
 
-### Architecture decisions (2026-03-26)
+### Architecture decisions
 
-- **Phase 1 (current)**: `explicitAttrs=false` — pragmatic for controlled DaTaK devices
-- **Phase 2 (multi-tenant/third-party)**: migrate to `explicitAttrs=true` (Schema-First) for Relationship support, unitCode metadata, data contracts
+- **`IOTA_EXPLICIT_ATTRS=true` (production)**: only DeviceProfile-declared attributes are forwarded to
+  Orion-LD; undeclared MQTT keys are silently dropped. The earlier "Phase 1 = false / Phase 2 = true"
+  decision (2026-03-26) was **superseded** — the deployed manifest
+  (`k8s/core/fiware/iot-agent-json-deployment.yaml`) and `docs/edge-hardware.md` both reflect `true`.
+- **MQTT topic canonical**: `/{apikey}/{device_id}/attrs` (FIWARE standard; DaTaK, `sdm-integration/sdm_api.py`
+  and the IoT Agent defaults all agree). The legacy flow in `entity-manager/blueprints/sensors.py` +
+  `mqtt-credentials-manager` (topics `{tenant}/{device}/data`) is **inconsistent and pending reconciliation**
+  — see `internal-docs-local/2026-08-20-auditoria-fiware-ngsi-ld-nkz.md`.
 - **Kafka**: not needed until >2,000 devices. asyncpg pool + NGSI-LD throttle handles up to ~5,000 sensors
-- **TROE+Mintaka**: evaluate for Phase 2 datahub (standard ETSI temporal API, replaces custom worker)
+- **TROE**: Orion-LD 1.12.0 supports native TROE, but the platform still uses subscription → TimescaleDB.
+  TROE activation was explored (unmerged branch) and remains deferred. Mintaka is deprecated/archived upstream — do not introduce it.
 
 ---
 
