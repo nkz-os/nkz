@@ -134,13 +134,83 @@ async def test_ensure_all_409_does_not_list_or_delete():
 @pytest.mark.asyncio
 @respx.mock
 async def test_ensure_all_collects_errors_without_raising():
+    sub_id = "urn:ngsi-ld:Subscription:crop-health:EOProduct"
     respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
         return_value=Response(500, text="boom")
+    )
+    # a non-409 failure is reconciled against the broker before being
+    # trusted as a real error -- confirm it genuinely doesn't exist
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions/{sub_id}").mock(
+        return_value=Response(404, json={"title": "not found"})
     )
     result = await _one_sub_registrar().ensure_all(["montiko"])
     assert result["created"] == 0
     assert result["skipped"] == 0
     assert len(result["errors"]) == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_reconciles_500_as_skip_when_subscription_actually_exists():
+    """Verified against the live broker: under real concurrency Orion
+    intermittently answers 500 (not 409) when it loses the create race --
+    the "exactly one 201" invariant still held every round, only the
+    losers' status code was sometimes wrong. A 500 must not be trusted at
+    face value: confirm existence with the broker before counting it as a
+    real failure.
+    """
+    sub_id = "urn:ngsi-ld:Subscription:crop-health:EOProduct"
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(500, text="boom")
+    )
+    get_one = respx.get(f"{ORION}/ngsi-ld/v1/subscriptions/{sub_id}").mock(
+        return_value=Response(
+            200,
+            json={"id": sub_id, "description": "nkz-module: EOProduct -> crop-health"},
+        )
+    )
+
+    result = await _one_sub_registrar().ensure_all(["montiko"])
+
+    assert result == {"created": 0, "skipped": 1, "errors": []}
+    assert len(get_one.calls) == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_500_then_missing_is_a_real_error_naming_original_status():
+    sub_id = "urn:ngsi-ld:Subscription:crop-health:EOProduct"
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(500, text="boom")
+    )
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions/{sub_id}").mock(
+        return_value=Response(404, json={"title": "not found"})
+    )
+
+    result = await _one_sub_registrar().ensure_all(["montiko"])
+
+    assert result["created"] == 0
+    assert result["skipped"] == 0
+    assert len(result["errors"]) == 1
+    assert "500" in result["errors"][0]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_409_skips_the_existence_check():
+    """A 409 is unambiguous -- it must not cost an extra round trip."""
+    sub_id = "urn:ngsi-ld:Subscription:crop-health:EOProduct"
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+    get_one = respx.get(f"{ORION}/ngsi-ld/v1/subscriptions/{sub_id}").mock(
+        return_value=Response(200, json={"id": sub_id})
+    )
+
+    result = await _one_sub_registrar().ensure_all(["montiko"])
+
+    assert result == {"created": 0, "skipped": 1, "errors": []}
+    assert not get_one.calls
 
 
 @pytest.mark.asyncio

@@ -168,6 +168,53 @@ class SubscriptionRegistrar:
                     "Legacy subscription delete failed: %s", errors[-1]
                 )
 
+    async def _reconcile_ambiguous_create_failure(
+        self,
+        client: OrionClient,
+        sub: SubscriptionDef,
+        sub_id: str,
+        tenant_id: str,
+        status: int | None,
+        error: Exception,
+        errors: list[str],
+    ) -> bool:
+        """Disambiguate a non-409 create failure against the broker itself.
+
+        Verified against the live broker: under real concurrent POSTs of the
+        same deterministic id, Orion intermittently answers 500 instead of
+        409 when it loses the create race (~1 round in 4 in a 5-concurrent
+        x 4-round test, while "exactly one 201 per round" held every time).
+        Treating every non-409 status as an error would then alarm callers
+        on subscriptions that are perfectly healthy. So a non-409 failure
+        doesn't get taken at face value: ask the broker whether the
+        subscription exists now (`get_subscription`).
+
+        - exists -> another process created it; this was a bad-status echo
+          of a race loss, not a real failure. Counted as skipped, like a
+          409, logged at debug with the original status so the
+          intermittency stays visible in logs.
+        - does not exist (or existence can't be confirmed) -> the create
+          genuinely failed. Recorded in `errors` with the original status.
+
+        Returns True if this should be counted as skipped (already logged);
+        False if it has already been appended to `errors` (already logged).
+        """
+        try:
+            await client.get_subscription(sub_id)
+        except Exception:
+            errors.append(
+                f"{tenant_id}/{sub.type}: create failed (status={status}): {error}"
+            )
+            logger.error("Subscription create failed: %s", errors[-1])
+            return False
+        else:
+            logger.debug(
+                "Subscription create answered status=%s but already exists "
+                "(concurrent create won, broker confirmed): %s (tenant=%s, id=%s)",
+                status, self._description(sub), tenant_id, sub_id,
+            )
+            return True
+
     async def ensure_all(self, tenant_ids: list[str]) -> dict:
         """Ensure subscriptions exist for all tenants. Idempotent, never raises.
 
@@ -175,9 +222,12 @@ class SubscriptionRegistrar:
         POSTs straight away with its deterministic id (`_subscription_id`)
         and the create either succeeds (201, this process made it exist)
         or collides (409, it already existed — the expected outcome when a
-        concurrent heal cycle won the race, not an error). Legacy
-        subscriptions from before this scheme are converged away after a
-        201 only, via `_purge_legacy_duplicates`.
+        concurrent heal cycle won the race, not an error). A non-409
+        failure is not trusted at face value — the broker can answer 500
+        for the same race loss it would normally answer 409 for — so it is
+        reconciled via `_reconcile_ambiguous_create_failure` before being
+        counted as an error. Legacy subscriptions from before this scheme
+        are converged away after a 201 only, via `_purge_legacy_duplicates`.
         """
         created, skipped, errors = 0, 0, []
         for tenant_id in tenant_ids:
@@ -198,12 +248,15 @@ class SubscriptionRegistrar:
                                 "%s (tenant=%s, id=%s)",
                                 self._description(sub), tenant_id, sub_id,
                             )
-                        else:
-                            errors.append(f"{tenant_id}/{sub.type}: {e}")
-                            logger.error("Subscription create failed: %s", errors[-1])
+                        elif await self._reconcile_ambiguous_create_failure(
+                            client, sub, sub_id, tenant_id, status, e, errors
+                        ):
+                            skipped += 1
                     except Exception as e:
-                        errors.append(f"{tenant_id}/{sub.type}: {e}")
-                        logger.error("Subscription create failed: %s", errors[-1])
+                        if await self._reconcile_ambiguous_create_failure(
+                            client, sub, sub_id, tenant_id, None, e, errors
+                        ):
+                            skipped += 1
                     else:
                         created += 1
                         logger.info(
