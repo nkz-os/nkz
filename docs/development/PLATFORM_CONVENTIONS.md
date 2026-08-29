@@ -48,7 +48,10 @@ Device/Gateway → MQTT (Mosquitto) → IoT Agent JSON 3.13.0 → Orion-LD 1.12.
 ```
 
 > **Orion-LD 1.12.0 in production since 2026-08-03** (ArgoCD `core-services`, overlay
-> `gitops-config/overlays/core/services/orion-ld-deployment.yaml`, args `-experimental -coreContext v1.6`).
+> `gitops-config/overlays/core/services/orion-ld-deployment.yaml`, args
+> `-mongocOnly -subCacheIval 60 -coreContext v1.6`). `-mongocOnly` replaced `-experimental`:
+> the legacy driver crashes on MongoDB 6/7. `-subCacheIval 60` is required — at 0 the
+> subscription cache never refreshes and replicas diverge.
 > The `nkz/k8s/core/fiware/orion-ld-deployment.yaml` template may still show `1.5.1` — it is NOT the
 > production source of truth. See `internal-docs-local/orion-upgrade/RESULTS.md` and
 > `internal-docs-local/specs/2026-08-02-orion-ld-upgrade-design.md`.
@@ -63,7 +66,7 @@ Device/Gateway → MQTT (Mosquitto) → IoT Agent JSON 3.13.0 → Orion-LD 1.12.
 | **IoT Agent mode** | NGSI-LD native (`IOTA_CB_NGSI_VERSION=ld`) + `IOTA_APPEND_MODE=true` + `IOTA_EXPLICIT_ATTRS=true` (Schema-First, see note below) |
 | **IoT Agent version** | 3.13.0 — uses `IOTA_MONGO_URI` (not USER/PASSWORD, driver 6.x bug) |
 | **Mosquitto ACL** | `iot-agent` user MUST have `topic readwrite #` or receives ZERO messages |
-| **Entity types with IoT** | `AgriSensor`, `Sensor`, `Actuator`, `WeatherStation`, `AgriculturalTractor`, `LivestockAnimal`, `AgriculturalMachine` |
+| **Entity types with IoT** | `Device` (sensors and weather stations) and `ManufacturingMachine` (tractors, implements, robots, harvesters), both official Smart Data Models. The platform-specific `AgriSensor`, `AgriculturalTractor`, `AgriculturalImplement`, `AgriculturalRobot` and `AgriOperation` were retired; a machine is discriminated by `sdm_device_category` in `sensor_profiles`. |
 | **MQTT external endpoint** | `MQTT_EXTERNAL_HOST` / `MQTT_EXTERNAL_PORT` in `nekazari-config` ConfigMap |
 | **Credentials** | Shown ONCE at creation. Cannot be recovered. |
 
