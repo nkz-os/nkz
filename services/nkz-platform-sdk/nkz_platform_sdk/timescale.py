@@ -23,7 +23,7 @@ Usage:
 """
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urljoin
 
@@ -89,45 +89,37 @@ class TimescaleClient:
         Returns a list of `{"ts": iso8601, "value": float}` points, oldest first.
         Non-numeric points are silently filtered out.
         """
+        # The reader identifies the series by URN in the PATH and requires both
+        # bounds; `attrs` is its parameter name, not `attribute`. The v1 route
+        # (/api/timeseries/entities/<id>/data) is deliberately not used: it
+        # validates `attribute` against a weather-column whitelist and rejects
+        # telemetry measurement names with 400. v2 resolves the series kind from
+        # the URN instead.
         params: dict[str, Any] = {
-            "entityId": entity_id,
-            "attribute": attribute,
-            "since": _iso(since),
+            "time_from": _iso(since),
+            "time_to": _iso(until) if until is not None else _now_iso(),
+            "attrs": attribute,
             "limit": limit,
         }
-        if until is not None:
-            params["until"] = _iso(until)
         resp = await self._client.get(
-            self._url("/api/timeseries"),
+            self._url(f"/api/timeseries/v2/entities/{entity_id}/data"),
             params=params,
             headers=self._headers(),
         )
         resp.raise_for_status()
-        raw = resp.json()
-        points = raw.get("points", raw) if isinstance(raw, dict) else raw
-        normalised: list[dict[str, Any]] = []
-        for p in points or []:
-            ts = p.get("ts") or p.get("timestamp") or p.get("time")
-            val = p.get("value") if "value" in p else p.get("v")
-            if ts is None or val is None:
-                continue
-            try:
-                normalised.append({"ts": ts, "value": float(val)})
-            except (TypeError, ValueError):
-                continue
-        return normalised
+        return _rows_from_columnar(resp.json(), attribute)
 
     async def query_aggregate(
         self,
         body: dict[str, Any],
     ) -> dict[str, Any]:
-        """Run a multi-series aggregation against `/api/v2/query`.
+        """Run a multi-series aggregation against `/api/timeseries/v2/query`.
 
         The body is forwarded verbatim — see timeseries-reader-service for the
         accepted shape (entityIds, attributes, aggregation window, etc.).
         """
         resp = await self._client.post(
-            self._url("/api/v2/query"),
+            self._url("/api/timeseries/v2/query"),
             json=body,
             headers=self._headers(),
         )
@@ -136,3 +128,33 @@ class TimescaleClient:
 
     async def close(self) -> None:
         await self._client.aclose()
+
+
+def _now_iso() -> str:
+    """Upper bound for an open-ended query — the reader requires `time_to`."""
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _rows_from_columnar(raw: Any, attribute: str) -> list[dict[str, Any]]:
+    """Turn the reader's columnar payload into oldest-first `{ts, value}` rows.
+
+    v2 answers `{"timestamps": [...], "attributes": {name: [...]}}`. Columns can
+    be ragged, so pair by index and drop the unpaired tail rather than raising.
+    Non-numeric and null readings are dropped, as callers expect floats.
+    """
+    if not isinstance(raw, dict):
+        return []
+    timestamps = raw.get("timestamps") or []
+    values = (raw.get("attributes") or {}).get(attribute)
+    if not isinstance(values, list):
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for ts, value in zip(timestamps, values):
+        if ts is None or value is None:
+            continue
+        try:
+            rows.append({"ts": ts, "value": float(value)})
+        except (TypeError, ValueError):
+            continue
+    return rows
