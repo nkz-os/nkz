@@ -122,6 +122,12 @@ jobs:
             context: .
             dockerfile: services/nkz-platform-sdk/Dockerfile
 
+          # Orion-LD patched (empty-DB /types fix, upstream 4cb23b5a; temporary
+          # until upstream releases it). Clones upstream FIWARE at build time.
+          - service: orion-ld
+            context: .
+            dockerfile: services/orion-ld/Dockerfile
+
     permissions:
       contents: read
       packages: write
