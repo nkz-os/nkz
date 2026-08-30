@@ -278,6 +278,38 @@ def test_run_once_isolates_tenant_failure():
     assert rec.call_count == 2
 
 
+def _conn_returning(rows):
+    cur = MagicMock()
+    cur.fetchall.return_value = rows
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    return conn
+
+
+def test_get_active_tenants_excludes_tenants_without_work():
+    """Orion wedge guard: a tenant with NO tenant_parcel_modules rows has nothing
+    to reconcile, so it must not be iterated — iterating it would fire the
+    false-zero /types cross-check, which hangs Orion on an empty tenant DB
+    (upstream FIWARE/context.Orion-LD#4cb23b5a, fixed but unreleased in 1.12.0).
+    The 'platform' tenant is exactly such a tenant."""
+    conn = _conn_returning([("montiko",), ("asociacion-allotarra",)])
+    with patch.object(pr, "_get_db", return_value=conn):
+        tenants = pr.get_active_tenants()
+    assert tenants == ["montiko", "asociacion-allotarra"]
+    assert "platform" not in tenants
+
+
+def test_get_active_tenants_sql_filters_by_parcel_modules():
+    """The filter must run in PG (cheap, local), NOT against Orion — asking Orion
+    whether a tenant has entities would re-trigger the very wedge we avoid."""
+    conn = _conn_returning([])
+    with patch.object(pr, "_get_db", return_value=conn):
+        pr.get_active_tenants()
+    sql = conn.cursor.return_value.execute.call_args.args[0]
+    assert "tenant_parcel_modules" in sql
+    assert "FROM tenants" not in sql or "tenant_parcel_modules" in sql
+
+
 def test_teardown_honors_backoff():
     """A dead-parcel row whose next_retry_at is in the future is NOT dispatched."""
     future = datetime.now(timezone.utc) + timedelta(hours=1)
