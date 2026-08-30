@@ -22,6 +22,7 @@ import redis
 from .config import Settings
 from .models import TelemetryPayload, Measurement
 from common.ngsi_headers import inject_fiware_headers
+from common.unit_codes import to_unit_code
 from hash_utils import api_key_digest
 
 logger = logging.getLogger(__name__)
@@ -188,10 +189,14 @@ def _build_ngsi_ld_updates(payload: TelemetryPayload, profile_mapping: Dict[str,
             'observedAt': measurement.observedAt.isoformat() if measurement.observedAt else datetime.utcnow().isoformat()
         }
         
-        if measurement.unit:
-            prop['unitCode'] = measurement.unit
-        elif mapping.get('unit'):
-            prop['unitCode'] = mapping['unit']
+        # unitCode must be a UN/CEFACT Recommendation 20 code, never the raw catalogue symbol
+        # (bug: this used to write '°C', '%', 'µm'... straight into unitCode). Empty/absent
+        # unit resolves to None -> field omitted, not fabricated.
+        raw_unit = measurement.unit or mapping.get('unit')
+        if raw_unit:
+            unit_code = to_unit_code(raw_unit)
+            if unit_code is not None:
+                prop['unitCode'] = unit_code
         
         updates[attr_name] = prop
     

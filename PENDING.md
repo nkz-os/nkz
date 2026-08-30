@@ -11,6 +11,18 @@ Living document. Add items here as they surface; close them with date and commit
 
 ---
 
+## 🔴 2026-08-30 — `sensor_profiles` catalogue: `geo:json` / `boolean` in the unit column
+
+While building `common/unit_codes.py` (device-measurement-transformer plan, Task 1): two of
+the 36 unit symbols measured in `sensor_profiles.mapping->measurements[].unit` are not units
+at all — `geo:json` and `boolean` are data types, sitting in the catalogue's unit column by
+mistake. Not fixed here (out of scope for Task 1): both are mapped to `C62` in
+`unit_codes.py` so lookups don't block, and listed in `DEGRADED_UNITS`.
+- [ ] Owner: find which `sensor_profiles` rows carry `unit: "geo:json"` / `unit: "boolean"`
+  and correct the catalogue (likely those attributes shouldn't have a `unit` field at all).
+
+---
+
 ## ✅ Session 2026-06-22 — catastro revival + buildings 3D + lidar PNOA auto + MDS surface
 
 > Implementación completa. Spec: `internal-docs-local/2026-06-22-spec-catastro-lidar-mds-design.md`. Plan: `internal-docs-local/2026-06-22-plan-catastro-lidar-mds.md`.
