@@ -147,10 +147,22 @@ def get_live_parcel_ids(tenant_id: str):
 
 
 def get_active_tenants() -> list[str]:
+    """Tenants with reconcile work, i.e. at least one tenant_parcel_modules row.
+
+    Orion wedge guard (upstream FIWARE/context.Orion-LD#4cb23b5a, fixed but
+    unreleased in our 1.12.0): reconciling a tenant with an EMPTY Orion DB makes
+    the false-zero cross-check call GET /ngsi-ld/v1/types, which wedges a worker
+    thread forever (legacy-driver fallback on an uninitialized pool). Tenants
+    without module rows have nothing to reconcile anyway, so we source the list
+    from tenant_parcel_modules (local, cheap) and never touch Orion to decide it.
+    """
     conn = _get_db()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT DISTINCT tenant_id FROM tenants WHERE tenant_id IS NOT NULL")
+        cur.execute(
+            "SELECT DISTINCT tenant_id FROM tenant_parcel_modules"
+            " WHERE tenant_id IS NOT NULL"
+        )
         rows = [r[0] for r in cur.fetchall()]
         cur.close()
         return rows
