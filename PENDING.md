@@ -652,6 +652,7 @@ Spec/plan: `internal-docs-local/2026-06-15-parcel-single-source-of-truth-{design
 - [ ] Añadir test suite completa a Odoo (6 tests de auth ya añadidos 2026-05-20, faltan routers/services)
 - [ ] Migrar `inject_fiware_headers` (intelligence) a `OrionClient`
 - [ ] Migrar Orion-LD direct queries (crop-health, odoo, robotics, intelligence) a `OrionClient`
+- [ ] **Volver a `fiware/orion-ld` oficial al salir la release 1.13.0** — producción corre imagen propia `ghcr.io/nkz-os/nkz/orion-ld@sha256:9d26deab...` (develop `6c86d8b` + fix `4cb23b5a` del hang de `/types` sobre tenant vacío con `-mongocOnly`). Cuando upstream publique 1.13.0 (o cualquier release que incluya `4cb23b5a`): revertir el pin en `gitops-config/overlays/core/services/orion-ld-deployment.yaml` a `fiware/orion-ld:<release>` y retirar `nkz/services/orion-ld/Dockerfile` + su entrada en `.github/workflows/docker-build.yml` (PR #903). Trackear: https://github.com/FIWARE/context.Orion-LD/releases
 - [ ] Lifecycle hooks: n8n (provisioning), bioorchestrator (Neo4j init), zulip (OIDC bot setup)
 
 ### Cleanup
