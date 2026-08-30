@@ -104,8 +104,22 @@ async def _process_entity(
         logger.warning("Entity missing id or type, skipping")
         return None
 
-    # Extract device_id from entity_id (format: urn:ngsi-ld:Type:tenant:device)
-    device_id = entity_id.split(":")[-1] if ":" in entity_id else entity_id
+    if entity_type == "DeviceMeasurement":
+        # Inverted shape vs every other entity type (see module docstring on the helper):
+        # the device is not the last segment of this entity's own id (that is the
+        # controlledProperty name), and the reading's name/value are not plain attribute
+        # keys either. A missing refDevice or reading means there is nothing safe to
+        # persist, not a device_id of "" — bail out here rather than falling through.
+        device_id, measurements = _extract_device_measurement(entity)
+        if device_id is None or not measurements:
+            logger.debug(
+                f"DeviceMeasurement {entity_id} missing refDevice or a reading, skipping"
+            )
+            return None
+    else:
+        # Extract device_id from entity_id (format: urn:ngsi-ld:Type:tenant:device)
+        device_id = entity_id.split(":")[-1] if ":" in entity_id else entity_id
+        measurements = _extract_measurements(entity)
 
     logger.debug(f"Processing entity: {entity_type}/{device_id}")
 
@@ -119,9 +133,6 @@ async def _process_entity(
         device_id=device_id,
         tenant_id=tenant_id,
     )
-
-    # Extract measurements from entity attributes
-    measurements = _extract_measurements(entity)
 
     if not measurements:
         logger.debug(f"No measurements in entity {entity_id}")
@@ -175,8 +186,14 @@ async def _process_entity(
         logger.debug(f"No attributes after filtering for {device_id}")
         return None
 
-    # Extract observedAt timestamp
-    observed_at = _extract_observed_at(entity)
+    # Extract observedAt timestamp. DeviceMeasurement carries its instant in dateObserved
+    # (a plain Property value), not in per-attribute observedAt metadata — the generic
+    # extractor below would never find it there and would silently fall back to utcnow().
+    observed_at = (
+        _extract_device_measurement_observed_at(entity)
+        if entity_type == "DeviceMeasurement"
+        else _extract_observed_at(entity)
+    )
 
     # Deduplicate against Orion-LD notification redelivery (network retries,
     # subscription replay). Per-event check so a batch with some new +
@@ -266,6 +283,61 @@ def _extract_measurements(entity: Dict[str, Any]) -> Dict[str, Any]:
             # GeoProperty and Relationship: skip (not measurements)
 
     return measurements
+
+
+def _extract_device_measurement(entity: Dict[str, Any]) -> tuple[Optional[str], Dict[str, Any]]:
+    """Pull (device_id, {measurement_name: value}) out of a `DeviceMeasurement` entity.
+
+    `DeviceMeasurement` inverts the shape every other entity type uses here: its own id
+    ends in the controlledProperty name, not the device (see
+    entity-manager/blueprints/measurements.py:build_measurements — the id scheme is
+    `urn:ngsi-ld:DeviceMeasurement:{tenant}:{externalId}:{controlledProperty}`), so
+    `entity_id.split(":")[-1]` — the extraction every other type uses — would yield the
+    reading's name instead of the device. The device lives on the `refDevice`
+    Relationship instead; the reading's name is the VALUE of `controlledProperty`, not an
+    attribute key, and its value is in `numValue` or `textValue` (never both).
+
+    Returns (None, {}) when `refDevice` or a value are missing so the caller can treat
+    that as "nothing safe to persist" rather than writing a row with a null/guessed
+    device_id.
+    """
+    device_id = None
+    ref_device = entity.get("refDevice")
+    if isinstance(ref_device, dict):
+        target = ref_device.get("object")
+        if isinstance(target, str) and target:
+            # Same short-id convention as every other entity type here: last URN segment.
+            device_id = target.split(":")[-1] if ":" in target else target
+
+    measurements: Dict[str, Any] = {}
+    controlled_property = entity.get("controlledProperty")
+    if isinstance(controlled_property, dict):
+        name = controlled_property.get("value")
+        if name:
+            for value_key in ("numValue", "textValue"):
+                value_attr = entity.get(value_key)
+                if isinstance(value_attr, dict) and "value" in value_attr:
+                    measurements = {name: value_attr["value"]}
+                    break
+
+    return device_id, measurements
+
+
+def _extract_device_measurement_observed_at(entity: Dict[str, Any]) -> datetime:
+    """`DeviceMeasurement` carries its instant in `dateObserved`, a plain Property value
+    (see build_measurements), not in per-attribute `observedAt` metadata — the generic
+    `_extract_observed_at` below would never find it there and would silently fall back
+    to utcnow(). Same ISO-8601 parsing, dedicated lookup key.
+    """
+    date_observed = entity.get("dateObserved")
+    if isinstance(date_observed, dict):
+        value = date_observed.get("value")
+        if value:
+            try:
+                return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                pass
+    return datetime.utcnow()
 
 
 def _extract_observed_at(entity: Dict[str, Any]) -> datetime:

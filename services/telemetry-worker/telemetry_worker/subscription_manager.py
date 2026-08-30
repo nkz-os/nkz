@@ -41,12 +41,33 @@ SUBSCRIPTIONS = [
         "isActive": True,
     },
     {
-        # "Device" is not a term of the platform @context, so Orion expands it to
-        # the default vocabulary and the subscription can never match anything.
-        # Hardware provisioned through DaTaK is created as "AgriDevice".
+        # Hardware provisioned through DaTaK is created as "AgriDevice", not "Device" —
+        # this subscription exists for that provisioning path. "Device" itself IS a term
+        # of the platform @context (has been since an earlier plan) and is what
+        # DeviceMeasurement.refDevice points at; the subscription below covers it.
         "description": "Telemetry Worker - AgriDevice updates",
         "type": "Subscription",
         "entities": [{"type": "AgriDevice"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 30,
+        "isActive": True,
+    },
+    {
+        # DeviceMeasurement is what entity-manager writes from Device/ManufacturingMachine
+        # attribute updates (one entity per device+controlledProperty, overwritten in
+        # place — see entity-manager/blueprints/measurements.py). This is the canonical
+        # route a sensor reading takes to reach TimescaleDB; notification_handler.py has a
+        # dedicated branch to read its inverted shape (device id in refDevice, measurement
+        # name in controlledProperty, value in numValue/textValue, instant in dateObserved).
+        "description": "Telemetry Worker - DeviceMeasurement readings",
+        "type": "Subscription",
+        "entities": [{"type": "DeviceMeasurement"}],
         "notification": {
             "endpoint": {
                 "uri": NOTIFICATION_URL,
