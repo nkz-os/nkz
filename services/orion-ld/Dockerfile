@@ -27,8 +27,8 @@
 # REMOVE THIS IMAGE when upstream cuts a release containing 4cb23b5a
 # (expected 1.13.0). Track: https://github.com/FIWARE/context.Orion-LD
 #
-# Build (context = this directory; the Dockerfile clones upstream itself):
-#   docker build -t ghcr.io/nkz-os/nkz/orion-ld:develop-nkz1 services/orion-ld/
+# Build (context = repo root, matching the CI docker-build matrix):
+#   docker build -f services/orion-ld/Dockerfile -t ghcr.io/nkz-os/nkz/orion-ld:develop-nkz1 .
 # =============================================================================
 
 # --- Stage 1: fetch upstream develop (shallow) at a pinned commit ------------
@@ -63,8 +63,8 @@ COPY --from=build-stage /usr/local/lib64/ /usr/lib64/
 COPY --from=build-stage /usr/lib/librdkafka* /usr/lib64/
 COPY --from=build-stage /opt/orion/ldcontexts/ /opt/orion/ldcontexts/
 
-COPY repos/other-places.repo /etc/yum.repos.d/
-COPY repos/ubi.repo /etc/yum.repos.d/
+COPY services/orion-ld/repos/other-places.repo /etc/yum.repos.d/
+COPY services/orion-ld/repos/ubi.repo /etc/yum.repos.d/
 
 RUN cd /etc/pki/rpm-gpg && \
     curl -O https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux && \
