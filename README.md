@@ -86,6 +86,7 @@ Each organization gets its own isolated tenant with role-based access, and can e
 | **Digital Twins (NGSI-LD)** | Manage parcels, devices, and assets as interoperable entities via Orion-LD Context Broker |
 | **Multi-Tenant Isolation** | Keycloak OIDC, row-level security in PostgreSQL, per-tenant data partitioning |
 | **Real-Time Telemetry** | MQTT/HTTP ingestion into TimescaleDB hypertables with sub-second query performance |
+| **IoT Device Integration** | Standards-based telemetry via FIWARE `DeviceMeasurement` entities (Smart Data Models) |
 | **Agronomic Risk Engine** | Automated hourly evaluation: spray suitability, frost, wind, water stress, GDD pest alerts |
 | **Weather Integration** | OpenMeteo and AEMET data with Delta-T and GDD accumulation |
 | **3D Geospatial** | CesiumJS viewer with custom layer system, LiDAR 3D tiles, NDVI overlays |
@@ -97,6 +98,10 @@ Each organization gets its own isolated tenant with role-based access, and can e
 | Module | Description | Status |
 |--------|-------------|--------|
 | [DataHub](https://github.com/nkz-os/nkz-module-data-hub) | Timeseries Data Canvas with multi-series charts | Active |
+| [Soil](https://github.com/nkz-os/nkz-module-soil) | Soil analysis: texture, water holding capacity, field capacity | Active |
+| [Crop Health](https://github.com/nkz-os/nekazari-module-crop-health) | Agronomic models: phenology, water stress, disease risk | Active |
+| [Weather Map](https://github.com/nkz-os/nekazari-module-weather-map) | Per-parcel meteorology, ET0, frost, GDD accumulation | Active |
+| [Field Operations](https://github.com/nkz-os/nkz-module-field-operations) | Sowing, tillage, fertilization, spraying, harvest records | Active |
 | [Vegetation Health](https://github.com/nkz-os/vegetation-health-nkz) | NDVI/vegetation indices from satellite imagery | Active |
 | [LiDAR](https://github.com/nkz-os/nkz-module-lidar) | Point cloud analysis and 3D terrain tiles | Active |
 | [Intelligence](https://github.com/nkz-os/nekazari-module-intelligence) | AI/ML predictive analytics | Active |
@@ -104,9 +109,11 @@ Each organization gets its own isolated tenant with role-based access, and can e
 | [Robotics](https://github.com/nkz-os/nkz-module-robotics) | ROS2 + ISOBUS agricultural equipment | Active |
 | [Odoo ERP](https://github.com/nkz-os/nkz-module-odoo) | Enterprise resource planning integration | Active |
 | [n8n Workflows](https://github.com/nkz-os/n8n-module-nkz) | Automation and workflow orchestration | Active |
-| Carbon | Carbon footprint tracking | In development |
+| [Carbon](https://github.com/nkz-os/nkz-module-carbon) | Carbon footprint tracking | Active |
 
-Modules are independent repos that build to [Module Federation 2.0](https://module-federation.io/) bundles (`remoteEntry.js` + `mf-manifest.json`) loaded by the host at runtime via `loadRemote()`. See the [Module Template](https://github.com/nkz-os/nkz-module-template) to create your own.
+**A growing ecosystem.** New modules are added regularly, and building your own is straightforward: scaffold a module with `pnpm create @nekazari/module`, and it plugs into the platform's auth, map viewer, entity data, and i18n out of the box. If you have a specific need — a sensor type, a crop model, an integration — you can ship a module for it without forking the platform. See the [Module Template](https://github.com/nkz-os/nkz-module-template) to get started.
+
+Modules are independent repos that build to [Module Federation 2.0](https://module-federation.io/) bundles (`remoteEntry.js` + `mf-manifest.json`) loaded by the host at runtime via `loadRemote()`.
 
 ## Architecture
 
