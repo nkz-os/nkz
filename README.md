@@ -102,6 +102,11 @@ Each organization gets its own isolated tenant with role-based access, and can e
 | [Crop Health](https://github.com/nkz-os/nekazari-module-crop-health) | Agronomic models: phenology, water stress, disease risk | Active |
 | [Weather Map](https://github.com/nkz-os/nekazari-module-weather-map) | Per-parcel meteorology, ET0, frost, GDD accumulation | Active |
 | [Field Operations](https://github.com/nkz-os/nkz-module-field-operations) | Sowing, tillage, fertilization, spraying, harvest records | Active |
+| [GIS Routing](https://github.com/nkz-os/nkz-module-gis-routing) | Machinery route planning and guidance for field operations | Active |
+| [BioOrchestrator](https://github.com/nkz-os/nekazari-module-bioorchestrator) | Crop variety recommendation and rotation planning (knowledge graph) | Active |
+| [Agrienergy](https://github.com/nkz-os/nkz-module-agrienergy) | Agrivoltaics and farm energy management | Active |
+| [Hydrology](https://github.com/nkz-os/nkz-module-hydrology) | Water balance and irrigation planning | In development |
+| [CUE-SIEX](https://github.com/nkz-os/nkz-module-cue) | Digital farm logbook (cuaderno de campo, SIEX-compliant) | In development |
 | [Vegetation Health](https://github.com/nkz-os/vegetation-health-nkz) | NDVI/vegetation indices from satellite imagery | Active |
 | [LiDAR](https://github.com/nkz-os/nkz-module-lidar) | Point cloud analysis and 3D terrain tiles | Active |
 | [Intelligence](https://github.com/nkz-os/nekazari-module-intelligence) | AI/ML predictive analytics | Active |
