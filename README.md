@@ -114,7 +114,7 @@ Each organization gets its own isolated tenant with role-based access, and can e
 | [Robotics](https://github.com/nkz-os/nkz-module-robotics) | ROS2 + ISOBUS agricultural equipment | Active |
 | [Odoo ERP](https://github.com/nkz-os/nkz-module-odoo) | Enterprise resource planning integration | Active |
 | [n8n Workflows](https://github.com/nkz-os/n8n-module-nkz) | Automation and workflow orchestration | Active |
-| [Carbon](https://github.com/nkz-os/nkz-module-carbon) | Carbon footprint tracking | Active |
+| [Carbon](https://github.com/nkz-os/nkz-module-carbon) | Carbon footprint tracking | In development |
 
 **A growing ecosystem.** New modules are added regularly, and building your own is straightforward: scaffold a module with `pnpm create @nekazari/module`, and it plugs into the platform's auth, map viewer, entity data, and i18n out of the box. If you have a specific need — a sensor type, a crop model, an integration — you can ship a module for it without forking the platform. See the [Module Template](https://github.com/nkz-os/nkz-module-template) to get started.
 
