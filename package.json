@@ -24,5 +24,13 @@
       "ruff check --fix",
       "ruff format"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "@module-federation/dts-plugin>undici": "^7.29.0",
+      "@module-federation/dts-plugin>adm-zip": "^0.6.0",
+      "rollup": "^4.59.0",
+      "@babel/core": "^7.29.6"
+    }
   }
 }
