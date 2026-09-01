@@ -275,4 +275,39 @@ class TestDbTenantDiscoveryQuery:
         assert "module_name" not in executed_sql
 
 
+def test_write_weather_forecast_upserts_the_entity(monkeypatch):
+    """El forecast se publica en el mismo ciclo que la observación.
+
+    Un ciclo que escriba la observación y no el forecast deja a weather-map sin
+    tMin/tMax, que es exactamente lo que FAO-56 necesita.
+    """
+    from weather_worker.parcel_engine import ParcelWeatherEngine
+
+    engine = ParcelWeatherEngine(orion_url="http://orion:1026")
+    sent = {}
+
+    class _Resp:
+        status_code = 204
+        text = ""
+
+    def _post(url, json=None, headers=None, timeout=None, **kwargs):
+        sent["url"] = url
+        sent["body"] = json
+        return _Resp()
+
+    monkeypatch.setattr("weather_worker.parcel_engine.requests.post", _post)
+
+    ok = engine._write_weather_forecast(
+        tenant_id="t",
+        parcel_id="urn:ngsi-ld:AgriParcel:t:p1",
+        location=(-2.07, 42.63, 450.0),
+        daily={"temp_min": 9.9, "temp_max": 28.4, "precip_probability": 20.0},
+    )
+
+    assert ok is True
+    assert "entityOperations/upsert" in sent["url"]
+    assert sent["body"][0]["type"] == "WeatherForecast"
+    assert sent["body"][0]["dayMaximum"]["value"]["temperature"] == 28.4
+
+
 print("All parcel engine tests passed.")

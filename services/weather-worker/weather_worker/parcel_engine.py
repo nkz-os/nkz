@@ -780,6 +780,7 @@ class ParcelWeatherEngine:
             "observations_written": 0,
             "weather_observed_created": 0,
             "weather_observed_updated": 0,
+            "weather_forecast_written": 0,
             "clusters": 0,
             "weather_observed_pruned": 0,
             "errors": 0,
@@ -888,6 +889,26 @@ class ParcelWeatherEngine:
                         stats["observations_written"] += len(
                             corrected_observations
                         )
+
+                        # Agregados del día: van en WeatherForecast porque el SDM no los
+                        # define en WeatherObserved.
+                        latest = corrected_observations[0]
+                        tenant_id = parcel.get("_tenant", "default")
+                        parcel_id = parcel.get("id", "")
+                        _elev = latest.get("station_elevation_m")
+                        _loc = (
+                            (parcel_lon, parcel_lat)
+                            if _elev is None
+                            else (parcel_lon, parcel_lat, float(_elev))
+                        )
+                        if self._write_weather_forecast(
+                            tenant_id=tenant_id,
+                            parcel_id=parcel_id,
+                            location=_loc,
+                            daily=latest,
+                        ):
+                            stats["weather_forecast_written"] += 1
+
                         stats["parcels_processed"] += 1
 
                     except Exception as e:
@@ -1054,3 +1075,46 @@ class ParcelWeatherEngine:
             logger.warning(f"Error writing WeatherObserved: {e}")
 
         return result
+
+    def _write_weather_forecast(
+        self,
+        tenant_id: str,
+        parcel_id: str,
+        location: tuple,
+        daily: Dict[str, Any],
+    ) -> bool:
+        """Publica el WeatherForecast del día para una parcela.
+
+        Best-effort e independiente de la observación: si falla, se registra y el
+        ciclo sigue. Nunca sustituye un dato ausente por un valor por defecto.
+        """
+        try:
+            from weather_worker.storage.orion_writer import (
+                build_weather_forecast_entity,
+            )
+
+            now = datetime.utcnow()
+            day = now.strftime("%Y-%m-%d")
+            entity = build_weather_forecast_entity(
+                parcel_id=parcel_id,
+                tenant_id=tenant_id,
+                location=location,
+                daily=daily,
+                valid_from=f"{day}T00:00:00Z",
+                valid_to=f"{day}T23:59:59Z",
+            )
+            resp = requests.post(
+                f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert",
+                json=[entity],
+                headers=self._make_headers(tenant_id),
+                timeout=15,
+            )
+            if resp.status_code in (200, 201, 204):
+                return True
+            logger.warning(
+                "WeatherForecast upsert for %s returned %s", parcel_id, resp.status_code
+            )
+            return False
+        except Exception as e:
+            logger.warning("Error writing WeatherForecast for %s: %s", parcel_id, e)
+            return False
