@@ -114,7 +114,7 @@ def get_or_create_service_group(tenant_id: str) -> str | None:
             services = data.get('services', [])
             if services:
                 existing_apikey = services[0].get('apikey')
-                logger.debug(f"Service group exists for tenant '{tenant_id}', apikey={existing_apikey[:20]}...")
+                logger.debug(f"Service group exists for tenant '{tenant_id}', apikey=<redacted:{len(existing_apikey)}ch>")
                 return existing_apikey
 
         # Create a new service group with a tenant-level apikey
@@ -140,7 +140,7 @@ def get_or_create_service_group(tenant_id: str) -> str | None:
         )
 
         if resp.status_code in [200, 201]:
-            logger.info(f"Created service group for tenant '{tenant_id}' with apikey={tenant_apikey[:20]}...")
+            logger.info(f"Created service group for tenant '{tenant_id}' with apikey=<redacted:{len(tenant_apikey)}ch>")
             return tenant_apikey
         elif resp.status_code == 409:
             # Race condition: another request created it first — retrieve it
