@@ -354,11 +354,19 @@ class ParcelWeatherEngine:
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    altitude = float(data.get("elevation_m", 0))
-                    logger.info(
-                        "Fetched elevation %.1fm for parcel %s from elevation service",
-                        altitude, parcel.get("id", "unknown")
-                    )
+                    elev = data.get("elevation_m")
+                    if elev is not None:
+                        altitude = float(elev)
+                        logger.info(
+                            "Fetched elevation %.1fm for parcel %s from elevation service",
+                            altitude, parcel.get("id", "unknown")
+                        )
+                    else:
+                        logger.info(
+                            "Elevation service returned no data for parcel %s "
+                            "centroid (%.6f, %.6f); keeping fallback altitude",
+                            parcel.get("id", "unknown"), centroid[1], centroid[0]
+                        )
             except Exception as e:
                 logger.warning("Failed to fetch elevation for parcel %s: %s",
                                parcel.get("id", "unknown"), e)
@@ -397,13 +405,15 @@ class ParcelWeatherEngine:
             try:
                 resp = requests.get(
                     f"{elev_url}/api/elevation/point",
-                    params={"lat": round(lat, 6), "lon": round(lon, 6), "purpose": "weather"},
+                    params={"lat": round(lat, 6), "lon": round(lon, 6), "purpose": "weather", "source": "national"},
                     headers=_elevation_request_headers(),
                     timeout=5,
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    elevations[name] = float(data.get("elevation_m", 0))
+                    elev = data.get("elevation_m")
+                    if elev is not None:
+                        elevations[name] = float(elev)
             except Exception:
                 pass
 
