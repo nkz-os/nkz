@@ -24,6 +24,12 @@ if TestClient is None:
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "weather-api"))
 
+# inject_fiware_headers only emits the @context Link when CONTEXT_URL is set, and
+# without that header every q filter expands to the default vocabulary and matches
+# nothing. Production sets it; the tests must too, or they exercise a code path
+# that silently returns no results.
+os.environ.setdefault("CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json")
+
 from app.main import app  # noqa: E402
 from app.routers.parcels import (  # noqa: E402
     _cross_validate_sensors,
@@ -119,23 +125,67 @@ def orion_response(status=200, payload=None):
     return resp
 
 
+# Attribute names Orion-LD actually returns for a WeatherObserved entity written
+# by the ParcelWeatherEngine, compacted with the platform @context. Captured from
+# the live broker. The context is NOT injective — `temperature`/`airTemperature`
+# share an IRI, as do `relativeHumidity`/`humidity` and `locatedAt`/`refParcel` —
+# and compaction returns the alias the writer did not use. A fixture using the
+# writer-side names passes while production reads None from every field.
+REAL_WEATHER_OBSERVED = {
+    "id": "urn:ngsi-ld:WeatherObserved:test-tenant:parcel-p1",
+    "type": "WeatherObserved",
+    "dateObserved": {
+        "type": "Property",
+        "value": {"@type": "DateTime", "@value": "2026-06-11T11:00:00Z"},
+    },
+    "refParcel": {"type": "Relationship", "object": PARCEL_ID},
+    "airTemperature": {"type": "Property", "value": 21.0, "unitCode": "CEL"},
+    "humidity": {"type": "Property", "value": 60.0, "unitCode": "P1"},
+    "windSpeed": {"type": "Property", "value": 2.5, "unitCode": "MTS"},
+    "windGusts": {"type": "Property", "value": 4.1, "unitCode": "MTS"},
+    "precipitation": {"type": "Property", "value": 0.0, "unitCode": "MMT"},
+    "et0": {"type": "Property", "value": 3.0, "unitCode": "MMT"},
+    "deltaT": {"type": "Property", "value": 4.2, "unitCode": "CEL"},
+    "soilMoistureTop": {"type": "Property", "value": 0.11, "unitCode": "M3"},
+}
+
+
 def orion_router(parcel=None, soil=None, weather_observed=None):
-    """Side effect for app.routers.parcels.requests.get, dispatching by URL."""
+    """Side effect for app.routers.parcels.requests.get, dispatching by URL.
+
+    Mirrors two real Orion-LD behaviours the previous mock ignored, each of which
+    hid a production bug for months:
+
+    * a query sent WITHOUT the platform @context Link header expands the attribute
+      names in the q filter to the default vocabulary, matches nothing, and returns
+      an empty list instead of an error (FALSE-ZERO);
+    * an unquoted URN on the right-hand side of a q filter breaks Orion's parser
+      and returns HTTP 400, not an empty result.
+    """
 
     def _get(url, **kwargs):
         params = kwargs.get("params") or {}
+        headers = kwargs.get("headers") or {}
         if url.endswith(f"/entities/{PARCEL_ID}"):
             if parcel is None:
                 return orion_response(404, {"title": "Not Found"})
             return orion_response(200, parcel)
-        if params.get("type") == "AgriSoil":
-            return orion_response(200, soil if soil is not None else [])
-        # WeatherObserved queries now match by locatedAt relationship (no type filter —
-        # FALSE-ZERO guard: stored type URI may differ from context expansion).
-        if params.get("q", "").startswith("locatedAt"):
-            return orion_response(
-                200, weather_observed if weather_observed is not None else []
-            )
+
+        q = params.get("q", "")
+        if q:
+            value = q.split("==", 1)[1] if "==" in q else ""
+            if value and not value.startswith('"'):
+                return orion_response(
+                    400, {"title": "Invalid Q-Filter", "detail": "Variable"}
+                )
+            if "Link" not in headers:
+                return orion_response(200, [])
+            if q.startswith("hasAgriParcel"):
+                return orion_response(200, soil if soil is not None else [])
+            if q.startswith(("locatedAt", "refParcel")):
+                return orion_response(
+                    200, weather_observed if weather_observed is not None else []
+                )
         return orion_response(404, {})
 
     return _get
@@ -213,20 +263,7 @@ class TestAgroStatusEndpoint:
         assert "no_data_reason" in body
 
     def test_orion_weatherobserved_fallback_when_db_down(self):
-        wo = {
-            "id": "urn:ngsi-ld:WeatherObserved:test-tenant:p1",
-            "type": "WeatherObserved",
-            "dateObserved": {
-                "type": "Property",
-                "value": {"@type": "DateTime", "@value": "2026-06-11T11:00:00Z"},
-            },
-            "temperature": {"type": "Property", "value": 21.0},
-            "relativeHumidity": {"type": "Property", "value": 60.0},
-            "windSpeed": {"type": "Property", "value": 2.5},
-            "precipitation": {"type": "Property", "value": 0.0},
-            "et0": {"type": "Property", "value": 3.0},
-            "stationElevation": {"type": "Property", "value": 445},
-        }
+        wo = REAL_WEATHER_OBSERVED
         with patch("app.routers.parcels.requests.get",
                    side_effect=orion_router(parcel=PARCEL_ENTITY,
                                             weather_observed=[wo])), \
@@ -240,6 +277,97 @@ class TestAgroStatusEndpoint:
         assert body["weather"]["temperature"] == 21.0
         assert body["source_confidence"] == "WEATHER-OBS"
         assert body["semaphores"]["spraying"] != "unknown"
+
+
+# ---------------------------------------------------------------------------
+# Regressions for the four bugs that left the agronomic semaphores blank
+# ---------------------------------------------------------------------------
+class TestOrionQueryRegressions:
+    """Each test here pins one bug that silently returned no data in production."""
+
+    URL = f"/api/weather/parcel/{PARCEL_ID}/agro-status"
+
+    def test_query_headers_carry_the_platform_context(self):
+        """Dropping the Link header turns every q filter into a FALSE ZERO.
+
+        Entities are stored with the platform expansion; without the context the
+        term expands to the default vocabulary, matches nothing, and Orion answers
+        200 with an empty list rather than an error.
+        """
+        from app.routers.parcels import _orion_query_headers
+
+        headers = _orion_query_headers("test-tenant")
+        assert "Link" in headers, (
+            "Orion READ queries must carry the platform @context Link. Without it "
+            "the q filter matches nothing and the endpoint degrades silently."
+        )
+        assert "ngsi-ld-context.json" in headers["Link"]
+
+    def test_soil_lookup_quotes_the_urn(self):
+        """An unquoted URN breaks Orion's q parser: 400, not an empty result.
+
+        The 400 was swallowed at debug level, so soil texture was never found and
+        workability silently fell back to generic thresholds.
+        """
+        soil = [{
+            "id": "urn:ngsi-ld:AgriSoilExtended:p1",
+            "type": "AgriSoilExtended",
+            "horizons": {"type": "Property", "value": [
+                {"sand": 40.0, "clay": 30.0, "organicCarbon": 1.2},
+            ]},
+        }]
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY, soil=soil,
+                                            weather_observed=[REAL_WEATHER_OBSERVED])), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection", db_down):
+            r = client.get(self.URL, headers=AUTH)
+
+        assert r.status_code == 200
+        soil_out = r.json().get("soil") or {}
+        assert soil_out.get("texture_applied") is True, (
+            f"soil texture was not applied: {soil_out}. The q filter value must be "
+            "quoted or Orion answers 400 Invalid Q-Filter."
+        )
+
+    def test_context_aliases_are_read_from_the_names_orion_returns(self):
+        """The @context is not injective; compaction returns the writer's alias.
+
+        The engine writes `temperature`/`relativeHumidity`; Orion hands back
+        `airTemperature`/`humidity`. Reading only the writer-side names yields None
+        for every field while the request still answers 200.
+        """
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY,
+                                            weather_observed=[REAL_WEATHER_OBSERVED])), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection", db_down):
+            r = client.get(self.URL, headers=AUTH)
+
+        w = r.json()["weather"]
+        assert w["temperature"] == 21.0, "airTemperature alias not read"
+        assert w["humidity"] == 60.0, "humidity alias not read"
+
+    def test_no_lapse_correction_when_station_elevation_is_absent(self):
+        """A real WeatherObserved carries no stationElevation.
+
+        Open-Meteo is fetched at the parcel centroid, so the reading is already
+        local. Treating the missing attribute as sea level applied a full
+        lapse-rate correction on top — about 3 degC too cold for a parcel at 450 m.
+        """
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY,
+                                            weather_observed=[REAL_WEATHER_OBSERVED])), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection", db_down):
+            r = client.get(self.URL, headers=AUTH)
+
+        assert r.json()["weather"]["temperature"] == 21.0, (
+            "temperature was altitude-corrected against sea level"
+        )
 
 
 # ---------------------------------------------------------------------------

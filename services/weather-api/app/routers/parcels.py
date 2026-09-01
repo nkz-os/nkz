@@ -162,15 +162,38 @@ def _orion_headers(tenant_id: str) -> dict:
 
 
 def _orion_query_headers(tenant_id: str) -> dict:
-    """Headers for Orion READ queries — NO Link/context header.
+    """Headers for Orion READ queries — the platform @context Link is REQUIRED.
 
-    The Link header with @context causes Orion-LD to expand attribute names
-    in the q filter (e.g. locatedAt → full URI), which fails to match stored
-    short-name attributes → FALSE-ZERO results.
+    Attribute names in a q filter are expanded with whatever context the request
+    carries. Entities are stored with the platform expansion (locatedAt lives at
+    https://nkz-os.org/ns/locatedAt), so a query sent WITHOUT the Link header
+    expands the term to the default vocabulary instead, matches nothing, and
+    returns an empty list — a FALSE ZERO, not an error.
+
+    Dropping the header was tried as a fix and caused exactly the failure it was
+    meant to avoid; the queries returned [] for every parcel.
     """
-    headers = inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
-    headers.pop("Link", None)
-    return headers
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
+
+
+def _attr_alias(entity: dict, *keys, default=None):
+    """Read the first present attribute among several context aliases.
+
+    The platform @context is not injective: `temperature` and `airTemperature`
+    expand to the same IRI, as do `relativeHumidity`/`humidity` and
+    `locatedAt`/`refParcel`. JSON-LD compaction returns ONE term per IRI, and it
+    is not necessarily the one the writer used — the ParcelWeatherEngine writes
+    `temperature` and Orion hands it back as `airTemperature`. Reading a single
+    name yields None for every field.
+    """
+    for key in keys:
+        attr = entity.get(key)
+        if attr is None:
+            continue
+        value = attr.get("value") if isinstance(attr, dict) else attr
+        if value is not None:
+            return value
+    return default
 
 
 def _resolve_parcel_location(parcel_entity: dict) -> Optional[tuple]:
@@ -294,7 +317,8 @@ def get_parcel_weather(
         if wo_entity:
             has_weather_attrs = any(
                 wo_entity.get(k) for k in
-                ("temperature", "dateObserved", "relativeHumidity", "windSpeed")
+                ("airTemperature", "temperature", "dateObserved",
+                 "humidity", "relativeHumidity", "windSpeed")
             )
             if not has_weather_attrs:
                 wo_entity = None  # not a WeatherObserved entity — skip
@@ -306,9 +330,7 @@ def get_parcel_weather(
             # Normalize to same schema as on-the-fly response
             wo_attrs = wo_entity if isinstance(wo_entity, dict) else {}
 
-            def _attr(entity, key, default=None):
-                a = entity.get(key, {})
-                return a.get("value") if isinstance(a, dict) else (a or default)
+            _attr = _attr_alias
 
             date_obs = wo_attrs.get("dateObserved", {})
 
@@ -318,10 +340,10 @@ def get_parcel_weather(
                     if isinstance(date_obs, dict)
                     else ""
                 ),
-                "temp_avg": _attr(wo_attrs, "temperature"),
+                "temp_avg": _attr(wo_attrs, "airTemperature", "temperature"),
                 "temp_max": None,
                 "temp_min": None,
-                "humidity_avg": _attr(wo_attrs, "relativeHumidity"),
+                "humidity_avg": _attr(wo_attrs, "humidity", "relativeHumidity"),
                 "precip_mm": _attr(wo_attrs, "precipitation"),
                 "wind_speed_ms": _attr(wo_attrs, "windSpeed"),       # current (latest hour mean)
                 "wind_speed_max": _attr(wo_attrs, "windSpeedMax"),   # max of hourly means today
@@ -655,7 +677,9 @@ def get_parcel_agro_status(
             soil_response = requests.get(
                 f"{settings.orion_url}/ngsi-ld/v1/entities",
                 params={
-                    "q": f"hasAgriParcel=={parcel_id}",
+                    # The URN must be quoted: its colons break Orion's q parser
+                    # and the request comes back 400, not empty.
+                    "q": f'hasAgriParcel=="{parcel_id}"',
                     "limit": 1,
                 },
                 headers=soil_headers,
@@ -799,16 +823,15 @@ def get_parcel_agro_status(
                         # return non-WeatherObserved entities.)
                         has_weather_attrs = any(
                             wo.get(k) for k in
-                            ("temperature", "dateObserved", "relativeHumidity", "windSpeed")
+                            ("airTemperature", "temperature", "dateObserved",
+                             "humidity", "relativeHumidity", "windSpeed")
                         )
                         if not has_weather_attrs:
                             wo_entities = []  # skip non-weather entity
                     if wo_entities:
                         wo = wo_entities[0]
                         # Normalize NGSI-LD attribute names → internal format
-                        def _attr(entity, key, default=None):
-                            a = entity.get(key, {})
-                            return a.get("value") if isinstance(a, dict) else a or default
+                        _attr = _attr_alias
 
                         date_obs = wo.get("dateObserved", {})
                         obs_at = (
@@ -818,10 +841,10 @@ def get_parcel_agro_status(
                         )
                         weather_observation = {
                             "observed_at": obs_at,
-                            "temp_avg": _attr(wo, "temperature"),
+                            "temp_avg": _attr(wo, "airTemperature", "temperature"),
                             "temp_min": None,
                             "temp_max": None,
-                            "humidity_avg": _attr(wo, "relativeHumidity"),
+                            "humidity_avg": _attr(wo, "humidity", "relativeHumidity"),
                             "precip_mm": _attr(wo, "precipitation"),
                             "precip_probability": None,
                             "wind_speed_ms": _attr(wo, "windSpeed"),
@@ -842,8 +865,17 @@ def get_parcel_agro_status(
                             "municipality_code": _attr(wo, "municipalityCode"),
                             "station_elevation_m": _attr(wo, "stationElevation"),
                         }
-                        station_altitude = float(
-                            _attr(wo, "stationElevation") or 0
+                        # The ParcelWeatherEngine fetches Open-Meteo AT the parcel
+                        # centroid, so this reading is already local and carries no
+                        # station elevation. Treating a missing value as sea level
+                        # would apply a full lapse-rate correction on top of an
+                        # already-local reading (~3 degC too cold at 450 m). Fall
+                        # back to the parcel's own altitude, which is a no-op.
+                        _station_elev = _attr(wo, "stationElevation")
+                        station_altitude = (
+                            float(_station_elev)
+                            if _station_elev is not None
+                            else parcel_altitude
                         )
                         logger.info(
                             f"Orion WeatherObserved fallback for parcel {parcel_id}"
