@@ -531,4 +531,40 @@ def test_parse_keeps_a_missing_grid_elevation_missing():
     assert observations[0]["station_elevation_m"] is None
 
 
+def _fallback_downscale(monkeypatch, observation):
+    """Run _downscale_observations with the spatial downscaler unavailable."""
+    import sys as _sys
+
+    engine = ParcelWeatherEngine(orion_url="http://orion:1026")
+    monkeypatch.setitem(_sys.modules, "weather_utils.spatial_downscaler", None)
+    return engine._downscale_observations(
+        observations=[observation],
+        parcel_lat=42.63,
+        parcel_lon=-2.07,
+        parcel_altitude_m=450.0,
+        station_altitude_m=300.0,
+        parcel_entity={},
+    )[0]
+
+
+def test_fallback_path_still_carries_the_horizontal_radiation(monkeypatch):
+    """Sin downscaler el valor crudo YA es la global horizontal.
+
+    No publicarlo dejaba a weather-map sin radiación — y sin ET0 — sin más rastro
+    que una línea de debug, que es la firma del fallo silencioso que este trabajo
+    existe para quitar.
+    """
+    out = _fallback_downscale(
+        monkeypatch,
+        {"observed_at": "2026-09-01", "solar_rad_w_m2": 254.6, "station_elevation_m": 300.0},
+    )
+    assert out["solar_rad_w_m2_horizontal"] == 254.6
+
+
+def test_fallback_path_does_not_invent_radiation(monkeypatch):
+    """Y si Open-Meteo no la trae, el atributo se queda fuera."""
+    out = _fallback_downscale(monkeypatch, {"observed_at": "2026-09-01"})
+    assert "solar_rad_w_m2_horizontal" not in out
+
+
 print("All parcel engine tests passed.")

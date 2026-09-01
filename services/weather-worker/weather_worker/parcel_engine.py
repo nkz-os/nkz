@@ -1043,6 +1043,11 @@ class ParcelWeatherEngine:
             for obs in observations:
                 obs["source"] = "OPEN-METEO"
                 obs["data_type"] = "FORECAST"
+                # Sin corrección por aspecto, el valor crudo YA es la global
+                # horizontal, que es justo lo que el consumidor necesita. No
+                # publicarlo dejaba a weather-map sin radiación y sin ET0.
+                if obs.get("solar_rad_w_m2") is not None:
+                    obs["solar_rad_w_m2_horizontal"] = obs["solar_rad_w_m2"]
                 # Sin downscaling los valores siguen siendo los del grid: su
                 # altitud de referencia es la de la celda, no la de la parcela.
                 _station = obs.get("station_elevation_m")
