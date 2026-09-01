@@ -625,4 +625,28 @@ def test_cycle_skips_a_parcel_with_no_corrected_observations(caplog):
     )
 
 
+def test_cycle_summary_reports_the_forecast_counter(caplog):
+    """Un 100% de fallos en el forecast tiene que verse.
+
+    El contador existía pero no salía en el resumen del ciclo: con la escritura
+    devolviendo 400 en todas las parcelas, el log del worker era indistinguible
+    del de un ciclo perfecto.
+    """
+    import logging
+    import re
+
+    import pytest as _pytest
+
+    caplog.set_level(logging.INFO, logger="weather_worker.parcel_engine")
+    with _pytest.MonkeyPatch.context() as mp:
+        stats, _ = _run_cycle(mp)
+
+    assert stats["weather_forecast_written"] == 1
+    summary = [r.getMessage() for r in caplog.records if "cycle complete" in r.getMessage()]
+    assert summary, "no cycle summary line"
+    assert re.search(r"\b1 forecasts?\b", summary[0]), (
+        f"el contador de forecast no aparece en el resumen: {summary[0]}"
+    )
+
+
 print("All parcel engine tests passed.")

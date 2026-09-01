@@ -980,6 +980,7 @@ class ParcelWeatherEngine:
             f"ParcelWeatherEngine cycle complete: {stats['parcels_processed']} "
             f"parcels, {stats['weather_observed_created']} created, "
             f"{stats['weather_observed_updated']} updated, "
+            f"{stats['weather_forecast_written']} forecasts, "
             f"{stats['weather_observed_pruned']} pruned, {stats['errors']} errors"
         )
         return stats
