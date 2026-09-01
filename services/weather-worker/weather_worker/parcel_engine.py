@@ -961,6 +961,12 @@ class ParcelWeatherEngine:
                     except (ValueError, TypeError):
                         pass
 
+                # La corrección por aspecto es para el valor puntual de la parcela.
+                # WeatherObserved.solarRadiation debe llevar la GLOBAL HORIZONTAL sin
+                # corregir: el consumidor por píxel corrige con SU aspecto. Publicar la
+                # corregida la aplicaría dos veces.
+                horizontal = obs.get("solar_rad_w_m2")
+
                 result = downscale_for_parcel(
                     weather_data=obs,
                     parcel_lat=parcel_lat,
@@ -976,6 +982,8 @@ class ParcelWeatherEngine:
                 result["observed_at"] = obs.get("observed_at")
                 result["source"] = "OPEN-METEO"
                 result["data_type"] = "FORECAST"
+                if horizontal is not None:
+                    result["solar_rad_w_m2_horizontal"] = horizontal
                 corrected.append(result)
 
             return corrected
