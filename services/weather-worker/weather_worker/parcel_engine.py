@@ -29,6 +29,22 @@ for p in sys_paths:
 from common.ngsi_headers import inject_fiware_headers
 
 
+def _observation_day(observed_at: Any) -> Optional[str]:
+    """Return the YYYY-MM-DD day of an observation, or None if it has none.
+
+    Open-Meteo dates the daily block as "2026-09-01"; anything that does not parse
+    as a calendar day is unusable, and no day is substituted for it.
+    """
+    if hasattr(observed_at, "strftime"):
+        return observed_at.strftime("%Y-%m-%d")
+    if not isinstance(observed_at, str):
+        return None
+    try:
+        return datetime.strptime(observed_at[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
 def _elevation_request_headers() -> dict[str, str]:
     secret = os.getenv("INTERNAL_SERVICE_SECRET", "").strip()
     if secret:
@@ -1130,8 +1146,18 @@ class ParcelWeatherEngine:
                 build_weather_forecast_entity,
             )
 
-            now = datetime.utcnow()
-            day = now.strftime("%Y-%m-%d")
+            # La ventana la fija el DATO, no el reloj: la observación es el día 0
+            # de Open-Meteo en Europe/Madrid, así que entre las 22:00 UTC y
+            # medianoche utcnow() nombra el día siguiente al del payload.
+            day = _observation_day(daily.get("observed_at"))
+            if day is None:
+                logger.warning(
+                    "WeatherForecast for %s skipped: unusable observed_at (%r); "
+                    "a validity window that names another day is worse than none",
+                    parcel_id,
+                    daily.get("observed_at"),
+                )
+                return False
             entity = build_weather_forecast_entity(
                 parcel_id=parcel_id,
                 tenant_id=tenant_id,

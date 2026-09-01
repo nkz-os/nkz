@@ -567,4 +567,39 @@ def test_fallback_path_does_not_invent_radiation(monkeypatch):
     assert "solar_rad_w_m2_horizontal" not in out
 
 
+def test_validity_window_names_the_day_of_the_observation(monkeypatch):
+    """La ventana la fija el dato, no el reloj del worker.
+
+    La observación es el día 0 de Open-Meteo en timezone=Europe/Madrid; utcnow()
+    ya está en el día siguiente entre las 22:00 UTC y medianoche, así que la
+    ventana nombraba un día distinto del que describe el payload.
+    """
+    _, sent = _capture_forecast_post(
+        monkeypatch,
+        daily={"observed_at": "2026-08-31", "temp_min": 9.9, "temp_max": 28.4},
+    )
+    entity = sent["body"][0]
+    assert entity["validFrom"]["value"]["@value"] == "2026-08-31T00:00:00Z"
+    assert entity["validTo"]["value"]["@value"] == "2026-08-31T23:59:59Z"
+
+
+def test_forecast_is_skipped_when_the_observation_has_no_day(monkeypatch):
+    """Sin día no se inventa uno: publicar la ventana equivocada es peor que no
+    publicar, porque el consumidor no puede distinguirla de una buena."""
+    ok, sent = _capture_forecast_post(
+        monkeypatch, daily={"temp_min": 9.9, "temp_max": 28.4}
+    )
+    assert ok is False
+    assert not sent, "no debe salir ninguna petición"
+
+
+def test_forecast_is_skipped_when_the_day_is_unparseable(monkeypatch):
+    ok, sent = _capture_forecast_post(
+        monkeypatch,
+        daily={"observed_at": "ayer", "temp_min": 9.9, "temp_max": 28.4},
+    )
+    assert ok is False
+    assert not sent
+
+
 print("All parcel engine tests passed.")
