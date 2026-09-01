@@ -6572,13 +6572,13 @@ def handle_tenant_deleted(tenant_id: str, payload: dict[str, Any]) -> tuple:
             logger.error(f"Failed to cleanup tenant {tenant_id}: {result.stderr}")
 
         # Best-effort removal of legacy per-tenant cleanup scripts (never execute them).
-        # tenant_id is validated at handler entry; fullmatch here keeps the guard
-        # local to the sink (CodeQL sanitizer boundary).
-        if TENANT_ID_RE.fullmatch(tenant_id):
-            legacy_script = f"/app/scripts/cleanup-tenant-{tenant_id}.sh"
-            with suppress(OSError):
-                if os.path.exists(legacy_script):
-                    os.remove(legacy_script)
+        # The path passed to os.remove() comes from the directory listing, never
+        # from user input; tenant_id only appears in an equality comparison, so
+        # there is no path-injection flow by construction.
+        with suppress(OSError):
+            for entry in os.scandir("/app/scripts"):
+                if entry.name == f"cleanup-tenant-{tenant_id}.sh" and entry.is_file():
+                    os.remove(entry.path)
 
         return jsonify({"message": "Tenant deletion processed"}), 200
 
