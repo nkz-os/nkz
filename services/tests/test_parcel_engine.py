@@ -398,4 +398,137 @@ def test_the_context_mode_assertion_catches_the_forbidden_pairing():
         )
 
 
+# ---------------------------------------------------------------------------
+# Full cycle — what actually reaches Orion.
+#
+# The unit tests above mock one call each; these run run_once() end to end with
+# only the network mocked, which is the only place where the altitude that the
+# values were downscaled TO can be compared against the grid altitude they came
+# FROM. Publishing the grid altitude makes every consumer re-apply a correction
+# the producer already applied.
+# ---------------------------------------------------------------------------
+
+PARCEL_AT_450 = {
+    "id": "urn:ngsi-ld:AgriParcel:t:p1",
+    "type": "AgriParcel",
+    "name": {"type": "Property", "value": "P1"},
+    "location": {
+        "type": "GeoProperty",
+        "value": {"type": "Point", "coordinates": [-2.07, 42.63]},
+    },
+    "elevation": {"type": "Property", "value": 450.0},
+}
+
+GRID_AT_300 = {
+    "elevation": 300.0,
+    "daily": {
+        "time": ["2026-09-01"],
+        "temperature_2m_min": [9.9],
+        "temperature_2m_max": [28.4],
+        "temperature_2m_mean": [19.0],
+        "relative_humidity_2m_mean": [55.0],
+        "precipitation_sum": [0.0],
+        "precipitation_probability_max": [20.0],
+        "et0_fao_evapotranspiration": [4.1],
+        "shortwave_radiation_sum": [22.0],
+        "surface_pressure_mean": [960.0],
+    },
+    "hourly": {},
+}
+
+
+def _run_cycle(monkeypatch, parcel=PARCEL_AT_450, openmeteo=GRID_AT_300, downscaled=None):
+    """Run one full engine cycle with only the network stubbed."""
+    from weather_worker import parcel_engine as pe
+    from weather_worker.storage import orion_writer
+
+    engine = pe.ParcelWeatherEngine(orion_url="http://orion:1026")
+    posts = []
+
+    class _Resp:
+        status_code = 201
+        text = ""
+
+    def _post(url, json=None, headers=None, timeout=None, **kwargs):
+        posts.append({"url": url, "body": json, "headers": headers})
+        return _Resp()
+
+    monkeypatch.setattr(pe.requests, "post", _post)
+    monkeypatch.setattr(orion_writer.requests, "post", _post)
+    monkeypatch.setattr(pe.time, "sleep", lambda *a, **k: None)
+    monkeypatch.setattr(engine, "_get_active_tenants", lambda: ["t"])
+    monkeypatch.setattr(engine, "_fetch_all_parcels", lambda: [dict(parcel, _tenant="t")])
+    monkeypatch.setattr(engine, "_fetch_openmeteo", lambda lat, lon: openmeteo)
+    monkeypatch.setattr(engine, "_compute_terrain_attributes", lambda c: (0.0, 0.0))
+    monkeypatch.setattr(engine, "_prune_orphan_weather_observed", lambda tid: 0)
+    if downscaled is not None:
+        monkeypatch.setattr(engine, "_downscale_observations", lambda **kw: downscaled)
+
+    return engine.run_once(), posts
+
+
+def _entity_of_type(posts, entity_type):
+    for post in posts:
+        body = post["body"]
+        entities = body if isinstance(body, list) else [body]
+        for entity in entities:
+            if isinstance(entity, dict) and entity.get("type") == entity_type:
+                return entity, post
+    raise AssertionError(f"no {entity_type} was posted: {[p['url'] for p in posts]}")
+
+
+def _coordinates(entity):
+    return entity["location"]["value"]["coordinates"]
+
+
+def test_cycle_declares_the_parcel_altitude_not_the_grid_altitude():
+    """location[2] es la base DESDE la que el consumidor corrige.
+
+    Los valores publicados ya vienen bajados a la altitud de la parcela por
+    _downscale_observations. Declarar los 300 m de la celda del modelo haría que
+    weather-map volviera a aplicar Gamma*(450-300): sesgo sistemático, siempre en
+    el mismo sentido.
+    """
+    import pytest as _pytest
+
+    with _pytest.MonkeyPatch.context() as mp:
+        stats, posts = _run_cycle(mp)
+
+    observed, _ = _entity_of_type(posts, "WeatherObserved")
+    forecast, _ = _entity_of_type(posts, "WeatherForecast")
+
+    assert _coordinates(observed)[2] == 450.0, "WeatherObserved lleva la altitud del grid"
+    assert _coordinates(forecast)[2] == 450.0, "WeatherForecast lleva la altitud del grid"
+    assert stats["weather_forecast_written"] == 1
+
+
+def test_cycle_omits_the_altitude_when_nobody_knows_it():
+    """Sin elevación de parcela ni de grid, la coordenada se OMITE.
+
+    Un 0.0 por defecto declara nivel del mar: ~3 degC fabricados para una parcela
+    a 450 m. Un hueco es honesto.
+    """
+    import pytest as _pytest
+
+    parcel = {k: v for k, v in PARCEL_AT_450.items() if k != "elevation"}
+    grid = {k: v for k, v in GRID_AT_300.items() if k != "elevation"}
+    with _pytest.MonkeyPatch.context() as mp:
+        _, posts = _run_cycle(mp, parcel=parcel, openmeteo=grid)
+
+    observed, _ = _entity_of_type(posts, "WeatherObserved")
+    forecast, _ = _entity_of_type(posts, "WeatherForecast")
+
+    assert len(_coordinates(observed)) == 2, "0.0 declara nivel del mar; se omite"
+    assert len(_coordinates(forecast)) == 2, "0.0 declara nivel del mar; se omite"
+
+
+def test_parse_keeps_a_missing_grid_elevation_missing():
+    """Open-Meteo sin `elevation` no puede convertirse en 0.0 metros."""
+    engine = ParcelWeatherEngine(orion_url="http://orion:1026")
+    grid = {k: v for k, v in GRID_AT_300.items() if k != "elevation"}
+    observations = engine._parse_openmeteo_response(grid, 42.63, -2.07)
+    assert observations, "fixture must yield one observation"
+    assert observations[0]["station_elevation_m"] is None
+
+
 print("All parcel engine tests passed.")

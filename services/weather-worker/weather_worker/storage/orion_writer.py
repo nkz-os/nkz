@@ -238,6 +238,7 @@ def create_weather_observed_entity(
     observed_at: Optional[datetime] = None,
     municipality_code: Optional[str] = None,
     parcel_name: Optional[str] = None,
+    reference_altitude_m: Optional[float] = None,
 ) -> Optional[str]:
     """
     Create or update a WeatherObserved entity in Orion-LD for a parcel.
@@ -250,6 +251,9 @@ def create_weather_observed_entity(
         observed_at: Observation timestamp (defaults to now)
         municipality_code: Optional INE/AEMET municipality code
         parcel_name: Optional parcel name (used as "virtual {name}")
+        reference_altitude_m: Altitude the values in ``weather_data`` correspond to
+            (the PARCEL altitude after downscaling, never the grid-cell altitude).
+            Published as the third GeoJSON coordinate. None => 2D location.
 
     Returns:
         Entity ID if successful, None otherwise
@@ -274,8 +278,14 @@ def create_weather_observed_entity(
         # Altitud de referencia en la tercera coordenada GeoJSON. Es la altura a la
         # que corresponden estos valores; un consumidor que quiera bajar a nivel de
         # píxel corrige DESDE aquí, no desde el nivel del mar.
-        _elev = weather_data.get("station_elevation_m")
-        coordinates = [lon, lat] if _elev is None else [lon, lat, float(_elev)]
+        # NO se lee station_elevation_m: esa es la altitud de la celda del modelo,
+        # y los valores ya vienen bajados a la de la parcela. Declarar la de la
+        # celda haría que el consumidor aplicase la corrección por segunda vez.
+        coordinates = (
+            [lon, lat]
+            if reference_altitude_m is None
+            else [lon, lat, float(reference_altitude_m)]
+        )
 
         # Build WeatherObserved entity
         entity = {
@@ -451,7 +461,12 @@ def create_weather_observed_entity(
                 f"WeatherObserved entity {entity_id} already exists, updating..."
             )
             return update_weather_observed_entity(
-                entity_id, tenant_id, weather_data, observed_at, headers
+                entity_id,
+                tenant_id,
+                weather_data,
+                observed_at,
+                headers,
+                location_coordinates=coordinates,
             )
         else:
             logger.error(
@@ -471,6 +486,7 @@ def update_weather_observed_entity(
     observed_at: Optional[datetime] = None,
     headers: Optional[Dict[str, str]] = None,
     add_parcel_ref: Optional[str] = None,
+    location_coordinates: Optional[list] = None,
 ) -> Optional[str]:
     """
     Update an existing WeatherObserved entity in Orion-LD.
@@ -481,6 +497,10 @@ def update_weather_observed_entity(
         weather_data: Weather data dict
         observed_at: Observation timestamp
         headers: Optional headers dict
+        location_coordinates: GeoJSON coordinates to refresh, [lon, lat] or
+            [lon, lat, reference altitude]. The entity is created once and updated
+            every cycle after that, so without this the reference altitude would
+            never be corrected on an existing virtual station.
 
     Returns:
         Entity ID if successful, None otherwise
@@ -622,6 +642,12 @@ def update_weather_observed_entity(
                 "unitCode": "CEL",
             }
 
+        if location_coordinates:
+            update_payload["location"] = {
+                "type": "GeoProperty",
+                "value": {"type": "Point", "coordinates": list(location_coordinates)},
+            }
+
         # If add_parcel_ref is provided, we should add it to locatedAt
         # Note: NGSI-LD relationships can be arrays, but for simplicity we'll just update
         # In a more complex implementation, we'd check if the parcel is already in locatedAt
@@ -756,6 +782,10 @@ def sync_weather_to_orion(
 
             # Apply spatial downscaling for this specific parcel
             parcel_weather = weather_data
+            # Altitud a la que corresponden los valores publicados. Sin
+            # downscaling siguen siendo los de la estación; con él, los de la
+            # parcela. Desconocida => None, nunca 0.0.
+            reference_altitude_m = station_altitude_m if station_altitude_m > 0 else None
             try:
                 from weather_utils.spatial_downscaler import (
                     downscale_for_parcel,
@@ -765,13 +795,13 @@ def sync_weather_to_orion(
                 parcel_alt, parcel_aspect, parcel_slope = extract_parcel_terrain(parcel)
                 if parcel_alt > 0 or station_altitude_m > 0:
                     doy = observed_at.timetuple().tm_yday if observed_at else None
+                    effective_alt = parcel_alt if parcel_alt > 0 else station_altitude_m
+                    reference_altitude_m = effective_alt if effective_alt > 0 else None
                     parcel_weather = downscale_for_parcel(
                         weather_data=weather_data,
                         parcel_lat=parcel_location[1],
                         parcel_lon=parcel_location[0],
-                        parcel_altitude_m=parcel_alt
-                        if parcel_alt > 0
-                        else station_altitude_m,
+                        parcel_altitude_m=effective_alt,
                         station_altitude_m=station_altitude_m,
                         parcel_aspect_deg=parcel_aspect,
                         parcel_slope_deg=parcel_slope,
@@ -803,6 +833,7 @@ def sync_weather_to_orion(
                 observed_at=observed_at,
                 municipality_code=municipality_code,
                 parcel_name=parcel_display_name,
+                reference_altitude_m=reference_altitude_m,
             )
 
             if entity_id:

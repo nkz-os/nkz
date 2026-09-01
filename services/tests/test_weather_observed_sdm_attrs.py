@@ -24,11 +24,15 @@ WEATHER = {
     "wind_gusts_ms": 9.8,
     "solar_rad_w_m2_horizontal": 171.8,
     "precip_mm": 0.0,
-    "station_elevation_m": 450.0,
+    # Altitud de la CELDA de Open-Meteo. Nunca debe salir en location[2]: los
+    # valores de arriba ya vienen bajados a los 450 m de la parcela.
+    "station_elevation_m": 300.0,
 }
 
+PARCEL_ALTITUDE_M = 450.0
 
-def _captured_entity():
+
+def _captured_entity(reference_altitude_m=PARCEL_ALTITUDE_M, weather_data=None):
     """Devuelve el cuerpo que el escritor habría enviado a Orion."""
     sent = {}
 
@@ -45,9 +49,10 @@ def _captured_entity():
             parcel_id="urn:ngsi-ld:AgriParcel:t:p1",
             tenant_id="t",
             location=(-2.07, 42.63),
-            weather_data=WEATHER,
+            weather_data=WEATHER if weather_data is None else weather_data,
             observed_at=datetime(2026, 9, 1, 9, 0, tzinfo=timezone.utc).replace(tzinfo=None),
             parcel_name="P1",
+            reference_altitude_m=reference_altitude_m,
         )
     return sent
 
@@ -157,15 +162,38 @@ def test_location_declares_the_reference_elevation():
     """
     coords = _captured_entity()["location"]["value"]["coordinates"]
     assert len(coords) == 3, f"location debe ser 3D, es {coords}"
-    assert coords[2] == 450.0
+    assert coords[2] == PARCEL_ALTITUDE_M
 
 
-def test_location_stays_2d_when_elevation_is_unknown():
-    sin_elev = {k: v for k, v in WEATHER.items() if k != "station_elevation_m"}
+def test_location_declares_the_parcel_altitude_not_the_grid_one():
+    """La observación trae los 300 m de la celda; la parcela está a 450 m.
+
+    Los valores ya están corregidos a 450 m. Publicar 300 haría que weather-map
+    aplicase Gamma*(h_pixel - 300) sobre un valor que ya lleva Gamma*(450 - 300):
+    sesgo sistemático de 0.6-2.6 degC, siempre en el mismo sentido.
+    """
+    coords = _captured_entity()["location"]["value"]["coordinates"]
+    assert coords[2] == PARCEL_ALTITUDE_M
+    assert coords[2] != WEATHER["station_elevation_m"], "location[2] es la del grid"
+
+
+def test_location_stays_2d_when_the_reference_altitude_is_unknown():
+    """Desconocida se OMITE. Un 0.0 declararía nivel del mar, que es un dato falso.
+
+    Y ni siquiera con station_elevation_m presente en la observación: esa es la
+    altitud de otra cosa.
+    """
+    coords = _captured_entity(reference_altitude_m=None)["location"]["value"]["coordinates"]
+    assert len(coords) == 2, f"location debe quedarse en 2D, es {coords}"
+
+
+def test_update_refreshes_the_reference_location():
+    """La entidad se crea una vez y se actualiza en cada ciclo: si el refresco no
+    lleva location, la altitud de referencia nunca se corrige en una estación viva."""
     sent = {}
 
     class _Resp:
-        status_code = 201
+        status_code = 204
         text = ""
 
     def _post(url, json=None, headers=None, timeout=None, **kwargs):
@@ -173,11 +201,15 @@ def test_location_stays_2d_when_elevation_is_unknown():
         return _Resp()
 
     with patch.object(orion_writer.requests, "post", side_effect=_post):
-        orion_writer.create_weather_observed_entity(
-            parcel_id="urn:ngsi-ld:AgriParcel:t:p1",
+        orion_writer.update_weather_observed_entity(
+            entity_id="urn:ngsi-ld:WeatherObserved:t:parcel-p1",
             tenant_id="t",
-            location=(-2.07, 42.63),
-            weather_data=sin_elev,
-            parcel_name="P1",
+            weather_data=WEATHER,
+            location_coordinates=[-2.07, 42.63, PARCEL_ALTITUDE_M],
         )
-    assert len(sent["location"]["value"]["coordinates"]) == 2
+    assert sent["location"]["value"]["coordinates"] == [-2.07, 42.63, PARCEL_ALTITUDE_M]
+
+
+def test_update_leaves_location_alone_when_not_given():
+    """Un refresco sin coordenadas no debe borrar ni tocar la location existente."""
+    assert "location" not in _captured_update_payload()

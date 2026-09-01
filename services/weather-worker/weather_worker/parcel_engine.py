@@ -641,7 +641,9 @@ class ParcelWeatherEngine:
         if not dates:
             return []
 
-        station_elevation = data.get("elevation", 0.0)
+        # Sin default: un 0.0 aquí declara nivel del mar y se propaga hasta
+        # location[2]. Ausente debe seguir ausente.
+        station_elevation = data.get("elevation")
         hourly = data.get("hourly", {})
         hourly_times = hourly.get("time", [])
 
@@ -842,7 +844,7 @@ class ParcelWeatherEngine:
                     continue
 
                 # Parse into observation dicts
-                station_elevation = raw_data.get("elevation", 0.0)
+                station_elevation = raw_data.get("elevation")
                 observations = self._parse_openmeteo_response(
                     raw_data, cluster_lat, cluster_lon
                 )
@@ -882,10 +884,21 @@ class ParcelWeatherEngine:
                             parcel_entity=parcel,
                         )
 
+                        # Altitud de referencia de los valores ya corregidos.
+                        # No es la de la celda de Open-Meteo: publicar aquella
+                        # haría que el consumidor volviera a aplicar una
+                        # corrección ya aplicada.
+                        reference_altitude_m = (
+                            corrected_observations[0].get("reference_elevation_m")
+                            if corrected_observations
+                            else None
+                        )
+
                         # Write to Orion-LD (WeatherObserved)
                         written = self._write_weather_observed(
                             parcel=parcel,
                             observations=corrected_observations,
+                            reference_altitude_m=reference_altitude_m,
                         )
 
                         stats["weather_observed_created"] += written.get(
@@ -903,11 +916,10 @@ class ParcelWeatherEngine:
                         latest = corrected_observations[0]
                         tenant_id = parcel.get("_tenant", "default")
                         parcel_id = parcel.get("id", "")
-                        _elev = latest.get("station_elevation_m")
                         _loc = (
                             (parcel_lon, parcel_lat)
-                            if _elev is None
-                            else (parcel_lon, parcel_lat, float(_elev))
+                            if reference_altitude_m is None
+                            else (parcel_lon, parcel_lat, float(reference_altitude_m))
                         )
                         if self._write_weather_forecast(
                             tenant_id=tenant_id,
@@ -959,7 +971,7 @@ class ParcelWeatherEngine:
         parcel_lat: float,
         parcel_lon: float,
         parcel_altitude_m: float,
-        station_altitude_m: float,
+        station_altitude_m: Optional[float],
         parcel_entity: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """Apply spatial downscaling to observations for a specific parcel.
@@ -1002,7 +1014,7 @@ class ParcelWeatherEngine:
                     parcel_lon=parcel_lon,
                     parcel_altitude_m=effective_alt,
                     station_altitude_m=station_altitude_m
-                    if station_altitude_m > 0
+                    if (station_altitude_m or 0) > 0
                     else effective_alt,
                     parcel_aspect_deg=parcel_aspect,
                     parcel_slope_deg=parcel_slope,
@@ -1011,6 +1023,12 @@ class ParcelWeatherEngine:
                 result["observed_at"] = obs.get("observed_at")
                 result["source"] = "OPEN-METEO"
                 result["data_type"] = "FORECAST"
+                # Altitud a la que corresponden ESTOS valores una vez corregidos.
+                # Es lo que location[2] debe declarar: la base DESDE la que el
+                # consumidor corrige. Desconocida => None, nunca 0.0.
+                result["reference_elevation_m"] = (
+                    effective_alt if effective_alt > 0 else None
+                )
                 if horizontal is not None:
                     result["solar_rad_w_m2_horizontal"] = horizontal
                 corrected.append(result)
@@ -1025,6 +1043,10 @@ class ParcelWeatherEngine:
             for obs in observations:
                 obs["source"] = "OPEN-METEO"
                 obs["data_type"] = "FORECAST"
+                # Sin downscaling los valores siguen siendo los del grid: su
+                # altitud de referencia es la de la celda, no la de la parcela.
+                _station = obs.get("station_elevation_m")
+                obs["reference_elevation_m"] = _station if _station else None
             return observations
 
     # ------------------------------------------------------------------
@@ -1035,6 +1057,7 @@ class ParcelWeatherEngine:
         self,
         parcel: Dict[str, Any],
         observations: List[Dict[str, Any]],
+        reference_altitude_m: Optional[float] = None,
     ) -> Dict[str, int]:
         """Create or update WeatherObserved entities in Orion-LD for a parcel.
 
@@ -1072,6 +1095,7 @@ class ParcelWeatherEngine:
                 weather_data=latest,
                 observed_at=datetime.utcnow(),
                 parcel_name=parcel_name,
+                reference_altitude_m=reference_altitude_m,
             )
 
             if entity_id:
