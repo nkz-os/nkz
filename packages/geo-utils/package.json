@@ -44,7 +44,7 @@
   "devDependencies": {
     "tsup": "^8.0.0",
     "typescript": "^5.5.0",
-    "vitest": "^3.2.6",
+    "vitest": "^4.1.11",
     "@types/geojson": "^7946.0.16"
   }
 }
