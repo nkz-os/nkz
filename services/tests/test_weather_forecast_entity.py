@@ -5,6 +5,7 @@ dayMaximum; WeatherForecast sí. FAO-56 necesita tMin y tMax, así que meterlos 
 observación sería usar mal el modelo.
 """
 
+import ast
 import os
 import sys
 
@@ -112,3 +113,44 @@ def test_omits_relative_humidity_from_day_extremes_when_missing():
     assert "dayMaximum" in e, "dayMaximum debe existir si temp_max existe"
     assert "relativeHumidity" not in e["dayMinimum"]["value"], "no se inventa relativeHumidity"
     assert "relativeHumidity" not in e["dayMaximum"]["value"], "no se inventa relativeHumidity"
+
+
+def test_telemetry_worker_subscribes_to_weather_forecast():
+    """Sin suscripción, la entidad existe en el broker pero nunca llega a TimescaleDB.
+
+    Cannot import subscription_manager directly (Prometheus metrics are registered
+    at import time and reject duplicates). Verify via source code inspection.
+    """
+    source_path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "telemetry-worker",
+        "telemetry_worker",
+        "subscription_manager.py",
+    )
+    tree = ast.parse(open(source_path, encoding="utf-8").read())
+
+    types = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(getattr(t, "id", None) == "SUBSCRIPTIONS" for t in node.targets):
+            continue
+        # Extract all "type" values from entity dicts
+        for entities in _values_for_key(node.value, "entities"):
+            for entity in getattr(entities, "elts", []):
+                for value in _values_for_key(entity, "type"):
+                    if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                        types.add(value.value)
+
+    assert "WeatherForecast" in types, f"WeatherForecast not found in subscription types: {types}"
+
+
+def _values_for_key(node, key: str):
+    """Helper to extract dict values by key from AST nodes."""
+    for sub in ast.walk(node):
+        if not isinstance(sub, ast.Dict):
+            continue
+        for k, v in zip(sub.keys, sub.values):
+            if isinstance(k, ast.Constant) and k.value == key:
+                yield v
