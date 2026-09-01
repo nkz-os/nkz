@@ -238,6 +238,7 @@ def create_weather_observed_entity(
     observed_at: Optional[datetime] = None,
     municipality_code: Optional[str] = None,
     parcel_name: Optional[str] = None,
+    reference_altitude_m: Optional[float] = None,
 ) -> Optional[str]:
     """
     Create or update a WeatherObserved entity in Orion-LD for a parcel.
@@ -250,6 +251,9 @@ def create_weather_observed_entity(
         observed_at: Observation timestamp (defaults to now)
         municipality_code: Optional INE/AEMET municipality code
         parcel_name: Optional parcel name (used as "virtual {name}")
+        reference_altitude_m: Altitude the values in ``weather_data`` correspond to
+            (the PARCEL altitude after downscaling, never the grid-cell altitude).
+            Published as the third GeoJSON coordinate. None => 2D location.
 
     Returns:
         Entity ID if successful, None otherwise
@@ -271,6 +275,18 @@ def create_weather_observed_entity(
         display_name = parcel_name or parcel_identifier
         entity_name = f"virtual {display_name}"
 
+        # Altitud de referencia en la tercera coordenada GeoJSON. Es la altura a la
+        # que corresponden estos valores; un consumidor que quiera bajar a nivel de
+        # píxel corrige DESDE aquí, no desde el nivel del mar.
+        # NO se lee station_elevation_m: esa es la altitud de la celda del modelo,
+        # y los valores ya vienen bajados a la de la parcela. Declarar la de la
+        # celda haría que el consumidor aplicase la corrección por segunda vez.
+        coordinates = (
+            [lon, lat]
+            if reference_altitude_m is None
+            else [lon, lat, float(reference_altitude_m)]
+        )
+
         # Build WeatherObserved entity
         entity = {
             "@context": [CONTEXT_URL],
@@ -282,7 +298,7 @@ def create_weather_observed_entity(
             },
             "location": {
                 "type": "GeoProperty",
-                "value": {"type": "Point", "coordinates": [lon, lat]},
+                "value": {"type": "Point", "coordinates": coordinates},
             },
             "dateObserved": {
                 "type": "Property",
@@ -334,6 +350,24 @@ def create_weather_observed_entity(
                 "unitCode": "MTS",
             }
 
+        # gustSpeed es el nombre del SDM oficial; windGusts (arriba) es el legacy
+        # y se retira en la fase de contract, no aquí.
+        if weather_data.get("wind_gusts_ms") is not None:
+            entity["gustSpeed"] = {
+                "type": "Property",
+                "value": float(weather_data["wind_gusts_ms"]),
+                "unitCode": "MTS",
+            }
+
+        # Radiación global HORIZONTAL, sin corregir por aspecto ni pendiente: la
+        # corrección es del consumidor. Corregirla aquí la aplicaría dos veces.
+        if weather_data.get("solar_rad_w_m2_horizontal") is not None:
+            entity["solarRadiation"] = {
+                "type": "Property",
+                "value": float(weather_data["solar_rad_w_m2_horizontal"]),
+                "unitCode": "D54",  # watt per square metre
+            }
+
         if weather_data.get("wind_direction_deg") is not None:
             entity["windDirection"] = {
                 "type": "Property",
@@ -373,6 +407,9 @@ def create_weather_observed_entity(
         # Add source information
         source = weather_data.get("source", "OPEN-METEO")
         entity["sourceConfidence"] = {"type": "Property", "value": source}
+
+        # source es el nombre del SDM oficial; sourceConfidence es el legacy.
+        entity["source"] = {"type": "Property", "value": source}
 
         # Add agroclimatic metrics if available
         if weather_data.get("eto_mm") is not None:
@@ -424,7 +461,12 @@ def create_weather_observed_entity(
                 f"WeatherObserved entity {entity_id} already exists, updating..."
             )
             return update_weather_observed_entity(
-                entity_id, tenant_id, weather_data, observed_at, headers
+                entity_id,
+                tenant_id,
+                weather_data,
+                observed_at,
+                headers,
+                location_coordinates=coordinates,
             )
         else:
             logger.error(
@@ -444,6 +486,7 @@ def update_weather_observed_entity(
     observed_at: Optional[datetime] = None,
     headers: Optional[Dict[str, str]] = None,
     add_parcel_ref: Optional[str] = None,
+    location_coordinates: Optional[list] = None,
 ) -> Optional[str]:
     """
     Update an existing WeatherObserved entity in Orion-LD.
@@ -454,6 +497,10 @@ def update_weather_observed_entity(
         weather_data: Weather data dict
         observed_at: Observation timestamp
         headers: Optional headers dict
+        location_coordinates: GeoJSON coordinates to refresh, [lon, lat] or
+            [lon, lat, reference altitude]. The entity is created once and updated
+            every cycle after that, so without this the reference altitude would
+            never be corrected on an existing virtual station.
 
     Returns:
         Entity ID if successful, None otherwise
@@ -507,6 +554,24 @@ def update_weather_observed_entity(
                 "unitCode": "MTS",
             }
 
+        # gustSpeed es el nombre del SDM oficial; windGusts (arriba) es el legacy
+        # y se retira en la fase de contract, no aquí.
+        if weather_data.get("wind_gusts_ms") is not None:
+            update_payload["gustSpeed"] = {
+                "type": "Property",
+                "value": float(weather_data["wind_gusts_ms"]),
+                "unitCode": "MTS",
+            }
+
+        # Radiación global HORIZONTAL, sin corregir por aspecto ni pendiente: la
+        # corrección es del consumidor. Corregirla aquí la aplicaría dos veces.
+        if weather_data.get("solar_rad_w_m2_horizontal") is not None:
+            update_payload["solarRadiation"] = {
+                "type": "Property",
+                "value": float(weather_data["solar_rad_w_m2_horizontal"]),
+                "unitCode": "D54",  # watt per square metre
+            }
+
         if weather_data.get("wind_direction_deg") is not None:
             update_payload["windDirection"] = {
                 "type": "Property",
@@ -546,6 +611,9 @@ def update_weather_observed_entity(
         source = weather_data.get("source", "OPEN-METEO")
         update_payload["sourceConfidence"] = {"type": "Property", "value": source}
 
+        # source es el nombre del SDM oficial; sourceConfidence es el legacy.
+        update_payload["source"] = {"type": "Property", "value": source}
+
         if weather_data.get("eto_mm") is not None:
             update_payload["et0"] = {
                 "type": "Property",
@@ -572,6 +640,12 @@ def update_weather_observed_entity(
                 "type": "Property",
                 "value": float(weather_data["temp_current"]),
                 "unitCode": "CEL",
+            }
+
+        if location_coordinates:
+            update_payload["location"] = {
+                "type": "GeoProperty",
+                "value": {"type": "Point", "coordinates": list(location_coordinates)},
             }
 
         # If add_parcel_ref is provided, we should add it to locatedAt
@@ -708,6 +782,10 @@ def sync_weather_to_orion(
 
             # Apply spatial downscaling for this specific parcel
             parcel_weather = weather_data
+            # Altitud a la que corresponden los valores publicados. Sin
+            # downscaling siguen siendo los de la estación; con él, los de la
+            # parcela. Desconocida => None, nunca 0.0.
+            reference_altitude_m = station_altitude_m if station_altitude_m > 0 else None
             try:
                 from weather_utils.spatial_downscaler import (
                     downscale_for_parcel,
@@ -717,13 +795,13 @@ def sync_weather_to_orion(
                 parcel_alt, parcel_aspect, parcel_slope = extract_parcel_terrain(parcel)
                 if parcel_alt > 0 or station_altitude_m > 0:
                     doy = observed_at.timetuple().tm_yday if observed_at else None
+                    effective_alt = parcel_alt if parcel_alt > 0 else station_altitude_m
+                    reference_altitude_m = effective_alt if effective_alt > 0 else None
                     parcel_weather = downscale_for_parcel(
                         weather_data=weather_data,
                         parcel_lat=parcel_location[1],
                         parcel_lon=parcel_location[0],
-                        parcel_altitude_m=parcel_alt
-                        if parcel_alt > 0
-                        else station_altitude_m,
+                        parcel_altitude_m=effective_alt,
                         station_altitude_m=station_altitude_m,
                         parcel_aspect_deg=parcel_aspect,
                         parcel_slope_deg=parcel_slope,
@@ -755,6 +833,7 @@ def sync_weather_to_orion(
                 observed_at=observed_at,
                 municipality_code=municipality_code,
                 parcel_name=parcel_display_name,
+                reference_altitude_m=reference_altitude_m,
             )
 
             if entity_id:
@@ -768,3 +847,61 @@ def sync_weather_to_orion(
     except Exception as e:
         logger.error(f"Error syncing weather to Orion-LD: {e}", exc_info=True)
         return 0
+
+
+def build_weather_forecast_entity(
+    parcel_id: str,
+    tenant_id: str,
+    location: Tuple[float, ...],
+    daily: Dict[str, Any],
+    valid_from: str,
+    valid_to: str,
+) -> Dict[str, Any]:
+    """Construye la entidad WeatherForecast SDM con los agregados del día.
+
+    Devuelve el cuerpo; no hace la petición. El SDM modela WeatherObserved como
+    observación instantánea y no define dayMinimum/dayMaximum, así que los
+    agregados diarios que FAO-56 necesita viven aquí.
+
+    Un atributo cuyo dato de entrada falte se OMITE. No se sustituye por un valor
+    por defecto: un hueco es honesto, un número inventado no.
+    """
+    parcel_identifier = parcel_id.split(":")[-1] if ":" in parcel_id else parcel_id
+    entity: Dict[str, Any] = {
+        "@context": [CONTEXT_URL],
+        "id": f"urn:ngsi-ld:WeatherForecast:{tenant_id}:parcel-{parcel_identifier}",
+        "type": "WeatherForecast",
+        "location": {
+            "type": "GeoProperty",
+            "value": {"type": "Point", "coordinates": list(location)},
+        },
+        "locatedAt": {"type": "Relationship", "object": parcel_id},
+        "validFrom": {
+            "type": "Property",
+            "value": {"@type": "DateTime", "@value": valid_from},
+        },
+        "validTo": {
+            "type": "Property",
+            "value": {"@type": "DateTime", "@value": valid_to},
+        },
+    }
+
+    humidity = daily.get("humidity_avg")
+
+    for attr, key in (("dayMinimum", "temp_min"), ("dayMaximum", "temp_max")):
+        temp = daily.get(key)
+        if temp is None:
+            continue
+        value: Dict[str, Any] = {"temperature": float(temp)}
+        if humidity is not None:
+            value["relativeHumidity"] = float(humidity)
+        entity[attr] = {"type": "Property", "value": value}
+
+    if daily.get("precip_probability") is not None:
+        entity["precipitationProbability"] = {
+            "type": "Property",
+            "value": float(daily["precip_probability"]),
+            "unitCode": "P1",
+        }
+
+    return entity

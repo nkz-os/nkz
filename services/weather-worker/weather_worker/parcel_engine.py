@@ -29,6 +29,22 @@ for p in sys_paths:
 from common.ngsi_headers import inject_fiware_headers
 
 
+def _observation_day(observed_at: Any) -> Optional[str]:
+    """Return the YYYY-MM-DD day of an observation, or None if it has none.
+
+    Open-Meteo dates the daily block as "2026-09-01"; anything that does not parse
+    as a calendar day is unusable, and no day is substituted for it.
+    """
+    if hasattr(observed_at, "strftime"):
+        return observed_at.strftime("%Y-%m-%d")
+    if not isinstance(observed_at, str):
+        return None
+    try:
+        return datetime.strptime(observed_at[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
 def _elevation_request_headers() -> dict[str, str]:
     secret = os.getenv("INTERNAL_SERVICE_SECRET", "").strip()
     if secret:
@@ -70,8 +86,16 @@ class ParcelWeatherEngine:
     # Orion-LD helpers
     # ------------------------------------------------------------------
 
-    def _make_headers(self, tenant_id: str) -> dict:
-        """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated)."""
+    def _make_headers(self, tenant_id: str, body: object = None) -> dict:
+        """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated).
+
+        ``body`` selects the @context delivery mode from what is actually posted:
+        a payload carrying @context goes as application/ld+json with NO Link header,
+        anything else as application/json + Link. Sending both is a 400 on every
+        request, so the mode is derived from the payload and cannot drift from it.
+        """
+        if body is not None:
+            return inject_fiware_headers({}, tenant=tenant_id, body=body)
         return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
     def _discover_tenants_from_db(self) -> List[str]:
@@ -633,7 +657,9 @@ class ParcelWeatherEngine:
         if not dates:
             return []
 
-        station_elevation = data.get("elevation", 0.0)
+        # Sin default: un 0.0 aquí declara nivel del mar y se propaga hasta
+        # location[2]. Ausente debe seguir ausente.
+        station_elevation = data.get("elevation")
         hourly = data.get("hourly", {})
         hourly_times = hourly.get("time", [])
 
@@ -780,6 +806,7 @@ class ParcelWeatherEngine:
             "observations_written": 0,
             "weather_observed_created": 0,
             "weather_observed_updated": 0,
+            "weather_forecast_written": 0,
             "clusters": 0,
             "weather_observed_pruned": 0,
             "errors": 0,
@@ -833,7 +860,7 @@ class ParcelWeatherEngine:
                     continue
 
                 # Parse into observation dicts
-                station_elevation = raw_data.get("elevation", 0.0)
+                station_elevation = raw_data.get("elevation")
                 observations = self._parse_openmeteo_response(
                     raw_data, cluster_lat, cluster_lon
                 )
@@ -873,10 +900,28 @@ class ParcelWeatherEngine:
                             parcel_entity=parcel,
                         )
 
+                        if not corrected_observations:
+                            logger.warning(
+                                "Parcel %s: downscaling produced no observations "
+                                "— nothing published this cycle",
+                                parcel.get("id"),
+                            )
+                            stats["errors"] += 1
+                            continue
+
+                        # Altitud de referencia de los valores ya corregidos.
+                        # No es la de la celda de Open-Meteo: publicar aquella
+                        # haría que el consumidor volviera a aplicar una
+                        # corrección ya aplicada.
+                        reference_altitude_m = corrected_observations[0].get(
+                            "reference_elevation_m"
+                        )
+
                         # Write to Orion-LD (WeatherObserved)
                         written = self._write_weather_observed(
                             parcel=parcel,
                             observations=corrected_observations,
+                            reference_altitude_m=reference_altitude_m,
                         )
 
                         stats["weather_observed_created"] += written.get(
@@ -888,6 +933,25 @@ class ParcelWeatherEngine:
                         stats["observations_written"] += len(
                             corrected_observations
                         )
+
+                        # Agregados del día: van en WeatherForecast porque el SDM no los
+                        # define en WeatherObserved.
+                        latest = corrected_observations[0]
+                        tenant_id = parcel.get("_tenant", "default")
+                        parcel_id = parcel.get("id", "")
+                        _loc = (
+                            (parcel_lon, parcel_lat)
+                            if reference_altitude_m is None
+                            else (parcel_lon, parcel_lat, float(reference_altitude_m))
+                        )
+                        if self._write_weather_forecast(
+                            tenant_id=tenant_id,
+                            parcel_id=parcel_id,
+                            location=_loc,
+                            daily=latest,
+                        ):
+                            stats["weather_forecast_written"] += 1
+
                         stats["parcels_processed"] += 1
 
                     except Exception as e:
@@ -916,6 +980,7 @@ class ParcelWeatherEngine:
             f"ParcelWeatherEngine cycle complete: {stats['parcels_processed']} "
             f"parcels, {stats['weather_observed_created']} created, "
             f"{stats['weather_observed_updated']} updated, "
+            f"{stats['weather_forecast_written']} forecasts, "
             f"{stats['weather_observed_pruned']} pruned, {stats['errors']} errors"
         )
         return stats
@@ -930,7 +995,7 @@ class ParcelWeatherEngine:
         parcel_lat: float,
         parcel_lon: float,
         parcel_altitude_m: float,
-        station_altitude_m: float,
+        station_altitude_m: Optional[float],
         parcel_entity: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """Apply spatial downscaling to observations for a specific parcel.
@@ -961,13 +1026,19 @@ class ParcelWeatherEngine:
                     except (ValueError, TypeError):
                         pass
 
+                # La corrección por aspecto es para el valor puntual de la parcela.
+                # WeatherObserved.solarRadiation debe llevar la GLOBAL HORIZONTAL sin
+                # corregir: el consumidor por píxel corrige con SU aspecto. Publicar la
+                # corregida la aplicaría dos veces.
+                horizontal = obs.get("solar_rad_w_m2")
+
                 result = downscale_for_parcel(
                     weather_data=obs,
                     parcel_lat=parcel_lat,
                     parcel_lon=parcel_lon,
                     parcel_altitude_m=effective_alt,
                     station_altitude_m=station_altitude_m
-                    if station_altitude_m > 0
+                    if (station_altitude_m or 0) > 0
                     else effective_alt,
                     parcel_aspect_deg=parcel_aspect,
                     parcel_slope_deg=parcel_slope,
@@ -976,6 +1047,14 @@ class ParcelWeatherEngine:
                 result["observed_at"] = obs.get("observed_at")
                 result["source"] = "OPEN-METEO"
                 result["data_type"] = "FORECAST"
+                # Altitud a la que corresponden ESTOS valores una vez corregidos.
+                # Es lo que location[2] debe declarar: la base DESDE la que el
+                # consumidor corrige. Desconocida => None, nunca 0.0.
+                result["reference_elevation_m"] = (
+                    effective_alt if effective_alt > 0 else None
+                )
+                if horizontal is not None:
+                    result["solar_rad_w_m2_horizontal"] = horizontal
                 corrected.append(result)
 
             return corrected
@@ -988,6 +1067,15 @@ class ParcelWeatherEngine:
             for obs in observations:
                 obs["source"] = "OPEN-METEO"
                 obs["data_type"] = "FORECAST"
+                # Sin corrección por aspecto, el valor crudo YA es la global
+                # horizontal, que es justo lo que el consumidor necesita. No
+                # publicarlo dejaba a weather-map sin radiación y sin ET0.
+                if obs.get("solar_rad_w_m2") is not None:
+                    obs["solar_rad_w_m2_horizontal"] = obs["solar_rad_w_m2"]
+                # Sin downscaling los valores siguen siendo los del grid: su
+                # altitud de referencia es la de la celda, no la de la parcela.
+                _station = obs.get("station_elevation_m")
+                obs["reference_elevation_m"] = _station if _station else None
             return observations
 
     # ------------------------------------------------------------------
@@ -998,6 +1086,7 @@ class ParcelWeatherEngine:
         self,
         parcel: Dict[str, Any],
         observations: List[Dict[str, Any]],
+        reference_altitude_m: Optional[float] = None,
     ) -> Dict[str, int]:
         """Create or update WeatherObserved entities in Orion-LD for a parcel.
 
@@ -1035,6 +1124,7 @@ class ParcelWeatherEngine:
                 weather_data=latest,
                 observed_at=datetime.utcnow(),
                 parcel_name=parcel_name,
+                reference_altitude_m=reference_altitude_m,
             )
 
             if entity_id:
@@ -1046,3 +1136,57 @@ class ParcelWeatherEngine:
             logger.warning(f"Error writing WeatherObserved: {e}")
 
         return result
+
+    def _write_weather_forecast(
+        self,
+        tenant_id: str,
+        parcel_id: str,
+        location: tuple,
+        daily: Dict[str, Any],
+    ) -> bool:
+        """Publica el WeatherForecast del día para una parcela.
+
+        Best-effort e independiente de la observación: si falla, se registra y el
+        ciclo sigue. Nunca sustituye un dato ausente por un valor por defecto.
+        """
+        try:
+            from weather_worker.storage.orion_writer import (
+                build_weather_forecast_entity,
+            )
+
+            # La ventana la fija el DATO, no el reloj: la observación es el día 0
+            # de Open-Meteo en Europe/Madrid, así que entre las 22:00 UTC y
+            # medianoche utcnow() nombra el día siguiente al del payload.
+            day = _observation_day(daily.get("observed_at"))
+            if day is None:
+                logger.warning(
+                    "WeatherForecast for %s skipped: unusable observed_at (%r); "
+                    "a validity window that names another day is worse than none",
+                    parcel_id,
+                    daily.get("observed_at"),
+                )
+                return False
+            entity = build_weather_forecast_entity(
+                parcel_id=parcel_id,
+                tenant_id=tenant_id,
+                location=location,
+                daily=daily,
+                valid_from=f"{day}T00:00:00Z",
+                valid_to=f"{day}T23:59:59Z",
+            )
+            payload = [entity]
+            resp = requests.post(
+                f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert",
+                json=payload,
+                headers=self._make_headers(tenant_id, body=payload),
+                timeout=15,
+            )
+            if resp.status_code in (200, 201, 204):
+                return True
+            logger.warning(
+                "WeatherForecast upsert for %s returned %s", parcel_id, resp.status_code
+            )
+            return False
+        except Exception as e:
+            logger.warning("Error writing WeatherForecast for %s: %s", parcel_id, e)
+            return False

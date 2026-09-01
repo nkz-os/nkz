@@ -135,6 +135,20 @@ SUBSCRIPTIONS = [
         "isActive": True,
     },
     {
+        "description": "Telemetry Worker - WeatherForecast daily aggregates",
+        "type": "Subscription",
+        "entities": [{"type": "WeatherForecast"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 30,
+        "isActive": True,
+    },
+    {
         "description": "Telemetry Worker - WeatherAlert updates",
         "type": "Subscription",
         "entities": [{"type": "WeatherAlert"}],

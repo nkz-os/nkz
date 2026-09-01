@@ -767,7 +767,18 @@
       "outlier": "https://smartdatamodels.org/dataModel.Device/outlier",
       "serialNumber": "https://smartdatamodels.org/dataModel.Device/serialNumber",
       "deviceState": "https://smartdatamodels.org/dataModel.Device/deviceState",
-      "machineModel": "https://smartdatamodels.org/dataModel.ManufacturingMachine/machineModel"
+      "machineModel": "https://smartdatamodels.org/dataModel.ManufacturingMachine/machineModel",
+      "dayMaximum": "https://smartdatamodels.org/dataModel.Weather/dayMaximum",
+      "dayMinimum": "https://smartdatamodels.org/dataModel.Weather/dayMinimum",
+      "gustSpeed": "https://smartdatamodels.org/dataModel.Weather/gustSpeed",
+      "precipitationProbability": "https://smartdatamodels.org/dataModel.Weather/precipitationProbability",
+      "validFrom": "https://smartdatamodels.org/validFrom",
+      "validTo": "https://smartdatamodels.org/validTo",
+      "WeatherForecast": {
+        "@id": "https://smartdatamodels.org/dataModel.Weather/WeatherForecast",
+        "@type": "@id",
+        "_comment": "SDM oficial dataModel.Weather. Lleva los agregados diarios (dayMinimum/dayMaximum) que WeatherObserved no define: el SDM modela WeatherObserved como observación instantánea."
+      }
     }
   ]
 }
