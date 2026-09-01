@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Request, BackgroundTasks, Header
+from fastapi import APIRouter, Request, BackgroundTasks, Header, HTTPException
 
 from .config import Settings
 from .event_sink import EventSink, TelemetryEvent
@@ -351,7 +351,7 @@ def _extract_observed_at(entity: Dict[str, Any]) -> datetime:
     return datetime.utcnow()
 
 
-@router.post("/notify")
+@router.post("/notify", status_code=204)
 async def receive_notification(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -365,6 +365,11 @@ async def receive_notification(
     in the background for fast acknowledgment.
 
     Supports both NGSI-LD (NGSILD-Tenant) and NGSIv2 (Fiware-Service) tenant headers.
+
+    Answers 204 with no body: Orion-LD looks for a capitalised "Content-Length:"
+    with a case-sensitive strstr and only skips that check on a 204. uvicorn emits
+    the header lower-cased, so any other success status is counted as a failed
+    notification and deactivates the subscription after 3 consecutive hits.
     """
     try:
         body = await request.json()
@@ -380,14 +385,19 @@ async def receive_notification(
         # Fast response - process in background
         background_tasks.add_task(process_notification_task, body, tenant_id)
 
-        return {"status": "received"}
+        return None
 
+    except ValueError as e:
+        # Malformed JSON body. Must surface as a 4xx: returning a dict here answered
+        # 200 (FastAPI serialises the tuple), silently acknowledging a lost notification.
+        logger.error(f"Malformed notification body: {e}")
+        raise HTTPException(status_code=400, detail="malformed notification payload")
     except Exception as e:
-        logger.error(f"Invalid notification received: {e}")
-        return {"error": "invalid payload"}, 400
+        logger.error(f"Failed to accept notification: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="notification processing error")
 
 
-@router.post("/v2/notify")
+@router.post("/v2/notify", status_code=204)
 async def receive_notification_v2(
     request: Request,
     background_tasks: BackgroundTasks,
