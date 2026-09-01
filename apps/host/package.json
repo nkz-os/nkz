@@ -54,7 +54,7 @@
     "dompurify": "^3.4.13",
     "i18next": "^23.11.0",
     "i18next-http-backend": "^4.0.1",
-    "js-sha256": "^0.11.0",
+    "js-sha256": "^1.0.0",
     "jwt-decode": "^4.0.0",
     "keycloak-js": "^26.2.4",
     "lucide-react": "^1.31.0",
