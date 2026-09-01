@@ -63,7 +63,7 @@ def test_location_keeps_the_reference_elevation():
     assert _entity()["location"]["value"]["coordinates"] == [-2.07, 42.63, 450.0]
 
 
-def test_omits_attributes_whose_input_is_missing():
+def test_omits_precipitation_probability_when_missing():
     e = build_weather_forecast_entity(
         parcel_id="urn:ngsi-ld:AgriParcel:t:p1",
         tenant_id="t",
@@ -73,3 +73,42 @@ def test_omits_attributes_whose_input_is_missing():
         valid_to="2026-09-01T23:59:59Z",
     )
     assert "precipitationProbability" not in e, "no se inventa un valor ausente"
+
+
+def test_omits_day_minimum_when_temp_min_missing():
+    e = build_weather_forecast_entity(
+        parcel_id="urn:ngsi-ld:AgriParcel:t:p1",
+        tenant_id="t",
+        location=(-2.07, 42.63),
+        daily={"temp_max": 28.4, "humidity_avg": 55.0},
+        valid_from="2026-09-01T00:00:00Z",
+        valid_to="2026-09-01T23:59:59Z",
+    )
+    assert "dayMinimum" not in e, "no se inventa dayMinimum sin temp_min"
+
+
+def test_omits_day_maximum_when_temp_max_missing():
+    e = build_weather_forecast_entity(
+        parcel_id="urn:ngsi-ld:AgriParcel:t:p1",
+        tenant_id="t",
+        location=(-2.07, 42.63),
+        daily={"temp_min": 9.9, "humidity_avg": 55.0},
+        valid_from="2026-09-01T00:00:00Z",
+        valid_to="2026-09-01T23:59:59Z",
+    )
+    assert "dayMaximum" not in e, "no se inventa dayMaximum sin temp_max"
+
+
+def test_omits_relative_humidity_from_day_extremes_when_missing():
+    e = build_weather_forecast_entity(
+        parcel_id="urn:ngsi-ld:AgriParcel:t:p1",
+        tenant_id="t",
+        location=(-2.07, 42.63),
+        daily={"temp_min": 9.9, "temp_max": 28.4},
+        valid_from="2026-09-01T00:00:00Z",
+        valid_to="2026-09-01T23:59:59Z",
+    )
+    assert "dayMinimum" in e, "dayMinimum debe existir si temp_min existe"
+    assert "dayMaximum" in e, "dayMaximum debe existir si temp_max existe"
+    assert "relativeHumidity" not in e["dayMinimum"]["value"], "no se inventa relativeHumidity"
+    assert "relativeHumidity" not in e["dayMaximum"]["value"], "no se inventa relativeHumidity"
