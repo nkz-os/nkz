@@ -900,14 +900,21 @@ class ParcelWeatherEngine:
                             parcel_entity=parcel,
                         )
 
+                        if not corrected_observations:
+                            logger.warning(
+                                "Parcel %s: downscaling produced no observations "
+                                "— nothing published this cycle",
+                                parcel.get("id"),
+                            )
+                            stats["errors"] += 1
+                            continue
+
                         # Altitud de referencia de los valores ya corregidos.
                         # No es la de la celda de Open-Meteo: publicar aquella
                         # haría que el consumidor volviera a aplicar una
                         # corrección ya aplicada.
-                        reference_altitude_m = (
-                            corrected_observations[0].get("reference_elevation_m")
-                            if corrected_observations
-                            else None
+                        reference_altitude_m = corrected_observations[0].get(
+                            "reference_elevation_m"
                         )
 
                         # Write to Orion-LD (WeatherObserved)

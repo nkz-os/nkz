@@ -602,4 +602,27 @@ def test_forecast_is_skipped_when_the_day_is_unparseable(monkeypatch):
     assert not sent
 
 
+def test_cycle_skips_a_parcel_with_no_corrected_observations(caplog):
+    """El [0] estaba a salvo solo por un invariante de dos marcos más arriba.
+
+    Hoy un vacío revienta con IndexError y el except ancho lo convierte en una
+    línea de warning indistinguible de un fallo de red. Un guard explícito dice
+    qué ha pasado.
+    """
+    import logging
+
+    import pytest as _pytest
+
+    caplog.set_level(logging.WARNING, logger="weather_worker.parcel_engine")
+    with _pytest.MonkeyPatch.context() as mp:
+        stats, posts = _run_cycle(mp, downscaled=[])
+
+    assert stats["weather_forecast_written"] == 0
+    assert not [p for p in posts if p["body"]], "nada que publicar, nada publicado"
+    messages = " | ".join(r.getMessage() for r in caplog.records)
+    assert "index out of range" not in messages, (
+        f"el vacío debe detectarse con un guard, no por IndexError: {messages}"
+    )
+
+
 print("All parcel engine tests passed.")
