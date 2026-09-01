@@ -271,6 +271,12 @@ def create_weather_observed_entity(
         display_name = parcel_name or parcel_identifier
         entity_name = f"virtual {display_name}"
 
+        # Altitud de referencia en la tercera coordenada GeoJSON. Es la altura a la
+        # que corresponden estos valores; un consumidor que quiera bajar a nivel de
+        # píxel corrige DESDE aquí, no desde el nivel del mar.
+        _elev = weather_data.get("station_elevation_m")
+        coordinates = [lon, lat] if _elev is None else [lon, lat, float(_elev)]
+
         # Build WeatherObserved entity
         entity = {
             "@context": [CONTEXT_URL],
@@ -282,7 +288,7 @@ def create_weather_observed_entity(
             },
             "location": {
                 "type": "GeoProperty",
-                "value": {"type": "Point", "coordinates": [lon, lat]},
+                "value": {"type": "Point", "coordinates": coordinates},
             },
             "dateObserved": {
                 "type": "Property",

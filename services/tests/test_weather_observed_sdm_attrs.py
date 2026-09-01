@@ -146,3 +146,38 @@ def test_update_publishes_gust_speed_alongside_the_legacy_name():
 def test_update_publishes_source_alongside_the_legacy_name():
     p = _captured_update_payload()
     assert p["source"]["value"] == p["sourceConfidence"]["value"]
+
+
+def test_location_declares_the_reference_elevation():
+    """Sin altitud de referencia el consumidor no sabe desde qué base corregir.
+
+    GeoJSON admite una tercera coordenada, así que no hace falta inventar término.
+    Leerla como nivel del mar aplicaba un gradiente completo sobre un valor ya
+    local: ~3 degC de más para una parcela a 450 m.
+    """
+    coords = _captured_entity()["location"]["value"]["coordinates"]
+    assert len(coords) == 3, f"location debe ser 3D, es {coords}"
+    assert coords[2] == 450.0
+
+
+def test_location_stays_2d_when_elevation_is_unknown():
+    sin_elev = {k: v for k, v in WEATHER.items() if k != "station_elevation_m"}
+    sent = {}
+
+    class _Resp:
+        status_code = 201
+        text = ""
+
+    def _post(url, json=None, headers=None, timeout=None, **kwargs):
+        sent.update(json or {})
+        return _Resp()
+
+    with patch.object(orion_writer.requests, "post", side_effect=_post):
+        orion_writer.create_weather_observed_entity(
+            parcel_id="urn:ngsi-ld:AgriParcel:t:p1",
+            tenant_id="t",
+            location=(-2.07, 42.63),
+            weather_data=sin_elev,
+            parcel_name="P1",
+        )
+    assert len(sent["location"]["value"]["coordinates"]) == 2
