@@ -70,8 +70,16 @@ class ParcelWeatherEngine:
     # Orion-LD helpers
     # ------------------------------------------------------------------
 
-    def _make_headers(self, tenant_id: str) -> dict:
-        """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated)."""
+    def _make_headers(self, tenant_id: str, body: object = None) -> dict:
+        """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated).
+
+        ``body`` selects the @context delivery mode from what is actually posted:
+        a payload carrying @context goes as application/ld+json with NO Link header,
+        anything else as application/json + Link. Sending both is a 400 on every
+        request, so the mode is derived from the payload and cannot drift from it.
+        """
+        if body is not None:
+            return inject_fiware_headers({}, tenant=tenant_id, body=body)
         return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
     def _discover_tenants_from_db(self) -> List[str]:
@@ -1103,10 +1111,11 @@ class ParcelWeatherEngine:
                 valid_from=f"{day}T00:00:00Z",
                 valid_to=f"{day}T23:59:59Z",
             )
+            payload = [entity]
             resp = requests.post(
                 f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert",
-                json=[entity],
-                headers=self._make_headers(tenant_id),
+                json=payload,
+                headers=self._make_headers(tenant_id, body=payload),
                 timeout=15,
             )
             if resp.status_code in (200, 201, 204):

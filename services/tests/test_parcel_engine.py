@@ -275,12 +275,51 @@ class TestDbTenantDiscoveryQuery:
         assert "module_name" not in executed_sql
 
 
-def test_write_weather_forecast_upserts_the_entity(monkeypatch):
-    """El forecast se publica en el mismo ciclo que la observación.
+# ---------------------------------------------------------------------------
+# @context delivery mode — ETSI GS CIM 009 §6.3.5 mutual exclusivity.
+#
+# @context in the body  -> Content-Type: application/ld+json, NO Link header
+# @context NOT in body  -> Content-Type: application/json + Link header
+#
+# Sending both is a 400 BadRequestData on EVERY request: the write never lands
+# and the only trace is a warning line. The forecast writer posts a body built
+# by build_weather_forecast_entity(), which embeds @context, so the headers it
+# sends are not free to be either mode.
+# ---------------------------------------------------------------------------
 
-    Un ciclo que escriba la observación y no el forecast deja a weather-map sin
-    tMin/tMax, que es exactamente lo que FAO-56 necesita.
-    """
+CONTEXT_URL_FOR_TESTS = "http://api-gateway-service:5000/ngsi-ld-context.json"
+
+
+def _body_carries_context(body) -> bool:
+    if isinstance(body, dict):
+        return "@context" in body
+    if isinstance(body, list):
+        return any(isinstance(e, dict) and "@context" in e for e in body)
+    return False
+
+
+def assert_context_mode_is_valid(headers, body):
+    """Fail if the header/body pairing is one Orion-LD rejects with a 400."""
+    headers = headers or {}
+    content_type = headers.get("Content-Type", "")
+    if _body_carries_context(body):
+        assert content_type == "application/ld+json", (
+            "the body carries @context, so Content-Type must be application/ld+json, "
+            f"got {content_type!r} -> Orion-LD 400 BadRequestData"
+        )
+        assert "Link" not in headers, (
+            "@context in the body AND a Link header is the forbidden pairing "
+            f"(Link={headers.get('Link')!r}) -> Orion-LD 400 BadRequestData"
+        )
+    else:
+        assert content_type == "application/json", (
+            "no @context in the body, so Content-Type must be application/json, "
+            f"got {content_type!r}"
+        )
+
+
+def _capture_forecast_post(monkeypatch, **overrides):
+    """Run _write_weather_forecast and return (ok, captured request)."""
     from weather_worker.parcel_engine import ParcelWeatherEngine
 
     engine = ParcelWeatherEngine(orion_url="http://orion:1026")
@@ -293,21 +332,70 @@ def test_write_weather_forecast_upserts_the_entity(monkeypatch):
     def _post(url, json=None, headers=None, timeout=None, **kwargs):
         sent["url"] = url
         sent["body"] = json
+        sent["headers"] = headers
         return _Resp()
 
     monkeypatch.setattr("weather_worker.parcel_engine.requests.post", _post)
 
-    ok = engine._write_weather_forecast(
+    kwargs = dict(
         tenant_id="t",
         parcel_id="urn:ngsi-ld:AgriParcel:t:p1",
         location=(-2.07, 42.63, 450.0),
-        daily={"temp_min": 9.9, "temp_max": 28.4, "precip_probability": 20.0},
+        daily={
+            "observed_at": "2026-09-01",
+            "temp_min": 9.9,
+            "temp_max": 28.4,
+            "precip_probability": 20.0,
+        },
     )
+    kwargs.update(overrides)
+    ok = engine._write_weather_forecast(**kwargs)
+    return ok, sent
+
+
+def test_write_weather_forecast_upserts_the_entity(monkeypatch):
+    """El forecast se publica en el mismo ciclo que la observación.
+
+    Un ciclo que escriba la observación y no el forecast deja a weather-map sin
+    tMin/tMax, que es exactamente lo que FAO-56 necesita.
+    """
+    ok, sent = _capture_forecast_post(monkeypatch)
 
     assert ok is True
     assert "entityOperations/upsert" in sent["url"]
     assert sent["body"][0]["type"] == "WeatherForecast"
     assert sent["body"][0]["dayMaximum"]["value"]["temperature"] == 28.4
+
+
+def test_write_weather_forecast_sends_a_context_mode_orion_accepts(monkeypatch):
+    """Con CONTEXT_URL puesto (producción) el Link header aparecería solo.
+
+    Este es el caso que se desplegaba: @context en el cuerpo + Link header, 400 en
+    cada parcela y cada ciclo.
+    """
+    monkeypatch.setenv("CONTEXT_URL", CONTEXT_URL_FOR_TESTS)
+    _, sent = _capture_forecast_post(monkeypatch)
+    assert_context_mode_is_valid(sent["headers"], sent["body"])
+
+
+def test_write_weather_forecast_context_mode_holds_without_context_url(monkeypatch):
+    """Y sin CONTEXT_URL tampoco vale application/json con @context en el cuerpo."""
+    monkeypatch.delenv("CONTEXT_URL", raising=False)
+    _, sent = _capture_forecast_post(monkeypatch)
+    assert_context_mode_is_valid(sent["headers"], sent["body"])
+
+
+def test_the_context_mode_assertion_catches_the_forbidden_pairing():
+    """Guard the guard: the assertion must reject what Orion rejects."""
+    body = [{"@context": [CONTEXT_URL_FOR_TESTS], "id": "urn:ngsi-ld:X:1", "type": "X"}]
+    with pytest.raises(AssertionError):
+        assert_context_mode_is_valid(
+            {"Content-Type": "application/json", "Link": "<ctx>; rel=..."}, body
+        )
+    with pytest.raises(AssertionError):
+        assert_context_mode_is_valid(
+            {"Content-Type": "application/ld+json", "Link": "<ctx>; rel=..."}, body
+        )
 
 
 print("All parcel engine tests passed.")
