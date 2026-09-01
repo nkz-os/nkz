@@ -93,3 +93,56 @@ def test_publishes_gust_speed_alongside_the_legacy_name():
 def test_publishes_source_alongside_the_legacy_name():
     e = _captured_entity()
     assert e["source"]["value"] == e["sourceConfidence"]["value"]
+
+
+# ---------------------------------------------------------------------------
+# Update path (POST /attrs) — the create path only runs once per virtual
+# station; every cycle after that goes through update_weather_observed_entity,
+# so it must carry the same three attributes or they'd never refresh again.
+# ---------------------------------------------------------------------------
+
+
+def _captured_update_payload(weather_data=WEATHER):
+    """Devuelve el payload que update_weather_observed_entity habría enviado."""
+    sent = {}
+
+    class _Resp:
+        status_code = 204
+        text = ""
+
+    def _post(url, json=None, headers=None, timeout=None, **kwargs):
+        sent.update(json or {})
+        return _Resp()
+
+    with patch.object(orion_writer.requests, "post", side_effect=_post):
+        orion_writer.update_weather_observed_entity(
+            entity_id="urn:ngsi-ld:WeatherObserved:t:parcel-p1",
+            tenant_id="t",
+            weather_data=weather_data,
+            observed_at=datetime(2026, 9, 1, 9, 0, tzinfo=timezone.utc).replace(tzinfo=None),
+        )
+    return sent
+
+
+def test_update_publishes_the_horizontal_solar_radiation():
+    p = _captured_update_payload()
+    assert "solarRadiation" in p, "el refresco periódico también debe llevar radiación"
+    assert p["solarRadiation"]["value"] == 171.8
+    assert p["solarRadiation"]["unitCode"] == "D54"
+
+
+def test_update_solar_radiation_ignores_the_aspect_corrected_value():
+    mixto = dict(WEATHER, solar_rad_w_m2=999.0)  # la corregida, que NO debe publicarse
+    p = _captured_update_payload(mixto)
+    assert p["solarRadiation"]["value"] == 171.8
+
+
+def test_update_publishes_gust_speed_alongside_the_legacy_name():
+    p = _captured_update_payload()
+    assert p["gustSpeed"]["value"] == 9.8, "gustSpeed es el nombre SDM"
+    assert p["windGusts"]["value"] == 9.8, "el nombre viejo sigue durante expand & contract"
+
+
+def test_update_publishes_source_alongside_the_legacy_name():
+    p = _captured_update_payload()
+    assert p["source"]["value"] == p["sourceConfidence"]["value"]

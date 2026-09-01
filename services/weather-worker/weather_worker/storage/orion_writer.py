@@ -528,6 +528,24 @@ def update_weather_observed_entity(
                 "unitCode": "MTS",
             }
 
+        # gustSpeed es el nombre del SDM oficial; windGusts (arriba) es el legacy
+        # y se retira en la fase de contract, no aquí.
+        if weather_data.get("wind_gusts_ms") is not None:
+            update_payload["gustSpeed"] = {
+                "type": "Property",
+                "value": float(weather_data["wind_gusts_ms"]),
+                "unitCode": "MTS",
+            }
+
+        # Radiación global HORIZONTAL, sin corregir por aspecto ni pendiente: la
+        # corrección es del consumidor. Corregirla aquí la aplicaría dos veces.
+        if weather_data.get("solar_rad_w_m2_horizontal") is not None:
+            update_payload["solarRadiation"] = {
+                "type": "Property",
+                "value": float(weather_data["solar_rad_w_m2_horizontal"]),
+                "unitCode": "D54",  # watt per square metre
+            }
+
         if weather_data.get("wind_direction_deg") is not None:
             update_payload["windDirection"] = {
                 "type": "Property",
@@ -566,6 +584,9 @@ def update_weather_observed_entity(
 
         source = weather_data.get("source", "OPEN-METEO")
         update_payload["sourceConfidence"] = {"type": "Property", "value": source}
+
+        # source es el nombre del SDM oficial; sourceConfidence es el legacy.
+        update_payload["source"] = {"type": "Property", "value": source}
 
         if weather_data.get("eto_mm") is not None:
             update_payload["et0"] = {
