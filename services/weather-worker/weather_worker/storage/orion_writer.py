@@ -816,3 +816,61 @@ def sync_weather_to_orion(
     except Exception as e:
         logger.error(f"Error syncing weather to Orion-LD: {e}", exc_info=True)
         return 0
+
+
+def build_weather_forecast_entity(
+    parcel_id: str,
+    tenant_id: str,
+    location: Tuple[float, ...],
+    daily: Dict[str, Any],
+    valid_from: str,
+    valid_to: str,
+) -> Dict[str, Any]:
+    """Construye la entidad WeatherForecast SDM con los agregados del día.
+
+    Devuelve el cuerpo; no hace la petición. El SDM modela WeatherObserved como
+    observación instantánea y no define dayMinimum/dayMaximum, así que los
+    agregados diarios que FAO-56 necesita viven aquí.
+
+    Un atributo cuyo dato de entrada falte se OMITE. No se sustituye por un valor
+    por defecto: un hueco es honesto, un número inventado no.
+    """
+    parcel_identifier = parcel_id.split(":")[-1] if ":" in parcel_id else parcel_id
+    entity: Dict[str, Any] = {
+        "@context": [CONTEXT_URL],
+        "id": f"urn:ngsi-ld:WeatherForecast:{tenant_id}:parcel-{parcel_identifier}",
+        "type": "WeatherForecast",
+        "location": {
+            "type": "GeoProperty",
+            "value": {"type": "Point", "coordinates": list(location)},
+        },
+        "locatedAt": {"type": "Relationship", "object": parcel_id},
+        "validFrom": {
+            "type": "Property",
+            "value": {"@type": "DateTime", "@value": valid_from},
+        },
+        "validTo": {
+            "type": "Property",
+            "value": {"@type": "DateTime", "@value": valid_to},
+        },
+    }
+
+    humidity = daily.get("humidity_avg")
+
+    for attr, key in (("dayMinimum", "temp_min"), ("dayMaximum", "temp_max")):
+        temp = daily.get(key)
+        if temp is None:
+            continue
+        value: Dict[str, Any] = {"temperature": float(temp)}
+        if humidity is not None:
+            value["relativeHumidity"] = float(humidity)
+        entity[attr] = {"type": "Property", "value": value}
+
+    if daily.get("precip_probability") is not None:
+        entity["precipitationProbability"] = {
+            "type": "Property",
+            "value": float(daily["precip_probability"]),
+            "unitCode": "P1",
+        }
+
+    return entity
