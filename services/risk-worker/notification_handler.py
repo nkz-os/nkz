@@ -60,12 +60,17 @@ def _compute_severity(probability_score: float) -> str:
     return "low"
 
 
-@router.post("/notify")
+@router.post("/notify", status_code=204)
 async def handle_notification(request: Request):
     """Receive Orion-LD subscription notification for RiskAssessment entities.
 
     Extracts risk evaluation data and persists to risk_daily_states.
     Tenant is extracted from NGSILD-Tenant or Fiware-Service header.
+
+    Answers 204 with no body: Orion-LD looks for a capitalised "Content-Length:"
+    with a case-sensitive strstr and only skips that check on a 204. uvicorn emits
+    the header lower-cased, so any other success status is counted as a failed
+    notification and deactivates the subscription after 3 consecutive hits.
     """
     try:
         tenant_id = (
@@ -77,7 +82,7 @@ async def handle_notification(request: Request):
         entities = body.get("data", [])
 
         if not entities:
-            return {"status": "ok", "persisted": 0}
+            return None
 
         persisted = 0
         conn = _get_conn()
@@ -144,7 +149,7 @@ async def handle_notification(request: Request):
             conn.close()
 
         logger.info("Persisted %d risk evaluations for tenant=%s", persisted, tenant_id)
-        return {"status": "ok", "persisted": persisted}
+        return None
 
     except Exception as e:
         logger.error("Error processing risk notification: %s", e, exc_info=True)
