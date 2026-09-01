@@ -649,4 +649,112 @@ def test_cycle_summary_reports_the_forecast_counter(caplog):
     )
 
 
+class TestElevationPointNullContract:
+    """Elevation service GET /api/elevation/point now may return
+    elevation_m == null (status: "unavailable") when no DEM source can
+    answer. Consumers must treat null explicitly instead of float(None)."""
+
+    def _parcel_with_point(self, lat=-1.6458, lon=42.8125):
+        return {
+            "id": "p-alt",
+            "location": {
+                "type": "GeoProperty",
+                "value": {
+                    "type": "Point",
+                    "coordinates": [lat, lon],
+                },
+            },
+        }
+
+    @patch("weather_worker.parcel_engine.requests.get")
+    def test_altitude_happy_path(self, mock_get, monkeypatch):
+        """200 with numeric elevation_m -> parcel altitude."""
+        monkeypatch.setenv("ELEVATION_SERVICE_URL", "http://elev")
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {"elevation_m": 487.5}
+        mock_get.return_value = resp
+
+        engine = ParcelWeatherEngine(
+            orion_url="http://orion:1026",
+            openmeteo_url="https://api.open-meteo.com/v1",
+        )
+        centroid, altitude = engine._extract_centroid_and_altitude(
+            self._parcel_with_point()
+        )
+
+        assert centroid is not None
+        assert altitude == 487.5
+
+    @patch("weather_worker.parcel_engine.requests.get")
+    def test_altitude_null_keeps_zero(self, mock_get, monkeypatch):
+        """200 with elevation_m null -> altitude stays 0.0, no exception."""
+        monkeypatch.setenv("ELEVATION_SERVICE_URL", "http://elev")
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = {"elevation_m": None, "status": "unavailable"}
+        mock_get.return_value = resp
+
+        engine = ParcelWeatherEngine(
+            orion_url="http://orion:1026",
+            openmeteo_url="https://api.open-meteo.com/v1",
+        )
+        centroid, altitude = engine._extract_centroid_and_altitude(
+            self._parcel_with_point()
+        )
+
+        assert centroid is not None
+        assert altitude == 0.0
+
+    @patch("weather_worker.parcel_engine.requests.get")
+    def test_slope_aspect_all_null_skipped(self, mock_get, monkeypatch):
+        """All 5 points null -> (0.0, 0.0) and every call sent source=national."""
+        monkeypatch.setenv("ELEVATION_SERVICE_URL", "http://elev")
+
+        def make_resp(*_args, **_kwargs):
+            r = MagicMock()
+            r.status_code = 200
+            r.json.return_value = {"elevation_m": None}
+            return r
+
+        mock_get.side_effect = make_resp
+
+        engine = ParcelWeatherEngine(
+            orion_url="http://orion:1026",
+            openmeteo_url="https://api.open-meteo.com/v1",
+        )
+        aspect, slope = engine._compute_terrain_attributes((-1.6458, 42.8125))
+
+        assert (aspect, slope) == (0.0, 0.0)
+        assert len(mock_get.call_args_list) == 5
+        for c in mock_get.call_args_list:
+            assert c.kwargs["params"].get("source") == "national"
+
+    @patch("weather_worker.parcel_engine.requests.get")
+    def test_slope_aspect_happy_path(self, mock_get, monkeypatch):
+        """5 numeric responses -> non-zero slope/aspect."""
+        monkeypatch.setenv("ELEVATION_SERVICE_URL", "http://elev")
+
+        # Give neighbours asymmetric elevations so slope != 0
+        # (slope derives from (E-W) and (N-S) differences, not from center).
+        heights = [100.0, 200.0, 100.0, 300.0, 100.0]  # center, N, S, E, W
+
+        def make_resp(*_args, **_kwargs):
+            r = MagicMock()
+            r.status_code = 200
+            r.json.return_value = {"elevation_m": heights.pop(0)}
+            return r
+
+        mock_get.side_effect = make_resp
+
+        engine = ParcelWeatherEngine(
+            orion_url="http://orion:1026",
+            openmeteo_url="https://api.open-meteo.com/v1",
+        )
+        aspect, slope = engine._compute_terrain_attributes((-1.6458, 42.8125))
+
+        assert slope > 0.0
+        assert aspect > 0.0
+
+
 print("All parcel engine tests passed.")
