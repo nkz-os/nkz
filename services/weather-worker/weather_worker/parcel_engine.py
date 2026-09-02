@@ -502,7 +502,7 @@ class ParcelWeatherEngine:
                 }
 
             resp = requests.post(
-                f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert",
+                f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert?options=update",
                 headers=hdrs, json=[body], timeout=5,
             )
             if resp.status_code not in (200, 201, 204):
@@ -1154,10 +1154,14 @@ class ParcelWeatherEngine:
         location: tuple,
         daily: Dict[str, Any],
     ) -> bool:
-        """Publica el WeatherForecast del día para una parcela.
+        """Publish the day's WeatherForecast for one parcel.
 
-        Best-effort e independiente de la observación: si falla, se registra y el
-        ciclo sigue. Nunca sustituye un dato ausente por un valor por defecto.
+        Best-effort and independent of the observation write: a failure is logged
+        and the cycle continues. A missing input is never replaced by a default.
+
+        Uses : the default replace semantics make Orion reject
+        every rewrite of an existing entity with 207 / "the Entity Type cannot
+        be altered", so the entity would succeed once and fail on every later cycle.
         """
         try:
             from weather_worker.storage.orion_writer import (
@@ -1186,7 +1190,7 @@ class ParcelWeatherEngine:
             )
             payload = [entity]
             resp = requests.post(
-                f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert",
+                f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert?options=update",
                 json=payload,
                 headers=self._make_headers(tenant_id, body=payload),
                 timeout=15,
