@@ -29,7 +29,6 @@ from weather_source import (  # noqa: E402
 TENANT = "montiko"
 PARCEL = "urn:ngsi-ld:AgriParcel:da36ccd2-85d2-4c76-b552-c5c835a987c1"
 ORION = "http://orion-ld-service:1026"
-HEADERS = {"NGSILD-Tenant": TENANT, "Link": "<ctx>; rel=..."}
 
 
 def _observed(**overrides):
@@ -142,7 +141,7 @@ def test_fetch_reads_observation_and_forecast_and_labels_fidelity():
             _response(200, _observed()),
             _response(200, {"dayMinimum": {"value": {"temperature": 15.2}}}),
         ]
-        flat = fetch_parcel_weather(ORION, HEADERS, TENANT, PARCEL)
+        flat = fetch_parcel_weather(ORION, TENANT, PARCEL)
 
     assert flat["temp_avg"] == 21.9
     assert flat["temp_min"] == 15.2
@@ -153,7 +152,7 @@ def test_fetch_reads_observation_and_forecast_and_labels_fidelity():
 def test_missing_forecast_still_returns_the_observation():
     with patch("weather_source.requests.get") as get:
         get.side_effect = [_response(200, _observed()), _response(404)]
-        flat = fetch_parcel_weather(ORION, HEADERS, TENANT, PARCEL)
+        flat = fetch_parcel_weather(ORION, TENANT, PARCEL)
 
     assert flat["temp_avg"] == 21.9
     assert "temp_min" not in flat
@@ -164,7 +163,7 @@ def test_no_observation_returns_none_rather_than_a_stale_fallback():
     worse than one that does not answer."""
     with patch("weather_source.requests.get") as get:
         get.return_value = _response(404)
-        assert fetch_parcel_weather(ORION, HEADERS, TENANT, PARCEL) is None
+        assert fetch_parcel_weather(ORION, TENANT, PARCEL) is None
 
 
 def test_broker_error_is_logged_not_mistaken_for_no_data(caplog):
@@ -173,7 +172,7 @@ def test_broker_error_is_logged_not_mistaken_for_no_data(caplog):
         get.return_value = _response(400, None)
         get.return_value.text = "context not found"
         with caplog.at_level("ERROR"):
-            assert fetch_parcel_weather(ORION, HEADERS, TENANT, PARCEL) is None
+            assert fetch_parcel_weather(ORION, TENANT, PARCEL) is None
     assert any("400" in r.getMessage() for r in caplog.records)
 
 
@@ -201,3 +200,15 @@ def test_resolve_parcel_id_accepts_both_relationship_names(entity, expected):
     Both names are live during the ref<Type> migration window.
     """
     assert resolve_parcel_id(entity) == expected
+
+
+def test_reads_always_carry_the_platform_context_link():
+    """The false-zero guard: a type read without the platform @context expands to
+    the default vocabulary and comes back empty, looking exactly like no data."""
+    with patch("weather_source.requests.get") as get:
+        get.return_value = _response(200, _observed())
+        fetch_parcel_weather(ORION, TENANT, PARCEL)
+
+    sent = get.call_args.kwargs["headers"]
+    assert "Link" in sent, "the read went to Orion without the platform @context"
+    assert sent.get("NGSILD-Tenant") == TENANT

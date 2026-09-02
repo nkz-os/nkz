@@ -217,9 +217,7 @@ class RiskProcessor:
             )
             return None
 
-        return fetch_parcel_weather(
-            ORION_URL, _make_headers(tenant_id), tenant_id, parcel_id
-        )
+        return fetch_parcel_weather(ORION_URL, tenant_id, parcel_id)
 
     def _get_gdd_accumulated(
         self,

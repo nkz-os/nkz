@@ -26,9 +26,21 @@ from typing import Any, Dict, Optional
 
 import requests
 
+from common.ngsi_headers import inject_fiware_headers
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 15
+
+
+def _headers(tenant_id: str) -> dict:
+    """Tenant + platform @context Link, built here so no caller can omit it.
+
+    A read that reaches Orion without the platform context expands its type to
+    the default vocabulary and comes back empty — a false zero that is
+    indistinguishable from "this parcel has no weather".
+    """
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 WEATHER_OBSERVED_TYPE = "WeatherObserved"
 WEATHER_FORECAST_TYPE = "WeatherForecast"
@@ -184,16 +196,12 @@ def _get_entity(
 
 def fetch_parcel_weather(
     orion_url: str,
-    headers: dict,
     tenant_id: str,
     parcel_id: str,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> Optional[Dict[str, Any]]:
-    """Latest downscaled weather for one parcel, or None if the broker has none.
-
-    `headers` must carry the tenant and the platform `Link` context — without it
-    a type-scoped read expands to the default vocabulary and returns a false zero.
-    """
+    """Latest downscaled weather for one parcel, or None if the broker has none."""
+    headers = _headers(tenant_id)
     observed = _get_entity(
         orion_url, headers, weather_observed_id(tenant_id, parcel_id), timeout
     )
