@@ -44,6 +44,11 @@ except Exception as e:
 
 from db_helper import set_tenant_context
 from common.ngsi_headers import inject_fiware_headers
+from weather_source import (
+    fetch_parcel_weather,
+    fetch_season_gdd,
+    resolve_parcel_id as _resolve_parcel_id,
+)
 
 # Import risk models
 from risk_models.factory import RiskModelFactory
@@ -193,186 +198,46 @@ class RiskProcessor:
 
         return all_entities
 
-    def _get_weather_for_entity(
-        self, entity_id: str, tenant_id: str
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Get downscaled weather for a specific entity via the platform API.
-
-        Uses GET /api/weather/parcel/{entity_id} which applies spatial
-        downscaling (altitude, aspect, slope). Falls back silently to None
-        if the API is unreachable — caller should use _get_weather_data().
-        """
-        try:
-            entity_manager_url = os.getenv(
-                "ENTITY_MANAGER_URL", "http://entity-manager-service:5000"
-            )
-            resp = requests.get(
-                f"{entity_manager_url}/api/weather/parcel/{entity_id}",
-                params={"source": "OPEN-METEO", "data_type": "HISTORY", "limit": 1},
-                headers={"X-Tenant-ID": tenant_id},
-                timeout=10,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                observations = data.get("observations", [])
-                if observations:
-                    obs = observations[0]
-                    obs["_source"] = "parcel_api"
-                    obs["_downscaling"] = data.get("downscaling", "unknown")
-                    return obs
-        except Exception as e:
-            logger.debug(f"Weather parcel API unavailable for {entity_id}: {e}")
-        return None
-
     def _get_weather_data(
-        self, tenant_id: str, municipality_code: Optional[str] = None
+        self, tenant_id: str, parcel_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
-        """Get latest weather data for tenant.
+        """Latest downscaled weather for a parcel, read from the broker.
 
-        Lookup order:
-        1. Own tenant data within the last 24 hours.
-        2. 'platform' tenant data within the last 48 hours (shared/fallback weather).
-        This covers the common case where weather-worker only populates
-        tenant_weather_locations for 'platform' and not per-tenant.
+        This used to read `weather_observations` in PostgreSQL. That table lost
+        its writer in June, and the lookup fell back to a 'platform' tenant that
+        no longer receives anything either, so every weather-driven risk had been
+        silently evaluating on nothing. There is deliberately no fallback to it
+        now: a stale table that answers is worse than one that does not.
         """
-        if not self.postgres:
+        if not parcel_id:
+            logger.debug(
+                "No parcel for tenant %s; weather is per-parcel and cannot be "
+                "resolved without one.",
+                tenant_id,
+            )
             return None
 
-        def _query(
-            tid: str, interval: str, filter_municipality: bool = True
-        ) -> Optional[Dict[str, Any]]:
-            try:
-                cursor = self.postgres.cursor()
-                set_tenant_context(self.postgres, tid)
-                query = (
-                    """
-                    SELECT
-                        temp_avg, temp_min, temp_max,
-                        humidity_avg, precip_mm,
-                        solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
-                        eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
-                        wind_speed_ms, wind_direction_deg, pressure_hpa,
-                        delta_t, gdd_accumulated,
-                        COALESCE(precip_mm, 0) - COALESCE(eto_mm, 0) AS water_balance,
-                        observed_at
-                    FROM weather_observations
-                    WHERE tenant_id = %s
-                      AND data_type = 'HISTORY'
-                      AND observed_at >= NOW() - INTERVAL '"""
-                    + interval
-                    + """'
-                """
-                )
-                params: list = [tid]
-                if filter_municipality and municipality_code:
-                    query += " AND municipality_code = %s"
-                    params.append(municipality_code)
-                query += " ORDER BY observed_at DESC LIMIT 1"
-                cursor.execute(query, params)
-                result = cursor.fetchone()
-                cursor.close()
-                return dict(result) if result else None
-            except Exception as e:
-                logger.error(f"Failed to get weather data for tenant {tid}: {e}")
-                return None
-
-        # 1. Try own tenant (24h window)
-        data = _query(tenant_id, "24 hours")
-        if data:
-            return data
-
-        # 2. Fallback to platform-level shared weather (7-day window for ingestion gaps)
-        if tenant_id != "platform":
-            logger.info(
-                f"No weather data for tenant '{tenant_id}' in last 24h, "
-                "falling back to 'platform' weather (7-day window)"
-            )
-            data = _query("platform", "7 days", filter_municipality=True)
-            if not data and municipality_code:
-                logger.info(
-                    f"No platform weather for municipality {municipality_code}, "
-                    "trying platform without municipality filter"
-                )
-                data = _query("platform", "7 days", filter_municipality=False)
-            if data:
-                logger.info(
-                    f"Using platform weather fallback for tenant '{tenant_id}' "
-                    f"(observed_at: {data.get('observed_at')})"
-                )
-                return data
-            logger.warning(
-                "Platform weather query returned no rows (RLS/connection check: "
-                "ensure set_current_tenant('platform') is visible on this connection)"
-            )
-
-        logger.warning(
-            f"No weather data found for tenant '{tenant_id}' (checked own 24h + platform 7d)"
+        return fetch_parcel_weather(
+            ORION_URL, _make_headers(tenant_id), tenant_id, parcel_id
         )
-        return None
 
     def _get_gdd_accumulated(
         self,
         tenant_id: str,
         season_start_doy: int = 1,
-        municipality_code: Optional[str] = None,
+        parcel_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        """
-        Return the cumulative GDD accumulated since `season_start_doy` (1=Jan 1).
+        """Season-to-date GDD, summed from the timeseries the broker feeds.
 
-        Lookup order:
-        1. Own tenant data.
-        2. 'platform' tenant data as fallback.
+        The previous query summed `weather_observations.gdd_accumulated`, a column
+        that was NULL in every row the table ever held — so the pest-cycle models
+        that depend on it have never once fired.
         """
         if not self.postgres:
             return None
-
-        def _query(tid: str) -> Optional[Dict[str, Any]]:
-            try:
-                cursor = self.postgres.cursor()
-                set_tenant_context(self.postgres, tid)
-                query = """
-                    SELECT
-                        COALESCE(SUM(gdd_accumulated), 0)  AS gdd_season_total,
-                        COUNT(*)                            AS days_accumulated
-                    FROM weather_observations
-                    WHERE tenant_id = %s
-                      AND data_type = 'HISTORY'
-                      AND gdd_accumulated IS NOT NULL
-                      AND observed_at >= make_date(
-                            EXTRACT(year FROM CURRENT_DATE)::int,
-                            1, 1
-                          ) + INTERVAL '1 day' * (%s - 1)
-                """
-                params: list = [tid, season_start_doy]
-                if municipality_code:
-                    query += " AND municipality_code = %s"
-                    params.append(municipality_code)
-                cursor.execute(query, params)
-                row = cursor.fetchone()
-                cursor.close()
-                if row and int(row["days_accumulated"]) > 0:
-                    return {
-                        "gdd_season_total": float(row["gdd_season_total"]),
-                        "season_start_doy": season_start_doy,
-                        "days_accumulated": int(row["days_accumulated"]),
-                    }
-                return None
-            except Exception as e:
-                logger.error(f"Failed to get GDD accumulated for tenant {tid}: {e}")
-                return None
-
-        data = _query(tenant_id)
-        if data:
-            return data
-
-        if tenant_id != "platform":
-            logger.debug(
-                f"No GDD data for tenant '{tenant_id}', falling back to 'platform'"
-            )
-            return _query("platform")
-
-        return None
+        return fetch_season_gdd(
+            self.postgres, tenant_id, season_start_doy, parcel_id
+        )
 
     def _get_telemetry_data(
         self, tenant_id: str, device_id: str, metric_name: str, hours: int = 24
@@ -450,27 +315,11 @@ class RiskProcessor:
         data_sources = {}
         required_sources = risk.get("data_sources", [])
 
+        parcel_id = _resolve_parcel_id(entity)
+
         # Get weather data if needed
         if "weather" in required_sources:
-            # Try to get municipality from entity location or address
-            municipality_code = None
-            if "address" in entity:
-                addr = entity["address"]
-                if isinstance(addr, dict) and "value" in addr:
-                    val = addr["value"]
-                    if isinstance(val, dict):
-                        # Try to get municipality code from addressLocality or postalCode
-                        # In Nekazari, we use addressLocality as the municipality name
-                        # and sometimes municipality_code is in metadata or a custom property
-                        pass
-
-            # If entity has municipality_code property directly (SOTA)
-            if "municipality_code" in entity:
-                mc = entity["municipality_code"]
-                if isinstance(mc, dict) and "value" in mc:
-                    municipality_code = mc["value"]
-
-            weather_data = self._get_weather_data(tenant_id, municipality_code)
+            weather_data = self._get_weather_data(tenant_id, parcel_id)
             if weather_data:
                 data_sources["weather"] = weather_data
 
@@ -479,9 +328,8 @@ class RiskProcessor:
             # season_start_doy from the risk's model_config (default Jan 1)
             model_config = risk.get("model_config", {})
             season_start_doy = model_config.get("season_start_doy", 1)
-            municipality_code = None  # could be enriched from entity location in future
             gdd_data = self._get_gdd_accumulated(
-                tenant_id, season_start_doy, municipality_code
+                tenant_id, season_start_doy, parcel_id
             )
             if gdd_data:
                 data_sources["gdd"] = gdd_data
@@ -757,18 +605,27 @@ class RiskProcessor:
                     errors += 1
 
         # ── Evaluate disease risks (epidemiological models) ─────────────────
+        # Weather is published per parcel, so disease pressure is evaluated per
+        # parcel too. This previously ran once per tenant on a single regional
+        # sample, which is why every result carried fidelity "regional_proxy".
         try:
             from disease_evaluator import evaluate_disease_risks
 
-            weather_sample = self._get_weather_data(tenant_id, "")
-            if weather_sample:
+            for parcel in self._get_entities_from_orion(tenant_id, "AgriParcel"):
+                parcel_id = parcel.get("id")
+                if not parcel_id:
+                    continue
+                weather = self._get_weather_data(tenant_id, parcel_id)
+                if not weather:
+                    continue
                 evaluate_disease_risks(
                     tenant_id=tenant_id,
-                    weather_data=weather_sample,
-                    fidelity="regional_proxy",
+                    weather_data=weather,
+                    parcel_id=parcel_id,
+                    fidelity=weather.get("data_fidelity", "parcel_weather"),
                 )
         except Exception as e:
-            logger.debug("Disease risk evaluation skipped: %s", e)
+            logger.warning("Disease risk evaluation skipped: %s", e)
 
         return {"evaluated": evaluated, "errors": errors}
 
