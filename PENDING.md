@@ -11,6 +11,14 @@ Living document. Add items here as they surface; close them with date and commit
 
 ---
 
+## 🔴 2026-09-02 — Refactor MF entry point to Bootstrap Pattern (Host)
+
+El host necesita migrar a un patrón de bootstrap asíncrono (`import('./bootstrap')`) para Module Federation. 
+Actualmente arranca de forma síncrona, lo que causó una caída en producción (TypeError `isInitialized`) porque los exports de paquetes ESM del workspace (`@nekazari/sdk`) quedan envueltos en un `initPromise` asíncrono con rollup >= 4.59. El hotfix fue importar `i18n` directamente de `i18next` (CJS, que resuelve síncrono). El fix definitivo es usar el patrón bootstrap para dar tiempo a MF a resolver el share scope completo antes de ejecutar el código del host, protegiendo todos los exports del SDK.
+- [ ] Refactorizar `apps/host/src/main.tsx` al patrón de bootstrap (`import('./bootstrap')`).
+
+---
+
 ## 🔴 2026-08-30 — `sensor_profiles` catalogue: `geo:json` / `boolean` in the unit column
 
 While building `common/unit_codes.py` (device-measurement-transformer plan, Task 1): two of
