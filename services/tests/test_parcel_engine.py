@@ -758,3 +758,90 @@ class TestElevationPointNullContract:
 
 
 print("All parcel engine tests passed.")
+
+
+# ---------------------------------------------------------------------------
+# Batch upsert must ask for update semantics, not replace
+# ---------------------------------------------------------------------------
+def _capture_upsert(monkeypatch):
+    """Record the URL of every entityOperations/upsert the engine issues."""
+    seen = []
+
+    class _Resp:
+        status_code = 204
+        text = ""
+
+        @staticmethod
+        def json():
+            return {}
+
+    def _post(url, **kwargs):
+        seen.append(url)
+        return _Resp()
+
+    monkeypatch.setattr("weather_worker.parcel_engine.requests.post", _post)
+    return seen
+
+
+def test_forecast_upsert_asks_for_update_semantics(monkeypatch):
+    """Without `options=update` Orion REPLACES, and rejects every rewrite.
+
+    Reproduced against the live broker: the first upsert of a WeatherForecast
+    returns 201, and every subsequent one returns 207 Multi-Status carrying
+    `"the Entity Type cannot be altered"` (status 400). Since the entity is
+    rewritten on every 2 h cycle, that means it succeeds once and fails forever
+    after — and the engine logs only the status code, never the body that
+    explains it.
+    """
+    from weather_worker.parcel_engine import ParcelWeatherEngine
+
+    seen = _capture_upsert(monkeypatch)
+    engine = ParcelWeatherEngine(orion_url="http://orion:1026")
+    engine._write_weather_forecast(
+        tenant_id="t",
+        parcel_id="urn:ngsi-ld:AgriParcel:t:p1",
+        location=(-2.07, 42.63, 450.0),
+        daily={
+            "temp_min": 9.9,
+            "temp_max": 28.4,
+            "observed_at": "2026-09-02T05:00:00Z",
+        },
+    )
+
+    assert seen, "no upsert was issued"
+    assert "options=update" in seen[0], (
+        f"upsert must request update semantics, got {seen[0]!r}. Replace "
+        "semantics make every rewrite fail with 207 'Entity Type cannot be altered'."
+    )
+
+
+def test_terrain_upsert_asks_for_update_semantics(monkeypatch):
+    """Same defect, and silenced harder: this one logs at debug level.
+
+    `_persist_terrain_attributes` rewrites AgriParcel entities that always
+    already exist, so under replace semantics it fails on every single call.
+    """
+    from weather_worker.parcel_engine import ParcelWeatherEngine
+
+    seen = _capture_upsert(monkeypatch)
+
+    class _GetResp:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"id": "urn:ngsi-ld:AgriParcel:t:p1", "type": "AgriParcel"}
+
+    monkeypatch.setattr(
+        "weather_worker.parcel_engine.requests.get", lambda *a, **k: _GetResp()
+    )
+
+    engine = ParcelWeatherEngine(orion_url="http://orion:1026")
+    engine._persist_terrain_attributes(
+        {"id": "urn:ngsi-ld:AgriParcel:t:p1", "_tenant": "t"}, 270.0, 15.8, 450.0
+    )
+
+    assert seen, "no upsert was issued"
+    assert "options=update" in seen[0], (
+        f"upsert must request update semantics, got {seen[0]!r}"
+    )
