@@ -5,6 +5,7 @@ import requests
 from prometheus_client import Counter
 from tenacity import retry, stop_after_attempt, wait_fixed
 from common.ngsi_headers import inject_fiware_headers
+from common.subscription_health import reactivate_if_paused
 
 logger = logging.getLogger(__name__)
 
@@ -293,16 +294,23 @@ def _ensure_tenant_subscriptions(tenant_id: str):
     headers = _make_headers(tenant_id)
     headers["Content-Type"] = "application/json"  # needed for POST below
     try:
-        existing_subs = _fetch_all_subscriptions(headers)
-        existing_descriptions = (
-            [sub.get("description") for sub in existing_subs] if existing_subs else []
-        )
+        existing_subs = _fetch_all_subscriptions(headers) or []
+        existing_by_description: dict = {}
+        for existing in existing_subs:
+            existing_by_description.setdefault(existing.get("description"), []).append(
+                existing
+            )
 
         for sub in SUBSCRIPTIONS:
-            if sub["description"] in existing_descriptions:
+            matches = existing_by_description.get(sub["description"], [])
+            if matches:
                 logger.debug(
                     f"Subscription '{sub['description']}' exists for tenant {tenant_id}"
                 )
+                # Existing is not the same as firing: Orion pauses a subscription
+                # after 3 consecutive notification failures and never resumes it.
+                for existing in matches:
+                    reactivate_if_paused(ORION_URL, headers, existing, logger)
             else:
                 logger.info(
                     f"Creating subscription '{sub['description']}' for tenant {tenant_id}"
