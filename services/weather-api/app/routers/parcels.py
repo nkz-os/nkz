@@ -176,6 +176,22 @@ def _orion_query_headers(tenant_id: str) -> dict:
     return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
+def _soil_percent(value):
+    """Volumetric water content (m3/m3) -> percent.
+
+    The broker publishes `soilMoistureTop`/`soilMoistureSub` as a volumetric
+    fraction (`unitCode: M3`), while the agro panel and the risk models compare
+    against percentages (optimal 15-25). Passing 0.106 straight through reads as
+    0.1 %: permanent severe stress on a parcel that is only mildly dry.
+    """
+    if value is None:
+        return None
+    try:
+        return float(value) * 100.0
+    except (TypeError, ValueError):
+        return None
+
+
 def _attr_alias(entity: dict, *keys, default=None):
     """Read the first present attribute among several context aliases.
 
@@ -352,6 +368,14 @@ def get_parcel_weather(
                 "pressure_hpa": _attr(wo_attrs, "atmosphericPressure"),
                 "eto_mm": _attr(wo_attrs, "et0"),
                 "delta_t": _attr(wo_attrs, "deltaT"),
+                # Published by the ParcelWeatherEngine and, until now, dropped
+                # here: the panel showed "N/A" for soil moisture while the value
+                # sat in the broker.
+                "soil_moisture_0_10cm": _soil_percent(_attr(wo_attrs, "soilMoistureTop")),
+                "soil_moisture_10_40cm": _soil_percent(_attr(wo_attrs, "soilMoistureSub")),
+                "solar_rad_w_m2": _attr(wo_attrs, "solarRadiation"),
+                "solar_rad_ghi_w_m2": _attr(wo_attrs, "solarRadiation"),
+                "gdd_accumulated": _attr(wo_attrs, "gddAccumulated"),
                 "source": _attr(wo_attrs, "sourceConfidence", "OPEN-METEO"),
                 "data_type": "HISTORY",
             }
@@ -852,13 +876,17 @@ def get_parcel_agro_status(
                             "wind_gusts_ms": _attr(wo, "windGusts"),
                             "wind_direction_deg": _attr(wo, "windDirection"),
                             "pressure_hpa": _attr(wo, "atmosphericPressure"),
-                            "solar_rad_w_m2": None,
-                            "solar_rad_ghi_w_m2": None,
+                            "solar_rad_w_m2": _attr(wo, "solarRadiation"),
+                            "solar_rad_ghi_w_m2": _attr(wo, "solarRadiation"),
                             "solar_rad_dni_w_m2": None,
                             "eto_mm": _attr(wo, "et0"),
-                            "soil_moisture_0_10cm": None,
-                            "soil_moisture_10_40cm": None,
-                            "gdd_accumulated": None,
+                            "soil_moisture_0_10cm": _soil_percent(
+                                _attr(wo, "soilMoistureTop")
+                            ),
+                            "soil_moisture_10_40cm": _soil_percent(
+                                _attr(wo, "soilMoistureSub")
+                            ),
+                            "gdd_accumulated": _attr(wo, "gddAccumulated"),
                             "delta_t": _attr(wo, "deltaT"),
                             "source": _attr(wo, "sourceConfidence", "OPEN-METEO"),
                             "data_type": "HISTORY",
