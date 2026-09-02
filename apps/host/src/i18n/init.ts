@@ -11,7 +11,14 @@
  */
 import HttpBackend from 'i18next-http-backend';
 import { initReactI18next } from 'react-i18next';
-import { i18n, type SupportedLanguage } from '@nekazari/sdk';
+// Import i18n directly from i18next rather than @nekazari/sdk. The MF vite
+// plugin generates a synchronous commonjs-proxy for node_modules CJS packages
+// but defers workspace ESM packages (@nekazari/sdk) behind an initPromise.
+// During host bootstrap the init promise hasn't resolved yet, so the SDK's
+// i18n re-export is undefined → "can't access isInitialized of undefined".
+// Both paths yield the same singleton instance (MF shared singleton:true).
+import i18n from 'i18next';
+import type { SupportedLanguage } from '@nekazari/sdk';
 import { hostI18nConfig } from '../config/hostI18nConfig';
 
 let initialized = false;
