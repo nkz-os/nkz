@@ -1,6 +1,6 @@
 psycopg2-binary>=2.9.12
 requests>=2.34.2
-prometheus-client>=0.25.0
+prometheus-client>=0.26.0
 shapely>=2.0.0
 
 paho-mqtt>=2.0,<3
