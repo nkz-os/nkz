@@ -1949,9 +1949,11 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                     </div>
                     <div className="p-1">
                       {[
-                        { id: 'auto', name: 'Automático (Región)', desc: 'IDENA/IGN/EU según cámara' },
+                        { id: 'auto', name: 'Automático (Región)', desc: 'IDENA/IGN/Terrarium según cámara' },
                         { id: 'idena', name: 'IDENA (Navarra)', desc: 'Alta precisión (MDT05)' },
                         { id: 'ign', name: 'IGN (España)', desc: 'Cobertura nacional (MDT25)' },
+                        { id: 'terrarium', name: 'Terrarium (Global)', desc: 'AWS Open Data (~30m) — sin token' },
+                        { id: 'esri', name: 'Esri World (Global)', desc: 'ArcGIS Terrain3D (~24m) — sin token' },
                         ...(import.meta.env.VITE_CESIUM_ION_TOKEN ? [
                           { id: 'cesium_world', name: 'Cesium World (Global)', desc: 'Terreno mundial (~30m)' }
                         ] : [])
