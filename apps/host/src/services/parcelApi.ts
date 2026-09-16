@@ -4,6 +4,7 @@
 // Service for managing AgriParcel entities in Orion-LD
 // Implements attribute inheritance for management zones
 import { logger } from '@/utils/logger';
+import { notifySessionExpired } from './sessionExpiry';
 
 import axios, { AxiosInstance } from 'axios';
 import type { Parcel } from '@/types';
@@ -83,11 +84,16 @@ class ParcelApiService {
                         if (typeof window !== 'undefined') {
                             const keycloakInstance = (window as any).keycloak;
                             if (keycloakInstance && typeof keycloakInstance.updateToken === 'function') {
-                                const refreshed = await keycloakInstance.updateToken(30); // Refresh if expires in 30s
-                                if (refreshed) {
-                                    logger.debug('[ParcelAPI] Token refreshed, retrying request');
-                                    // Update token in request and httpOnly cookie
-                                    const newToken = keycloakInstance.token;
+                                // `false` means the token is still valid, not that
+                                // the refresh failed — retry rather than log out.
+                                const refreshed = await keycloakInstance.updateToken(30);
+                                const newToken = keycloakInstance.token;
+                                if (newToken) {
+                                    logger.debug(
+                                        refreshed
+                                            ? '[ParcelAPI] Token refreshed, retrying request'
+                                            : '[ParcelAPI] Token still valid, retrying request',
+                                    );
                                     originalRequest.headers.Authorization = `Bearer ${newToken}`;
                                     api.setSession(newToken).catch(() => {});
                                     return this.client(originalRequest);
@@ -95,16 +101,11 @@ class ParcelApiService {
                             }
                         }
 
-                        // If refresh failed, redirect to login
-                        logger.warn('[ParcelAPI] Token refresh failed, redirecting to login');
-                        if (typeof window !== 'undefined') {
-                            window.location.href = '/login';
-                        }
+                        // No usable token: let the host decide, so the return path survives.
+                        notifySessionExpired('parcelApi.ts');
                     } catch (refreshError) {
                         logger.error('[ParcelAPI] Error refreshing token:', refreshError);
-                        if (typeof window !== 'undefined') {
-                            window.location.href = '/login';
-                        }
+                        notifySessionExpired('parcelApi.ts');
                         return Promise.reject(refreshError);
                     }
                 }

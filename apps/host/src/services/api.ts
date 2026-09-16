@@ -23,6 +23,7 @@ import type {
 } from '@/types';
 import { getConfig } from '@/config/environment';
 import { logger } from '@/utils/logger';
+import { notifySessionExpired } from './sessionExpiry';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl;
@@ -348,11 +349,15 @@ class ApiService {
                   return this.client.request(originalRequest);
                 }
               }
+              // Reached only when the refresh left no usable token.
+              notifySessionExpired('api.ts');
             } catch (refreshError: unknown) {
               logger.warn('[API] Token refresh failed on 401:', refreshError);
+              notifySessionExpired('api.ts');
             }
           } else {
             logger.warn('[API] 401 error but no Keycloak ref available');
+            notifySessionExpired('api.ts (no keycloak ref)');
           }
         }
         return Promise.reject(error);
