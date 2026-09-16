@@ -24,9 +24,10 @@ CACHE_TTL = 300  # 5 minutes
 class CalibrationService:
     """Manages calibration lookup and application for sensor measurements."""
 
-    def __init__(self, redis_url: str, pg_pool: Optional[asyncpg.Pool] = None):
+    def __init__(self, redis_url: str, pg_pool: Optional[asyncpg.Pool] = None, redis_password: Optional[str] = None):
         self._redis_url = redis_url
         self._pg_pool = pg_pool
+        self._redis_password = redis_password
         self._redis: Optional[aioredis.Redis] = None
 
     def set_pool(self, pool: asyncpg.Pool) -> None:
@@ -37,7 +38,9 @@ class CalibrationService:
         """Initialize Redis connection."""
         try:
             self._redis = aioredis.from_url(
-                self._redis_url, decode_responses=True
+                self._redis_url,
+                decode_responses=True,
+                password=self._redis_password or None,
             )
             await self._redis.ping()
             logger.info("CalibrationService connected to Redis")

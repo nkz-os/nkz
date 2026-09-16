@@ -91,6 +91,7 @@ class ProfileService:
             self._redis = redis.from_url(
                 self.settings.redis_url,
                 decode_responses=True,
+                password=getattr(self.settings, "redis_password", "") or None,
             )
             self._redis.ping()
             logger.info("ProfileService connected to Redis")

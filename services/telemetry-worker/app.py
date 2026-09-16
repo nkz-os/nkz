@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI):
         orion_url=settings.orion_url,
         redis_url=settings.redis_url,
         context_url=settings.context_url,
+        redis_password=settings.redis_password or None,
     )
     await health_checker.start()
 
@@ -55,6 +56,7 @@ async def lifespan(app: FastAPI):
     calibration_service = CalibrationService(
         redis_url=settings.redis_url,
         pg_pool=sink._pool,
+        redis_password=settings.redis_password or None,
     )
     await calibration_service.start()
 
@@ -62,6 +64,7 @@ async def lifespan(app: FastAPI):
     dedup = NotificationDedup(
         redis_url=settings.redis_url,
         enabled=settings.telemetry_dedup_enabled,
+        redis_password=settings.redis_password or None,
     )
     await dedup.start()
 

@@ -41,7 +41,8 @@ def get_redis_client(settings: Settings) -> redis.Redis:
     global _redis_client
     if _redis_client is None:
         redis_url = getattr(settings, 'redis_url', os.getenv('REDIS_URL', 'redis://redis-service:6379'))
-        _redis_client = redis.from_url(redis_url, decode_responses=True)
+        redis_password = getattr(settings, 'redis_password', os.getenv('REDIS_PASSWORD', '')) or None
+        _redis_client = redis.from_url(redis_url, decode_responses=True, password=redis_password)
     return _redis_client
 
 
