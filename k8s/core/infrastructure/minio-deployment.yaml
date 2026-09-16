@@ -35,7 +35,7 @@ spec:
         # release running in prod since 2026-06. NEVER :latest (probe-kill restarts
         # re-pull and silently change versions). Downgrading below a version that
         # has written data risks on-disk format incompatibility.
-        image: minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+        image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
