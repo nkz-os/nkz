@@ -104,6 +104,58 @@ class TestSaxtonRawls:
         assert 0.0 < ptf["wilting_point"] < ptf["field_capacity"] < 0.6
         assert ptf["ksat"] > 0.0
 
+    @pytest.mark.parametrize(
+        "sand,clay",
+        [
+            (-3276.8, -3276.8),
+            (-32768.0, -32768.0),
+            (-32.77, -32.77),
+            (-9999.0, 20.0),
+            (120.0, 10.0),
+            (60.0, 60.0),
+        ],
+        ids=[
+            "soilgrids-nodata-x0.1",
+            "raw-int16-nodata",
+            "soilgrids-nodata-x0.001",
+            "generic-nodata",
+            "over-100",
+            "sand+clay-over-100",
+        ],
+    )
+    def test_rejects_nodata_and_impossible_texture(self, sand, clay):
+        """Refuse to turn a NODATA sentinel into a plausible-looking number.
+
+        SoilGrids ships nodata as -32768 scaled by the layer factor, so it reaches
+        us as -3276.8 / -32.77 depending on the property. Fed straight into the
+        regression it produced field_capacity=305235.055 and wilting_point=65.977
+        in production (montiko, 2026-09-02) — and a ksat of 8.3, which looks
+        entirely reasonable. The caller catches this and falls back to generic
+        thresholds; silently emitting the number is the dangerous option.
+        """
+        with pytest.raises(ValueError):
+            _saxton_rawls_2006(sand, clay, 1.0)
+
+    def test_output_stays_physical_across_the_texture_triangle(self):
+        """No admissible texture may yield a non-physical water content.
+
+        ksat is only asserted non-negative here, deliberately. Sweeping the
+        triangle turned up a SEPARATE defect: heavy clays (sand 30-40 / clay
+        60-70) come out of `round(ksat, 2)` as exactly 0.0. The underlying value
+        is a very small positive — correct for clay — but reporting 0.0 reads as
+        "impermeable", which pushes `_scs_hydrologic_group` to D and inflates
+        `_estimate_recovery_hours`. Fixing that changes agronomic output for
+        those soils, so it is its own change with its own verification; see
+        PENDING.md. This assertion pins that it never goes negative meanwhile.
+        """
+        for sand in range(0, 101, 5):
+            for clay in range(0, 101 - sand, 5):
+                ptf = _saxton_rawls_2006(float(sand), float(clay), 1.0)
+                assert 0.0 < ptf["wilting_point"] < 1.0
+                assert 0.0 < ptf["field_capacity"] < 1.0
+                assert ptf["wilting_point"] < ptf["field_capacity"]
+                assert ptf["ksat"] >= 0.0
+
     def test_sand_drains_faster_than_clay(self):
         sand = _saxton_rawls_2006(85.0, 5.0, 1.0)
         clay = _saxton_rawls_2006(10.0, 60.0, 1.0)
@@ -333,6 +385,46 @@ class TestWorkabilitySemaphore:
         assert r["soil"]["wilting_point"] == 0.12
         assert r["soil"]["texture_applied"] is True
         assert r["soil"]["texture_class"] == "loam"
+
+    def test_nodata_raw_texture_falls_back_instead_of_emitting_a_number(self, delta_t):
+        """A SoilGrids nodata sentinel must degrade to generic thresholds.
+
+        This is the production case (montiko, 2026-09-02): the AgriSoilExtended
+        horizon carried sand=clay=silt=-3276.8 and agro-status published
+        field_capacity=305235.055 alongside wilting_point=65.977.
+        """
+        delta_t(5.0)
+        soil = {"sand": -3276.8, "clay": -3276.8, "organic_carbon": 4.0}
+        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}),
+                     soil_texture=soil)
+        assert r["soil"]["texture_applied"] is False
+        assert r["soil"]["field_capacity"] is None
+        assert r["soil"]["wilting_point"] is None
+        assert r["semaphores"]["workability"] != "unknown"
+
+    def test_precomputed_values_are_validated_not_trusted(self, delta_t):
+        """Pre-computed hydraulics from the soil module get the same scrutiny.
+
+        The PTF guard cannot help here — it is never called on this path — so a
+        bad upstream value would otherwise sail straight through to the broker.
+        """
+        delta_t(5.0)
+        soil = {"sand": 40.0, "clay": 20.0, "field_capacity": 305235.055,
+                "wilting_point": 65.977, "ksat": 8.3, "texture_class": "loam",
+                "source": "soil-module"}
+        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}),
+                     soil_texture=soil)
+        assert r["soil"]["texture_applied"] is False
+        assert r["soil"]["field_capacity"] is None
+
+    def test_precomputed_inverted_pair_is_rejected(self, delta_t):
+        """Wilting point above field capacity is not a soil, it is a bug."""
+        delta_t(5.0)
+        soil = {"sand": 40.0, "clay": 20.0, "field_capacity": 0.12,
+                "wilting_point": 0.32, "ksat": 2.0, "source": "soil-module"}
+        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}),
+                     soil_texture=soil)
+        assert r["soil"]["texture_applied"] is False
 
     def test_on_the_fly_ptf_from_raw_texture(self, delta_t):
         delta_t(5.0)

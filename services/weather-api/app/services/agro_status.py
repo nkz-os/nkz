@@ -49,6 +49,24 @@ def _extract_float(value, default=0.0):
     return default
 
 
+def _validated_water_content(value, name: str) -> float:
+    """Return `value` as a volumetric water content, or raise.
+
+    Volumetric water content is a fraction of soil volume: it lives in (0, 1).
+    Anything else is a unit error or a nodata sentinel that survived ingestion,
+    and both look like ordinary floats until something divides by them.
+    """
+    import math
+
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} is not a number: {value!r}")
+    if not math.isfinite(v) or not 0.0 < v < 1.0:
+        raise ValueError(f"{name} outside (0, 1) cm3/cm3: {v}")
+    return v
+
+
 def _saxton_rawls_2006(
     sand_pct: float, clay_pct: float, organic_carbon_pct: float
 ) -> dict:
@@ -59,8 +77,37 @@ def _saxton_rawls_2006(
     Rawls 2006 (SSSAJ 70:1569-1578) Eqs. 1-5, 15-16, 18.
 
     Returns dict with ksat (mm/h), field_capacity (cm3/cm3), wilting_point (cm3/cm3).
+
+    Raises ValueError if the texture is not physically admissible. The regression
+    is a polynomial fitted to real soils: feed it a nodata sentinel and it happily
+    returns a number. SoilGrids ships nodata as -32768 scaled by the layer factor,
+    so it arrives as -3276.8 (or -32.77), and in production that produced
+    field_capacity=305235 cm3/cm3 with a ksat of 8.3 mm/h — a value wrong by six
+    orders of magnitude sitting next to one that looks perfectly ordinary.
+    Callers catch this and fall back to generic thresholds; emitting the number
+    silently is the dangerous option.
     """
     import math
+
+    for name, value in (
+        ("sand", sand_pct),
+        ("clay", clay_pct),
+        ("organic carbon", organic_carbon_pct),
+    ):
+        if value is None or not math.isfinite(value):
+            raise ValueError(f"{name} is not a finite number: {value!r}")
+    if not 0.0 <= sand_pct <= 100.0:
+        raise ValueError(f"sand out of range: {sand_pct} (expected 0-100 %)")
+    if not 0.0 <= clay_pct <= 100.0:
+        raise ValueError(f"clay out of range: {clay_pct} (expected 0-100 %)")
+    if sand_pct + clay_pct > 100.0:
+        raise ValueError(
+            f"sand+clay exceed 100 %: {sand_pct} + {clay_pct} = {sand_pct + clay_pct}"
+        )
+    if not 0.0 <= organic_carbon_pct <= 100.0:
+        raise ValueError(
+            f"organic carbon out of range: {organic_carbon_pct} (expected 0-100 %)"
+        )
 
     s = sand_pct / 100.0
     c = clay_pct / 100.0
@@ -118,6 +165,15 @@ def _saxton_rawls_2006(
     # Eq. 16: Ks = 1930 * (theta_S - theta_33)^(3 - lambda)
     diff = max(theta_s - theta_33, 0.001)
     ksat = 1930.0 * diff ** (3.0 - lam)
+
+    # Belt and braces: the input guard above covers the sentinel that actually bit
+    # us, but a water content outside (0, 1) is meaningless whatever produced it,
+    # and it feeds the workability semaphore and the water balance downstream.
+    if not 0.0 < theta_1500 < 1.0 or not 0.0 < theta_33 < 1.0:
+        raise ValueError(
+            f"non-physical water content for sand={sand_pct} clay={clay_pct}: "
+            f"wilting_point={theta_1500}, field_capacity={theta_33}"
+        )
 
     return {
         "ksat": round(ksat, 2),
@@ -492,8 +548,19 @@ def calculate_agro_status(
                 soil_texture.get("field_capacity") is not None
                 and soil_texture.get("wilting_point") is not None
             ):
-                fc = soil_texture["field_capacity"]
-                wp = soil_texture["wilting_point"]
+                # Validate, do not trust. The PTF guard never runs on this path,
+                # so an upstream nodata sentinel would otherwise pass straight
+                # through to the broker and into the water balance.
+                fc = _validated_water_content(
+                    soil_texture["field_capacity"], "field_capacity"
+                )
+                wp = _validated_water_content(
+                    soil_texture["wilting_point"], "wilting_point"
+                )
+                if wp >= fc:
+                    raise ValueError(
+                        f"wilting_point {wp} is not below field_capacity {fc}"
+                    )
                 ksat = soil_texture.get("ksat")
                 texture_applied = True
             else:
