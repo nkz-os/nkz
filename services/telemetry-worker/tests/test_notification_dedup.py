@@ -158,7 +158,7 @@ def test_start_connects_and_pings_on_success():
     connect-and-ping pattern."""
     fake = FakeRedis()
     original_from_url = dedup_module.aioredis.from_url
-    dedup_module.aioredis.from_url = lambda url, decode_responses=True: fake
+    dedup_module.aioredis.from_url = lambda url, decode_responses=True, **kw: fake
     try:
         dedup = NotificationDedup(redis_url="redis://localhost:6379/0", enabled=True)
         asyncio.run(dedup.start())

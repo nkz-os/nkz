@@ -27,7 +27,10 @@ logger = logging.getLogger(__name__)
 sync_bp = Blueprint('sync', __name__)
 
 
-_REDIS_URL = os.getenv('REDIS_URL', 'redis://:default@redis-service:6379/0')
+_REDIS_URL = os.getenv('REDIS_URL', 'redis://redis-service:6379/0')
+# Redis requires auth in this cluster (redis-secret/password). Kept as a separate
+# env instead of embedding it in REDIS_URL so rotation only touches the Secret.
+_REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
 
 
 def _calculate_centroid(geometry):
@@ -378,7 +381,8 @@ def _get_redis():
     """Lazy Redis connection. Returns None if Redis is unavailable."""
     try:
         return redis.Redis.from_url(
-            _REDIS_URL, socket_timeout=2, socket_connect_timeout=2, decode_responses=False
+            _REDIS_URL, password=_REDIS_PASSWORD or None,
+            socket_timeout=2, socket_connect_timeout=2, decode_responses=False
         )
     except Exception:
         return None
