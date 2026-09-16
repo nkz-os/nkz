@@ -33,13 +33,21 @@
 
 # --- Stage 1: fetch upstream develop (shallow) at a pinned commit ------------
 FROM alpine/git AS src
-# Pin to the develop HEAD verified to contain 4cb23b5a on 2026-08-30. With a
-# --depth 1 clone of develop, only the tip commit is present, so the ref must
-# match the current develop tip; bump it (and re-validate) to move forward.
+# Pinned to the develop commit verified to contain 4cb23b5a on 2026-08-30.
+#
+# Fetch the COMMIT, not the branch. The previous form was
+#   git clone --depth 1 --branch develop … && git checkout ${ORIONLD_REF}
+# which only works while the pin happens to be develop's tip: a --depth 1 clone
+# of a branch contains exactly one commit. Upstream pushed to develop and every
+# build started failing with exit 128 — the pin was no longer fetchable. Fetching
+# the commit directly keeps the clone shallow AND makes the build independent of
+# where develop's tip has moved.
 ARG ORIONLD_REF=6c86d8bb0d7fffe39418a68c5f2bac1c6973da34
 WORKDIR /src
-RUN git clone --depth 1 --branch develop https://github.com/FIWARE/context.Orion-LD.git . \
- && git checkout -q ${ORIONLD_REF}
+RUN git init -q . \
+ && git remote add origin https://github.com/FIWARE/context.Orion-LD.git \
+ && git fetch -q --depth 1 origin ${ORIONLD_REF} \
+ && git checkout -q FETCH_HEAD
 
 # --- Stage 2: compile against the prebuilt dependency base -------------------
 FROM fiware/orion-ld-base AS build-stage
