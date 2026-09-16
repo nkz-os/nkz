@@ -23,5 +23,5 @@ pytest-asyncio>=1.4.0
 httpx>=0.26.0
 
 # Development
-black>=24.1.0
+black>=26.5.1
 ruff>=0.15.17
