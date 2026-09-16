@@ -1,12 +1,13 @@
 """FastAPI dependencies for database access."""
 
+from common.tenant_constants import SHARED_TENANT
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 from app.config import settings
 
 
-def get_db_connection(tenant_id: str = "default"):
+def get_db_connection(tenant_id: str = SHARED_TENANT):
     """Get a database connection with tenant context set."""
     conn = psycopg2.connect(settings.postgres_url)
     conn.autocommit = False

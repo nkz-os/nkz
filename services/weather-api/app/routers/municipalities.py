@@ -2,6 +2,7 @@
 GET /api/weather/municipalities/search — search municipalities in catalog.
 """
 
+from common.tenant_constants import SHARED_TENANT
 import logging
 from typing import Optional
 
@@ -27,7 +28,7 @@ def search_municipalities(
 ):
     """Search municipalities in catalog (supports AEMET/INE codes and names)."""
     if not tenant_id:
-        tenant_id = "default"
+        tenant_id = SHARED_TENANT
 
     if not q or len(q) < 2:
         return {"municipalities": []}

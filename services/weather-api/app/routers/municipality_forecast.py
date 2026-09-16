@@ -6,6 +6,7 @@ locations, or GET /api/weather/parcel/{id}/forecast for parcel-specific.
 Kept for backward compatibility with existing Spain-only tenants.
 """
 
+from common.tenant_constants import SHARED_TENANT
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
@@ -38,7 +39,7 @@ def get_municipality_forecast(
     This endpoint depends on catalog_municipalities (Spain-only).
     """
     if not tenant_id:
-        tenant_id = "default"
+        tenant_id = SHARED_TENANT
 
     try:
         # 1. Resolve municipality coordinates

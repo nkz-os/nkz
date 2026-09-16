@@ -8,9 +8,10 @@ and persists as WeatherAlert entities in Orion-LD via batch UPSERT.
 Supersedes the legacy Atom-feed + EMMA-zone approach (now removed).
 Alerts carry an exact location polygon so parcel↔alert geo-queries work.
 
-Alerts are geographic, cross-tenant. They live in tenant 'default'.
+Alerts are geographic, cross-tenant. They live in tenant 'shared'.
 """
 
+from common.tenant_constants import SHARED_TENANT
 import json
 import logging
 import os
@@ -182,7 +183,7 @@ class MeteoAlertsEngine:
 
         Pages through EDR index features, resolves detail for new (unseen,
         non-superseded) alerts, builds WeatherAlert entities, and upserts
-        in tenant 'default' under Orion-LD's request payload limit.
+        in tenant 'shared' under Orion-LD's request payload limit.
         """
         stats: Dict[str, int] = {
             "alerts_fetched": 0,
@@ -215,7 +216,7 @@ class MeteoAlertsEngine:
                     self._seen.add(aid)
 
             if entities:
-                ok = self._upsert_batch("default", entities)
+                ok = self._upsert_batch(SHARED_TENANT, entities)
                 if ok:
                     stats["entities_upserted"] = len(entities)
                     logger.info(
@@ -228,7 +229,7 @@ class MeteoAlertsEngine:
                 logger.info("MeteoAlertsEngine: no new entities built")
 
             # Prune expired alerts (reaper: upsert never removes stale rows).
-            pruned = self._prune_expired_alerts("default")
+            pruned = self._prune_expired_alerts(SHARED_TENANT)
             stats["entities_pruned"] = pruned
             if pruned:
                 logger.info(
@@ -437,7 +438,7 @@ class MeteoAlertsEngine:
         """Delete WeatherAlert entities whose validTo is in the past.
 
         MeteoAlarm UPSERT only updates live alerts; expired rows accumulate in
-        tenant 'default' unless explicitly removed.
+        tenant 'shared' unless explicitly removed.
         """
         now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         deleted = 0
@@ -554,7 +555,7 @@ class MeteoAlertsEngine:
 
         entity = self._build_single_entity(cap, notification, geometry)
         if entity:
-            ok = self._upsert_batch("default", [entity])
+            ok = self._upsert_batch(SHARED_TENANT, [entity])
             if ok:
                 logger.info(
                     "MeteoAlertsEngine: MQTT upserted WeatherAlert %s (%s)",
@@ -576,18 +577,18 @@ class MeteoAlertsEngine:
         for ref in props.get("referencedAlertIds") or []:
             if ref and isinstance(ref, str):
                 self._delete_entity(
-                    "default", f"urn:ngsi-ld:WeatherAlert:meteoalarm:{ref}"
+                    SHARED_TENANT, f"urn:ngsi-ld:WeatherAlert:meteoalarm:{ref}"
                 )
 
         return True
 
     def prune_once(self) -> int:
-        """Delete expired WeatherAlert entities from tenant 'default'.
+        """Delete expired WeatherAlert entities from tenant 'shared'.
 
         Thin wrapper so prune keeps running while the EDR poll loop is
         disabled (EDR_ENABLED=false).
         """
-        pruned = self._prune_expired_alerts("default")
+        pruned = self._prune_expired_alerts(SHARED_TENANT)
         if pruned:
             logger.info(
                 "MeteoAlertsEngine: pruned %d expired WeatherAlert entities",

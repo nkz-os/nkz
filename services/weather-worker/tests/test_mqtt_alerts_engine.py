@@ -81,7 +81,7 @@ def test_handle_notification_builds_and_upserts():
     eng._upsert_batch.assert_called_once()
     args, _ = eng._upsert_batch.call_args
     tenant, entities = args[0], args[1]
-    assert tenant == "default"
+    assert tenant == "shared"
     assert len(entities) == 1
     entity = entities[0]
     assert entity["type"] == "WeatherAlert"
@@ -290,7 +290,7 @@ def test_prune_once_calls_prune_expired():
 
     result = eng.prune_once()
     assert result == 5
-    eng._prune_expired_alerts.assert_called_once_with("default")
+    eng._prune_expired_alerts.assert_called_once_with("shared")
 
 
 # ---------------------------------------------------------------------------

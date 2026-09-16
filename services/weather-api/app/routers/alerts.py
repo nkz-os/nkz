@@ -2,11 +2,12 @@
 GET /api/weather/alerts — active weather alerts from Orion-LD.
 
 Migrated from direct PostgreSQL read to Orion-LD query (2026-06-05).
-WeatherAlert entities live in tenant 'default' (alerts are geographic,
+WeatherAlert entities live in tenant 'shared' (alerts are geographic,
 cross-tenant). For historical alerts, future work will query TimescaleDB
 via the telemetry subscription pipeline.
 """
 
+from common.tenant_constants import SHARED_TENANT
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -40,7 +41,7 @@ def get_weather_alerts(
     """
     Get active weather alerts from Orion-LD (WeatherAlert entities).
 
-    Queries tenant 'default' — alerts are geographic (by AEMET zone),
+    Queries tenant 'shared' — alerts are geographic (by AEMET zone),
     affecting all tenants in that area. Returns current-state only
     (validTo > now). For historical alerts, query TimescaleDB directly.
 
@@ -49,7 +50,7 @@ def get_weather_alerts(
     - alert_type: filter by severity (minor, moderate, severe)
     """
     try:
-        headers = _orion_headers("default")  # alerts live in default tenant
+        headers = _orion_headers(SHARED_TENANT)  # alerts live in shared tenant
 
         # Filter: only alerts that haven't expired (validTo > now)
         now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -135,7 +136,7 @@ def get_parcel_alerts(
     """Active WeatherAlerts (validTo>now) whose zone geometry contains the parcel.
 
     Parcel geometry is read from the caller's tenant store; alerts are geo-queried
-    in tenant 'default' (georel=intersects, Point = parcel centroid).
+    in tenant 'shared' (georel=intersects, Point = parcel centroid).
     """
     try:
         # 1. Fetch the parcel from the caller's tenant store to get its geometry.
@@ -154,9 +155,9 @@ def get_parcel_alerts(
             return {"alerts": [], "count": 0, "source": "orion-ld"}
         lon, lat = centroid
 
-        # 2. Geo-query active alerts in tenant 'default'.
+        # 2. Geo-query active alerts in tenant 'shared'.
         now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        a_headers = _orion_headers("default")
+        a_headers = _orion_headers(SHARED_TENANT)
         a_resp = requests.get(
             f"{settings.orion_url}/ngsi-ld/v1/entities",
             params={

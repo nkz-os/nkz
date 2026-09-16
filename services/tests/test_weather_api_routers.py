@@ -110,10 +110,10 @@ class FakeConn:
 def fake_db(script):
     """get_db_connection replacement; the script is shared across connections."""
     shared = list(script)
-    return lambda tenant_id="default": FakeConn(shared)
+    return lambda tenant_id="shared": FakeConn(shared)
 
 
-def db_down(tenant_id="default"):
+def db_down(tenant_id="shared"):
     raise RuntimeError("db down")
 
 
@@ -509,9 +509,9 @@ class TestAlertsEndpoint:
         body = r.json()
         assert body["count"] == 2
         assert body["alerts"][0]["id"].endswith(":2")  # severe first
-        # Alerts are geographic → always queried in the 'default' tenant
+        # Alerts are geographic → always queried in the 'shared' tenant
         headers = orion_get.call_args.kwargs["headers"]
-        assert headers["NGSILD-Tenant"] == "default"
+        assert headers["NGSILD-Tenant"] == "shared"
 
     def test_orion_error_returns_empty_list(self):
         with patch("app.routers.alerts.requests.get",

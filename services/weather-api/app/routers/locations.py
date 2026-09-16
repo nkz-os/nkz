@@ -4,6 +4,7 @@ POST /api/weather/locations — create weather location.
 GET /api/weather/municipality/near — nearest municipality to coordinates.
 """
 
+from common.tenant_constants import SHARED_TENANT
 import json
 import logging
 from typing import Optional
@@ -27,7 +28,7 @@ def get_weather_locations(
 ):
     """Get weather locations configured for the tenant."""
     if not tenant_id:
-        tenant_id = "default"
+        tenant_id = SHARED_TENANT
 
     try:
         with get_db_connection(tenant_id) as conn:
@@ -70,7 +71,7 @@ def get_nearest_municipality(
 ):
     """Get nearest municipality to given coordinates."""
     if not tenant_id:
-        tenant_id = "default"
+        tenant_id = SHARED_TENANT
 
     if not latitude or not longitude:
         return JSONResponse(

@@ -69,6 +69,6 @@ def test_run_once_prunes_even_when_no_alerts_fetched():
          patch.object(eng, "_prune_expired_alerts", return_value=3) as prune:
         stats = eng.run_once()
 
-    prune.assert_called_once_with("default")
+    prune.assert_called_once_with("shared")
     assert stats["entities_pruned"] == 3
     assert stats["alerts_fetched"] == 0
