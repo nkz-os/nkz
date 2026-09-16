@@ -11,7 +11,7 @@ const SDM_ATTRIBUTES: Record<string, { attr: string; desc: string; unit: string 
     AgriSensor: [
         { attr: 'airTemperature', desc: 'Air temperature', unit: 'CEL' },
         { attr: 'relativeHumidity', desc: 'Relative humidity', unit: '%' },
-        { attr: 'atmosphericPressure', desc: 'Atmospheric pressure', unit: 'HPA' },
+        { attr: 'atmosphericPressure', desc: 'Atmospheric pressure', unit: 'A97' },
         { attr: 'solarRadiation', desc: 'Solar radiation', unit: 'W/m2' },
         { attr: 'windSpeed', desc: 'Wind speed', unit: 'm/s' },
         { attr: 'windDirection', desc: 'Wind direction', unit: 'DD' },

@@ -5,6 +5,9 @@ catalogue (not a guess, not the truncated 30-symbol list from plan v1). See
 `common/unit_codes.py` module docstring for the degradation rules.
 """
 
+import re
+from pathlib import Path
+
 import pytest
 
 from common.unit_codes import DEGRADED_UNITS, _UNIT_CODES, to_unit_code
@@ -49,20 +52,49 @@ def test_unambiguous_codes_match_orion_writer_and_plan(symbol, expected_code):
     entity-manager's orion_writer.py — this table must not diverge from them. kVAR->KVR and
     mg/kg->NA are given explicitly by the plan as unambiguous, previously mis-degraded in v1.
 
-    hPa is deliberately NOT in this list — see test_hpa_diverges_from_orion_writer_bug below.
+    hPa is deliberately NOT in this list — see test_hpa_is_a97_not_hpa below.
     """
     assert to_unit_code(symbol) == expected_code
 
 
-def test_hpa_diverges_from_orion_writer_bug():
-    """`orion_writer.py:120` hardcodes `unitCode: "HPA"` for atmospheric pressure, but in
-    Rec20 `HPA` means "hectolitre of pure alcohol" — a volume of alcohol, not a pressure. The
-    real code for hectopascal is `A97`. This table intentionally does NOT copy orion_writer's
-    value for hPa; orion_writer.py itself is left unfixed here (separate blast radius, logged
-    in PENDING.md) but this table must not perpetuate its bug.
+def test_hpa_is_a97_not_hpa():
+    """In Rec20 `HPA` is "hectolitre of pure alcohol" — a volume of alcohol, not a pressure.
+    The code for hectopascal is `A97`, the only entry in the official 2136-entry list whose
+    symbol is `hPa`. A previous change (2026-03) "corrected" A97 -> HPA in the writers on the
+    false premise that HPA meant hectopascal; nothing pinned it, so it survived until
+    2026-09-16. See test_orion_writers_use_a97_for_pressure.
     """
     assert to_unit_code("hPa") == "A97"
     assert to_unit_code("hPa") != "HPA"
+
+
+def test_orion_writers_use_a97_for_pressure():
+    """Both `orion_writer.py` copies must write `A97` for `atmosphericPressure`.
+
+    This is the guard that was missing: the 2026-03 regression flipped A97 -> HPA in all four
+    call sites and no test noticed. Asserted against the file text (not by importing) because
+    these writers pull in Orion/DB dependencies that the unit-code suite has no business
+    loading.
+    """
+    roots = [
+        Path(__file__).resolve().parents[1] / "entity-manager" / "orion_writer.py",
+        Path(__file__).resolve().parents[1]
+        / "weather-worker"
+        / "weather_worker"
+        / "storage"
+        / "orion_writer.py",
+    ]
+    for path in roots:
+        assert path.exists(), f"writer moved: {path}"
+        body = path.read_text(encoding="utf-8")
+        pressure_blocks = re.findall(
+            r'"atmosphericPressure"\]?\s*=\s*\{.*?"unitCode":\s*"([A-Z0-9]+)"',
+            body,
+            re.DOTALL,
+        )
+        assert pressure_blocks, f"no atmosphericPressure unitCode found in {path}"
+        for code in pressure_blocks:
+            assert code == "A97", f"{path}: atmosphericPressure unitCode is {code}, want A97"
 
 
 @pytest.mark.parametrize(

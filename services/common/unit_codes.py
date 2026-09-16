@@ -30,11 +30,12 @@ full official UNECE Recommendation 20 list (2136 entries) and found real codes f
 `geo:json` and `boolean` were checked against the same list and confirmed to genuinely have no
 code — `DEGRADED_UNITS` now holds exactly (and only) those.
 
-**`hPa` bug inherited from `orion_writer.py:120`, NOT copied here:** that file hardcodes
-`"unitCode": "HPA"` with a `# Hectopascal` comment, but in Rec20 `HPA` means "hectolitre of
-pure alcohol" — a volume of alcohol, not a pressure. The real code for hectopascal is `A97`.
-This table uses `A97` for `hPa`; `orion_writer.py` was deliberately left unfixed (separate
-blast radius, see `PENDING.md` at the workspace root).
+**`hPa` — the `HPA` bug, now fixed everywhere (2026-09-16):** `orion_writer.py` used to
+hardcode `"unitCode": "HPA"` with a `# Hectopascal` comment, but in Rec20 `HPA` is
+"hectolitre of pure alcohol" — a volume of alcohol, not a pressure. Verified against the
+official 2136-entry list: `A97` is hectopascal (`hPa`, 10^2 Pa) and is the only entry whose
+symbol is `hPa`. Both `orion_writer.py` copies (entity-manager and weather-worker) now write
+`A97`, pinned by `test_orion_writers_use_a97_for_pressure`.
 """
 
 from __future__ import annotations
