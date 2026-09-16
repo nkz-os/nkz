@@ -7,6 +7,7 @@ is running and wrote data through Orion-LD → telemetry_events), these endpoint
 fall back to telemetry_events for WeatherObserved virtual station data.
 """
 
+from common.tenant_constants import SHARED_TENANT
 import json
 import logging
 from datetime import datetime, timedelta
@@ -176,7 +177,7 @@ def get_latest_weather_observations(
     Fallback: telemetry_events WeatherObserved (parcel virtual stations).
     """
     if not tenant_id:
-        tenant_id = "default"
+        tenant_id = SHARED_TENANT
 
     def _fetch_for_tenant(tid: str):
         with get_db_connection(tid) as conn:
@@ -252,7 +253,7 @@ def get_weather_observations(
     Fallback: telemetry_events WeatherObserved (parcel virtual stations).
     """
     if not tenant_id:
-        tenant_id = "default"
+        tenant_id = SHARED_TENANT
 
     # FORECAST default window
     if data_type == "FORECAST" and not start_date and not end_date:
@@ -308,7 +309,7 @@ def get_weather_observations(
     try:
         observations = _fetch_for_tenant(tenant_id)
 
-        if not observations and tenant_id == "default":
+        if not observations and tenant_id == SHARED_TENANT:
             # Already on default, no fallback
             pass
         elif not observations:

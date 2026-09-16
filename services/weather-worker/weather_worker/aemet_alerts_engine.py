@@ -5,9 +5,10 @@ Downloads AEMET alerts and persists them as WeatherAlert entities in Orion-LD
 via batch UPSERT. Runs on its own thread in main.py, completely independent
 of the ParcelWeatherEngine and the (deprecated) municipality worker.
 
-Alerts are geographic (per AEMET zone), cross-tenant. They live in tenant 'default'.
+Alerts are geographic (per AEMET zone), cross-tenant. They live in tenant 'shared'.
 """
 
+from common.tenant_constants import SHARED_TENANT
 import logging
 import os
 import time
@@ -68,7 +69,7 @@ class AemetAlertsEngine:
 
     Independent of ParcelWeatherEngine and the municipality worker.
     Alerts are geographic (by AEMET zone), not per-tenant.
-    Stored in tenant 'default'.
+    Stored in tenant 'shared'.
     """
 
     def __init__(
@@ -128,8 +129,8 @@ class AemetAlertsEngine:
                 logger.info("AemetAlertsEngine: no valid entities built")
                 return stats
 
-            # 3. UPSERT batch into Orion-LD (tenant 'default')
-            ok = self._upsert_batch("default", entities)
+            # 3. UPSERT batch into Orion-LD (tenant 'shared')
+            ok = self._upsert_batch(SHARED_TENANT, entities)
             if ok:
                 stats["entities_upserted"] = len(entities)
                 logger.info(

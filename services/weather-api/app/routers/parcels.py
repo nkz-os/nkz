@@ -3,6 +3,7 @@ GET /api/weather/parcel/{parcel_id} — canonical parcel weather with spatial do
 GET /api/weather/parcel/{parcel_id}/agro-status — agronomic semaphores.
 """
 
+from common.tenant_constants import SHARED_TENANT
 import json
 import logging
 from typing import Optional
@@ -264,7 +265,7 @@ def get_parcel_weather(
     aspect, slope), and returns corrected observations.
     """
     if not tenant_id:
-        tenant_id = "default"
+        tenant_id = SHARED_TENANT
 
     try:
         # Step 1: Resolve parcel from Orion-LD
