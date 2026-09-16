@@ -77,10 +77,12 @@ class NotificationDedup:
         redis_url: str,
         enabled: bool = True,
         ttl_seconds: int = DEFAULT_TTL_SECONDS,
+        redis_password: Optional[str] = None,
     ):
         self._redis_url = redis_url
         self.enabled = enabled
         self._ttl = ttl_seconds
+        self._redis_password = redis_password
         self._redis: Optional[aioredis.Redis] = None
 
     async def start(self) -> None:
@@ -89,7 +91,11 @@ class NotificationDedup:
             logger.info("NotificationDedup disabled via TELEMETRY_DEDUP_ENABLED=false")
             return
         try:
-            self._redis = aioredis.from_url(self._redis_url, decode_responses=True)
+            self._redis = aioredis.from_url(
+                self._redis_url,
+                decode_responses=True,
+                password=self._redis_password or None,
+            )
             await self._redis.ping()
             logger.info("NotificationDedup connected to Redis")
         except Exception as e:

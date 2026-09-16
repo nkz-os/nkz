@@ -24,17 +24,20 @@ CACHE_TTL = 300  # 5 minutes
 class HealthChecker:
     """Evaluates sensor measurements against configured health thresholds."""
 
-    def __init__(self, orion_url: str, redis_url: str, context_url: str):
+    def __init__(self, orion_url: str, redis_url: str, context_url: str, redis_password: Optional[str] = None):
         self._orion_url = orion_url.rstrip("/")
         self._context_url = context_url
         self._redis: Optional[aioredis.Redis] = None
         self._redis_url = redis_url
+        self._redis_password = redis_password
 
     async def start(self) -> None:
         """Initialize Redis connection."""
         try:
             self._redis = aioredis.from_url(
-                self._redis_url, decode_responses=True
+                self._redis_url,
+                decode_responses=True,
+                password=self._redis_password or None,
             )
             await self._redis.ping()
             logger.info("HealthChecker connected to Redis")

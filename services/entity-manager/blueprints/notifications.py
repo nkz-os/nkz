@@ -6,6 +6,7 @@ Endpoint /api/internal/notify receives notifications, routes to channels.
 """
 
 import asyncio
+import hmac
 import json
 import logging
 import os
@@ -36,11 +37,9 @@ SERVICE_PORT = os.getenv('SERVICE_PORT', '5000')
 NOTIFICATION_URL = f'http://{SERVICE_HOST}:{SERVICE_PORT}/api/internal/notify'
 # Separate endpoint for the Device/ManufacturingMachine -> DeviceMeasurement pipeline (see
 # ensure_device_measurement_subscriptions below). Not the same route as NOTIFICATION_URL:
-# the SDK's SubscriptionRegistrar body has no customHeaders support, so a subscription
-# created through it can never carry X-Internal-Service-Secret — the gate the Alert
-# endpoint above enforces. This route is deliberately ungated instead (same posture as
-# notification_handler.py's plain /notify): the real boundary is the namespace
-# NetworkPolicy, which already restricts who can reach entity-manager-service at all.
+# the SDK's SubscriptionRegistrar now supports notification_headers (receiverInfo), so the
+# subscription targeting this route carries X-Internal-Service-Secret and the route is
+# flag-gated like the other receivers (NOTIFY_REQUIRE_INTERNAL_SECRET).
 DEVICE_MEASUREMENT_NOTIFICATION_URL = (
     f'http://{SERVICE_HOST}:{SERVICE_PORT}/api/internal/notify/measurements'
 )
@@ -64,15 +63,16 @@ SUBSCRIPTIONS = [
     {
         'description': 'Core Notifications - Alert entities',
         'type': 'Subscription',
+        'id': 'urn:ngsi-ld:Subscription:entity-manager:alert-entities',
         'entities': [{'type': 'Alert'}],
         'watchedAttributes': ['status'],
         'notification': {
             'endpoint': {
                 'uri': NOTIFICATION_URL,
                 'accept': 'application/json',
-                'customHeaders': {
-                    'X-Internal-Service-Secret': INTERNAL_SERVICE_SECRET,
-                },
+                'receiverInfo': [
+                    {'key': 'X-Internal-Service-Secret', 'value': INTERNAL_SERVICE_SECRET},
+                ],
             },
             'format': 'keyValues',
             'attributes': [
@@ -151,7 +151,7 @@ def _ensure_tenant_subscriptions(tenant_id: str):
                 headers=headers,
                 timeout=10,
             )
-            if resp.status_code not in (200, 201):
+            if resp.status_code not in (200, 201, 409):
                 logger.error(
                     "Failed create subscription '%s' for %s: HTTP %s",
                     desc, str(tenant_id)[:64], resp.status_code,
@@ -196,12 +196,37 @@ def ensure_device_measurement_subscriptions():
         notification_url=DEVICE_MEASUREMENT_NOTIFICATION_URL,
         subscriptions=DEVICE_MEASUREMENT_SUBSCRIPTIONS,
         module_name='entity-manager-measurements',
+        notification_headers=(
+            {'X-Internal-Service-Secret': INTERNAL_SERVICE_SECRET}
+            if INTERNAL_SERVICE_SECRET else None
+        ),
     )
     result = asyncio.run(registrar.ensure_all(tenants))
     logger.info(
         'Device measurement subscription heal: created=%d skipped=%d errors=%d',
         result['created'], result['skipped'], len(result['errors']),
     )
+
+
+def _secret_matches(provided):
+    """Constant-time check of the internal service secret."""
+    return bool(INTERNAL_SERVICE_SECRET) and hmac.compare_digest(
+        provided or '', INTERNAL_SERVICE_SECRET
+    )
+
+
+def _notify_unauthorized() -> bool:
+    """Flag-gated auth for notification receivers (two-phase rollout).
+
+    NOTIFY_REQUIRE_INTERNAL_SECRET stays off until subscription creators have
+    converged to carry receiverInfo; then it flips on with no code deploy.
+    """
+    require = os.getenv('NOTIFY_REQUIRE_INTERNAL_SECRET', '').lower() in (
+        '1', 'true', 'yes', 'on'
+    )
+    if not require:
+        return False
+    return not _secret_matches(request.headers.get('X-Internal-Service-Secret', ''))
 
 
 # ── Notification endpoint ────────────────────────────────────────────
@@ -215,7 +240,7 @@ def handle_notification():
     Returns 200 immediately — channel dispatch runs in background thread.
     """
     provided = request.headers.get('X-Internal-Service-Secret', '')
-    if provided != INTERNAL_SERVICE_SECRET:
+    if not _secret_matches(provided):
         logger.warning('Invalid X-Internal-Service-Secret on /notify')
         return jsonify({'error': 'Unauthorized'}), 401
 
@@ -360,9 +385,14 @@ def _handle_device_measurement_notification(tenant_id: str, entity: dict) -> boo
 def handle_device_measurement_notification():
     """Receive Device/ManufacturingMachine notifications, write DeviceMeasurement entities.
 
-    No X-Internal-Service-Secret gate — see DEVICE_MEASUREMENT_NOTIFICATION_URL's comment
-    for why: the SDK subscription that targets this route structurally cannot carry it.
+    Flag-gated on X-Internal-Service-Secret (NOTIFY_REQUIRE_INTERNAL_SECRET): the
+    SDK subscription targeting this route now carries receiverInfo, so the gate can
+    close once the two-phase rollout flips it on.
     """
+    if _notify_unauthorized():
+        logger.warning('Invalid X-Internal-Service-Secret on /notify/measurements')
+        return jsonify({'error': 'Unauthorized'}), 401
+
     tenant_id = (
         request.headers.get('NGSILD-Tenant')
         or request.headers.get('Fiware-Service')

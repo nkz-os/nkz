@@ -120,3 +120,36 @@ def test_malformed_notification_is_rejected_not_acknowledged(monkeypatch):
         f"malformed notification answered {response.status_code}; it must be a 4xx so "
         "the failure is visible instead of being silently acknowledged."
     )
+
+
+@pytest.mark.parametrize("service", ["telemetry-worker", "risk-worker"])
+def test_notify_rejects_without_secret_when_flag_on(service, monkeypatch):
+    """With NOTIFY_REQUIRE_INTERNAL_SECRET on, a delivery without the secret is 401.
+
+    This is the whole point of the two-phase rollout: once subscriptions carry
+    receiverInfo, flipping the flag closes the receiver without a code deploy.
+    """
+    monkeypatch.setenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "true")
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "test-secret")
+    client = _client_for(service, monkeypatch)
+
+    response = client.post("/notify", json=EMPTY_NOTIFICATION, headers=NOTIFY_HEADERS)
+
+    assert response.status_code == 401
+
+
+@pytest.mark.parametrize("service", ["telemetry-worker", "risk-worker"])
+def test_notify_accepts_with_secret_when_flag_on(service, monkeypatch):
+    """Legit subscriptions (receiverInfo) keep delivering 204 once the flag is on."""
+    monkeypatch.setenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "true")
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "test-secret")
+    client = _client_for(service, monkeypatch)
+
+    response = client.post(
+        "/notify",
+        json=EMPTY_NOTIFICATION,
+        headers={**NOTIFY_HEADERS, "X-Internal-Service-Secret": "test-secret"},
+    )
+
+    assert response.status_code == 204
+    assert response.content == b""

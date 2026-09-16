@@ -453,15 +453,17 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           logger.debug('[CesiumMap] Initial imagery provider (OSM) configured');
 
           // Add PNOA (Plan Nacional de Ortofotografía Aérea) as base layer option.
+          // WMTS (cached static tiles) instead of WMS (per-tile GetMap rendering)
+          // — dramatically faster and offloads the IGN server.
           // Added above OSM (index 1) so PNOA renders on top when visible.
           try {
-            const pnoaProvider = new Cesium.WebMapServiceImageryProvider({
-              url: 'https://www.ign.es/wms-inspire/pnoa-ma',
-              layers: 'OI.OrthoimageCoverage',
-              parameters: {
-                transparent: false,
-                format: 'image/jpeg',
-              },
+            const pnoaProvider = new Cesium.WebMapTileServiceImageryProvider({
+              url: 'https://www.ign.es/wmts/pnoa-ma',
+              layer: 'OI.OrthoimageCoverage',
+              style: 'default',
+              format: 'image/jpeg',
+              tileMatrixSetID: 'GoogleMapsCompatible',
+              maximumLevel: 19,
               credit: 'PNOA - IGN España',
             });
             const pnoaLayer = viewer.imageryLayers.addImageryProvider(pnoaProvider, 1); // Above OSM

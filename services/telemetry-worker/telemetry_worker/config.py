@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     api_prefix: str = "/api"
     postgres_url: str
     redis_url: str = "redis://redis-service:6379/0"
+    # Redis requires auth in this cluster (redis-secret/password). Empty = no auth
+    # (local dev); wired via REDIS_PASSWORD env in gitops-config overlays.
+    redis_password: str = ""
     enable_queue: bool = True
     queue_dsn: Optional[str] = None
     log_level: str = "INFO"

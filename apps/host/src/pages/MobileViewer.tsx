@@ -71,15 +71,15 @@ export const MobileViewer: React.FC = () => {
                 terrainProvider: undefined,
             });
 
-            // Set PNOA as imagery provider
+            // Set PNOA as imagery provider (WMTS — cached static tiles)
             viewer.imageryLayers.removeAll();
-            const pnoaProvider = new Cesium.WebMapServiceImageryProvider({
-                url: 'https://www.ign.es/wms-inspire/pnoa-ma',
-                layers: 'OI.OrthoimageCoverage',
-                parameters: {
-                    transparent: 'false',
-                    format: 'image/jpeg',
-                },
+            const pnoaProvider = new Cesium.WebMapTileServiceImageryProvider({
+                url: 'https://www.ign.es/wmts/pnoa-ma',
+                layer: 'OI.OrthoimageCoverage',
+                style: 'default',
+                format: 'image/jpeg',
+                tileMatrixSetID: 'GoogleMapsCompatible',
+                maximumLevel: 19,
                 credit: 'PNOA - IGN España',
             });
             viewer.imageryLayers.addImageryProvider(pnoaProvider);

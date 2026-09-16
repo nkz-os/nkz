@@ -72,11 +72,13 @@ class SubscriptionRegistrar:
         subscriptions: list[dict],
         module_name: str,
         context_url: str | None = None,
+        notification_headers: dict[str, str] | None = None,
     ):
         self.orion_url = orion_url.rstrip("/")
         self.notification_url = notification_url
         self.context_url = context_url
         self.module_name = module_name
+        self.notification_headers = notification_headers or {}
         self._subs: list[SubscriptionDef] = [
             SubscriptionDef(**s) if isinstance(s, dict) else s for s in subscriptions
         ]
@@ -98,13 +100,19 @@ class SubscriptionRegistrar:
         return f"urn:ngsi-ld:Subscription:{module}:{sub_type}"
 
     def _body(self, sub: SubscriptionDef) -> dict:
+        endpoint = {"uri": self.notification_url, "accept": "application/json"}
+        if self.notification_headers:
+            endpoint["receiverInfo"] = [
+                {"key": key, "value": value}
+                for key, value in self.notification_headers.items()
+            ]
         body = {
             "id": self._subscription_id(sub),
             "type": "Subscription",
             "description": self._description(sub),
             "entities": [{"type": sub.type}],
             "notification": {
-                "endpoint": {"uri": self.notification_url, "accept": "application/json"},
+                "endpoint": endpoint,
                 "format": "normalized",
             },
             "throttling": sub.throttling,

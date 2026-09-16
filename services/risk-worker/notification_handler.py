@@ -5,19 +5,37 @@ Receives NGSI-LD entity notifications from Orion-LD subscription
 and persists to risk_daily_states (TimescaleDB hypertable).
 """
 
+import hmac
 import json
 import logging
 import os
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 import psycopg2
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _reject_unauthenticated_notify(x_internal_secret: Optional[str]) -> Optional[HTTPException]:
+    """401 unless the notification carries the internal secret (flag-gated).
+
+    Two-phase rollout: NOTIFY_REQUIRE_INTERNAL_SECRET stays off until subscription
+    creators have converged to carry receiverInfo, then flips on with no code deploy.
+    """
+    require = os.getenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "").lower() in (
+        "1", "true", "yes", "on"
+    )
+    if not require:
+        return None
+    secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
+    if not secret or not hmac.compare_digest(x_internal_secret or "", secret):
+        return HTTPException(status_code=401, detail="missing or invalid internal secret")
+    return None
 
 POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 
@@ -61,7 +79,10 @@ def _compute_severity(probability_score: float) -> str:
 
 
 @router.post("/notify", status_code=204)
-async def handle_notification(request: Request):
+async def handle_notification(
+    request: Request,
+    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Service-Secret"),
+):
     """Receive Orion-LD subscription notification for RiskAssessment entities.
 
     Extracts risk evaluation data and persists to risk_daily_states.
@@ -72,6 +93,10 @@ async def handle_notification(request: Request):
     the header lower-cased, so any other success status is counted as a failed
     notification and deactivates the subscription after 3 consecutive hits.
     """
+    reject = _reject_unauthenticated_notify(x_internal_secret)
+    if reject:
+        raise reject
+
     try:
         tenant_id = (
             request.headers.get("NGSILD-Tenant")
