@@ -3,7 +3,7 @@ fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
-httpx>=0.26.0
+httpx>=0.28.1
 python-multipart>=0.0.32
 
 # Nekazari Platform SDK — gateway-header auth (require_auth/AuthContext),
@@ -20,7 +20,7 @@ nkz-platform-sdk>=0.6.4
 # Testing
 pytest>=9.0.3
 pytest-asyncio>=1.4.0
-httpx>=0.26.0
+httpx>=0.28.1
 
 # Development
 black>=24.1.0
