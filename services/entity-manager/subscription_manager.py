@@ -8,6 +8,7 @@ Handles: AgriSensor, RiskAssessment
 
 import logging
 import os
+import re
 
 import psycopg2
 import requests
@@ -69,6 +70,73 @@ SUBSCRIPTIONS = [
         "isActive": True,
     },
 ]
+
+
+INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
+_SUB_ID_PREFIX = "entity-manager"
+
+
+def _slugify(text: str) -> str:
+    """'AgriSensor registration' -> 'agrisensor-registration' (deterministic id)."""
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def _subscription_id(sub_def: dict) -> str:
+    suffix = sub_def.get("description", "").split(" - ", 1)[-1]
+    return f"urn:ngsi-ld:Subscription:{_SUB_ID_PREFIX}:{_slugify(suffix)}"
+
+
+def _subscription_body(sub_def: dict) -> dict:
+    body = {**sub_def, "id": _subscription_id(sub_def)}
+    if INTERNAL_SERVICE_SECRET:
+        endpoint = {
+            **sub_def["notification"]["endpoint"],
+            "receiverInfo": [
+                {"key": "X-Internal-Service-Secret", "value": INTERNAL_SERVICE_SECRET}
+            ],
+        }
+        body["notification"] = {**sub_def["notification"], "endpoint": endpoint}
+    return body
+
+
+def _matches_are_stale(matches: list) -> bool:
+    if not matches:
+        return False
+    if len(matches) > 1:
+        return True
+    if not INTERNAL_SERVICE_SECRET:
+        return False
+    endpoint = matches[0].get("notification", {}).get("endpoint", {})
+    return not endpoint.get("receiverInfo")
+
+
+def _delete_subscription(headers: dict, sub_id: str) -> None:
+    if not sub_id:
+        return
+    try:
+        res = requests.delete(
+            f"{ORION_URL}/ngsi-ld/v1/subscriptions/{sub_id}", headers=headers, timeout=30
+        )
+        if res.status_code not in (200, 204, 404):
+            logger.warning("Delete subscription %s: HTTP %s", sub_id, res.status_code)
+    except requests.RequestException as e:
+        logger.warning("Delete subscription %s failed: %s", sub_id, e)
+
+
+def _create_subscription(headers: dict, sub_def: dict, tenant_id: str) -> None:
+    res = requests.post(
+        f"{ORION_URL}/ngsi-ld/v1/subscriptions",
+        json=_subscription_body(sub_def),
+        headers=headers,
+        timeout=30,
+    )
+    if res.status_code in (200, 201, 409):  # 409 = concurrent create won
+        logger.info("Subscription '%s' ensured for %s", sub_def["description"], tenant_id)
+    else:
+        logger.error(
+            "Failed: %s for %s: %s %s",
+            sub_def["description"], tenant_id, res.status_code, res.text[:200],
+        )
 
 
 def _make_headers(tenant_id: str) -> dict:
@@ -137,41 +205,21 @@ def _ensure_tenant_subscriptions(tenant_id: str):
 
         for sub_def in SUBSCRIPTIONS:
             matches = existing_by_description.get(sub_def["description"], [])
-            if matches:
-                logger.debug(
-                    "Subscription '%s' exists for %s",
-                    sub_def["description"],
-                    tenant_id,
+            if _matches_are_stale(matches):
+                logger.info(
+                    "Replacing subscription '%s' for %s (%d existing)",
+                    sub_def["description"], tenant_id, len(matches),
                 )
+                for existing in matches:
+                    _delete_subscription(headers, existing.get("id"))
+                _create_subscription(headers, sub_def, tenant_id)
+            elif matches:
                 # Existing is not the same as firing: Orion pauses a subscription
                 # after 3 consecutive notification failures and never resumes it.
                 for existing in matches:
                     reactivate_if_paused(ORION_URL, headers, existing, logger)
             else:
-                logger.info(
-                    "Creating subscription '%s' for %s",
-                    sub_def["description"],
-                    tenant_id,
-                )
-                res = requests.post(
-                    f"{ORION_URL}/ngsi-ld/v1/subscriptions",
-                    json=sub_def,
-                    headers=headers,
-                )
-                if res.status_code in [200, 201]:
-                    logger.info(
-                        "Created: %s for %s",
-                        sub_def["description"],
-                        tenant_id,
-                    )
-                else:
-                    logger.error(
-                        "Failed: %s for %s: %s %s",
-                        sub_def["description"],
-                        tenant_id,
-                        res.status_code,
-                        res.text[:200],
-                    )
+                _create_subscription(headers, sub_def, tenant_id)
     except Exception as e:
         logger.error("Error managing subscriptions for %s: %s", tenant_id, e)
 

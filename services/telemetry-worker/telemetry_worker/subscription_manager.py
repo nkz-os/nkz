@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 import requests
 
 from prometheus_client import Counter
@@ -216,6 +217,80 @@ SUBSCRIPTIONS = [
 ]
 
 
+INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
+_SUB_ID_PREFIX = "telemetry-worker"
+
+
+def _slugify(text: str) -> str:
+    """'AgriSensor updates' -> 'agrisensor-updates' (deterministic subscription id)."""
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def _subscription_id(sub_def: dict) -> str:
+    suffix = sub_def.get("description", "").split(" - ", 1)[-1]
+    return f"urn:ngsi-ld:Subscription:{_SUB_ID_PREFIX}:{_slugify(suffix)}"
+
+
+def _subscription_body(sub_def: dict) -> dict:
+    """Subscription body with a deterministic id and, when a secret is configured,
+    receiverInfo so Orion injects X-Internal-Service-Secret into every delivery."""
+    body = {**sub_def, "id": _subscription_id(sub_def)}
+    if INTERNAL_SERVICE_SECRET:
+        endpoint = {
+            **sub_def["notification"]["endpoint"],
+            "receiverInfo": [
+                {"key": "X-Internal-Service-Secret", "value": INTERNAL_SERVICE_SECRET}
+            ],
+        }
+        body["notification"] = {**sub_def["notification"], "endpoint": endpoint}
+    return body
+
+
+def _matches_are_stale(matches: list) -> bool:
+    """Replace existing subscription(s) when they are duplicates (pre-deterministic-id
+    creates) or lack the receiverInfo secret the receiver side now requires."""
+    if not matches:
+        return False
+    if len(matches) > 1:
+        return True
+    if not INTERNAL_SERVICE_SECRET:
+        return False
+    endpoint = matches[0].get("notification", {}).get("endpoint", {})
+    return not endpoint.get("receiverInfo")
+
+
+def _delete_subscription(headers: dict, sub_id: str) -> None:
+    if not sub_id:
+        return
+    try:
+        res = requests.delete(
+            f"{ORION_URL}/ngsi-ld/v1/subscriptions/{sub_id}", headers=headers, timeout=30
+        )
+        if res.status_code not in (200, 204, 404):
+            logger.warning("Delete subscription %s: HTTP %s", sub_id, res.status_code)
+    except requests.RequestException as e:
+        logger.warning("Delete subscription %s failed: %s", sub_id, e)
+
+
+def _create_subscription(headers: dict, sub_def: dict, tenant_id: str) -> None:
+    res = requests.post(
+        f"{ORION_URL}/ngsi-ld/v1/subscriptions",
+        json=_subscription_body(sub_def),
+        headers=headers,
+        timeout=30,
+    )
+    if res.status_code in (200, 201, 409):  # 409 = concurrent create won
+        logger.info("Subscription '%s' ensured for %s", sub_def["description"], tenant_id)
+    else:
+        SUBSCRIPTION_CREATION_FAILED.labels(
+            tenant_id=tenant_id, reason=f"http_{res.status_code}"
+        ).inc()
+        logger.error(
+            "Failed: %s for %s: %s %s",
+            sub_def["description"], tenant_id, res.status_code, res.text[:200],
+        )
+
+
 def _make_headers(tenant_id: str) -> dict:
     """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated)."""
     return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
@@ -303,34 +378,21 @@ def _ensure_tenant_subscriptions(tenant_id: str):
 
         for sub in SUBSCRIPTIONS:
             matches = existing_by_description.get(sub["description"], [])
-            if matches:
-                logger.debug(
-                    f"Subscription '{sub['description']}' exists for tenant {tenant_id}"
+            if _matches_are_stale(matches):
+                logger.info(
+                    "Replacing subscription '%s' for %s (%d existing)",
+                    sub["description"], tenant_id, len(matches),
                 )
+                for existing in matches:
+                    _delete_subscription(headers, existing.get("id"))
+                _create_subscription(headers, sub, tenant_id)
+            elif matches:
                 # Existing is not the same as firing: Orion pauses a subscription
                 # after 3 consecutive notification failures and never resumes it.
                 for existing in matches:
                     reactivate_if_paused(ORION_URL, headers, existing, logger)
             else:
-                logger.info(
-                    f"Creating subscription '{sub['description']}' for tenant {tenant_id}"
-                )
-                res = requests.post(
-                    f"{ORION_URL}/ngsi-ld/v1/subscriptions",
-                    json=sub,
-                    headers=headers,
-                    timeout=30,
-                )
-                if res.status_code in [200, 201]:
-                    logger.info(f"Created: {sub['description']} for {tenant_id}")
-                else:
-                    SUBSCRIPTION_CREATION_FAILED.labels(
-                        tenant_id=tenant_id, reason=f"http_{res.status_code}"
-                    ).inc()
-                    logger.error(
-                        f"Failed: {sub['description']} for {tenant_id}: "
-                        f"{res.status_code} {res.text}"
-                    )
+                _create_subscription(headers, sub, tenant_id)
     except Exception as e:
         SUBSCRIPTION_CREATION_FAILED.labels(
             tenant_id=tenant_id, reason="exception"

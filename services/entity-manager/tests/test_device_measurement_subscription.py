@@ -204,3 +204,17 @@ class TestHandleDeviceMeasurementNotification:
             "profileCode": {"type": "Property", "value": "unknown-profile"},
         }
         assert _handle_device_measurement_notification("montiko", entity) is True
+
+    def test_measurements_reject_without_secret_when_flag_on(self, client, monkeypatch):
+        monkeypatch.setenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "true")
+        resp = client.post("/api/internal/notify/measurements", json={"data": []})
+        assert resp.status_code == 401
+
+    def test_measurements_accept_with_secret_when_flag_on(self, client, monkeypatch):
+        monkeypatch.setenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "true")
+        resp = client.post(
+            "/api/internal/notify/measurements",
+            json={"data": []},
+            headers={"X-Internal-Service-Secret": "test-secret"},
+        )
+        assert resp.status_code == 200

@@ -5,7 +5,9 @@ Receives NGSI-LD entity updates and persists to TimescaleDB
 after applying Processing Profiles (throttle, filter, delta).
 """
 
+import hmac
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +23,23 @@ from .dedup import NotificationDedup
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _reject_unauthenticated_notify(x_internal_secret: Optional[str]) -> Optional[HTTPException]:
+    """401 unless the notification carries the internal secret (flag-gated).
+
+    Two-phase rollout: NOTIFY_REQUIRE_INTERNAL_SECRET stays off until subscription
+    creators have converged to carry receiverInfo, then flips on with no code deploy.
+    """
+    require = os.getenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "").lower() in (
+        "1", "true", "yes", "on"
+    )
+    if not require:
+        return None
+    secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
+    if not secret or not hmac.compare_digest(x_internal_secret or "", secret):
+        return HTTPException(status_code=401, detail="missing or invalid internal secret")
+    return None
 
 # Global instances (set via init_handler)
 _settings: Optional[Settings] = None
@@ -357,6 +376,7 @@ async def receive_notification(
     background_tasks: BackgroundTasks,
     ngsild_tenant: Optional[str] = Header(None, alias="NGSILD-Tenant"),
     fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
+    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Service-Secret"),
 ):
     """
     Endpoint for Orion-LD notifications.
@@ -371,6 +391,10 @@ async def receive_notification(
     the header lower-cased, so any other success status is counted as a failed
     notification and deactivates the subscription after 3 consecutive hits.
     """
+    reject = _reject_unauthenticated_notify(x_internal_secret)
+    if reject:
+        raise reject
+
     try:
         body = await request.json()
 
@@ -402,9 +426,16 @@ async def receive_notification_v2(
     request: Request,
     background_tasks: BackgroundTasks,
     fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
+    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Service-Secret"),
 ):
     """
     Alternative endpoint for v2 format notifications.
     Maintains compatibility with older Orion subscriptions.
     """
-    return await receive_notification(request, background_tasks, fiware_service)
+    return await receive_notification(
+        request,
+        background_tasks,
+        ngsild_tenant=None,
+        fiware_service=fiware_service,
+        x_internal_secret=x_internal_secret,
+    )

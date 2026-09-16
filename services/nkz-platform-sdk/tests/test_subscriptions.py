@@ -37,6 +37,30 @@ def _one_sub_registrar() -> SubscriptionRegistrar:
     )
 
 
+def test_body_includes_receiver_info_when_headers_given():
+    """receiverInfo carries per-notification auth headers (X-Internal-Service-Secret)
+    so Orion injects them into each delivery — closing the unauth'd notify receivers."""
+    registrar = SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "EOProduct", "throttling": 30}],
+        module_name="crop-health",
+        notification_headers={"X-Internal-Service-Secret": "s3cret"},
+    )
+    body = registrar._body(registrar._subs[0])
+    endpoint = body["notification"]["endpoint"]
+    assert endpoint["receiverInfo"] == [
+        {"key": "X-Internal-Service-Secret", "value": "s3cret"}
+    ]
+
+
+def test_body_omits_receiver_info_without_headers():
+    """Backwards compatible: no notification_headers -> no receiverInfo key."""
+    registrar = _one_sub_registrar()
+    body = registrar._body(registrar._subs[0])
+    assert "receiverInfo" not in body["notification"]["endpoint"]
+
+
 @pytest.mark.asyncio
 @respx.mock
 async def test_ensure_all_creates_missing_subscriptions_with_deterministic_id():

@@ -7,6 +7,7 @@ and persists to the appropriate database tables:
   - RiskAssessment -> risk_daily_states table (TimescaleDB)
 """
 
+import hmac
 import json
 import logging
 import os
@@ -39,6 +40,18 @@ def _parcel_uuid_from_urn(parcel_id: Optional[str]) -> Optional[str]:
     return candidate if _UUID_RE.match(candidate) else None
 
 notify_bp = Blueprint("sensor_notifications", __name__)
+
+
+def _notify_unauthorized() -> bool:
+    """Flag-gated auth for notification receivers (two-phase rollout)."""
+    require = os.getenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "").lower() in (
+        "1", "true", "yes", "on"
+    )
+    if not require:
+        return False
+    secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
+    provided = request.headers.get("X-Internal-Service-Secret", "")
+    return not (secret and hmac.compare_digest(provided, secret))
 
 POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 
@@ -80,6 +93,8 @@ def _compute_severity(probability_score: float) -> str:
 @notify_bp.route("/notify", methods=["POST"])
 def handle_notification():
     """Receive Orion-LD subscription notification, dispatch by entity type."""
+    if _notify_unauthorized():
+        return jsonify({"error": "Unauthorized"}), 401
     try:
         tenant_id = (
             request.headers.get("NGSILD-Tenant")
