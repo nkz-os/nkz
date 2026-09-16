@@ -463,7 +463,7 @@ Example:
   "atmosphericPressure": {
     "type": "Property",
     "value": 1013.25,
-    "unitCode": "HPA"
+    "unitCode": "A97"
   }
 }
 ```

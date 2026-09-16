@@ -379,7 +379,7 @@ def create_weather_observed_entity(
             entity["atmosphericPressure"] = {
                 "type": "Property",
                 "value": float(weather_data["pressure_hpa"]),
-                "unitCode": "HPA",  # Hectopascal
+                "unitCode": "A97",  # Hectopascal (UN/CEFACT Rec 20)
             }
 
         if weather_data.get("precip_mm") is not None:
@@ -583,7 +583,7 @@ def update_weather_observed_entity(
             update_payload["atmosphericPressure"] = {
                 "type": "Property",
                 "value": float(weather_data["pressure_hpa"]),
-                "unitCode": "HPA",
+                "unitCode": "A97",
             }
 
         if weather_data.get("precip_mm") is not None:
