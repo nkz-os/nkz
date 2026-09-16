@@ -23,9 +23,14 @@ export default defineConfig({
         // branches/functions recalibrated 2026-06 for vitest 3: AST-based V8
         // remapping changed the denominators (same suite passing measures
         // 37.35% branches / 12.84% functions vs 50/15 under vitest 2).
+        // Recalibrated again 2026-09 for vitest 5: coverage-v8 5 reports EVERY
+        // file under `include` (even never-imported UI components) instead of
+        // only imported files, so the same 204-test suite now measures
+        // 3.83% functions / 2.85% branches. The denominator is the whole
+        // component tree, not the tested surface.
         statements: 1,
-        branches: 35,
-        functions: 12,
+        branches: 2,
+        functions: 3,
         lines: 1,
       },
     },
