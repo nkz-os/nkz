@@ -367,6 +367,77 @@ class TestWorkabilitySemaphore:
         r = run_agro(sensor_data=make_sensor({"soil_moisture": moisture}))
         assert r["semaphores"]["workability"] == expected
 
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            (0.099, 0.099),   # volumetric, as production sends it
+            (0.0, 0.0),
+            (1.0, 1.0),
+            (20.0, 0.20),     # percentage, as older callers send it
+            (100.0, 1.0),
+            (101.0, None),    # not a water content
+            (-5.0, None),
+            (-3276.8, None),  # SoilGrids nodata, same family as the PTF case
+        ],
+    )
+    def test_soil_moisture_scale_is_resolved_not_guessed(self, delta_t, raw, expected):
+        """0-1 and 0-100 are distinguishable: a volume fraction cannot exceed 1."""
+        delta_t(5.0)
+        r = run_agro(sensor_data=make_sensor({"measurements": {"soilMoistureTop": raw}}))
+        assert r["metrics"]["soil_moisture"] == expected
+
+    def test_reads_soil_moisture_from_measurements(self, delta_t):
+        """Real payloads nest it: {"measurements": {"soilMoistureTop": 0.099}}.
+
+        The extractor only ever looked at the payload root, so soil_moisture was
+        None on every one of the 29849 telemetry rows in production and the
+        texture-aware branch was dead code. Measured 2026-09-16: every row has
+        `measurements`, none has a root-level `soil_moisture`.
+        """
+        delta_t(5.0)
+        sensor = make_sensor({"measurements": {"soilMoistureTop": 0.099,
+                                               "soilMoistureSub": 0.16}})
+        r = run_agro(sensor_data=sensor,
+                     soil_texture={"sand": 40.0, "clay": 20.0,
+                                   "organic_carbon": 1.0})
+        assert r["metrics"]["soil_moisture"] == 0.099
+
+    def test_soil_moisture_is_reported_to_the_panel(self, delta_t):
+        """The panel cannot show what the response never carries.
+
+        This is the user-visible symptom: "no se ven valores de humedad de suelo
+        en la ficha de Tempero".
+        """
+        delta_t(5.0)
+        sensor = make_sensor({"measurements": {"soilMoistureTop": 0.12}})
+        r = run_agro(sensor_data=sensor)
+        assert "soil_moisture" in r["metrics"]
+        assert r["metrics"]["soil_moisture"] == 0.12
+
+    def test_generic_fallback_reads_the_same_scale_as_the_texture_branch(self, delta_t):
+        """Both branches must treat soil moisture as a 0-1 fraction.
+
+        The texture-aware branch compares against field capacity and wilting
+        point, which are cm3/cm3. The generic fallback used 15/25/10, i.e. a
+        0-100 percentage. Production data is volumetric (0.067-0.16 measured), so
+        once the extractor is wired the fallback would have called every
+        sensorless parcel `too_dry`.
+        """
+        delta_t(5.0)
+        # 0.20 is comfortably workable on a 0-1 scale; on the old 0-100
+        # thresholds it read as bone dry.
+        r = run_agro(sensor_data=make_sensor({"measurements": {"soilMoistureTop": 0.20}}))
+        assert r["semaphores"]["workability"] == "optimal"
+
+    @pytest.mark.parametrize(
+        "vwc,expected",
+        [(0.05, "too_dry"), (0.20, "optimal"), (0.30, "too_wet"), (0.12, "caution")],
+    )
+    def test_generic_fraction_thresholds(self, delta_t, vwc, expected):
+        delta_t(5.0)
+        r = run_agro(sensor_data=make_sensor({"measurements": {"soilMoistureTop": vwc}}))
+        assert r["semaphores"]["workability"] == expected
+
     def test_no_sensor_heuristic_too_wet(self, delta_t):
         delta_t(5.0)
         r = run_agro(weather_3d=[{"precip_mm": 6.0, "eto_mm": 1.0}])

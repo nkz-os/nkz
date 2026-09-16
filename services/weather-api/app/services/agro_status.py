@@ -182,6 +182,52 @@ def _saxton_rawls_2006(
     }
 
 
+def _extract_soil_moisture(payload: dict) -> Optional[float]:
+    """Pull volumetric soil moisture (cm3/cm3) out of a telemetry payload.
+
+    Real payloads nest their readings: {"measurements": {"soilMoistureTop": 0.099}}.
+    This only ever looked at the payload root, so it returned None on all 29849
+    telemetry rows in production and the texture-aware workability branch was
+    dead code. Measured 2026-09-16: `measurements.soilMoistureTop` present in
+    25498 rows, `soilMoistureVwc` in 1147, values 0.067-0.16 (unitCode M3).
+
+    Root-level keys are still honoured so callers that flatten keep working.
+    """
+    if not isinstance(payload, dict):
+        return None
+    raw = None
+    measurements = payload.get("measurements")
+    if isinstance(measurements, dict):
+        for key in ("soilMoistureTop", "soilMoistureVwc", "soilMoisture"):
+            raw = _extract_float(measurements.get(key))
+            if raw is not None:
+                break
+    if raw is None:
+        raw = _extract_float(payload.get("soil_moisture"))
+    if raw is None:
+        raw = _extract_float(payload.get("moisture"))
+    return _as_volumetric_fraction(raw)
+
+
+def _as_volumetric_fraction(value: Optional[float]) -> Optional[float]:
+    """Normalise a soil water content to cm3/cm3, or None if it is not one.
+
+    The two scales in use are distinguishable without guessing: water content is
+    a fraction of soil volume, so it cannot exceed 1. Anything in (1, 100] is a
+    percentage and is divided; anything above 100, negative, or non-finite is not
+    a water content at all and is dropped rather than fed to the semaphore.
+    """
+    import math
+
+    if value is None or not math.isfinite(value) or value < 0.0:
+        return None
+    if value <= 1.0:
+        return value
+    if value <= 100.0:
+        return value / 100.0
+    return None
+
+
 def _usda_texture_class(sand: float, clay: float) -> str:
     """USDA soil texture classification from sand and clay percentages."""
     silt = 100.0 - sand - clay
@@ -524,8 +570,7 @@ def calculate_agro_status(
     # 6b. Workability semaphore — texture-aware when soil data available
     soil_moisture = None
     if sensor_data and sensor_data.get("payload"):
-        p = sensor_data["payload"]
-        soil_moisture = p.get("soil_moisture") or p.get("moisture")
+        soil_moisture = _extract_soil_moisture(sensor_data["payload"])
 
     recent_precip = fused.get("precipitation_3d", 0)
     humidity = fused.get("humidity") or 0
@@ -586,11 +631,15 @@ def calculate_agro_status(
     else:
         # Generic fallback thresholds
         if soil_moisture is not None:
-            if 15 <= soil_moisture <= 25:
+            # Volumetric fraction (cm3/cm3), the same scale the texture-aware
+            # branch uses against field capacity and wilting point. These read
+            # 15/25/10 — a 0-100 percentage — while production data is
+            # 0.067-0.16, so every sensorless parcel would have said `too_dry`.
+            if 0.15 <= soil_moisture <= 0.25:
                 semaphores["workability"] = "optimal"
-            elif soil_moisture > 25:
+            elif soil_moisture > 0.25:
                 semaphores["workability"] = "too_wet"
-            elif soil_moisture < 10:
+            elif soil_moisture < 0.10:
                 semaphores["workability"] = "too_dry"
             else:
                 semaphores["workability"] = "caution"
@@ -644,6 +693,7 @@ def calculate_agro_status(
             "wind_gusts": fused.get("wind_gusts"),
             "precip_probability": precip_prob,
             "spraying_reason": spraying_reason,
+            "soil_moisture": soil_moisture,
         },
         "soil": {
             "texture_applied": texture_applied,
