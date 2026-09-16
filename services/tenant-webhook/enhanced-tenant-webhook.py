@@ -2549,6 +2549,7 @@ def revoke_activation_code(code_id):
 
 
 from common.tier_quotas import PLAN_LEVELS as _BILLING_PLAN_LEVELS
+from common.internal_auth import internal_service_headers
 
 _BILLING_ACTIVE_STATUSES = frozenset({"active", "trialing", "past_due"})
 _BILLING_INACTIVE_STATUSES = frozenset({"canceled", "cancelled", "unpaid"})
@@ -4233,6 +4234,7 @@ def suspend_tenant(tenant_id: str):
             requests.post(
                 f"{gateway_url}/internal/cache/invalidate",
                 json={"key": f"suspended:{tenant_id}"},
+                headers=internal_service_headers("tenant-webhook suspension cache"),
                 timeout=5,
             )
         except Exception as e:
@@ -4308,6 +4310,7 @@ def restore_tenant(tenant_id: str):
             requests.post(
                 f"{gateway_url}/internal/cache/invalidate",
                 json={"key": f"suspended:{tenant_id}"},
+                headers=internal_service_headers("tenant-webhook unsuspension cache"),
                 timeout=5,
             )
         except Exception as e:

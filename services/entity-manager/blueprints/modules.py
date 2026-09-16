@@ -21,6 +21,7 @@ from botocore.exceptions import ClientError
 
 from common.auth_middleware import require_auth, inject_fiware_headers
 from common.api_errors import internal_error
+from common.internal_auth import internal_service_headers
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple, return_db_connection
 
 # Import shared helpers
@@ -113,6 +114,7 @@ def _invalidate_gateway_route_cache() -> None:
         resp = requests.post(
             f"{gateway_url}/internal/cache/invalidate",
             json={"key": "routes"},
+            headers=internal_service_headers("entity-manager route cache"),
             timeout=5,
         )
         if resp.status_code != 200:
