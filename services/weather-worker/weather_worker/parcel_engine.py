@@ -162,8 +162,11 @@ class ParcelWeatherEngine:
         if db_tenants:
             return db_tenants
 
-        # Priority 3: fallback
-        return ["default"]
+        # Priority 3: no tenants discoverable — do not fall back to a phantom scope.
+        logger.warning(
+            "ParcelWeatherEngine: no active tenants discoverable (env, DB); skipping cycle"
+        )
+        return []
 
     def _fetch_all_parcels(self) -> List[Dict[str, Any]]:
         """Fetch all AgriParcel entities across all active tenants.
@@ -454,8 +457,13 @@ class ParcelWeatherEngine:
         attributes (name, location, category, etc.) while adding terrain.
         """
         parcel_id = parcel.get("id", "")
-        tenant_id = parcel.get("_tenant", "default")
+        tenant_id = parcel.get("_tenant")
         if not parcel_id:
+            return
+        if not tenant_id:
+            logger.warning(
+                "Skipping terrain persist: parcel %s has no tenant", parcel_id
+            )
             return
 
         try:
@@ -947,7 +955,12 @@ class ParcelWeatherEngine:
                         # Agregados del día: van en WeatherForecast porque el SDM no los
                         # define en WeatherObserved.
                         latest = corrected_observations[0]
-                        tenant_id = parcel.get("_tenant", "default")
+                        tenant_id = parcel.get("_tenant")
+                        if not tenant_id:
+                            logger.warning(
+                                "Skipping parcel %s: no tenant", parcel.get("id")
+                            )
+                            continue
                         parcel_id = parcel.get("id", "")
                         _loc = (
                             (parcel_lon, parcel_lat)
@@ -1107,7 +1120,12 @@ class ParcelWeatherEngine:
             return {"created": 0, "updated": 0}
 
         result = {"created": 0, "updated": 0}
-        tenant_id = parcel.get("_tenant", "default")
+        tenant_id = parcel.get("_tenant")
+        if not tenant_id:
+            logger.warning(
+                "Skipping WeatherObserved: parcel %s has no tenant", parcel.get("id")
+            )
+            return result
         parcel_id = parcel.get("id", "")
         centroid = parcel.get("_centroid", (0.0, 0.0))
 
