@@ -2,6 +2,13 @@
 # Horizontal Pod Autoscalers - Servicios Críticos
 # =============================================================================
 # Configura auto-escalado basado en CPU y memoria para servicios críticos
+#
+# ⚠️  REFERENCE TEMPLATE — NOT APPLIED. Verified 2026-09-12: none of the HPAs
+# below exist in the cluster. The ONLY live HPA is `frontend-host-hpa`, which is
+# NOT in this file and is codified in gitops-config
+# (overlays/core/frontend/frontend-host-hpa.yaml, CPU-only, min 2 / max 5).
+# As with the rest of nkz/k8s, this tree is not the ArgoCD source — applying
+# anything here by hand fights GitOps. Do not `kubectl apply -f` this file.
 # =============================================================================
 
 ---
@@ -199,6 +206,11 @@ spec:
 ---
 # =============================================================================
 # HPA - Frontend
+# -----------------------------------------------------------------------------
+# ⚠️  SUPERSEDED AND BROKEN. `scaleTargetRef` points at a Deployment named
+# `frontend`, which no longer exists (it is `frontend-host`). Do not retarget it:
+# `frontend-host` already has `frontend-host-hpa` in gitops-config, and a second
+# HPA on one Deployment makes the two fight over replicas.
 # =============================================================================
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
