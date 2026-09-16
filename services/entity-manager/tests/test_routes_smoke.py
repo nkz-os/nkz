@@ -87,6 +87,16 @@ assert _api_spec.loader is not None
 _api_spec.loader.exec_module(_api_errors_mod)
 sys.modules["common.api_errors"] = _api_errors_mod
 
+# modules.py imports common.internal_auth at module level. It only needs os and
+# logging, so load the real thing rather than a mock: the header contract is
+# exactly what these tests exercise.
+_ia_path = os.path.join(_services_dir, "common", "internal_auth.py")
+_ia_spec = importlib.util.spec_from_file_location("common.internal_auth", _ia_path)
+_ia_mod = importlib.util.module_from_spec(_ia_spec)
+assert _ia_spec.loader is not None
+_ia_spec.loader.exec_module(_ia_mod)
+sys.modules["common.internal_auth"] = _ia_mod
+
 # Heavy / infrastructure dependencies
 sys.modules["db_helper"] = MagicMock()
 sys.modules["orion_writer"] = MagicMock()

@@ -80,6 +80,16 @@ assert _api_spec.loader is not None
 _api_spec.loader.exec_module(_api_errors_mod)
 sys.modules["common.api_errors"] = _api_errors_mod
 
+# modules.py imports common.internal_auth at module level. It only needs os and
+# logging, so load the real thing rather than a mock: the header contract is
+# exactly what these tests exercise.
+_ia_path = os.path.join(_services_dir, "common", "internal_auth.py")
+_ia_spec = importlib.util.spec_from_file_location("common.internal_auth", _ia_path)
+_ia_mod = importlib.util.module_from_spec(_ia_spec)
+assert _ia_spec.loader is not None
+_ia_spec.loader.exec_module(_ia_mod)
+sys.modules["common.internal_auth"] = _ia_mod
+
 # Heavy / infrastructure dependencies
 sys.modules["db_helper"] = MagicMock()
 sys.modules["orion_writer"] = MagicMock()
@@ -191,18 +201,24 @@ def test_invalidate_gateway_route_cache_posts_routes_key(monkeypatch):
 
     posted = {}
 
-    def fake_post(url, json=None, timeout=None):
+    def fake_post(url, json=None, headers=None, timeout=None):
         posted["url"] = url
         posted["json"] = json
+        posted["headers"] = headers
         posted["timeout"] = timeout
         return MagicMock(status_code=200, text="")
 
     monkeypatch.setattr(m.requests, "post", fake_post)
     monkeypatch.setenv("API_GATEWAY_URL", "http://api-gateway-service:5000")
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "correct-horse-battery-staple")
     m._invalidate_gateway_route_cache()
     assert posted["url"] == "http://api-gateway-service:5000/internal/cache/invalidate"
     assert posted["json"] == {"key": "routes"}
     assert posted["timeout"] == 5
+    # The gateway guard fails closed: without this header the call is a 401.
+    assert posted["headers"] == {
+        "X-Internal-Service-Secret": "correct-horse-battery-staple"
+    }
 
 
 def test_upload_dist_and_activate_invalidates_route_cache(monkeypatch):
