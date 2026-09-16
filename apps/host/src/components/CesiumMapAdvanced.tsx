@@ -378,16 +378,14 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
     // Add PNOA layer (Ortofotografía)
     if (selectedLayers.has('pnoa')) {
       try {
-        const pnoaProvider = new Cesium.WebMapServiceImageryProvider({
-          url: 'https://www.ign.es/wms-inspire/pnoa-ma',
-          layers: 'OI.OrthoimageCoverage',
-          parameters: {
-            format: 'image/png',
-            transparent: true,
-            srs: 'EPSG:3857',
-          },
-          tilingScheme: new Cesium.WebMercatorTilingScheme(),
+        const pnoaProvider = new Cesium.WebMapTileServiceImageryProvider({
+          url: 'https://www.ign.es/wmts/pnoa-ma',
+          layer: 'OI.OrthoimageCoverage',
+          style: 'default',
+          format: 'image/jpeg',
+          tileMatrixSetID: 'GoogleMapsCompatible',
           maximumLevel: 19,
+          credit: 'PNOA - IGN España',
         });
         viewer.imageryLayers.addImageryProvider(pnoaProvider);
       } catch (error) {
