@@ -15,28 +15,18 @@ message, handled by the caller.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 
-# (name, pattern, why it must not be here, what to do instead)
-RULES: list[tuple[str, re.Pattern, str, str]] = [
-    (
-        "production domain",
-        re.compile(r"\b[a-z0-9-]+\.robotika\.cloud\b"),
-        "names the running deployment",
-        "read it from an env var, or use YOUR_DOMAIN",
-    ),
-    (
-        "tenant name",
-        re.compile(r"\b(?:montiko|allotarra)\b", re.IGNORECASE),
-        "a real customer tenant",
-        "use a placeholder such as tenant-a, t1 or acme",
-    ),
+# Structural rules: shapes, not values. Safe to keep here because a digest or a
+# kubectl invocation looks the same everywhere and names nothing on its own.
+STRUCTURAL: list[tuple[str, re.Pattern, str, str]] = [
     (
         "image digest",
         re.compile(r"\bsha256:[0-9a-f]{64}\b"),
-        "pins a specific build of the running cluster",
-        "digests belong in the private deploy config",
+        "pins a specific build of the running system",
+        "digests belong in the private deploy configuration",
     ),
     (
         "cluster command",
@@ -46,11 +36,32 @@ RULES: list[tuple[str, re.Pattern, str, str]] = [
     ),
     (
         "public IP",
-        re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b(?<!0\.0\.0\.0)"),
-        "may be a production address",
+        re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"),
+        "may be an address of the running system",
         "use a hostname from configuration",
     ),
 ]
+
+# The values themselves -- tenant names, real domains -- are private, so they are
+# supplied at run time and never written down here. CI passes them from an
+# organisation secret, which also means a finding prints them masked.
+PRIVATE_TERMS_ENV = "HYGIENE_PRIVATE_TERMS"
+
+
+def private_rules(raw: str | None) -> list[tuple[str, re.Pattern, str, str]]:
+    terms = [t.strip() for t in (raw or "").split(",") if t.strip()]
+    if not terms:
+        return []
+    joined = "|".join(re.escape(t) for t in terms)
+    return [
+        (
+            "private term",
+            re.compile(rf"(?<![\w.-])(?:{joined})(?![\w-])", re.IGNORECASE),
+            "names the real deployment or one of its tenants",
+            "use a placeholder such as tenant-a, t1 or YOUR_DOMAIN",
+        )
+    ]
+
 
 # Generated or vendored files nobody writes by hand.
 SKIP_PATH = re.compile(
@@ -67,7 +78,7 @@ ALLOWED_IP = re.compile(
 )
 
 
-def scan(diff: str) -> list[str]:
+def scan(diff: str, rules: list | None = None) -> list[str]:
     findings: list[str] = []
     path = "<unknown>"
     skipping = False
@@ -81,7 +92,7 @@ def scan(diff: str) -> list[str]:
         if skipping or not line.startswith("+"):
             continue
         added = line[1:]
-        for name, pattern, why, instead in RULES:
+        for name, pattern, why, instead in (rules if rules is not None else STRUCTURAL):
             for m in pattern.finditer(added):
                 hit = m.group(0)
                 if name == "public IP" and ALLOWED_IP.match(hit):
@@ -94,7 +105,14 @@ def scan(diff: str) -> list[str]:
 
 
 def main() -> int:
-    findings = scan(sys.stdin.read())
+    raw = os.getenv(PRIVATE_TERMS_ENV)
+    rules = STRUCTURAL + private_rules(raw)
+    if not raw:
+        print(
+            f"note: {PRIVATE_TERMS_ENV} is unset, so only structural rules ran. "
+            "Names of real tenants and domains are not checked."
+        )
+    findings = scan(sys.stdin.read(), rules)
     if not findings:
         print("OK: no operational detail added.")
         return 0
