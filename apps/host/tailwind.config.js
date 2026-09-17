@@ -97,5 +97,12 @@ export default {
       },
     },
   },
+  // Federated modules are built from their own repos and loaded at runtime, so
+  // their sources can never be in `content` above. Tailwind therefore purges
+  // every design-token class the host does not itself happen to use, and a
+  // module using a perfectly valid nkz token renders with no style and no
+  // error. Emitting the whole token vocabulary is what makes the design system
+  // usable across the module ecosystem.
+  safelist: [{ pattern: /-nkz-/ }],
   plugins: [],
 }
