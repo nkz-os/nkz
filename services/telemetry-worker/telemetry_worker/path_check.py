@@ -63,10 +63,9 @@ def build_entity(tenant_id: str, now: datetime) -> dict:
 
 
 # A pod can start before the CNI has programmed its NetworkPolicy, and egress is
-# deny-by-default in this namespace: the first attempts of a short-lived job are
-# refused outright. Observed on the orion-seed-context hook, which burned three
-# pods on connection refusals before one got through. Retrying keeps the probe
-# reporting the telemetry path rather than that race.
+# deny-by-default in this deployment: the first attempts of a short-lived job can
+# be refused outright. Retrying keeps the probe reporting the telemetry path
+# rather than that startup race.
 PUBLISH_ATTEMPTS = 4
 PUBLISH_BACKOFF_S = 5
 

@@ -4,9 +4,8 @@ Two failures shaped the rules here:
 
 * Matching on `description` made the description the identity. The id is
   derived from it, so editing a description minted a new id and abandoned the
-  old subscription, still registered and no longer reconciled by anyone. That
-  is how the vocabulary migration left hundreds of subscriptions that can
-  never fire.
+  old subscription, still registered and no longer reconciled by anyone. A
+  renamed subscription is then unreachable and never fires again.
 * Refreshing a stale subscription by deleting it and creating it again leaves
   an interval with no subscription at all, and every notification raised in
   that interval is lost with no trace.
