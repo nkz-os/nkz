@@ -146,9 +146,10 @@ def main() -> int:
     for f in findings:
         print(f"  {f}")
     print(
-        "\nThis is a public repo. The technical rationale can stay; the "
-        "infrastructure it names cannot. If an addition is genuinely needed, "
-        "put [prod-refs-ack] in the commit message."
+        "\nThis code is installed on other people's systems, so it must name no "
+        "deployment: addresses and identifiers come from configuration. Explain "
+        "a deliberate exception with [prod-refs-ack] in the commit message, or "
+        "mark a single line with hygiene:allow."
     )
     return 1
 

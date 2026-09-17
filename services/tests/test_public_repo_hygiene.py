@@ -50,7 +50,7 @@ def test_the_software_may_name_its_own_dependencies(host):
     assert hygiene.host_is_allowed(host, hygiene.load_allowed_hosts()), host
 
 
-@pytest.mark.parametrize("host", ["app.acme-farms.io", "gateway.somewhere.cloud",
+@pytest.mark.parametrize("host", ["app.acme-farms.io", "gateway.somewhere.cloud",  # hygiene:allow
                                   "n8n.somewhere.cloud"])
 def test_a_deployment_hostname_is_rejected(host):
     assert not hygiene.host_is_allowed(host, hygiene.load_allowed_hosts()), host
@@ -59,8 +59,8 @@ def test_a_deployment_hostname_is_rejected(host):
 @pytest.mark.parametrize(
     "path,line",
     [
-        ("src/app.ts", 'const API = "https://api.acme-farms.io"'),
-        ("NOTES.md", "see https://console.acme-farms.io"),   # markdown is scanned
+        ("src/app.ts", 'const API = "https://api.acme-farms.io"'),  # hygiene:allow
+        ("NOTES.md", "see https://console.acme-farms.io"),   # markdown is scanned  # hygiene:allow
         ("docs/deploy.md", "image: ghcr.io/x@sha256:" + "a" * 64),
         ("services/x.py", "# run kubectl get pods -n foo"),  # hygiene:allow
         ("k8s/svc.yaml", "  externalIP: 198.18.0.7"),  # hygiene:allow RFC 2544 range
@@ -87,19 +87,19 @@ def test_removed_lines_are_not_flagged():
     """Only additions. Deleting a leak must never fail the build."""
     diff = (
         "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n"
-        '-API = "https://api.acme-farms.io"\n'
+        '-API = "https://api.acme-farms.io"\n'  # hygiene:allow
         '+API = os.getenv("API_URL")\n'
     )
     assert not hygiene.scan(diff, ALL_RULES, ALLOWED)
 
 
 def test_generated_files_are_skipped():
-    assert not hygiene.scan(_diff("apps/host/coverage/x.js", "https://a.acme-farms.io"), ALL_RULES, ALLOWED)
-    assert not hygiene.scan(_diff("pnpm-lock.yaml", "https://a.acme-farms.io"), ALL_RULES, ALLOWED)
+    assert not hygiene.scan(_diff("apps/host/coverage/x.js", "https://a.acme-farms.io"), ALL_RULES, ALLOWED)  # hygiene:allow
+    assert not hygiene.scan(_diff("pnpm-lock.yaml", "https://a.acme-farms.io"), ALL_RULES, ALLOWED)  # hygiene:allow
 
 
 def test_the_finding_says_what_to_do_instead():
-    out = hygiene.scan(_diff("x.py", 'A = "https://api.acme-farms.io"'), ALL_RULES, ALLOWED)[0]
+    out = hygiene.scan(_diff("x.py", 'A = "https://api.acme-farms.io"'), ALL_RULES, ALLOWED)[0]  # hygiene:allow
     assert "Instead:" in out and "configuration" in out
 
 
