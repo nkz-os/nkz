@@ -29,6 +29,10 @@ module.exports = {
           'text-primary': 'var(--nkz-color-text-primary)',
           'text-secondary': 'var(--nkz-color-text-secondary)',
           'text-muted': 'var(--nkz-color-text-muted)',
+          // 'muted' is a deprecated alias of 'text-muted' (canonical). The host
+          // alone calls it that 531 times and no token ever answered, so muted
+          // text has been rendering in the inherited colour. Prefer 'text-muted'.
+          muted: 'var(--nkz-color-text-muted)',
           'text-on-accent': 'var(--nkz-color-text-on-accent)',
           accent: {
             base: 'var(--nkz-color-accent-base)',

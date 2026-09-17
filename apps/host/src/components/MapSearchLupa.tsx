@@ -22,7 +22,7 @@ export function MapSearchLupa({ onPick }: { onPick: (r: GeocodeResult) => void }
     return (
       <button
         aria-label={t('map.search_open', 'Search location')}
-        className="text-nkz-fg"
+        className="text-nkz-text-primary"
         onClick={() => setOpen(true)}
       >
         <span aria-hidden>🔍</span>
@@ -31,7 +31,7 @@ export function MapSearchLupa({ onPick }: { onPick: (r: GeocodeResult) => void }
   }
 
   return (
-    <div className="text-nkz-fg">
+    <div className="text-nkz-text-primary">
       <input
         autoFocus
         value={q}
@@ -61,7 +61,7 @@ export function MapSearchLupa({ onPick }: { onPick: (r: GeocodeResult) => void }
             <li key={i} role="option" aria-selected={i === activeIndex}>
               <button
                 ref={i === activeIndex ? activeRef : undefined}
-                className={`text-nkz-fg ${i === activeIndex ? 'bg-nkz-primary' : ''}`}
+                className={`text-nkz-text-primary ${i === activeIndex ? 'bg-nkz-accent-soft' : ''}`}
                 onClick={() => { onPick(r); closeAndClear(); }}
               >
                 {r.label}
