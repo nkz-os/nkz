@@ -130,15 +130,15 @@ jobs:
         run: |
           PYTHONPATH=services python -m pytest services/${{ matrix.service }}/tests/ -v --tb=short
 
-  production-domain-check:
-    name: Production Domain Check
+  public-repo-hygiene:
+    name: Public Repo Hygiene
     timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Check for new production domain references
+      - name: Check for operational detail in the diff
         run: |
           set +e
           BASE="${GITHUB_BASE_REF:-main}"
@@ -149,8 +149,9 @@ jobs:
             fi
             BASE="main"
           fi
+          # *.md is NOT excluded: the task list reached this repo as markdown and
+          # sat here for three months because the old check skipped it.
           DIFF=$(git diff "origin/$BASE...HEAD" -- \
-            ':(exclude)*.md' \
             ':(exclude)*.svg' \
             ':(exclude)*.png' \
             ':(exclude)*.jpg' \
@@ -166,7 +167,8 @@ jobs:
             echo "No diff to check — skipping."
             exit 0
           fi
-          RESULTS=$(echo "$DIFF" | grep -n '^+' | grep 'robotika\.cloud' | grep -v '^+[+][+]' || true)
+          RESULTS=$(printf '%s' "$DIFF" | python3 .github/scripts/check_public_repo_hygiene.py 2>&1)
+          [ $? -eq 0 ] && RESULTS=""
           if [ -n "$RESULTS" ]; then
             # Scan ALL commits in the PR range (not just HEAD — on PR events HEAD is the
             # auto-generated merge commit which never carries our ack tag). For push
@@ -177,7 +179,7 @@ jobs:
               echo "$RESULTS"
               exit 0
             fi
-            echo "::error title=Production Domain Detected::New reference to robotika.cloud found in diff. Production URLs belong in the private gitops-config repo, not in public repos. If intentional, include [prod-refs-ack] in the commit message."
+            echo "::error title=Operational Detail Detected::This diff adds detail that belongs in the private deploy config, not a public repo. If intentional, include [prod-refs-ack] in the commit message."
             echo "=== Detected additions ==="
             echo "$RESULTS"
             exit 1
