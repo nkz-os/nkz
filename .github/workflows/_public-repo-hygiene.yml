@@ -1,0 +1,82 @@
+# Reusable public-repo hygiene check.
+#
+# Every repo in this organisation is public and installable, so none of them may
+# name a deployment. The check and its list of permitted hosts live here, in one
+# place: a module repo calls this workflow and inherits every later improvement
+# without a change of its own.
+#
+# Caller:
+#   jobs:
+#     hygiene:
+#       uses: nkz-os/nkz/.github/workflows/_public-repo-hygiene.yml@main
+
+name: Public Repo Hygiene
+
+on:
+  workflow_call:
+    inputs:
+      ack_marker:
+        description: Commit-message marker that acknowledges a deliberate addition.
+        type: string
+        default: "[prod-refs-ack]"
+
+jobs:
+  hygiene:
+    name: Public Repo Hygiene
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the calling repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # A reusable workflow runs the caller's checkout, not its own repository's
+      # files, so the checker and the host list are fetched explicitly.
+      - name: Check out the checker
+        uses: actions/checkout@v7
+        with:
+          repository: nkz-os/nkz
+          ref: main
+          sparse-checkout: .github
+          path: .hygiene-tooling
+
+      - name: Check for operational detail in the diff
+        run: |
+          set +e
+          BASE="${GITHUB_BASE_REF:-main}"
+          if ! git fetch origin "$BASE" --depth=1 2>/dev/null; then
+            if ! git fetch origin main --depth=1 2>/dev/null; then
+              echo "Could not fetch the base branch; nothing to compare."
+              exit 0
+            fi
+            BASE="main"
+          fi
+
+          DIFF=$(git diff "origin/$BASE...HEAD" -- \
+            ':(exclude)*.svg' ':(exclude)*.png' ':(exclude)*.jpg' \
+            ':(exclude)*.gif' ':(exclude)*.ico' ':(exclude)*.lock' \
+            ':(exclude)pnpm-lock.yaml' ':(exclude).hygiene-tooling' \
+            2>/dev/null || true)
+          if [ -z "$DIFF" ]; then
+            echo "No diff to check."
+            exit 0
+          fi
+
+          RESULTS=$(printf '%s' "$DIFF" | python3 \
+            .hygiene-tooling/.github/scripts/check_public_repo_hygiene.py 2>&1)
+          STATUS=$?
+          [ $STATUS -eq 0 ] && { echo "$RESULTS"; exit 0; }
+
+          # The whole PR range: on pull_request events HEAD is the generated
+          # merge commit, which never carries the marker.
+          COMMIT_MSG=$(git log "origin/$BASE..HEAD" --format=%s%n%b 2>/dev/null || true)
+          if echo "$COMMIT_MSG" | grep -qF '${{ inputs.ack_marker }}'; then
+            echo "Acknowledged via ${{ inputs.ack_marker }}:"
+            echo "$RESULTS"
+            exit 0
+          fi
+
+          echo "::error title=Operational Detail Detected::This diff names a deployment. Addresses and identifiers belong in configuration."
+          echo "$RESULTS"
+          exit 1
