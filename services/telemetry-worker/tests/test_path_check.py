@@ -92,3 +92,36 @@ def test_exit_code_reports_the_path(monkeypatch, found, expected):
     monkeypatch.setattr(path_check, "publish", MagicMock())
     monkeypatch.setattr(path_check, "wait_for_row", MagicMock(return_value=found))
     assert path_check.main() == expected
+
+
+def test_the_write_is_retried_before_giving_up(monkeypatch):
+    """A fresh pod can be refused until its NetworkPolicy is programmed."""
+    import requests as _rq
+
+    attempts = []
+
+    def flaky(url, **kwargs):
+        attempts.append(url)
+        if len(attempts) < 3:
+            raise _rq.ConnectionError("connection refused")
+        resp = MagicMock()
+        resp.raise_for_status.return_value = None
+        return resp
+
+    monkeypatch.setattr(path_check.requests, "post", flaky)
+    monkeypatch.setattr(path_check.time, "sleep", lambda s: None)
+    path_check.publish("http://orion", "t1", {"id": "x"}, {})
+    assert len(attempts) == 3, "gave up before the policy could land"
+
+
+def test_a_persistent_refusal_still_fails(monkeypatch):
+    """Retrying must not turn a real outage into a pass."""
+    import requests as _rq
+
+    monkeypatch.setattr(
+        path_check.requests, "post",
+        MagicMock(side_effect=_rq.ConnectionError("refused")),
+    )
+    monkeypatch.setattr(path_check.time, "sleep", lambda s: None)
+    with pytest.raises(_rq.ConnectionError):
+        path_check.publish("http://orion", "t1", {"id": "x"}, {})

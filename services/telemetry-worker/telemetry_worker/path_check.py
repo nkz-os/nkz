@@ -62,15 +62,32 @@ def build_entity(tenant_id: str, now: datetime) -> dict:
     }
 
 
+# A pod can start before the CNI has programmed its NetworkPolicy, and egress is
+# deny-by-default in this namespace: the first attempts of a short-lived job are
+# refused outright. Observed on the orion-seed-context hook, which burned three
+# pods on connection refusals before one got through. Retrying keeps the probe
+# reporting the telemetry path rather than that race.
+PUBLISH_ATTEMPTS = 4
+PUBLISH_BACKOFF_S = 5
+
+
 def publish(orion_url: str, tenant_id: str, entity: dict, headers: dict) -> None:
     """Create or update the synthetic entity, the way any producer would."""
-    resp = requests.post(
-        f"{orion_url}/ngsi-ld/v1/entityOperations/upsert?options=update",
-        json=[entity],
-        headers=headers,
-        timeout=30,
-    )
-    resp.raise_for_status()
+    url = f"{orion_url}/ngsi-ld/v1/entityOperations/upsert?options=update"
+    last_error: Exception | None = None
+    for attempt in range(1, PUBLISH_ATTEMPTS + 1):
+        try:
+            resp = requests.post(url, json=[entity], headers=headers, timeout=30)
+            resp.raise_for_status()
+            return
+        except requests.RequestException as exc:
+            last_error = exc
+            logger.warning(
+                "Write attempt %s/%s failed: %s", attempt, PUBLISH_ATTEMPTS, exc
+            )
+            if attempt < PUBLISH_ATTEMPTS:
+                time.sleep(PUBLISH_BACKOFF_S)
+    raise last_error if last_error else RuntimeError("publish failed")
 
 
 def wait_for_row(dsn: str, entity_id: str, since: datetime, timeout_s: int) -> bool:
