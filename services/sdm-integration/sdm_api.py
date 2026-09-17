@@ -58,30 +58,12 @@ MQTT_PORT = int(os.getenv('MQTT_EXTERNAL_PORT', '8883'))  # External TLS port
 MQTT_INTERNAL_HOST = os.getenv('MQTT_HOST', 'mosquitto-service')
 
 
-def mqtt_endpoint_for_devices() -> dict:
-    """How a device should reach the broker, or why it cannot.
+from mqtt_endpoint import endpoint_for_devices
 
-    The broker is only published externally if the installation chooses to do
-    so; nothing here can assume it. Handing a device an empty host with port
-    8883 looks like an endpoint and is not one, and the device fails on its own
-    with nothing to point at. Saying the endpoint is not configured is a fact
-    the caller can act on.
-    """
-    if not MQTT_HOST:
-        return {
-            "configured": False,
-            "reason": (
-                "No external MQTT endpoint is configured for this installation. "
-                "Set MQTT_EXTERNAL_HOST once the broker is reachable from outside "
-                "the cluster; until then devices cannot connect over MQTT."
-            ),
-        }
-    return {
-        "configured": True,
-        "host": MQTT_HOST,
-        "port": MQTT_PORT,
-        "protocol": "mqtts" if MQTT_PORT == 8883 else "mqtt",
-    }
+
+def mqtt_endpoint_for_devices() -> dict:
+    """Bind the pure rule to this service's configuration."""
+    return endpoint_for_devices(MQTT_HOST, MQTT_PORT)
 
 
 # Types that require IoT provisioning
