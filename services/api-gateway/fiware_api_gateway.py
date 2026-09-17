@@ -170,7 +170,15 @@ AGRIENERGY_API_URL = os.getenv(
 )
 RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
 N8N_NKZ_API_URL = os.getenv("N8N_NKZ_API_URL", "http://n8n-nkz-api-service:8000")
-N8N_PUBLIC_HOST = os.getenv("N8N_PUBLIC_HOST", "nekazari.robotika.cloud")
+# The virtual host the per-tenant n8n proxy answers on. Empty disables the
+# route: an installation that does not run per-tenant n8n should not have it
+# responding at all, and no default can name anyone's deployment.
+N8N_PROXY_HOST = os.getenv("N8N_PROXY_HOST", "").strip().lower()
+
+# Single-tenant installations may name the tenant to serve when a request
+# arrives without enough context to identify one. Empty means refuse, because
+# guessing hands one tenant's workflows to another.
+N8N_DEFAULT_TENANT = os.getenv("N8N_DEFAULT_TENANT", "").strip().lower()
 LIDAR_API_URL = os.getenv("LIDAR_API_URL", "http://lidar-api-service:80")
 BIOORCHESTRATOR_API_URL = os.getenv(
     "BIOORCHESTRATOR_API_URL", "http://bioorchestrator-api-service:8420"
@@ -197,14 +205,28 @@ JD_CONNECT_URL = os.getenv("JD_CONNECT_URL", "http://jd-connect-service:8000")
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
 ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
-ZULIP_HOST = os.getenv("ZULIP_HOST", "messaging.robotika.cloud")
+# Host header for the Zulip vhost. No default can name an installation, and
+# an empty one simply forwards without overriding it.
+ZULIP_HOST = os.getenv("ZULIP_HOST", "")
+
+
+def _zulip_host_header() -> dict:
+    """Host override for the Zulip vhost, omitted when none is configured.
+
+    Sending an empty Host is worse than sending none: the upstream sees a
+    malformed request instead of routing by the URL it was given.
+    """
+    return {"Host": ZULIP_HOST} if ZULIP_HOST else {}
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 REQUESTS_PER_MINUTE = int(
     os.getenv("REQUESTS_PER_MINUTE", "120")
 )  # Default: 60 req/min per tenant
 ALLOW_JWT_FALLBACK = os.getenv("ALLOW_JWT_FALLBACK", "false").lower() == "true"
-COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", ".robotika.cloud")
+# Empty means a host-only cookie, which is the correct default: a cookie
+# scoped to a domain the installation does not own is silently rejected by
+# the browser, and auth fails with nothing to show for it.
+COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", "")
 
 # Default timeout for proxied backend calls: a hung backend must never
 # exhaust the gunicorn worker pool
@@ -4378,6 +4400,24 @@ def risk_proxy(path):
     return generic_proxy(RISK_API_URL, f"api/risks/{path}")
 
 
+def _n8n_tenant_from_referer(referer: str) -> str:
+    """Tenant from the first path segment of the Referer.
+
+    The proxy scheme is <host>/<tenant>/..., so the segment identifies the
+    tenant without the host having to be known here -- which is what lets the
+    same code serve any installation.
+    """
+    import re
+    from urllib.parse import urlparse
+
+    try:
+        path = urlparse(referer or "").path
+    except ValueError:
+        return ""
+    segment = path.lstrip("/").split("/", 1)[0]
+    return segment if re.fullmatch(r"[a-z0-9-]{1,63}", segment) else ""
+
+
 @app.route(
     "/n8n/<tenant_id>",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
@@ -4407,16 +4447,18 @@ def risk_proxy(path):
 def n8n_tenant_proxy(tenant_id=None, subpath=""):
     """Proxy per-tenant n8n instances via path-based routing.
 
-    n8n.robotika.cloud/<tenant_id>/  ->  http://n8n-<tenant_id>-service:5678/
+    <n8n-host>/<tenant_id>/  ->  http://n8n-<tenant_id>-service:5678/
 
     n8n uses its own basic auth, so this route is PUBLIC (no JWT required).
     Rewrites /static/base-path.js to inject correct BASE_PATH for the tenant.
     """
     import re
 
-    # Only serve this for n8n.robotika.cloud host
-    host = request.headers.get("Host", "").split(":")[0]
-    if host != "n8n.robotika.cloud" and not host.endswith(".n8n.robotika.cloud"):
+    # Only serve this on the configured n8n virtual host.
+    host = request.headers.get("Host", "").split(":")[0].lower()
+    if not N8N_PROXY_HOST or (
+        host != N8N_PROXY_HOST and not host.endswith("." + N8N_PROXY_HOST)
+    ):
         return jsonify({"error": "Not Found"}), 404
 
     g.skip_csp = True  # n8n sets its own CSP
@@ -4424,13 +4466,12 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
     # If this is a root-level /assets/ or /static/ request (from hardcoded JS imports),
     # extract the tenant from the Referer header
     if not tenant_id or tenant_id in ("assets", "static"):
-        referer = request.headers.get("Referer", "")
-        m = re.search(r"/n8n\.robotika\.cloud/([a-z0-9-]+)/", referer)
-        if not m:
-            # Fallback: use the only tenant currently provisioned
-            tenant_id = "montiko"
-        else:
-            tenant_id = m.group(1)
+        tenant_id = _n8n_tenant_from_referer(
+            request.headers.get("Referer", "")
+        ) or N8N_DEFAULT_TENANT
+        if not tenant_id:
+            # Serving some other tenant's n8n is worse than serving nothing.
+            return jsonify({"error": "Not Found"}), 404
 
     safe_tenant = re.sub(r"[^a-z0-9-]", "-", tenant_id.lower()).strip("-")[:63]
     service = f"n8n-{safe_tenant}-service"
@@ -4491,12 +4532,12 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
 
 @app.route("/", methods=["GET"])
 def n8n_landing():
-    """Simple landing page for n8n.robotika.cloud root."""
+    """Simple landing page for the n8n virtual host root."""
     return jsonify(
         {
             "service": "n8n tenant proxy",
             "usage": "Access your n8n instance at /<tenant-id>/",
-            "example": "/montiko/",
+            "example": "/<tenant-id>/",
         }
     )
 
@@ -4622,7 +4663,7 @@ def _ensure_zulip_user(user_email: str, full_name: str = ""):
         return False
 
     try:
-        zulip_headers = {"Host": ZULIP_HOST}
+        zulip_headers = _zulip_host_header()
         # Use /api/v1/users (list all) instead of /api/v1/users/{email}
         # because Zulip's URL routing returns 400 for emails with dots in domain
         resp = requests.get(
@@ -4707,7 +4748,7 @@ def _zulip_proxy_request(user_email, api_key, zulip_path, tenant_id):
             data=request.get_data(),
             headers={
                 "Content-Type": request.headers.get("Content-Type", "application/json"),
-                "Host": ZULIP_HOST,
+                **_zulip_host_header(),
             },
             allow_redirects=False,
             timeout=120,
@@ -4757,7 +4798,7 @@ def zulip_streams():
         resp = requests.get(
             f"{ZULIP_SERVICE_URL}/api/v1/streams",
             auth=(ZULIP_BOT_EMAIL, ZULIP_BOT_API_KEY),
-            headers={"Host": ZULIP_HOST},
+            headers=_zulip_host_header(),
             timeout=15,
         )
         resp.raise_for_status()
