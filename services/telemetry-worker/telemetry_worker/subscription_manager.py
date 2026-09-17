@@ -272,6 +272,32 @@ def _delete_subscription(headers: dict, sub_id: str) -> None:
         logger.warning("Delete subscription %s failed: %s", sub_id, e)
 
 
+def _replace_subscription(headers: dict, sub_def: dict, tenant_id: str, sub_id: str) -> None:
+    """Update a subscription in place, so it is never briefly absent.
+
+    PATCH carries the body minus the id, which Orion-LD rejects inside an
+    update. Falling back to delete-then-create would reopen the gap this closes,
+    so a failed patch is reported and the old subscription left alone.
+    """
+    body = {k: v for k, v in _subscription_body(sub_def).items() if k != "id"}
+    try:
+        res = requests.patch(
+            f"{ORION_URL}/ngsi-ld/v1/subscriptions/{sub_id}",
+            json=body,
+            headers=headers,
+            timeout=30,
+        )
+        if res.status_code in (200, 204):
+            logger.info("Subscription '%s' refreshed for %s", sub_def["description"], tenant_id)
+            return
+        logger.error(
+            "Refresh failed: %s for %s: %s %s",
+            sub_def["description"], tenant_id, res.status_code, res.text[:200],
+        )
+    except requests.RequestException as e:
+        logger.error("Refresh failed: %s for %s: %s", sub_def["description"], tenant_id, e)
+
+
 def _create_subscription(headers: dict, sub_def: dict, tenant_id: str) -> None:
     res = requests.post(
         f"{ORION_URL}/ngsi-ld/v1/subscriptions",
@@ -365,34 +391,47 @@ def _cleanup_broken_subscriptions(tenant_id: str):
 
 
 def _ensure_tenant_subscriptions(tenant_id: str):
-    """Create missing NGSI-LD subscriptions for a single tenant."""
+    """Reconcile this tenant's subscriptions against their deterministic ids."""
     headers = _make_headers(tenant_id)
     headers["Content-Type"] = "application/json"  # needed for POST below
     try:
         existing_subs = _fetch_all_subscriptions(headers) or []
-        existing_by_description: dict = {}
+        by_id = {s.get("id"): s for s in existing_subs if s.get("id")}
+        by_description: dict = {}
         for existing in existing_subs:
-            existing_by_description.setdefault(existing.get("description"), []).append(
-                existing
-            )
+            by_description.setdefault(existing.get("description"), []).append(existing)
 
         for sub in SUBSCRIPTIONS:
-            matches = existing_by_description.get(sub["description"], [])
-            if _matches_are_stale(matches):
-                logger.info(
-                    "Replacing subscription '%s' for %s (%d existing)",
-                    sub["description"], tenant_id, len(matches),
-                )
-                for existing in matches:
-                    _delete_subscription(headers, existing.get("id"))
+            sub_id = _subscription_id(sub)
+            canonical = by_id.get(sub_id)
+            # The id is the identity; the description is only a label. Keying on
+            # the description made editing one mint a new id and abandon the old
+            # subscription, still registered and reconciled by nobody.
+            leftovers = [
+                s for s in by_description.get(sub["description"], [])
+                if s.get("id") and s.get("id") != sub_id
+            ]
+
+            if canonical is None:
                 _create_subscription(headers, sub, tenant_id)
-            elif matches:
+            elif _matches_are_stale([canonical]):
+                logger.info(
+                    "Refreshing subscription '%s' for %s", sub["description"], tenant_id
+                )
+                _replace_subscription(headers, sub, tenant_id, sub_id)
+            else:
                 # Existing is not the same as firing: Orion pauses a subscription
                 # after 3 consecutive notification failures and never resumes it.
-                for existing in matches:
-                    reactivate_if_paused(ORION_URL, headers, existing, logger)
-            else:
-                _create_subscription(headers, sub, tenant_id)
+                reactivate_if_paused(ORION_URL, headers, canonical, logger)
+
+            # Only once the canonical one is accounted for: deleting first left a
+            # window with no subscription, and notifications raised in it are lost.
+            for leftover in leftovers:
+                logger.info(
+                    "Removing leftover subscription %s for %s (canonical is %s)",
+                    leftover.get("id"), tenant_id, sub_id,
+                )
+                _delete_subscription(headers, leftover.get("id"))
     except Exception as e:
         SUBSCRIPTION_CREATION_FAILED.labels(
             tenant_id=tenant_id, reason="exception"

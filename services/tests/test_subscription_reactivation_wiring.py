@@ -20,10 +20,15 @@ from tests._subscription_managers import KNOWN, MANAGERS, load, service_id
 TENANT = "acme"
 
 
-def _paused(description: str) -> dict:
+def _paused(sub_def: dict, module) -> dict:
+    """A paused copy under its canonical id.
+
+    Identity is the id: a copy under any other id is a leftover the reconciler
+    replaces rather than re-arms, so re-arming would never be exercised here.
+    """
     return {
-        "id": f"urn:ngsi-ld:subscription:{abs(hash(description)) % 10**8}",
-        "description": description,
+        "id": module._subscription_id(sub_def),
+        "description": sub_def["description"],
         "isActive": False,
         "status": "paused",
     }
@@ -42,7 +47,7 @@ def test_reconciler_rearms_a_paused_subscription(manager_path, monkeypatch):
 
     # Every declared subscription already exists in the broker, and every one of
     # them is paused: nothing to create, everything to re-arm.
-    existing = [_paused(sub["description"]) for sub in subscriptions]
+    existing = [_paused(sub, module) for sub in subscriptions]
     monkeypatch.setattr(module, "_fetch_all_subscriptions", lambda headers: existing)
 
     created = MagicMock()
