@@ -246,3 +246,58 @@ def test_unit_is_not_repurposed_as_a_measurement_unit(ctx):
     `unit` cambiaría el significado de un término ya en uso.
     """
     assert _iri(ctx["unit"]) == "saref:Unit"
+
+
+# --- attributes the writers actually emit -----------------------------------
+# An attribute name absent from the @context is not an error: Orion expands it
+# against the default vocabulary, stores it under
+# https://uri.etsi.org/ngsi-ld/default-context/<name>, and every read that does
+# send the platform context then misses it. That is how `et0` ended up written
+# by six call sites and invisible to all of them. Orion never re-expands an
+# attribute once stored, so a term added later does not rescue the old rows.
+
+WRITER_FILES = [
+    "entity-manager/orion_writer.py",
+    "weather-worker/weather_worker/storage/orion_writer.py",
+]
+
+# Keys these writers set that are NGSI-LD envelope, not domain attributes.
+ENVELOPE = {"id", "type", "@context", "value", "object", "unitCode", "observedAt"}
+
+
+def _emitted_attribute_names(rel_path):
+    """Attribute names assigned as entity["x"] / update_payload["x"] in a writer."""
+    import ast
+
+    src = (pathlib.Path(__file__).resolve().parents[1] / rel_path).read_text()
+    names = set()
+    for node in ast.walk(ast.parse(src)):
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if (
+                isinstance(target, ast.Subscript)
+                and isinstance(target.value, ast.Name)
+                and target.value.id in {"entity", "update_payload"}
+                and isinstance(target.slice, ast.Constant)
+                and isinstance(target.slice.value, str)
+            ):
+                names.add(target.slice.value)
+    return names - ENVELOPE
+
+
+@pytest.mark.parametrize("rel_path", WRITER_FILES)
+def test_every_emitted_attribute_is_in_the_context(rel_path):
+    raw = json.loads(CONTEXT_FILE.read_text())["@context"]
+    terms = set()
+    for part in raw if isinstance(raw, list) else [raw]:
+        if isinstance(part, dict):
+            terms |= set(part)
+
+    emitted = _emitted_attribute_names(rel_path)
+    assert emitted, f"no attribute assignments found in {rel_path} — parser drifted"
+    missing = sorted(emitted - terms)
+    assert not missing, (
+        f"{rel_path} writes attributes the platform @context does not define: {missing}. "
+        "They land under the default vocabulary and become invisible to context-aware reads."
+    )
