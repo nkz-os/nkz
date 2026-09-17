@@ -57,6 +57,33 @@ MQTT_HOST = os.getenv('MQTT_EXTERNAL_HOST', '')  # External hostname for devices
 MQTT_PORT = int(os.getenv('MQTT_EXTERNAL_PORT', '8883'))  # External TLS port
 MQTT_INTERNAL_HOST = os.getenv('MQTT_HOST', 'mosquitto-service')
 
+
+def mqtt_endpoint_for_devices() -> dict:
+    """How a device should reach the broker, or why it cannot.
+
+    The broker is only published externally if the installation chooses to do
+    so; nothing here can assume it. Handing a device an empty host with port
+    8883 looks like an endpoint and is not one, and the device fails on its own
+    with nothing to point at. Saying the endpoint is not configured is a fact
+    the caller can act on.
+    """
+    if not MQTT_HOST:
+        return {
+            "configured": False,
+            "reason": (
+                "No external MQTT endpoint is configured for this installation. "
+                "Set MQTT_EXTERNAL_HOST once the broker is reachable from outside "
+                "the cluster; until then devices cannot connect over MQTT."
+            ),
+        }
+    return {
+        "configured": True,
+        "host": MQTT_HOST,
+        "port": MQTT_PORT,
+        "protocol": "mqtts" if MQTT_PORT == 8883 else "mqtt",
+    }
+
+
 # Types that require IoT provisioning
 IOT_ENTITY_TYPES = {'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'ManufacturingMachine', 'LivestockAnimal', 'AgriculturalMachine'}
 
@@ -267,9 +294,7 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
             result['provisioned'] = True
             result['api_key'] = api_key
             result['mqtt'] = {
-                'host': MQTT_HOST,
-                'port': MQTT_PORT,
-                'protocol': 'mqtts' if MQTT_PORT == 8883 else 'mqtt',
+                **mqtt_endpoint_for_devices(),
                 'api_key': api_key,
                 'device_id': device_id,
                 'topics': {
@@ -1178,9 +1203,7 @@ def get_iot_details(entity_id):
         device_id = entity_id.split(':')[-1]
         
         return jsonify({
-            'mqtt_host': MQTT_HOST,
-            'mqtt_port': MQTT_PORT,
-            'protocol': 'mqtts' if MQTT_PORT == 8883 else 'mqtt',
+            'endpoint': mqtt_endpoint_for_devices(),
             'device_id': device_id,
             'topics': {
                 'publish_data': f'/<API_KEY>/{device_id}/attrs',
