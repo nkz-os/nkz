@@ -51,6 +51,23 @@ def _body_has_context(body: object) -> bool:
     return False
 
 
+_MISSING_CONTEXT_WARNED = False
+
+
+def _warn_missing_context_url() -> None:
+    """Warn once that CONTEXT_URL is unset, so writes silently lose their context."""
+    global _MISSING_CONTEXT_WARNED
+    if _MISSING_CONTEXT_WARNED:
+        return
+    _MISSING_CONTEXT_WARNED = True
+    logger.warning(
+        "CONTEXT_URL is not set: NGSI-LD requests go out with no @context and no "
+        "Link header. Orion will expand types and attributes against the default "
+        "vocabulary, which does not match what the rest of the platform reads. "
+        "Declare CONTEXT_URL in this service's deployment."
+    )
+
+
 def inject_fiware_headers(
     headers: Dict[str, str],
     tenant: Optional[str] = None,
@@ -103,6 +120,13 @@ def inject_fiware_headers(
                 f'rel="http://www.w3.org/ns/json-ld#context"; '
                 f'type="application/ld+json"'
             )
+        else:
+            # No context at all: Orion expands every term against the default
+            # vocabulary, so entities land under
+            # https://uri.etsi.org/ngsi-ld/default-context/<Type> and reads that
+            # do send the platform context can never see them. This used to pass
+            # silently -- warn once per process rather than per request.
+            _warn_missing_context_url()
 
     headers.setdefault("Accept", "application/ld+json")
     return headers
