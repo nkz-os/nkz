@@ -96,6 +96,7 @@ fails on it.
 | `currentMoisture` | atributo | sin-revisar | Not yet reviewed |
 | `currentTask` | atributo | sin-revisar | Not yet reviewed |
 | `dataSource` | atributo | sin-revisar | Not yet reviewed |
+| `dataSources` | atributo | extension-declarada | Provenance list; SDM has no multi-source provenance attribute (singular `dataSource` predates it) |
 | `declaredArea` | atributo | sin-revisar | Not yet reviewed |
 | `declaredCrop` | atributo | sin-revisar | Not yet reviewed |
 | `deficitMm` | atributo | sin-revisar | Not yet reviewed |
@@ -110,6 +111,7 @@ fails on it.
 | `engineHours` | atributo | sin-revisar | Not yet reviewed |
 | `engineSpeed` | atributo | sin-revisar | Not yet reviewed |
 | `equipoAplicacion` | atributo | sin-revisar | Not yet reviewed |
+| `et0` | atributo | extension-declarada | FAO-56 reference evapotranspiration; absent from SDM dataModel.Weather |
 | `evaluatedBy` | atributo | sin-revisar | Not yet reviewed |
 | `evaluationData` | atributo | sin-revisar | Not yet reviewed |
 | `evaluationVersion` | atributo | sin-revisar | Not yet reviewed |
@@ -161,6 +163,7 @@ fails on it.
 | `modelScale` | atributo | sin-revisar | Not yet reviewed |
 | `moisture` | atributo | sin-revisar | Not yet reviewed |
 | `mqttTopic` | atributo | sin-revisar | Not yet reviewed |
+| `municipalityCode` | atributo | extension-declarada | INE municipality code; SDM `address.addressLocality` carries a name, not a code |
 | `ndreMax` | atributo | sin-revisar | Not yet reviewed |
 | `ndreMean` | atributo | sin-revisar | Not yet reviewed |
 | `ndreMin` | atributo | sin-revisar | Not yet reviewed |
@@ -226,6 +229,7 @@ fails on it.
 | `soilMoisture` | atributo | sin-revisar | Not yet reviewed |
 | `soilProperty` | atributo | sin-revisar | Not yet reviewed |
 | `soilType` | atributo | sin-revisar | Not yet reviewed |
+| `sourceConfidence` | atributo | extension-declarada | Confidence of the value's provenance; no SDM equivalent |
 | `sprayRate` | atributo | sin-revisar | Not yet reviewed |
 | `storageUri` | atributo | sin-revisar | Not yet reviewed |
 | `surveyType` | atributo | sin-revisar | Not yet reviewed |
@@ -248,6 +252,7 @@ fails on it.
 | `variety` | atributo | sin-revisar | Not yet reviewed |
 | `visualRepresentation` | entidad | sin-revisar | Not yet reviewed |
 | `volumenRiego` | atributo | sin-revisar | Not yet reviewed |
+| `waterBalance` | atributo | extension-declarada | Soil water balance derived per parcel; no SDM equivalent |
 | `wiltingPoint` | atributo | sin-revisar | Not yet reviewed |
 | `windGusts` | atributo | sin-revisar | Not yet reviewed |
 | `windSpeedMax` | atributo | sin-revisar | Not yet reviewed |
