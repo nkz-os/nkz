@@ -5,6 +5,32 @@ import type { RegionId } from '@/utils/regions';
 import { logger } from '@/utils/logger';
 
 /**
+ * Cesium ships no types in this workspace, so the members we touch are named
+ * here rather than spread as `any` through the file. ArcGISTiledElevationTerrain
+ * is reached both as a constructor and through its static fromUrl, depending on
+ * the Cesium build, so it carries both shapes.
+ */
+interface TerrainProviderLike {
+  errorEvent?: { addEventListener?: (handler: (error: unknown) => void) => void };
+  __nkzHostManaged?: boolean;
+}
+
+interface HeightmapOptions {
+  width: number;
+  height: number;
+  callback: (x: number, y: number, level: number) => Promise<Float32Array>;
+}
+
+interface CesiumModule {
+  [member: string]: unknown;
+  CustomHeightmapTerrainProvider: new (options: HeightmapOptions) => TerrainProviderLike;
+  ArcGISTiledElevationTerrain: (new (url: string) => TerrainProviderLike) & {
+    fromUrl?: (url: string) => Promise<TerrainProviderLike>;
+  };
+}
+
+
+/**
  * Manages Cesium terrain provider switching (IDENA/IGN/ellipsoid).
  * Extracted from CesiumMap.tsx terrain update useEffect.
  *
@@ -32,7 +58,7 @@ const TERRARIUM_BASE_URL = 'https://elevation-tiles-prod.s3.amazonaws.com/terrar
 const TERRARIUM_MAX_LEVEL = 15;
 const TERRARIUM_GRID_SIZE = 65; // heightmap samples per tile edge
 
-function createTerrariumProvider(Cesium: any): any {
+function createTerrariumProvider(Cesium: CesiumModule): TerrainProviderLike {
   let ctx: CanvasRenderingContext2D | null = null;
 
   return new Cesium.CustomHeightmapTerrainProvider({
@@ -87,7 +113,7 @@ function createTerrariumProvider(Cesium: any): any {
 const ESRI_TERRAIN_URL =
   'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer';
 
-function createEsriProvider(Cesium: any): Promise<any> {
+function createEsriProvider(Cesium: CesiumModule): Promise<TerrainProviderLike> {
   if (typeof Cesium.ArcGISTiledElevationTerrain?.fromUrl === 'function') {
     return Cesium.ArcGISTiledElevationTerrain.fromUrl(ESRI_TERRAIN_URL);
   }
@@ -122,7 +148,7 @@ export function useTerrainProvider(
     const currentProvider = viewer.terrainProvider;
     const isModuleManaged = currentProvider &&
         !(currentProvider instanceof Cesium.EllipsoidTerrainProvider) &&
-        !(currentProvider as any).__nkzHostManaged &&
+        !(currentProvider as TerrainProviderLike).__nkzHostManaged &&
         currentTerrainProvider === 'auto';
     if (isModuleManaged) {
         logger.debug('[CesiumMap] Terrain already set by module, skipping host override');
@@ -131,13 +157,13 @@ export function useTerrainProvider(
 
     try {
       let terrainUrlToUse: string | null = null;
-      let providerFactory: (() => any) | null = null; // class-based providers (esri/terrarium)
+      let providerFactory: (() => TerrainProviderLike | Promise<TerrainProviderLike>) | null = null; // class-based providers (esri/terrarium)
       let providerName = 'custom';
 
-      const applyProvider = (providerInstance: any) => {
+      const applyProvider = (providerInstance: TerrainProviderLike) => {
         if (viewer.isDestroyed()) return;
-        (providerInstance as any).__nkzHostManaged = true;
-        providerInstance.errorEvent?.addEventListener?.((error: any) => {
+        providerInstance.__nkzHostManaged = true;
+        providerInstance.errorEvent?.addEventListener?.((error: unknown) => {
           logger.warn('[CesiumMap] Terrain provider error:', providerName, error);
           if (!viewer.isDestroyed()) viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
         });
@@ -145,7 +171,7 @@ export function useTerrainProvider(
         logger.debug('[CesiumMap] Terrain provider activated:', providerName);
       };
 
-      const failProvider = (error: any) => {
+      const failProvider = (error: unknown) => {
         logger.error('[CesiumMap] Failed to load terrain provider:', providerName, error);
         if (!viewer.isDestroyed()) viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
       };
@@ -268,7 +294,7 @@ export function useTerrainProvider(
                 logger.warn('[CesiumMap] Terrain provider error:', providerName, error);
                 if (!viewer.isDestroyed()) viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
               });
-              (terrainProviderInstance as any).__nkzHostManaged = true;
+              (terrainProviderInstance as TerrainProviderLike).__nkzHostManaged = true;
               viewer.terrainProvider = terrainProviderInstance;
               logger.debug('[CesiumMap] Terrain provider activated:', providerName);
             }
