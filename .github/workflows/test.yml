@@ -139,11 +139,6 @@ jobs:
         with:
           fetch-depth: 0
       - name: Check for operational detail in the diff
-        env:
-          # Comma-separated tenant names and domains. Org-level secret, so the
-          # values stay out of this repo and are masked if a finding prints one.
-          # Unset: only the structural rules run (digests, cluster commands, IPs).
-          HYGIENE_PRIVATE_TERMS: ${{ secrets.HYGIENE_PRIVATE_TERMS }}
         run: |
           set +e
           BASE="${GITHUB_BASE_REF:-main}"

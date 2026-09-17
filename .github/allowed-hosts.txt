@@ -1,0 +1,70 @@
+# Hosts the software itself may name in source.
+#
+# This is about the project's own dependencies -- upstream APIs, specifications,
+# documentation -- never about where it happens to run. A deployment's own
+# hostname is configuration and must be read from the environment, so that the
+# same code serves every installation.
+#
+# One host or suffix per line. A leading dot matches subdomains.
+
+# Cluster-internal and local
+localhost
+127.0.0.1
+.svc
+.svc.cluster.local
+.local
+
+# Reserved for examples and tests (RFC 2606 / 6761)
+example.com
+example.org
+example.net
+.example
+.invalid
+.test
+
+# This project's own vocabulary namespace
+nkz-os.org
+
+# Specifications and standards
+www.w3.org
+.ietf.org
+uri.etsi.org
+saref.etsi.org
+smartdatamodels.org
+schema.org
+json-ld.org
+spdx.org
+creativecommons.org
+
+# Upstream documentation referenced from docstrings
+github.com
+.github.io
+githubusercontent.com
+docs.python.org
+www.python.org
+bugs.python.org
+peps.python.org
+fastapi.tiangolo.com
+docs.pydantic.dev
+errors.pydantic.dev
+sqlalche.me
+docs.djangoproject.com
+developer.mozilla.org
+en.wikipedia.org
+stackoverflow.com
+vitest.dev
+tailwindcss.com
+turbo.build
+
+# Upstream data and service APIs the software calls
+.copernicus.eu
+dataspace.copernicus.eu
+services.sentinel-hub.com
+api.open-meteo.com
+opendata.aemet.es
+.arcgis.com
+elevation-tiles-prod.s3.amazonaws.com
+tile.openstreetmap.org
+fonts.googleapis.com
+fonts.gstatic.com
+cdnjs.cloudflare.com

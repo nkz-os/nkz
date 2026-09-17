@@ -3,8 +3,9 @@
 Pins what it must catch and, just as importantly, what it must not: a guard
 that fires on ordinary code gets switched off.
 
-Every fixture below is synthetic. The real terms are supplied at run time from
-private configuration and are deliberately absent from this file.
+This repo is installed on other people's servers, so the rule is not "do not
+name our deployment" -- it is "name no deployment at all". A hostname belongs in
+configuration; only the software's own upstream dependencies may appear here.
 """
 
 import importlib.util
@@ -20,9 +21,8 @@ _spec = importlib.util.spec_from_file_location("hygiene", _SCRIPT)
 hygiene = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(hygiene)
 
-# Stand-ins for the private terms CI injects.
-TERMS = "acme-tenant,example-corp,app.example.invalid"
-ALL_RULES = hygiene.STRUCTURAL + hygiene.private_rules(TERMS)
+ALL_RULES = hygiene.STRUCTURAL
+ALLOWED = hygiene.load_allowed_hosts()
 
 
 def _diff(path: str, *added: str) -> str:
@@ -32,29 +32,42 @@ def _diff(path: str, *added: str) -> str:
 
 def test_the_marker_is_per_line_not_per_file():
     """An exception must sit next to what it excuses, where review sees it."""
-    assert not hygiene.scan(_diff("x.py", "sha256:" + "d" * 64 + "  # hygiene:allow"), ALL_RULES)
-    assert hygiene.scan(_diff("x.py", "sha256:" + "d" * 64), ALL_RULES)
+    assert not hygiene.scan(_diff("x.py", "sha256:" + "d" * 64 + "  # hygiene:allow"), ALL_RULES, ALLOWED)
+    assert hygiene.scan(_diff("x.py", "sha256:" + "d" * 64), ALL_RULES, ALLOWED)
 
 
-def test_the_script_holds_no_private_values():
-    """The whole point: shapes live here, values do not."""
+def test_the_check_names_no_deployment():
+    """It must work for any installation, so it knows no one's hostnames."""
     src = _SCRIPT.read_text()
-    assert "HYGIENE_PRIVATE_TERMS" in src
-    assert not hygiene.private_rules(None), "no terms must mean no name rule"
+    assert "allowed-hosts.txt" in src
+    allowed = hygiene.load_allowed_hosts()
+    assert allowed, "the dependency list must load"
+
+
+@pytest.mark.parametrize("host", ["localhost", "orion-ld-service", "github.com",
+                                  "smartdatamodels.org", "api.open-meteo.com"])
+def test_the_software_may_name_its_own_dependencies(host):
+    assert hygiene.host_is_allowed(host, hygiene.load_allowed_hosts()), host
+
+
+@pytest.mark.parametrize("host", ["app.acme-farms.io", "gateway.somewhere.cloud",
+                                  "n8n.somewhere.cloud"])
+def test_a_deployment_hostname_is_rejected(host):
+    assert not hygiene.host_is_allowed(host, hygiene.load_allowed_hosts()), host
 
 
 @pytest.mark.parametrize(
     "path,line",
     [
-        ("src/app.ts", 'const API = "https://app.example.invalid"'),
-        ("NOTES.md", "- acme-tenant: 16 records"),            # markdown is scanned
+        ("src/app.ts", 'const API = "https://api.acme-farms.io"'),
+        ("NOTES.md", "see https://console.acme-farms.io"),   # markdown is scanned
         ("docs/deploy.md", "image: ghcr.io/x@sha256:" + "a" * 64),
         ("services/x.py", "# run kubectl get pods -n foo"),  # hygiene:allow
         ("k8s/svc.yaml", "  externalIP: 198.18.0.7"),  # hygiene:allow RFC 2544 range
     ],
 )
 def test_operational_detail_is_caught(path, line):
-    assert hygiene.scan(_diff(path, line), ALL_RULES), f"missed: {line}"
+    assert hygiene.scan(_diff(path, line), ALL_RULES, ALLOWED), f"missed: {line}"
 
 
 @pytest.mark.parametrize(
@@ -67,31 +80,27 @@ def test_operational_detail_is_caught(path, line):
     ],
 )
 def test_ordinary_code_and_rationale_pass(line):
-    assert not hygiene.scan(_diff("services/x.py", line), ALL_RULES), line
+    assert not hygiene.scan(_diff("services/x.py", line), ALL_RULES, ALLOWED), line
 
 
 def test_removed_lines_are_not_flagged():
     """Only additions. Deleting a leak must never fail the build."""
     diff = (
         "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n"
-        '-API = "https://app.example.invalid"\n'
+        '-API = "https://api.acme-farms.io"\n'
         '+API = os.getenv("API_URL")\n'
     )
-    assert not hygiene.scan(diff, ALL_RULES)
+    assert not hygiene.scan(diff, ALL_RULES, ALLOWED)
 
 
 def test_generated_files_are_skipped():
-    assert not hygiene.scan(_diff("apps/host/coverage/x.js", "acme-tenant"), ALL_RULES)
-    assert not hygiene.scan(_diff("pnpm-lock.yaml", "acme-tenant"), ALL_RULES)
+    assert not hygiene.scan(_diff("apps/host/coverage/x.js", "https://a.acme-farms.io"), ALL_RULES, ALLOWED)
+    assert not hygiene.scan(_diff("pnpm-lock.yaml", "https://a.acme-farms.io"), ALL_RULES, ALLOWED)
 
 
 def test_the_finding_says_what_to_do_instead():
-    out = hygiene.scan(_diff("x.py", 'T = "acme-tenant"'), ALL_RULES)[0]
-    assert "Instead:" in out and "placeholder" in out
+    out = hygiene.scan(_diff("x.py", 'A = "https://api.acme-farms.io"'), ALL_RULES, ALLOWED)[0]
+    assert "Instead:" in out and "configuration" in out
 
 
-def test_without_terms_only_shapes_are_checked():
-    """A missing secret must not silently disable the structural half."""
-    only = hygiene.STRUCTURAL
-    assert not hygiene.scan(_diff("x.py", 'T = "acme-tenant"'), only)
-    assert hygiene.scan(_diff("x.py", "sha256:" + "c" * 64), only)
+

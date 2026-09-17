@@ -15,7 +15,7 @@ message, handled by the caller.
 
 from __future__ import annotations
 
-import os
+import pathlib
 import re
 import sys
 
@@ -42,28 +42,44 @@ STRUCTURAL: list[tuple[str, re.Pattern, str, str]] = [
     ),
 ]
 
-# The values themselves -- tenant names, real domains -- are private, so they are
-# supplied at run time and never written down here. CI passes them from an
-# organisation secret, which also means a finding prints them masked.
-PRIVATE_TERMS_ENV = "HYGIENE_PRIVATE_TERMS"
+# A deployment's own hostname is configuration, not source: the same code has to
+# serve every installation. So instead of listing anyone's domains -- which would
+# tie this repo to one deployment -- the check knows which hosts the *software*
+# legitimately names, and treats anything else as a deployment leaking in.
+# Lives beside the workflows, not in scripts/: it is project policy, not tooling.
+ALLOWED_HOSTS_FILE = pathlib.Path(__file__).resolve().parent.parent / "allowed-hosts.txt"
 
 # Opt-out marker for a single line (see scan()).
 FIXTURE_MARKER = "hygiene:allow"
+URL_HOST = re.compile(r"https?://([A-Za-z0-9._-]+)")
 
 
-def private_rules(raw: str | None) -> list[tuple[str, re.Pattern, str, str]]:
-    terms = [t.strip() for t in (raw or "").split(",") if t.strip()]
-    if not terms:
+def load_allowed_hosts(path: pathlib.Path | None = None) -> list[str]:
+    path = path or ALLOWED_HOSTS_FILE
+    if not path.is_file():
         return []
-    joined = "|".join(re.escape(t) for t in terms)
     return [
-        (
-            "private term",
-            re.compile(rf"(?<![\w.-])(?:{joined})(?![\w-])", re.IGNORECASE),
-            "names the real deployment or one of its tenants",
-            "use a placeholder such as tenant-a, t1 or YOUR_DOMAIN",
-        )
+        ln.strip().lower()
+        for ln in path.read_text().splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
     ]
+
+
+def host_is_allowed(host: str, allowed: list[str]) -> bool:
+    host = host.lower().rstrip(".")
+    if "." not in host:
+        return True  # a bare name is a cluster service, not a public host
+    for entry in allowed:
+        if entry.startswith("."):
+            if host == entry[1:] or host.endswith(entry):
+                return True
+        elif host == entry or host.endswith("." + entry):
+            return True
+    return False
+
+
+def unknown_hosts(added: str, allowed: list[str]) -> list[str]:
+    return [h for h in URL_HOST.findall(added) if not host_is_allowed(h, allowed)]
 
 
 # Generated or vendored files nobody writes by hand.
@@ -81,8 +97,10 @@ ALLOWED_IP = re.compile(
 )
 
 
-def scan(diff: str, rules: list | None = None) -> list[str]:
+def scan(diff: str, rules: list | None = None,
+         allowed: list[str] | None = None) -> list[str]:
     findings: list[str] = []
+    allowed = load_allowed_hosts() if allowed is None else allowed
     path = "<unknown>"
     skipping = False
     for line in diff.splitlines():
@@ -100,6 +118,13 @@ def scan(diff: str, rules: list | None = None) -> list[str]:
         # this guard's own fixtures, which have to contain what it looks for.
         if FIXTURE_MARKER in added:
             continue
+        for host in unknown_hosts(added, allowed):
+            findings.append(
+                f"{path}: hostname '{host}' — a deployment address, and this code "
+                f"runs on every installation. Instead: read it from configuration, "
+                f"or add the host to .github/allowed-hosts.txt if the software "
+                f"itself depends on it\n    {added.strip()[:120]}"
+            )
         for name, pattern, why, instead in (rules if rules is not None else STRUCTURAL):
             for m in pattern.finditer(added):
                 hit = m.group(0)
@@ -113,14 +138,7 @@ def scan(diff: str, rules: list | None = None) -> list[str]:
 
 
 def main() -> int:
-    raw = os.getenv(PRIVATE_TERMS_ENV)
-    rules = STRUCTURAL + private_rules(raw)
-    if not raw:
-        print(
-            f"note: {PRIVATE_TERMS_ENV} is unset, so only structural rules ran. "
-            "Names of real tenants and domains are not checked."
-        )
-    findings = scan(sys.stdin.read(), rules)
+    findings = scan(sys.stdin.read())
     if not findings:
         print("OK: no operational detail added.")
         return 0
