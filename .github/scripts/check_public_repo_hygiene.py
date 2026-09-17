@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """Fail a diff that adds operational detail to a public repo.
 
-Rules alone did not hold. The task list reached this repo inside an unrelated
-frontend PR and stayed for three months; the domain check that should have
-caught it excluded `*.md` and looked for one pattern. So the rule is enforced
-here instead of being remembered: anything this finds in *added* lines blocks
-the merge.
+Operational detail belongs in the private deploy configuration. This enforces
+that mechanically rather than by convention: anything found in *added* lines
+blocks the merge, including in markdown.
 
-Diff-based on purpose. Existing occurrences are not flagged, so the guard can
-land without a repo-wide cleanup first, and every new one is stopped.
+Diff-based on purpose, so it applies to new work without requiring a repo-wide
+pass first.
 
 Reads a unified diff on stdin. Exit 1 when something is found.
 Deliberate additions are acknowledged with [prod-refs-ack] in the commit

@@ -149,8 +149,7 @@ jobs:
             fi
             BASE="main"
           fi
-          # *.md is NOT excluded: the task list reached this repo as markdown and
-          # sat here for three months because the old check skipped it.
+          # Markdown is scanned too: prose carries the same detail as code.
           DIFF=$(git diff "origin/$BASE...HEAD" -- \
             ':(exclude)*.svg' \
             ':(exclude)*.png' \

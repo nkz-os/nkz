@@ -1,9 +1,7 @@
 """The guard that keeps operational detail out of this repo.
 
-Written because the rule existed and did not hold: the task list arrived inside
-an unrelated PR and stayed for months, and the check that should have caught it
-excluded `*.md` and looked for a single pattern. These tests pin what it must
-catch and, just as importantly, what it must not.
+Pins what it must catch and, just as importantly, what it must not: a guard
+that fires on ordinary code gets switched off.
 """
 
 import importlib.util
@@ -70,7 +68,7 @@ def test_generated_files_are_skipped():
 
 
 def test_markdown_is_not_excluded():
-    """The exclusion that let the task list through for three months."""
+    """Prose is scanned too: markdown carries the same detail as code."""
     assert hygiene.scan(_diff("notes.md", "tenant montiko, digest sha256:" + "b" * 64))
 
 
