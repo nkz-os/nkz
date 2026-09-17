@@ -611,7 +611,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                     {t('viewer.telemetry.realtime')}
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isConnected || hasEntityData ? 'bg-nkz-success-soft0 animate-pulse' : 'bg-gray-400'}`} />
+                    <div className={`w-2 h-2 rounded-full ${isConnected || hasEntityData ? 'bg-nkz-success animate-pulse' : 'bg-gray-400'}`} />
                     {displayTimestamp && (
                         <span className="text-xs text-slate-500">
                             {new Date(displayTimestamp).toLocaleTimeString('es-ES', {
