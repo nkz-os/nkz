@@ -3,8 +3,7 @@
 With no CONTEXT_URL the helper emits application/json and no Link, so Orion
 expands every term against the default vocabulary. Entities then land under
 https://uri.etsi.org/ngsi-ld/default-context/<Type> and are invisible to any
-read that does send the platform context -- the exact shape of the leaked
-WeatherAlert entities found in the 2026-08-03 audit.
+read that does send the platform context.
 """
 import logging
 import os
