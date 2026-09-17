@@ -103,6 +103,14 @@ jobs:
           - sdm-integration
           - task-queue
           - telemetry-worker
+          # Added after a change to risk-worker's reconciler shipped green:
+          # these suites existed and passed, and nothing ran them.
+          - api-gateway
+          - risk-worker
+          - sensor-health-beat
+          - tenant-webhook
+          - timeseries-reader
+          - weather-worker
           - tenant-user-api
           - weather-api
     steps:
