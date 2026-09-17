@@ -8,7 +8,10 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'node_modules', 'eslint.config.mjs'],
+    // 'coverage' holds generated lcov-report bundles. CI lints before it exists,
+    // so linting it locally reports warnings CI never sees and puts the local
+    // count over the --max-warnings threshold for no real reason.
+    ignores: ['dist', 'node_modules', 'coverage', 'eslint.config.mjs'],
   },
   {
     files: ['**/*.{ts,tsx}'],
