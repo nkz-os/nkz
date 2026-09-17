@@ -387,3 +387,8 @@ docs/audits/
 *_SPEC.md
 HANDOFF.md
 CURRENT_STATE.md
+
+# Task list: lives outside the repos (workspace root + internal-docs-local).
+# It carries tenant names, hostnames, image digests and incident notes, none of
+# which belong in a public repo. It was tracked here from 2026-06-23 to 2026-09-17.
+PENDING.md
