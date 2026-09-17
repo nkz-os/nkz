@@ -47,8 +47,17 @@ def _paged_orion(all_subs):
 def test_dedup_sees_subscriptions_past_the_first_page():
     """A tenant already holding every managed subscription, buried behind a
     page of unrelated ones, must not have any of them recreated."""
-    unrelated = [{"description": f"Other sub {i}"} for i in range(ORION_PAGE_SIZE)]
-    managed = [{"description": s["description"]} for s in sm.SUBSCRIPTIONS]
+    unrelated = [
+        {"id": f"urn:ngsi-ld:Subscription:other-{i}", "description": f"Other sub {i}"}
+        for i in range(ORION_PAGE_SIZE)
+    ]
+    # Under their canonical ids, because identity is the id: a copy under any
+    # other id is a leftover the reconciler replaces, which would make this pass
+    # for the wrong reason.
+    managed = [
+        {"id": sm._subscription_id(s), "description": s["description"]}
+        for s in sm.SUBSCRIPTIONS
+    ]
     existing = unrelated + managed
 
     with patch.object(sm.requests, "get", side_effect=_paged_orion(existing)), patch.object(

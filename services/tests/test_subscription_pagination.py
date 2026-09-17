@@ -36,7 +36,10 @@ def test_existing_subscription_past_the_first_page_is_not_recreated(path):
         {"id": f"urn:ngsi-ld:Subscription:{i}", "description": f"unrelated-{i}"}
         for i in range(page_size)
     ]
-    mine = [{"id": "urn:ngsi-ld:Subscription:mine", "description": s["description"]}
+    # The canonical id, because identity is the id: a copy under any other id is
+    # a leftover the reconciler is supposed to replace, which would make this
+    # test pass for the wrong reason.
+    mine = [{"id": module._subscription_id(s), "description": s["description"]}
             for s in module.SUBSCRIPTIONS]
 
     with patch.object(
