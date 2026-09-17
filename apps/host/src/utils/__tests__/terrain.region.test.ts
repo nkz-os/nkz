@@ -10,12 +10,12 @@ describe('terrainProviderForRegion', () => {
     expect(terrainProviderForRegion('spain')).toBe('ign');
   });
 
-  it('eu → eu (eu-elevation module)', () => {
-    expect(terrainProviderForRegion('eu')).toBe('eu');
+  it('eu → terrarium (global open-data; eu-elevation module still wins via host guard)', () => {
+    expect(terrainProviderForRegion('eu')).toBe('terrarium');
   });
 
-  it('world → eu (eu-elevation module fallback)', () => {
-    expect(terrainProviderForRegion('world')).toBe('eu');
+  it('world → terrarium (global open-data fallback)', () => {
+    expect(terrainProviderForRegion('world')).toBe('terrarium');
   });
 });
 

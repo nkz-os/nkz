@@ -5,7 +5,7 @@
 
 import type { RegionId } from './regions';
 
-export type TerrainProviderType = 'idena' | 'ign' | 'cesium_world' | 'auto';
+export type TerrainProviderType = 'idena' | 'ign' | 'cesium_world' | 'esri' | 'terrarium' | 'auto';
 
 type PointCoordinates = [number, number];
 type PolygonCoordinates = number[][] | number[][][];
@@ -18,11 +18,15 @@ type GeometryLike = {
   };
 };
 
-// Terrain provider URLs
+// Terrain provider URLs / ids.
+// 'cesium_world', 'esri' and 'terrarium' are special markers (not layer.json URLs):
+// they are resolved by useTerrainProvider.ts with their dedicated Cesium provider class.
 export const TERRAIN_PROVIDERS: Record<string, string> = {
   idena: 'https://idena.navarra.es/cesiumTerrain/2017/epsg4326/5m/layer.json',
   ign: 'https://qm-mdt.idee.es/1.0.0/terrain/layer.json',
   cesium_world: 'cesium_world', // Special value — handled by Cesium.createWorldTerrain()
+  esri: 'esri',                 // Special value — ArcGISTiledElevationTerrain (Terrain3D, no token)
+  terrarium: 'terrarium',       // Special value — CustomHeightmapTerrainProvider (AWS Open Data, no token)
 };
 
 // Navarra bounding box (approximate)
@@ -119,12 +123,19 @@ export function detectTerrainProviderFromParcels(
 }
 
 /**
- * Get terrain provider URL
+ * Get terrain provider URL.
+ * Special providers (not backed by a layer.json quantized-mesh endpoint) fall
+ * back to IGN so legacy direct-URL consumers (e.g. CesiumPolygonDrawer) keep working.
  */
 export function getTerrainProviderUrl(provider: TerrainProviderType | string): string {
   if (provider === 'cesium_world') {
     // Cesium World Terrain requires Ion token — not available without tenant config.
     // Fall back to IGN (España).
+    return TERRAIN_PROVIDERS.ign;
+  }
+  if (provider === 'esri' || provider === 'terrarium') {
+    // Dedicated Cesium provider classes — no layer.json URL. Legacy URL consumers
+    // get IGN as a safe tokenless fallback.
     return TERRAIN_PROVIDERS.ign;
   }
   if (provider in TERRAIN_PROVIDERS) {
@@ -143,6 +154,8 @@ export function getTerrainProviderName(provider: TerrainProviderType): string {
   if (provider === 'idena') return 'IDENA (Navarra)';
   if (provider === 'ign') return 'IGN (España)';
   if (provider === 'cesium_world') return 'Cesium World Terrain (Global)';
+  if (provider === 'esri') return 'Esri World Elevation (Global)';
+  if (provider === 'terrarium') return 'Terrarium — AWS Open Data (Global)';
   return String(provider);
 }
 
@@ -150,6 +163,8 @@ export function getTerrainProviderDescription(provider: TerrainProviderType): st
   if (provider === 'idena') return 'Modelo Digital de Terreno de Navarra (5m resolución)';
   if (provider === 'ign') return 'Modelo Digital de Terreno del IGN (España completa)';
   if (provider === 'cesium_world') return 'Cesium World Terrain (~30m, global) — gratuito';
+  if (provider === 'esri') return 'ArcGIS Terrain3D multiscale (~24m, global) — sin token';
+  if (provider === 'terrarium') return 'Mapzen/AWS Open Data (~30m, global) — sin token, datos abiertos';
   return String(provider);
 }
 
@@ -161,13 +176,18 @@ export function getTerrainProviderDescription(provider: TerrainProviderType): st
  * Map a resolved region to the terrain provider id.
  * - navarra → idena (MDT05 5m)
  * - spain → ign (MDT 25m)
- * - eu / world → eu (delegated to eu-elevation module; host does not set terrain)
+ * - eu / world → terrarium (AWS Open Data, tokenless global fallback)
+ *
+ * The eu-elevation module still wins when active: it sets its own terrain
+ * provider on the viewer and useTerrainProvider's module-managed guard skips
+ * the host override. terrarium is only the fallback when no module provider
+ * is present (previously this case fell back to flat ellipsoid terrain).
  */
-export function terrainProviderForRegion(region: RegionId): 'idena' | 'ign' | 'eu' {
+export function terrainProviderForRegion(region: RegionId): 'idena' | 'ign' | 'terrarium' {
   if (region === 'navarra') return 'idena';
   if (region === 'spain') return 'ign';
-  // eu + world → handled by eu-elevation module (host delegates)
-  return 'eu';
+  // eu + world → tokenless global open-data terrain
+  return 'terrarium';
 }
 
 /**
