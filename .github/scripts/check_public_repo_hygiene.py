@@ -47,6 +47,9 @@ STRUCTURAL: list[tuple[str, re.Pattern, str, str]] = [
 # organisation secret, which also means a finding prints them masked.
 PRIVATE_TERMS_ENV = "HYGIENE_PRIVATE_TERMS"
 
+# Opt-out marker for a single line (see scan()).
+FIXTURE_MARKER = "hygiene:allow"
+
 
 def private_rules(raw: str | None) -> list[tuple[str, re.Pattern, str, str]]:
     terms = [t.strip() for t in (raw or "").split(",") if t.strip()]
@@ -92,6 +95,11 @@ def scan(diff: str, rules: list | None = None) -> list[str]:
         if skipping or not line.startswith("+"):
             continue
         added = line[1:]
+        # A line may opt out with an explicit marker. Per line, never per file,
+        # so the exception is visible in review next to what it covers. Used by
+        # this guard's own fixtures, which have to contain what it looks for.
+        if FIXTURE_MARKER in added:
+            continue
         for name, pattern, why, instead in (rules if rules is not None else STRUCTURAL):
             for m in pattern.finditer(added):
                 hit = m.group(0)

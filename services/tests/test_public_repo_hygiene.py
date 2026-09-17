@@ -30,6 +30,12 @@ def _diff(path: str, *added: str) -> str:
     return f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n{body}"
 
 
+def test_the_marker_is_per_line_not_per_file():
+    """An exception must sit next to what it excuses, where review sees it."""
+    assert not hygiene.scan(_diff("x.py", "sha256:" + "d" * 64 + "  # hygiene:allow"), ALL_RULES)
+    assert hygiene.scan(_diff("x.py", "sha256:" + "d" * 64), ALL_RULES)
+
+
 def test_the_script_holds_no_private_values():
     """The whole point: shapes live here, values do not."""
     src = _SCRIPT.read_text()
@@ -43,8 +49,8 @@ def test_the_script_holds_no_private_values():
         ("src/app.ts", 'const API = "https://app.example.invalid"'),
         ("NOTES.md", "- acme-tenant: 16 records"),            # markdown is scanned
         ("docs/deploy.md", "image: ghcr.io/x@sha256:" + "a" * 64),
-        ("services/x.py", "# run kubectl get pods -n foo"),
-        ("k8s/svc.yaml", "  externalIP: 198.18.0.7"),   # RFC 2544 benchmark range
+        ("services/x.py", "# run kubectl get pods -n foo"),  # hygiene:allow
+        ("k8s/svc.yaml", "  externalIP: 198.18.0.7"),  # hygiene:allow RFC 2544 range
     ],
 )
 def test_operational_detail_is_caught(path, line):
