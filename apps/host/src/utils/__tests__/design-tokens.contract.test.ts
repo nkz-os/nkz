@@ -18,10 +18,17 @@ const PRESET_PATH = resolve(
   __dirname,
   '../../../../../packages/design-tokens/dist/tailwind-preset.js',
 );
-function loadPreset(): any {
+type ColourNode = string | { [key: string]: ColourNode };
+interface TailwindPreset {
+  theme?: {
+    extend?: { colors?: { nkz?: ColourNode } };
+    colors?: { nkz?: ColourNode };
+  };
+}
+
+function loadPreset(): TailwindPreset {
   const src = readFileSync(PRESET_PATH, 'utf8');
-  const mod = { exports: {} as any };
-  // eslint-disable-next-line no-new-func
+  const mod: { exports: TailwindPreset } = { exports: {} };
   new Function('module', 'exports', src)(mod, mod.exports);
   return mod.exports;
 }
@@ -64,15 +71,15 @@ function walk(dir: string): string[] {
 
 /** Flatten the preset colour tree into the token names Tailwind will accept. */
 function tokenNames(): Set<string> {
-  const colors = preset?.theme?.extend?.colors?.nkz ?? preset?.theme?.colors?.nkz ?? {};
+  const colors: ColourNode = preset?.theme?.extend?.colors?.nkz ?? preset?.theme?.colors?.nkz ?? {};
   const names = new Set<string>();
-  const visit = (node: unknown, prefix: string) => {
+  const visit = (node: ColourNode, prefix: string) => {
     if (typeof node === 'string') {
       if (prefix) names.add(prefix);
       return;
     }
     if (node && typeof node === 'object') {
-      for (const [k, v] of Object.entries(node)) {
+      for (const [k, v] of Object.entries(node) as [string, ColourNode][]) {
         const next = k === 'DEFAULT' ? prefix : prefix ? `${prefix}-${k}` : k;
         visit(v, next);
       }
