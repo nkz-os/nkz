@@ -21,7 +21,7 @@ function PanelRoot({ variant = 'solid', children, className }: PanelProps) {
       radius="lg"
       className={clsx(
         variant === 'glass' && 'backdrop-blur-xl saturate-[180%]',
-        variant === 'opaque' && 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700',
+        variant === 'opaque' && 'bg-nkz-surface border border-nkz-border',
         'flex flex-col',
         className
       )}

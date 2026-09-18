@@ -51,11 +51,11 @@ class ModuleErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-nkz-stack bg-red-50 border border-red-200 rounded-nkz-md">
-          <p className="text-nkz-sm text-red-800 font-medium">
+        <div className="p-nkz-stack bg-nkz-danger-soft border border-nkz-danger-strong rounded-nkz-md">
+          <p className="text-nkz-sm text-nkz-danger-strong font-medium">
             Error en modulo: {this.props.moduleId}
           </p>
-          <p className="text-nkz-xs text-red-600 mt-nkz-tight">
+          <p className="text-nkz-xs text-nkz-danger-strong mt-nkz-tight">
             {this.state.error?.message ?? 'Unknown error'}
           </p>
         </div>
@@ -93,7 +93,7 @@ function SlotShell({
   const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
 
   const content = (
-    <Panel variant="solid" className={clsx('rounded-xl shadow-nkz-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700', className)}>
+    <Panel variant="solid" className={clsx('rounded-xl shadow-nkz-md bg-nkz-surface border border-nkz-border', className)}>
       {(title || icon || collapsible) && (
         <Panel.Header>
           <Panel.Title icon={icon}>{title}</Panel.Title>
@@ -159,7 +159,7 @@ function SlotShellCompact({
   className,
 }: SlotShellCompactProps) {
   const content = (
-    <Panel variant="solid" className={clsx('rounded-xl shadow-nkz-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700', className)}>
+    <Panel variant="solid" className={clsx('rounded-xl shadow-nkz-md bg-nkz-surface border border-nkz-border', className)}>
       <Panel.Body>{children}</Panel.Body>
     </Panel>
   );

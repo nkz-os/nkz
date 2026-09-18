@@ -33,6 +33,7 @@
   "scripts": {
     "build": "tsx src/build-css.ts && tsx src/build-tailwind.ts && tsx src/build-native.ts && tsup src/index.ts --format cjs,esm --dts --external react,react-dom",
     "dev": "tsx watch src/build-css.ts",
+    "test": "vitest run",
     "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
@@ -45,6 +46,7 @@
     "@types/react-dom": "^19.2.3",
     "tsup": "^8.0.0",
     "tsx": "^4.23.13",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "vitest": "^5.0.1"
   }
 }

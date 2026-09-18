@@ -28,11 +28,27 @@ text; `success`/`warning`/`danger` bases are not — hence the `-strong` variant
 See `src/tokens.config.ts` (`semanticColors` — inline comment documents the exact
 contrast fixes) for the source values per profile (page/field/HMI/dark).
 
-### Known gap: `-light` is not a defined suffix
+## Inverse surface (deliberate contrast — tooltips, toasts, snackbars)
 
-A large amount of existing `apps/host` code uses `bg-nkz-{success,warning,danger,info}-light`
-/ `text-nkz-*-light`. **This suffix does not exist in this package's Tailwind preset**
-(`src/build-tailwind.ts` only emits base / `-soft` / `-strong`) — those classes
-compile to nothing under Tailwind's JIT and render no background/color at all. The
-canonical tint suffix is `-soft`. This is a pre-existing gap, not something this
-change fixes; flagging it here so it isn't rediscovered as a mystery each time.
+`surfaceInverse` / `textOnInverse` (`bg-nkz-surface-inverse`, `text-nkz-text-on-inverse`)
+are for elements that deliberately contrast with the page instead of blending into
+it — tooltips, toasts, snackbars. They are **not** a dark-mode shortcut and must
+never be assumed dark.
+
+**They invert per profile: dark in light profiles, light in dark profiles.** A
+fixed dark tooltip pinned to `#1E293B` would be invisible on an already-dark
+profile (`page-dark`/`viewer`) — the same class of bug as a component that sets
+a background token without its matching foreground (see D20 in `Surface`/
+`SidebarShell`). Always use the token pair together; never hardcode one side.
+
+`textOnInverse` on `surfaceInverse` is held to WCAG AA (4.5:1) by
+`src/__tests__/contrast.test.ts` in every profile, the same way `textOnAccent`/
+`accentBase` is.
+
+### `-light` is a compatibility alias, not the canonical suffix
+
+Existing `apps/host` code uses `bg-nkz-{accent,success,warning,danger,info}-light`
+/ `text-nkz-*-light`. `src/build-tailwind.ts` emits these as aliases of `-soft`
+(same CSS variable) so that code keeps resolving. **`-soft` is canonical — use it
+in new code.** Prefer `-soft` when writing or updating classes; `-light` exists
+only for backward compatibility with pre-existing usage.

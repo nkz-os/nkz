@@ -147,8 +147,8 @@ function SidebarShellRoot({
   );
 
   const surfaceClass = variant === 'glass'
-    ? 'bg-white/30 dark:bg-slate-900/40 backdrop-blur-md'
-    : 'bg-white dark:bg-slate-900';
+    ? 'bg-nkz-surface/30 backdrop-blur-md'
+    : 'bg-nkz-surface';
 
   // --------------- Render ---------------
 
@@ -169,8 +169,8 @@ function SidebarShellRoot({
         className={clsx(
           'absolute top-1/2 -translate-y-1/2 z-50 group',
           'p-2 rounded-full',
-          'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl',
-          'text-slate-600 dark:text-slate-300 hover:text-nkz-accent-base hover:bg-slate-50 dark:hover:bg-slate-800 hover:scale-110',
+          'bg-nkz-surface border border-nkz-border shadow-xl',
+          'text-nkz-text-secondary hover:text-nkz-accent-base hover:bg-nkz-surface-sunken hover:scale-110',
           'active:scale-95 transition-all duration-300',
           'flex items-center justify-center',
           isOpen
@@ -214,7 +214,7 @@ function SidebarShellRoot({
           />
         </svg>
         <span className={clsx(
-          'absolute top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-xs rounded',
+          'absolute top-1/2 -translate-y-1/2 px-2 py-1 bg-nkz-surface-inverse text-nkz-text-on-inverse text-xs rounded',
           'opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none',
           side === 'left' ? 'left-full ml-2' : 'right-full mr-2',
         )}>
@@ -233,7 +233,8 @@ function SidebarShellRoot({
           className={clsx(
             'flex flex-col h-full',
             surfaceClass,
-            'border border-slate-200 dark:border-slate-700',
+            'text-nkz-text-primary',
+            'border border-nkz-border',
             side === 'left' ? 'border-r ml-4' : 'border-l mr-4',
             'shadow-nkz-lg rounded-xl',
             'transition-all duration-nkz-normal overflow-y-auto',

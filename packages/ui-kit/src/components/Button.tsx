@@ -25,7 +25,7 @@ const variantClasses: Record<ButtonVariant, string> = {
   secondary:
     'bg-nkz-surface-sunken text-nkz-text-primary hover:bg-nkz-border border border-nkz-border',
   ghost: 'text-nkz-text-secondary hover:bg-nkz-surface-sunken hover:text-nkz-text-primary',
-  danger: 'bg-nkz-danger text-white hover:bg-nkz-danger-strong',
+  danger: 'bg-nkz-danger text-nkz-text-on-accent hover:bg-nkz-danger-strong',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -59,12 +59,12 @@ export function Button({
       : clsx('rounded-nkz-md', sizeClasses[size]),
     isHmiMode
       ? variant === 'primary'
-        ? 'bg-nkz-accent-base text-white border-white hover:bg-nkz-accent-strong'
+        ? 'bg-nkz-accent-base text-nkz-text-on-accent border-nkz-text-on-accent hover:bg-nkz-accent-strong'
         : variant === 'secondary'
           ? 'bg-nkz-surface-sunken text-nkz-text-primary border-nkz-border hover:bg-nkz-surface'
           : variant === 'ghost'
             ? 'bg-transparent text-nkz-text-secondary border-transparent hover:border-nkz-border-strong'
-            : 'bg-nkz-danger text-white border-white hover:bg-nkz-danger-strong border-2'
+            : 'bg-nkz-danger text-nkz-text-on-accent border-nkz-text-on-accent hover:bg-nkz-danger-strong border-2'
       : !accent
         ? variantClasses[variant]
         : variant === 'primary' &&

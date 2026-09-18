@@ -1,19 +1,27 @@
 // tokens.config.ts — canonical token values for ALL profiles
 // Build scripts read this to generate CSS, JS objects, and Tailwind preset.
 
-export type TokenProfile = 'page' | 'viewer' | 'viewer-light' | 'field' | 'hmi';
+export type TokenProfile = 'page' | 'page-dark' | 'viewer' | 'viewer-light' | 'field' | 'hmi';
 
 export interface TokenColors {
   canvas: string;
   surface: string;
   surfaceRaised: string;
   surfaceSunken: string;
+  /**
+   * Deliberately contrasts with the page — tooltips, toasts, snackbars.
+   * INVERTS per profile: dark in light profiles, light in dark profiles. Never
+   * assume a fixed value; a fixed dark tooltip on a dark profile is invisible.
+   */
+  surfaceInverse: string;
   border: string;
   borderStrong: string;
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
   textOnAccent: string;
+  /** Foreground for `surfaceInverse` — same inversion rule applies. */
+  textOnInverse: string;
   accentBase: string;
   accentSoft: string;
   accentStrong: string;
@@ -195,7 +203,24 @@ const semanticColorsHmi = {
   info:    '#60A5FA', infoSoft: '#1E3A5F',    infoStrong: '#93C5FD',
 };
 
-const defaultAccent = { accentBase: '#059669', accentSoft: '#A7F3D0', accentStrong: '#047857' };
+// D18: #059669 gave textOnAccent (white) only 3.77:1 on accentBase — fails AA
+// on the primary button. hover (accentStrong) darkens further, so no single
+// text colour passed both rest and hover states. Shifted the emerald scale
+// one step (accentBase/accentStrong each one step darker) so white text
+// passes AA in both states; accentSoft unchanged.
+const defaultAccent = { accentBase: '#047857', accentSoft: '#A7F3D0', accentStrong: '#065F46' };
+
+const accentDark = { accentBase: '#34D399', accentSoft: '#064E3B', accentStrong: '#6EE7B7' };
+
+// Roles invertidos respecto a `page`: aquí los -strong se ACLARAN (van sobre fondo
+// oscuro) y los -soft se OSCURECEN (son fondos tintados bajo texto claro). Copiar
+// `semanticColors` aquí reproduciría D15, que es el defecto que tiene hoy `viewer`.
+const semanticColorsDark = {
+  success: '#34D399', successSoft: '#064E3B', successStrong: '#6EE7B7',
+  warning: '#FBBF24', warningSoft: '#78350F', warningStrong: '#FCD34D',
+  danger:  '#F87171', dangerSoft:  '#7F1D1D', dangerStrong:  '#FCA5A5',
+  info:    '#60A5FA', infoSoft:    '#1E3A5F', infoStrong:    '#93C5FD',
+};
 
 const shadowsPage = {
   sm: '0 1px 2px rgba(0,0,0,0.04)',
@@ -233,12 +258,14 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
       surface: '#FFFFFF',
       surfaceRaised: '#FFFFFF',
       surfaceSunken: '#F5F5F4',
+      surfaceInverse: '#1E293B',
       border: '#E7E5E4',
       borderStrong: '#D6D3D1',
       textPrimary: '#18181B',
       textSecondary: '#52525B',
       textMuted: '#A1A1AA',
       textOnAccent: '#FFFFFF',
+      textOnInverse: '#F8FAFC',
       ...defaultAccent,
       ...semanticColors,
     },
@@ -249,18 +276,44 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
     glass: 'none',
   },
 
+  'page-dark': {
+    colors: {
+      canvas: '#0B1220',
+      surface: '#0F172A',
+      surfaceRaised: '#1E293B',
+      surfaceSunken: '#020617',
+      surfaceInverse: '#E2E8F0',
+      border: '#334155',
+      borderStrong: '#475569',
+      textPrimary: '#F8FAFC',
+      textSecondary: '#CBD5E1',
+      textMuted: '#94A3B8',
+      textOnAccent: '#052E16',
+      textOnInverse: '#0F172A',
+      ...accentDark,
+      ...semanticColorsDark,
+    },
+    type: typeScalePage,
+    radii,
+    shadows: shadowsViewer,
+    motion, zIndex, space,
+    glass: 'none',
+  },
+
   viewer: {
     colors: {
       canvas: 'transparent',
       surface: '#0F172A',
       surfaceRaised: '#1E293B',
       surfaceSunken: '#020617',
+      surfaceInverse: '#E2E8F0',
       border: 'rgba(148, 163, 184, 0.20)',
       borderStrong: 'rgba(148, 163, 184, 0.35)',
       textPrimary: '#F8FAFC',
       textSecondary: '#CBD5E1',
       textMuted: '#94A3B8',
       textOnAccent: '#FFFFFF',
+      textOnInverse: '#0F172A',
       ...defaultAccent,
       ...semanticColors,
     },
@@ -277,12 +330,14 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
       surface: '#F8FAFC',
       surfaceRaised: '#FFFFFF',
       surfaceSunken: '#F1F5F9',
+      surfaceInverse: '#1E293B',
       border: 'rgba(15, 23, 42, 0.12)',
       borderStrong: 'rgba(15, 23, 42, 0.20)',
       textPrimary: '#0F172A',
       textSecondary: '#475569',
       textMuted: '#94A3B8',
       textOnAccent: '#FFFFFF',
+      textOnInverse: '#F8FAFC',
       ...defaultAccent,
       ...semanticColors,
     },
@@ -299,12 +354,14 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
       surface: '#FFFFFF',
       surfaceRaised: '#FFFFFF',
       surfaceSunken: '#F5F5F4',
+      surfaceInverse: '#1C1917',
       border: '#D6D3D1',
       borderStrong: '#A8A29E',
       textPrimary: '#0C0A09',
       textSecondary: '#44403C',
       textMuted: '#78716C',
       textOnAccent: '#FFFFFF',
+      textOnInverse: '#FAFAF9',
       ...defaultAccent,
       ...semanticColorsField,
     },
@@ -322,12 +379,14 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
       surface: '#1A1A1A',
       surfaceRaised: '#242424',
       surfaceSunken: '#0A0A0A',
+      surfaceInverse: '#E7E5E4',
       border: '#333333',
       borderStrong: '#525252',
       textPrimary: '#FDE68A',
       textSecondary: '#FBBF24',
       textMuted: '#D97706',
       textOnAccent: '#0F0F0F',
+      textOnInverse: '#0F0F0F',
       accentBase: '#F59E0B',
       accentSoft: '#78350F',
       accentStrong: '#FBBF24',
@@ -342,5 +401,5 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
   },
 };
 
-export const cssProfiles: TokenProfile[] = ['page', 'viewer', 'viewer-light', 'field'];
+export const cssProfiles: TokenProfile[] = ['page', 'page-dark', 'viewer', 'viewer-light', 'field'];
 export const jsOnlyProfiles: TokenProfile[] = ['hmi'];
