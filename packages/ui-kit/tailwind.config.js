@@ -6,6 +6,10 @@
 // classes applied (not even Tailwind's own defaults).
 export default {
   presets: [require('@nekazari/design-tokens/tailwind')],
+  // Mirrors apps/host/tailwind.config.js: `dark:` keys off a `.dark` class on
+  // the root (as ThemeContext.tsx actually drives it in production), not the
+  // 'media' default (prefers-color-scheme).
+  darkMode: 'class',
   content: ['./src/**/*.{ts,tsx}', './playwright/**/*.{ts,tsx}'],
   safelist: [{ pattern: /-nkz-/ }],
   plugins: [],
