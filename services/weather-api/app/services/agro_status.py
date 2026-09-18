@@ -711,6 +711,10 @@ def calculate_agro_status(
             "precip_probability": precip_prob,
             "spraying_reason": spraying_reason,
             "soil_moisture": soil_moisture,
+            # The host panel reads `metrics.moisture` as a PERCENT (it appends
+            # `%`), while `soil_moisture` is the analytical 0-1 fraction. Keep
+            # both: fraction for models, percent for display.
+            "moisture": (soil_moisture * 100.0) if soil_moisture is not None else None,
             "soil_moisture_provenance": soil_moisture_provenance,
         },
         "soil": {

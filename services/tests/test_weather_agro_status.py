@@ -450,6 +450,18 @@ class TestWorkabilitySemaphore:
         assert r["metrics"]["soil_moisture"] is None
         assert r["metrics"]["soil_moisture_provenance"] is None
 
+    def test_panel_moisture_is_percent_not_fraction(self, delta_t):
+        """The host panel reads metrics.moisture and appends '%'.
+
+        metrics.soil_moisture is the analytical 0-1 fraction; metrics.moisture
+        is its percent form for display. A fraction passed straight through
+        would render as 0.1 % on a parcel that is only mildly dry.
+        """
+        delta_t(5.0)
+        r = run_agro(obs_overrides={"soil_moisture_0_10cm": 12.0})
+        assert r["metrics"]["soil_moisture"] == 0.12
+        assert r["metrics"]["moisture"] == 12.0
+
     def test_generic_fallback_reads_the_same_scale_as_the_texture_branch(self, delta_t):
         """Both branches must treat soil moisture as a 0-1 fraction.
 
