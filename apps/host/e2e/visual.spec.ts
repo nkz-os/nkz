@@ -148,12 +148,23 @@ async function waitForNoSpinners(page: Page) {
     undefined,
     { timeout: 10_000 },
   );
-  // Once the spinner is gone, the `loading` state flipped to false in the
-  // same render as the real content — but a commit still needs a paint to
-  // reach the screen. Two animation frames is the browser's own signal
-  // that a commit has been painted (React/the browser flush pending DOM
-  // mutations before the next paint); this is a paint barrier tied to the
-  // browser's render pipeline, not a guessed clock duration.
+  // tokens.css pulls Inter from Google Fonts with display=swap: first paint
+  // uses the fallback stack and swaps when the network lands. Native form
+  // controls (the Timezone/Language/Currency <select>s in TenantProfileEditor
+  // on /settings) lag behind regular text nodes picking up that swap, so a
+  // capture that races it lands on the fallback glyphs for just that control.
+  // packages/ui-kit and packages/viewer-kit's component harnesses already
+  // await this before their first paint (playwright/index.tsx in each) — this
+  // suite never got the same treatment. document.fonts.ready resolves once no
+  // font load is pending, including the failure case, so this cannot hang an
+  // offline or CDN-blocked run.
+  await page.evaluate(() => document.fonts.ready);
+  // Once the spinner is gone and fonts have settled, the `loading` state
+  // flipped to false and the final typeface is in place — but a commit still
+  // needs a paint to reach the screen. Two animation frames is the browser's
+  // own signal that a commit has been painted (React/the browser flush
+  // pending DOM mutations before the next paint); this is a paint barrier
+  // tied to the browser's render pipeline, not a guessed clock duration.
   await page.evaluate(
     () =>
       new Promise<void>((resolve) => {
