@@ -89,12 +89,28 @@ jobs:
         # the publish identity from the workflow's OIDC token at runtime.
         # --provenance signs the release with a public SLSA attestation.
         #
-        # We must use `npm publish` (not `pnpm publish`) for the OIDC flow:
-        # only npm CLI v11.5+ exchanges the ACTIONS_ID_TOKEN_REQUEST_* env
-        # for a short-lived npm publish token. Node 22 ships npm 10.x, so
-        # we invoke the latest npm via `npx -p npm@latest -y` rather than
-        # upgrading the global npm (which fails with MODULE_NOT_FOUND while
-        # rebuilding itself in-place).
+        # Two CLIs are involved, each for a reason the other can't cover:
+        #
+        # 1. `npm publish` (not `pnpm publish`) for the OIDC flow: only npm
+        #    CLI v11.5+ exchanges the ACTIONS_ID_TOKEN_REQUEST_* env for a
+        #    short-lived npm publish token. Node 22 ships npm 10.x, so we
+        #    invoke the latest npm via `npx -p npm@latest -y` rather than
+        #    upgrading the global npm (which fails with MODULE_NOT_FOUND
+        #    while rebuilding itself in-place).
+        #
+        # 2. `pnpm pack` (not `npm pack`) to build the tarball we hand to
+        #    npm: several packages here declare their @nekazari/* deps as
+        #    `workspace:*` (correct for this monorepo). Only `pnpm pack`/
+        #    `pnpm publish` rewrite that protocol to a real published
+        #    semver range when packing. `npm pack`/`npm publish` leave
+        #    `workspace:*` verbatim in the published package.json, which is
+        #    not a valid npm range — `npm install` on the published package
+        #    fails with EUNSUPPORTEDPROTOCOL for every external consumer.
+        #
+        # So: pack with pnpm (protocol rewritten), publish that tarball
+        # with npm (OIDC-capable). `npm publish <tarball>` accepts a path
+        # and keeps --provenance/OIDC working exactly as with a bare
+        # `npm publish`.
         #
         # NODE_AUTH_TOKEN cleared so the .npmrc placeholder resolves to
         # empty; npm then takes the OIDC path because id-token: write is
@@ -114,6 +130,7 @@ jobs:
             TAG="latest"
           fi
           echo "Publishing $VERSION with dist-tag '$TAG'"
-          npx -p npm@latest -y npm publish --access=public --provenance --tag "$TAG"
+          TARBALL=$(pnpm pack --json | jq -r '.filename')
+          npx -p npm@latest -y npm publish "$TARBALL" --access=public --provenance --tag "$TAG"
         env:
           NODE_AUTH_TOKEN: ""
