@@ -31,7 +31,9 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --external react,react-dom,@nekazari/design-tokens",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run build",
+    "test:ct": "playwright test -c playwright-ct.config.ts",
+    "test:ct:update": "playwright test -c playwright-ct.config.ts --update-snapshots"
   },
   "dependencies": {
     "@nekazari/design-tokens": "^0.1.0-alpha",
@@ -52,6 +54,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/experimental-ct-react": "1.63.0-alpha-1786107553000",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "react": "^18.3.1",
