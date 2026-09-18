@@ -13,6 +13,15 @@ export default defineConfig({
   forbidOnly: !!process.env['CI'],
   retries: 0,
   reporter: process.env['CI'] ? [['list']] : 'html',
+  // Strict pixel comparison: Playwright's default threshold is tolerant enough
+  // that a real token/colour change can fall below it and pass against a
+  // stale snapshot (confirmed on Card: border colour drifted to a hardcoded
+  // gray-200 while 16/16 screenshot comparisons stayed green). A baseline
+  // whose whole purpose is catching colour/token regressions must compare
+  // exactly, or it isn't doing its job.
+  expect: {
+    toHaveScreenshot: { threshold: 0, maxDiffPixels: 0 },
+  },
   use: {
     ctViteConfig: {
       resolve: {
