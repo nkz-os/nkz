@@ -159,6 +159,7 @@ VEGETATION_API_URL = os.getenv(
     "VEGETATION_API_URL", "http://vegetation-prime-api-service:8000"
 )
 WEATHER_API_URL = os.getenv("WEATHER_API_URL", "http://weather-api-service:8000")
+WEATHER_MAP_API_URL = os.getenv("WEATHER_MAP_API_URL", "http://weather-map-backend:8080")
 HYDROLOGY_API_URL = os.getenv("HYDROLOGY_API_URL", "http://hydrology-api-service:8000")
 ELEVATION_API_URL = os.getenv("ELEVATION_API_URL", "http://elevation-api-service:80")
 GEOCODE_URL = os.getenv("GEOCODE_URL", "https://photon.komoot.io")
@@ -4346,6 +4347,31 @@ def vegetation_tiles_proxy(path):
         return make_response(resp.content, resp.status_code, response_headers)
     except Exception as e:
         logger.error(f"Tile proxy error to {url}: {e}")
+        return jsonify({"error": "Gateway proxy error"}), 502
+
+
+@app.route("/api/weather-map/tiles/<path:path>", methods=["GET"])
+def weather_map_tiles_proxy(path):
+    """Public proxy for weather-map raster tiles.
+
+    Tile URLs carry a short-lived HMAC token validated by the backend, because
+    Cesium's UrlTemplateImageryProvider sends no cookies/headers. Same reason as
+    the vegetation tiles proxy — these requests must bypass JWT auth.
+    """
+    url = f"{WEATHER_MAP_API_URL}/api/weather-map/tiles/{path}"
+    try:
+        resp = requests.request(
+            method="GET",
+            url=url,
+            params=request.args,
+            allow_redirects=False,
+            timeout=30,
+        )
+        response_headers = dict(resp.headers)
+        response_headers["Cache-Control"] = "public, max-age=3600"
+        return make_response(resp.content, resp.status_code, response_headers)
+    except Exception as e:
+        logger.error(f"Weather-map tile proxy error to {url}: {e}")
         return jsonify({"error": "Gateway proxy error"}), 502
 
 
