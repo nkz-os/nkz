@@ -93,6 +93,7 @@ module.exports = {
         'nkz-md': 'var(--nkz-shadow-md)',
         'nkz-lg': 'var(--nkz-shadow-lg)',
         'nkz-xl': 'var(--nkz-shadow-xl)',
+        'nkz-inset-highlight': 'var(--nkz-shadow-inset-highlight)',
       },
 
       // Spacing — FLAT keys so gap-nkz-stack, p-nkz-section etc. work
@@ -122,6 +123,7 @@ module.exports = {
         'nkz-fast': 'var(--nkz-motion-fast)',
         'nkz-normal': 'var(--nkz-motion-normal)',
         'nkz-slow': 'var(--nkz-motion-slow)',
+        'nkz-reduced': 'var(--nkz-motion-reduced)',
       },
 
       // Transition timing function — FLAT keys

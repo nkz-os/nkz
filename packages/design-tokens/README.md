@@ -28,11 +28,10 @@ text; `success`/`warning`/`danger` bases are not — hence the `-strong` variant
 See `src/tokens.config.ts` (`semanticColors` — inline comment documents the exact
 contrast fixes) for the source values per profile (page/field/HMI/dark).
 
-### Known gap: `-light` is not a defined suffix
+### `-light` is a compatibility alias, not the canonical suffix
 
-A large amount of existing `apps/host` code uses `bg-nkz-{success,warning,danger,info}-light`
-/ `text-nkz-*-light`. **This suffix does not exist in this package's Tailwind preset**
-(`src/build-tailwind.ts` only emits base / `-soft` / `-strong`) — those classes
-compile to nothing under Tailwind's JIT and render no background/color at all. The
-canonical tint suffix is `-soft`. This is a pre-existing gap, not something this
-change fixes; flagging it here so it isn't rediscovered as a mystery each time.
+Existing `apps/host` code uses `bg-nkz-{accent,success,warning,danger,info}-light`
+/ `text-nkz-*-light`. `src/build-tailwind.ts` emits these as aliases of `-soft`
+(same CSS variable) so that code keeps resolving. **`-soft` is canonical — use it
+in new code.** Prefer `-soft` when writing or updating classes; `-light` exists
+only for backward compatibility with pre-existing usage.
