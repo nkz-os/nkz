@@ -267,6 +267,14 @@ def get_parcel_weather(
     if not tenant_id:
         tenant_id = SHARED_TENANT
 
+    # Callers pass either the full NGSI-LD URN or the bare id (the host uses
+    # both conventions). Orion only resolves the URN, so a bare id made this
+    # endpoint 404 and the caller fell back to the legacy municipality weather
+    # (which has no soil moisture) — the dashboard then showed soil moisture
+    # as N/A even though the value sat in the broker.
+    if not parcel_id.startswith("urn:"):
+        parcel_id = f"urn:ngsi-ld:AgriParcel:{parcel_id}"
+
     try:
         # Step 1: Resolve parcel from Orion-LD
         headers = _orion_headers(tenant_id)

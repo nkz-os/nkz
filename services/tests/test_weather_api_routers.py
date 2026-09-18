@@ -282,6 +282,21 @@ class TestAgroStatusEndpoint:
 # ---------------------------------------------------------------------------
 # Regressions for the four bugs that left the agronomic semaphores blank
 # ---------------------------------------------------------------------------
+class TestParcelWeatherShortId:
+    """get_parcel_weather must accept a bare id, not just the full URN."""
+
+    def test_bare_parcel_id_is_normalized_to_urn(self):
+        bare = "test-tenant:p1"  # PARCEL_ID without the urn:ngsi-ld:AgriParcel: prefix
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY,
+                                            weather_observed=[REAL_WEATHER_OBSERVED])):
+            r = client.get(f"/api/weather/parcel/{bare}", headers=AUTH)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["source"] == "orion-cache"
+        # soilMoistureTop=0.11 -> percent. The bare id used to 404 and fall
+        # back to the legacy municipality weather, which has no soil moisture.
+        assert body["observations"][0]["soil_moisture_0_10cm"] == pytest.approx(11.0)
 class TestOrionQueryRegressions:
     """Each test here pins one bug that silently returned no data in production."""
 
