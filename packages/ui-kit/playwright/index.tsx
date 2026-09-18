@@ -8,4 +8,10 @@ beforeMount<{ profile?: string }>(async ({ hooksConfig }) => {
   document.documentElement.setAttribute('data-theme', profile);
   document.body.style.margin = '0';
   document.body.style.padding = '16px';
+
+  // tokens.css pulls Inter from Google Fonts with display=swap: first paint uses
+  // the fallback stack and swaps when the network lands. Without this wait every
+  // screenshot races that swap. document.fonts.ready resolves once no font load
+  // is pending — including the failure case, so this cannot hang offline.
+  await document.fonts.ready;
 });
