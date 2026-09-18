@@ -279,6 +279,9 @@ importers:
       typescript:
         specifier: ^5.2.2
         version: 5.9.3
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(@types/node@26.5.1)(@vitest/coverage-v8@5.0.1)(jsdom@30.0.1)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1))
 
   packages/geo-utils:
     dependencies:
@@ -546,7 +549,7 @@ importers:
     devDependencies:
       '@playwright/experimental-ct-react':
         specifier: 1.62.1
-        version: 1.62.1(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1))(yaml@2.9.1)
+        version: 1.62.1(@types/node@26.5.1)(esbuild@0.28.2)(jiti@1.21.7)(tsx@4.23.13)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1))(yaml@2.9.1)
       '@testing-library/dom':
         specifier: ^10.4.1
         version: 10.4.1
@@ -585,7 +588,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^5.0.1
-        version: 5.0.1(@types/node@26.5.1)(@vitest/coverage-v8@5.0.1)(jsdom@30.0.1)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1))
+        version: 5.0.1(@types/node@26.5.1)(@vitest/coverage-v8@5.0.1)(jsdom@30.0.1)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1))
 
 packages:
 
@@ -5293,25 +5296,6 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@playwright/experimental-ct-core@1.62.1(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1)':
-    dependencies:
-      playwright: 1.62.1
-      playwright-core: 1.62.1
-      vite: 8.3.0(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1)
-    transitivePeerDependencies:
-      - '@types/node'
-      - '@vitejs/devtools'
-      - esbuild
-      - jiti
-      - less
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - terser
-      - tsx
-      - yaml
-
   '@playwright/experimental-ct-core@1.62.1(@types/node@26.5.1)(esbuild@0.28.2)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1)':
     dependencies:
       playwright: 1.62.1
@@ -5329,28 +5313,6 @@ snapshots:
       - sugarss
       - terser
       - tsx
-      - yaml
-
-  '@playwright/experimental-ct-react@1.62.1(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1))(yaml@2.9.1)':
-    dependencies:
-      '@playwright/experimental-ct-core': 1.62.1(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1)
-      '@vitejs/plugin-react': 6.1.1(vite@8.3.0(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1))
-    transitivePeerDependencies:
-      - '@rolldown/plugin-babel'
-      - '@types/node'
-      - '@vitejs/devtools'
-      - babel-plugin-react-compiler
-      - esbuild
-      - jiti
-      - less
-      - oxc-transform-react
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - terser
-      - tsx
-      - vite
       - yaml
 
   '@playwright/experimental-ct-react@1.62.1(@types/node@26.5.1)(esbuild@0.28.2)(jiti@1.21.7)(tsx@4.23.13)(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1))(yaml@2.9.1)':
@@ -6640,11 +6602,6 @@ snapshots:
       vite: 6.4.3(@types/node@26.5.1)(jiti@1.21.7)(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.1)
     transitivePeerDependencies:
       - supports-color
-
-  '@vitejs/plugin-react@6.1.1(vite@8.3.0(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1))':
-    dependencies:
-      '@rolldown/pluginutils': 1.0.1
-      vite: 8.3.0(@types/node@26.5.1)(esbuild@0.27.1)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1)
 
   '@vitejs/plugin-react@6.1.1(vite@8.3.0(@types/node@26.5.1)(esbuild@0.28.2)(jiti@1.21.7)(tsx@4.23.13)(yaml@2.9.1))':
     dependencies:
