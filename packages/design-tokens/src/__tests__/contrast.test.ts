@@ -22,29 +22,22 @@ const ALL_PROFILES = Object.keys(profiles) as (keyof typeof profiles)[];
 //
 //   D15 — `viewer` reutiliza los semánticos de `page`, afinados para fondo claro.
 //
-//   D18 — El botón primario de la plataforma es texto blanco sobre el verde de
-//   marca (`textOnAccent` #FFFFFF / `accentBase` #059669) a 3.7682:1. Incumple
-//   AA 4.5:1 y NO puede acogerse a la excepción de texto grande de WCAG:
-//   `Button` renderiza en text-nkz-xs/sm/base (12–14px) a font-medium (500),
-//   muy por debajo del umbral de texto grande (>=24px normal o >=18.66px
-//   bold). Arreglarlo implica cambiar un color de marca — decisión del dueño,
-//   no de este test.
+//   D18 — RESUELTO 2026-09-18: `accentBase`/`accentStrong` se oscurecieron un
+//   paso (emerald-700/800); textOnAccent/accentBase ya cumple AA en los
+//   cuatro perfiles y se retiró de este trinquete.
 const KNOWN_AA_FAILURES: Record<string, string[]> = {
   'page': [
     'textMuted/surface',        // 2.5629:1 — D17
     'textMuted/surfaceRaised',  // 2.5629:1 — D17
     'textMuted/surfaceSunken',  // 2.3493:1 — D17
-    'textOnAccent/accentBase',  // 3.7682:1 — D18
   ],
   'viewer-light': [
     'textMuted/surface',        // 2.4506:1 — D17
     'textMuted/surfaceRaised',  // 2.5640:1 — D17
     'textMuted/surfaceSunken',  // 2.3405:1 — D17
-    'textOnAccent/accentBase',  // 3.7682:1 — D18
   ],
   'field': [
     'textMuted/surfaceSunken',  // 4.3977:1 — D17 (surface/surfaceRaised cumplen AA: 4.7976:1)
-    'textOnAccent/accentBase',  // 3.7682:1 — D18
   ],
   'viewer': [
     'successStrong/surface',        // 3.2554:1 — D15
@@ -59,7 +52,6 @@ const KNOWN_AA_FAILURES: Record<string, string[]> = {
     'infoStrong/surface',           // 2.6639:1 — D15
     'infoStrong/surfaceRaised',     // 2.1829:1 — D15
     'infoStrong/surfaceSunken',     // 3.0101:1 — D15
-    'textOnAccent/accentBase',      // 3.7682:1 — D18
   ],
 };
 const known = (p: string, pair: string) => (KNOWN_AA_FAILURES[p] ?? []).includes(pair);

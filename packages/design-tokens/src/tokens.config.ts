@@ -195,7 +195,12 @@ const semanticColorsHmi = {
   info:    '#60A5FA', infoSoft: '#1E3A5F',    infoStrong: '#93C5FD',
 };
 
-const defaultAccent = { accentBase: '#059669', accentSoft: '#A7F3D0', accentStrong: '#047857' };
+// D18: #059669 gave textOnAccent (white) only 3.77:1 on accentBase — fails AA
+// on the primary button. hover (accentStrong) darkens further, so no single
+// text colour passed both rest and hover states. Shifted the emerald scale
+// one step (accentBase/accentStrong each one step darker) so white text
+// passes AA in both states; accentSoft unchanged.
+const defaultAccent = { accentBase: '#047857', accentSoft: '#A7F3D0', accentStrong: '#065F46' };
 
 const shadowsPage = {
   sm: '0 1px 2px rgba(0,0,0,0.04)',
