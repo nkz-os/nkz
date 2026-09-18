@@ -24,9 +24,9 @@ export const Card: React.FC<CardProps> = ({ className, padding = 'md', children,
   return (
     <div
       className={clsx(
-        isHmiMode 
-          ? 'rounded-none border-4 border-gray-600 bg-gray-900 text-white shadow-none' 
-          : 'rounded-lg border border-gray-200 bg-white text-gray-900 shadow-sm',
+        isHmiMode
+          ? 'rounded-none border-4 border-nkz-border-strong bg-nkz-surface text-nkz-text-primary shadow-none'
+          : 'rounded-nkz-lg border border-nkz-border bg-nkz-surface text-nkz-text-primary shadow-nkz-sm',
         paddingMap[padding],
         className
       )}

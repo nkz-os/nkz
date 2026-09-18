@@ -16,10 +16,10 @@ interface BadgeProps {
 
 const intentClasses: Record<BadgeIntent, string> = {
   default: 'bg-nkz-surface-sunken text-nkz-text-secondary border border-nkz-border',
-  positive: 'bg-green-100 text-green-800 border border-green-200',
-  warning: 'bg-amber-100 text-amber-800 border border-amber-200',
-  negative: 'bg-red-100 text-red-800 border border-red-200',
-  info: 'bg-blue-100 text-blue-800 border border-blue-200',
+  positive: 'bg-nkz-success-soft text-nkz-success-strong border border-nkz-success-strong',
+  warning: 'bg-nkz-warning-soft text-nkz-warning-strong border border-nkz-warning-strong',
+  negative: 'bg-nkz-danger-soft text-nkz-danger-strong border border-nkz-danger-strong',
+  info: 'bg-nkz-info-soft text-nkz-info-strong border border-nkz-info-strong',
 };
 
 export function Badge({ intent = 'default', children, className }: BadgeProps) {

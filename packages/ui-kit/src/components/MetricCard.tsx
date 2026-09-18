@@ -20,8 +20,8 @@ interface MetricCardProps {
 }
 
 const trendColors: Record<TrendDirection, string> = {
-  up: 'text-green-600',
-  down: 'text-red-600',
+  up: 'text-nkz-success-strong',
+  down: 'text-nkz-danger-strong',
   neutral: 'text-nkz-text-muted',
 };
 

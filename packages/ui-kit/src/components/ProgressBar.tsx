@@ -23,9 +23,9 @@ const sizeClasses: Record<ProgressSize, string> = {
 
 const intentClasses: Record<ProgressIntent, string> = {
   default: 'bg-nkz-accent-base',
-  positive: 'bg-green-500',
-  warning: 'bg-amber-500',
-  negative: 'bg-red-500',
+  positive: 'bg-nkz-success',
+  warning: 'bg-nkz-warning',
+  negative: 'bg-nkz-danger',
 };
 
 export function ProgressBar({
