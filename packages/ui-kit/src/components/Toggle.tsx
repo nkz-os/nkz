@@ -37,7 +37,7 @@ export function Toggle({
       >
         <span
           className={clsx(
-            'block rounded-full bg-white shadow-sm transition-transform duration-nkz-fast',
+            'block rounded-full bg-nkz-surface shadow-sm transition-transform duration-nkz-fast',
             size === 'sm' ? 'w-3 h-3' : 'w-4 h-4',
             checked
               ? size === 'sm'

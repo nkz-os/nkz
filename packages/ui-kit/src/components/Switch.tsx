@@ -35,7 +35,7 @@ export function Switch({
     >
       <RadixSwitch.Thumb
         className={clsx(
-          'block w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-nkz-fast',
+          'block w-4 h-4 bg-nkz-surface rounded-full shadow-sm transition-transform duration-nkz-fast',
           checked ? 'translate-x-[18px]' : 'translate-x-[2px]'
         )}
       />

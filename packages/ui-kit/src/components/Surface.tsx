@@ -18,9 +18,12 @@ interface SurfaceProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const variantMap: Record<SurfaceVariant, string> = {
-  default: 'bg-nkz-surface border border-nkz-border',
-  raised: 'bg-nkz-surface-raised border border-nkz-border shadow-nkz-md',
-  sunken: 'bg-nkz-surface-sunken border border-nkz-border',
+  // Every variant here paints a background, so every variant must also set the
+  // matching foreground — otherwise text falls back to the browser default
+  // (near-black) regardless of how dark the surface gets. See D20.
+  default: 'bg-nkz-surface text-nkz-text-primary border border-nkz-border',
+  raised: 'bg-nkz-surface-raised text-nkz-text-primary border border-nkz-border shadow-nkz-md',
+  sunken: 'bg-nkz-surface-sunken text-nkz-text-primary border border-nkz-border',
 };
 
 const paddingMap: Record<SurfacePadding, string> = {

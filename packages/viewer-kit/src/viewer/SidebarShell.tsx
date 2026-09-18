@@ -233,6 +233,7 @@ function SidebarShellRoot({
           className={clsx(
             'flex flex-col h-full',
             surfaceClass,
+            'text-nkz-text-primary',
             'border border-nkz-border',
             side === 'left' ? 'border-r ml-4' : 'border-l mr-4',
             'shadow-nkz-lg rounded-xl',
