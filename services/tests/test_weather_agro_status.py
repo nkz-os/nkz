@@ -414,6 +414,42 @@ class TestWorkabilitySemaphore:
         assert "soil_moisture" in r["metrics"]
         assert r["metrics"]["soil_moisture"] == 0.12
 
+    def test_falls_back_to_virtual_station_soil_moisture(self, delta_t):
+        """With no physical sensor, the panel should still show moisture.
+
+        Every other panel signal (wind, delta T, balance) already comes from the
+        per-parcel virtual station, so leaving moisture as N/A was inconsistent.
+        The router normalises the station's soilMoistureTop into
+        weather_observation as soil_moisture_0_10cm, in PERCENT (via
+        _soil_percent) on the Orion path — the fraction scale is honoured too.
+        """
+        delta_t(5.0)
+        r = run_agro(obs_overrides={"soil_moisture_0_10cm": 12.0})
+        assert r["metrics"]["soil_moisture"] == 0.12
+        assert r["metrics"]["soil_moisture_provenance"] == "parcel_weather"
+
+    def test_fallback_accepts_fraction_scale_too(self, delta_t):
+        """Both router paths must be safe: percent (Orion) and fraction."""
+        delta_t(5.0)
+        r = run_agro(obs_overrides={"soil_moisture_0_10cm": 0.116})
+        assert r["metrics"]["soil_moisture"] == 0.116
+
+    def test_sensor_beats_the_virtual_station(self, delta_t):
+        """A real reading must win over the model, and say so."""
+        delta_t(5.0)
+        sensor = make_sensor({"measurements": {"soilMoistureTop": 0.099}})
+        r = run_agro(obs_overrides={"soil_moisture_0_10cm": 25.0},
+                     sensor_data=sensor)
+        assert r["metrics"]["soil_moisture"] == 0.099
+        assert r["metrics"]["soil_moisture_provenance"] == "iot_sensor"
+
+    def test_no_sensor_no_station_leaves_moisture_absent(self, delta_t):
+        """Nothing to show must stay None with no provenance, not a guess."""
+        delta_t(5.0)
+        r = run_agro()
+        assert r["metrics"]["soil_moisture"] is None
+        assert r["metrics"]["soil_moisture_provenance"] is None
+
     def test_generic_fallback_reads_the_same_scale_as_the_texture_branch(self, delta_t):
         """Both branches must treat soil moisture as a 0-1 fraction.
 
