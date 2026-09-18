@@ -10,6 +10,16 @@ function toVarName(key: string): string {
   return `--nkz-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
 }
 
+/** Tokens cuyo valor NO es hex opaco en algún perfil → no admiten forma de canal. */
+const NON_CHANNEL_TOKENS = new Set(['canvas', 'border', 'borderStrong']);
+
+function hexToChannels(hex: string): string | null {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const v = m[1]!;
+  return [0, 2, 4].map((i) => parseInt(v.slice(i, i + 2), 16)).join(' ');
+}
+
 function buildProfileCSS(name: TokenProfile, def: TokenProfileDefinition): string {
   const lines: string[] = [];
   const selector = name === 'page' ? ':root, [data-theme="page"]' : `[data-theme="${name}"]`;
@@ -21,6 +31,10 @@ function buildProfileCSS(name: TokenProfile, def: TokenProfileDefinition): strin
   for (const [key, value] of Object.entries(def.colors)) {
     if (typeof value === 'string') {
       lines.push(`  ${toVarName(`color-${key}`)}: ${value};`);
+      if (!NON_CHANNEL_TOKENS.has(key)) {
+        const channels = hexToChannels(value);
+        if (channels) lines.push(`  ${toVarName(`color-${key}`)}-rgb: ${channels};`);
+      }
     }
   }
 

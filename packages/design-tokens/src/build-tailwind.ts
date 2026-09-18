@@ -21,51 +21,51 @@ module.exports = {
       colors: {
         nkz: {
           canvas: 'var(--nkz-color-canvas)',
-          surface: 'var(--nkz-color-surface)',
-          'surface-raised': 'var(--nkz-color-surface-raised)',
-          'surface-sunken': 'var(--nkz-color-surface-sunken)',
+          surface: 'rgb(var(--nkz-color-surface-rgb) / <alpha-value>)',
+          'surface-raised': 'rgb(var(--nkz-color-surface-raised-rgb) / <alpha-value>)',
+          'surface-sunken': 'rgb(var(--nkz-color-surface-sunken-rgb) / <alpha-value>)',
           border: 'var(--nkz-color-border)',
           'border-strong': 'var(--nkz-color-border-strong)',
-          'text-primary': 'var(--nkz-color-text-primary)',
-          'text-secondary': 'var(--nkz-color-text-secondary)',
-          'text-muted': 'var(--nkz-color-text-muted)',
+          'text-primary': 'rgb(var(--nkz-color-text-primary-rgb) / <alpha-value>)',
+          'text-secondary': 'rgb(var(--nkz-color-text-secondary-rgb) / <alpha-value>)',
+          'text-muted': 'rgb(var(--nkz-color-text-muted-rgb) / <alpha-value>)',
           // 'muted' is a deprecated alias of 'text-muted' (canonical). The host
           // alone calls it that 531 times and no token ever answered, so muted
           // text has been rendering in the inherited colour. Prefer 'text-muted'.
-          muted: 'var(--nkz-color-text-muted)',
-          'text-on-accent': 'var(--nkz-color-text-on-accent)',
+          muted: 'rgb(var(--nkz-color-text-muted-rgb) / <alpha-value>)',
+          'text-on-accent': 'rgb(var(--nkz-color-text-on-accent-rgb) / <alpha-value>)',
           accent: {
-            base: 'var(--nkz-color-accent-base)',
-            soft: 'var(--nkz-color-accent-soft)',
+            base: 'rgb(var(--nkz-color-accent-base-rgb) / <alpha-value>)',
+            soft: 'rgb(var(--nkz-color-accent-soft-rgb) / <alpha-value>)',
             // 'light' is a deprecated alias of 'soft' (canonical); kept so existing
             // module code using nkz-*-light still resolves. Prefer 'soft' in new code.
-            light: 'var(--nkz-color-accent-soft)',
-            strong: 'var(--nkz-color-accent-strong)',
+            light: 'rgb(var(--nkz-color-accent-soft-rgb) / <alpha-value>)',
+            strong: 'rgb(var(--nkz-color-accent-strong-rgb) / <alpha-value>)',
           },
-          success: 'var(--nkz-color-success)',
-          'success-soft': 'var(--nkz-color-success-soft)',
+          success: 'rgb(var(--nkz-color-success-rgb) / <alpha-value>)',
+          'success-soft': 'rgb(var(--nkz-color-success-soft-rgb) / <alpha-value>)',
           // 'success-light' is a deprecated alias of 'success-soft' (canonical); kept so
           // existing module code using nkz-success-light still resolves. Prefer '-soft' in new code.
-          'success-light': 'var(--nkz-color-success-soft)',
-          'success-strong': 'var(--nkz-color-success-strong)',
-          warning: 'var(--nkz-color-warning)',
-          'warning-soft': 'var(--nkz-color-warning-soft)',
+          'success-light': 'rgb(var(--nkz-color-success-soft-rgb) / <alpha-value>)',
+          'success-strong': 'rgb(var(--nkz-color-success-strong-rgb) / <alpha-value>)',
+          warning: 'rgb(var(--nkz-color-warning-rgb) / <alpha-value>)',
+          'warning-soft': 'rgb(var(--nkz-color-warning-soft-rgb) / <alpha-value>)',
           // 'warning-light' is a deprecated alias of 'warning-soft' (canonical); kept so
           // existing module code using nkz-warning-light still resolves. Prefer '-soft' in new code.
-          'warning-light': 'var(--nkz-color-warning-soft)',
-          'warning-strong': 'var(--nkz-color-warning-strong)',
-          danger: 'var(--nkz-color-danger)',
-          'danger-soft': 'var(--nkz-color-danger-soft)',
+          'warning-light': 'rgb(var(--nkz-color-warning-soft-rgb) / <alpha-value>)',
+          'warning-strong': 'rgb(var(--nkz-color-warning-strong-rgb) / <alpha-value>)',
+          danger: 'rgb(var(--nkz-color-danger-rgb) / <alpha-value>)',
+          'danger-soft': 'rgb(var(--nkz-color-danger-soft-rgb) / <alpha-value>)',
           // 'danger-light' is a deprecated alias of 'danger-soft' (canonical); kept so
           // existing module code using nkz-danger-light still resolves. Prefer '-soft' in new code.
-          'danger-light': 'var(--nkz-color-danger-soft)',
-          'danger-strong': 'var(--nkz-color-danger-strong)',
-          info: 'var(--nkz-color-info)',
-          'info-soft': 'var(--nkz-color-info-soft)',
+          'danger-light': 'rgb(var(--nkz-color-danger-soft-rgb) / <alpha-value>)',
+          'danger-strong': 'rgb(var(--nkz-color-danger-strong-rgb) / <alpha-value>)',
+          info: 'rgb(var(--nkz-color-info-rgb) / <alpha-value>)',
+          'info-soft': 'rgb(var(--nkz-color-info-soft-rgb) / <alpha-value>)',
           // 'info-light' is a deprecated alias of 'info-soft' (canonical); kept so
           // existing module code using nkz-info-light still resolves. Prefer '-soft' in new code.
-          'info-light': 'var(--nkz-color-info-soft)',
-          'info-strong': 'var(--nkz-color-info-strong)',
+          'info-light': 'rgb(var(--nkz-color-info-soft-rgb) / <alpha-value>)',
+          'info-strong': 'rgb(var(--nkz-color-info-strong-rgb) / <alpha-value>)',
         },
       },
 
