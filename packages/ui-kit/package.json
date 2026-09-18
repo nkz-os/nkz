@@ -33,7 +33,7 @@
     "build": "tsup src/index.ts --format cjs,esm --dts --external react,react-dom,@nekazari/design-tokens",
     "prepublishOnly": "pnpm run build",
     "test:ct": "playwright test -c playwright-ct.config.ts",
-    "test:ct:update": "playwright test -c playwright-ct.config.ts --update-snapshots"
+    "test:ct:update": "playwright test -c playwright-ct.config.ts --update-snapshots --workers=1"
   },
   "dependencies": {
     "@nekazari/design-tokens": "workspace:*",

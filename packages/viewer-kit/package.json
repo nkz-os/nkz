@@ -31,11 +31,11 @@
     "prepublishOnly": "pnpm run build",
     "test": "vitest run",
     "test:ct": "playwright test -c playwright-ct.config.ts",
-    "test:ct:update": "playwright test -c playwright-ct.config.ts --update-snapshots"
+    "test:ct:update": "playwright test -c playwright-ct.config.ts --update-snapshots --workers=1"
   },
   "dependencies": {
     "@nekazari/design-tokens": "workspace:*",
-    "@nekazari/ui-kit": "^1.0.2-alpha.3",
+    "@nekazari/ui-kit": "workspace:*",
     "clsx": "^2.1.1"
   },
   "peerDependencies": {
