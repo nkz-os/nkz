@@ -11,6 +11,18 @@ from __future__ import annotations
 TLS_PORT = 8883
 
 
+def parse_port(raw: str | None, default: int = TLS_PORT) -> int:
+    """The configured port, or the default when it is unset or blank.
+
+    Missing and blank are the same thing here: a port has a sensible default,
+    so an operator who empties the setting while disabling the endpoint must
+    not crash the whole service on startup. Garbage still raises, loudly.
+    """
+    if raw is None or raw.strip() == "":
+        return default
+    return int(raw)
+
+
 def endpoint_for_devices(host: str, port: int) -> dict:
     """The endpoint a device should use, or why there is none.
 
