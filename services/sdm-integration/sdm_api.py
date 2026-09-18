@@ -51,14 +51,13 @@ if not MONGODB_URL:
 
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
+from mqtt_endpoint import endpoint_for_devices, parse_port
+
 # IoT Agent Configuration for device provisioning
 IOT_AGENT_URL = os.getenv('IOT_AGENT_URL', 'http://iot-agent-json-service:4041')
 MQTT_HOST = os.getenv('MQTT_EXTERNAL_HOST', '')  # External hostname for devices — must be set via env
-MQTT_PORT = int(os.getenv('MQTT_EXTERNAL_PORT', '8883'))  # External TLS port
+MQTT_PORT = parse_port(os.getenv('MQTT_EXTERNAL_PORT'))  # External TLS port
 MQTT_INTERNAL_HOST = os.getenv('MQTT_HOST', 'mosquitto-service')
-
-
-from mqtt_endpoint import endpoint_for_devices
 
 
 def mqtt_endpoint_for_devices() -> dict:

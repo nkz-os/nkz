@@ -63,3 +63,20 @@ def test_the_service_binds_the_rule_to_its_configuration():
     service = (_SRC.parent / "sdm_api.py").read_text()
     assert "from mqtt_endpoint import endpoint_for_devices" in service
     assert "return endpoint_for_devices(MQTT_HOST, MQTT_PORT)" in service
+
+
+@pytest.mark.parametrize("raw,expected", [(None, 8883), ("", 8883), ("   ", 8883), ("1883", 1883)])
+def test_parse_port_falls_back_to_default_when_blank(raw, expected):
+    assert mqtt_endpoint.parse_port(raw) == expected
+
+
+def test_parse_port_rejects_garbage():
+    with pytest.raises(ValueError):
+        mqtt_endpoint.parse_port("not-a-port")
+
+
+def test_the_service_parses_the_port_defensively():
+    """Blank must not crash the service at import; the footgun is gone for good."""
+    service = (_SRC.parent / "sdm_api.py").read_text()
+    assert "MQTT_PORT = parse_port(" in service
+    assert "int(os.getenv('MQTT_EXTERNAL_PORT'" not in service
