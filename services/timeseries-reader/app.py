@@ -154,6 +154,15 @@ _VALID_TELEMETRY_BASE = frozenset(
         "deltaT",
         "sourceConfidence",
         "municipalityCode",
+        # Per-parcel virtual weather station keys (WeatherObserved written by
+        # weather-worker; same names land in telemetry_events measurements)
+        "soilMoistureTop",
+        "soilMoistureSub",
+        "tempCurrent",
+        "windGusts",
+        "windSpeedMax",
+        "gddAccumulated",
+        "gustSpeed",
         # Crop Health Assessment attributes
         "cwsiValue",
         "mdsValue",
@@ -214,6 +223,30 @@ def _resolve_telemetry_measurement_key(requested: str) -> Optional[str]:
     if canonical and canonical in twl:
         return canonical
     return None
+
+
+def _telemetry_series_spec(
+    plan: Dict[str, Any], urn: str, attr: str
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Build a telemetry ordered_spec for POST /v2/query, or (None, error)."""
+    storage_attr = _resolve_telemetry_measurement_key(attr)
+    if storage_attr is None:
+        return None, f"Unknown telemetry attribute (not in whitelist): {attr}"
+    candidates = [
+        str(c).strip()
+        for c in (plan.get("device_candidates") or [])
+        if str(c).strip()
+    ]
+    if not candidates:
+        dev = normalize_device_id(urn)
+        if dev and _SAFE_DEVICE_ID.match(dev):
+            candidates = [dev]
+    if not candidates:
+        return None, "invalid telemetry candidates"
+    return (
+        {"kind": "telemetry", "candidates": candidates, "attr": storage_attr},
+        None,
+    )
 
 
 # Hard cap for POST /v2/query series count (DoS / query size). Override via env if needed.
@@ -1738,17 +1771,29 @@ def get_v2_entity_timeseries(entity_urn: str):
         if not _SAFE_WEATHER_ENTITY_KEY.match(str(wkey).strip()):
             return jsonify({"error": "Invalid weather timeseries key"}), 400
 
+        weather_attrs = attrs_list
+        all_weather = True
         if attrs_list:
             resolved_attrs = []
             for a in attrs_list:
                 resolved = _resolve_weather_attribute(a)
                 if resolved is None:
-                    return jsonify({"error": f"Unknown weather attribute: {a}"}), 400
+                    # weather_observations is deprecated and cannot serve this
+                    # attribute; keep the original name and fall through to the
+                    # telemetry_events fallback below (which 400s if the name is
+                    # unknown there too).
+                    all_weather = False
+                    break
                 resolved_attrs.append(resolved)
-            attrs_list = resolved_attrs
+            if all_weather:
+                weather_attrs = resolved_attrs
 
-        col = _weather_query_columnar(
-            conn, tenant_id, wkey, start_dt, end_dt, attrs_list, limit
+        col = (
+            {"timestamps": [], "attributes": {}}
+            if not all_weather
+            else _weather_query_columnar(
+                conn, tenant_id, wkey, start_dt, end_dt, weather_attrs, limit
+            )
         )
 
         # Fallback: if weather_observations has no data for this tenant (deprecated
@@ -1908,44 +1953,18 @@ def post_v2_timeseries_query():
         mode = plan.get("mode")
 
         if mode == "weather":
-            if attr_s not in VALID_ATTRIBUTES:
-                return jsonify({"error": f"Invalid weather attribute: {attr_s}"}), 400
-            wkey = plan.get("weather_key")
-            if not wkey:
-                return jsonify(
-                    {"error": f"series[{i}]: no weather timeseries key for entity"}
-                ), 400
-            wk = str(wkey).strip()
-            if not _SAFE_WEATHER_ENTITY_KEY.match(wk):
-                return jsonify(
-                    {"error": f"series[{i}]: invalid weather timeseries key"}
-                ), 400
-            ordered_specs.append({"kind": "weather", "key": wk, "attr": attr_s})
-        else:
-            storage_attr = _resolve_telemetry_measurement_key(attr_s)
-            if storage_attr is None:
-                return jsonify(
-                    {
-                        "error": f"Unknown telemetry attribute (not in whitelist): {attr_s}"
-                    }
-                ), 400
-            candidates = plan.get("device_candidates") or []
-            candidates = [str(c).strip() for c in candidates if str(c).strip()]
-            if not candidates:
-                dev = normalize_device_id(str(urn).strip())
-                if dev and _SAFE_DEVICE_ID.match(dev):
-                    candidates = [dev]
-            if not candidates:
-                return jsonify(
-                    {"error": f"series[{i}]: invalid telemetry candidates"}
-                ), 400
-            ordered_specs.append(
-                {
-                    "kind": "telemetry",
-                    "candidates": candidates,
-                    "attr": storage_attr,
-                }
-            )
+            wcol = _resolve_weather_attribute(attr_s)
+            wk = str(plan.get("weather_key") or "").strip()
+            if wcol and wk and _SAFE_WEATHER_ENTITY_KEY.match(wk):
+                ordered_specs.append({"kind": "weather", "key": wk, "attr": wcol})
+                continue
+            # weather_observations is deprecated; attributes without a weather
+            # column (or entities without a key) are served from telemetry_events
+            # like any other NGSI-LD measurement attribute.
+        spec, err = _telemetry_series_spec(plan, str(urn).strip(), attr_s)
+        if err:
+            return jsonify({"error": f"series[{i}]: {err}"}), 400
+        ordered_specs.append(spec)
 
     accept = (request.headers.get("Accept") or "").split(",")[0].strip().lower()
     kinds = {str(s.get("kind")) for s in ordered_specs}
