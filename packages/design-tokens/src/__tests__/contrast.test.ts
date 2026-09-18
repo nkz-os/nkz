@@ -108,4 +108,16 @@ describe.each(ALL_PROFILES)('perfil %s', (profile) => {
       expect(ratio, pair).toBeGreaterThanOrEqual(4.5);
     }
   });
+
+  it('textOnInverse alcanza AA 4.5:1 sobre surfaceInverse', () => {
+    const ratio = contrastRatio(c['textOnInverse'], c['surfaceInverse']);
+    const pair = 'textOnInverse/surfaceInverse';
+    if (known(profile, pair)) {
+      // Fallo conocido: se ASERTA que sigue fallando. Si alguien lo arregla,
+      // este test rompe y obliga a quitar la entrada del trinquete.
+      expect(ratio, `${pair}: ¿arreglado? quita la entrada de KNOWN_AA_FAILURES`).toBeLessThan(4.5);
+    } else {
+      expect(ratio, pair).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });

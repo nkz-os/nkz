@@ -214,7 +214,7 @@ function SidebarShellRoot({
           />
         </svg>
         <span className={clsx(
-          'absolute top-1/2 -translate-y-1/2 px-2 py-1 bg-slate-800 text-white text-xs rounded',
+          'absolute top-1/2 -translate-y-1/2 px-2 py-1 bg-nkz-surface-inverse text-nkz-text-on-inverse text-xs rounded',
           'opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none',
           side === 'left' ? 'left-full ml-2' : 'right-full mr-2',
         )}>

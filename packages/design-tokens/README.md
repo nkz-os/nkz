@@ -28,6 +28,23 @@ text; `success`/`warning`/`danger` bases are not — hence the `-strong` variant
 See `src/tokens.config.ts` (`semanticColors` — inline comment documents the exact
 contrast fixes) for the source values per profile (page/field/HMI/dark).
 
+## Inverse surface (deliberate contrast — tooltips, toasts, snackbars)
+
+`surfaceInverse` / `textOnInverse` (`bg-nkz-surface-inverse`, `text-nkz-text-on-inverse`)
+are for elements that deliberately contrast with the page instead of blending into
+it — tooltips, toasts, snackbars. They are **not** a dark-mode shortcut and must
+never be assumed dark.
+
+**They invert per profile: dark in light profiles, light in dark profiles.** A
+fixed dark tooltip pinned to `#1E293B` would be invisible on an already-dark
+profile (`page-dark`/`viewer`) — the same class of bug as a component that sets
+a background token without its matching foreground (see D20 in `Surface`/
+`SidebarShell`). Always use the token pair together; never hardcode one side.
+
+`textOnInverse` on `surfaceInverse` is held to WCAG AA (4.5:1) by
+`src/__tests__/contrast.test.ts` in every profile, the same way `textOnAccent`/
+`accentBase` is.
+
 ### `-light` is a compatibility alias, not the canonical suffix
 
 Existing `apps/host` code uses `bg-nkz-{accent,success,warning,danger,info}-light`

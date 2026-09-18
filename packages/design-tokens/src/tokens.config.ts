@@ -8,12 +8,20 @@ export interface TokenColors {
   surface: string;
   surfaceRaised: string;
   surfaceSunken: string;
+  /**
+   * Deliberately contrasts with the page — tooltips, toasts, snackbars.
+   * INVERTS per profile: dark in light profiles, light in dark profiles. Never
+   * assume a fixed value; a fixed dark tooltip on a dark profile is invisible.
+   */
+  surfaceInverse: string;
   border: string;
   borderStrong: string;
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
   textOnAccent: string;
+  /** Foreground for `surfaceInverse` — same inversion rule applies. */
+  textOnInverse: string;
   accentBase: string;
   accentSoft: string;
   accentStrong: string;
@@ -250,12 +258,14 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
       surface: '#FFFFFF',
       surfaceRaised: '#FFFFFF',
       surfaceSunken: '#F5F5F4',
+      surfaceInverse: '#1E293B',
       border: '#E7E5E4',
       borderStrong: '#D6D3D1',
       textPrimary: '#18181B',
       textSecondary: '#52525B',
       textMuted: '#A1A1AA',
       textOnAccent: '#FFFFFF',
+      textOnInverse: '#F8FAFC',
       ...defaultAccent,
       ...semanticColors,
     },
@@ -272,12 +282,14 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
       surface: '#0F172A',
       surfaceRaised: '#1E293B',
       surfaceSunken: '#020617',
+      surfaceInverse: '#E2E8F0',
       border: '#334155',
       borderStrong: '#475569',
       textPrimary: '#F8FAFC',
       textSecondary: '#CBD5E1',
       textMuted: '#94A3B8',
       textOnAccent: '#052E16',
+      textOnInverse: '#0F172A',
       ...accentDark,
       ...semanticColorsDark,
     },
@@ -294,12 +306,14 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
       surface: '#0F172A',
       surfaceRaised: '#1E293B',
       surfaceSunken: '#020617',
+      surfaceInverse: '#E2E8F0',
       border: 'rgba(148, 163, 184, 0.20)',
       borderStrong: 'rgba(148, 163, 184, 0.35)',
       textPrimary: '#F8FAFC',
       textSecondary: '#CBD5E1',
       textMuted: '#94A3B8',
       textOnAccent: '#FFFFFF',
+      textOnInverse: '#0F172A',
       ...defaultAccent,
       ...semanticColors,
     },
@@ -316,12 +330,14 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
       surface: '#F8FAFC',
       surfaceRaised: '#FFFFFF',
       surfaceSunken: '#F1F5F9',
+      surfaceInverse: '#1E293B',
       border: 'rgba(15, 23, 42, 0.12)',
       borderStrong: 'rgba(15, 23, 42, 0.20)',
       textPrimary: '#0F172A',
       textSecondary: '#475569',
       textMuted: '#94A3B8',
       textOnAccent: '#FFFFFF',
+      textOnInverse: '#F8FAFC',
       ...defaultAccent,
       ...semanticColors,
     },
@@ -338,12 +354,14 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
       surface: '#FFFFFF',
       surfaceRaised: '#FFFFFF',
       surfaceSunken: '#F5F5F4',
+      surfaceInverse: '#1C1917',
       border: '#D6D3D1',
       borderStrong: '#A8A29E',
       textPrimary: '#0C0A09',
       textSecondary: '#44403C',
       textMuted: '#78716C',
       textOnAccent: '#FFFFFF',
+      textOnInverse: '#FAFAF9',
       ...defaultAccent,
       ...semanticColorsField,
     },
@@ -361,12 +379,14 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
       surface: '#1A1A1A',
       surfaceRaised: '#242424',
       surfaceSunken: '#0A0A0A',
+      surfaceInverse: '#E7E5E4',
       border: '#333333',
       borderStrong: '#525252',
       textPrimary: '#FDE68A',
       textSecondary: '#FBBF24',
       textMuted: '#D97706',
       textOnAccent: '#0F0F0F',
+      textOnInverse: '#0F0F0F',
       accentBase: '#F59E0B',
       accentSoft: '#78350F',
       accentStrong: '#FBBF24',

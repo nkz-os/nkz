@@ -24,6 +24,7 @@ module.exports = {
           surface: 'rgb(var(--nkz-color-surface-rgb) / <alpha-value>)',
           'surface-raised': 'rgb(var(--nkz-color-surface-raised-rgb) / <alpha-value>)',
           'surface-sunken': 'rgb(var(--nkz-color-surface-sunken-rgb) / <alpha-value>)',
+          'surface-inverse': 'rgb(var(--nkz-color-surface-inverse-rgb) / <alpha-value>)',
           border: 'var(--nkz-color-border)',
           'border-strong': 'var(--nkz-color-border-strong)',
           'text-primary': 'rgb(var(--nkz-color-text-primary-rgb) / <alpha-value>)',
@@ -41,6 +42,7 @@ module.exports = {
           'bg-secondary': 'rgb(var(--nkz-color-surface-sunken-rgb) / <alpha-value>)',
           'bg-muted': 'rgb(var(--nkz-color-surface-sunken-rgb) / <alpha-value>)',
           'text-on-accent': 'rgb(var(--nkz-color-text-on-accent-rgb) / <alpha-value>)',
+          'text-on-inverse': 'rgb(var(--nkz-color-text-on-inverse-rgb) / <alpha-value>)',
           accent: {
             base: 'rgb(var(--nkz-color-accent-base-rgb) / <alpha-value>)',
             soft: 'rgb(var(--nkz-color-accent-soft-rgb) / <alpha-value>)',
