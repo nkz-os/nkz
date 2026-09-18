@@ -63,7 +63,6 @@ export function Slider({
           className={clsx(
             'block w-4 h-4 bg-white rounded-full shadow-nkz-sm border border-nkz-border-strong',
             'focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base',
-            'hover:bg-nkz-surface-raised transition-colors duration-nkz-fast',
             'disabled:opacity-50 disabled:cursor-not-allowed'
           )}
         />
