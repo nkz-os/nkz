@@ -1,7 +1,7 @@
 // tokens.config.ts — canonical token values for ALL profiles
 // Build scripts read this to generate CSS, JS objects, and Tailwind preset.
 
-export type TokenProfile = 'page' | 'viewer' | 'viewer-light' | 'field' | 'hmi';
+export type TokenProfile = 'page' | 'page-dark' | 'viewer' | 'viewer-light' | 'field' | 'hmi';
 
 export interface TokenColors {
   canvas: string;
@@ -202,6 +202,18 @@ const semanticColorsHmi = {
 // passes AA in both states; accentSoft unchanged.
 const defaultAccent = { accentBase: '#047857', accentSoft: '#A7F3D0', accentStrong: '#065F46' };
 
+const accentDark = { accentBase: '#34D399', accentSoft: '#064E3B', accentStrong: '#6EE7B7' };
+
+// Roles invertidos respecto a `page`: aquí los -strong se ACLARAN (van sobre fondo
+// oscuro) y los -soft se OSCURECEN (son fondos tintados bajo texto claro). Copiar
+// `semanticColors` aquí reproduciría D15, que es el defecto que tiene hoy `viewer`.
+const semanticColorsDark = {
+  success: '#34D399', successSoft: '#064E3B', successStrong: '#6EE7B7',
+  warning: '#FBBF24', warningSoft: '#78350F', warningStrong: '#FCD34D',
+  danger:  '#F87171', dangerSoft:  '#7F1D1D', dangerStrong:  '#FCA5A5',
+  info:    '#60A5FA', infoSoft:    '#1E3A5F', infoStrong:    '#93C5FD',
+};
+
 const shadowsPage = {
   sm: '0 1px 2px rgba(0,0,0,0.04)',
   md: '0 2px 8px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
@@ -250,6 +262,28 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
     type: typeScalePage,
     radii,
     shadows: shadowsPage,
+    motion, zIndex, space,
+    glass: 'none',
+  },
+
+  'page-dark': {
+    colors: {
+      canvas: '#0B1220',
+      surface: '#0F172A',
+      surfaceRaised: '#1E293B',
+      surfaceSunken: '#020617',
+      border: '#334155',
+      borderStrong: '#475569',
+      textPrimary: '#F8FAFC',
+      textSecondary: '#CBD5E1',
+      textMuted: '#94A3B8',
+      textOnAccent: '#052E16',
+      ...accentDark,
+      ...semanticColorsDark,
+    },
+    type: typeScalePage,
+    radii,
+    shadows: shadowsViewer,
     motion, zIndex, space,
     glass: 'none',
   },
@@ -347,5 +381,5 @@ export const profiles: Record<TokenProfile, TokenProfileDefinition> = {
   },
 };
 
-export const cssProfiles: TokenProfile[] = ['page', 'viewer', 'viewer-light', 'field'];
+export const cssProfiles: TokenProfile[] = ['page', 'page-dark', 'viewer', 'viewer-light', 'field'];
 export const jsOnlyProfiles: TokenProfile[] = ['hmi'];

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/experimental-ct-react';
 import { Badge } from '../Badge';
 
-const PROFILES = ['page', 'viewer', 'viewer-light', 'field'] as const;
+const PROFILES = ['page', 'page-dark', 'viewer', 'viewer-light', 'field'] as const;
 const INTENTS = ['default', 'positive', 'warning', 'negative', 'info'] as const;
 
 for (const profile of PROFILES) {

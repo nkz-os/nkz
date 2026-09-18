@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/experimental-ct-react';
 import { ProgressBar } from '../ProgressBar';
 
-const PROFILES = ['page', 'viewer', 'viewer-light', 'field'] as const;
+const PROFILES = ['page', 'page-dark', 'viewer', 'viewer-light', 'field'] as const;
 // Firma real (ui-kit/src/components/ProgressBar.tsx:11-17): la prop es `intent`,
 // NO `variant`. Intents: 'default' | 'positive' | 'warning' | 'negative' — no hay 'info'.
 // `default` ya usa bg-nkz-accent-base (tokenizado); los otros 3 están cableados.

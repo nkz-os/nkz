@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/experimental-ct-react';
 import { SlotShell, SlotShellCompact } from '../SlotShell';
 
-const PROFILES = ['page', 'viewer', 'viewer-light', 'field'] as const;
+const PROFILES = ['page', 'page-dark', 'viewer', 'viewer-light', 'field'] as const;
 
 for (const profile of PROFILES) {
   test(`SlotShell — perfil ${profile}`, async ({ mount }) => {

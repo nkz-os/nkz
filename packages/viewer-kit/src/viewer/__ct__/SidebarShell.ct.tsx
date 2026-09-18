@@ -9,7 +9,7 @@ import { SidebarShell } from '../SidebarShell';
 // sub-components (SidebarShell.tsx:285-289). `state`/`onStateChange` are a
 // controlled pair — fixed to `expanded` with a no-op handler since this baseline
 // captures static render, not interaction. Flagging for owner review.
-const PROFILES = ['page', 'viewer', 'viewer-light', 'field'] as const;
+const PROFILES = ['page', 'page-dark', 'viewer', 'viewer-light', 'field'] as const;
 
 for (const profile of PROFILES) {
   test(`SidebarShell — perfil ${profile}`, async ({ mount }) => {

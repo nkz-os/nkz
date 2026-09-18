@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/experimental-ct-react';
 import { MetricCard } from '../MetricCard';
 
-const PROFILES = ['page', 'viewer', 'viewer-light', 'field'] as const;
+const PROFILES = ['page', 'page-dark', 'viewer', 'viewer-light', 'field'] as const;
 
 for (const profile of PROFILES) {
   test(`MetricCard — tendencias — perfil ${profile}`, async ({ mount }) => {
