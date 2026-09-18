@@ -36,8 +36,13 @@ export function Toggle({
         )}
       >
         <span
+          // Knob deliberately does NOT follow bg-nkz-surface: in dark
+          // profiles that token is dark, so the knob would blend into its
+          // own (also dark) track — fails 1.4.11 in every profile we
+          // measured. Its boundary is carried by elevation (shadow-sm)
+          // instead of color, per WCAG 1.4.11's own allowance.
           className={clsx(
-            'block rounded-full bg-nkz-surface shadow-sm transition-transform duration-nkz-fast',
+            'block rounded-full bg-white shadow-sm transition-transform duration-nkz-fast',
             size === 'sm' ? 'w-3 h-3' : 'w-4 h-4',
             checked
               ? size === 'sm'
