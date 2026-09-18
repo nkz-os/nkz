@@ -4367,9 +4367,9 @@ def weather_map_tiles_proxy(path):
             allow_redirects=False,
             timeout=30,
         )
-        response_headers = dict(resp.headers)
-        response_headers["Cache-Control"] = "public, max-age=3600"
-        return make_response(resp.content, resp.status_code, response_headers)
+        # Backend already sets Cache-Control (5 days) on tiles; the helper
+        # forwards upstream headers and never leaks a 5xx body.
+        return safe_proxy_response(resp)
     except Exception as e:
         logger.error(f"Weather-map tile proxy error to {url}: {e}")
         return jsonify({"error": "Gateway proxy error"}), 502
