@@ -9,18 +9,60 @@ import { profiles } from '../tokens.config';
 const ALL_PROFILES = Object.keys(profiles) as (keyof typeof profiles)[];
 
 // TRINQUETE DE FALLOS CONOCIDOS. Medidos el 2026-09-18 sobre el árbol actual.
+// Claves por PAR "token/fondo" (no solo token): un token puede cumplir AA
+// contra una superficie y fallar contra otra — ver D17/field abajo, donde
+// `surface` y `surfaceRaised` SÍ cumplen y solo `surfaceSunken` falla.
 // NO es una alfombra: cada entrada cita su defecto y su ratio. El suite queda
 // verde, pero cualquier regresión NUEVA rompe al instante. Arreglar un defecto
-// = borrar su entrada de aquí y ver el test pasar.
-//   D17 — textMuted incumple AA (531 usos solo en el host)
-//   D15 — `viewer` reutiliza los semánticos de `page`, afinados para fondo claro
+// = borrar su(s) entrada(s) de aquí y ver el test pasar.
+//
+//   D17 — textMuted incumple AA (531 usos solo en el host). `field` cumple AA
+//   contra `surface`/`surfaceRaised` (4.7976:1); solo falla contra
+//   `surfaceSunken` (4.3977:1). `page` y `viewer-light` fallan en las tres.
+//
+//   D15 — `viewer` reutiliza los semánticos de `page`, afinados para fondo claro.
+//
+//   D18 — El botón primario de la plataforma es texto blanco sobre el verde de
+//   marca (`textOnAccent` #FFFFFF / `accentBase` #059669) a 3.7682:1. Incumple
+//   AA 4.5:1 y NO puede acogerse a la excepción de texto grande de WCAG:
+//   `Button` renderiza en text-nkz-xs/sm/base (12–14px) a font-medium (500),
+//   muy por debajo del umbral de texto grande (>=24px normal o >=18.66px
+//   bold). Arreglarlo implica cambiar un color de marca — decisión del dueño,
+//   no de este test.
 const KNOWN_AA_FAILURES: Record<string, string[]> = {
-  'page':         ['textMuted'],                                                  // 2.35:1 — D17
-  'viewer-light': ['textMuted'],                                                  // 2.34:1 — D17
-  'field':        ['textMuted'],                                                  // 4.40:1 — D17
-  'viewer':       ['successStrong', 'warningStrong', 'dangerStrong', 'infoStrong'], // 2.18–2.91:1 — D15
+  'page': [
+    'textMuted/surface',        // 2.5629:1 — D17
+    'textMuted/surfaceRaised',  // 2.5629:1 — D17
+    'textMuted/surfaceSunken',  // 2.3493:1 — D17
+    'textOnAccent/accentBase',  // 3.7682:1 — D18
+  ],
+  'viewer-light': [
+    'textMuted/surface',        // 2.4506:1 — D17
+    'textMuted/surfaceRaised',  // 2.5640:1 — D17
+    'textMuted/surfaceSunken',  // 2.3405:1 — D17
+    'textOnAccent/accentBase',  // 3.7682:1 — D18
+  ],
+  'field': [
+    'textMuted/surfaceSunken',  // 4.3977:1 — D17 (surface/surfaceRaised cumplen AA: 4.7976:1)
+    'textOnAccent/accentBase',  // 3.7682:1 — D18
+  ],
+  'viewer': [
+    'successStrong/surface',        // 3.2554:1 — D15
+    'successStrong/surfaceRaised',  // 2.6676:1 — D15
+    'successStrong/surfaceSunken',  // 3.6785:1 — D15
+    'warningStrong/surface',        // 3.5551:1 — D15
+    'warningStrong/surfaceRaised',  // 2.9131:1 — D15
+    'warningStrong/surfaceSunken',  // 4.0172:1 — D15
+    'dangerStrong/surface',         // 2.7593:1 — D15
+    'dangerStrong/surfaceRaised',   // 2.2610:1 — D15
+    'dangerStrong/surfaceSunken',   // 3.1179:1 — D15
+    'infoStrong/surface',           // 2.6639:1 — D15
+    'infoStrong/surfaceRaised',     // 2.1829:1 — D15
+    'infoStrong/surfaceSunken',     // 3.0101:1 — D15
+    'textOnAccent/accentBase',      // 3.7682:1 — D18
+  ],
 };
-const known = (p: string, t: string) => (KNOWN_AA_FAILURES[p] ?? []).includes(t);
+const known = (p: string, pair: string) => (KNOWN_AA_FAILURES[p] ?? []).includes(pair);
 
 describe('contrastRatio', () => {
   it('da 21 para negro sobre blanco', () => {
@@ -43,12 +85,13 @@ describe.each(ALL_PROFILES)('perfil %s', (profile) => {
   it.each([...TEXT_TOKENS, ...STRONG])('%s alcanza AA 4.5:1 sobre todas las superficies', (token) => {
     for (const surface of SURFACES) {
       const ratio = contrastRatio(c[token], c[surface]);
-      if (known(profile, token)) {
+      const pair = `${token}/${surface}`;
+      if (known(profile, pair)) {
         // Fallo conocido: se ASERTA que sigue fallando. Si alguien lo arregla,
         // este test rompe y obliga a quitar la entrada del trinquete.
-        expect(ratio, `${token}/${surface}: ¿arreglado? quita la entrada de KNOWN_AA_FAILURES`).toBeLessThan(4.5);
+        expect(ratio, `${pair}: ¿arreglado? quita la entrada de KNOWN_AA_FAILURES`).toBeLessThan(4.5);
       } else {
-        expect(ratio, `${token} sobre ${surface}`).toBeGreaterThanOrEqual(4.5);
+        expect(ratio, pair).toBeGreaterThanOrEqual(4.5);
       }
     }
   });
@@ -63,6 +106,14 @@ describe.each(ALL_PROFILES)('perfil %s', (profile) => {
   });
 
   it('textOnAccent alcanza AA 4.5:1 sobre accentBase', () => {
-    expect(contrastRatio(c['textOnAccent'], c['accentBase'])).toBeGreaterThanOrEqual(4.5);
+    const ratio = contrastRatio(c['textOnAccent'], c['accentBase']);
+    const pair = 'textOnAccent/accentBase';
+    if (known(profile, pair)) {
+      // Fallo conocido: se ASERTA que sigue fallando. Si alguien lo arregla,
+      // este test rompe y obliga a quitar la entrada del trinquete.
+      expect(ratio, `${pair}: ¿arreglado? quita la entrada de KNOWN_AA_FAILURES`).toBeLessThan(4.5);
+    } else {
+      expect(ratio, pair).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });
