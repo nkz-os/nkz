@@ -80,6 +80,7 @@
   "GET /api/vegetation/config/credentials-status": 401,
   "GET /api/vegetation/config/usage": 401,
   "GET /api/vegetation/tiles/<path:path>": 599,
+  "GET /api/weather-map/tiles/<path:path>": 599,
   "GET /api/weather/<path:subpath>": 401,
   "GET /api/zulip/events": 401,
   "GET /api/zulip/messages": 401,
