@@ -115,13 +115,57 @@ async function teardownCesium(page: Page) {
   await page.goto('about:blank');
 }
 
+// `networkidle` only proves the network is quiet — it says nothing about
+// whether React has committed (and painted) the render that resulted from
+// the last response. Every async panel in this app (dashboard widgets,
+// admin's user/activation tables, and every settings credential/risk/module
+// panel: RiskAlertSubscriptions, RiskWebhooksPanel, ModuleVisibilitySettings,
+// CopernicusCredentials, ExternalApiCredentials, TenantUsersManagement, the
+// Entities page list, plus the entity wizard and SlotRenderer's lazy-loaded
+// widgets) gates its content behind a `loading`/`isLoading` boolean that
+// renders a spinner — a `Loader2`/`RefreshCw`/`RefreshCcw` icon or a bare
+// `<div>`, always carrying Tailwind's `animate-spin` class — and swaps it
+// for real content once the fetch's try/finally resolves `loading`. That
+// class is this app's one reliable, page-wide "still loading" signal:
+// there is no `aria-busy` anywhere in src/, and the one dedicated
+// `role="status"` component (src/components/loading/Skeleton.tsx) is
+// defined but not imported by any page or panel.
+//
+// `animate-pulse` was deliberately left out of this check. It's used for
+// two unrelated things in this codebase: genuine loading skeletons (e.g.
+// TenantInfoWidget's forecast placeholder, gated on its own `loading`
+// state and fine), and decorative "live/connected" status dots (e.g.
+// CoreContextPanel, TelemetryRealtime) that pulse forever while
+// connected — never a "still loading" signal. Worse, on the dashboard,
+// WeatherAgroPanel's ParcelAgroStatus rows render an `animate-pulse`
+// skeleton gated on an IntersectionObserver `isVisible` flag, not on a
+// data fetch: a row that never scrolls into the viewport keeps pulsing
+// indefinitely, so waiting for zero `.animate-pulse` elements would hang
+// instead of settle.
+async function waitForNoSpinners(page: Page) {
+  await page.waitForFunction(
+    () => document.querySelectorAll('.animate-spin').length === 0,
+    undefined,
+    { timeout: 10_000 },
+  );
+  // Once the spinner is gone, the `loading` state flipped to false in the
+  // same render as the real content — but a commit still needs a paint to
+  // reach the screen. Two animation frames is the browser's own signal
+  // that a commit has been painted (React/the browser flush pending DOM
+  // mutations before the next paint); this is a paint barrier tied to the
+  // browser's render pipeline, not a guessed clock duration.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+}
+
 async function gotoAndSettle(page: Page, path: string) {
   await page.goto(path, { waitUntil: 'networkidle' });
   await page.waitForLoadState('networkidle');
-  // Let the last batch of React state updates (post-networkidle) flush
-  // before we screenshot — networkidle only guarantees the network is
-  // quiet, not that the resulting render has committed.
-  await page.waitForTimeout(500);
+  await waitForNoSpinners(page);
 }
 
 test.describe('Page visual baseline', () => {
