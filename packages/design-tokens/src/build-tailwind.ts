@@ -33,6 +33,13 @@ module.exports = {
           // alone calls it that 531 times and no token ever answered, so muted
           // text has been rendering in the inherited colour. Prefer 'text-muted'.
           muted: 'rgb(var(--nkz-color-text-muted-rgb) / <alpha-value>)',
+          // Alias de compatibilidad (D4). Introducidos por el reemplazo en lote del
+          // commit ae33bca3 (2026-06-04), que cambió bg-gray-50/bg-gray-100 por esta
+          // familia sin que existiera variable detrás: 311 usos sin pintar nada.
+          // gray-100 #F3F4F6 ≈ surface-sunken #F5F5F4 · gray-50 #F9FAFB ≈ canvas #FAFAF9
+          'bg': 'var(--nkz-color-canvas)',
+          'bg-secondary': 'rgb(var(--nkz-color-surface-sunken-rgb) / <alpha-value>)',
+          'bg-muted': 'rgb(var(--nkz-color-surface-sunken-rgb) / <alpha-value>)',
           'text-on-accent': 'rgb(var(--nkz-color-text-on-accent-rgb) / <alpha-value>)',
           accent: {
             base: 'rgb(var(--nkz-color-accent-base-rgb) / <alpha-value>)',

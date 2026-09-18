@@ -241,7 +241,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
             <div className="h-full flex items-center justify-center bg-nkz-bg-secondary rounded-lg border-2 border-dashed border-nkz-border">
                 <div className="text-center">
                     <MapPin className="w-12 h-12 text-nkz-muted mx-auto mb-3" />
-                    <p className="text-gray-600 font-medium">Selecciona una parcela</p>
+                    <p className="text-nkz-text-secondary font-medium">Selecciona una parcela</p>
                     <p className="text-sm text-nkz-muted mt-1">Haz clic en una parcela del mapa para ver sus detalles</p>
                 </div>
             </div>
@@ -249,17 +249,17 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
     }
 
     return (
-        <div className="h-full flex flex-col bg-white rounded-lg shadow-sm border border-nkz-border overflow-y-auto">
+        <div className="h-full flex flex-col bg-nkz-surface rounded-lg shadow-sm border border-nkz-border overflow-y-auto">
             {/* Header */}
             <div className="p-4 border-b border-nkz-border bg-gradient-to-r from-green-50 to-blue-50 shrink-0">
                 <div className="flex items-start justify-between">
                     <div className="flex-1">
-                        <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <h3 className="text-lg font-bold text-nkz-text-primary flex items-center gap-2">
                             <MapPin className="w-5 h-5 text-nkz-success" />
                             Información de la Parcela
                         </h3>
                         {/* Nombre del usuario (grande, arriba) */}
-                        <p className="text-base font-semibold text-gray-900 mt-1">
+                        <p className="text-base font-semibold text-nkz-text-primary mt-1">
                             {parcel.name || parcel.cadastralReference || 'Parcela sin nombre'}
                         </p>
                         {/* ID interno (pequeño, abajo) */}
@@ -269,7 +269,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                     </div>
                     <Button
                         onClick={onClose}
-                        className="p-1 text-nkz-muted hover:text-gray-600 hover:bg-nkz-bg-secondary rounded transition-colors"
+                        className="p-1 text-nkz-muted hover:text-nkz-text-secondary hover:bg-nkz-bg-secondary rounded transition-colors"
                         title="Cerrar"
                     >
                         <X className="w-5 h-5" />
@@ -295,7 +295,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                         Ubicación
                     </h4>
                     {loadingLocation ? (
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="flex items-center gap-2 text-sm text-nkz-text-secondary">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <span>Cargando información de ubicación...</span>
                         </div>
@@ -303,26 +303,26 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                         <div className="space-y-2 text-sm">
                             {locationInfo.municipality && (
                                 <div>
-                                    <span className="text-gray-600">Municipio:</span>
-                                    <span className="ml-2 font-semibold text-gray-900">{locationInfo.municipality}</span>
+                                    <span className="text-nkz-text-secondary">Municipio:</span>
+                                    <span className="ml-2 font-semibold text-nkz-text-primary">{locationInfo.municipality}</span>
                                 </div>
                             )}
                             {locationInfo.municipality && locationInfo.population && (
                                 <div>
-                                    <span className="text-gray-600">Población:</span>
-                                    <span className="ml-2 font-semibold text-gray-900">
+                                    <span className="text-nkz-text-secondary">Población:</span>
+                                    <span className="ml-2 font-semibold text-nkz-text-primary">
                                         {locationInfo.population.toLocaleString('es-ES')} habitantes
                                     </span>
                                 </div>
                             )}
                             {locationInfo.coordinates && (
                                 <div>
-                                    <span className="text-gray-600">Coordenadas del centro:</span>
+                                    <span className="text-nkz-text-secondary">Coordenadas del centro:</span>
                                     <div className="mt-1">
-                                        <span className="font-mono text-xs font-semibold text-gray-900 block">
+                                        <span className="font-mono text-xs font-semibold text-nkz-text-primary block">
                                             Lat: {locationInfo.coordinates.lat.toFixed(6)}
                                         </span>
-                                        <span className="font-mono text-xs font-semibold text-gray-900 block">
+                                        <span className="font-mono text-xs font-semibold text-nkz-text-primary block">
                                             Lon: {locationInfo.coordinates.lon.toFixed(6)}
                                         </span>
                                     </div>
@@ -330,27 +330,27 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                             )}
                             {locationInfo.elevation !== undefined && (
                                 <div>
-                                    <span className="text-gray-600">Altitud:</span>
-                                    <span className="ml-2 font-semibold text-gray-900">
+                                    <span className="text-nkz-text-secondary">Altitud:</span>
+                                    <span className="ml-2 font-semibold text-nkz-text-primary">
                                         {locationInfo.elevation.toFixed(0)} m
                                     </span>
                                 </div>
                             )}
                             {locationInfo.province && (
                                 <div>
-                                    <span className="text-gray-600">Provincia:</span>
-                                    <span className="ml-2 font-semibold text-gray-900">{locationInfo.province}</span>
+                                    <span className="text-nkz-text-secondary">Provincia:</span>
+                                    <span className="ml-2 font-semibold text-nkz-text-primary">{locationInfo.province}</span>
                                 </div>
                             )}
                             {locationInfo.autonomousCommunity && (
                                 <div>
-                                    <span className="text-gray-600">Comunidad Autónoma:</span>
-                                    <span className="ml-2 font-semibold text-gray-900">{locationInfo.autonomousCommunity}</span>
+                                    <span className="text-nkz-text-secondary">Comunidad Autónoma:</span>
+                                    <span className="ml-2 font-semibold text-nkz-text-primary">{locationInfo.autonomousCommunity}</span>
                                 </div>
                             )}
                             <div>
-                                <span className="text-gray-600">País:</span>
-                                <span className="ml-2 font-semibold text-gray-900">{locationInfo.country}</span>
+                                <span className="text-nkz-text-secondary">País:</span>
+                                <span className="ml-2 font-semibold text-nkz-text-primary">{locationInfo.country}</span>
                             </div>
                             {!locationInfo.coordinates && !locationInfo.municipality && !locationInfo.province && (
                                 <p className="text-nkz-muted italic">No hay información de ubicación disponible</p>
@@ -369,19 +369,19 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                     </h4>
                     <div className="space-y-2 text-sm">
                         <div>
-                            <span className="text-gray-600">Área:</span>
-                            <span className="ml-2 font-semibold text-gray-900">
+                            <span className="text-nkz-text-secondary">Área:</span>
+                            <span className="ml-2 font-semibold text-nkz-text-primary">
                                 {parcel.area ? `${parcel.area.toFixed(2)} ha` : 'N/A'}
                             </span>
                         </div>
                         {parcel.cropType && (
                             <div>
-                                <span className="text-gray-600">Tipo de cultivo:</span>
-                                <span className="ml-2 font-semibold text-gray-900">{parcel.cropType}</span>
+                                <span className="text-nkz-text-secondary">Tipo de cultivo:</span>
+                                <span className="ml-2 font-semibold text-nkz-text-primary">{parcel.cropType}</span>
                             </div>
                         )}
                         <div>
-                            <span className="text-gray-600">Categoría:</span>
+                            <span className="text-nkz-text-secondary">Categoría:</span>
                             <span className={`ml-2 px-2 py-1 rounded-full text-xs font-semibold ${parcel.category === 'cadastral'
                                 ? 'bg-nkz-info-soft text-blue-800'
                                 : 'bg-nkz-success-soft text-green-800'
@@ -391,8 +391,8 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                         </div>
                         {parcel.refParent && (
                             <div>
-                                <span className="text-gray-600">Parcela padre:</span>
-                                <span className="ml-2 font-mono text-xs text-gray-900 break-all">{parcel.refParent}</span>
+                                <span className="text-nkz-text-secondary">Parcela padre:</span>
+                                <span className="ml-2 font-mono text-xs text-nkz-text-primary break-all">{parcel.refParent}</span>
                             </div>
                         )}
                     </div>
@@ -405,18 +405,18 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                             <FileText className="w-4 h-4" />
                             Notas
                         </h4>
-                        <p className="text-sm text-gray-700">{parcel.notes}</p>
+                        <p className="text-sm text-nkz-text-secondary">{parcel.notes}</p>
                     </div>
                 )}
 
                 {/* Metadata */}
                 {parcel.refFarm && (
                     <div className="bg-nkz-bg-secondary rounded-lg p-4 border border-nkz-border">
-                        <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                        <h4 className="text-sm font-semibold text-nkz-text-primary mb-2 flex items-center gap-2">
                             <Calendar className="w-4 h-4" />
                             Información Adicional
                         </h4>
-                        <div className="space-y-1 text-xs text-gray-600">
+                        <div className="space-y-1 text-xs text-nkz-text-secondary">
                             <div>
                                 <span className="font-medium">Granja:</span> {parcel.refFarm}
                             </div>
