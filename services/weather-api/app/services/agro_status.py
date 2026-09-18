@@ -569,8 +569,25 @@ def calculate_agro_status(
 
     # 6b. Workability semaphore — texture-aware when soil data available
     soil_moisture = None
+    soil_moisture_provenance = None
     if sensor_data and sensor_data.get("payload"):
         soil_moisture = _extract_soil_moisture(sensor_data["payload"])
+        if soil_moisture is not None:
+            soil_moisture_provenance = "iot_sensor"
+    if soil_moisture is None:
+        # Fallback: modelled moisture from the per-parcel virtual station
+        # (Open-Meteo ERA5), normalised into weather_observation by the router
+        # (percent scale via _soil_percent there). _as_volumetric_fraction
+        # resolves percent and fraction alike, so both router paths are safe.
+        # NOTE: _extract_float defaults to 0.0 — a missing key must stay None,
+        # not read as bone-dry soil (default=None makes absence explicit).
+        soil_moisture = _as_volumetric_fraction(
+            _extract_float(
+                weather_observation.get("soil_moisture_0_10cm"), None
+            )
+        )
+        if soil_moisture is not None:
+            soil_moisture_provenance = "parcel_weather"
 
     recent_precip = fused.get("precipitation_3d", 0)
     humidity = fused.get("humidity") or 0
@@ -694,6 +711,7 @@ def calculate_agro_status(
             "precip_probability": precip_prob,
             "spraying_reason": spraying_reason,
             "soil_moisture": soil_moisture,
+            "soil_moisture_provenance": soil_moisture_provenance,
         },
         "soil": {
             "texture_applied": texture_applied,
