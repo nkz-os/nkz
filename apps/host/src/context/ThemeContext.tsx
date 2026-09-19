@@ -38,14 +38,24 @@ const resolveTheme = (theme: Theme): 'light' | 'dark' => {
 };
 
 /**
- * Apply theme to document
+ * Apply theme to document.
+ *
+ * Also sets `data-theme` on `documentElement` to the resolved page profile
+ * ('page' | 'page-dark'). This is the ONE legitimate global `data-theme`
+ * write in the app: it is the application root declaring its own token
+ * profile, not an arbitrary component overwriting everyone else's. Nested
+ * `<ThemeProvider profile="...">` instances (e.g. the map viewer) scope
+ * their own `data-theme` to a subtree and take precedence there via CSS
+ * cascade — they never touch `documentElement`.
  */
 const applyTheme = (theme: 'light' | 'dark') => {
   const root = document.documentElement;
   if (theme === 'dark') {
     root.classList.add('dark');
+    root.setAttribute('data-theme', 'page-dark');
   } else {
     root.classList.remove('dark');
+    root.setAttribute('data-theme', 'page');
   }
 };
 

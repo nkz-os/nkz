@@ -445,7 +445,9 @@ const UnifiedViewerInner: React.FC = () => {
         selectEntity(entity.id, entity.type);
     }, [selectEntity, windowedPhotos]);
 
-    // ThemeProvider for the viewer only — does NOT affect other routes
+    // Scopes 'viewer'/'viewer-light' via data-theme on this subtree only (see
+    // ThemeProvider in design-tokens) — the page root's own data-theme write
+    // (ThemeContext.applyTheme) stays untouched, so other routes are unaffected.
     const { profile } = useViewerProfile();
 
     // Focus mode entity filtering (React props layer — reactively safe)
