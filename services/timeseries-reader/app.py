@@ -67,7 +67,14 @@ logger = logging.getLogger(__name__)
 
 try:
     from urn_resolution import plan_timeseries_read, normalize_device_id
-except ImportError:
+except ImportError as e:
+    # This service is fundamentally broken without URN resolution (every /v2
+    # read 503s). CRITICAL, not silent: a missing import here must page someone,
+    # not degrade quietly (packaging bug 2026-09-19: flat /common copy made
+    # common.ngsi_headers unimportable only inside the Docker image).
+    logging.critical(
+        "urn_resolution unavailable (%s) — /v2 URN endpoints will return 503", e
+    )
     plan_timeseries_read = None  # type: ignore
 
     def normalize_device_id(x):  # type: ignore
