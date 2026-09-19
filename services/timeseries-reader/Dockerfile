@@ -11,8 +11,13 @@ RUN apt-get update && apt-get install -y \
 COPY services/timeseries-reader/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy common services (keycloak_auth, auth_middleware)
-COPY services/common/ /common/
+# Copy common services as a package. PYTHONPATH must expose BOTH forms:
+# /app/common for flat imports (auth_middleware, api_errors) and /app for
+# package imports (common.ngsi_headers, required by urn_resolution — a flat
+# /common copy left URN resolution silently unavailable at runtime and every
+# /v2 URN read returned 503).
+COPY services/common/ /app/common/
+ENV PYTHONPATH=/app:/app/common
 
 # Copy application code
 COPY services/timeseries-reader/app.py services/timeseries-reader/urn_resolution.py services/timeseries-reader/gdd_response.py ./
