@@ -403,6 +403,8 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           selectionIndicator: false,
           requestRenderMode: true,
           maximumRenderTimeChange: Infinity,
+          targetFrameRate: 30,
+          useBrowserRecommendedResolution: false,
           imageryProvider: false, // No default ION imagery — we add OSM manually below
           terrainProvider: new Cesium.EllipsoidTerrainProvider(),
           orderIndependentTranslucency: false,

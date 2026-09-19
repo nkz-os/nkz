@@ -121,6 +121,8 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
         selectionIndicator: true,
         requestRenderMode: true,
         maximumRenderTimeChange: Infinity,
+        targetFrameRate: 30,
+        useBrowserRecommendedResolution: false,
         terrainProvider: new Cesium.EllipsoidTerrainProvider(), // Will be updated dynamically if terrain is available
       });
 
