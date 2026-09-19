@@ -162,6 +162,18 @@ def _orion_headers(tenant_id: str) -> dict:
     return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
 
 
+def _normalize_parcel_id(parcel_id: str) -> str:
+    """Callers pass either the full NGSI-LD URN or the bare id.
+
+    Orion only resolves the URN; a bare id makes it answer 400, which the
+    agro-status route then misreports as a 500. Normalize to the canonical
+    AgriParcel URN shape (no tenant segment — parcel URNs are tenant-less).
+    """
+    if not parcel_id or not parcel_id.startswith("urn:"):
+        return f"urn:ngsi-ld:AgriParcel:{parcel_id}"
+    return parcel_id
+
+
 def _orion_query_headers(tenant_id: str) -> dict:
     """Headers for Orion READ queries — the platform @context Link is REQUIRED.
 
@@ -272,8 +284,7 @@ def get_parcel_weather(
     # endpoint 404 and the caller fell back to the legacy municipality weather
     # (which has no soil moisture) — the dashboard then showed soil moisture
     # as N/A even though the value sat in the broker.
-    if not parcel_id.startswith("urn:"):
-        parcel_id = f"urn:ngsi-ld:AgriParcel:{parcel_id}"
+    parcel_id = _normalize_parcel_id(parcel_id)
 
     try:
         # Step 1: Resolve parcel from Orion-LD
@@ -583,6 +594,7 @@ def get_parcel_agro_status(
     Fuses sensor data when available within 5km radius.
     Applies spatial downscaling for parcel-specific microclimate.
     """
+    parcel_id = _normalize_parcel_id(parcel_id)
     try:
         # 1. Get parcel from Orion-LD
         headers = _orion_headers(tenant_id)
@@ -1045,6 +1057,7 @@ def get_parcel_forecast(
 
     Use this for the dashboard forecast card with parcel dropdown.
     """
+    parcel_id = _normalize_parcel_id(parcel_id)
     try:
         # 1. Resolve parcel from Orion-LD
         headers = _orion_headers(tenant_id)
