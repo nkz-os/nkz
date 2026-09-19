@@ -542,7 +542,7 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     ? { condition: backendSemaphores.spraying as SprayingCondition, message: semaphoreLabel('spraying', backendSemaphores.spraying), color: semaphoreColor(backendSemaphores.spraying) }
     : getSprayingCondition();
   const workability = backendSemaphores
-    ? { condition: backendSemaphores.workability as WorkabilityCondition, message: semaphoreLabel('workability', backendSemaphores.workability), color: semaphoreColor(backendSemaphores.workability), soilMoisture: null as number | null }
+    ? { condition: backendSemaphores.workability as WorkabilityCondition, message: semaphoreLabel('workability', backendSemaphores.workability), color: semaphoreColor(backendSemaphores.workability), soilMoisture: agroStatus?.metrics?.moisture ?? getWorkabilityCondition().soilMoisture }
     : getWorkabilityCondition();
   const irrigation = backendSemaphores
     ? { condition: backendSemaphores.irrigation as IrrigationCondition, message: semaphoreLabel('irrigation', backendSemaphores.irrigation), color: semaphoreColor(backendSemaphores.irrigation), balance: agroStatus?.metrics?.water_balance ?? 0 }
