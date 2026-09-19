@@ -34,8 +34,13 @@ export function Switch({
       )}
     >
       <RadixSwitch.Thumb
+        // Knob deliberately does NOT follow bg-nkz-surface: in dark
+        // profiles that token is dark, so the knob would blend into its
+        // own (also dark) track — fails 1.4.11 in every profile we
+        // measured. Its boundary is carried by elevation (shadow-sm)
+        // instead of color, per WCAG 1.4.11's own allowance.
         className={clsx(
-          'block w-4 h-4 bg-nkz-surface rounded-full shadow-sm transition-transform duration-nkz-fast',
+          'block w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-nkz-fast',
           checked ? 'translate-x-[18px]' : 'translate-x-[2px]'
         )}
       />

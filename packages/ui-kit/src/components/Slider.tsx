@@ -55,10 +55,14 @@ export function Slider({
           <RadixSlider.Range className="absolute h-full rounded-full bg-nkz-accent-base" />
         </RadixSlider.Track>
         <RadixSlider.Thumb
+          // Knob deliberately does NOT follow bg-nkz-surface: in dark
+          // profiles that token is dark, so the knob would blend into its
+          // own (also dark) track — fails 1.4.11 in every profile we
+          // measured. Its boundary is carried by elevation (shadow-nkz-sm)
+          // instead of color, per WCAG 1.4.11's own allowance.
           className={clsx(
-            'block w-4 h-4 bg-nkz-surface rounded-full shadow-nkz-sm border border-nkz-border-strong',
+            'block w-4 h-4 bg-white rounded-full shadow-nkz-sm border border-nkz-border-strong',
             'focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base',
-            'hover:bg-nkz-surface-raised transition-colors duration-nkz-fast',
             'disabled:opacity-50 disabled:cursor-not-allowed'
           )}
         />
