@@ -4326,7 +4326,7 @@ def _proxy_authenticated_request(target_url: str, *, requires_auth: bool = True)
             data=request.get_data(),
             cookies=request.cookies,
             allow_redirects=False,
-            timeout=30,
+            timeout=PROXY_TIMEOUT,
         )
         return safe_json_proxy_response(resp)
     except Exception as e:
