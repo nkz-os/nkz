@@ -15,7 +15,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from '@/context/KeycloakAuthContext';
+import { AuthProvider, useAuth } from '@/context/KeycloakAuthContext';
 import { I18nextProvider, useTranslation } from 'react-i18next';
 import { i18n } from '@nekazari/sdk';
 import { I18nProvider } from '@/context/I18nContext';
@@ -68,6 +68,7 @@ const VersionCheckWrapper: React.FC = () => {
 // Dynamic routes component that includes remote modules
 const DynamicRoutes = () => {
   const { modules, isLoading } = useModules();
+  const { isLoading: authLoading } = useAuth();
 
   try {
     return (
@@ -218,8 +219,8 @@ const DynamicRoutes = () => {
           );
         })}
 
-        {/* 404 - Not Found Page */}
-        <Route path="*" element={<NotFound />} />
+        {/* 404 - Not Found Page (loading spinner while auth/module routes resolve) */}
+        <Route path="*" element={(authLoading || isLoading) ? <RouteFallback /> : <NotFound />} />
       </Routes>
       </React.Suspense>
     );
