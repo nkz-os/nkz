@@ -58,7 +58,7 @@ export const NotFound: React.FC = () => {
               <Link to="/entities" className="text-nkz-success-strong hover:text-nkz-success-strong text-sm">
                 Entidades
               </Link>
-              <Link to="/alerts" className="text-nkz-success-strong hover:text-nkz-success-strong text-sm">
+              <Link to="/risks" className="text-nkz-success-strong hover:text-nkz-success-strong text-sm">
                 Alertas
               </Link>
               <Link to="/settings" className="text-nkz-success-strong hover:text-nkz-success-strong text-sm">

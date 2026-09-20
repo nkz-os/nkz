@@ -257,7 +257,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                 </div>
                                 <p className="text-xs text-nkz-muted text-center">
                                     Network access is managed via the{' '}
-                                    <a href="/devices" className="text-sky-400 underline">Device Management</a> module.
+                                    <a href="/connectivity" className="text-sky-400 underline">Device Management</a> module.
                                     Use a Claim Code to provision this device.
                                 </p>
                             </div>
