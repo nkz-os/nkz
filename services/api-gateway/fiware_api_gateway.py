@@ -340,6 +340,8 @@ def _tenant_zulip_stream_prefix(tenant: str) -> str:
 
 _suspended_tenant_cache: dict[str, tuple[bool, float]] = {}
 _SUSPENDED_CACHE_TTL = 300  # 5 minutes
+_tenant_plan_cache: dict[str, tuple[str, float]] = {}
+_TENANT_PLAN_TTL = 300  # 5 minutes
 
 
 def _is_tenant_suspended(tenant_id: str) -> bool:
@@ -367,6 +369,40 @@ def _is_tenant_suspended(tenant_id: str) -> bool:
 
     _suspended_tenant_cache[tenant_id] = (is_suspended, now)
     return is_suspended
+
+
+def _get_tenant_plan(tenant_id: str) -> str:
+    """Resolve the tenant's plan_type, cached 5 min, fail-open to 'enterprise'.
+
+    Injected as the X-Tenant-Plan header so modules can gate features by
+    subscription tier without each querying the DB (platform convention:
+    the gateway injects tenant context). Fail-open mirrors the suspension
+    check: an infrastructure hiccup must not lock paying tenants out.
+    """
+    now = time.time()
+    cached = _tenant_plan_cache.get(tenant_id)
+    if cached and (now - cached[1]) < _TENANT_PLAN_TTL:
+        return cached[0]
+
+    plan = "enterprise"  # fail-open default
+    try:
+        postgres_url = os.getenv("POSTGRES_URL")
+        if postgres_url:
+            conn = psycopg2.connect(postgres_url, connect_timeout=3)
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT plan_type FROM tenants WHERE tenant_id = %s", (tenant_id,)
+            )
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if row and row[0]:
+                plan = str(row[0]).strip().lower() or plan
+    except Exception as e:
+        logger.warning(f"Failed to resolve tenant plan for {tenant_id}: {e}")
+
+    _tenant_plan_cache[tenant_id] = (plan, now)
+    return plan
 
 
 # ---------------------------------------------------------------------------
@@ -4210,6 +4246,7 @@ def _build_authenticated_proxy_headers(token: str, payload: dict, tenant: str) -
         "X-Tenant-ID": tenant,
         "X-User-ID": payload.get("sub", ""),
         "X-User-Roles": ",".join(_collect_jwt_roles(payload)),
+        "X-Tenant-Plan": _get_tenant_plan(tenant),
         "Authorization": f"Bearer {token}",
     }
     signature = generate_hmac_signature(token, tenant)
