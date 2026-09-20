@@ -69,7 +69,14 @@ def get_nearest_municipality(
     longitude: Optional[float] = Query(None),
     max_distance_km: float = Query(50.0),
 ):
-    """Get nearest municipality to given coordinates."""
+    """Get nearest municipality to given coordinates.
+
+    Primary: nearest municipality that HAS weather data (weather_observations)
+    within ``max_distance_km`` — the weather-context municipality. Fallback:
+    nearest municipality from the full catalog (centroid lat/lon), so a parcel
+    far from any weather station still resolves to a municipality instead of a
+    hard 404 (which the host logs as an error).
+    """
     if not tenant_id:
         tenant_id = SHARED_TENANT
 
@@ -107,8 +114,38 @@ def get_nearest_municipality(
 
         if municipality:
             return {"municipality": dict(municipality)}
+
+        # Fallback: nearest municipality from the full catalog (centroid), so
+        # the endpoint does not 404 when the parcel is far from the (8)
+        # municipalities that actually have weather observations.
+        with get_db_connection(tenant_id) as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT
+                    ine_code, name, province, autonomous_community,
+                    latitude, longitude,
+                    ST_Distance(
+                        ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
+                        ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
+                    ) / 1000.0 as distance_km
+                FROM catalog_municipalities
+                WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+                ORDER BY ST_Distance(
+                    ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
+                    ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
+                )
+                LIMIT 1
+                """,
+                (longitude, latitude, longitude, latitude),
+            )
+            municipality = cur.fetchone()
+            cur.close()
+
+        if municipality:
+            return {"municipality": dict(municipality)}
         return JSONResponse(
-            {"error": "No municipality found within specified distance"},
+            {"error": "No municipality found"},
             status_code=404,
         )
     except Exception as e:

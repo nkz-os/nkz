@@ -135,7 +135,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                             api.getNearestMunicipality(
                                 coordinates.lat,
                                 coordinates.lon,
-                                10
+                                50
                             ).catch((err) => {
                                 logger.error('[ParcelDetailsPanel] Error getting nearest municipality:', err);
                                 return null;

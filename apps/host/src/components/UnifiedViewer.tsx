@@ -400,7 +400,7 @@ const UnifiedViewerInner: React.FC = () => {
                 if (count > 0 && (!municipality || municipality === 'Abaigar')) {
                     const centroid = { lat: sumLat / count, lon: sumLon / count };
                     try {
-                        const municipalityData = await api.getNearestMunicipality(centroid.lat, centroid.lon, 10);
+                        const municipalityData = await api.getNearestMunicipality(centroid.lat, centroid.lon, 50);
                         if (municipalityData && municipalityData.municipality) {
                             municipality = municipalityData.municipality.name;
                             province = municipalityData.municipality.province || province;

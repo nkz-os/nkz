@@ -20,6 +20,9 @@ class Settings:
         )
         self.aemet_api_key = os.getenv("AEMET_API_KEY", "")
         self.soil_api_url = os.getenv("SOIL_API_URL", "http://soil-module-service:8000")
+        self.weather_map_url = os.getenv(
+            "WEATHER_MAP_URL", "http://weather-map-backend:8080"
+        ).rstrip("/")
         self.log_level = os.getenv("LOG_LEVEL", "INFO")
 
         # Auth — not used directly by this service (api-gateway validates),
