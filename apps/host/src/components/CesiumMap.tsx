@@ -75,6 +75,7 @@ interface CesiumMapProps {
   riskOverlay?: Map<string, RiskOverlayInfo>; // Optional: risk severity colors keyed by entity ID
   renderMapLayerSlot?: boolean; // Whether to render map-layer slot inside this component
   fieldPhotos?: FieldPhotoRecord[];
+  farms?: any[]; // AgriFarm fincas (Point location)
   /** When set, enters focus mode: dark background, isolates this parcel */
   focusParcelId?: string | null;
   // Module layer configurations (extensible for future modules)
@@ -291,6 +292,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   riskOverlay,
   renderMapLayerSlot = true,
   fieldPhotos = [],
+  farms = [],
   focusParcelId,
   // vegetationLayerConfig removed - modules use slot system
 }) => {
@@ -333,6 +335,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     parcel:     new Map<string, any>(),
     fieldPhoto: new Map<string, any>(),
     parcelLocator: new Map<string, any>(),
+    farm: new Map<string, any>(),
   });
 
   // Swap distance for parcel locator pins vs parcel detail labels — derived
@@ -1036,6 +1039,67 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     viewer.entities.resumeEvents();
     viewer.scene.requestRender();
   }, [isViewerReady, fieldPhotos, enable3DTerrain]);
+
+  // Farms effect — location pin + name for AgriFarm entities (fincas).
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
+
+    entityRefs.current.farm.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.farm.clear();
+    viewer.entities.suspendEvents();
+
+    const pinIcon = getIconDataUri('icon:mappin');
+
+    farms.forEach((farm) => {
+      try {
+        const coordinates = getEntityCoordinates(farm);
+        if (!coordinates || !Array.isArray(coordinates) || typeof coordinates[0] !== 'number') return;
+        const [lon, lat] = coordinates;
+        const farmName = typeof farm.name === 'string'
+          ? farm.name
+          : (farm.name?.value || farm.id);
+
+        const entity = viewer.entities.add({
+          id: `farm-${farm.id}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+          name: farmName,
+          billboard: {
+            image: pinIcon,
+            width: 36,
+            height: 36,
+            heightReference: hr,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          },
+          label: {
+            text: farmName,
+            font: '12px sans-serif',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            pixelOffset: new Cesium.Cartesian2(0, -44),
+            heightReference: hr,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+        });
+        entityRefs.current.farm.set(farm.id, entity);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding farm:', farm.id, e);
+      }
+    });
+
+    viewer.entities.resumeEvents();
+    viewer.scene.requestRender();
+  }, [isViewerReady, farms, enable3DTerrain]);
 
   // Machines effect
   useEffect(() => {

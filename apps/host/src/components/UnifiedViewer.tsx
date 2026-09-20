@@ -129,6 +129,7 @@ const UnifiedViewerInner: React.FC = () => {
     const [trees, setTrees] = useState<any[]>([]); // OliveTree, AgriTree, FruitTree, Vine
     const [energyTrackers, setEnergyTrackers] = useState<any[]>([]); // AgriEnergyTracker + PhotovoltaicInstallation
     const [fieldPhotos, setFieldPhotos] = useState<FieldPhotoRecord[]>([]);
+    const [farms, setFarms] = useState<any[]>([]);
     const [carouselIndex, setCarouselIndex] = useState<number | null>(null);
 
     // Normalize NGSI-LD entities whose attributes use full URIs (from SDM @context)
@@ -201,11 +202,12 @@ const UnifiedViewerInner: React.FC = () => {
                 api.getSDMEntityInstances('https://saref.etsi.org/saref4agri/PhotovoltaicInstallation').catch(() => []),
                 // Field photos (AgriParcelRecord with imageUrl)
                 api.getSDMEntityInstances('AgriParcelRecord').catch(() => []),
+                api.getSDMEntityInstances('AgriFarm').catch(() => []),
             ]);
 
             const [robotsRes, sensorsRes, machinesRes, livestockRes, weatherRes, parcelsRes, cropsRes, buildingsRes,
                 oliveTreeRes, agriTreeRes, fruitTreeRes, vineRes, agriSensorRes, energyTrackersRes, pvInstallationsRes,
-                agriParcelRecordRes] = results;
+                agriParcelRecordRes, agriFarmRes] = results;
 
             setRobots(robotsRes.status === 'fulfilled' ? robotsRes.value : []);
             // Combine sensors from PostgreSQL API and NGSI-LD (SDM)
@@ -239,6 +241,10 @@ const UnifiedViewerInner: React.FC = () => {
             const rawAgriParcelRecords = agriParcelRecordRes.status === 'fulfilled' ? agriParcelRecordRes.value : [];
             setFieldPhotos(parseFieldPhotos(rawAgriParcelRecords));
             logger.debug('[UnifiedViewer] Field photos loaded:', rawAgriParcelRecords.length);
+
+            const agriFarms = (agriFarmRes.status === 'fulfilled' ? agriFarmRes.value : []).map(normalizeNgsiEntity);
+            setFarms(agriFarms);
+            logger.debug('[UnifiedViewer] Farms loaded:', agriFarms.length);
 
             logger.debug('[UnifiedViewer] Entities loaded for map');
         } catch (error) {
@@ -587,6 +593,7 @@ const UnifiedViewerInner: React.FC = () => {
                     mode={mapMode === 'VIEW' ? 'view' : 'picker'}
                     onMapClick={mapMode === 'SELECT_CADASTRAL' ? handleMapClickForCadastral : mapMode === 'PICK_LOCATION' ? handleMapClickForPicking : undefined}
                     fieldPhotos={isLayerActive('fieldPhotos') ? windowedPhotos : []}
+                    farms={farms}
                     onEntitySelect={handleEntityMapSelect}
                     riskOverlay={riskOverlay}
                     focusParcelId={isFocusMode ? focusParcelId : null}
