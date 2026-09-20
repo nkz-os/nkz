@@ -150,7 +150,7 @@ export const ParcelRiskPanel: React.FC<ParcelRiskPanelProps> = ({ parcelId }) =>
                     {/* Configure alerts shortcut */}
                     <Button
                         className="flex items-center gap-1 text-xs text-nkz-danger-strong hover:text-red-900 hover:underline"
-                        onClick={() => navigate('/alerts')}
+                        onClick={() => navigate('/risks')}
                     >
                         <Settings2 className="w-3 h-3" />
                         Configurar alertas

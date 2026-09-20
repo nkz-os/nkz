@@ -98,7 +98,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
             </div>
             <p className="text-sm text-sky-800">
               Network access is provisioned separately via the{' '}
-              <a href="/devices" className="font-semibold underline hover:text-sky-600">
+              <a href="/connectivity" className="font-semibold underline hover:text-sky-600">
                 Device Management
               </a>{' '}
               page using the Claim Code printed on the device chassis.

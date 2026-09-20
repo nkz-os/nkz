@@ -124,6 +124,12 @@ const DynamicRoutes = () => {
           element={<Navigate to="/entities" replace />}
         />
 
+        {/* Redirect /alerts to /risks (legacy alert links) */}
+        <Route
+          path="/alerts"
+          element={<Navigate to="/risks" replace />}
+        />
+
         <Route
           path="/risks"
           element={
