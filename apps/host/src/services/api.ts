@@ -1342,6 +1342,11 @@ class ApiService {
       });
       return response.data;
     } catch (error: any) {
+      // 404 = no municipality resolvable for these coordinates — not an error
+      // worth surfacing as a console error; callers treat null as "no data".
+      if (error?.response?.status === 404) {
+        return null;
+      }
       logger.error('[API] Error getting nearest municipality:', error);
       throw error;
     }

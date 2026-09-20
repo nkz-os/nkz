@@ -27,6 +27,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/weather", tags=["parcels"])
 
+# Altitude weighting for regional station selection: a station 100 m higher or
+# lower than the parcel is treated as ~10 km farther away. The temperature lapse
+# rate is corrected by the spatial downscaler; this biases the SELECTION toward
+# same-altitude stations for the variables the downscaler does not correct
+# (precipitation, wind, soil moisture).
+ALTITUDE_WEIGHT_KM_PER_100M = 10.0
+
 
 def _cross_validate_sensors(sensors: list) -> dict:
     """Cross-validate multiple sensors, flag outliers >30% from median.
@@ -187,6 +194,72 @@ def _orion_query_headers(tenant_id: str) -> dict:
     meant to avoid; the queries returned [] for every parcel.
     """
     return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
+
+
+def _fetch_weather_map_stats(parcel_id: str, tenant_id: str) -> dict:
+    """Parcel-level meteo from the weather-map raster (fail-safe {}).
+
+    The weather-map raster is spatially interpolated to the parcel, so it is
+    more precise than the downscaled regional station. It is the
+    ``parcel_weather`` tier in the platform meteo precedence.
+
+    Contract: GET /api/weather-map/stats/{parcel_urn}?metrics=<csv> with
+    X-Tenant-ID + X-User-ID headers (401 without X-User-ID). Valid metrics:
+    temperature_avg, temperature_min, solar_radiation, eto, water_balance,
+    frost_risk, soil_moisture (percent scale). Returns {} on failure/no COG.
+    """
+    if not settings.weather_map_url:
+        return {}
+    parcel_urn = (
+        parcel_id
+        if parcel_id.startswith("urn:")
+        else f"urn:ngsi-ld:AgriParcel:{parcel_id}"
+    )
+    try:
+        resp = requests.get(
+            f"{settings.weather_map_url}/api/weather-map/stats/{parcel_urn}",
+            params={"metrics": "temperature_avg,temperature_min,eto,soil_moisture"},
+            headers=(
+                {"X-Tenant-ID": tenant_id, "X-User-ID": "weather-api-worker"}
+                if tenant_id else {}
+            ),
+            timeout=8,
+        )
+        if resp.status_code != 200:
+            return {}
+        data = resp.json() or {}
+    except Exception as exc:  # noqa: BLE001 — fail-safe
+        logger.warning("weather-map stats failed for %s: %s", parcel_id, exc)
+        return {}
+
+    metrics = data.get("metrics") or {}
+
+    def _mean(name: str):
+        m = metrics.get(name)
+        if isinstance(m, dict):
+            v = m.get("mean", m.get("value"))
+            if v is not None:
+                try:
+                    return float(v)
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    out: dict = {}
+    air = _mean("temperature_avg")
+    tmin = _mean("temperature_min")
+    et0 = _mean("eto")
+    soil = _mean("soil_moisture")
+    if air is not None:
+        out["temp_avg"] = air
+    if tmin is not None:
+        out["temp_min"] = tmin
+    if et0 is not None:
+        out["eto_mm"] = et0
+    if soil is not None:
+        # weather-map soil_moisture is already percent (dry <= 15, saturated >= 40)
+        out["soil_moisture_0_10cm"] = soil
+    return out
 
 
 def _soil_percent(value):
@@ -772,17 +845,26 @@ def get_parcel_agro_status(
             try:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
 
-                # 5a. Find nearest municipality with weather data
+                # 5a. Find nearest municipality with weather data, weighted by
+                # altitude (a same-altitude station slightly farther away beats a
+                # very-different-altitude station that is a bit closer).
                 cur.execute(
                     """
                     SELECT municipality_code,
                            metadata->>'station_elevation_m' as station_elevation_m
                     FROM weather_observations
                     WHERE tenant_id = %s AND location IS NOT NULL
-                    ORDER BY location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+                    ORDER BY
+                        (ST_Distance(location::geography,
+                                     ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography)
+                         / 1000.0)
+                        + %s * ABS(
+                            COALESCE((metadata->>'station_elevation_m')::float, %s) - %s
+                          ) / 100.0
                     LIMIT 1
                     """,
-                    (tenant_id, lon, lat),
+                    (tenant_id, lon, lat, ALTITUDE_WEIGHT_KM_PER_100M,
+                     parcel_altitude, parcel_altitude),
                 )
                 nearest = cur.fetchone()
 
@@ -790,6 +872,12 @@ def get_parcel_agro_status(
                     muni_code = nearest["municipality_code"]
                     if nearest.get("station_elevation_m"):
                         station_altitude = float(nearest["station_elevation_m"])
+                    else:
+                        # Unknown station elevation → no lapse correction.
+                        # Treating it as sea level would apply a full lapse-rate
+                        # correction on top of an unknown baseline (~3 degC too
+                        # cold at 450 m). Fall back to the parcel altitude (no-op).
+                        station_altitude = parcel_altitude
 
                     # 5b. Latest observation for current conditions
                     cur.execute(
@@ -970,6 +1058,26 @@ def get_parcel_agro_status(
                     conn.close()
             except Exception as e:
                 logger.warning(f"Telemetry 3d fallback failed: {e}")
+
+        # 5f. Weather-map per-parcel raster (parcel_weather tier) — override the
+        # regional proxy for the fields the raster provides. The raster is
+        # spatially interpolated to the parcel, so it is more precise than the
+        # downscaled regional station. Variables the raster does not provide
+        # (humidity, wind, precipitation, pressure) keep their regional values.
+        wm = _fetch_weather_map_stats(parcel_id, tenant_id)
+        wm_fields = []
+        for _wm_key in ("temp_avg", "temp_min", "eto_mm", "soil_moisture_0_10cm"):
+            if wm.get(_wm_key) is not None:
+                weather_observation[_wm_key] = wm[_wm_key]
+                wm_fields.append(_wm_key)
+        if wm_fields:
+            weather_observation["_weather_map_fields"] = wm_fields
+            if "temp_avg" in wm_fields:
+                # The raster temperature is already at the parcel's altitude, so
+                # the lapse-rate downscaling must NOT be applied on top of it
+                # (it would double-correct). Zeroing the station->parcel altitude
+                # gap makes the downscaler a no-op for the lapse term.
+                station_altitude = parcel_altitude
 
         if not weather_observation:
             # Graceful degradation: return parcel metadata + sensor data

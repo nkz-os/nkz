@@ -493,6 +493,14 @@ def calculate_agro_status(
             "last_observation": sensor_data["observed_at"],
         }
 
+    # Weather-map per-parcel raster (parcel_weather tier) overrides the regional
+    # WEATHER-OBS values for the fields the raster provides (temperature, ET0,
+    # soil moisture) — recorded in `weather_observation._weather_map_fields` by
+    # the router.
+    wm_fields = set(weather_observation.get("_weather_map_fields") or [])
+    if "temp_avg" in wm_fields:
+        fused["sources"]["temperature"] = "WEATHER-MAP"
+
     # 4. Calculate water balance
     fused["water_balance"] = _calc_water_balance(
         fused.get("precipitation_3d"), fused.get("eto_3d")
