@@ -1476,7 +1476,7 @@ class ApiService {
 
   async getEntityInventory(): Promise<EntityInventory[]> {
     try {
-      const response = await this.client.get('/entity-manager/api/entities/inventory');
+      const response = await this.client.get('/api/entities/inventory');
       return response.data?.inventory || [];
     } catch (error) {
       logger.warn('Error fetching entity inventory:', error);
