@@ -242,7 +242,7 @@ const UnifiedViewerInner: React.FC = () => {
             setFieldPhotos(parseFieldPhotos(rawAgriParcelRecords));
             logger.debug('[UnifiedViewer] Field photos loaded:', rawAgriParcelRecords.length);
 
-            const agriFarms = agriFarmRes.status === 'fulfilled' ? agriFarmRes.value : [];
+            const agriFarms = (agriFarmRes.status === 'fulfilled' ? agriFarmRes.value : []).map(normalizeNgsiEntity);
             setFarms(agriFarms);
             logger.debug('[UnifiedViewer] Farms loaded:', agriFarms.length);
 
