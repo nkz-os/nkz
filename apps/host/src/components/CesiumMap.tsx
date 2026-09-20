@@ -2,7 +2,7 @@
 // Cesium Map Component - GeoServer Integration
 // =============================================================================
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 /* eslint-disable @typescript-eslint/no-explicit-any */
   Maximize2,
@@ -136,6 +136,25 @@ const getIconDataUri = (iconKeyOrUrl: string): string | null => {
 
   return null;
 };
+
+// Far/near zoom swap distance for parcel locator pins. Derived from the
+// tenant's parcel spread (max ground distance from the mean centroid, floored)
+// so the pin hides once the camera is close enough to read the parcel itself.
+// Equirectangular approximation, valid at the platform's latitudes.
+function parcelLocatorSwapDistance(centroids: Array<[number, number]>): number {
+  if (centroids.length === 0) return 4000;
+  const n = centroids.length;
+  const meanLon = centroids.reduce((s, c) => s + c[0], 0) / n;
+  const meanLat = centroids.reduce((s, c) => s + c[1], 0) / n;
+  const cosLat = Math.cos((meanLat * Math.PI) / 180);
+  let maxDist = 0;
+  for (const [lon, lat] of centroids) {
+    const d = Math.hypot((lon - meanLon) * 111320 * cosLat, (lat - meanLat) * 110540);
+    if (d > maxDist) maxDist = d;
+  }
+  const radius = Math.max(maxDist, 2000);
+  return radius * 1.5;
+}
 
 // Entity category helpers — extracted from the monolithic effect so each
 // per-category effect can reuse them without closure dependencies.
@@ -313,7 +332,17 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     tracker:    new Map<string, any>(),
     parcel:     new Map<string, any>(),
     fieldPhoto: new Map<string, any>(),
+    parcelLocator: new Map<string, any>(),
   });
+
+  // Swap distance for parcel locator pins vs parcel detail labels — derived
+  // from the tenant parcel spread so the swap is zoom-correct per tenant.
+  const parcelSwapDistance = useMemo(() => {
+    const centroids = parcels
+      .map(p => parcelCentroid(p))
+      .filter((c): c is [number, number] => c !== null);
+    return parcelLocatorSwapDistance(centroids);
+  }, [parcels]);
 
   // Update local state if prop changes
   useEffect(() => {
@@ -1672,6 +1701,70 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
     viewer.scene.requestRender();
   }, [isViewerReady, energyTrackers, enable3DTerrain]);
 
+  // Parcel locators effect — far-zoom location pin + name over each parcel.
+  // At far distance (initial framing or further) a pin + label identify the
+  // parcel; zooming past the swap distance hides the pin (the parcel polygon
+  // + label rendered by the Parcels effect takes over).
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !isViewerReady) return;
+    const Cesium = (window as any).Cesium;
+    if (!Cesium) return;
+    const hr = heightRef.current || (enable3DTerrain
+      ? Cesium.HeightReference.CLAMP_TO_GROUND
+      : Cesium.HeightReference.NONE);
+
+    entityRefs.current.parcelLocator.forEach(e => viewer.entities.remove(e));
+    entityRefs.current.parcelLocator.clear();
+    viewer.entities.suspendEvents();
+
+    const pinIcon = getIconDataUri('icon:mappin');
+    const farCondition = new Cesium.DistanceDisplayCondition(parcelSwapDistance, Number.POSITIVE_INFINITY);
+
+    parcels.forEach((parcel) => {
+      try {
+        const centroid = parcelCentroid(parcel);
+        if (!centroid) return;
+        const [lon, lat] = centroid;
+        const parcelName = parcel.name || parcel.id;
+
+        const entity = viewer.entities.add({
+          id: `parcel-locator-${parcel.id}`,
+          position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+          billboard: {
+            image: pinIcon,
+            width: 40,
+            height: 40,
+            heightReference: hr,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            distanceDisplayCondition: farCondition,
+          },
+          label: {
+            text: parcelName,
+            font: '12px sans-serif',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            pixelOffset: new Cesium.Cartesian2(0, -48),
+            heightReference: hr,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            distanceDisplayCondition: farCondition,
+          },
+        });
+        entityRefs.current.parcelLocator.set(parcel.id, entity);
+      } catch (e) {
+        logger.warn('[CesiumMap] Error adding parcel locator:', parcel.id, e);
+      }
+    });
+
+    viewer.entities.resumeEvents();
+    viewer.scene.requestRender();
+  }, [isViewerReady, parcels, enable3DTerrain, parcelSwapDistance]);
+
   // Parcels effect (border-only + optional fill on risk/selection)
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -1767,7 +1860,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
             verticalOrigin: Cesium.VerticalOrigin.CENTER,
             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 5000),
+            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, parcelSwapDistance),
             show: true,
           },
           description: [
@@ -1786,7 +1879,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     viewer.entities.resumeEvents();
     viewer.scene.requestRender();
-  }, [isViewerReady, parcels, enable3DTerrain, enable3DTiles, selectedEntity?.id, riskOverlay]);
+  }, [isViewerReady, parcels, enable3DTerrain, enable3DTiles, selectedEntity?.id, riskOverlay, parcelSwapDistance]);
 
   // Focus mode: dark scene background + fly-to parcel
   useEffect(() => {
