@@ -133,7 +133,11 @@ SUBSCRIPTIONS = [
             },
             "format": "normalized",
         },
-        "throttling": 30,
+        # throttle=1: the weather-worker creates one WeatherObserved per parcel
+        # in a ~40s burst per cycle (~2.5s apart). A 30s throttle dropped most
+        # of those notifications, leaving most parcels without telemetry in
+        # timeseries (new tenants only, which lack the legacy weather_observations).
+        "throttling": 1,
         "isActive": True,
     },
     {
@@ -147,7 +151,7 @@ SUBSCRIPTIONS = [
             },
             "format": "normalized",
         },
-        "throttling": 30,
+        "throttling": 1,
         "isActive": True,
     },
     {
