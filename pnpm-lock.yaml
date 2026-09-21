@@ -289,8 +289,8 @@ importers:
         specifier: ^1.0.0
         version: 1.1.4(react@18.3.1)(typescript@5.9.3)
       geolibre-wasm:
-        specifier: ^0.5.2
-        version: 0.5.2
+        specifier: ^1.5.3
+        version: 1.5.3
     devDependencies:
       '@types/geojson':
         specifier: ^7946.0.16
@@ -2987,8 +2987,8 @@ packages:
   geojson-polygon-self-intersections@1.2.2:
     resolution: {integrity: sha512-6XRNF4CsRHYmR9z5YuIk5f/aOototnDf0dgMqYGcS7y1l57ttt6MAIAxl3rXyas6lq1HEbTuLMh4PgvO+OV42w==}
 
-  geolibre-wasm@0.5.2:
-    resolution: {integrity: sha512-qfcRaEk7nq/V1DTE00Sv/F+Ue1WOHWIUaFN8acP1TWUeAyAP3MTQdHGlJLBR/J6Ht6+SbdeoLxdtkw8XWXQpUw==}
+  geolibre-wasm@1.5.3:
+    resolution: {integrity: sha512-/KQJQ3A7VogJHddzTXUmqpCjSIJVi2iLkiXZpU0VouiTcS3Yy4X+wPe7AO9RgcL4iZ08CH/UemeqN9RYGoDdFA==}
 
   get-intrinsic@1.3.0:
     resolution: {integrity: sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==}
@@ -6745,7 +6745,7 @@ snapshots:
     dependencies:
       rbush: 2.0.2
 
-  geolibre-wasm@0.5.2:
+  geolibre-wasm@1.5.3:
     dependencies:
       '@bjorn3/browser_wasi_shim': 0.4.2
 
