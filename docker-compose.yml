@@ -272,54 +272,6 @@ services:
       retries: 10
       start_period: 15s
 
-  risk-api:
-    build:
-      context: .
-      dockerfile: services/risk-api/Dockerfile
-    depends_on:
-      postgresql:
-        condition: service_healthy
-    environment:
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
-      POSTGRES_HOST: postgresql
-      POSTGRES_DB: ${POSTGRES_DB:-nekazari}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
-      KEYCLOAK_URL: http://keycloak:8080/auth
-      KEYCLOAK_PUBLIC_URL: http://localhost:3000/auth
-      KEYCLOAK_REALM: nekazari
-
-  risk-worker:
-    build:
-      context: .
-      dockerfile: services/risk-worker/Dockerfile
-    depends_on:
-      postgresql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
-      POSTGRES_HOST: postgresql
-      POSTGRES_DB: ${POSTGRES_DB:-nekazari}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nekazari-dev-password}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-nekazari-redis-dev}@redis:6379
-      ORION_URL: http://orion-ld:1026
-      CONTEXT_URL: http://api-gateway:5000/ngsi-ld-context.json
-      CONTINUOUS_MODE: "true"
-
-  risk-orchestrator:
-    build:
-      context: .
-      dockerfile: services/risk-orchestrator/Dockerfile
-    depends_on:
-      redis:
-        condition: service_healthy
-    environment:
-      REDIS_URL: redis://:${REDIS_PASSWORD:-nekazari-redis-dev}@redis:6379
-      POSTGRES_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-nekazari-dev-password}@postgresql:5432/${POSTGRES_DB:-nekazari}
-
   weather-worker:
     build:
       context: .

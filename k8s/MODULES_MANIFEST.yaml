@@ -169,23 +169,6 @@ addons:
   # NOTE: NDVI is now handled by external vegetation module
   # ndvi: DEPRECATED - See https://github.com/nkz-os/nekazari-module-vegetation
 
-  risk:
-    id: "risk"
-    name: "Risk Assessment"
-    description: "Agricultural risk analysis and alerting"
-    category: analytics
-    plan_required: premium
-    pricing_tier: ADDON_PAID
-    path: addons/analytics/risk/
-    files:
-      - risk-api-deployment.yaml
-      - risk-orchestrator-deployment.yaml
-      - risk-worker-deployment.yaml
-    dependencies:
-      - postgresql
-      - redis
-      - weather # Recommended
-    external_services: []
 
   # ---------------------------------------------------------------------------
   # Weather Module
