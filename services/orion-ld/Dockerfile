@@ -33,16 +33,18 @@
 
 # --- Stage 1: fetch upstream develop (shallow) at a pinned commit ------------
 FROM alpine/git AS src
-# Pinned to the develop commit verified to contain 4cb23b5a on 2026-08-30.
+# Fetch the COMMIT, not the branch: a --depth 1 clone of develop contains exactly
+# one commit, so cloning the branch + checkout only works while the pin happens
+# to be develop's tip. Fetching the commit directly keeps the clone shallow AND
+# independent of where develop's tip has moved.
 #
-# Fetch the COMMIT, not the branch. The previous form was
-#   git clone --depth 1 --branch develop … && git checkout ${ORIONLD_REF}
-# which only works while the pin happens to be develop's tip: a --depth 1 clone
-# of a branch contains exactly one commit. Upstream pushed to develop and every
-# build started failing with exit 128 — the pin was no longer fetchable. Fetching
-# the commit directly keeps the clone shallow AND makes the build independent of
-# where develop's tip has moved.
-ARG ORIONLD_REF=6c86d8bb0d7fffe39418a68c5f2bac1c6973da34
+# Pinned to the develop commit that contains BOTH 4cb23b5a (empty-DB /types hang
+# fix) AND e89ed68 (find foonathan_memory by package, not by version-carrying
+# file name). The latter matters because fiware/orion-ld-base:latest (2026-09-23
+# rebuild, foonathan_memory_vendor 1.4.1) ships libfoonathan_memory-0.7.4.so in
+# lib64 — the old pin hard-linked '-lfoonathan_memory-0.7.3' and broke. Upstream
+# now resolves it via find_package, which names whichever version is installed.
+ARG ORIONLD_REF=1c822aebcea0529397bce1eb019537359ba2080f
 WORKDIR /src
 RUN git init -q . \
  && git remote add origin https://github.com/FIWARE/context.Orion-LD.git \
