@@ -15,7 +15,6 @@ import { PlanSummaryCard } from '@/components/dashboard/PlanSummaryCard';
 import { ProgressBar } from '@/components/dashboard/ProgressBar';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { TenantInfoWidget } from '@/components/dashboard/TenantInfoWidget';
-import { RiskSummaryCard } from '@/components/dashboard/RiskSummaryCard';
 import { EnvironmentalSensorsCard } from '@/components/dashboard/EnvironmentalSensorsCard';
 import { AgriculturalMachinesCard } from '@/components/dashboard/AgriculturalMachinesCard';
 import { LivestockCard } from '@/components/dashboard/LivestockCard';
@@ -195,17 +194,12 @@ export const DashboardImproved: React.FC = () => {
           </MetricCard>
         </div>
 
-        {/* ── Weather + Risks (main) ──────────────────────────────────────── */}
+        {/* ── Weather (main) ──────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* Left: weather stacked */}
-          <div className="lg:col-span-2 flex flex-col gap-6">
+          <div className="lg:col-span-3 flex flex-col gap-6">
             <WeatherWidget />
             <WeatherAgroPanel />
-          </div>
-
-          {/* Right: risk summary — sticky context while scrolling */}
-          <div className="lg:col-span-1">
-            <RiskSummaryCard />
           </div>
         </div>
 

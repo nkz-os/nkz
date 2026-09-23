@@ -97,16 +97,6 @@ jobs:
             context: .
             dockerfile: services/mqtt-credentials-manager/Dockerfile
 
-          # Risk Management
-          - service: risk-api
-            context: .
-            dockerfile: services/risk-api/Dockerfile
-          - service: risk-orchestrator
-            context: .
-            dockerfile: services/risk-orchestrator/Dockerfile
-          - service: risk-worker
-            context: .
-            dockerfile: services/risk-worker/Dockerfile
           # Frontend
           - service: host
             context: .

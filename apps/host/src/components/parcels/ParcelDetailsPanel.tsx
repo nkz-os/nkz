@@ -6,7 +6,6 @@ import { logger } from '@/utils/logger';
 import React, { useState, useEffect } from 'react';
 import { MapPin, Ruler, Building2, Calendar, FileText, X, Loader2 } from 'lucide-react';
 import { ParcelAgroStatusDetail } from './ParcelAgroStatusDetail';
-import { ParcelRiskPanel } from './ParcelRiskPanel';
 import { ParcelModulesPanel } from './ParcelModulesPanel';
 import type { Parcel } from '@/types';
 import api from '@/services/api';
@@ -281,9 +280,6 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
             <div className="flex-1 p-4 space-y-4">
                 {/* Agronomic status */}
                 <ParcelAgroStatusDetail parcelId={parcel.id} />
-
-                {/* Risk evaluations */}
-                <ParcelRiskPanel parcelId={parcel.id} />
 
                 {/* Per-parcel module activation */}
                 <ParcelModulesPanel parcelId={parcel.id} />

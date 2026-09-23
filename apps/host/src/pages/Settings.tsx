@@ -11,8 +11,6 @@ import { ExternalApiCredentials } from '@/components/ExternalApiCredentials';
 import { CopernicusCredentials } from '@/components/CopernicusCredentials';
 import { TenantUsersManagement } from '@/components/TenantUsersManagement';
 import { ModuleVisibilitySettings } from '@/components/ModuleVisibilitySettings';
-import { RiskAlertSubscriptions } from '@/components/RiskAlertSubscriptions';
-import { RiskWebhooksPanel } from '@/components/RiskWebhooksPanel';
 import api from '@/services/api';
 import { getConfig } from '@/config/environment';
 import { TenantProfileEditor } from '@/components/settings/TenantProfileEditor';
@@ -30,10 +28,9 @@ export const Settings: React.FC = () => {
 
   const canModifySettings = hasAnyRole(['PlatformAdmin', 'TenantAdmin']);
   const canManageUsers = hasAnyRole(['PlatformAdmin', 'TenantAdmin']);
-  const isReadOnly = hasAnyRole(['TechnicalConsultant']) && !canModifySettings;
-  const canViewRisks = hasAnyRole(['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant']);
   const canManageModuleVisibility = hasAnyRole(['PlatformAdmin', 'TenantAdmin']);
   const isPlatformAdmin = hasRole('PlatformAdmin');
+  const isReadOnly = hasAnyRole(['TechnicalConsultant']) && !canModifySettings;
 
   const [copiedTenantId, setCopiedTenantId] = useState(false);
 
@@ -327,20 +324,6 @@ export const Settings: React.FC = () => {
         {isPlatformAdmin && (
           <div className="mb-6">
             <ExternalApiCredentials />
-          </div>
-        )}
-
-        {/* Risk Alert Subscriptions */}
-        {canViewRisks && (
-          <div className="mb-6">
-            <RiskAlertSubscriptions readOnly={isReadOnly} />
-          </div>
-        )}
-
-        {/* Risk Webhooks */}
-        {canViewRisks && (
-          <div className="mb-6">
-            <RiskWebhooksPanel readOnly={isReadOnly} />
           </div>
         )}
 

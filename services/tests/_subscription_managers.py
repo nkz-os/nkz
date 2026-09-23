@@ -19,7 +19,7 @@ MANAGERS = sorted(SERVICES_DIR.glob("*/subscription_manager.py")) + sorted(
 
 # Present in every checkout; asserted so an empty or broken glob fails loudly
 # instead of making every parametrized test vacuously pass.
-KNOWN = {"entity-manager", "risk-worker", "telemetry_worker"}
+KNOWN = {"entity-manager", "telemetry_worker"}
 
 
 def service_id(path: pathlib.Path) -> str:

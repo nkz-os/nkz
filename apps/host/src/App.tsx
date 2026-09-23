@@ -44,7 +44,6 @@ const Settings = React.lazy(() => import('@/pages/Settings').then(m => ({ defaul
 const Modules = React.lazy(() => import('@/pages/admin/Modules').then(m => ({ default: m.Modules })));
 const AdminManagement = React.lazy(() => import('@/pages/admin/AdminManagement').then(m => ({ default: m.AdminManagement })));
 
-const Risks = React.lazy(() => import('@/pages/Risks').then(m => ({ default: m.Risks })));
 const IntelligenceInfoPage = React.lazy(() => import('@/pages/IntelligenceInfoPage').then(m => ({ default: m.IntelligenceInfoPage })));
 const MobileViewer = React.lazy(() => import('@/pages/MobileViewer'));
 // Route-level code splitting comment marker
@@ -122,23 +121,6 @@ const DynamicRoutes = () => {
         <Route
           path="/viewer"
           element={<Navigate to="/entities" replace />}
-        />
-
-        {/* Redirect /alerts to /risks (legacy alert links) */}
-        <Route
-          path="/alerts"
-          element={<Navigate to="/risks" replace />}
-        />
-
-        <Route
-          path="/risks"
-          element={
-            <FarmerRoute>
-              <Layout>
-                <Risks />
-              </Layout>
-            </FarmerRoute>
-          }
         />
 
         {/* ============================================
