@@ -73,6 +73,8 @@ fails on it.
 | `SoilSurvey` | entidad | propuesta-sdm | SDM-003 |
 | `VegetationIndex` | entidad | propuesta-sdm | SDM-005 |
 | `WaterStorage` | entidad | sin-revisar | Not yet reviewed |
+| `affectedVariables` | atributo | extension-declarada | Platform extension — variables the Alert affects; SDM Alert has no such field |
+| `alertType` | atributo | extension-declarada | Platform extension — alert sub-type (frost, water_stress, …) not modelled in SDM Alert |
 | `altitude` | atributo | sin-revisar | Not yet reviewed |
 | `aplicador` | atributo | sin-revisar | Not yet reviewed |
 | `area` | atributo | sin-revisar | Not yet reviewed |
@@ -89,12 +91,14 @@ fails on it.
 | `cifEntidadHabilitada` | atributo | sin-revisar | Not yet reviewed |
 | `commandType` | atributo | sin-revisar | Not yet reviewed |
 | `compressionType` | atributo | sin-revisar | Not yet reviewed |
+| `confidence` | atributo | extension-declarada | Platform extension — model confidence on the emitted Alert |
 | `connectivityStatus` | atributo | sin-revisar | Not yet reviewed |
 | `contenidoN` | atributo | sin-revisar | Not yet reviewed |
 | `contenidoP` | atributo | sin-revisar | Not yet reviewed |
 | `cropType` | atributo | sin-revisar | Not yet reviewed |
 | `currentMoisture` | atributo | sin-revisar | Not yet reviewed |
 | `currentTask` | atributo | sin-revisar | Not yet reviewed |
+| `dataFidelity` | atributo | extension-declarada | Platform extension — provenance tier (iot / parcel_weather / regional_proxy) of the data feeding the assessment |
 | `dataSource` | atributo | sin-revisar | Not yet reviewed |
 | `dataSources` | atributo | extension-declarada | Provenance list; SDM has no multi-source provenance attribute (singular `dataSource` predates it) |
 | `declaredArea` | atributo | sin-revisar | Not yet reviewed |
@@ -195,6 +199,8 @@ fails on it.
 | `ref3DModel` | atributo | sin-revisar | Not yet reviewed |
 | `refArticleSource` | atributo | sin-revisar | Not yet reviewed |
 | `refDeviceProfile` | atributo | sin-revisar | Not yet reviewed |
+| `refEntity` | atributo | extension-declarada | Platform extension — entity an Alert refers to (Relationship) |
+| `refEntityType` | atributo | extension-declarada | Platform extension — type of the referenced entity |
 | `refEquipment` | atributo | sin-revisar | Not yet reviewed |
 | `refImplement` | atributo | sin-revisar | Not yet reviewed |
 | `refParcel` | atributo | sin-revisar | Not yet reviewed |
