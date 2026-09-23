@@ -203,6 +203,9 @@ ROUTING_API_URL = os.getenv(
 )
 SOIL_API_URL = os.getenv("SOIL_API_URL", "http://soil-module-service:8000")
 JD_CONNECT_URL = os.getenv("JD_CONNECT_URL", "http://jd-connect-service:8000")
+AGENT_API_URL = os.getenv(
+    "AGENT_API_URL", "http://agent-backend-service.nekazari.svc.cluster.local:8000"
+)
 ZULIP_SERVICE_URL = os.getenv("ZULIP_SERVICE_URL", "http://zulip-service:80")
 ZULIP_BOT_EMAIL = os.getenv("ZULIP_BOT_EMAIL", "")
 ZULIP_BOT_API_KEY = os.getenv("ZULIP_BOT_API_KEY", "")
@@ -4472,6 +4475,29 @@ def bioorchestrator_proxy(path):
 )
 def risk_proxy(path):
     return generic_proxy(RISK_API_URL, f"api/risks/{path}")
+
+
+# Agent module management API: link-tokens/links only. Deliberately NOT a
+# catch-all — the module's Telegram webhook (/api/agent/webhook/telegram)
+# has its own dedicated Ingress that bypasses the gateway entirely (the
+# messaging platform cannot authenticate through it), so it must stay
+# unreachable via these routes.
+@app.route("/api/agent/link-tokens", methods=["POST"])
+def agent_link_tokens_proxy():
+    """Proxy link-token issuance to the agent module backend."""
+    return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/link-tokens")
+
+
+@app.route("/api/agent/links", methods=["GET"])
+def agent_links_proxy():
+    """Proxy listing of linked messaging channels to the agent module backend."""
+    return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/links")
+
+
+@app.route("/api/agent/links/<link_id>", methods=["DELETE"])
+def agent_link_delete_proxy(link_id):
+    """Proxy unlinking a messaging channel to the agent module backend."""
+    return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/links/{link_id}")
 
 
 def _n8n_tenant_from_referer(referer: str) -> str:
