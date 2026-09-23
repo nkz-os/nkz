@@ -27,20 +27,12 @@ import { useModelPreview } from '@/hooks/cesium/useModelPreview';
 import { logger } from '@/utils/logger';
 import { normalizeAssetUrl } from '@/utils/urlNormalizer';
 import { getEntityCoordinates, getEntityGeometryType } from '@/utils/ngsiEntityCoordinates';
-import type { RiskOverlayInfo } from '@/hooks/cesium/useRiskOverlay';
 import { MapSearchLupa } from '@/components/MapSearchLupa';
 import { EU_RECTANGLE, flyToForResult } from '@/utils/cameraFraming';
 import { applyInitialFraming } from '@/hooks/useInitialCameraFraming';
 import { parcelCentroid } from '@/types/geocode';
 import { parcelApi } from '@/services/parcelApi';
 // Removed hardcoded vegetation layer import - modules should use slot system
-
-const RISK_SEVERITY_COLORS: Record<RiskOverlayInfo['severity'], string> = {
-  critical: '#ef4444',
-  high:     '#f97316',
-  medium:   '#eab308',
-  low:      '#22c55e',
-};
 
 /** DOM event from DataHub uPlot cursor (must match DATAHUB_EVENT_TIME_HOVER in nkz-module-datahub). */
 const DATAHUB_EVENT_TIME_HOVER = 'nekazari:datahub:timeHover';
@@ -72,7 +64,6 @@ interface CesiumMapProps {
   mode?: 'view' | 'picker'; // Map mode: 'view' (default) or 'picker' (for selecting location)
   onMapClick?: (lat: number, lon: number) => void; // Callback for map clicks in picker mode
   onEntitySelect?: (entity: { id: string; type: string }) => void; // Callback when an entity is clicked
-  riskOverlay?: Map<string, RiskOverlayInfo>; // Optional: risk severity colors keyed by entity ID
   renderMapLayerSlot?: boolean; // Whether to render map-layer slot inside this component
   fieldPhotos?: FieldPhotoRecord[];
   farms?: any[]; // AgriFarm fincas (Point location)
@@ -289,7 +280,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
   mode = 'view',
   onMapClick,
   onEntitySelect,
-  riskOverlay,
   renderMapLayerSlot = true,
   fieldPhotos = [],
   farms = [],
@@ -818,10 +808,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
         const robotName = typeof robot.name === 'string' ? robot.name : robot.name.value;
         const robotStatus = typeof robot.status === 'string' ? robot.status : robot.status?.value;
-        const robotRisk = riskOverlay?.get(robot.id);
-        const robotPointColor = robotRisk
-          ? Cesium.Color.fromCssColorString(RISK_SEVERITY_COLORS[robotRisk.severity])
-          : getRobotColor(Cesium, robotStatus);
+        const robotPointColor = getRobotColor(Cesium, robotStatus);
 
         const entity = viewer.entities.add({
           id: `robot-${robot.id}`,
@@ -853,7 +840,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     viewer.entities.resumeEvents();
     viewer.scene.requestRender();
-  }, [isViewerReady, robots, riskOverlay, enable3DTerrain]);
+  }, [isViewerReady, robots, enable3DTerrain]);
 
   // Sensors effect
   useEffect(() => {
@@ -895,10 +882,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
         const modelUrl = getEntityModelUrl(sensor);
         const iconUrl = resolveEntityIconUrl(sensor, '/assets/icons/sensor-default.png');
-        const sensorRisk = riskOverlay?.get(sensor.id);
-        const sensorPointColor = sensorRisk
-          ? Cesium.Color.fromCssColorString(RISK_SEVERITY_COLORS[sensorRisk.severity])
-          : Cesium.Color.CYAN;
+        const sensorPointColor = Cesium.Color.CYAN;
 
         const entityOptions: any = {
           id: `sensor-${sensor.id}`,
@@ -986,7 +970,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     viewer.entities.resumeEvents();
     viewer.scene.requestRender();
-  }, [isViewerReady, sensors, riskOverlay, enable3DTerrain]);
+  }, [isViewerReady, sensors, enable3DTerrain]);
 
   // Field photos effect — camera billboards with capture date label
   useEffect(() => {
@@ -1866,21 +1850,12 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
         const parcelName = parcel.name || parcel.id;
         const isSelected = isParcelSelected(parcel.id);
-        const riskInfo = riskOverlay?.get(parcel.id);
-
         // Defaults: green border, no fill
         let borderColor: any = Cesium.Color.fromCssColorString('#4ade80');
         let borderWidth = 3;
         // Near-zero alpha keeps the polygon pickable by Cesium's GPU pick pass
         // (TRANSPARENT/alpha=0 is silently excluded from the pick framebuffer).
         let fillColor: any = Cesium.Color.WHITE.withAlpha(0.004);
-
-        // Risk takes precedence over default
-        if (riskInfo) {
-          const riskCss = RISK_SEVERITY_COLORS[riskInfo.severity];
-          borderColor = Cesium.Color.fromCssColorString(riskCss);
-          fillColor = Cesium.Color.fromCssColorString(riskCss).withAlpha(0.25);
-        }
 
         // Selection wins (cyan border + faint cyan fill as a "find me" hint)
         if (isSelected) {
@@ -1943,7 +1918,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
 
     viewer.entities.resumeEvents();
     viewer.scene.requestRender();
-  }, [isViewerReady, parcels, enable3DTerrain, enable3DTiles, selectedEntity?.id, riskOverlay, parcelSwapDistance]);
+  }, [isViewerReady, parcels, enable3DTerrain, enable3DTiles, selectedEntity?.id, parcelSwapDistance]);
 
   // Focus mode: dark scene background + fly-to parcel
   useEffect(() => {
@@ -2139,19 +2114,6 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Risk severity legend — shown when risk overlay is active */}
-      {riskOverlay && riskOverlay.size > 0 && (
-        <div className="absolute bottom-4 left-4 z-10 bg-slate-900 rounded-lg px-3 py-2 text-xs text-white border border-slate-600 pointer-events-none">
-          <p className="font-semibold mb-1.5 text-slate-300">Riesgo</p>
-          {(['critical', 'high', 'medium', 'low'] as const).map(sev => (
-            <div key={sev} className="flex items-center gap-1.5 mb-0.5">
-              <span className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: RISK_SEVERITY_COLORS[sev] }} />
-              <span className="capitalize text-slate-200">{{ critical: 'Crítico', high: 'Alto', medium: 'Medio', low: 'Bajo' }[sev]}</span>
-            </div>
-          ))}
         </div>
       )}
 

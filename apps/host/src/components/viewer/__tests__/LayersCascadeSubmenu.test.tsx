@@ -10,9 +10,6 @@ vi.mock('@/components/SlotRenderer', () => ({
     <div data-testid="slot-renderer">{`slot:${slot}`}</div>
   ),
 }))
-vi.mock('@/hooks/cesium/useRiskOverlay', () => ({
-  useRiskOverlay: () => ({ enabled: false, setEnabled: vi.fn() }),
-}))
 vi.mock('@/context/I18nContext', () => ({
   useI18n: () => ({ t: (k: string) => k }),
 }))

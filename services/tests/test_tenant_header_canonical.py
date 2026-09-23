@@ -59,7 +59,6 @@ _SOURCE_TARGETS = [
     "weather-worker/weather_worker/storage/orion_writer.py",
     "telemetry-worker/telemetry_worker/sdm.py",
     "telemetry-worker/telemetry_worker/subscription_manager.py",
-    "risk-worker/subscription_manager.py",
     "entity-manager/subscription_manager.py",
     "sdm-integration/auth_middleware.py",
     "tenant-user-api/tenant_user_api.py",

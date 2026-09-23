@@ -53,20 +53,6 @@ export const localAddonRegistry: Record<string, LocalAddonEntry> = {
   //   component: lazy(() => import('@/pages/NDVI')),
   // },
 
-  // Risks - Agricultural risk assessment
-  'risks': {
-    component: lazy(() =>
-      import('@/pages/Risks').then(module => {
-        if (!module || !module.Risks) {
-          throw new Error('Risks component not found in module');
-        }
-        return { default: module.Risks };
-      })
-    ),
-  },
-
-
-
   // Sensors - IoT sensor management
   'sensors': {
     component: lazy(() =>

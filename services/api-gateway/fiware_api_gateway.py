@@ -169,7 +169,6 @@ INTELLIGENCE_API_URL = os.getenv(
 AGRIENERGY_API_URL = os.getenv(
     "AGRIENERGY_API_URL", "http://agrienergy-api-service:8000"
 )
-RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
 N8N_NKZ_API_URL = os.getenv("N8N_NKZ_API_URL", "http://n8n-nkz-api-service:8000")
 # The virtual host the per-tenant n8n proxy answers on. Empty disables the
 # route: an installation that does not run per-tenant n8n should not have it
@@ -197,7 +196,6 @@ CARBON_API_URL = os.getenv(
     "CARBON_API_URL", "http://carbon-api-service:8000"
 )
 ROBOTICS_API_URL = os.getenv("ROBOTICS_API_URL", "http://robotics-api-service:80")
-RISK_API_URL = os.getenv("RISK_API_URL", "http://risk-api-service:5000")
 ROUTING_API_URL = os.getenv(
     "ROUTING_API_URL", "http://nkz-module-gis-routing-service:8000"
 )
@@ -4467,14 +4465,6 @@ def intelligence_proxy(path):
 )
 def bioorchestrator_proxy(path):
     return generic_proxy(BIOORCHESTRATOR_API_URL, path)
-
-
-@app.route(
-    "/api/risks/<path:path>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-)
-def risk_proxy(path):
-    return generic_proxy(RISK_API_URL, f"api/risks/{path}")
 
 
 # Agent module management API: link-tokens/links only. Deliberately NOT a

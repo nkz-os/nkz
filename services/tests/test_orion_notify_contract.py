@@ -32,7 +32,7 @@ from fastapi.testclient import TestClient
 
 _SERVICES_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-for _sub in ("telemetry-worker", "risk-worker", "common"):
+for _sub in ("telemetry-worker", "common"):
     _p = os.path.join(_SERVICES_DIR, _sub)
     if os.path.isdir(_p) and _p not in sys.path:
         sys.path.insert(0, _p)
@@ -66,8 +66,6 @@ def _client_for(module_name, monkeypatch):
             return None
 
         monkeypatch.setattr(handler, "process_notification_task", _noop)
-    elif module_name == "risk-worker":
-        import notification_handler as handler
     else:  # pragma: no cover - guarded by the parametrisation below
         raise AssertionError(f"unknown service {module_name}")
 
@@ -81,7 +79,6 @@ def _client_for(module_name, monkeypatch):
     [
         ("telemetry-worker", "/notify"),
         ("telemetry-worker", "/v2/notify"),
-        ("risk-worker", "/notify"),
     ],
 )
 def test_notification_endpoint_answers_204_without_body(service, path, monkeypatch):
@@ -122,7 +119,7 @@ def test_malformed_notification_is_rejected_not_acknowledged(monkeypatch):
     )
 
 
-@pytest.mark.parametrize("service", ["telemetry-worker", "risk-worker"])
+@pytest.mark.parametrize("service", ["telemetry-worker"])
 def test_notify_rejects_without_secret_when_flag_on(service, monkeypatch):
     """With NOTIFY_REQUIRE_INTERNAL_SECRET on, a delivery without the secret is 401.
 
@@ -138,7 +135,7 @@ def test_notify_rejects_without_secret_when_flag_on(service, monkeypatch):
     assert response.status_code == 401
 
 
-@pytest.mark.parametrize("service", ["telemetry-worker", "risk-worker"])
+@pytest.mark.parametrize("service", ["telemetry-worker"])
 def test_notify_accepts_with_secret_when_flag_on(service, monkeypatch):
     """Legit subscriptions (receiverInfo) keep delivering 204 once the flag is on."""
     monkeypatch.setenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "true")

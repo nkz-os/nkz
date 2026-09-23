@@ -54,15 +54,6 @@ spec:
     - podSelector:
         matchLabels:
           app: timeseries-reader
-    - podSelector:
-        matchLabels:
-          app: risk-api
-    - podSelector:
-        matchLabels:
-          app: risk-orchestrator
-    - podSelector:
-        matchLabels:
-          app: risk-worker
     # Modules
     - podSelector:
         matchLabels:

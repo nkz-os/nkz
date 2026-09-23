@@ -4,7 +4,7 @@ Notification handler for Orion-LD subscriptions (Flask blueprint).
 Receives NGSI-LD entity notifications from Orion-LD subscriptions
 and persists to the appropriate database tables:
   - AgriSensor -> sensors table
-  - RiskAssessment -> risk_daily_states table (TimescaleDB)
+  - DeviceCommand -> commands table
 """
 
 import hmac
@@ -118,10 +118,6 @@ def handle_notification():
         total = 0
         if "AgriSensor" in by_type:
             total += _handle_agrisensor(tenant_id, by_type["AgriSensor"])
-        if "RiskAssessment" in by_type:
-            total += _handle_risk_assessment(
-                tenant_id, by_type["RiskAssessment"]
-            )
         if "DeviceCommand" in by_type:
             total += _handle_device_command(
                 tenant_id, by_type["DeviceCommand"]
@@ -234,83 +230,6 @@ def _handle_agrisensor(tenant_id: str, entities: list) -> int:
     except Exception as e:
         logger.error(
             "Error in _handle_agrisensor: %s", e, exc_info=True
-        )
-        conn.rollback()
-        return persisted
-    finally:
-        conn.close()
-
-
-def _handle_risk_assessment(tenant_id: str, entities: list) -> int:
-    """Persist RiskAssessment entities to risk_daily_states table."""
-    persisted = 0
-    conn = _get_conn()
-    try:
-        _set_tenant_context(conn, tenant_id)
-        with conn.cursor() as cur:
-            for entity in entities:
-                risk_code = _extract_prop(entity, "riskCode")
-                probability_score = _extract_prop(entity, "probabilityScore")
-                target_entity_id = _extract_prop(entity, "targetEntityId")
-                target_entity_type = _extract_prop(
-                    entity, "targetEntityType"
-                )
-                evaluation_data = _extract_prop(entity, "evaluationData")
-                evaluated_by = _extract_prop(entity, "evaluatedBy")
-                evaluation_version = _extract_prop(
-                    entity, "evaluationVersion"
-                )
-                severity = _extract_prop(entity, "severity")
-                timestamp_val = _extract_prop(entity, "timestamp")
-
-                if not risk_code or probability_score is None:
-                    continue
-
-                ts = datetime.utcnow()
-                if timestamp_val:
-                    try:
-                        ts = datetime.fromisoformat(
-                            str(timestamp_val).replace("Z", "+00:00")
-                        )
-                    except (ValueError, TypeError):
-                        pass
-
-                cur.execute(
-                    """
-                    INSERT INTO risk_daily_states (
-                        tenant_id, entity_id, entity_type, risk_code,
-                        probability_score, severity,
-                        evaluation_data, evaluation_timestamp,
-                        timestamp, evaluated_by, evaluation_version
-                    ) VALUES (
-                        %s, %s, %s, %s,
-                        %s, %s,
-                        %s, %s,
-                        %s, %s, %s
-                    )
-                    ON CONFLICT DO NOTHING
-                    """,
-                    (
-                        tenant_id,
-                        target_entity_id or entity.get("id", ""),
-                        target_entity_type or entity.get("type", ""),
-                        risk_code,
-                        float(probability_score),
-                        severity
-                        or _compute_severity(float(probability_score)),
-                        json.dumps(evaluation_data or {}),
-                        ts,
-                        ts,
-                        evaluated_by or "risk-worker",
-                        evaluation_version or "1.0.0",
-                    ),
-                )
-                persisted += 1
-        conn.commit()
-        return persisted
-    except Exception as e:
-        logger.error(
-            "Error in _handle_risk_assessment: %s", e, exc_info=True
         )
         conn.rollback()
         return persisted

@@ -10,12 +10,6 @@
 services:
 
   # --- disable non-essential services ---
-  risk-api:
-    profiles: []
-  risk-worker:
-    profiles: []
-  risk-orchestrator:
-    profiles: []
   weather-worker:
     profiles: []
   sdm-integration:

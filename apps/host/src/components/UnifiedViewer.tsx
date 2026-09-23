@@ -26,7 +26,6 @@ import { FieldPhotoCarousel } from '@/components/viewer/FieldPhotoCarousel';
 import { CoreTimelineControls } from '@/components/viewer/CoreTimelineControls';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { logger } from '@/utils/logger';
-import { useRiskOverlay } from '@/hooks/cesium/useRiskOverlay';
 import { useViewerProfile } from '@/context/ThemeContext';
 import { ThemeProvider } from '@nekazari/design-tokens';
 import { SidebarShell } from '@nekazari/viewer-kit';
@@ -149,9 +148,6 @@ const UnifiedViewerInner: React.FC = () => {
       }
       return normalized;
     };
-
-    // Risk overlay
-    const { overlay: riskOverlay } = useRiskOverlay();
 
     // UI state
     const [_isLoading, setIsLoading] = useState(true);
@@ -595,7 +591,6 @@ const UnifiedViewerInner: React.FC = () => {
                     fieldPhotos={isLayerActive('fieldPhotos') ? windowedPhotos : []}
                     farms={farms}
                     onEntitySelect={handleEntityMapSelect}
-                    riskOverlay={riskOverlay}
                     focusParcelId={isFocusMode ? focusParcelId : null}
                 />
 
