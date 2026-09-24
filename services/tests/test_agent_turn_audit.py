@@ -102,3 +102,33 @@ def test_schema_does_not_invite_an_upsert(sql):
     )
     for forbidden in ("on conflict", "update "):
         assert forbidden not in code_only, f"el esquema no debe incluir: {forbidden!r}"
+
+
+POLICY = "agent_turn_audit_tenant_isolation"
+
+
+def test_row_security_is_enabled_and_forced(sql):
+    """FORCE is the half that is easy to omit.
+
+    Without it the table owner is exempt from the policy, and the owner is the
+    role that runs migrations — so the protection would be absent for exactly
+    the role a service is most likely to reuse.
+    """
+    assert _names_exact(sql, "ALTER TABLE", TABLE)
+    assert "ENABLE ROW LEVEL SECURITY" in sql
+    assert "FORCE ROW LEVEL SECURITY" in sql
+
+
+def test_tenant_policy_is_defined_and_scoped_by_the_session_tenant(sql):
+    assert _names_exact(sql, "CREATE POLICY", POLICY)
+    # Both halves are needed: USING filters reads, WITH CHECK stops a write
+    # that would land in another tenant. One without the other is a half-open
+    # door, and the two are easy to confuse.
+    assert "USING (tenant_id = current_setting('app.current_tenant', true))" in sql
+    assert "WITH CHECK (tenant_id = current_setting('app.current_tenant', true))" in sql
+
+
+def test_policy_creation_is_idempotent(sql):
+    """CREATE POLICY has no IF NOT EXISTS, so re-running the migration would
+    fail on the second apply without an explicit drop first."""
+    assert _names_exact(sql, "DROP POLICY IF EXISTS", POLICY)
