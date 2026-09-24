@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { MapPin, Ruler, Building2, Calendar, FileText, X, Loader2 } from 'lucide-react';
 import { ParcelAgroStatusDetail } from './ParcelAgroStatusDetail';
 import { ParcelModulesPanel } from './ParcelModulesPanel';
+import { ParcelAlertsPanel } from './ParcelAlertsPanel';
 import type { Parcel } from '@/types';
 import api from '@/services/api';
 import { Button } from '@nekazari/ui-kit';
@@ -283,6 +284,9 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
 
                 {/* Per-parcel module activation */}
                 <ParcelModulesPanel parcelId={parcel.id} />
+
+                {/* Avisos activos de la parcela (módulo risk) */}
+                <ParcelAlertsPanel parcelId={parcel.id} />
 
                 {/* Ubicación */}
                 <div className="bg-nkz-success-soft rounded-lg p-4 border border-green-200">
