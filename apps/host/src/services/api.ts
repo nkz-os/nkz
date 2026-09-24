@@ -15,10 +15,6 @@ import type {
   TenantLimits,
   TenantUsageSummary,
   GrafanaLink,
-  RiskCatalog,
-  RiskSubscription,
-  RiskState,
-  RiskWebhook,
   EntityInventory,
 } from '@/types';
 import { getConfig } from '@/config/environment';
@@ -1531,16 +1527,6 @@ class ApiService {
     }
   }
 
-  async getRiskCatalog(): Promise<RiskCatalog[]> {
-    try {
-      const response = await this.client.get('/api/risks/catalog');
-      return Array.isArray(response.data) ? response.data : [];
-    } catch (error) {
-      logger.warn('Error fetching risk catalog:', error);
-      return [];
-    }
-  }
-
   // =============================================================================
   // Alert Methods (módulo risk federado — entidad Alert en Orion-LD)
   // =============================================================================
@@ -1553,80 +1539,6 @@ class ApiService {
       logger.warn('Error fetching alerts:', error);
       return [];
     }
-  }
-
-  async getRiskSubscriptions(): Promise<RiskSubscription[]> {
-    try {
-      const response = await this.client.get('/api/risks/subscriptions');
-      return Array.isArray(response.data) ? response.data : [];
-    } catch (error) {
-      logger.warn('Error fetching risk subscriptions:', error);
-      return [];
-    }
-  }
-
-  async createRiskSubscription(subscription: Partial<RiskSubscription>): Promise<RiskSubscription> {
-    const response = await this.client.post('/api/risks/subscriptions', subscription);
-    return response.data;
-  }
-
-  async updateRiskSubscription(id: string, updates: Partial<RiskSubscription>): Promise<RiskSubscription> {
-    const response = await this.client.patch(`/api/risks/subscriptions/${id}`, updates);
-    return response.data;
-  }
-
-  async deleteRiskSubscription(id: string): Promise<void> {
-    await this.client.delete(`/api/risks/subscriptions/${id}`);
-  }
-
-  async getRiskStates(params?: {
-    entityId?: string;
-    riskCode?: string;
-    limit?: number;
-    startDate?: string;
-    endDate?: string;
-  }): Promise<RiskState[]> {
-    try {
-      const response = await this.client.get('/api/risks/states', { params });
-      return Array.isArray(response.data) ? response.data : [];
-    } catch (error) {
-      logger.warn('Error fetching risk states:', error);
-      return [];
-    }
-  }
-
-  async getRiskWebhooks(): Promise<RiskWebhook[]> {
-    try {
-      const response = await this.client.get('/api/risks/webhooks');
-      return Array.isArray(response.data) ? response.data : [];
-    } catch (error) {
-      logger.warn('Error fetching risk webhooks:', error);
-      return [];
-    }
-  }
-
-  async createRiskWebhook(data: {
-    name: string;
-    url: string;
-    secret?: string;
-    min_severity?: string;
-  }): Promise<RiskWebhook> {
-    const response = await this.client.post('/api/risks/webhooks', data);
-    return response.data;
-  }
-
-  async deleteRiskWebhook(id: string): Promise<void> {
-    await this.client.delete(`/api/risks/webhooks/${id}`);
-  }
-
-  async triggerRiskEvaluation(): Promise<{ message: string; tenant_id: string }> {
-    const response = await this.client.post('/api/risks/trigger-evaluation');
-    return response.data;
-  }
-
-  async createCustomRisk(riskRule: any): Promise<{ message: string; risk_code: string }> {
-    const response = await this.client.post('/api/risks/catalog/custom', riskRule);
-    return response.data;
   }
 
   // IoT Provisioning

@@ -364,59 +364,6 @@ export interface CustomRiskRule {
   severity: 'low' | 'medium' | 'high' | 'critical';
 }
 
-export interface RiskCatalog {
-  risk_code: string;
-  risk_name: string;
-  risk_description?: string;
-  target_sdm_type: string;
-  target_subtype?: string;
-  data_sources: string[];
-  risk_domain: 'agronomic' | 'robotic' | 'energy' | 'livestock' | 'other';
-  evaluation_mode: 'batch' | 'realtime' | 'hybrid';
-  severity_levels: {
-    low: number;
-    medium: number;
-    high: number;
-    critical: number;
-  };
-}
-
-export interface RiskSubscription {
-  id: string;
-  tenant_id: string;
-  risk_code: string;
-  is_active: boolean;
-  user_threshold: number; // 0-100
-  notification_channels: {
-    email: boolean;
-    push: boolean;
-  };
-  entity_filters?: Record<string, any>;
-}
-
-export interface RiskState {
-  id: string;
-  tenant_id: string;
-  entity_id: string;
-  entity_type: string;
-  risk_code: string;
-  probability_score: number; // 0-100
-  severity: 'low' | 'medium' | 'high' | 'critical' | null;
-  evaluation_data: Record<string, any>;
-  timestamp: string;
-}
-
-export interface RiskWebhook {
-  id: string;
-  tenant_id: string;
-  name: string;
-  url: string;
-  events: string[];
-  min_severity: 'low' | 'medium' | 'high' | 'critical';
-  is_active: boolean;
-  created_at: string;
-}
-
 export interface EntityInventory {
   type: string;
   count: number;
