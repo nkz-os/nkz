@@ -1595,5 +1595,10 @@
   "selectElevationModel": "Seleccionar modelo de elevación",
   "deleteVariable": "Eliminar variable",
   "refreshData": "Refrescar datos",
-  "helpAndTemplates": "Ayuda y plantillas"
+  "helpAndTemplates": "Ayuda y plantillas",
+  "alerts": {
+    "title": "Avisos",
+    "viewAll": "Ver todos",
+    "empty": "Sin avisos activos"
+  }
 }

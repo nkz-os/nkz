@@ -236,6 +236,48 @@ async function retryRequest<T>(
   throw lastError;
 }
 
+// =============================================================================
+// Alert (módulo risk federado) — entidad Alert leída de Orion-LD vía /api/risk/alerts
+// =============================================================================
+
+export interface AlertEntity {
+  id: string;
+  type: string;
+  alertType?: string;
+  category?: string;
+  severity?: string;
+  refEntity?: string;
+  refEntityType?: string;
+  probabilityScore?: number;
+  observedAt?: string;
+  status?: string;
+}
+
+function alertAttrValue(e: unknown, name: string): unknown {
+  const a = (e as Record<string, any>)?.[name];
+  if (a && typeof a === 'object') {
+    if ('value' in a) return a.value;
+    if ('object' in a) return a.object;
+  }
+  return a;
+}
+
+function normalizeAlert(e: unknown): AlertEntity {
+  const rec = (e ?? {}) as Record<string, any>;
+  return {
+    id: rec.id ?? '',
+    type: rec.type ?? 'Alert',
+    alertType: alertAttrValue(e, 'alertType') as string | undefined,
+    category: alertAttrValue(e, 'category') as string | undefined,
+    severity: alertAttrValue(e, 'severity') as string | undefined,
+    refEntity: alertAttrValue(e, 'refEntity') as string | undefined,
+    refEntityType: alertAttrValue(e, 'refEntityType') as string | undefined,
+    probabilityScore: alertAttrValue(e, 'probabilityScore') as number | undefined,
+    observedAt: (alertAttrValue(e, 'observedAt') ?? rec.observedAt) as string | undefined,
+    status: alertAttrValue(e, 'status') as string | undefined,
+  };
+}
+
 class ApiService {
   private client: AxiosInstance;
   private cache: SimpleCache;
@@ -1495,6 +1537,20 @@ class ApiService {
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
       logger.warn('Error fetching risk catalog:', error);
+      return [];
+    }
+  }
+
+  // =============================================================================
+  // Alert Methods (módulo risk federado — entidad Alert en Orion-LD)
+  // =============================================================================
+
+  async getActiveAlerts(params?: { category?: string; severity?: string; limit?: number }): Promise<AlertEntity[]> {
+    try {
+      const response = await this.client.get('/api/risk/alerts', { params });
+      return (response.data?.alerts ?? []).map(normalizeAlert);
+    } catch (error) {
+      logger.warn('Error fetching alerts:', error);
       return [];
     }
   }

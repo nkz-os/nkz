@@ -19,6 +19,7 @@ import { useModules } from '@/context/ModuleContext';
 import { useI18n } from '@/context/I18nContext';
 import { LanguageSelector } from './LanguageSelector';
 import { ThemeToggle } from './ThemeToggle';
+import { NotificationBell } from './NotificationBell';
 import { MobileDrawer } from './layout/MobileDrawer';
 import {
   CORE_NAVIGATION_ITEMS,
@@ -317,6 +318,9 @@ export const Navigation: React.FC = () => {
 
               {/* Language Selector */}
               <LanguageSelector variant="compact" />
+
+              {/* Alertas (módulo risk) */}
+              <NotificationBell />
 
               {/* Logout Button (Desktop) */}
               <Button
