@@ -617,6 +617,19 @@ class EnhancedTenantWebhookService:
 
             tenant_display_name = tenant_name or self._humanize_tenant_name(desired_name)
 
+            # Limits live ONLY in the tenants table (single source of truth
+            # since migrations 076/095). Compute canonical tier defaults,
+            # then apply any explicit overrides the caller passed. Without
+            # this, a new tenant falls back to the column DEFAULT
+            # (max_users=1) and is silently born with basic-tier limits
+            # regardless of its actual plan.
+            from common.tier_quotas import limits_columns_for_tier
+            limit_columns = limits_columns_for_tier(plan)
+            if limits:
+                for key, value in limits.items():
+                    if key in limit_columns:
+                        limit_columns[key] = value
+
             cursor.execute(
                 """
                 INSERT INTO tenants (
@@ -625,15 +638,51 @@ class EnhancedTenantWebhookService:
                     plan_type,
                     plan_level,
                     status,
-                    metadata
+                    metadata,
+                    max_users,
+                    max_robots,
+                    max_sensors,
+                    max_area_hectares,
+                    max_parcels,
+                    max_entities_total,
+                    max_satellite_computations
                 )
                 VALUES (
-                    %s, %s, %s, %s, %s, %s::jsonb
+                    %s, %s, %s, %s, %s, %s::jsonb,
+                    %s, %s, %s, %s, %s, %s, %s
                 )
                 ON CONFLICT (tenant_id) DO UPDATE
                 SET tenant_name = EXCLUDED.tenant_name,
                     plan_type = EXCLUDED.plan_type,
                     plan_level = EXCLUDED.plan_level,
+                    max_users = CASE
+                        WHEN tenants.plan_level IS DISTINCT FROM EXCLUDED.plan_level
+                        THEN EXCLUDED.max_users ELSE tenants.max_users
+                    END,
+                    max_robots = CASE
+                        WHEN tenants.plan_level IS DISTINCT FROM EXCLUDED.plan_level
+                        THEN EXCLUDED.max_robots ELSE tenants.max_robots
+                    END,
+                    max_sensors = CASE
+                        WHEN tenants.plan_level IS DISTINCT FROM EXCLUDED.plan_level
+                        THEN EXCLUDED.max_sensors ELSE tenants.max_sensors
+                    END,
+                    max_area_hectares = CASE
+                        WHEN tenants.plan_level IS DISTINCT FROM EXCLUDED.plan_level
+                        THEN EXCLUDED.max_area_hectares ELSE tenants.max_area_hectares
+                    END,
+                    max_parcels = CASE
+                        WHEN tenants.plan_level IS DISTINCT FROM EXCLUDED.plan_level
+                        THEN EXCLUDED.max_parcels ELSE tenants.max_parcels
+                    END,
+                    max_entities_total = CASE
+                        WHEN tenants.plan_level IS DISTINCT FROM EXCLUDED.plan_level
+                        THEN EXCLUDED.max_entities_total ELSE tenants.max_entities_total
+                    END,
+                    max_satellite_computations = CASE
+                        WHEN tenants.plan_level IS DISTINCT FROM EXCLUDED.plan_level
+                        THEN EXCLUDED.max_satellite_computations ELSE tenants.max_satellite_computations
+                    END,
                     metadata = jsonb_strip_nulls(
                         COALESCE(tenants.metadata, '{}'::jsonb) || %s::jsonb
                     ),
@@ -650,6 +699,13 @@ class EnhancedTenantWebhookService:
                     plan_level,
                     "active",
                     metadata_update,
+                    limit_columns["max_users"],
+                    limit_columns["max_robots"],
+                    limit_columns["max_sensors"],
+                    limit_columns["max_area_hectares"],
+                    limit_columns["max_parcels"],
+                    limit_columns["max_entities_total"],
+                    limit_columns["max_satellite_computations"],
                     metadata_update,
                 ),
             )
@@ -4097,24 +4153,93 @@ def internal_inventory_kubernetes(tenant_id: str):
         return _internal_error(e, "admin_tenant_resources")
 
 
+def _tenant_plan_info(tenant_id: str) -> dict[str, Any]:
+    """Build the plan_info dict create_keycloak_user expects, from the
+    tenant's DB record. These become informational Keycloak attributes
+    only — enforcement always reads the tenants table."""
+    fallback = {
+        "plan": "basic",
+        "max_users": None,
+        "max_robots": None,
+        "max_sensors": None,
+        "code": "ADMIN_CREATED",
+    }
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return fallback
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT plan_type, max_users, max_robots, max_sensors "
+            "FROM tenants WHERE tenant_id = %s",
+            (tenant_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            return fallback
+        return {
+            "plan": row.get("plan_type") or "basic",
+            "max_users": row.get("max_users"),
+            "max_robots": row.get("max_robots"),
+            "max_sensors": row.get("max_sensors"),
+            "code": "ADMIN_CREATED",
+        }
+    except Exception as exc:
+        logger.warning(f"Failed to read plan info for tenant {tenant_id}: {exc}")
+        return fallback
+    finally:
+        conn.close()
+
+
 @app.route("/api/admin/tenants/<tenant_id>/users", methods=["POST"])
 @require_platform_admin
 def assign_user_to_tenant(tenant_id: str):
-    """Assign an existing user to a tenant (PlatformAdmin only)"""
+    """Assign an existing user to a tenant, or create + assign when a
+    password is supplied (PlatformAdmin only)."""
     try:
-        data = request.get_json()
-        user_email = data.get("email")
-        role = data.get("role", "Farmer")  # Default role
+        data = request.get_json() or {}
+        user_email = (data.get("email") or "").strip().lower()
+        password = data.get("password")
+        first_name = (data.get("firstName") or data.get("first_name") or "").strip()
+        last_name = (data.get("lastName") or data.get("last_name") or "").strip()
+
+        # The create modal sends `roles` (list); the assign modal sends a
+        # single `role`. Accept both, defaulting to Farmer.
+        roles = data.get("roles")
+        if isinstance(roles, list) and roles:
+            requested_roles = [str(r) for r in roles]
+        else:
+            requested_roles = [data.get("role") or "Farmer"]
 
         if not user_email:
             return jsonify({"error": "email is required"}), 400
 
         # Find user in Keycloak
-        keycloak_user = webhook_service.find_keycloak_user_by_email(user_email.lower())
-        if not keycloak_user or not keycloak_user.get("success"):
-            return jsonify({"error": "User not found in Keycloak"}), 404
+        keycloak_user = webhook_service.find_keycloak_user_by_email(user_email)
 
-        user_id = keycloak_user.get("user_id")
+        if not keycloak_user or not keycloak_user.get("success"):
+            # The user does not exist yet. Only the create flow supplies a
+            # password; the assign-only flow cannot invent credentials.
+            if not password:
+                return jsonify({"error": "User not found in Keycloak"}), 404
+
+            result = webhook_service.create_keycloak_user(
+                user_email,
+                tenant_id,
+                _tenant_plan_info(tenant_id),
+                password,
+                is_owner=False,
+                first_name=first_name,
+                last_name=last_name,
+            )
+            if not result.get("success"):
+                return jsonify(
+                    {"error": result.get("error") or "Failed to create user"}
+                ), 502
+            user_id = result.get("user_id")
+        else:
+            user_id = keycloak_user.get("user_id")
 
         # Get Keycloak token
         token = webhook_service.get_keycloak_token()
@@ -4132,8 +4257,9 @@ def assign_user_to_tenant(tenant_id: str):
         # Add user to group
         webhook_service._add_user_to_group(headers, user_id, tenant_group_id, user_email, tenant_id)
 
-        # Assign role
-        webhook_service._assign_role_to_user(headers, user_id, role)
+        # Assign requested role(s)
+        for role in requested_roles:
+            webhook_service._assign_role_to_user(headers, user_id, role)
 
         # Update user attributes with tenant_id.
         # Keycloak 26 PUT /users/{id} validates the whole UserRepresentation
