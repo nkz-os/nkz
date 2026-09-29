@@ -3,7 +3,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 afterEach(cleanup);
-import { LayerMenuRow } from '../src/components/LayerMenuRow';
+import { LayerMenuRow, LayerMenuRowEmbeddedContext } from '../src/components/LayerMenuRow';
 
 describe('LayerMenuRow', () => {
   const baseProps = {
@@ -86,5 +86,16 @@ describe('LayerMenuRow', () => {
     expect(screen.getByRole('button', { name: /^seleccionada$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^todas$/i })).toBeInTheDocument();
     expect(screen.getByRole('slider')).toHaveAttribute('aria-label', 'Opacidad');
+  });
+
+  it('hides the title when embedded in the host layers panel but keeps the layer switch', () => {
+    render(
+      <LayerMenuRowEmbeddedContext.Provider value={true}>
+        <LayerMenuRow {...baseProps} />
+      </LayerMenuRowEmbeddedContext.Provider>,
+    );
+    expect(screen.queryByText('Vegetation')).not.toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Vegetation' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^all$/i })).toBeInTheDocument();
   });
 });
