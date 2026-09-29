@@ -32,6 +32,8 @@ interface SlotRendererProps {
     additionalProps?: Record<string, any>;
     /** Optional keys to trigger error boundary reset */
     resetKeys?: any[];
+    /** Render only the widgets of this module */
+    moduleId?: string;
 }
 
 /** Loading fallback for lazy-loaded widgets */
@@ -243,13 +245,17 @@ export const SlotRenderer: React.FC<SlotRendererProps> = ({
     inline = false,
     additionalProps,
     resetKeys,
+    moduleId: onlyModuleId,
 }) => {
     const slotRegistry = useSlotRegistryOptional();
     const { modules } = useModules();
     const { tenantProfile } = useAuth();
     const tenantPlan = tenantProfile?.plan_type as any;
 
-    const widgets = slotRegistry ? slotRegistry.getVisibleWidgets(slot) : [];
+    const allWidgets = slotRegistry ? slotRegistry.getVisibleWidgets(slot) : [];
+    const widgets = onlyModuleId
+        ? allWidgets.filter(w => getModuleIdFromWidget(w) === onlyModuleId)
+        : allWidgets;
 
     // Group widgets by module (hook must run before any early return)
     const widgetsByModule = useMemo(() => {

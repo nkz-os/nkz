@@ -8,7 +8,9 @@ import React, { createContext, useContext, useState, useCallback, useMemo, React
 import type { SlotType, SlotWidgetDefinition, ModuleViewerSlots } from '@nekazari/sdk';
 import { useModules } from './ModuleContext';
 import { useViewer } from './ViewerContext';
-import { getLocalModuleSlots, isLocalModule } from '@/modules/registry';
+import { useAuth } from './KeycloakAuthContext';
+import { getLocalModuleSlots, getAllLocalModuleIds } from '@/modules/registry';
+import { resolveActiveModules, loadChoices, saveChoices, type ActivationChoices } from './moduleActivation';
 
 
 // =============================================================================
@@ -50,6 +52,11 @@ const LOCAL_MODULES: Record<string, ModuleViewerSlots> = {
     ...getLocalModuleSlots(),
 };
 
+const LOCAL_MODULE_IDS: ReadonlySet<string> = new Set([
+    ...Object.keys(LOCAL_MODULES),
+    ...getAllLocalModuleIds(),
+]);
+
 // =============================================================================
 // Slot Registry Context
 // =============================================================================
@@ -89,59 +96,41 @@ export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ chil
     // So we can safely use useViewer() here
     const viewerContext = useViewer();
 
-    // Track which modules are active (their widgets should be rendered)
-    // Initialize based on modules from ModuleContext (already filtered by backend to only include enabled ones)
-    const [activeModuleIds, setActiveModuleIds] = useState<Set<string>>(() => {
-        const active = new Set<string>(['core']); // Core is always active
-        return active;
-    });
+    const { tenantId } = useAuth();
 
-    // Sync active modules when modules list changes
-    // Modules from ModuleContext are already filtered by backend (is_enabled = true)
+    // Explicit on/off choices from the viewer's Layers panel, kept for the
+    // session. Modules without a choice follow the default they declare.
+    const [choices, setChoices] = useState<ActivationChoices>(() => loadChoices(tenantId));
+
     useEffect(() => {
-        const active = new Set<string>(['core']);
+        setChoices(loadChoices(tenantId));
+    }, [tenantId]);
 
-        modules.forEach(module => {
-            const isLocal = isLocalModule(module.id);
-            const isInLocalModules = !!LOCAL_MODULES[module.id];
-            const hasViewerSlots = !!module.viewerSlots;
+    const activeModuleIds = useMemo(
+        () => resolveActiveModules(modules, choices, LOCAL_MODULE_IDS),
+        [modules, choices],
+    );
 
-            if (isLocal || isInLocalModules || hasViewerSlots) {
-                active.add(module.id);
-            }
-        });
-
-        setActiveModuleIds(active);
-    }, [modules]);
-
-    // Toggle module activation
-    const toggleModule = useCallback((moduleId: string) => {
-        setActiveModuleIds(prev => {
-            const next = new Set(prev);
-            if (next.has(moduleId)) {
-                // Don't allow deactivating core module
-                if (moduleId !== 'core') {
-                    next.delete(moduleId);
-                }
-            } else {
-                next.add(moduleId);
-            }
+    const setChoice = useCallback((moduleId: string, on: boolean) => {
+        if (moduleId === 'core') return; // Core is always active
+        setChoices(prev => {
+            const next = { ...prev, [moduleId]: on };
+            saveChoices(tenantId, next);
             return next;
         });
-    }, []);
+    }, [tenantId]);
+
+    const toggleModule = useCallback((moduleId: string) => {
+        setChoice(moduleId, !activeModuleIds.has(moduleId));
+    }, [setChoice, activeModuleIds]);
 
     const activateModule = useCallback((moduleId: string) => {
-        setActiveModuleIds(prev => new Set([...prev, moduleId]));
-    }, []);
+        setChoice(moduleId, true);
+    }, [setChoice]);
 
     const deactivateModule = useCallback((moduleId: string) => {
-        if (moduleId === 'core') return; // Can't deactivate core
-        setActiveModuleIds(prev => {
-            const next = new Set(prev);
-            next.delete(moduleId);
-            return next;
-        });
-    }, []);
+        setChoice(moduleId, false);
+    }, [setChoice]);
 
     const isModuleActive = useCallback((moduleId: string) => {
         return activeModuleIds.has(moduleId);
