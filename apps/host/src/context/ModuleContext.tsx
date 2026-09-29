@@ -16,6 +16,7 @@ import type { ModuleViewerSlots } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { getConfig } from '@/config/environment';
 import { checkModuleContract } from '@/utils/moduleContract';
+import { carryOverViewerSlots } from './moduleSlotMerge';
 
 // =============================================================================
 // Module Definition
@@ -150,6 +151,11 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
 }) => {
   const effectiveApiBaseUrl = apiBaseUrl || getConfig().api.baseUrl || '/api';
   const { isAuthenticated, getToken, tenantId } = useAuth();
+  // getToken is a new function on every AuthProvider render; reading it through
+  // a ref keeps loadModules stable so the module list is not refetched (and the
+  // preloaded viewer slots reset) on unrelated auth re-renders.
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const [modules, setModules] = useState<ModuleDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -196,7 +202,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
       try {
         const client = new NekazariClient({
           baseUrl: effectiveApiBaseUrl,
-          getToken: getToken,
+          getToken: () => getTokenRef.current(),
           getTenantId: () => tenantId,
         });
         const data = await client.get<ModuleDefinition[]>('/api/modules/me');
@@ -320,7 +326,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         }
       }
 
-      setModules(Array.from(moduleMap.values()));
+      setModules((prev) => carryOverViewerSlots(prev, Array.from(moduleMap.values())));
       setVisibilityRules(visibility);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load modules');
@@ -330,7 +336,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated, tenantId, getToken, effectiveApiBaseUrl]);
+  }, [isAuthenticated, tenantId, effectiveApiBaseUrl]);
 
   useEffect(() => {
     loadModules();
