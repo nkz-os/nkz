@@ -108,7 +108,9 @@ export const ViewerLayersPanel: React.FC = () => {
     const moduleRows = modules.filter(m => m.id !== 'core' && hasViewerWidgets(m));
 
     return (
-        <div className="absolute top-4 right-4 z-40 flex flex-col items-end gap-2">
+        // right-16 leaves the map's own hover controls (fullscreen, terrain,
+        // base map) at top-4 right-4 uncovered.
+        <div className="absolute top-4 right-16 z-40 flex flex-col items-end gap-2">
             <Button
                 type="button"
                 onClick={() => setLayersPanelOpen(!isLayersPanelOpen)}

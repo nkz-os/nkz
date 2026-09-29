@@ -780,7 +780,7 @@ const UnifiedViewerInner: React.FC = () => {
 /** Main UnifiedViewer with SlotRegistryProvider wrapper */
 export const UnifiedViewer: React.FC = () => {
     return (
-        <SlotRegistryProvider>
+        <SlotRegistryProvider respectViewerChoices>
             <UnifiedViewerInner />
         </SlotRegistryProvider>
     );

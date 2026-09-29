@@ -11,7 +11,8 @@ vi.mock('../ModuleContext', () => ({ useModules: () => ({ modules }) }));
 vi.mock('../ViewerContext', () => ({
   useViewer: () => ({ selectedEntityType: null, activeLayers: new Set() }),
 }));
-vi.mock('../KeycloakAuthContext', () => ({ useAuth: () => ({ tenantId: 'tenant-a' }) }));
+let tenantId = 'tenant-a';
+vi.mock('../KeycloakAuthContext', () => ({ useAuth: () => ({ tenantId }) }));
 vi.mock('@/modules/registry', () => ({ getLocalModuleSlots: () => ({}), getAllLocalModuleIds: () => [] }));
 vi.mock('@/components/viewer/CoreEntityTree', () => ({ default: () => null }));
 vi.mock('@/components/viewer/CoreContextPanel', () => ({ default: () => null }));
@@ -20,6 +21,10 @@ vi.mock('@/components/viewer/CoreLayerToggles', () => ({ default: () => null }))
 import { SlotRegistryProvider, useSlotRegistry } from '../SlotRegistry';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
+  <SlotRegistryProvider respectViewerChoices>{children}</SlotRegistryProvider>
+);
+
+const plainWrapper = ({ children }: { children: React.ReactNode }) => (
   <SlotRegistryProvider>{children}</SlotRegistryProvider>
 );
 
@@ -30,6 +35,7 @@ beforeEach(() => {
     setItem: (k: string, v: string) => { store.set(k, v); },
   });
   modules = [{ id: 'lidar', viewerSlots: slots, viewerDefaultActive: false }];
+  tenantId = 'tenant-a';
 });
 
 describe('SlotRegistryProvider', () => {
@@ -56,6 +62,28 @@ describe('SlotRegistryProvider', () => {
     first.unmount();
 
     const { result } = renderHook(() => useSlotRegistry(), { wrapper });
+    expect(result.current.isModuleActive('lidar')).toBe(true);
+  });
+
+  it('ignores viewer switches outside the viewer (dashboard)', () => {
+    const viewer = renderHook(() => useSlotRegistry(), { wrapper });
+    act(() => viewer.result.current.deactivateModule('lidar'));
+    viewer.unmount();
+
+    const { result } = renderHook(() => useSlotRegistry(), { wrapper: plainWrapper });
+    expect(result.current.isModuleActive('lidar')).toBe(true);
+  });
+
+  it('does not carry one tenant\'s choices into another', () => {
+    const { result, rerender } = renderHook(() => useSlotRegistry(), { wrapper });
+    act(() => result.current.activateModule('lidar'));
+
+    tenantId = 'tenant-b';
+    rerender();
+    expect(result.current.isModuleActive('lidar')).toBe(false);
+
+    tenantId = 'tenant-a';
+    rerender();
     expect(result.current.isModuleActive('lidar')).toBe(true);
   });
 

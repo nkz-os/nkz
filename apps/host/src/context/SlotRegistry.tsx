@@ -88,9 +88,15 @@ const SlotRegistryContext = createContext<SlotRegistryContextType | undefined>(u
 
 interface SlotRegistryProviderProps {
     children: ReactNode;
+    /**
+     * Apply the per-module switches of the viewer's Layers panel (and the
+     * defaults modules declare for it). Only the unified viewer sets this;
+     * other hosts of slots (e.g. the dashboard) show every module.
+     */
+    respectViewerChoices?: boolean;
 }
 
-export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ children }) => {
+export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ children, respectViewerChoices = false }) => {
     const { modules } = useModules();
     // SlotRegistryProvider is always used within ViewerProvider (in UnifiedViewer)
     // So we can safely use useViewer() here
@@ -100,25 +106,38 @@ export const SlotRegistryProvider: React.FC<SlotRegistryProviderProps> = ({ chil
 
     // Explicit on/off choices from the viewer's Layers panel, kept for the
     // session. Modules without a choice follow the default they declare.
-    const [choices, setChoices] = useState<ActivationChoices>(() => loadChoices(tenantId));
-
-    useEffect(() => {
-        setChoices(loadChoices(tenantId));
-    }, [tenantId]);
+    // Choices belong to one tenant; a tenant change swaps them during render
+    // so no frame ever applies (or saves) another tenant's choices.
+    const [choiceState, setChoiceState] = useState<{ tenantId: string; choices: ActivationChoices }>(
+        () => ({ tenantId, choices: respectViewerChoices ? loadChoices(tenantId) : {} }),
+    );
+    let choices = choiceState.choices;
+    if (choiceState.tenantId !== tenantId) {
+        choices = respectViewerChoices ? loadChoices(tenantId) : {};
+        setChoiceState({ tenantId, choices });
+    }
 
     const activeModuleIds = useMemo(
-        () => resolveActiveModules(modules, choices, LOCAL_MODULE_IDS),
-        [modules, choices],
+        () => resolveActiveModules(
+            respectViewerChoices
+                ? modules
+                : modules.map(m => ({ ...m, viewerDefaultActive: undefined })),
+            choices,
+            LOCAL_MODULE_IDS,
+        ),
+        [modules, choices, respectViewerChoices],
     );
 
     const setChoice = useCallback((moduleId: string, on: boolean) => {
         if (moduleId === 'core') return; // Core is always active
-        setChoices(prev => {
-            const next = { ...prev, [moduleId]: on };
-            saveChoices(tenantId, next);
-            return next;
-        });
-    }, [tenantId]);
+        setChoiceState(prev => ({ ...prev, choices: { ...prev.choices, [moduleId]: on } }));
+    }, []);
+
+    // Persist the viewer's choices for the session (the dashboard keeps its
+    // in-memory toggles to itself).
+    useEffect(() => {
+        if (respectViewerChoices) saveChoices(choiceState.tenantId, choiceState.choices);
+    }, [respectViewerChoices, choiceState]);
 
     const toggleModule = useCallback((moduleId: string) => {
         setChoice(moduleId, !activeModuleIds.has(moduleId));
