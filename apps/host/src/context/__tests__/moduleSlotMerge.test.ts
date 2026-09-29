@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { carryOverViewerSlots } from '../moduleSlotMerge';
+import { carryOverViewerSlots, shouldPreload, MAX_PRELOAD_ATTEMPTS } from '../moduleSlotMerge';
 import type { ModuleDefinition } from '../ModuleContext';
 
 const mod = (id: string, extra: Partial<ModuleDefinition> = {}): ModuleDefinition => ({
@@ -39,5 +39,30 @@ describe('carryOverViewerSlots', () => {
     const prev = [mod('a', { viewerSlots: slots })];
     const next = [mod('a', { remoteEntry: '/modules/a-v2/mf-manifest.json' })];
     expect(carryOverViewerSlots(prev, next)[0].viewerSlots).toBeUndefined();
+  });
+});
+
+describe('shouldPreload', () => {
+  const remote = mod('lidar');
+
+  it('preloads a remote without slots', () => {
+    expect(shouldPreload(remote, new Map(), new Set())).toBe(true);
+  });
+
+  it('skips while in flight', () => {
+    expect(shouldPreload(remote, new Map(), new Set(['lidar']))).toBe(false);
+  });
+
+  it('retries after a failure', () => {
+    expect(shouldPreload(remote, new Map([['lidar', 1]]), new Set())).toBe(true);
+  });
+
+  it('gives up after max attempts', () => {
+    expect(shouldPreload(remote, new Map([['lidar', MAX_PRELOAD_ATTEMPTS]]), new Set())).toBe(false);
+  });
+
+  it('skips local modules and modules that already have slots', () => {
+    expect(shouldPreload(mod('x', { isLocal: true }), new Map(), new Set())).toBe(false);
+    expect(shouldPreload(mod('y', { viewerSlots: slots }), new Map(), new Set())).toBe(false);
   });
 });

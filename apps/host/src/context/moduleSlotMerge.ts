@@ -18,3 +18,16 @@ export function carryOverViewerSlots(
     return { ...m, viewerSlots: old.viewerSlots };
   });
 }
+
+/** Load attempts per remote before the slot preload gives up for the session. */
+export const MAX_PRELOAD_ATTEMPTS = 3;
+
+export function shouldPreload(
+  m: ModuleDefinition,
+  attempts: ReadonlyMap<string, number>,
+  inFlight: ReadonlySet<string>,
+): boolean {
+  if (m.isLocal || !m.remoteEntry || m.viewerSlots) return false;
+  if (inFlight.has(m.id)) return false;
+  return (attempts.get(m.id) ?? 0) < MAX_PRELOAD_ATTEMPTS;
+}
