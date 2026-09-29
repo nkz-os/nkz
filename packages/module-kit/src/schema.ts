@@ -70,6 +70,12 @@ const ViewerLayerDeclSchema = z.object({
   defaultVisible: z.boolean().optional(),
 }).strict();
 
+const ViewerSchema = z.object({
+  // Initial state of the module's switch in the unified viewer's Layers panel.
+  // Undeclared means active.
+  defaultActive: z.boolean().optional(),
+}).strict();
+
 export const ModuleDefinitionSchema = z.object({
   // Identity
   id: KebabCase,
@@ -100,6 +106,9 @@ export const ModuleDefinitionSchema = z.object({
 
   // Data dependencies
   data: DataSchema.optional(),
+
+  // Unified viewer behaviour
+  viewer: ViewerSchema.optional(),
 
   // Unified viewer layers (contract frozen 2026-07-12) — registered into
   // @nekazari/sdk's LayerRegistry when the module is defined. HARD CUT:

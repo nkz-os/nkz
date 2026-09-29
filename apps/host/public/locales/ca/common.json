@@ -984,7 +984,14 @@
       "undo_title": "Desfer l'últim punt",
       "clear_title": "Netejar el dibuix",
       "accept": "Acceptar"
-    }
+    },
+    "layersTitle": "Capes",
+    "layersGroupCore": "Nucli",
+    "layersGroupModules": "Mòduls",
+    "layersPanelOpen": "Obre les capes (Maj+L)",
+    "layersPanelClose": "Tanca les capes",
+    "layersModuleOptions": "Opcions de capa",
+    "layersNoModules": "Cap mòdul aporta capes al visor"
   },
   "entities": {
     "assets": {

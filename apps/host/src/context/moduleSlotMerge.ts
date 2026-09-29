@@ -15,7 +15,7 @@ export function carryOverViewerSlots(
     if (m.viewerSlots) return m;
     const old = byId.get(m.id);
     if (!old?.viewerSlots || old.remoteEntry !== m.remoteEntry) return m;
-    return { ...m, viewerSlots: old.viewerSlots };
+    return { ...m, viewerSlots: old.viewerSlots, viewerDefaultActive: old.viewerDefaultActive };
   });
 }
 

@@ -7,10 +7,17 @@
  * The toggle is a native <input role="switch"> (not the ui-kit Toggle) so that
  * ARIA semantics are correct for assistive technologies and predictable in tests.
  */
-import React, { ReactNode } from 'react';
+import React, { ReactNode, createContext, useContext } from 'react';
 import { SlotShellCompact } from '@nekazari/viewer-kit';
 
 export type LayerScope = 'selected' | 'all';
+
+/**
+ * Set to true by the host when the row is rendered inside its Layers panel,
+ * under a module row that already shows the module's icon and name. The row
+ * then omits its own icon and title; the layer switch stays.
+ */
+export const LayerMenuRowEmbeddedContext = createContext<boolean>(false);
 
 export interface LayerMenuRowProps {
   moduleId: string;
@@ -71,6 +78,7 @@ export const LayerMenuRow: React.FC<LayerMenuRowProps> = ({
   allLabel = 'All',
   opacityLabel = 'Opacity',
 }) => {
+  const embedded = useContext(LayerMenuRowEmbeddedContext);
   const isDisabled = !!disabledReason;
   const showOpacity =
     enabled && typeof opacity === 'number' && typeof onOpacityChange === 'function';
@@ -80,12 +88,15 @@ export const LayerMenuRow: React.FC<LayerMenuRowProps> = ({
       <div className="flex flex-col gap-nkz-tight">
         {/* Header row: icon + title + toggle */}
         <div className="flex items-center gap-nkz-inline">
-          {icon && (
+          {icon && !embedded && (
             <span className="text-nkz-accent-base flex-shrink-0">{icon}</span>
           )}
-          <span className="flex-1 text-nkz-sm font-medium text-nkz-text">
-            {title}
-          </span>
+          {!embedded && (
+            <span className="flex-1 text-nkz-sm font-medium text-nkz-text">
+              {title}
+            </span>
+          )}
+          {embedded && <span className="flex-1" />}
           <input
             type="checkbox"
             role="switch"

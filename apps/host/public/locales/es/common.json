@@ -1496,7 +1496,11 @@
       "undo_title": "Deshacer último punto",
       "clear_title": "Borrar dibujo",
       "accept": "Aceptar"
-    }
+    },
+    "layersPanelOpen": "Abrir capas (Mayús+L)",
+    "layersPanelClose": "Cerrar capas",
+    "layersModuleOptions": "Opciones de capa",
+    "layersNoModules": "Ningún módulo aporta capas al visor"
   },
   "entities": {
     "assets": {

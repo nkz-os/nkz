@@ -111,3 +111,25 @@ describe('toNKZRegistration', () => {
     expect(panel?.[0].component).toBe('fallback-id');
   });
 });
+
+describe('viewer.defaultActive', () => {
+  const base = {
+    id: 'test-module',
+    displayName: 'Test',
+    hostApiVersion: '^2.0.0',
+    accent: { base: '#A16207', soft: '#FEF3C7', strong: '#713F12' },
+  };
+
+  it('accepts viewer.defaultActive and passes it to the registration', () => {
+    const def = defineModule({ ...base, viewer: { defaultActive: false } });
+    expect(toNKZRegistration(def).viewerDefaultActive).toBe(false);
+  });
+
+  it('leaves viewerDefaultActive undefined when not declared', () => {
+    expect(toNKZRegistration(defineModule(base)).viewerDefaultActive).toBeUndefined();
+  });
+
+  it('rejects unknown keys under viewer', () => {
+    expect(() => defineModule({ ...base, viewer: { foo: 1 } } as never)).toThrowError(/viewer/);
+  });
+});

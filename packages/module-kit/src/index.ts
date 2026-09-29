@@ -45,7 +45,7 @@ export { useTimeseries } from './hooks/useTimeseries';
 export type { TimeseriesPoint, TimeseriesQuery, TimeseriesTransport } from './hooks/types';
 
 // Shared viewer components
-export { LayerMenuRow } from './components/LayerMenuRow';
+export { LayerMenuRow, LayerMenuRowEmbeddedContext } from './components/LayerMenuRow';
 export type { LayerScope, LayerMenuRowProps } from './components/LayerMenuRow';
 
 // Unified viewer layers (contract frozen 2026-07-12, plan §B1) — declared via

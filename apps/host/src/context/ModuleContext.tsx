@@ -56,6 +56,9 @@ export interface ModuleDefinition {
   // RemoteModuleLoader has called loadRemote): the full definition with
   // localComponent refs filled in.
   viewerSlots?: ModuleViewerSlots;
+  // Initial state of the module's switch in the viewer (from defineModule's
+  // viewer.defaultActive). Undefined = active.
+  viewerDefaultActive?: boolean;
   // API contract for host compatibility checking (progressive feature)
   apiContract?: ModuleApiContract;
   // Module's backend api details
@@ -392,9 +395,10 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         const moduleDef = exposed
           ? (exposed as { default?: unknown }).default ?? exposed
           : null;
-        const slots = moduleDef && typeof moduleDef === 'object'
-          ? toNKZRegistration(moduleDef as Parameters<typeof toNKZRegistration>[0]).viewerSlots
+        const registration = moduleDef && typeof moduleDef === 'object'
+          ? toNKZRegistration(moduleDef as Parameters<typeof toNKZRegistration>[0])
           : undefined;
+        const slots = registration?.viewerSlots;
         if (!slots || Object.keys(slots).length === 0) {
           // The remote loaded but contributes nothing to the viewer: not a
           // transient failure, so do not retry.
@@ -403,7 +407,9 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         }
         setModules((prev) =>
           prev.map((mod) =>
-            mod.id === m.id ? { ...mod, viewerSlots: slots } : mod,
+            mod.id === m.id
+              ? { ...mod, viewerSlots: slots, viewerDefaultActive: registration?.viewerDefaultActive }
+              : mod,
           ),
         );
       } catch (err) {
@@ -437,7 +443,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     setModules(prev =>
       prev.map(m =>
         m.id === id
-          ? { ...m, viewerSlots: registration.viewerSlots }
+          ? { ...m, viewerSlots: registration.viewerSlots, viewerDefaultActive: registration.viewerDefaultActive }
           : m
       )
     );
