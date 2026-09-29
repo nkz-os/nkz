@@ -13,7 +13,7 @@
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
-    "lint-staged": "^17.5.1",
+    "lint-staged": "^17.6.0",
     "turbo": "^2.10.13"
   },
   "lint-staged": {
