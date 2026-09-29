@@ -16,6 +16,7 @@ import type { ModuleViewerSlots } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { getConfig } from '@/config/environment';
 import { checkModuleContract } from '@/utils/moduleContract';
+import { carryOverViewerSlots, shouldPreload, MAX_PRELOAD_ATTEMPTS } from './moduleSlotMerge';
 
 // =============================================================================
 // Module Definition
@@ -149,15 +150,25 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   apiBaseUrl
 }) => {
   const effectiveApiBaseUrl = apiBaseUrl || getConfig().api.baseUrl || '/api';
-  const { isAuthenticated, getToken, tenantId } = useAuth();
+  const { isAuthenticated, getToken, tenantId, sessionReady } = useAuth();
+  // getToken is a new function on every AuthProvider render; reading it through
+  // a ref keeps loadModules stable so the module list is not refetched (and the
+  // preloaded viewer slots reset) on unrelated auth re-renders.
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
   const [modules, setModules] = useState<ModuleDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [visibilityRules, setVisibilityRules] = useState<Record<string, { hiddenRoles: string[] }>>({});
   const [incompatibleModules, setIncompatibleModules] = useState<Map<string, string>>(new Map());
   const registeredFingerprintRef = useRef<string>('');
+  // Only the most recent loadModules call may commit its result: a slower,
+  // older call (e.g. for a previous tenant) must not overwrite it.
+  const loadSeqRef = useRef(0);
 
   const loadModules = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
+    const isStale = () => seq !== loadSeqRef.current;
     if (!isAuthenticated || !tenantId) {
       setModules([]);
       return;
@@ -196,7 +207,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
       try {
         const client = new NekazariClient({
           baseUrl: effectiveApiBaseUrl,
-          getToken: getToken,
+          getToken: () => getTokenRef.current(),
           getTenantId: () => tenantId,
         });
         const data = await client.get<ModuleDefinition[]>('/api/modules/me');
@@ -287,6 +298,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
           );
         }
       }
+      if (isStale()) return;
       setIncompatibleModules(incompatibleReasons);
 
       // =============================================================================
@@ -320,17 +332,20 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
         }
       }
 
-      setModules(Array.from(moduleMap.values()));
+      setModules((prev) => carryOverViewerSlots(prev, Array.from(moduleMap.values())));
       setVisibilityRules(visibility);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load modules');
       logger.error('[ModuleContext] Error loading modules:', error);
+      if (isStale()) return;
       setError(error);
       setModules([]);
     } finally {
-      setIsLoading(false);
+      if (!isStale()) setIsLoading(false);
     }
-  }, [isAuthenticated, tenantId, getToken, effectiveApiBaseUrl]);
+    // sessionReady: on the mobile WebView the first fetch can race the session
+    // cookie (no bearer token there), so fetch again once the cookie is set.
+  }, [isAuthenticated, tenantId, sessionReady, effectiveApiBaseUrl]);
 
   useEffect(() => {
     loadModules();
@@ -343,47 +358,69 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   // once — the SlotRegistry activation gate keys off `viewerSlots`, which is
   // only filled in by RemoteModuleLoader's `loadRemote` call.
   // ===========================================================================
-  const preloadedRef = useRef<Set<string>>(new Set());
+  const preloadAttemptsRef = useRef<Map<string, number>>(new Map());
+  const preloadInFlightRef = useRef<Set<string>>(new Set());
+  const preloadRetryTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Bumped after a failed load so the effect runs again even if `modules`
+  // does not change in the meantime.
+  const [preloadTick, setPreloadTick] = useState(0);
 
   useEffect(() => {
-    preloadedRef.current = new Set();
+    preloadAttemptsRef.current = new Map();
+    preloadInFlightRef.current = new Set();
     registeredFingerprintRef.current = '';
   }, [tenantId]);
 
   useEffect(() => {
-    const pending = modules.filter(
-      (m) =>
-        !m.isLocal &&
-        m.remoteEntry &&
-        !m.viewerSlots &&
-        !preloadedRef.current.has(m.id),
+    const timers = preloadRetryTimersRef.current;
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  useEffect(() => {
+    const pending = modules.filter((m) =>
+      shouldPreload(m, preloadAttemptsRef.current, preloadInFlightRef.current),
     );
     if (pending.length === 0) return;
 
-    pending.forEach((m) => preloadedRef.current.add(m.id));
-
     pending.forEach(async (m) => {
+      const attempt = (preloadAttemptsRef.current.get(m.id) ?? 0) + 1;
+      preloadAttemptsRef.current.set(m.id, attempt);
+      preloadInFlightRef.current.add(m.id);
       try {
         const alias = toFederationAlias(m.id);
         const exposed = await loadRemote<{ default?: unknown }>(`${alias}/Module`);
-        if (!exposed) return;
-        const moduleDef = (exposed as { default?: unknown }).default ?? exposed;
-        if (!moduleDef || typeof moduleDef !== 'object') return;
-        const registration = toNKZRegistration(
-          moduleDef as Parameters<typeof toNKZRegistration>[0],
-        );
-        const slots = registration.viewerSlots;
-        if (!slots || Object.keys(slots).length === 0) return;
+        const moduleDef = exposed
+          ? (exposed as { default?: unknown }).default ?? exposed
+          : null;
+        const slots = moduleDef && typeof moduleDef === 'object'
+          ? toNKZRegistration(moduleDef as Parameters<typeof toNKZRegistration>[0]).viewerSlots
+          : undefined;
+        if (!slots || Object.keys(slots).length === 0) {
+          // The remote loaded but contributes nothing to the viewer: not a
+          // transient failure, so do not retry.
+          preloadAttemptsRef.current.set(m.id, MAX_PRELOAD_ATTEMPTS);
+          return;
+        }
         setModules((prev) =>
           prev.map((mod) =>
             mod.id === m.id ? { ...mod, viewerSlots: slots } : mod,
           ),
         );
       } catch (err) {
-        logger.warn(`[ModuleContext] Slot preload failed for module "${m.id}":`, err);
+        logger.warn(
+          `[ModuleContext] Slot preload failed for module "${m.id}" (attempt ${attempt}/${MAX_PRELOAD_ATTEMPTS}):`,
+          err,
+        );
+        if (attempt < MAX_PRELOAD_ATTEMPTS) {
+          preloadRetryTimersRef.current.push(
+            setTimeout(() => setPreloadTick((t) => t + 1), 2000 * attempt),
+          );
+        }
+      } finally {
+        preloadInFlightRef.current.delete(m.id);
       }
     });
-  }, [modules]);
+  }, [modules, preloadTick]);
 
   const getModuleById = useCallback((id: string): ModuleDefinition | undefined => {
     return modules.find(m => m.id === id);

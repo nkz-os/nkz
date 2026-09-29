@@ -52,6 +52,8 @@ export interface KeycloakAuthContextType {
   hasRole: (role: string) => boolean;
   hasAnyRole: (roles: string[]) => boolean;
   getToken: () => string | undefined;
+  /** True once the httpOnly session cookie has been set for this login. */
+  sessionReady: boolean;
   tenantId: string;
   tenantName: string;
   tenantProfile: TenantProfile | null;
@@ -935,6 +937,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
     hasRole,
     hasAnyRole,
     getToken,
+    sessionReady,
     tenantId,
     tenantName,
     tenantProfile,
