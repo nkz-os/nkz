@@ -150,7 +150,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   apiBaseUrl
 }) => {
   const effectiveApiBaseUrl = apiBaseUrl || getConfig().api.baseUrl || '/api';
-  const { isAuthenticated, getToken, tenantId } = useAuth();
+  const { isAuthenticated, getToken, tenantId, sessionReady } = useAuth();
   // getToken is a new function on every AuthProvider render; reading it through
   // a ref keeps loadModules stable so the module list is not refetched (and the
   // preloaded viewer slots reset) on unrelated auth re-renders.
@@ -162,8 +162,13 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
   const [visibilityRules, setVisibilityRules] = useState<Record<string, { hiddenRoles: string[] }>>({});
   const [incompatibleModules, setIncompatibleModules] = useState<Map<string, string>>(new Map());
   const registeredFingerprintRef = useRef<string>('');
+  // Only the most recent loadModules call may commit its result: a slower,
+  // older call (e.g. for a previous tenant) must not overwrite it.
+  const loadSeqRef = useRef(0);
 
   const loadModules = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
+    const isStale = () => seq !== loadSeqRef.current;
     if (!isAuthenticated || !tenantId) {
       setModules([]);
       return;
@@ -293,6 +298,7 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
           );
         }
       }
+      if (isStale()) return;
       setIncompatibleModules(incompatibleReasons);
 
       // =============================================================================
@@ -331,12 +337,15 @@ export const ModuleProvider: React.FC<ModuleProviderProps> = ({
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to load modules');
       logger.error('[ModuleContext] Error loading modules:', error);
+      if (isStale()) return;
       setError(error);
       setModules([]);
     } finally {
-      setIsLoading(false);
+      if (!isStale()) setIsLoading(false);
     }
-  }, [isAuthenticated, tenantId, effectiveApiBaseUrl]);
+    // sessionReady: on the mobile WebView the first fetch can race the session
+    // cookie (no bearer token there), so fetch again once the cookie is set.
+  }, [isAuthenticated, tenantId, sessionReady, effectiveApiBaseUrl]);
 
   useEffect(() => {
     loadModules();
