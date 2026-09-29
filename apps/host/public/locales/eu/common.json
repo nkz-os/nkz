@@ -1024,7 +1024,14 @@
       "undo_title": "Desegin azken puntua",
       "clear_title": "Marraztura garbitu",
       "accept": "Onartu"
-    }
+    },
+    "layersTitle": "Geruzak",
+    "layersGroupCore": "Nukleoa",
+    "layersGroupModules": "Moduluak",
+    "layersPanelOpen": "Ireki geruzak (Maius+L)",
+    "layersPanelClose": "Itxi geruzak",
+    "layersModuleOptions": "Geruzaren aukerak",
+    "layersNoModules": "Ez dago bisorean geruzak gehitzen dituen modulurik"
   },
   "entities": {
     "assets": {

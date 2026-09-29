@@ -9,6 +9,7 @@ import { CesiumMap } from '@/components/CesiumMap';
 import { EntityWizard } from '@/components/EntityWizard';
 import { PlacementToolbar } from '@/components/EntityWizard/PlacementToolbar';
 import { ViewerHeader } from '@/components/viewer/ViewerHeader';
+import { ViewerLayersPanel } from '@/components/viewer/ViewerLayersPanel';
 import { SlotRenderer } from '@/components/SlotRenderer';
 import { MapToolbar } from '@/components/viewer/MapToolbar';
 import { MapDrawingOverlay } from '@/components/viewer/MapDrawingOverlay';
@@ -534,8 +535,11 @@ const UnifiedViewerInner: React.FC = () => {
     return (
         <ThemeProvider profile={profile}>
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-100 dark:bg-slate-950">
-            {/* Floating Header - Logo with dropdown menu + controls; right strip includes Layers + Theme + Language */}
+            {/* Floating Header - Logo with dropdown menu + controls */}
             <ViewerHeader />
+
+            {/* Layers button + panel (core layers and per-module switches) */}
+            <ViewerLayersPanel />
 
             {/* Map Toolbar - Contextual toolbar for drawing/editing modes */}
             {mapMode === 'PICK_LOCATION' && (

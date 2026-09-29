@@ -87,6 +87,8 @@ export interface ViewerState {
     isLeftPanelOpen: boolean;
     isRightPanelOpen: boolean;
     isBottomPanelOpen: boolean;
+    /** Layers panel (core layers + per-module switches) */
+    isLayersPanelOpen: boolean;
 
     // Active module context (NDVI controls, Sensor details, etc.)
     activeContextModule: string | null;
@@ -122,6 +124,7 @@ interface ViewerContextType extends ViewerState {
     toggleLeftPanel: () => void;
     toggleRightPanel: () => void;
     toggleBottomPanel: () => void;
+    setLayersPanelOpen: (open: boolean) => void;
     setLeftPanelOpen: (open: boolean) => void;
     setRightPanelOpen: (open: boolean) => void;
 
@@ -219,6 +222,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
     // Panel states
     const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
     const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+    const [isLayersPanelOpen, setLayersPanelOpen] = useState(false);
     const [isBottomPanelOpen, setIsBottomPanelOpen] = useState(false);
 
     // Active context module
@@ -541,6 +545,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         isLeftPanelOpen,
         isRightPanelOpen,
         isBottomPanelOpen,
+        isLayersPanelOpen,
         activeContextModule,
         mapMode,
         entityRefreshTrigger,
@@ -571,6 +576,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         toggleLeftPanel,
         toggleRightPanel,
         toggleBottomPanel,
+        setLayersPanelOpen,
         setLeftPanelOpen,
         setRightPanelOpen,
         setActiveContextModule,
@@ -608,6 +614,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         isLeftPanelOpen,
         isRightPanelOpen,
         isBottomPanelOpen,
+        isLayersPanelOpen,
         activeContextModule,
         mapMode,
         cesiumViewer,
@@ -626,6 +633,7 @@ export const ViewerProvider: React.FC<ViewerProviderProps> = ({ children }) => {
         toggleLeftPanel,
         toggleRightPanel,
         toggleBottomPanel,
+        setLayersPanelOpen,
         setLeftPanelOpen,
         setRightPanelOpen,
         setActiveContextModule,

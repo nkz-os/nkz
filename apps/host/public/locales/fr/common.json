@@ -984,7 +984,14 @@
       "undo_title": "Annuler le dernier point",
       "clear_title": "Effacer le dessin",
       "accept": "Accepter"
-    }
+    },
+    "layersTitle": "Couches",
+    "layersGroupCore": "Noyau",
+    "layersGroupModules": "Modules",
+    "layersPanelOpen": "Ouvrir les couches (Maj+L)",
+    "layersPanelClose": "Fermer les couches",
+    "layersModuleOptions": "Options de couche",
+    "layersNoModules": "Aucun module n’ajoute de couches à la visionneuse"
   },
   "entities": {
     "assets": {

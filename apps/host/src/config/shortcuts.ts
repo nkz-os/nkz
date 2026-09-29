@@ -40,4 +40,7 @@ export const VIEWER_SHORTCUTS: ViewerShortcut[] = [
 
   // Search
   { key: 'k', description: 'Search entities', ctrl: true },
+
+  // Layers
+  { key: 'L', description: 'Toggle layers panel', shift: true },
 ];

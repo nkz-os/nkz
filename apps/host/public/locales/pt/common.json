@@ -984,7 +984,14 @@
       "undo_title": "Desfazer último ponto",
       "clear_title": "Limpar desenho",
       "accept": "Aceitar"
-    }
+    },
+    "layersTitle": "Camadas",
+    "layersGroupCore": "Núcleo",
+    "layersGroupModules": "Módulos",
+    "layersPanelOpen": "Abrir camadas (Shift+L)",
+    "layersPanelClose": "Fechar camadas",
+    "layersModuleOptions": "Opções da camada",
+    "layersNoModules": "Nenhum módulo adiciona camadas ao visualizador"
   },
   "entities": {
     "assets": {

@@ -1436,7 +1436,11 @@
       "undo_title": "Undo last point",
       "clear_title": "Clear drawing",
       "accept": "Accept"
-    }
+    },
+    "layersPanelOpen": "Open layers (Shift+L)",
+    "layersPanelClose": "Close layers",
+    "layersModuleOptions": "Layer options",
+    "layersNoModules": "No module adds layers to the viewer"
   },
   "entities": {
     "assets": {
