@@ -23,11 +23,25 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
 
+  // Strict pixel comparison for toHaveScreenshot — matches ui-kit/viewer-kit's
+  // component-level visual nets (see packages/*/playwright-ct.config.ts). The
+  // default threshold is tolerant enough to hide real regressions.
+  expect: {
+    toHaveScreenshot: { threshold: 0, maxDiffPixels: 0 },
+  },
+
   projects: [
     {
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        // Force software rasterization. Hardware GPU compositing was
+        // producing a handful of off-by-one-LSB pixels at the four
+        // viewport corners on full-page screenshots — invisible to the
+        // eye but enough to break a threshold:0/maxDiffPixels:0 visual
+        // baseline (see apps/host/e2e/visual.spec.ts). Software rendering
+        // is bit-exact across runs.
+        launchOptions: { args: ['--disable-gpu', '--disable-dev-shm-usage'] },
       },
     },
   ],

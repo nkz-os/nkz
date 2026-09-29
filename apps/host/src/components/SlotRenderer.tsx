@@ -10,7 +10,6 @@
 import React, { Suspense, useMemo, useState, useEffect } from 'react';
 import { loadRemote } from '@module-federation/runtime';
 import { toNKZRegistration, NKZProvider } from '@nekazari/module-kit';
-import { ThemeProvider } from '@nekazari/design-tokens';
 import { useSlotRegistryOptional } from '@/context/SlotRegistry';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import type { SlotType, SlotWidgetDefinition } from '@nekazari/sdk';
@@ -167,9 +166,7 @@ const RemoteSlotWidget: React.FC<{
             onError={(e, info) => logger.error(`[SlotRenderer] Remote widget ${widget.id} failed:`, e, info)}
         >
             <Suspense fallback={<WidgetLoadingFallback />}>
-                <ThemeProvider profile="viewer">
-                    <Component {...widgetProps} />
-                </ThemeProvider>
+                <Component {...widgetProps} />
             </Suspense>
         </ModuleErrorBoundary>
     );

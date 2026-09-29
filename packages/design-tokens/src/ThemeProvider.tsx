@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 import type { TokenProfile, TokenProfileDefinition } from './tokens.config';
 import { profiles } from './tokens.config';
 
@@ -30,14 +30,16 @@ export function ThemeProvider({
     [profile, onChange],
   );
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', profile);
-    return () => {
-      document.documentElement.removeAttribute('data-theme');
-    };
-  }, [profile]);
-
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>
+      {/* display:contents — the wrapper carries data-theme without participating in layout.
+          Custom properties inherit through the DOM tree regardless of `display`,
+          so descendants receive the profile's values exactly as before. */}
+      <div data-theme={profile} style={{ display: 'contents' }}>
+        {children}
+      </div>
+    </ThemeContext.Provider>
+  );
 }
 
 export function useThemeContext() {
