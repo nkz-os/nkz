@@ -35,6 +35,12 @@ describe('carryOverViewerSlots', () => {
     expect(out[0].viewerSlots).toBeUndefined();
   });
 
+  it('carries viewerDefaultActive together with the slots', () => {
+    const prev = [mod('lidar', { viewerSlots: slots, viewerDefaultActive: false })];
+    const out = carryOverViewerSlots(prev, [mod('lidar')]);
+    expect(out[0].viewerDefaultActive).toBe(false);
+  });
+
   it('does not carry slots when the remote entry changed', () => {
     const prev = [mod('a', { viewerSlots: slots })];
     const next = [mod('a', { remoteEntry: '/modules/a-v2/mf-manifest.json' })];

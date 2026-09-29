@@ -23,6 +23,8 @@ export interface NKZModuleRegistration {
   main?: React.ComponentType<any>;
   /** Module version (semver) */
   version?: string;
+  /** Initial state of the module's switch in the unified viewer. Undefined = active. */
+  viewerDefaultActive?: boolean;
 }
 
 /**

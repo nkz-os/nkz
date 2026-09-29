@@ -101,5 +101,6 @@ export function toNKZRegistration(def: ModuleDefinition): NKZModuleRegistration 
     // Cast to the field's own declared type (already a justified, documented
     // `any` in @nekazari/sdk's types/module.ts) rather than restating `any` here.
     main: def.main as NKZModuleRegistration['main'],
+    viewerDefaultActive: def.viewer?.defaultActive,
   };
 }
