@@ -1006,7 +1006,10 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
     icon_url = manifest.get('icon', '')
     route_path = manifest.get('route', manifest.get('route_path', f'/{module_id}'))
     label = manifest.get('label', display_name)
-    required_roles = manifest.get('requiredRoles', manifest.get('required_roles', ['Farmer']))
+    declared_roles = manifest.get('requiredRoles', manifest.get('required_roles')) or None
+    # New rows fall back to Farmer; on re-publish an absent list keeps the DB
+    # value, so roles set by an admin or a migration are not reset.
+    insert_roles = declared_roles or ['Farmer']
     # Canonical gating is the integer required_plan_level (migration 073 dropped the
     # legacy module_type / required_plan_type / pricing_tier columns). New modules
     # default to 0 (all tiers); on re-publish the ON CONFLICT below leaves it untouched
@@ -1057,7 +1060,7 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
                 icon_url = EXCLUDED.icon_url,
                 route_path = EXCLUDED.route_path,
                 label = EXCLUDED.label,
-                required_roles = EXCLUDED.required_roles,
+                required_roles = COALESCE(%s::text[], marketplace_modules.required_roles),
                 remote_entry_url = EXCLUDED.remote_entry_url,
                 scope = EXCLUDED.scope,
                 exposed_module = EXCLUDED.exposed_module,
@@ -1068,10 +1071,11 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
         """, (
             module_id, name, display_name, description, version, author, category,
             icon_url, required_plan_level,
-            route_path, label, required_roles, remote_entry_url, scope,
+            route_path, label, insert_roles, remote_entry_url, scope,
             exposed_module, False, True,  # is_local, is_active
             metadata,
             version_hash if version_hash else None,
+            declared_roles,
         ))
 
         # auto-install for the uploading tenant

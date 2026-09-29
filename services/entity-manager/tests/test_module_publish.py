@@ -247,6 +247,47 @@ def test_upload_dist_and_activate_invalidates_route_cache(monkeypatch):
     invalidate.assert_called_once()
 
 
+def _publish_upsert(monkeypatch, manifest):
+    """Run _upload_dist_and_activate with mocked S3/DB; return (sql, params) of the upsert."""
+    import blueprints.modules as m
+
+    monkeypatch.setattr(m, "_invalidate_gateway_route_cache", MagicMock())
+    monkeypatch.setattr(m, "_get_frontend_s3_client", lambda: MagicMock())
+    conn = MagicMock()
+    cur = MagicMock()
+    conn.cursor.return_value = cur
+    monkeypatch.setattr(m, "get_db_connection_simple", lambda: conn)
+    monkeypatch.setattr(m, "return_db_connection", lambda _c: None)
+    with app.app_context():
+        status, _ = m._upload_dist_and_activate("demo", [], manifest, "abc1234")
+    assert status == 201
+    for call in cur.execute.call_args_list:
+        sql = call.args[0]
+        if "INSERT INTO marketplace_modules" in sql:
+            return sql, call.args[1]
+    raise AssertionError("marketplace_modules upsert not executed")
+
+
+_ROLES_UPDATE = "required_roles = COALESCE(%s::text[], marketplace_modules.required_roles)"
+
+
+def test_publish_without_required_roles_preserves_db_roles(monkeypatch):
+    sql, params = _publish_upsert(monkeypatch, {"id": "demo", "version": "1.0.0"})
+    assert _ROLES_UPDATE in sql
+    assert params[-1] is None
+    # New rows still get a role so the module is visible to someone.
+    assert ["Farmer"] in params
+
+
+def test_publish_with_required_roles_overwrites(monkeypatch):
+    roles = ["Farmer", "TechnicalConsultant"]
+    sql, params = _publish_upsert(
+        monkeypatch, {"id": "demo", "version": "1.0.0", "requiredRoles": roles}
+    )
+    assert _ROLES_UPDATE in sql
+    assert params[-1] == roles
+
+
 # ---------------------------------------------------------------------------
 # FIWARE publish gate (_fiware_publish_gate)
 # ---------------------------------------------------------------------------
