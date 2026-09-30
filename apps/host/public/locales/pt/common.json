@@ -988,10 +988,10 @@
     "layersTitle": "Camadas",
     "layersGroupCore": "Núcleo",
     "layersGroupModules": "Módulos",
-    "layersPanelOpen": "Abrir camadas (Shift+L)",
-    "layersPanelClose": "Fechar camadas",
-    "layersModuleOptions": "Opções da camada",
-    "layersNoModules": "Nenhum módulo adiciona camadas ao visualizador"
+    "modulesSection": {
+      "title": "Módulos",
+      "options": "Opções da camada"
+    }
   },
   "entities": {
     "assets": {

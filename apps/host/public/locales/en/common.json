@@ -1437,10 +1437,10 @@
       "clear_title": "Clear drawing",
       "accept": "Accept"
     },
-    "layersPanelOpen": "Open layers (Shift+L)",
-    "layersPanelClose": "Close layers",
-    "layersModuleOptions": "Layer options",
-    "layersNoModules": "No module adds layers to the viewer"
+    "modulesSection": {
+      "title": "Modules",
+      "options": "Layer options"
+    }
   },
   "entities": {
     "assets": {
@@ -1521,7 +1521,7 @@
   },
   "save_changes_error": "Error saving changes",
   "parcelModules": {
-    "title": "Modules",
+    "title": "Parcel services",
     "loading": "Loading modules...",
     "loadError": "Could not load module status for this parcel",
     "noModules": "No installed module supports per-parcel activation",

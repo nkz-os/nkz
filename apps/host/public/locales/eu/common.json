@@ -1028,10 +1028,10 @@
     "layersTitle": "Geruzak",
     "layersGroupCore": "Nukleoa",
     "layersGroupModules": "Moduluak",
-    "layersPanelOpen": "Ireki geruzak (Maius+L)",
-    "layersPanelClose": "Itxi geruzak",
-    "layersModuleOptions": "Geruzaren aukerak",
-    "layersNoModules": "Ez dago bisorean geruzak gehitzen dituen modulurik"
+    "modulesSection": {
+      "title": "Moduluak",
+      "options": "Geruzaren aukerak"
+    }
   },
   "entities": {
     "assets": {
@@ -1079,7 +1079,7 @@
     }
   },
   "parcelModules": {
-    "title": "Moduluak",
+    "title": "Lursailaren zerbitzuak",
     "loading": "Moduluak kargatzen...",
     "loadError": "Ezin izan da partzela honen moduluen egoera kargatu",
     "noModules": "Instalatutako modulu batek ere ez du partzelakako aktibazioa onartzen",

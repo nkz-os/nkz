@@ -9,7 +9,7 @@ import { CesiumMap } from '@/components/CesiumMap';
 import { EntityWizard } from '@/components/EntityWizard';
 import { PlacementToolbar } from '@/components/EntityWizard/PlacementToolbar';
 import { ViewerHeader } from '@/components/viewer/ViewerHeader';
-import { ViewerLayersPanel } from '@/components/viewer/ViewerLayersPanel';
+import { ViewerModulesSection } from '@/components/viewer/ViewerModulesSection';
 import { SlotRenderer } from '@/components/SlotRenderer';
 import { MapToolbar } from '@/components/viewer/MapToolbar';
 import { MapDrawingOverlay } from '@/components/viewer/MapDrawingOverlay';
@@ -537,11 +537,8 @@ const UnifiedViewerInner: React.FC = () => {
     return (
         <ThemeProvider profile={profile}>
         <div className="fixed inset-0 w-full h-full overflow-hidden bg-slate-100 dark:bg-slate-950">
-            {/* Floating Header - Logo with dropdown menu + controls */}
+            {/* Floating Header - Logo with dropdown menu + controls; right strip includes Layers + Theme + Language */}
             <ViewerHeader />
-
-            {/* Layers button + panel (core layers and per-module switches) */}
-            <ViewerLayersPanel />
 
             {/* Map Toolbar - Contextual toolbar for drawing/editing modes */}
             {mapMode === 'PICK_LOCATION' && (
@@ -704,6 +701,8 @@ const UnifiedViewerInner: React.FC = () => {
                     ) : (
                         <Suspense fallback={<PanelLoadingFallback />}>
                             <div className="flex-1 min-h-0 overflow-y-auto p-2">
+                                {/* Per-module switches: show/hide each module in the viewer */}
+                                <ViewerModulesSection />
                                 {/* Focus toggle button — only visible for parcels */}
                                 <ParcelFocusButton className="mb-3" />
                                 <SlotRenderer
