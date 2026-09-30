@@ -26,7 +26,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: minio-init
-          image: quay.io/minio/mc@sha256:993e8c454a7ec632923f7e3e61adf1d473261da6354cefd641aedd33a2cfe112  # RELEASE.2024-11-21T17-21-54Z
+          image: ghcr.io/nkz-os/mc@sha256:ac446b669120efdb161c7f72bca8700353aa934874e1c80f25eff21250f403d1  # RELEASE.2024-11-21T17-21-54Z
           command:
             - /bin/sh
             - -c
