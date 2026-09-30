@@ -1497,10 +1497,10 @@
       "clear_title": "Borrar dibujo",
       "accept": "Aceptar"
     },
-    "layersPanelOpen": "Abrir capas (Mayús+L)",
-    "layersPanelClose": "Cerrar capas",
-    "layersModuleOptions": "Opciones de capa",
-    "layersNoModules": "Ningún módulo aporta capas al visor"
+    "modulesSection": {
+      "title": "Módulos",
+      "options": "Opciones de capa"
+    }
   },
   "entities": {
     "assets": {
@@ -1581,7 +1581,7 @@
   },
   "save_changes_error": "Error al guardar los cambios",
   "parcelModules": {
-    "title": "Módulos",
+    "title": "Servicios de la parcela",
     "loading": "Cargando módulos...",
     "loadError": "No se pudo cargar el estado de los módulos de esta parcela",
     "noModules": "Ningún módulo instalado admite activación por parcela",

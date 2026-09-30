@@ -24,13 +24,15 @@ import {
 } from '@/config/navigation';
 import {
     ChevronDown,
+    ChevronRight,
     LogOut,
     Puzzle,
     Sun,
     Moon,
     Layers,
 } from 'lucide-react';
-import { useViewer } from '@/context/ViewerContext';
+import { LayersCascadeSubmenu } from '@/components/viewer/LayersCascadeSubmenu';
+import { computeSubmenuSide, type SubmenuSide } from '@/components/viewer/positionFlip';
 import { Button } from '@nekazari/ui-kit';
 
 // Glassmorphism styling
@@ -57,7 +59,10 @@ export const ViewerHeader: React.FC = () => {
     const menuRef = useRef<HTMLDivElement>(null);
     const menuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const { setLayersPanelOpen } = useViewer();
+    const [isLayersSubmenuOpen, setIsLayersSubmenuOpen] = useState(false);
+    const [submenuSide, setSubmenuSide] = useState<SubmenuSide>('right');
+    const layersTriggerRef = useRef<HTMLButtonElement>(null);
+    const layersSubmenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // User roles
     const userRoles = user?.roles || [];
@@ -86,7 +91,41 @@ export const ViewerHeader: React.FC = () => {
     const handleMouseLeave = () => {
         menuTimeoutRef.current = setTimeout(() => {
             setIsMenuOpen(false);
+            setIsLayersSubmenuOpen(false);
         }, 250);
+    };
+
+    const cancelLayersSubmenuClose = () => {
+        if (layersSubmenuTimeoutRef.current) {
+            clearTimeout(layersSubmenuTimeoutRef.current);
+            layersSubmenuTimeoutRef.current = null;
+        }
+        // Hovering the submenu also counts as still being "in" the parent menu.
+        if (menuTimeoutRef.current) {
+            clearTimeout(menuTimeoutRef.current);
+            menuTimeoutRef.current = null;
+        }
+    };
+
+    const scheduleLayersSubmenuClose = () => {
+        layersSubmenuTimeoutRef.current = setTimeout(() => {
+            setIsLayersSubmenuOpen(false);
+        }, 250);
+    };
+
+    const openLayersSubmenu = () => {
+        cancelLayersSubmenuClose();
+        if (layersTriggerRef.current) {
+            const rect = layersTriggerRef.current.getBoundingClientRect();
+            setSubmenuSide(
+                computeSubmenuSide({
+                    triggerRight: rect.right,
+                    submenuWidth: 340,
+                    viewportWidth: window.innerWidth,
+                })
+            );
+        }
+        setIsLayersSubmenuOpen(true);
     };
 
     // Cleanup timeouts on unmount
@@ -94,6 +133,9 @@ export const ViewerHeader: React.FC = () => {
         return () => {
             if (menuTimeoutRef.current) {
                 clearTimeout(menuTimeoutRef.current);
+            }
+            if (layersSubmenuTimeoutRef.current) {
+                clearTimeout(layersSubmenuTimeoutRef.current);
             }
         };
     }, []);
@@ -189,21 +231,49 @@ export const ViewerHeader: React.FC = () => {
                         })}
                     </div>
 
-                    {/* Capas: opens the layers panel on the map */}
-                    <div className="py-2 border-t border-slate-200 dark:border-slate-700">
+                    {/* Capas Section — cascade submenu */}
+                    <div
+                        className="py-2 border-t border-slate-200 dark:border-slate-700 relative"
+                        onMouseEnter={openLayersSubmenu}
+                        onMouseLeave={scheduleLayersSubmenuClose}
+                    >
+                        <span ref={layersTriggerRef} className="inline-flex">
                         <Button
                             type="button"
                             onClick={() => {
-                                setIsMenuOpen(false);
-                                setLayersPanelOpen(true);
+                                if (isLayersSubmenuOpen) {
+                                    setIsLayersSubmenuOpen(false);
+                                } else {
+                                    openLayersSubmenu();
+                                }
                             }}
+                            aria-haspopup="menu"
+                            aria-expanded={isLayersSubmenuOpen}
+                            aria-label={
+                                isLayersSubmenuOpen
+                                    ? t('viewer.layersSubmenuClose')
+                                    : t('viewer.layersSubmenuOpen')
+                            }
                             className="w-full px-4 py-2.5 flex items-center gap-3 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                         >
                             <Layers className="w-5 h-5 text-slate-500" />
                             <span className="flex-1 text-left font-medium">
                                 {t('viewer.layersTitle')}
                             </span>
+                            <ChevronRight
+                                className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                                    isLayersSubmenuOpen ? 'rotate-90' : ''
+                                }`}
+                            />
                         </Button>
+                        </span>
+
+                        <LayersCascadeSubmenu
+                            isOpen={isLayersSubmenuOpen}
+                            side={submenuSide}
+                            onMouseEnter={cancelLayersSubmenuClose}
+                            onMouseLeave={scheduleLayersSubmenuClose}
+                        />
                     </div>
 
                     {/* Addons Section (only if modules exist) */}
