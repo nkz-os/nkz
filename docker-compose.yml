@@ -62,11 +62,12 @@ services:
       retries: 5
 
   minio:
-    # quay.io: minio withdrew both images from Docker Hub (anonymous pulls 401),
-    # and later hid tag resolution on quay too (tag pulls 401 since ~2026-09-24).
-    # Digest pulls still work, so pin by digest; the comment keeps the release
-    # readable for humans.
-    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e  # RELEASE.2025-09-07T16-13-09Z
+    # Upstream (MinIO) withdrew every public distribution channel: Docker Hub
+    # first, then quay tags AND digests (~2026-09-24), then dl.min.io binaries
+    # (410 Gone). We mirror the exact community releases in our own GHCR; the
+    # binaries inside were verified against the official release checksums
+    # before pushing. Repo upstream is archived — no patches will ever come.
+    image: ghcr.io/nkz-os/minio@sha256:52dfd5c0bbd38d3219f2058c7af216d9f9a27a994b7b5baad09bbd38866015ff  # RELEASE.2025-09-07T16-13-09Z
     command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
@@ -94,7 +95,7 @@ services:
   # ===========================================================================
 
   init-minio:
-    image: quay.io/minio/mc@sha256:993e8c454a7ec632923f7e3e61adf1d473261da6354cefd641aedd33a2cfe112  # RELEASE.2024-11-21T17-21-54Z
+    image: ghcr.io/nkz-os/mc@sha256:ac446b669120efdb161c7f72bca8700353aa934874e1c80f25eff21250f403d1  # RELEASE.2024-11-21T17-21-54Z
     depends_on:
       minio:
         condition: service_healthy
