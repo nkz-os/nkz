@@ -460,6 +460,16 @@ def _execute_align_query(
     return pa.table(cols)
 
 
+# payload.measurements mixes numeric readings with text keys (sourceConfidence,
+# municipalityCode). A bare ::double precision on text aborts the whole aligned
+# query, so non-numeric values become NULL. Binds the measurement key twice.
+_NUMERIC_TEXT_PATTERN = r"^\s*[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?\s*$"
+_MEASUREMENT_AS_FLOAT_SQL = (
+    "(CASE WHEN e.payload->'measurements'->>%s ~ '" + _NUMERIC_TEXT_PATTERN + "'"
+    " THEN (e.payload->'measurements'->>%s)::double precision END)"
+)
+
+
 def _execute_telemetry_align_query(
     conn,
     tenant_id: str,
@@ -486,7 +496,7 @@ def _execute_telemetry_align_query(
     if bucket_interval not in STANDARD_INTERVAL_STRINGS:
         bucket_interval = "1 hour"
 
-    flat_meas = "(NULLIF(trim(e.payload->'measurements'->>%s), ''))::double precision"
+    flat_meas = _MEASUREMENT_AS_FLOAT_SQL
 
     locf_parts: List[str] = []
     params: List[Any] = [bucket_interval]
@@ -497,7 +507,7 @@ def _execute_telemetry_align_query(
     (CASE WHEN e.device_id = %s THEN {flat_meas} END)
   ))::float8 AS value_{idx}"""
         )
-        params.extend([device_id, meas_type])
+        params.extend([device_id, meas_type, meas_type])
 
     unique_devices = list(dict.fromkeys(d for d, _ in validated_series))
     params.extend([tenant_id, start_dt, end_dt, unique_devices, bucket_interval])
@@ -663,7 +673,7 @@ def _execute_v2_align_unified_sql(
                 cte_sql_parts.append(
                     f"""series_{i} AS (
   SELECT time_bucket_gapfill(%s::interval, e.observed_at) AS bucket,
-         locf(AVG((NULLIF(trim(e.payload->'measurements'->>%s), ''))::double precision))::float8 AS value_{i}
+         locf(AVG({_MEASUREMENT_AS_FLOAT_SQL}))::float8 AS value_{i}
   FROM telemetry_events e
   WHERE e.tenant_id = %s AND e.observed_at >= %s AND e.observed_at < %s
     AND (e.entity_id = ANY(%s) OR e.device_id = ANY(%s))
@@ -673,6 +683,7 @@ def _execute_v2_align_unified_sql(
                 params.extend(
                     [
                         bucket_interval,
+                        attr,
                         attr,
                         tenant_id,
                         start_dt,
