@@ -3458,6 +3458,50 @@ def _resolve_tenant_expires(
     return None, None
 
 
+def _compute_tenant_plan_window(
+    tenant_id: str,
+    row: dict,
+    activation: dict | None,
+) -> dict:
+    """Shared plan + license window for one tenant.
+
+    Used by both the PlatformAdmin tenant listing (list_tenants) and the
+    tenant-scoped /api/tenant/plan endpoint so the two can never drift.
+    Expiry precedence lives in _resolve_tenant_expires: tenants.expires_at
+    (canonical, written by the Stripe billing webhook) wins; the latest
+    activation code's expiry is the fallback.
+    """
+    activation = activation or {}
+    expires_at_iso, days_remaining = _resolve_tenant_expires(
+        tenant_id, row, activation.get("expires_at")
+    )
+    return {
+        "plan": row.get("plan_type") or "basic",
+        "plan_level": row.get("plan_level"),
+        "status": row.get("status") or "active",
+        "expires_at": expires_at_iso,
+        "days_remaining": days_remaining,
+    }
+
+
+def _load_tenant_plan_row(conn, tenant_id: str) -> dict | None:
+    """Load the plan-window columns for a single tenant (None if missing)."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT tenant_name, plan_type, plan_level, status, expires_at
+            FROM tenants
+            WHERE tenant_id = %s
+            """,
+            (tenant_id,),
+        )
+        row = cursor.fetchone()
+        return dict(row) if isinstance(row, dict) else None
+    finally:
+        cursor.close()
+
+
 @app.route("/api/admin/tenants", methods=["GET"])
 @app.route("/tenants", methods=["GET"])  # For ingress prefix removal
 @require_platform_admin
@@ -3504,11 +3548,8 @@ def list_tenants():
                 activation_email = (
                     activation.get("email") if activation else row.get("tenant_email")
                 )  # noqa: E501
-                activation_expires = activation.get("expires_at") if activation else None
 
-                expires_at_iso, days_remaining = _resolve_tenant_expires(
-                    tenant_id, row, activation_expires
-                )
+                plan_window = _compute_tenant_plan_window(tenant_id, row, activation)
 
                 tenants.append(
                     {
@@ -3517,16 +3558,16 @@ def list_tenants():
                         "tenant_id": tenant_id,
                         "email": activation_email,
                         "name": row.get("tenant_name"),
-                        "plan": row.get("plan_type") or "basic",
-                        "status": row.get("status") or "active",
+                        "plan": plan_window["plan"],
+                        "status": plan_window["status"],
                         "created_at": row.get("created_at").isoformat()
                         if row.get("created_at")
                         else None,  # noqa: E501
                         "updated_at": row.get("updated_at").isoformat()
                         if row.get("updated_at")
                         else None,  # noqa: E501
-                        "expires_at": expires_at_iso,
-                        "days_remaining": days_remaining,
+                        "expires_at": plan_window["expires_at"],
+                        "days_remaining": plan_window["days_remaining"],
                         "max_users": activation.get("max_users") if activation else None,
                         "max_robots": activation.get("max_robots") if activation else None,
                         "max_sensors": activation.get("max_sensors") if activation else None,
@@ -3541,6 +3582,45 @@ def list_tenants():
     except Exception as e:
         logger.error(f"Error listing tenants: {e}")
         return _internal_error(e, "list_tenants", user_message="Failed to list tenants")
+
+
+@app.route("/api/tenant/plan", methods=["GET"])
+@require_keycloak_auth
+def get_tenant_plan():
+    """Plan and license window for the JWT's own tenant (ADR 003 pattern).
+
+    Read by the host dashboard's plan-expiry banner for regular users —
+    /api/admin/tenants is PlatformAdmin-only. The tenant is taken from the
+    JWT (g.tenant_id), never from client input, so a member can only ever
+    see their own tenant's window. The 'platform' tenant returns null
+    expiry fields (no consumer plan lifecycle). Suspended tenants are
+    rejected by the gateway before this handler runs.
+    """
+    tenant_id = g.tenant_id
+    if not tenant_id:
+        return jsonify({"error": "Tenant context required"}), 403
+    if not POSTGRES_URL:
+        return jsonify({"error": "Database not configured"}), 500
+    conn = webhook_service.get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection error"}), 500
+    try:
+        webhook_service._apply_tenant_context(conn, tenant_id)
+        row = _load_tenant_plan_row(conn, tenant_id)
+        if row is None:
+            return jsonify({"error": "Tenant not found"}), 404
+        activation = webhook_service.get_latest_activation_for_tenant(conn, tenant_id)
+        payload = {"tenant": tenant_id}
+        payload.update(_compute_tenant_plan_window(tenant_id, row, activation))
+        return jsonify(payload), 200
+    except Exception as e:
+        logger.error(f"Error loading tenant plan: {e}")
+        return _internal_error(
+            e, "get_tenant_plan", user_message="Failed to load tenant plan"
+        )
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route("/api/admin/tenants", methods=["POST"])
