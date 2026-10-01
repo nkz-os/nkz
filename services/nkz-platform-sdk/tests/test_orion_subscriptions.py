@@ -97,3 +97,20 @@ async def test_query_all_subscriptions_sends_json_plus_link():
     assert req.headers["Content-Type"] == "application/json"
     assert "Link" in req.headers
     await client.close()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_update_subscription_patches_by_id_with_json_plus_link():
+    client = OrionClient("tenant-a", base_url=ORION)
+    sid = "urn:ngsi-ld:Subscription:mod:Type"
+    route = respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/{sid}").mock(
+        return_value=Response(204)
+    )
+    await client.update_subscription(sid, {"isActive": True})
+    req = route.calls[0].request
+    assert json.loads(req.content) == {"isActive": True}
+    assert req.headers["NGSILD-Tenant"] == "tenant-a"
+    assert req.headers["Content-Type"] == "application/json"
+    assert "Link" in req.headers
+    await client.close()
