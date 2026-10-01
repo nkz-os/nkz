@@ -71,7 +71,7 @@ async def test_ensure_all_creates_missing_subscriptions_with_deterministic_id():
         return_value=Response(201, headers={"Location": "/ngsi-ld/v1/subscriptions/urn:x"})
     )
     result = await make_registrar().ensure_all(["montiko"])
-    assert result == {"created": 2, "skipped": 0, "errors": []}
+    assert result == {"created": 2, "skipped": 0, "converged": 0, "errors": []}
     assert len(post.calls) == 2
 
     ids = {json.loads(c.request.content)["id"] for c in post.calls}
@@ -86,11 +86,12 @@ async def test_ensure_all_creates_missing_subscriptions_with_deterministic_id():
 @pytest.mark.asyncio
 @respx.mock
 async def test_ensure_all_counts_409_as_skipped_without_error():
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
     respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
         return_value=Response(409, json={"type": "AlreadyExists", "title": "duplicate"})
     )
     result = await _one_sub_registrar().ensure_all(["montiko"])
-    assert result == {"created": 0, "skipped": 1, "errors": []}
+    assert result == {"created": 0, "skipped": 1, "converged": 1, "errors": []}
 
 
 @pytest.mark.asyncio
@@ -104,11 +105,12 @@ async def test_ensure_all_run_twice_creates_once_then_skips():
             Response(409, json={"title": "duplicate"}),
         ]
     )
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
     registrar = _one_sub_registrar()
     first = await registrar.ensure_all(["montiko"])
     second = await registrar.ensure_all(["montiko"])
-    assert first == {"created": 1, "skipped": 0, "errors": []}
-    assert second == {"created": 0, "skipped": 1, "errors": []}
+    assert first == {"created": 1, "skipped": 0, "converged": 0, "errors": []}
+    assert second == {"created": 0, "skipped": 1, "converged": 1, "errors": []}
 
 
 @pytest.mark.asyncio
@@ -131,13 +133,14 @@ async def test_ensure_all_purges_legacy_duplicate_after_create():
 
     result = await _one_sub_registrar().ensure_all(["montiko"])
 
-    assert result == {"created": 1, "skipped": 0, "errors": []}
+    assert result == {"created": 1, "skipped": 0, "converged": 0, "errors": []}
     assert len(delete_route.calls) == 1
 
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_ensure_all_409_does_not_list_or_delete():
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
     get_route = respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
         return_value=Response(200, json=[])
     )
@@ -150,7 +153,7 @@ async def test_ensure_all_409_does_not_list_or_delete():
 
     result = await _one_sub_registrar().ensure_all(["montiko"])
 
-    assert result == {"created": 0, "skipped": 1, "errors": []}
+    assert result == {"created": 0, "skipped": 1, "converged": 1, "errors": []}
     assert not get_route.calls, "409 must not trigger the legacy-duplicate listing"
     assert not delete_route.calls, "409 must not trigger any delete"
 
@@ -177,15 +180,17 @@ async def test_ensure_all_reconciles_500_then_409_as_skip():
     interval; measured 404 at 0s/2s, 200 only at 10s/30s after a real
     create), so a status GET cannot resolve the ambiguity. The create
     itself is strongly consistent, so retrying it is what does: retry
-    lands on 409 -> someone else already holds the id -> skipped.
+    lands on 409 -> someone else already holds the id -> skipped, then
+    converged like any other 409.
     """
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
     post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
         side_effect=[Response(500, text="boom"), Response(409, json={"title": "duplicate"})]
     )
 
     result = await _one_sub_registrar().ensure_all(["montiko"])
 
-    assert result == {"created": 0, "skipped": 1, "errors": []}
+    assert result == {"created": 0, "skipped": 1, "converged": 1, "errors": []}
     assert len(post.calls) == 2
 
 
@@ -207,7 +212,7 @@ async def test_ensure_all_reconciles_500_then_201_as_created():
 
     result = await _one_sub_registrar().ensure_all(["montiko"])
 
-    assert result == {"created": 1, "skipped": 0, "errors": []}
+    assert result == {"created": 1, "skipped": 0, "converged": 0, "errors": []}
     assert len(post.calls) == 2
     assert get_route.calls, "a 201 (even on retry) must still run the legacy-duplicate sweep"
 
@@ -231,16 +236,99 @@ async def test_ensure_all_500_then_500_is_a_real_error_naming_both_statuses():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_ensure_all_409_does_no_extra_work():
-    """A 409 is unambiguous -- it must not trigger a retry or any other call."""
+async def test_ensure_all_409_does_not_retry_the_create():
+    """A 409 is unambiguous -- no create retry; only the converging PATCH follows."""
+    patch = respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
     post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
         return_value=Response(409, json={"title": "duplicate"})
     )
 
     result = await _one_sub_registrar().ensure_all(["montiko"])
 
-    assert result == {"created": 0, "skipped": 1, "errors": []}
+    assert result == {"created": 0, "skipped": 1, "converged": 1, "errors": []}
     assert len(post.calls) == 1
+    assert len(patch.calls) == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_409_patches_existing_onto_declaration_and_rearms_it():
+    """A subscription created before a declaration change (legacy auth header)
+    and paused by Orion must be converged: same id, declared endpoint with the
+    current receiverInfo, isActive true. Without this it stays wrong forever."""
+    patch = respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+    registrar = SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "EOProduct", "throttling": 30, "watched_attributes": ["hasAgriCrop"]}],
+        module_name="crop-health",
+        notification_headers={"X-Internal-Service-Secret": "s3cret"},
+    )
+
+    result = await registrar.ensure_all(["tenant-a"])
+
+    assert result["converged"] == 1 and result["errors"] == []
+    req = patch.calls[0].request
+    body = json.loads(req.content)
+    assert "id" not in body, "Orion-LD rejects the id inside an update"
+    assert body["isActive"] is True
+    assert body["watchedAttributes"] == ["hasAgriCrop"]
+    assert body["notification"]["endpoint"] == {
+        "uri": NOTIFY,
+        "accept": "application/json",
+        "receiverInfo": [{"key": "X-Internal-Service-Secret", "value": "s3cret"}],
+    }
+    assert req.headers["NGSILD-Tenant"] == "tenant-a"
+    assert req.headers["Content-Type"] == "application/json"
+    assert "Link" in req.headers
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_converge_404_is_not_an_error():
+    """409 then 404 on the PATCH: the create that won is still settling in the
+    subscription cache, and it carried this same body."""
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(404, json={"title": "not found"}))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+
+    result = await _one_sub_registrar().ensure_all(["tenant-a"])
+
+    assert result == {"created": 0, "skipped": 1, "converged": 0, "errors": []}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_converge_failure_is_reported_without_raising():
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(400, json={"title": "bad"}))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+
+    result = await _one_sub_registrar().ensure_all(["tenant-a"])
+
+    assert result["skipped"] == 1 and result["converged"] == 0
+    assert len(result["errors"]) == 1
+    assert "update urn:ngsi-ld:Subscription:crop-health:EOProduct" in result["errors"][0]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_201_does_not_patch():
+    """A create that succeeded already carries the declaration."""
+    patch = respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(return_value=Response(200, json=[]))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+
+    await _one_sub_registrar().ensure_all(["tenant-a"])
+
+    assert not patch.calls
 
 
 @pytest.mark.asyncio
@@ -346,7 +434,7 @@ async def test_legacy_purge_finds_duplicate_beyond_the_first_page():
 
     result = await _one_sub_registrar().ensure_all(["montiko"])
 
-    assert result == {"created": 1, "skipped": 0, "errors": []}
+    assert result == {"created": 1, "skipped": 0, "converged": 0, "errors": []}
     assert len(delete_route.calls) == 1
 
 
@@ -371,7 +459,7 @@ async def test_legacy_purge_ignores_404_on_delete():
 
     result = await _one_sub_registrar().ensure_all(["montiko"])
 
-    assert result == {"created": 1, "skipped": 0, "errors": []}
+    assert result == {"created": 1, "skipped": 0, "converged": 0, "errors": []}
 
 
 @pytest.mark.asyncio

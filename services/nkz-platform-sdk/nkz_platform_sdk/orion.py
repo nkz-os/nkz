@@ -321,6 +321,21 @@ class OrionClient:
         resp.raise_for_status()
         return resp.headers.get("Location", "")
 
+    async def update_subscription(
+        self, subscription_id: str, fragment: dict[str, Any]
+    ) -> None:
+        """PATCH an existing NGSI-LD subscription in place.
+
+        The fragment carries no @context -> application/json + Link. It must
+        not contain the subscription id: Orion-LD rejects it inside an update.
+        """
+        resp = await self._client.patch(
+            self._url(f"/ngsi-ld/v1/subscriptions/{subscription_id}"),
+            json=fragment,
+            headers=self._headers("application/json"),
+        )
+        resp.raise_for_status()
+
     async def close(self) -> None:
         await self._client.aclose()
 
@@ -573,6 +588,19 @@ class SyncOrionClient:
             if len(page) < ORION_PAGE_SIZE:
                 return subs
             offset += ORION_PAGE_SIZE
+
+    def update_subscription(self, subscription_id: str, fragment: dict[str, Any]) -> None:
+        """PATCH an existing NGSI-LD subscription in place.
+
+        See OrionClient.update_subscription — same contract.
+        """
+        resp = self._session.patch(
+            self._url(f"/ngsi-ld/v1/subscriptions/{subscription_id}"),
+            json=fragment,
+            headers=self._headers("application/json"),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
 
     def delete_subscription(self, subscription_id: str) -> None:
         resp = self._session.delete(

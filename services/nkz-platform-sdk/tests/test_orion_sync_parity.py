@@ -26,6 +26,7 @@ ASYNC_ONLY_BEFORE = [
     "create_subscription",
     "get_subscription",
     "query_all_subscriptions",
+    "update_subscription",
 ]
 
 
@@ -141,6 +142,16 @@ class TestSubscriptions:
             out = c.get_subscription(sid)
         assert m.call_args[0][0].endswith(f"/ngsi-ld/v1/subscriptions/{sid}")
         assert out["id"] == sid
+
+    def test_update_subscription_patches_by_id(self):
+        c = SyncOrionClient("tenant-a", base_url=ORION, context_url=CTX)
+        sid = "urn:ngsi-ld:Subscription:s1"
+        with patch.object(c._session, "patch", return_value=_resp(204)) as m:
+            c.update_subscription(sid, {"isActive": True})
+        assert m.call_args[0][0].endswith(f"/ngsi-ld/v1/subscriptions/{sid}")
+        assert m.call_args.kwargs["json"] == {"isActive": True}
+        assert m.call_args.kwargs["headers"]["Content-Type"] == "application/json"
+        assert "Link" in m.call_args.kwargs["headers"]
 
 
 class TestPaginatedSubscriptionListing:

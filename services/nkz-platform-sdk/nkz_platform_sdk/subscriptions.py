@@ -6,8 +6,11 @@ deterministic subscription id (`urn:ngsi-ld:Subscription:{module}:{type}`,
 see `_subscription_id`): every process that wants this subscription POSTs
 the same id, so Orion's own duplicate-id rejection (409) arbitrates
 concurrent heal cycles instead of a check-then-create read that two
-processes can both pass at once. All Orion-LD I/O goes through OrionClient
-(NGSI-LD compliance at SDK level).
+processes can both pass at once. A 409 is followed by a PATCH that
+converges the existing subscription onto the declared one (endpoint,
+receiverInfo, watched attributes, throttling) and re-arms it if Orion has
+paused it — otherwise a changed declaration never reaches the broker.
+All Orion-LD I/O goes through OrionClient (NGSI-LD compliance at SDK level).
 """
 
 from __future__ import annotations
@@ -124,6 +127,60 @@ class SubscriptionRegistrar:
             body["condition"] = sub.condition
         return body
 
+    def _fragment(self, sub: SubscriptionDef) -> dict:
+        """The declared subscription as an update fragment: the body minus its id.
+
+        Orion-LD rejects the id inside a PATCH. Carrying `isActive: True` is
+        what re-arms a subscription Orion paused after 3 consecutive
+        notification failures (verified live: 204, `paused` -> `active`).
+        """
+        return {k: v for k, v in self._body(sub).items() if k != "id"}
+
+    async def _converge_existing(
+        self,
+        client: OrionClient,
+        sub: SubscriptionDef,
+        sub_id: str,
+        tenant_id: str,
+        errors: list[str],
+    ) -> bool:
+        """PATCH the existing subscription onto the declared one. True when converged.
+
+        A 409 only proves the id exists, not that it matches: a subscription
+        created before a declaration change (new auth header, new watched
+        attribute) or paused by Orion would otherwise stay wrong forever.
+        Unconditional rather than read-compare-patch: reads are eventually
+        consistent on this platform (see `_reconcile_ambiguous_create_failure`),
+        and the PATCH is idempotent.
+
+        404 is not an error: the 409 came from a create still settling in
+        Orion's subscription cache, and that create carried this same body.
+        Attributes the declaration no longer has (e.g. a dropped
+        watchedAttributes) are not removed by a PATCH.
+        """
+        try:
+            await client.update_subscription(sub_id, self._fragment(sub))
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status == 404:
+                logger.debug(
+                    "Subscription not yet readable for update: %s (tenant=%s, id=%s)",
+                    self._description(sub), tenant_id, sub_id,
+                )
+                return False
+            errors.append(f"{tenant_id}/{sub.type} update {sub_id}: {e}")
+            logger.warning("Subscription update failed: %s", errors[-1])
+            return False
+        except Exception as e:
+            errors.append(f"{tenant_id}/{sub.type} update {sub_id}: {e}")
+            logger.warning("Subscription update failed: %s", errors[-1])
+            return False
+        logger.debug(
+            "Subscription converged: %s (tenant=%s, id=%s)",
+            self._description(sub), tenant_id, sub_id,
+        )
+        return True
+
     async def _purge_legacy_duplicates(
         self,
         client: OrionClient,
@@ -217,7 +274,8 @@ class SubscriptionRegistrar:
         no sleep (the create path doesn't touch the read cache, so waiting
         buys nothing).
 
-        - retry -> 409: someone else holds the id -> skipped, like a plain 409.
+        - retry -> 409: someone else holds the id -> skipped, like a plain 409
+          (the caller then converges it, same as a plain 409).
         - retry -> 201: we hold it -> created (caller runs the legacy purge,
           same as the primary 201 path).
         - retry -> anything else: a real error. The message names both the
@@ -278,13 +336,16 @@ class SubscriptionRegistrar:
         await self._purge_legacy_duplicates(client, sub, sub_id, tenant_id, errors)
 
     async def ensure_all(self, tenant_ids: list[str]) -> dict:
-        """Ensure subscriptions exist for all tenants. Idempotent, never raises.
+        """Ensure subscriptions exist and match the declaration. Idempotent, never raises.
 
         No listing is done to decide whether to create: each subscription
         POSTs straight away with its deterministic id (`_subscription_id`)
         and the create either succeeds (201, this process made it exist)
         or collides (409, it already existed — the expected outcome when a
-        concurrent heal cycle won the race, not an error). A non-409
+        concurrent heal cycle won the race, not an error). A 409 is
+        followed by `_converge_existing`, which PATCHes the existing
+        subscription onto the declaration and re-arms it if paused;
+        `converged` counts those. A non-409
         failure is not trusted at face value — the broker can answer 500
         for the same race loss it would normally answer 409 for — so it is
         reconciled via `_reconcile_ambiguous_create_failure`, which retries
@@ -293,7 +354,7 @@ class SubscriptionRegistrar:
         from before this scheme are converged away after a 201 (first-try
         or on retry) via `_purge_legacy_duplicates`.
         """
-        created, skipped, errors = 0, 0, []
+        created, skipped, converged, errors = 0, 0, 0, []
         for tenant_id in tenant_ids:
             client = OrionClient(
                 tenant_id, base_url=self.orion_url, context_url=self.context_url
@@ -312,12 +373,20 @@ class SubscriptionRegistrar:
                                 "%s (tenant=%s, id=%s)",
                                 self._description(sub), tenant_id, sub_id,
                             )
+                            if await self._converge_existing(
+                                client, sub, sub_id, tenant_id, errors
+                            ):
+                                converged += 1
                         else:
                             outcome = await self._reconcile_ambiguous_create_failure(
                                 client, sub, sub_id, tenant_id, status, e, errors
                             )
                             if outcome == "skipped":
                                 skipped += 1
+                                if await self._converge_existing(
+                                    client, sub, sub_id, tenant_id, errors
+                                ):
+                                    converged += 1
                             elif outcome == "created":
                                 created += 1
                                 await self._record_created(
@@ -329,6 +398,10 @@ class SubscriptionRegistrar:
                         )
                         if outcome == "skipped":
                             skipped += 1
+                            if await self._converge_existing(
+                                client, sub, sub_id, tenant_id, errors
+                            ):
+                                converged += 1
                         elif outcome == "created":
                             created += 1
                             await self._record_created(
@@ -339,7 +412,12 @@ class SubscriptionRegistrar:
                         await self._record_created(client, sub, sub_id, tenant_id, errors)
             finally:
                 await client.close()
-        return {"created": created, "skipped": skipped, "errors": errors}
+        return {
+            "created": created,
+            "skipped": skipped,
+            "converged": converged,
+            "errors": errors,
+        }
 
     async def periodic_heal(
         self,
@@ -361,8 +439,9 @@ class SubscriptionRegistrar:
                 )
                 result = await self.ensure_all(tenants)
                 logger.info(
-                    "Subscription heal: created=%d skipped=%d errors=%d",
-                    result["created"], result["skipped"], len(result["errors"]),
+                    "Subscription heal: created=%d skipped=%d converged=%d errors=%d",
+                    result["created"], result["skipped"], result["converged"],
+                    len(result["errors"]),
                 )
             except Exception as e:
                 logger.warning("Subscription heal cycle failed: %s", e)
