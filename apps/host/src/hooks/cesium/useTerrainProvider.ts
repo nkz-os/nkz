@@ -18,12 +18,14 @@ interface TerrainProviderLike {
 interface HeightmapOptions {
   width: number;
   height: number;
+  tilingScheme?: unknown;
   callback: (x: number, y: number, level: number) => Promise<Float32Array>;
 }
 
 interface CesiumModule {
   [member: string]: unknown;
   CustomHeightmapTerrainProvider: new (options: HeightmapOptions) => TerrainProviderLike;
+  WebMercatorTilingScheme: new () => unknown;
   ArcGISTiledElevationTerrain: (new (url: string) => TerrainProviderLike) & {
     fromUrl?: (url: string) => Promise<TerrainProviderLike>;
   };
@@ -58,12 +60,16 @@ const TERRARIUM_BASE_URL = 'https://elevation-tiles-prod.s3.amazonaws.com/terrar
 const TERRARIUM_MAX_LEVEL = 15;
 const TERRARIUM_GRID_SIZE = 65; // heightmap samples per tile edge
 
-function createTerrariumProvider(Cesium: CesiumModule): TerrainProviderLike {
+export function createTerrariumProvider(Cesium: CesiumModule): TerrainProviderLike {
   let ctx: CanvasRenderingContext2D | null = null;
 
   return new Cesium.CustomHeightmapTerrainProvider({
     width: TERRARIUM_GRID_SIZE,
     height: TERRARIUM_GRID_SIZE,
+    // Terrarium tiles are Web Mercator z/x/y. The provider's default geographic
+    // scheme (2x1 tiles at level 0) asks for tiles that do not exist and drapes
+    // the globe with heights taken from the wrong tile.
+    tilingScheme: new Cesium.WebMercatorTilingScheme(),
     callback: async (x: number, y: number, level: number): Promise<Float32Array> => {
       // Clamp to dataset max level; request the ancestor tile and upsample its quadrant.
       const over = Math.max(0, level - TERRARIUM_MAX_LEVEL);
