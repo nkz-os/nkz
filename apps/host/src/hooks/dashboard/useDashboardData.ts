@@ -40,39 +40,21 @@ export function useDashboardData(): DashboardData {
     try {
       const token = getToken() || '';
 
-      const response = await api.get('/api/admin/tenants', {
+      // Tenant-scoped endpoint: the server resolves the tenant from the JWT,
+      // so this only ever returns the caller's own plan window (regular
+      // users get 403 on the admin listing this used to read).
+      const response = await api.get('/api/tenant/plan', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
-      let tenants: any[] = [];
-      if (Array.isArray(response.data)) {
-        tenants = response.data;
-      } else if (response.data?.tenants && Array.isArray(response.data.tenants)) {
-        tenants = response.data.tenants;
-      } else if (response.data && typeof response.data === 'object') {
-        tenants = [response.data];
-      }
-
-      // Match strictly by the tenant_id claim from the JWT.
-      // Matching by email is unsafe: a PlatformAdmin whose email is reused
-      // across multiple activation codes could receive another tenant's
-      // expiration banner. The tenant_id from the token is authoritative.
-      const tokenTenant = user?.tenant;
-      if (!tokenTenant) {
-        return null;
-      }
-
-      const currentTenant = tenants.find((t: any) =>
-        t?.tenant_id === tokenTenant || t?.tenant === tokenTenant
-      );
-
-      if (currentTenant && currentTenant.days_remaining !== null && currentTenant.days_remaining !== undefined) {
+      const plan = response.data;
+      if (plan && plan.days_remaining !== null && plan.days_remaining !== undefined) {
         return {
-          days_remaining: Math.floor(currentTenant.days_remaining),
-          expires_at: currentTenant.expires_at,
-          plan: currentTenant.plan || 'basic'
+          days_remaining: Math.floor(plan.days_remaining),
+          expires_at: plan.expires_at,
+          plan: plan.plan || 'basic'
         };
       }
 
@@ -81,7 +63,7 @@ export function useDashboardData(): DashboardData {
       logger.error('Error loading expiration info', error);
       return null;
     }
-  }, [user, getToken]);
+  }, [getToken]);
 
   const loadData = useCallback(async () => {
     logger.debug('[Dashboard] Starting loadData');
