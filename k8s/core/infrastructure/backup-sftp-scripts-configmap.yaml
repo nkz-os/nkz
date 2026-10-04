@@ -64,7 +64,7 @@ metadata:
     component: backup-sftp
 data:
   cleanup.py: |
-    import paramiko, sys, os
+    import paramiko, sys, os, stat
     from datetime import datetime, timedelta
 
     host = os.environ["SFTP_HOST"]
@@ -85,6 +85,11 @@ data:
         kept = 0
 
         for f in files:
+            # Only age out top-level dump files; folders hold data with their own
+            # retention and SFTP remove() cannot delete them.
+            if stat.S_ISDIR(f.st_mode or 0):
+                kept += 1
+                continue
             mtime = datetime.fromtimestamp(f.st_mtime)
             if mtime < cutoff:
                 path = f"{remote_dir}/{f.filename}" if remote_dir != "." else f.filename
