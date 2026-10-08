@@ -618,7 +618,12 @@ def test_cycle_skips_a_parcel_with_no_corrected_observations(caplog):
         stats, posts = _run_cycle(mp, downscaled=[])
 
     assert stats["weather_forecast_written"] == 0
-    assert not [p for p in posts if p["body"]], "nada que publicar, nada publicado"
+    # The closed-day series ("...-daily") has its own fetch and is still due.
+    running = [
+        p for p in posts if p["body"]
+        and not any(str(e.get("id", "")).endswith("-daily") for e in p["body"])
+    ]
+    assert not running, "nada que publicar, nada publicado"
     messages = " | ".join(r.getMessage() for r in caplog.records)
     assert "index out of range" not in messages, (
         f"el vacío debe detectarse con un guard, no por IndexError: {messages}"
