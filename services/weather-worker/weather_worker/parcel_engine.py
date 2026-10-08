@@ -81,6 +81,10 @@ class ParcelWeatherEngine:
         self.cluster_radius_km = cluster_radius_km
         self.max_parcels = max_parcels
         self.context_url = context_url or os.getenv("CONTEXT_URL", "")
+        # (tenant, parcel id) -> (closed day published, utc offset seconds of the
+        # cell it was fetched for). In-memory only: after a restart the day is
+        # published again, which is safe (the write is an idempotent replace).
+        self._closed_done: Dict[Tuple[str, str], Tuple[str, int]] = {}
 
     # ------------------------------------------------------------------
     # Orion-LD helpers
@@ -990,6 +994,14 @@ class ParcelWeatherEngine:
                 logger.error(f"Error processing cluster {ci}: {e}")
                 stats["errors"] += 1
 
+        # Step 3b: closed previous day (final values) on the separate daily entity.
+        try:
+            closed = self._publish_closed_days(clusters)
+            stats.update(closed)
+        except Exception as e:
+            logger.warning("Closed-day pass failed: %s", e)
+            stats["errors"] += 1
+
         # Step 4: Prune orphan WeatherObserved (parcels deleted since last cycle).
         # The engine already provisions per-parcel stations by discovery; this
         # closes the loop on teardown. Per-tenant, false-zero-guarded inside.
@@ -1006,6 +1018,154 @@ class ParcelWeatherEngine:
             f"{stats['weather_forecast_written']} forecasts, "
             f"{stats['weather_observed_pruned']} pruned, {stats['errors']} errors"
         )
+        return stats
+
+
+    # ------------------------------------------------------------------
+    # Closed day (final previous day) — see weather_worker/closed_day.py
+    # ------------------------------------------------------------------
+
+    def _fetch_openmeteo_closed_day(
+        self, latitude: float, longitude: float
+    ) -> Optional[Dict[str, Any]]:
+        """Fetch the last two local days plus today for a point.
+
+        ``timezone=auto`` makes the daily/hourly blocks follow the point's own
+        calendar day; the response's ``utc_offset_seconds`` tells which local day is
+        "yesterday". Hourly dew point and 10 m wind are needed for vapour pressure
+        and 2 m wind speed.
+        """
+        try:
+            params = {
+                "latitude": latitude,
+                "longitude": longitude,
+                "past_days": 2,
+                "forecast_days": 1,
+                "daily": [
+                    "temperature_2m_max",
+                    "temperature_2m_min",
+                    "precipitation_sum",
+                    "et0_fao_evapotranspiration",
+                    "shortwave_radiation_sum",
+                ],
+                "hourly": ["dew_point_2m", "wind_speed_10m"],
+                "timezone": "auto",
+            }
+            resp = requests.get(f"{self.openmeteo_url}/forecast", params=params, timeout=20)
+            if resp.status_code != 200:
+                logger.warning(
+                    "Open-Meteo closed-day returned %s: %s", resp.status_code, resp.text[:200]
+                )
+                return None
+            return resp.json()
+        except Exception as e:
+            logger.warning("Error fetching Open-Meteo closed day: %s", e)
+            return None
+
+    @staticmethod
+    def _local_yesterday(offset_seconds: int) -> str:
+        local_now = datetime.utcnow() + timedelta(seconds=int(offset_seconds))
+        return (local_now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    def _downscale_closed_day_temps(
+        self,
+        values: Dict[str, Optional[float]],
+        parcel: Dict[str, Any],
+        parcel_lat: float,
+        parcel_lon: float,
+        station_altitude_m: Optional[float],
+    ) -> Dict[str, Optional[float]]:
+        """Lapse-rate correction of tmin/tmax to the parcel altitude.
+
+        Same downscaler as the running observation; only the temperature fields are
+        passed in, so radiation is left horizontal and untouched. Without the
+        downscaler the grid-cell values are kept (as the running path does).
+        """
+        try:
+            from weather_utils.spatial_downscaler import downscale_for_parcel
+        except ImportError:
+            return values
+        alt = float(parcel.get("_altitude") or 0.0)
+        if alt <= 0:
+            return values
+        station_alt = station_altitude_m if (station_altitude_m or 0) > 0 else alt
+        carrier = {k: values.get(k2) for k, k2 in (("temp_min", "tmin_c"), ("temp_max", "tmax_c"))}
+        out = downscale_for_parcel(
+            weather_data=carrier,
+            parcel_lat=parcel_lat,
+            parcel_lon=parcel_lon,
+            parcel_altitude_m=alt,
+            station_altitude_m=station_alt,
+            parcel_aspect_deg=0.0,
+            parcel_slope_deg=0.0,
+        )
+        corrected = dict(values)
+        corrected["tmin_c"] = out.get("temp_min")
+        corrected["tmax_c"] = out.get("temp_max")
+        return corrected
+
+    def _publish_closed_days(self, clusters: List[List[Dict[str, Any]]]) -> Dict[str, int]:
+        """Publish yesterday (final) for every parcel that does not have it yet.
+
+        Runs after the running-value pass on every cycle; parcels already done for
+        their local "yesterday" cost nothing. Writes go through a pacer so the
+        WeatherObserved subscription (throttling 1 s) never drops a notification.
+        """
+        from weather_worker import closed_day as cd
+
+        stats = {"closed_day_published": 0, "closed_day_errors": 0}
+        pacer = cd.WritePacer()
+        pacer.touch()  # the running-value pass just wrote to the same subscription
+
+        for cluster in clusters:
+            pending = []
+            for p in cluster:
+                tenant_id, pid = p.get("_tenant"), p.get("id", "")
+                if not tenant_id or not pid:
+                    continue
+                done = self._closed_done.get((tenant_id, pid))
+                if done and done[0] == self._local_yesterday(done[1]):
+                    continue
+                pending.append(p)
+            if not pending:
+                continue
+            try:
+                lat = sum(p["_centroid"][1] for p in pending) / len(pending)
+                lon = sum(p["_centroid"][0] for p in pending) / len(pending)
+                data = self._fetch_openmeteo_closed_day(lat, lon)
+                if data is None:
+                    stats["closed_day_errors"] += len(pending)
+                    continue
+                offset = data.get("utc_offset_seconds")
+                if offset is None:
+                    logger.warning("Closed day skipped: response has no utc_offset_seconds")
+                    stats["closed_day_errors"] += len(pending)
+                    continue
+                day = self._local_yesterday(offset)
+                base = cd.compute_closed_day_values(data, day)
+                if all(v is None for v in base.values()):
+                    logger.warning("Closed day %s: no data in Open-Meteo response", day)
+                    stats["closed_day_errors"] += len(pending)
+                    continue
+                for p in pending:
+                    parcel_lon, parcel_lat = p["_centroid"]
+                    values = self._downscale_closed_day_temps(
+                        base, p, parcel_lat, parcel_lon, data.get("elevation")
+                    )
+                    ok = cd.publish_closed_day(
+                        p["_tenant"], p["id"], (parcel_lon, parcel_lat), day, values,
+                        orion_url=self.orion_url, context_url=self.context_url,
+                        pacer=pacer,
+                    )
+                    if ok:
+                        self._closed_done[(p["_tenant"], p["id"])] = (day, int(offset))
+                        stats["closed_day_published"] += 1
+                    else:
+                        stats["closed_day_errors"] += 1
+                time.sleep(0.5)  # rate limiting between Open-Meteo calls
+            except Exception as e:
+                logger.warning("Closed-day cluster failed: %s", e)
+                stats["closed_day_errors"] += len(pending)
         return stats
 
     # ------------------------------------------------------------------
