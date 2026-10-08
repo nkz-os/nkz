@@ -1149,7 +1149,9 @@ class ApiService {
         headers: { 'Accept': 'application/ld+json' },
       });
       // Map NGSI-LD response
-      const payload = Array.isArray(response.data) ? response.data : [];
+      // Per-parcel closed-day series entities ("...-daily") are not stations.
+      const payload = (Array.isArray(response.data) ? response.data : [])
+        .filter((w: any) => !String(w.id).endsWith('-daily'));
 
       return payload.map((w: any) => ({
         id: w.id,

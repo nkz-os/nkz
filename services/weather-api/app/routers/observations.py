@@ -60,7 +60,12 @@ def _fetch_from_telemetry_events(
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Build the base WHERE clause
-            where = ["entity_type = 'WeatherObserved'", "tenant_id = %s"]
+            # Closed-day series entities ("...-daily") are not stations.
+            where = [
+                "entity_type = 'WeatherObserved'",
+                "tenant_id = %s",
+                "entity_id NOT LIKE '%%-daily'",
+            ]
             params = [tenant_id]
 
             # municipality_code is stored in payload.measurements
