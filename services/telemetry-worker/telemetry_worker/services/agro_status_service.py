@@ -264,7 +264,8 @@ class AgroStatusService:
 
         # Priority 2: Open-Meteo fallback (legacy — remove after API proven)
         try:
-            url = "https://api.open-meteo.com/v1/forecast"
+            base_url = os.getenv("OPENMETEO_API_URL", "https://api.open-meteo.com/v1").rstrip("/")
+            url = f"{base_url}/forecast"
             params = {
                 'latitude': latitude, 'longitude': longitude,
                 'current': ['temperature_2m', 'relative_humidity_2m', 'wind_speed_10m', 'wind_direction_10m', 'precipitation', 'weather_code'],
@@ -272,6 +273,9 @@ class AgroStatusService:
                 'daily': ['precipitation_sum', 'et0_fao_evapotranspiration'],
                 'forecast_days': 3, 'timezone': 'auto'
             }
+            om_models = os.getenv("OPENMETEO_MODELS", "").strip()
+            if om_models:
+                params['models'] = om_models
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()

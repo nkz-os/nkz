@@ -14,12 +14,12 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
 from app.auth import require_auth_optional
+from app.config import settings, with_models
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/weather", tags=["coordinates-forecast"])
 
-OPENMETEO_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
 
 @router.get("/coordinates")
@@ -63,7 +63,11 @@ def get_coordinates_forecast(
             "timezone": "auto",
         }
 
-        resp = requests.get(OPENMETEO_FORECAST_URL, params=params, timeout=10)
+        resp = requests.get(
+            f"{settings.openmeteo_api_url}/forecast",
+            params=with_models(params),
+            timeout=10,
+        )
         if resp.status_code != 200:
             return JSONResponse(
                 {"error": f"Open-Meteo returned {resp.status_code}"},
