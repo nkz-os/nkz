@@ -734,11 +734,19 @@ const UnifiedViewerInner: React.FC = () => {
                 </Button>
 
                 {isBottomPanelOpen && (
-                    <div className={`h-24 mb-4 rounded-xl ${overlayPanel.base} flex items-center justify-center`}>
+                    // Module widgets stack full-width above the core date controls.
+                    // The height follows the content up to a cap, then scrolls, so
+                    // a module never spills over the map.
+                    <div className={`mb-4 rounded-xl ${overlayPanel.base} flex flex-col overflow-hidden`}>
                         <Suspense fallback={<PanelLoadingFallback />}>
-                            <SlotRenderer slot="bottom-panel" />
+                            <SlotRenderer
+                                slot="bottom-panel"
+                                className="flex flex-col gap-2 p-2 overflow-y-auto max-h-[40vh] min-h-0 border-b border-slate-200 dark:border-slate-700"
+                            />
                         </Suspense>
-                        <CoreTimelineControls photos={fieldPhotos} />
+                        <div className="py-2">
+                            <CoreTimelineControls photos={fieldPhotos} />
+                        </div>
                     </div>
                 )}
             </div>
