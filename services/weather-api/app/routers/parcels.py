@@ -417,12 +417,19 @@ def get_parcel_weather(
             wo_data = wo_resp.json()
             if isinstance(wo_data, dict):
                 wo_data = [wo_data]
-            # Skip the closed-day series entity ("...-daily"): it is not the
-            # current-conditions station.
+            # Skip the closed-day series entity (dailySummary true, #1043): it
+            # is not the current-conditions station. The "-daily" id suffix
+            # stays as a legacy guard only.
+            def _is_closed_day(e):
+                node = e.get("dailySummary")
+                if isinstance(node, dict) and node.get("value") is True:
+                    return True
+                return str(e.get("id", "")).endswith("-daily")
+
             wo_entity = next(
                 (e for e in wo_data
                  if isinstance(e, dict) and e.get("id")
-                 and not str(e["id"]).endswith("-daily")),
+                 and not _is_closed_day(e)),
                 None,
             )
 

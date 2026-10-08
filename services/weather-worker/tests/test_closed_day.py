@@ -117,8 +117,17 @@ def test_entity_omits_missing_never_fills():
 
 def test_entity_has_no_running_value_attributes():
     e = cd.build_closed_day_entity("t", PARCEL, (0, 0), DAY, {"tmin_c": 1.0}, context_url="")
-    for running in ("temperature", "gddAccumulated", "windSpeed", "tempCurrent", "dateObserved"):
+    for running in ("temperature", "gddAccumulated", "windSpeed", "tempCurrent"):
         assert running not in e
+
+
+def test_entity_carries_discriminator_and_date_observed():
+    """Review #1043: dailySummary==true distinguishes the daily entity and
+    dateObserved is required by the WeatherObserved model (crop-health orders
+    by it)."""
+    e = cd.build_closed_day_entity("t", PARCEL, (0, 0), DAY, {"tmin_c": 1.0}, context_url="")
+    assert e["dailySummary"] == {"type": "Property", "value": True}
+    assert e["dateObserved"]["value"]["@value"] == f"{DAY}T00:00:00Z"
 
 
 def _ok(status=204):

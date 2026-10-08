@@ -1026,20 +1026,21 @@ class ParcelWeatherEngine:
     # ------------------------------------------------------------------
 
     def _fetch_openmeteo_closed_day(
-        self, latitude: float, longitude: float
+        self, latitude: float, longitude: float, past_days: int = 2
     ) -> Optional[Dict[str, Any]]:
-        """Fetch the last two local days plus today for a point.
+        """Fetch the last ``past_days`` local days plus today for a point.
 
         ``timezone=auto`` makes the daily/hourly blocks follow the point's own
         calendar day; the response's ``utc_offset_seconds`` tells which local day is
         "yesterday". Hourly dew point and 10 m wind are needed for vapour pressure
-        and 2 m wind speed.
+        and 2 m wind speed. ``past_days > 2`` serves the reconciliation of days
+        missed while the worker was down.
         """
         try:
             params = {
                 "latitude": latitude,
                 "longitude": longitude,
-                "past_days": 2,
+                "past_days": past_days,
                 "forecast_days": 1,
                 "daily": [
                     "temperature_2m_max",
@@ -1104,35 +1105,63 @@ class ParcelWeatherEngine:
         corrected["tmax_c"] = out.get("temp_max")
         return corrected
 
+    # Bound of the closed-day reconciliation window (#1043 review): days older
+    # than this behind the last published day are left to the historical
+    # backfill, not the live engine.
+    CLOSED_DAY_RECONCILE_MAX_DAYS = 7
+
     def _publish_closed_days(self, clusters: List[List[Dict[str, Any]]]) -> Dict[str, int]:
         """Publish yesterday (final) for every parcel that does not have it yet.
 
         Runs after the running-value pass on every cycle; parcels already done for
         their local "yesterday" cost nothing. Writes go through a pacer so the
         WeatherObserved subscription (throttling 1 s) never drops a notification.
+
+        Missed days are recovered (#1043 review): the in-memory done flag alone
+        cannot know what was published before a restart, so for a parcel not yet
+        done in this process the daily entity's ``dateObserved`` is read from
+        Orion and every missing day up to ``CLOSED_DAY_RECONCILE_MAX_DAYS``
+        behind yesterday is republished from the provider archive.
         """
         from weather_worker import closed_day as cd
 
-        stats = {"closed_day_published": 0, "closed_day_errors": 0}
+        stats = {"closed_day_published": 0, "closed_day_errors": 0, "closed_day_recovered": 0}
         pacer = cd.WritePacer()
         pacer.touch()  # the running-value pass just wrote to the same subscription
 
         for cluster in clusters:
-            pending = []
+            pending = []  # (parcel, last_published_day or None)
             for p in cluster:
                 tenant_id, pid = p.get("_tenant"), p.get("id", "")
                 if not tenant_id or not pid:
                     continue
                 done = self._closed_done.get((tenant_id, pid))
                 if done and done[0] == self._local_yesterday(done[1]):
-                    continue
-                pending.append(p)
+                    continue  # yesterday already published by this process
+                # Reconciliation (#1043 review): the in-memory flag alone cannot
+                # know what was published before a restart — ask the entity.
+                last = cd._read_last_published_day(
+                    tenant_id, pid, orion_url=self.orion_url
+                )
+                if last is None and done:
+                    last = done[0]
+                pending.append((p, last))
             if not pending:
                 continue
             try:
-                lat = sum(p["_centroid"][1] for p in pending) / len(pending)
-                lon = sum(p["_centroid"][0] for p in pending) / len(pending)
-                data = self._fetch_openmeteo_closed_day(lat, lon)
+                # Fetch depth: cover the oldest day any parcel may need.
+                oldest = None
+                for _, last in pending:
+                    if last and (oldest is None or last < oldest):
+                        oldest = last
+                past_days = 2
+                if oldest:
+                    from datetime import date as _date
+                    span = (_date.today() - _date.fromisoformat(oldest)).days
+                    past_days = max(2, min(span + 1, self.CLOSED_DAY_RECONCILE_MAX_DAYS + 2))
+                lat = sum(p[0]["_centroid"][1] for p in pending) / len(pending)
+                lon = sum(p[0]["_centroid"][0] for p in pending) / len(pending)
+                data = self._fetch_openmeteo_closed_day(lat, lon, past_days=past_days)
                 if data is None:
                     stats["closed_day_errors"] += len(pending)
                     continue
@@ -1142,26 +1171,52 @@ class ParcelWeatherEngine:
                     stats["closed_day_errors"] += len(pending)
                     continue
                 day = self._local_yesterday(offset)
-                base = cd.compute_closed_day_values(data, day)
-                if all(v is None for v in base.values()):
-                    logger.warning("Closed day %s: no data in Open-Meteo response", day)
-                    stats["closed_day_errors"] += len(pending)
-                    continue
-                for p in pending:
+                days_available = set((data.get("daily") or {}).get("time") or [])
+                for p, last in pending:
                     parcel_lon, parcel_lat = p["_centroid"]
-                    values = self._downscale_closed_day_temps(
-                        base, p, parcel_lat, parcel_lon, data.get("elevation")
-                    )
-                    ok = cd.publish_closed_day(
-                        p["_tenant"], p["id"], (parcel_lon, parcel_lat), day, values,
-                        orion_url=self.orion_url, context_url=self.context_url,
-                        pacer=pacer,
-                    )
-                    if ok:
+                    # Days to (re)publish: yesterday, plus the reconciliation gap.
+                    missing = {day}
+                    if last and last < day:
+                        from datetime import date as _date, timedelta
+                        d0 = _date.fromisoformat(last) + timedelta(days=1)
+                        d1 = _date.fromisoformat(day)
+                        if (d1 - d0).days > self.CLOSED_DAY_RECONCILE_MAX_DAYS:
+                            logger.warning(
+                                "closed-day gap %s..%s for %s exceeds %d days; "
+                                "recovering only the most recent ones",
+                                d0, d1, p["id"], self.CLOSED_DAY_RECONCILE_MAX_DAYS,
+                            )
+                            d0 = d1 - timedelta(days=self.CLOSED_DAY_RECONCILE_MAX_DAYS)
+                        missing.update(
+                            (d0 + timedelta(days=i)).isoformat()
+                            for i in range((d1 - d0).days + 1)
+                        )
+                    recovered = 0
+                    ok_any = False
+                    for d in sorted(missing):
+                        if d not in days_available:
+                            continue
+                        base = cd.compute_closed_day_values(data, d)
+                        if all(v is None for v in base.values()):
+                            continue
+                        values = self._downscale_closed_day_temps(
+                            base, p, parcel_lat, parcel_lon, data.get("elevation")
+                        )
+                        ok = cd.publish_closed_day(
+                            p["_tenant"], p["id"], (parcel_lon, parcel_lat), d, values,
+                            orion_url=self.orion_url, context_url=self.context_url,
+                            pacer=pacer,
+                        )
+                        if ok:
+                            ok_any = True
+                            if d != day:
+                                recovered += 1
+                        else:
+                            stats["closed_day_errors"] += 1
+                    if ok_any:
                         self._closed_done[(p["_tenant"], p["id"])] = (day, int(offset))
                         stats["closed_day_published"] += 1
-                    else:
-                        stats["closed_day_errors"] += 1
+                        stats["closed_day_recovered"] += recovered
                 time.sleep(0.5)  # rate limiting between Open-Meteo calls
             except Exception as e:
                 logger.warning("Closed-day cluster failed: %s", e)

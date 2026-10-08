@@ -32,6 +32,7 @@ def test_pass_publishes_yesterday_once_per_parcel():
     eng = _engine()
     published = []
     with patch.object(pe, "datetime", _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value=None), \
          patch.object(eng, "_fetch_openmeteo_closed_day", return_value=_response()) as fetch, \
          patch("weather_worker.closed_day.publish_closed_day",
                side_effect=lambda *a, **k: published.append((a, k)) or True), \
@@ -49,6 +50,7 @@ def test_failed_publish_is_retried_next_cycle():
     eng = _engine()
     results = iter([False, False, True, True])
     with patch.object(pe, "datetime", _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value=None), \
          patch.object(eng, "_fetch_openmeteo_closed_day", return_value=_response()), \
          patch("weather_worker.closed_day.publish_closed_day", side_effect=lambda *a, **k: next(results)), \
          patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
@@ -61,6 +63,7 @@ def test_failed_publish_is_retried_next_cycle():
 def test_fetch_failure_counts_error_and_publishes_nothing():
     eng = _engine()
     with patch.object(pe, "datetime", _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value=None), \
          patch.object(eng, "_fetch_openmeteo_closed_day", return_value=None), \
          patch("weather_worker.closed_day.publish_closed_day") as pub, \
          patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
@@ -74,6 +77,7 @@ def test_yesterday_not_in_response_publishes_nothing():
     resp = _response()
     resp["daily"]["time"] = ["2026-10-01"]
     with patch.object(pe, "datetime", _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value=None), \
          patch.object(eng, "_fetch_openmeteo_closed_day", return_value=resp), \
          patch("weather_worker.closed_day.publish_closed_day") as pub, \
          patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
@@ -104,3 +108,51 @@ def test_temps_lapse_corrected_to_parcel_altitude_other_values_untouched():
     assert out["et0_mm"] == 3.0 and out["radiation_mj_m2"] == 15.0
     # parcel altitude unknown -> grid values kept, not corrected from sea level
     assert eng._downscale_closed_day_temps(base, {}, 42.8, -1.6, 100.0) == base
+
+
+def _multi_day_response(days):
+    """_response() generalizado: N días consecutivos terminando en el último de days."""
+    r = _response()
+    r["daily"]["time"] = list(days)
+    for k in ("temperature_2m_max", "temperature_2m_min", "precipitation_sum",
+              "et0_fao_evapotranspiration", "shortwave_radiation_sum"):
+        r["daily"][k] = [r["daily"][k][0]] * len(days)
+    return r
+
+
+def test_restart_recovers_missed_days():
+    """Review #1043: fresh process (no in-memory flag), entity says 3 days behind
+    -> yesterday plus the 3 missed days are republished."""
+    eng = _engine()  # fresh: _closed_done empty, like after a restart
+    resp = _multi_day_response(["2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"])
+    published = []
+    with patch.object(pe, "datetime", _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value="2026-10-04"), \
+         patch.object(eng, "_fetch_openmeteo_closed_day", return_value=resp) as fetch, \
+         patch("weather_worker.closed_day.publish_closed_day",
+               side_effect=lambda *a, **k: published.append((a, k)) or True), \
+         patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
+        s = eng._publish_closed_days([_cluster()])
+    days = sorted({a[3] for a, _ in published})
+    assert days == ["2026-10-05", "2026-10-06", "2026-10-07"]  # gap + yesterday
+    assert s["closed_day_published"] == 2
+    assert s["closed_day_recovered"] == 4  # 2 missed days x 2 parcels
+    # the fetch had to look deeper than the default past_days=2
+    assert fetch.call_args.kwargs.get("past_days", 2) >= 4
+
+
+def test_no_entity_publishes_yesterday_only():
+    """Fresh process, no daily entity in Orion -> only yesterday (no invention
+    of history the entity never had)."""
+    eng = _engine()
+    published = []
+    with patch.object(pe, "datetime", _FixedDT), \
+         patch("weather_worker.closed_day._read_last_published_day", return_value=None), \
+         patch.object(eng, "_fetch_openmeteo_closed_day", return_value=_response()), \
+         patch("weather_worker.closed_day.publish_closed_day",
+               side_effect=lambda *a, **k: published.append((a, k)) or True), \
+         patch("weather_worker.closed_day.WritePacer", return_value=MagicMock()):
+        s = eng._publish_closed_days([_cluster()])
+    days = {a[3] for a, _ in published}
+    assert days == {"2026-10-07"}
+    assert s["closed_day_recovered"] == 0

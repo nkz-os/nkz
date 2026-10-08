@@ -305,6 +305,10 @@ def create_weather_observed_entity(
                 "value": {"@type": "DateTime", "@value": observed_at.isoformat() + "Z"},
             },
             "locatedAt": {"type": "Relationship", "object": parcel_id},
+            # Discriminator vs the per-parcel closed-day entity (dailySummary
+            # true). Consumers pick the running station with dailySummary false;
+            # pre-migration entities lack the attribute and are kept (#1043).
+            "dailySummary": {"type": "Property", "value": False},
         }
 
         # Self-describing: carry municipality code for direct timeseries resolution
@@ -516,6 +520,8 @@ def update_weather_observed_entity(
                 "type": "Property",
                 "value": {"@type": "DateTime", "@value": observed_at.isoformat() + "Z"},
             },
+            # Keep the running/daily discriminator present on update paths too.
+            "dailySummary": {"type": "Property", "value": False},
         }
 
         # Add weather properties

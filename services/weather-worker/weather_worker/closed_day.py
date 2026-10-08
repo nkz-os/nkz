@@ -30,6 +30,16 @@ solarRadiation     D54   daily MEAN global horizontal radiation (W m-2);
 vapourPressure     KPA   mean actual vapour pressure
 windSpeed2m        MTS   mean wind speed at 2 m
 =================  ====  ==================================================
+
+Discriminating attributes (review #1043):
+
+* ``dailySummary: true`` — distinguishes this entity from the running
+  (current-conditions) ``WeatherObserved`` of the same parcel, which carries
+  ``dailySummary: false``. Consumers that pick "the parcel's WeatherObserved"
+  must skip ``dailySummary == true``; an absent attribute means a pre-migration
+  running entity (keep it).
+* ``dateObserved`` — required by the WeatherObserved model and used for
+  ordering; set to ``<day>T00:00:00Z``, the day this entity describes.
 """
 
 import logging
@@ -73,6 +83,34 @@ ATTRIBUTES: Dict[str, Tuple[str, str]] = {
 }
 
 _DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _read_last_published_day(
+    tenant_id: str,
+    parcel_id: str,
+    *,
+    orion_url: str = "",
+    http: Any = requests,
+) -> Optional[str]:
+    """The ``YYYY-MM-DD`` last described by the parcel's daily entity, if any."""
+    orion_url = orion_url or os.getenv("ORION_URL", "http://orion-ld-service:1026")
+    eid = closed_day_entity_id(tenant_id, parcel_id)
+    try:
+        resp = http.get(
+            f"{orion_url}/ngsi-ld/v1/entities/{eid}?attrs=dateObserved",
+            headers=inject_fiware_headers({}, tenant=tenant_id, body=None),
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            return None
+        node = resp.json().get("dateObserved") or {}
+        value = node.get("value") if isinstance(node, dict) else None
+        if isinstance(value, dict):
+            value = value.get("@value")
+        return value[:10] if isinstance(value, str) else None
+    except Exception as e:
+        logger.warning("closed-day last-published read failed (%s): %s", eid, e)
+        return None
 
 
 def closed_day_entity_id(tenant_id: str, parcel_id: str) -> str:
@@ -154,6 +192,14 @@ def build_closed_day_entity(
             "value": {"type": "Point", "coordinates": list(location)},
         },
         "locatedAt": {"type": "Relationship", "object": parcel_id},
+        # Discriminator vs the running entity of the same parcel (#1043 review):
+        # consumers picking "the parcel's WeatherObserved" skip dailySummary==true.
+        "dailySummary": {"type": "Property", "value": True},
+        # Required by the WeatherObserved model; crop-health orders by it.
+        "dateObserved": {
+            "type": "Property",
+            "value": {"@type": "DateTime", "@value": f"{day}T00:00:00Z"},
+        },
     }
     for key, (attr, unit) in ATTRIBUTES.items():
         v = values.get(key)
