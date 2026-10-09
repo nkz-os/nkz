@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from psycopg2.extras import RealDictCursor
 
 from app.auth import require_auth, require_auth_optional
-from app.config import settings
+from app.config import settings, with_models
 from app.deps import get_db_connection
 from app.services.agro_status import (
     calculate_agro_status,
@@ -499,8 +499,8 @@ def get_parcel_weather(
         end = (datetime.utcnow() + timedelta(days=min(limit, 14))).strftime("%Y-%m-%d")
 
         om_resp = requests.get(
-            "https://api.open-meteo.com/v1/forecast",
-            params={
+            f"{settings.openmeteo_api_url}/forecast",
+            params=with_models({
                 "latitude": parcel_lat,
                 "longitude": parcel_lon,
                 "start_date": today,
@@ -524,7 +524,7 @@ def get_parcel_weather(
                     "wind_direction_10m",
                 ],
                 "timezone": "Europe/Madrid",
-            },
+            }),
             timeout=10,
         )
 
@@ -1238,7 +1238,11 @@ def get_parcel_forecast(
             "timezone": "auto",
         }
 
-        resp = requests.get("https://api.open-meteo.com/v1/forecast", params=params, timeout=10)
+        resp = requests.get(
+            f"{settings.openmeteo_api_url}/forecast",
+            params=with_models(params),
+            timeout=10,
+        )
         if resp.status_code != 200:
             return JSONResponse(
                 {"error": f"Open-Meteo returned {resp.status_code}"},

@@ -14,9 +14,10 @@ logger = logging.getLogger(__name__)
 class OpenMeteoProvider(BaseWeatherProvider):
     """Open-Meteo weather data provider (primary source)"""
     
-    def __init__(self, api_url: str = "https://api.open-meteo.com/v1", api_key: Optional[str] = None):
+    def __init__(self, api_url: str = "https://api.open-meteo.com/v1", api_key: Optional[str] = None, models: str = ""):
         super().__init__(api_key)
         self.api_url = api_url.rstrip('/')
+        self.models = (models or "").strip()
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'Nekazari-Weather-Worker/1.0'
@@ -69,14 +70,15 @@ class OpenMeteoProvider(BaseWeatherProvider):
                     'weather_code',
                     'et0_fao_evapotranspiration'
                 ],
-                'models': 'best_match',  # Use best available model
             }
+            if self.models:
+                params['models'] = self.models
 
             # For historical data, use historical API endpoint
             if start_date < datetime.now() - timedelta(days=1):
                 url = f"{self.api_url}/forecast"
                 # Open-Meteo historical data endpoint
-                url = f"{self.api_url.replace('/v1', '/v1/forecast')}"
+                url = f"{self.api_url}/forecast"
 
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
@@ -134,8 +136,9 @@ class OpenMeteoProvider(BaseWeatherProvider):
                     'weather_code',
                     'et0_fao_evapotranspiration'
                 ],
-                'models': 'best_match',
             }
+            if self.models:
+                params['models'] = self.models
 
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()

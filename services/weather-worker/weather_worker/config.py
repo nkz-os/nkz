@@ -19,6 +19,8 @@ class WeatherWorkerConfig:
     
     # Open-Meteo API (Primary source)
     OPENMETEO_API_URL: str = os.getenv('OPENMETEO_API_URL', 'https://api.open-meteo.com/v1')
+    # Comma-separated model list; empty = do not send `models` (server default)
+    OPENMETEO_MODELS: str = os.getenv('OPENMETEO_MODELS', '').strip()
     
     # AEMET API (Secondary source - alerts only)
     AEMET_API_KEY: Optional[str] = os.getenv('AEMET_API_KEY')

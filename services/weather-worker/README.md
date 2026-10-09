@@ -86,6 +86,7 @@ Worker automatically runs every hour and:
 |----------|----------|---------|-------------|
 | `POSTGRES_URL` | ✅ | — | PostgreSQL connection string |
 | `OPENMETEO_API_URL` | — | `https://api.open-meteo.com/v1` | Open-Meteo API (global UE+UK) |
+| `OPENMETEO_MODELS` | — | (empty) | Comma-separated Open-Meteo models; empty = `models` param not sent |
 | `AEMET_API_KEY` | — | — | AEMET API key (Spain alerts only) |
 | `AEMET_API_URL` | — | `https://opendata.aemet.es/opendata/api` | AEMET API endpoint |
 | `WEATHER_INGESTION_INTERVAL_HOURS` | — | `1` | Polling interval |

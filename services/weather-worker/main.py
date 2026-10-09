@@ -68,7 +68,10 @@ class WeatherWorker:
             raise ValueError("POSTGRES_URL not configured")
         
         # Initialize providers
-        self.openmeteo = OpenMeteoProvider(api_url=self.config.OPENMETEO_API_URL)
+        self.openmeteo = OpenMeteoProvider(
+            api_url=self.config.OPENMETEO_API_URL,
+            models=self.config.OPENMETEO_MODELS,
+        )
         self.aemet = None
         if self.config.AEMET_API_KEY:
             self.aemet = AEMETProvider(
@@ -107,6 +110,7 @@ class WeatherWorker:
         parcel_engine = ParcelWeatherEngine(
             orion_url=os.getenv("ORION_URL", "http://orion-ld-service:1026"),
             openmeteo_url=self.config.OPENMETEO_API_URL,
+            openmeteo_models=self.config.OPENMETEO_MODELS,
             postgres_url=self.postgres_url,
             forecast_days=self.config.FORECAST_DAYS,
             cluster_radius_km=self.config.PARCEL_ENGINE_CLUSTER_RADIUS_KM,

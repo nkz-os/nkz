@@ -69,6 +69,7 @@ class ParcelWeatherEngine:
         cluster_radius_km: float = 2.0,
         max_parcels: int = 500,
         context_url: str = "",
+        openmeteo_models: str = "",
     ):
         self.orion_url = orion_url or os.getenv(
             "ORION_URL", "http://orion-ld-service:1026"
@@ -76,6 +77,9 @@ class ParcelWeatherEngine:
         self.openmeteo_url = openmeteo_url or os.getenv(
             "OPENMETEO_API_URL", "https://api.open-meteo.com/v1"
         )
+        self.openmeteo_models = (
+            openmeteo_models or os.getenv("OPENMETEO_MODELS", "")
+        ).strip()
         self.postgres_url = postgres_url or os.getenv("POSTGRES_URL", "")
         self.forecast_days = forecast_days
         self.cluster_radius_km = cluster_radius_km
@@ -644,6 +648,9 @@ class ParcelWeatherEngine:
                 ],
                 "timezone": "Europe/Madrid",
             }
+
+            if self.openmeteo_models:
+                params["models"] = self.openmeteo_models
 
             resp = requests.get(url, params=params, timeout=15)
             if resp.status_code != 200:
