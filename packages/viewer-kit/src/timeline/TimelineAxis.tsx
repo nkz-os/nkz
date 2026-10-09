@@ -64,7 +64,7 @@ export function TimelineAxis({ range, cursor, onCursorChange, forecastFrom, loca
       onPointerUp={() => { dragging.current = false; }}
       onPointerCancel={() => { dragging.current = false; }}
       className="relative cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base"
-      style={{ height: 28, touchAction: 'none' }}
+      style={{ height: 40, touchAction: 'none' }}
     >
       {forecastFrom != null && forecastFrom < range.end && (
         <div
