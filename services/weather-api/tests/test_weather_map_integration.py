@@ -13,11 +13,30 @@ for _p in [_SVC_DIR, _SERVICES_DIR, _COMMON_DIR]:
         sys.path.insert(0, _p)
 
 
-def _stats_response(metrics):
+def _today():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def _stats_response(metrics, day=None):
     m = MagicMock()
     m.status_code = 200
-    m.json.return_value = {"metrics": metrics, "parcel_id": "urn:ngsi-ld:AgriParcel:x"}
+    m.json.return_value = {
+        "metrics": metrics,
+        "parcel_id": "urn:ngsi-ld:AgriParcel:x",
+        "date": day or _today(),
+    }
     return m
+
+
+def test_fetch_weather_map_stats_ignores_a_raster_from_another_day():
+    from app.routers.parcels import _fetch_weather_map_stats
+    for day in ("2000-01-01", None):
+        resp = _stats_response({"temperature_avg": {"mean": 18.5}})
+        resp.json.return_value["date"] = day
+        with patch("app.routers.parcels.settings.weather_map_url", "http://wm:8080"):
+            with patch("app.routers.parcels.requests.get", return_value=resp):
+                assert _fetch_weather_map_stats("x", "montiko") == {}
 
 
 def test_fetch_weather_map_stats_empty_when_unconfigured():
