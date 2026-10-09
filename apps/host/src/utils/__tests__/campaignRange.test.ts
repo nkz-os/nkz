@@ -68,4 +68,11 @@ describe('resolveTimelineRange', () => {
     const r = resolveTimelineRange([crop({ plantingDate: '2008-03-01', status: 'active' })], P, NOW);
     expect(r).toEqual({ source: 'campaign', range: { start: NOW - 365 * DAY, end: NOW + 30 * DAY } });
   });
+
+  it('caps a far-future campaign end to now + 365 days', () => {
+    const r = resolveTimelineRange([crop({
+      plantingDate: '2026-09-01', expectedTerminationDate: '2062-01-01', status: 'active',
+    })], P, NOW);
+    expect(r).toEqual({ source: 'campaign', range: { start: D('2026-09-01'), end: NOW + 365 * DAY } });
+  });
 });

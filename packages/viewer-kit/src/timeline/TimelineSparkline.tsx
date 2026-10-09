@@ -5,7 +5,9 @@ export function TimelineSparkline({ range, points, valueRange, color, height = 2
   range: TimeRange; points: { time: number; value: number }[];
   valueRange: [number, number]; color: string; height?: number;
 }) {
-  const inRange = points.filter(p => isInRange(p.time, range) && Number.isFinite(p.value));
+  const inRange = points
+    .filter(p => isInRange(p.time, range) && Number.isFinite(p.value))
+    .sort((a, b) => a.time - b.time);
   if (inRange.length < 2) return null;
   const [lo, hi] = valueRange;
   const span = hi - lo || 1;
@@ -13,7 +15,7 @@ export function TimelineSparkline({ range, points, valueRange, color, height = 2
     .map(p => `${timeToPct(p.time, range)},${100 - ((Math.min(hi, Math.max(lo, p.value)) - lo) / span) * 100}`)
     .join(' ');
   return (
-    <svg width="100%" height={height} viewBox="0 0 100 100" preserveAspectRatio="none" style={{ display: 'block' }}>
+    <svg aria-hidden="true" width="100%" height={height} viewBox="0 0 100 100" preserveAspectRatio="none" style={{ display: 'block' }}>
       <polyline points={pts} fill="none" stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
     </svg>
   );

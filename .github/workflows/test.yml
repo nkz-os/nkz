@@ -42,6 +42,10 @@ jobs:
           pnpm --filter @nekazari/module-kit build
         working-directory: .
 
+      - name: viewer-kit tests
+        run: pnpm --filter @nekazari/viewer-kit test
+        working-directory: .
+
       - name: Lint
         run: pnpm lint
 

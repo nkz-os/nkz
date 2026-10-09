@@ -66,6 +66,13 @@ export interface ModuleViewerSlots {
   moduleProvider?: React.ComponentType<{ children: React.ReactNode }>;
 }
 
+/**
+ * Props the host passes to every `timeline-track` widget.
+ *
+ * A track must render its row with viewer-kit's `TimelineTrackRow` and add no
+ * horizontal padding of its own, so it stays aligned with the host axis. It
+ * moves the shared cursor through `onCursorChange`.
+ */
 export interface TimelineTrackProps {
   entityId: string;
   entityType: string | null;

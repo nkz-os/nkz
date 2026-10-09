@@ -4,13 +4,18 @@ import { renderHook } from '@testing-library/react';
 const setCurrentDate = vi.fn();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let viewerState: any;
+let visibleTracks: unknown[];
 vi.mock('@/context/ViewerContext', () => ({ useViewer: () => viewerState }));
+vi.mock('@/context/SlotRegistry', () => ({
+  useSlotRegistryOptional: () => ({ getVisibleWidgets: () => visibleTracks }),
+}));
 
 import { useViewerTimelineRange } from '../useViewerTimelineRange';
 
 describe('useViewerTimelineRange', () => {
   beforeEach(() => {
     setCurrentDate.mockClear();
+    visibleTracks = [{ id: 'veg' }];
     viewerState = { selectedEntityId: null, setCurrentDate };
   });
 
@@ -31,5 +36,13 @@ describe('useViewerTimelineRange', () => {
     viewerState = { ...viewerState, selectedEntityId: 'urn:ngsi-ld:AgriParcel:p2' };
     rerender();
     expect(setCurrentDate).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not touch the cursor when no module contributes a visible track', () => {
+    visibleTracks = [];
+    const { rerender } = renderHook(() => useViewerTimelineRange([]));
+    viewerState = { ...viewerState, selectedEntityId: 'urn:ngsi-ld:AgriParcel:p1' };
+    rerender();
+    expect(setCurrentDate).not.toHaveBeenCalled();
   });
 });

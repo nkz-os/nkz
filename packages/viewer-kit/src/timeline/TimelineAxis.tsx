@@ -88,10 +88,13 @@ export function TimelineAxis({ range, cursor, onCursorChange, forecastFrom, loca
           style={{ left: `${timeToPct(todaySnapped, range)}%`, top: 0, bottom: 0, borderLeft: '1px dashed var(--nkz-color-text-muted, #94a3b8)', pointerEvents: 'none' }}
         />
       )}
-      <div
-        className="absolute bg-nkz-accent-base"
-        style={{ left: `${timeToPct(cursor, range)}%`, top: 0, bottom: 0, width: 2, marginLeft: -1, pointerEvents: 'none' }}
-      />
+      {isInRange(cursor, range) && (
+        <div
+          data-testid="timeline-cursor"
+          className="absolute bg-nkz-accent-base"
+          style={{ left: `${timeToPct(cursor, range)}%`, top: 0, bottom: 0, width: 2, marginLeft: -1, pointerEvents: 'none' }}
+        />
+      )}
     </div>
   );
 }

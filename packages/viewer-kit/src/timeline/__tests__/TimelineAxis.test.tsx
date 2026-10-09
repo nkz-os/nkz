@@ -43,4 +43,13 @@ describe('TimelineAxis', () => {
     fireEvent.pointerDown(track, { clientX: 500, pointerId: 1, button: 2 });
     expect(onCursorChange).not.toHaveBeenCalled();
   });
+
+  it('draws the cursor line only while the cursor is inside the range', () => {
+    const { rerender } = render(<TimelineAxis range={range} cursor={range.start + 10 * DAY_MS} onCursorChange={vi.fn()} ariaLabel="axis" />);
+    expect(screen.getByTestId('timeline-cursor')).toBeTruthy();
+    rerender(<TimelineAxis range={range} cursor={range.end + 10 * DAY_MS} onCursorChange={vi.fn()} ariaLabel="axis" />);
+    expect(screen.queryByTestId('timeline-cursor')).toBeNull();
+    rerender(<TimelineAxis range={range} cursor={range.start - 10 * DAY_MS} onCursorChange={vi.fn()} ariaLabel="axis" />);
+    expect(screen.queryByTestId('timeline-cursor')).toBeNull();
+  });
 });

@@ -11,6 +11,7 @@ const DEFAULT_PAST_DAYS = 90;
 const DEFAULT_FUTURE_DAYS = 30;
 const DEFAULT_SEASON_DAYS = 180;
 const MAX_PAST_DAYS = 365;
+const MAX_FUTURE_DAYS = 365;
 const CLOSED = new Set(['planned', 'harvested', 'terminated']);
 const END_ATTRS = ['harvestDate', 'expectedTerminationDate', 'terminationDate'] as const;
 
@@ -50,7 +51,9 @@ export function resolveTimelineRange(
       // Perennial crops (e.g., orchards planted decades ago) keep their original plantingDate for selection,
       // but the returned range is capped to the last 365 days to avoid overwhelming the timeline.
       const cappedStart = Math.max(best.start, now - MAX_PAST_DAYS * DAY_MS);
-      return { range: { start: cappedStart, end }, source: 'campaign' };
+      // A far-future or mistyped end date must not stretch the axis over decades.
+      const cappedEnd = Math.min(end, now + MAX_FUTURE_DAYS * DAY_MS);
+      return { range: { start: cappedStart, end: cappedEnd }, source: 'campaign' };
     }
   }
   return {

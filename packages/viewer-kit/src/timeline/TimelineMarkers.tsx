@@ -15,6 +15,7 @@ export function TimelineMarkers({ range, markers, onSelect }: {
             key={m.id}
             type="button"
             title={m.title}
+            aria-label={m.title}
             aria-pressed={!!m.selected}
             onClick={() => onSelect?.(m.id)}
             className="absolute rounded-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base"
