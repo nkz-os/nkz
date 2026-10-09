@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 import { AUTH_STATE_PATH } from './global.setup';
 
 /**
@@ -43,8 +43,28 @@ import { AUTH_STATE_PATH } from './global.setup';
  * robot widgets and the module-federation remote slot 404/502/504 locally.
  * Those error states are captured as-is — they are deterministic (same
  * request, same failure, every run) so they're valid baseline content; see
- * the report for exactly which regions they occupy.
+ * the report for exactly which regions they occupy. The exceptions are
+ * admin's users-list error alert, whose text carries the upstream HTTP status
+ * (502/503/504, whichever the stack answers that run), and the dashboard's two
+ * "last refreshed" timestamps, which carry the server's wall-clock time — they
+ * are masked, see adminUsersErrorMask and dashboardTimestampsMask.
  */
+
+// Opt-in fixture for the Cesium-backed tests: guarantees teardownCesium runs
+// after the test body whether it passed, failed or timed out. Fixture teardown
+// runs for all three outcomes and before the `page` fixture it depends on is
+// closed, so the GL context is released while the page still exists. A teardown
+// failure is reported as its own error next to the test's, never swallowed and
+// never replacing it. Tests that do not request it are unaffected.
+const test = base.extend<{ cesiumTeardown: void }>({
+  // The second argument is Playwright's "run the test now" callback. It is
+  // called `run`, not the conventional `use`, because eslint's react-hooks rule
+  // mistakes any `use(...)` call for a React hook.
+  cesiumTeardown: async ({ page }, run) => {
+    await run();
+    await teardownCesium(page);
+  },
+});
 
 test.use({ storageState: AUTH_STATE_PATH });
 
@@ -64,6 +84,17 @@ const CROPPED_CLIP = {
   width: VIEWPORT.width - EDGE_CROP * 2,
   height: VIEWPORT.height - EDGE_CROP * 2,
 };
+
+// The two Cesium-backed screens (unified viewer, entity wizard) pay a cold-start
+// cost the other pages don't: Cesium itself and the module-federation remotes
+// behind the viewer slots.
+// Observed on CI: the first attempt of each overran the old 60s per-test cap while
+// the retry finished in about 4-11s. The per-test cap is raised for those
+// tests only (the global default stays as configured), and the readiness waits
+// below get their own explicit budget so a genuine hang still fails with a named
+// step rather than the bare test timeout.
+const CESIUM_TEST_TIMEOUT = 90_000;
+const CESIUM_READY_TIMEOUT = 60_000;
 
 async function prepare(page: Page, theme: ThemeName, opts: { hideCanvas?: boolean } = {}) {
   await page.clock.install({ time: FROZEN_TIME });
@@ -110,9 +141,34 @@ async function prepare(page: Page, theme: ThemeName, opts: { hideCanvas?: boolea
 // capture with "Protocol error (Page.captureScreenshot): Unable to capture
 // screenshot" (reproduced consistently: entity-wizard → admin, worker
 // reused). Navigating away first forces the unmount/destroy synchronously
-// before the test ends, so the next test in the worker starts clean.
+// before the test ends, so the next test in the worker starts clean. Run via the
+// `cesiumTeardown` fixture above, so it also happens when the test body fails.
 async function teardownCesium(page: Page) {
   await page.goto('about:blank');
+}
+
+// A navigation that begins while a barrier is mid-flight (the app's own
+// redirects, a late reload) tears down the execution context the barrier's
+// `page.evaluate` is running in, and Playwright rejects it with "Execution
+// context was destroyed, most likely because of a navigation". That says
+// nothing about the page under test — it only means the barrier measured a
+// document that no longer exists. Re-running it against the new document, once,
+// after the load settles is the correct response. Anything else (a real
+// timeout, a script error) is not this condition and is rethrown untouched, and
+// a second destruction is rethrown too: a page that keeps navigating is a
+// real failure, not something to paper over.
+function isContextDestroyedByNavigation(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('Execution context was destroyed');
+}
+
+async function retryOnceAfterNavigation(page: Page, step: () => Promise<void>) {
+  try {
+    await step();
+  } catch (err) {
+    if (!isContextDestroyedByNavigation(err)) throw err;
+    await page.waitForLoadState('networkidle');
+    await step();
+  }
 }
 
 // `networkidle` only proves the network is quiet — it says nothing about
@@ -142,41 +198,72 @@ async function teardownCesium(page: Page) {
 // data fetch: a row that never scrolls into the viewport keeps pulsing
 // indefinitely, so waiting for zero `.animate-pulse` elements would hang
 // instead of settle.
-async function waitForNoSpinners(page: Page) {
-  await page.waitForFunction(
-    () => document.querySelectorAll('.animate-spin').length === 0,
-    undefined,
-    { timeout: 10_000 },
-  );
-  // tokens.css pulls Inter from Google Fonts with display=swap: first paint
-  // uses the fallback stack and swaps when the network lands. Native form
-  // controls (the Timezone/Language/Currency <select>s in TenantProfileEditor
-  // on /settings) lag behind regular text nodes picking up that swap, so a
-  // capture that races it lands on the fallback glyphs for just that control.
-  // packages/ui-kit and packages/viewer-kit's component harnesses already
-  // await this before their first paint (playwright/index.tsx in each) — this
-  // suite never got the same treatment. document.fonts.ready resolves once no
-  // font load is pending, including the failure case, so this cannot hang an
-  // offline or CDN-blocked run.
-  await page.evaluate(() => document.fonts.ready);
-  // Once the spinner is gone and fonts have settled, the `loading` state
-  // flipped to false and the final typeface is in place — but a commit still
-  // needs a paint to reach the screen. Two animation frames is the browser's
-  // own signal that a commit has been painted (React/the browser flush
-  // pending DOM mutations before the next paint); this is a paint barrier
-  // tied to the browser's render pipeline, not a guessed clock duration.
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      }),
-  );
+async function waitForNoSpinners(page: Page, timeout = 10_000) {
+  // All three barriers (spinner gate, fonts, paint) measure the *current*
+  // document, so they are retried together — not individually — if a navigation
+  // replaces it mid-way (see retryOnceAfterNavigation).
+  await retryOnceAfterNavigation(page, async () => {
+    await page.waitForFunction(
+      () => document.querySelectorAll('.animate-spin').length === 0,
+      undefined,
+      { timeout },
+    );
+    // tokens.css pulls Inter from Google Fonts with display=swap: first paint
+    // uses the fallback stack and swaps when the network lands. Native form
+    // controls (the Timezone/Language/Currency <select>s in TenantProfileEditor
+    // on /settings) lag behind regular text nodes picking up that swap, so a
+    // capture that races it lands on the fallback glyphs for just that control.
+    // packages/ui-kit and packages/viewer-kit's component harnesses already
+    // await this before their first paint (playwright/index.tsx in each) — this
+    // suite never got the same treatment. document.fonts.ready resolves once no
+    // font load is pending, including the failure case, so this cannot hang an
+    // offline or CDN-blocked run.
+    await page.evaluate(() => document.fonts.ready);
+    // Once the spinner is gone and fonts have settled, the `loading` state
+    // flipped to false and the final typeface is in place — but a commit still
+    // needs a paint to reach the screen. Two animation frames is the browser's
+    // own signal that a commit has been painted (React/the browser flush
+    // pending DOM mutations before the next paint); this is a paint barrier
+    // tied to the browser's render pipeline, not a guessed clock duration.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    );
+  });
 }
 
-async function gotoAndSettle(page: Page, path: string) {
+async function gotoAndSettle(page: Page, path: string, opts: { settleTimeout?: number } = {}) {
   await page.goto(path, { waitUntil: 'networkidle' });
   await page.waitForLoadState('networkidle');
-  await waitForNoSpinners(page);
+  await waitForNoSpinners(page, opts.settleTimeout);
+}
+
+// Readiness for the two Cesium-backed screens (unified viewer, entity wizard).
+// `networkidle` + "no spinners" can both be satisfied *before* the viewer has
+// mounted — nothing is spinning yet, and Cesium's own requests have not started
+// — so neither proves the screen is usable on a slow start. This waits for the
+// things that do:
+//   1. `.cesium-widget canvas` — the canvas Cesium.Viewer() builds inside its own
+//      widget container (CesiumWidget.css targets exactly this selector), i.e.
+//      the globe was constructed; a bare `canvas` would also match any
+//      unrelated one. Attached, not visible: the suite hides it on purpose.
+//   2. The spinner gate again, now that the viewer exists: CesiumMap keeps an
+//      `animate-spin` "loading" overlay up until its viewer is ready, and the
+//      entity-tree slot lazy-loads behind a Suspense spinner.
+//   3. The asset panel's "Add" button — rendered by the entity-tree slot once
+//      it has loaded, and the control the wizard test drives, so it proves the
+//      slot (not just the map) is usable.
+async function waitForViewerReady(page: Page) {
+  await page
+    .locator('.cesium-widget canvas')
+    .first()
+    .waitFor({ state: 'attached', timeout: CESIUM_READY_TIMEOUT });
+  await waitForNoSpinners(page, CESIUM_READY_TIMEOUT);
+  await expect(page.getByRole('button', { name: 'Add' })).toBeVisible({
+    timeout: CESIUM_READY_TIMEOUT,
+  });
 }
 
 // KNOWN FLAKE, MASKED DELIBERATELY (not a threshold change — see below).
@@ -211,43 +298,103 @@ function tenantProfileSelectsMask(page: Page) {
   );
 }
 
+// SECOND KNOWN NON-DETERMINISTIC REGION, MASKED DELIBERATELY: the error alert
+// above admin's "All Platform Users" table. The local stack has no backing data
+// for /api/admin/users, so the gateway answers with a 50x, and AdminManagement
+// renders axios's own message verbatim: "Request failed with status code 50x".
+// *Which* 50x (502/503/504) depends on how far the upstream got that run, so
+// the alert's text is not stable between runs even though the failure is.
+// Masked rather than pinned: the rest of the screen (header, tabs, table, empty
+// state) stays pixel-exact, and a mask — unlike a status-code assertion — does
+// not couple the baseline to which upstream happens to be down.
+//
+// The alert has no role, test id or other stable hook (and gets none here: no
+// app code is touched for a test), and its utility classes are shared with
+// other danger banners. It is selected by the fixed, non-varying prefix of
+// axios's message; the status digits are deliberately not part of the match.
+// Zero matches (a stack that does return users) masks nothing and fails the
+// comparison normally, which is the right outcome.
+function adminUsersErrorMask(page: Page) {
+  return page.getByText(/^Request failed with status code\b/);
+}
+
+// THIRD KNOWN NON-DETERMINISTIC REGION, MASKED DELIBERATELY: the two "last
+// refreshed" stamps on the dashboard. Both render `tenantUsage.timestamp`, the
+// time the backend answered the usage request, so they carry the wall-clock time
+// of the run: `page.clock.install` freezes only the browser's own clock and
+// cannot touch a server-side value.
+//   - "Updated 11:09 AM"                   footer of the "Registered entities" card
+//   - "Data updated 9/10/2026, 11:09:23"   footer of the "Plan Summary" card
+// Selected by their fixed English prefix, which is the localized template with
+// the time left out (`dashboard.updated_at`, `dashboard.plan.updated`); the
+// digits are deliberately not part of the match. Neither element has a role,
+// test id or stable class, and none is added for a test.
+//
+// The mask is painted at the element's bounding box, and that box must not
+// depend on the text it hides, or two runs would differ at the box edge even
+// though the content under it is masked. The first stamp is a block-level footer
+// as wide as its card, so it is already stable. The second is an inline `<span>`
+// whose width follows the digits ("9:09:23" is narrower than "11:09:23"), so the
+// mask is taken one level up instead: the card's footer row, selected as the
+// innermost <div> holding both the stamp and the "Plan: ..." label that shares
+// the row. That row spans the card, so its box is the same every run. The cost
+// is that the plan label on that row is masked with it.
+// Zero matches (a stack that does not report a timestamp) masks nothing.
+function dashboardTimestampsMask(page: Page) {
+  const registeredEntitiesStamp = page.getByText(/^Updated \d{1,2}:\d{2}\b/);
+  const planSummaryFooterRow = page
+    .locator('div')
+    .filter({ has: page.getByText(/^Data updated\b/) })
+    .filter({ has: page.getByText(/^Plan: /) })
+    .last();
+  return registeredEntitiesStamp.or(planSummaryFooterRow);
+}
+
 test.describe('Page visual baseline', () => {
   for (const theme of THEMES) {
     test.describe(`theme=${theme}`, () => {
       test(`dashboard (${theme})`, async ({ page }) => {
         await prepare(page, theme);
         await gotoAndSettle(page, '/dashboard');
-        await expect(page).toHaveScreenshot(`dashboard-${theme}.png`, { fullPage: true });
+        await expect(page).toHaveScreenshot(`dashboard-${theme}.png`, {
+          fullPage: true,
+          mask: [dashboardTimestampsMask(page)],
+        });
       });
 
-      test(`unified viewer (${theme})`, async ({ page }) => {
+      test(`unified viewer (${theme})`, async ({ page, cesiumTeardown: _cesiumTeardown }) => {
         // Cesium init + explicit teardown navigation (see teardownCesium)
-        // routinely runs past the 30s default under load.
-        test.setTimeout(60_000);
+        // routinely runs past the 30s default under load, and a cold first
+        // attempt past 60s (see CESIUM_TEST_TIMEOUT).
+        test.setTimeout(CESIUM_TEST_TIMEOUT);
         await prepare(page, theme, { hideCanvas: true });
-        await gotoAndSettle(page, '/entities');
-        await page.locator('canvas').first().waitFor({ state: 'attached', timeout: 15_000 });
+        await gotoAndSettle(page, '/entities', { settleTimeout: CESIUM_READY_TIMEOUT });
+        await waitForViewerReady(page);
         await expect(page).toHaveScreenshot(`viewer-${theme}.png`, { clip: CROPPED_CLIP });
-        await teardownCesium(page);
       });
 
-      test(`entity wizard (${theme})`, async ({ page }) => {
-        test.setTimeout(60_000);
+      test(`entity wizard (${theme})`, async ({ page, cesiumTeardown: _cesiumTeardown }) => {
+        test.setTimeout(CESIUM_TEST_TIMEOUT);
         await prepare(page, theme, { hideCanvas: true });
-        await gotoAndSettle(page, '/entities');
+        await gotoAndSettle(page, '/entities', { settleTimeout: CESIUM_READY_TIMEOUT });
+        // The wizard modal renders over the viewer chrome, so the viewer has to
+        // be fully up before the modal is opened and captured.
+        await waitForViewerReady(page);
         await page.getByRole('button', { name: 'Add' }).click();
         // Wizard modal's own heading (hardcoded, not the pre-existing
         // "Assets" panel heading behind it) — proves the modal has mounted.
         await expect(page.getByText('Crear Nueva Entidad')).toBeVisible({ timeout: 10_000 });
         await page.waitForTimeout(300);
         await expect(page).toHaveScreenshot(`entity-wizard-${theme}.png`, { clip: CROPPED_CLIP });
-        await teardownCesium(page);
       });
 
       test(`admin (${theme})`, async ({ page }) => {
         await prepare(page, theme);
         await gotoAndSettle(page, '/admin/management');
-        await expect(page).toHaveScreenshot(`admin-${theme}.png`, { fullPage: true });
+        await expect(page).toHaveScreenshot(`admin-${theme}.png`, {
+          fullPage: true,
+          mask: [adminUsersErrorMask(page)],
+        });
       });
 
       test(`settings (${theme})`, async ({ page }) => {

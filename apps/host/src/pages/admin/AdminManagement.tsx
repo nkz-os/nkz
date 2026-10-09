@@ -451,14 +451,14 @@ export const AdminManagement: React.FC = () => {
   // --- Global tab config ---
 
   const globalTabs = [
-    { id: null, label: 'Gestión Tenants', icon: Shield },
-    { id: 'activations', label: 'Códigos NEK', icon: Ticket },
-    { id: 'limits', label: 'Límites', icon: Activity },
-    { id: 'terms', label: 'Términos', icon: FileText },
-    { id: 'apis', label: 'APIs Plataforma', icon: Key },
-    { id: 'platform', label: 'Plataforma', icon: Monitor },
-    { id: 'logs', label: 'Logs', icon: ScrollText },
-    { id: 'assets', label: 'Assets', icon: Box },
+    { id: null, label: t('admin.tenants_tab'), icon: Shield },
+    { id: 'activations', label: t('admin.nek_codes'), icon: Ticket },
+    { id: 'limits', label: t('limits'), icon: Activity },
+    { id: 'terms', label: t('admin.terms_tab'), icon: FileText },
+    { id: 'apis', label: t('admin.platform_apis_tab'), icon: Key },
+    { id: 'platform', label: t('admin.platform_tab'), icon: Monitor },
+    { id: 'logs', label: t('admin.logs_tab'), icon: ScrollText },
+    { id: 'assets', label: t('admin.assets_tab'), icon: Box },
   ];
 
   const showLoading = globalTab === null
