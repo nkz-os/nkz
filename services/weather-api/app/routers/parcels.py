@@ -299,6 +299,18 @@ def _fetch_weather_map_stats(parcel_id: str, tenant_id: str) -> dict:
         logger.warning("weather-map stats failed for %s: %s", parcel_id, exc)
         return {}
 
+    # The raster is a daily product regenerated every few days. A day other than
+    # today must not override the parcel's own current reading: it is another
+    # day's mean, not the present value.
+    raster_day = data.get("date")
+    today = datetime.now(timezone.utc).date().isoformat()
+    if raster_day != today:
+        logger.debug(
+            "weather-map raster for %s is from %s, not today (%s): ignored",
+            parcel_id, raster_day, today,
+        )
+        return {}
+
     metrics = data.get("metrics") or {}
 
     def _mean(name: str):
