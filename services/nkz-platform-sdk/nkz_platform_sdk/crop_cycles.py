@@ -142,9 +142,27 @@ def _window_contains(ps: date | None, pe: date | None, d: date) -> bool:
     return lo <= d <= hi
 
 
-def _distance(r: dict, d: date) -> int:
-    """Days between an operation and a cycle's planned anchor (start, else end)."""
-    return abs(((r["ps"] or r["planting"] or r["pe"]) - d).days)
+def _distance(r: dict, d: date, is_end: bool) -> int:
+    """Days between an operation and the planned boundary it would set.
+
+    A sowing is matched to the nearest planned start, a harvest or termination
+    to the nearest planned end: a harvest right before the next crop's sowing
+    window belongs to the crop it ends, not to the one about to start.
+    """
+    if is_end:
+        anchor = r["pe"] or r["ps"] or r["planting"]
+    else:
+        anchor = r["ps"] or r["planting"] or r["pe"]
+    return abs((anchor - d).days)
+
+
+def _current_rank(cy: CropCycle) -> tuple:
+    """Order among overlapping candidates: a cycle whose start is a fact (sown or
+    declared) beats a planned one, and the most recent fact wins — a field sown
+    in August supersedes an older crop whose planned harvest passed unreported.
+    Among planned starts, an active crop first, then the latest start."""
+    fact = cy.start.provenance in ("actual", "declared")
+    return (fact, cy.start.date if fact else date.min, cy.status == "active", cy.start.date)
 
 
 def resolve_crop_cycles(
@@ -193,14 +211,14 @@ def resolve_crop_cycles(
         if not cands:
             unassigned.append(_op_ref(o, d))
             continue
-        best = min(cands, key=lambda r, when=d: _distance(r, when))
-        (best["starts"] if is_start else best["ends"]).append(d)
+        best = min(cands, key=lambda r, when=d, end=is_end: _distance(r, when, end))
+        (best["starts"] if is_start else best["ends"]).append((d, o))
 
     cycles = []
     for r in raw:
         c = r["c"]
         if r["starts"]:
-            start = Boundary(max(r["starts"]), "actual")
+            start = Boundary(max(d for d, _o in r["starts"]), "actual")
         elif _as_date(c.get("actualPlantingDate")):
             start = Boundary(_as_date(c.get("actualPlantingDate")), "actual")
         elif r["manual"] and r["planting"]:
@@ -209,7 +227,12 @@ def resolve_crop_cycles(
             start = Boundary(r["ps"], "planned")
         else:
             start = Boundary()
-        ends = [e for e in r["ends"] if start.date is None or e >= start.date]
+        ends = []
+        for e, o in r["ends"]:
+            if start.date is None or e >= start.date:
+                ends.append(e)
+            else:  # an end before the cycle began cannot be its end: report it
+                unassigned.append(_op_ref(o, e))
         if ends:
             end = Boundary(min(ends), "actual")
         elif _as_date(c.get("actualTerminationDate")):
@@ -236,7 +259,7 @@ def resolve_crop_cycles(
         return cy.end.provenance == "planned" and cy.status == "active"
 
     current_c = [cy for cy in cycles if is_current(cy)]
-    current = max(current_c, key=lambda cy: (cy.status == "active", cy.start.date)) if current_c else None
+    current = max(current_c, key=_current_rank) if current_c else None
     past = [cy for cy in cycles if cy is not current and cy.start.date and cy.start.date <= at
             and (cy.status in _CLOSED or (cy.end.date and cy.end.date < at))]
     previous = max(past, key=lambda cy: cy.end.date or cy.start.date) if past else None
