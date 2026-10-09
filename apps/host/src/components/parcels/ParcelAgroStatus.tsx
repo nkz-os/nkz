@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Wind, Droplets, Thermometer, Radio, Cloud } from 'lucide-react';
 import api, { type AgroStatusResponse } from '@/services/api';
 import { logger } from '@/utils/logger';
@@ -53,6 +54,7 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
   parcelId,
   isVisible: manualVisible,
 }) => {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<AgroStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,9 +182,15 @@ export const ParcelAgroStatus: React.FC<ParcelAgroStatusProps> = ({
       ? 'Demasiado húmedo' 
       : semaphores.workability === 'too_dry' 
       ? 'Demasiado seco' 
-      : 'Precaución';
-    const humidity = metrics?.humidity != null ? `\nHumedad: ${safeFixed(metrics.humidity, 0)}%` : '';
-    return `${statusText}${humidity}`;
+      : t('weather.agro_panel.conditions.unknown');
+    // Soil moisture, not air humidity: it is what tempero is judged on.
+    const moisture = metrics?.moisture != null
+      ? `\n${t('weather.agro_panel.soil_moisture')} ${safeFixed(metrics.moisture, 1)}%`
+      : '';
+    const source = metrics?.workability_source === 'regional_estimate'
+      ? `\n${t('weather.agro_panel.regional_estimate')}`
+      : '';
+    return `${statusText}${moisture}${source}`;
   };
 
   const getIrrigationTooltip = () => {

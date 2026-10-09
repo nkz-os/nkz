@@ -84,6 +84,13 @@ export interface AgroStatusResponse {
     precip_probability: number | null;
     spraying_reason: string | null;
     moisture: number | null;
+    soil_moisture_provenance?: 'iot_sensor' | 'parcel_weather' | null;
+    // Tempero: limits published by the soil module; `regional_estimate` when the
+    // moisture is the virtual station's (reanalysis), not a sensor in the parcel.
+    workability_source?: 'iot_sensor' | 'regional_estimate' | null;
+    workability_reason?: 'no_soil_moisture' | 'soil_thresholds_missing' | 'invalid_thresholds' | null;
+    wet_tillage_limit?: number | null;
+    dry_tillage_limit?: number | null;
   };
   soil?: {
     texture_applied: boolean;

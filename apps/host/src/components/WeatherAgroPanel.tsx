@@ -45,22 +45,6 @@ interface WeatherObservation {
   };
 }
 
-interface ParcelSensor {
-  id: string;
-  moisture?: {
-    type: 'Property';
-    value: number;
-  };
-  location?: {
-    type: 'GeoProperty';
-    value: {
-      type: 'Point';
-      coordinates: [number, number];
-    };
-  };
-}
-
-
 interface WeatherAgroPanelProps {
   municipalityCode?: string;
   municipalityName?: string;
@@ -136,7 +120,6 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
 
   const [currentWeather, setCurrentWeather] = useState<WeatherObservation | null>(null);
   const [historicalWeather, setHistoricalWeather] = useState<WeatherObservation[]>([]);
-  const [parcelSensors, setParcelSensors] = useState<ParcelSensor[]>([]);
   const [agroStatus, setAgroStatus] = useState<AgroStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -184,11 +167,10 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     }
   }, [selectedMunicipalityCode, selectedParcelId, parcelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load parcel sensors and agro-status when parcel is selected
+  // Load agro-status when a parcel is selected
   useEffect(() => {
     const effectiveParcelId = selectedParcelId || parcelId;
     if (effectiveParcelId) {
-      loadParcelSensors();
       loadAgroStatus();
     } else {
       setAgroStatus(null);
@@ -321,23 +303,6 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     }
   };
 
-  const loadParcelSensors = async () => {
-    if (!parcelId) return;
-
-    try {
-      const sensors = await api.getSensors();
-      // Filter sensors that might be related to this parcel
-      // In a real implementation, you'd check parcel_sensors relationship
-      const soilSensors = sensors.filter(s => 
-        s.moisture && s.location
-      );
-      setParcelSensors(soilSensors as ParcelSensor[]);
-    } catch (err) {
-      logger.warn('Error loading parcel sensors:', err);
-      // Continue without sensor data - will use platform weather
-    }
-  };
-
   const searchMunicipalities = async (term: string) => {
     if (term.length < 2) {
       setMunicipalities([]);
@@ -421,66 +386,6 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
     return { condition: 'unknown', message: t('weather.agro_panel.conditions.evaluating'), color: 'gray' };
   };
 
-  // Calculate workability condition (tempero)
-  const getWorkabilityCondition = (): { condition: WorkabilityCondition; message: string; color: string; soilMoisture: number | null } => {
-    // Priority: Use real sensor data if available, otherwise platform weather data
-    let soilMoisture: number | null = null;
-
-    if (parcelSensors.length > 0 && parcelSensors[0].moisture?.value !== undefined) {
-      // Use real sensor data
-      soilMoisture = parcelSensors[0].moisture.value;
-    } else if (currentWeather?.soil_moisture_0_10cm !== undefined) {
-      // Fallback to platform weather data
-      soilMoisture = currentWeather.soil_moisture_0_10cm;
-    }
-
-    if (soilMoisture === null) {
-      return {
-        condition: 'unknown',
-        message: t('weather.agro_panel.conditions.unknown'),
-        color: 'gray',
-        soilMoisture: null,
-      };
-    }
-
-    // 🟢 Verde (En Tempero): Humedad entre 15% y 25%
-    if (soilMoisture >= 15 && soilMoisture <= 25) {
-      return {
-        condition: 'optimal',
-        message: t('weather.agro_panel.conditions.workability_optimal'),
-        color: 'green',
-        soilMoisture,
-      };
-    }
-
-    // 🔴 Rojo (Barro/Compactación): Humedad > 25%
-    if (soilMoisture > 25) {
-      return {
-        condition: 'too_wet',
-        message: t('weather.agro_panel.conditions.workability_too_wet'),
-        color: 'red',
-        soilMoisture,
-      };
-    }
-
-    // 🟡 Amarillo (Seco/Polvo): Humedad < 10%
-    if (soilMoisture < 10) {
-      return {
-        condition: 'too_dry',
-        message: t('weather.agro_panel.conditions.workability_too_dry'),
-        color: 'yellow',
-        soilMoisture,
-      };
-    }
-
-    // Between 10-15% or 25-30%: caution zone
-    return {
-      condition: soilMoisture < 15 ? 'too_dry' : 'too_wet',
-      message: t('weather.agro_panel.conditions.workability_caution'),
-      color: 'yellow',
-      soilMoisture,
-    };
-  };
 
   // Calculate irrigation condition (water balance)
   const getIrrigationCondition = (): { condition: IrrigationCondition; message: string; color: string; balance: number } => {
@@ -541,9 +446,12 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
   const spraying = backendSemaphores
     ? { condition: backendSemaphores.spraying as SprayingCondition, message: semaphoreLabel('spraying', backendSemaphores.spraying), color: semaphoreColor(backendSemaphores.spraying) }
     : getSprayingCondition();
-  const workability = backendSemaphores
-    ? { condition: backendSemaphores.workability as WorkabilityCondition, message: semaphoreLabel('workability', backendSemaphores.workability), color: semaphoreColor(backendSemaphores.workability), soilMoisture: agroStatus?.metrics?.moisture ?? getWorkabilityCondition().soilMoisture }
-    : getWorkabilityCondition();
+  // Tempero is only judged by the backend, against the soil module's limits for
+  // this parcel; without it there is nothing honest to show.
+  const workability: { condition: WorkabilityCondition; message: string; color: string; soilMoisture: number | null } = backendSemaphores
+    ? { condition: backendSemaphores.workability as WorkabilityCondition, message: semaphoreLabel('workability', backendSemaphores.workability), color: semaphoreColor(backendSemaphores.workability), soilMoisture: agroStatus?.metrics?.moisture ?? null }
+    : { condition: 'unknown', message: t('weather.agro_panel.conditions.unknown'), color: 'gray', soilMoisture: null };
+  const workabilitySource = agroStatus?.metrics?.workability_source ?? null;
   const irrigation = backendSemaphores
     ? { condition: backendSemaphores.irrigation as IrrigationCondition, message: semaphoreLabel('irrigation', backendSemaphores.irrigation), color: semaphoreColor(backendSemaphores.irrigation), balance: agroStatus?.metrics?.water_balance ?? 0 }
     : getIrrigationCondition();
@@ -772,19 +680,21 @@ export const WeatherAgroPanel: React.FC<WeatherAgroPanelProps> = ({
                       : 'N/A'}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 mt-2">
-                  {parcelSensors.length > 0 ? (
-                    <>
-                      <CheckCircle2 className="w-3 h-3 text-nkz-success" />
-                      <span className="text-xs text-gray-600">{t('weather.agro_panel.real_sensor_data')}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Cloud className="w-3 h-3 text-nkz-info" />
-                      <span className="text-xs text-gray-600">{t('weather.agro_panel.platform_data')}</span>
-                    </>
-                  )}
-                </div>
+                {workabilitySource && (
+                  <div className="flex items-center gap-1 mt-2" title={workabilitySource === 'regional_estimate' ? t('weather.agro_panel.regional_estimate_hint') : undefined}>
+                    {workabilitySource === 'iot_sensor' ? (
+                      <>
+                        <CheckCircle2 className="w-3 h-3 text-nkz-success" />
+                        <span className="text-xs text-gray-600">{t('weather.agro_panel.real_sensor_data')}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Cloud className="w-3 h-3 text-nkz-info" />
+                        <span className="text-xs text-gray-600">{t('weather.agro_panel.regional_estimate')}</span>
+                      </>
+                    )}
+                  </div>
+                )}
                 {agroStatus?.soil?.texture_applied && agroStatus.soil.texture_class && (
                   <div className="flex items-center gap-1 mt-1">
                     <Database className="w-3 h-3 text-amber-600" />
