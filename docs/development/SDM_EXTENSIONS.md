@@ -22,6 +22,8 @@ fails on it.
 
 | Term | Kind | Status | Rationale |
 |---|---|---|---|
+| `actualPlantingDate` | atributo | extension-declarada | Crop-cycle start recorded by a completed field operation; SDM AgriCrop has no instance-level actual date |
+| `actualTerminationDate` | atributo | extension-declarada | Crop-cycle end recorded by a completed harvest or termination operation; no SDM equivalent |
 | `AgriCropDeclaration` | entidad | sin-revisar | Not yet reviewed |
 | `AgriCropObservation` | entidad | extension-declarada | Platform extension of SDM AgriCrop (which lacks observation/image capture semantics) |
 | `AgriCropSeason` | entidad | sin-revisar | Not yet reviewed |
@@ -50,6 +52,10 @@ fails on it.
 | `CropAdvisory` | entidad | sin-revisar | Not yet reviewed |
 | `CropHealthAssessment` | entidad | extension-declarada | Platform extension — no SDM equivalent |
 | `CropHealthZoneAssessment` | entidad | sin-revisar | Not yet reviewed |
+| `cropLifecycle` | atributo | extension-declarada | Annual or perennial, decides the degree-day accumulation window; not modelled in SDM |
+| `cropRole` | atributo | extension-declarada | Role of a crop cycle in a rotation (main, cover, catch crop); not modelled in SDM |
+| `cropSeason` | atributo | extension-declarada | Crop-plan season label grouping planned cycles; not modelled in SDM |
+| `cropSegmentSeq` | atributo | extension-declarada | Order of a planned cycle within its crop-plan season; not modelled in SDM |
 | `DataProcessingJob` | entidad | sin-revisar | Not yet reviewed |
 | `DeviceCommand` | entidad | extension-declarada | Platform extension — MQTT device command tracking |
 | `DeviceProfile` | entidad | sin-revisar | Not yet reviewed |
@@ -58,12 +64,14 @@ fails on it.
 | `ElevationSource` | entidad | sin-revisar | Not yet reviewed |
 | `EnergyMeter` | entidad | extension-declarada | Platform extension — no SDM equivalent |
 | `EnergyStorageSystem` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
+| `expectedTerminationDate` | atributo | extension-declarada | Planned end of a crop cycle in a crop plan; SDM has harvesting intervals only for crop types |
 | `LivestockAnimal` | entidad | extension-declarada | Platform extension — SAREF4AGRI has no LivestockAnimal class |
 | `LivestockFarm` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `LivestockGroup` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `LivestockProduction` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `OpenChannelFlow` | entidad | sin-revisar | Not yet reviewed |
 | `PhotovoltaicInstallation` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
+| `plantingDateSource` | atributo | extension-declarada | Provenance of plantingDate (planned or manually declared); not modelled in SDM |
 | `ProjectScenario` | entidad | sin-revisar | Not yet reviewed |
 | `RiskAssessment` | entidad | extension-declarada | Platform extension — generic risk evaluation result for batch-evaluated risks (robotic, energy, livestock, agr |
 | `SatelliteImageObservation` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
@@ -71,6 +79,10 @@ fails on it.
 | `SoilDerivedRaster` | entidad | propuesta-sdm | SDM-004 |
 | `SoilSamplingPoint` | entidad | propuesta-sdm | SDM-002 |
 | `SoilSurvey` | entidad | propuesta-sdm | SDM-003 |
+| `sowingWindowEnd` | atributo | extension-declarada | End of the planned sowing window of a crop cycle; not modelled in SDM |
+| `sowingWindowStart` | atributo | extension-declarada | Start of the planned sowing window of a crop cycle; not modelled in SDM |
+| `terminationDate` | atributo | extension-declarada | Declared end of a crop cycle when a plan segment is closed; not modelled in SDM |
+| `terminationMethod` | atributo | extension-declarada | How a crop cycle ends (harvest, roller crimper, incorporation, grazing); not modelled in SDM |
 | `VegetationIndex` | entidad | propuesta-sdm | SDM-005 |
 | `WaterStorage` | entidad | sin-revisar | Not yet reviewed |
 | `affectedVariables` | atributo | extension-declarada | Platform extension — variables the Alert affects; SDM Alert has no such field |
