@@ -25,6 +25,8 @@ import { cadastralApi } from '@/services/cadastralApi';
 import { parseFieldPhotos, photosInWindow, FieldPhotoRecord } from '@/utils/fieldPhotos';
 import { FieldPhotoCarousel } from '@/components/viewer/FieldPhotoCarousel';
 import { CoreTimelineControls } from '@/components/viewer/CoreTimelineControls';
+import { ViewerTimeline } from './viewer/ViewerTimeline';
+import { useViewerTimelineRange } from '@/hooks/useViewerTimelineRange';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { isRelatedToParcel } from '@/utils/entityRelations';
 import { logger } from '@/utils/logger';
@@ -132,6 +134,10 @@ const UnifiedViewerInner: React.FC = () => {
     const [fieldPhotos, setFieldPhotos] = useState<FieldPhotoRecord[]>([]);
     const [farms, setFarms] = useState<any[]>([]);
     const [carouselIndex, setCarouselIndex] = useState<number | null>(null);
+
+    // Shared timeline window + cursor reset on entity change. Here (always mounted), not in the
+    // bottom panel, so opening/closing the panel never moves a user-set cursor.
+    const timeline = useViewerTimelineRange(crops);
 
     // Normalize NGSI-LD entities whose attributes use full URIs (from SDM @context)
     // into short names expected by CesiumMap rendering code.
@@ -722,10 +728,10 @@ const UnifiedViewerInner: React.FC = () => {
                     // a module never spills over the map.
                     <div className={`mb-4 rounded-xl ${overlayPanel.base} flex flex-col overflow-hidden`}>
                         <Suspense fallback={<PanelLoadingFallback />}>
-                            <SlotRenderer
-                                slot="bottom-panel"
-                                className="flex flex-col gap-2 p-2 overflow-y-auto max-h-[40vh] min-h-0 border-b border-slate-200 dark:border-slate-700"
-                            />
+                            <div className="overflow-y-auto max-h-[40vh] min-h-0 border-b border-slate-200 dark:border-slate-700">
+                                <ViewerTimeline range={timeline.range} source={timeline.source} today={timeline.today} />
+                                <SlotRenderer slot="bottom-panel" className="flex flex-col gap-2 p-2" />
+                            </div>
                         </Suspense>
                         <div className="py-2">
                             <CoreTimelineControls photos={fieldPhotos} />
