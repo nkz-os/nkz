@@ -26,6 +26,7 @@ import { parseFieldPhotos, photosInWindow, FieldPhotoRecord } from '@/utils/fiel
 import { FieldPhotoCarousel } from '@/components/viewer/FieldPhotoCarousel';
 import { CoreTimelineControls } from '@/components/viewer/CoreTimelineControls';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
+import { isRelatedToParcel } from '@/utils/entityRelations';
 import { logger } from '@/utils/logger';
 import { useViewerProfile } from '@/context/ThemeContext';
 import { ThemeProvider } from '@nekazari/design-tokens';
@@ -452,25 +453,6 @@ const UnifiedViewerInner: React.FC = () => {
     // ThemeProvider in design-tokens) — the page root's own data-theme write
     // (ThemeContext.applyTheme) stays untouched, so other routes are unaffected.
     const { profile } = useViewerProfile();
-
-    // Focus mode entity filtering (React props layer — reactively safe)
-    function isRelatedToParcel(entity: any, parcelId: string): boolean {
-        if (!entity || !parcelId) return false;
-        const attrs = ['hasAgriParcel', 'refAgriParcel', 'locatedAt', 'belongsTo', 'hasAgriFarm'];
-        for (const attr of attrs) {
-            const val = entity[attr];
-            if (!val) continue;
-            // NGSI-LD Relationship uses { type: 'Relationship', object: 'urn:...' }
-            // Simplified/Normalized can be { value: 'urn:...' } or a plain string
-            // Legacy flattened can be { id: 'urn:...' }
-            const resolved = typeof val === 'object' && val?.value ? val.value : val;
-            const targetId = typeof resolved === 'object'
-                ? (resolved?.object || resolved?.id || String(resolved))
-                : resolved;
-            if (String(targetId) === parcelId) return true;
-        }
-        return false;
-    }
 
     const displayParcels = isFocusMode && focusParcelId
         ? parcels.filter(p => p.id === focusParcelId)
