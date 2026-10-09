@@ -70,6 +70,7 @@
   "loading_tenant_data": "Carregando dados do tenant...",
   "saving": "Salvando...",
   "save_changes": "Salvar Alterações",
+  "saved_successfully": "Salvo com sucesso",
   "reload": "Recarregar",
   "module_management": "Gestão de Módulos",
   "manage_remote_modules": "Gerenciar módulos remotos para seu tenant",

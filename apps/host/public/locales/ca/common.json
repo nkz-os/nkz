@@ -70,6 +70,7 @@
   "loading_tenant_data": "Carregant dades del tenant...",
   "saving": "Desant...",
   "save_changes": "Desar Canvis",
+  "saved_successfully": "Desat correctament",
   "reload": "Recarregar",
   "module_management": "Gestió de Mòduls",
   "manage_remote_modules": "Gestionar mòduls remots per al teu tenant",

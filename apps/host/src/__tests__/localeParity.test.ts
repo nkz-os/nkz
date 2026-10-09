@@ -14,8 +14,8 @@
  *    translations is asserted in all six locales; it cannot be tripped by the
  *    pre-existing gaps.
  */
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const LOCALES_DIR = resolve(__dirname, '../../public/locales');
@@ -174,6 +174,70 @@ describe('locale parity: keys added with full translations (all languages)', () 
         (key) => placeholders(flat[key]).join('|') !== placeholders(english[key]).join('|'),
       );
       expect(mismatched, `Placeholder mismatch vs en in ${lang}:\n${mismatched.join('\n')}`).toEqual([]);
+    });
+  }
+});
+
+describe('English locale contains no Spanish text', () => {
+  // Spanish-only characters. A leftover Spanish value in `en` is invisible to the
+  // es -> en parity check above (the key exists), so scan the values instead.
+  const SPANISH_ONLY = /[ñáéíóúü¿¡]/;
+
+  for (const namespace of ['common', 'layout', 'navigation']) {
+    it(`en/${namespace}.json has no Spanish-only characters`, () => {
+      const offenders = Object.entries(flatten(load('en', namespace)))
+        .filter(([, value]) => SPANISH_ONLY.test(value))
+        .map(([key, value]) => `${key}: ${value}`);
+      expect(offenders, `Spanish text in en/${namespace}.json:\n${offenders.join('\n')}`).toEqual([]);
+    });
+  }
+});
+
+/**
+ * `useI18n().t('<ns>.<key>')` is not a plain lookup: a leading `common.`,
+ * `layout.` or `navigation.` segment is stripped and used as the i18next
+ * namespace, so `t('layout.cookie_settings')` reads `cookie_settings` from
+ * `layout.json`, not `layout.cookie_settings` from `common.json`. A key that only
+ * exists at the "plain" path is rendered as the bare key in every language.
+ */
+describe('useI18n namespace-prefixed keys resolve where the wrapper looks', () => {
+  const SRC_DIR = resolve(__dirname, '..');
+  const NAMESPACES = ['common', 'layout', 'navigation'] as const;
+  const CALL = /(?<![\w.$])t\(\s*(['"])((?:common|layout|navigation)\.[^'"\n]+?)\1\s*[,)]/g;
+
+  function sourceFiles(dir: string): string[] {
+    return readdirSync(dir).flatMap((name) => {
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) {
+        return name === '__tests__' || name === 'node_modules' ? [] : sourceFiles(path);
+      }
+      return /\.(ts|tsx)$/.test(name) && !/\.test\./.test(name) ? [path] : [];
+    });
+  }
+
+  it('every static t("<ns>.<key>") in useI18n components exists in <ns>.json (es)', () => {
+    const catalogue = Object.fromEntries(NAMESPACES.map((ns) => [ns, flatten(load('es', ns))]));
+    const unresolved: string[] = [];
+    for (const file of sourceFiles(SRC_DIR)) {
+      const text = readFileSync(file, 'utf8');
+      if (!text.includes('useI18n(')) continue;
+      for (const match of text.matchAll(CALL)) {
+        const [namespace, ...rest] = match[2].split('.');
+        const key = rest.join('.');
+        const flat = catalogue[namespace];
+        const found = key in flat || ['_one', '_other', '_zero', '_few', '_many', '_two'].some((s) => `${key}${s}` in flat);
+        if (!found) unresolved.push(`${file.slice(SRC_DIR.length + 1)}: t('${match[2]}') -> ${namespace}.json "${key}"`);
+      }
+    }
+    expect(unresolved, `Keys the wrapper cannot resolve:\n${unresolved.join('\n')}`).toEqual([]);
+  });
+
+  for (const lang of LANGUAGES) {
+    it(`${lang} has the previously unresolved keys in the wrapper's namespaces`, () => {
+      const layout = flatten(load(lang, 'layout'));
+      const common = flatten(load(lang, 'common'));
+      expect('cookie_settings' in layout, `${lang}/layout.json: cookie_settings`).toBe(true);
+      expect('saved_successfully' in common, `${lang}/common.json: root saved_successfully`).toBe(true);
     });
   }
 });

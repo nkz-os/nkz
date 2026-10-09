@@ -70,6 +70,7 @@
   "loading_tenant_data": "Tenant datuak kargatzen...",
   "saving": "Gordatzen...",
   "save_changes": "Aldaketak gorde",
+  "saved_successfully": "Ondo gorde da",
   "reload": "Berriro kargatu",
   "module_management": "Moduluen kudeaketa",
   "manage_remote_modules": "Zure tenant-erako urruneko moduluak kudeatu",

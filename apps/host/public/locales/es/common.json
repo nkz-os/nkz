@@ -1651,6 +1651,7 @@
     "search_open": "Buscar ubicación"
   },
   "save_changes_error": "Error al guardar los cambios",
+  "saved_successfully": "Guardado correctamente",
   "parcelModules": {
     "title": "Servicios de la parcela",
     "loading": "Cargando módulos...",
