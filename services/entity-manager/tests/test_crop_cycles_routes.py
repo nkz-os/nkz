@@ -89,3 +89,18 @@ def test_notify_survives_reconcile_errors():
 def test_subscription_spec():
     types_ = {s['type'] for s in bp.CROP_CYCLE_SUBSCRIPTIONS}
     assert types_ == {'AgriCrop', 'AgriParcelOperation'}
+
+
+def test_reconcile_all_walks_every_parcel_of_every_tenant():
+    import blueprints.notifications as notif
+    with patch.object(notif, '_get_active_tenants', return_value=['a', 'b']), \
+         patch.object(svc, 'list_parcels', side_effect=lambda t: [f'urn:ngsi-ld:AgriParcel:{t}1', f'urn:ngsi-ld:AgriParcel:{t}2']), \
+         patch.object(svc, 'reconcile_parcel', return_value=[('x', 'y')]) as rec:
+        r = client.post('/api/internal/crop-cycles/reconcile-all', headers=H)
+    assert r.status_code == 200
+    assert r.json == {'tenants': 2, 'parcels': 4, 'written': 4, 'errors': 0}
+    assert rec.call_count == 4
+
+
+def test_reconcile_all_requires_secret():
+    assert client.post('/api/internal/crop-cycles/reconcile-all').status_code == 401
