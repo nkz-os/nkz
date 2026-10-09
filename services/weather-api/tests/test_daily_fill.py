@@ -71,3 +71,17 @@ def test_model_analysis_uses_forecast_past_days():
     assert get.call_args.args[0] == "http://om/v1/forecast" and kw["timeout"] == 30
     assert kw["params"]["start_date"] == "2026-09-01" and kw["params"]["end_date"] == "2026-09-03"
     assert kw["params"]["models"] == "ecmwf_ifs025" and "elevation" not in kw["params"]
+
+
+def test_malformed_daily_returns_empty():
+    for payload in ({"daily": "oops"}, {"daily": {"time": ["2026-10-01"], "temperature_2m_min": "x"}}, ["not", "a", "dict"]):
+        get = MagicMock(return_value=_resp(payload))
+        out = df.fetch_open_meteo_daily("model_analysis", 1, 1, None, date(2026, 10, 1), date(2026, 10, 1), http_get=get)
+        assert out == {} or all(v is None for rec in out.values() for v in rec.values())
+
+
+def test_timeout_override_is_used():
+    with patch.object(df.settings, "openmeteo_api_url", "http://om/v1"):
+        get = MagicMock(return_value=_resp({"daily": {"time": []}}))
+        df.fetch_open_meteo_daily("model_analysis", 1, 1, None, date(2026, 9, 1), date(2026, 9, 1), http_get=get, timeout=7)
+    assert get.call_args.kwargs["timeout"] == 7

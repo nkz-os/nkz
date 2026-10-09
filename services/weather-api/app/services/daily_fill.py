@@ -43,8 +43,8 @@ def _num(v: Any) -> Optional[float]:
 
 
 def _at(daily: Dict[str, list], key: str, i: int) -> Optional[float]:
-    col = daily.get(key) or []
-    return _num(col[i]) if i < len(col) else None
+    col = daily.get(key)
+    return _num(col[i]) if isinstance(col, list) and i < len(col) else None
 
 
 def fetch_open_meteo_daily(
@@ -55,6 +55,7 @@ def fetch_open_meteo_daily(
     d0: date,
     d1: date,
     http_get: Callable = requests.get,
+    timeout: Optional[float] = None,
 ) -> Dict[str, Dict[str, Optional[float]]]:
     if kind == "reanalysis":
         base, models, path = settings.openmeteo_archive_url, settings.openmeteo_archive_models, "archive"
@@ -76,17 +77,23 @@ def fetch_open_meteo_daily(
     if elevation is not None:
         params["elevation"] = elevation
     try:
-        resp = http_get(f"{base}/{path}", params=params, timeout=_TIMEOUTS[kind])
+        resp = http_get(
+            f"{base}/{path}", params=params,
+            timeout=timeout if timeout is not None else _TIMEOUTS[kind],
+        )
         if resp.status_code != 200:
             logger.warning("open-meteo %s fill HTTP %s", kind, resp.status_code)
             return {}
-        daily = (resp.json() or {}).get("daily") or {}
+        body = resp.json()
+        daily = body.get("daily") if isinstance(body, dict) else None
     except Exception as exc:  # noqa: BLE001 — a failed fill leaves the days unfilled
         logger.warning("open-meteo %s fill failed: %s", kind, exc)
         return {}
 
+    if not isinstance(daily, dict) or not isinstance(daily.get("time"), list):
+        return {}
     out: Dict[str, Dict[str, Optional[float]]] = {}
-    for i, day in enumerate(daily.get("time") or []):
+    for i, day in enumerate(daily["time"]):
         wind10 = _at(daily, "wind_speed_10m_mean", i)
         rec = {
             "tmin_c": _at(daily, "temperature_2m_min", i),

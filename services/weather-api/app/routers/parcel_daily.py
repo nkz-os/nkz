@@ -4,11 +4,14 @@ GET /api/weather/parcel/{parcel_id}/daily?start=YYYY-MM-DD&end=YYYY-MM-DD
 One record per calendar day of the parcel's CLOSED-day weather series (published by
 weather-worker on a per-parcel ``...-daily`` WeatherObserved and persisted to
 ``telemetry_events`` through the Orion subscription). A day without a record is
-listed in ``missing_days`` and its fields are null: nothing is filled, interpolated
-or carried forward.
+listed in ``missing_days`` and its fields are null: nothing is interpolated or
+carried forward. With ``fill=open_meteo`` such days are requested on demand from
+Open-Meteo (model analysis for recent days, reanalysis before) and tagged with
+their ``source``; nothing is stored.
 """
 
 import json
+import time
 import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
@@ -83,6 +86,10 @@ def _parse_day(s: str) -> Optional[date]:
 
 
 _FILL_MODES = ("none", "open_meteo")
+# The whole fill must finish inside the gateway's wait for this service; a day
+# the budget does not reach is reported, not guessed.
+FILL_DEADLINE_S = 25.0
+_monotonic = time.monotonic
 
 
 def _today() -> date:
@@ -106,17 +113,6 @@ def _parcel_elevation(entity: Dict[str, Any]) -> Optional[float]:
     elev = entity.get("elevation")
     value = elev.get("value") if isinstance(elev, dict) else elev
     return _num(value)
-
-
-def _spans(days: List[date]) -> List[tuple]:
-    """Contiguous (first, last) runs, so each run is one Open-Meteo request."""
-    runs: List[tuple] = []
-    for d in days:
-        if runs and (d - runs[-1][1]).days == 1:
-            runs[-1] = (runs[-1][0], d)
-        else:
-            runs.append((d, d))
-    return runs
 
 
 @router.get("/parcel/{parcel_id}/daily")
@@ -208,14 +204,29 @@ def get_parcel_daily(
         for d in plan["not_closed"]:
             reasons[d.isoformat()] = "not_closed"
         entity = _fetch_parcel_entity(parcel_urn, tenant_id)
-        loc = _resolve_parcel_location(entity) if entity else None
+        try:
+            loc = _resolve_parcel_location(entity) if entity else None
+        except Exception as e:  # noqa: BLE001 — unusable geometry means no fill
+            logger.warning("parcel location unusable for fill %s: %s", parcel_urn, e)
+            loc = None
         filled: Dict[str, Dict[str, Any]] = {}
         if loc is not None:
             lon, lat = loc
             elev = _parcel_elevation(entity)
+            deadline = _monotonic() + FILL_DEADLINE_S
             for kind in ("model_analysis", "reanalysis"):
-                for first, last in _spans(plan[kind]):
-                    for k, v in fetch_open_meteo_daily(kind, lat, lon, elev, first, last).items():
+                wanted = {d.isoformat() for d in plan[kind]}
+                remaining = deadline - _monotonic()
+                if not wanted or remaining <= 1.0:
+                    continue
+                # One request per kind over its whole span: scattered gaps must
+                # not turn into one request each. Only the asked days are kept.
+                got = fetch_open_meteo_daily(
+                    kind, lat, lon, elev, min(plan[kind]), max(plan[kind]),
+                    timeout=remaining,
+                )
+                for k, v in got.items():
+                    if k in wanted:
                         filled[k] = {**v, "source": kind}
         by_key = {d["date"]: d for d in days}
         for d in plan["model_analysis"] + plan["reanalysis"]:

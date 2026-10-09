@@ -197,7 +197,7 @@ def test_fill_sources_by_window_and_today_not_closed(client):
     h["install"]([_row("2026-10-07", tempMin=9.0, tempMax=19.0, precipitation=0.0, et0=1.0)])
     calls = []
 
-    def fake_fetch(kind, lat, lon, elev, d0, d1, http_get=None):
+    def fake_fetch(kind, lat, lon, elev, d0, d1, http_get=None, timeout=None):
         calls.append((kind, d0, d1, elev))
         return {d.isoformat(): {"tmin_c": 5.0, "tmax_c": 15.0, "precip_mm": 0.5, "et0_mm": 1.0,
                                 "radiation_mj_m2": 10.0, "vapour_pressure_kpa": None, "wind2m_ms": 1.0}
@@ -252,3 +252,53 @@ def test_invalid_fill_value_is_400(client):
     h["install"]([])
     r = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01&fill=yes")
     assert r.status_code == 400
+
+
+def test_scattered_gaps_make_one_request_per_kind(client):
+    tc, h = client
+    # Series on every other day inside the model window -> many gaps.
+    rows = [_row(f"2026-09-{d:02d}", tempMin=9.0, tempMax=19.0) for d in range(1, 30, 2)]
+    h["install"](rows)
+    calls = []
+
+    def fake_fetch(kind, lat, lon, elev, d0, d1, http_get=None, timeout=None):
+        calls.append((kind, d0, d1))
+        return {(d0 + _td(days=i)).isoformat(): {"tmin_c": 1.0, "tmax_c": 2.0, "precip_mm": None, "et0_mm": None,
+                                                  "radiation_mj_m2": None, "vapour_pressure_kpa": None, "wind2m_ms": None}
+                for i in range((d1 - d0).days + 1)}
+
+    ps = _fill_env()
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_daily", side_effect=fake_fetch):
+        j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-09-01&end=2026-09-30&fill=open_meteo").json()
+    assert len(calls) == 1
+    by = {d["date"]: d for d in j["days"]}
+    assert by["2026-09-01"]["source"] == "parcel_weather" and by["2026-09-01"]["tmin_c"] == 9.0
+    assert by["2026-09-02"]["source"] == "model_analysis"
+
+
+def test_fill_stops_at_deadline(client):
+    tc, h = client
+    h["install"]([])
+    clock = {"t": 0.0}
+
+    def slow_fetch(kind, lat, lon, elev, d0, d1, http_get=None, timeout=None):
+        clock["t"] += 100.0  # the first request exhausts the budget
+        return {}
+
+    ps = _fill_env()
+    with ps[0], ps[1], ps[2], _patch.object(pd, "_monotonic", side_effect=lambda: clock["t"]), \
+         _patch.object(pd, "fetch_open_meteo_daily", side_effect=slow_fetch) as f:
+        r = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-01-01&end=2026-10-01&fill=open_meteo")
+    assert r.status_code == 200 and f.call_count == 1
+    assert set(r.json()["missing_reasons"].values()) == {"fill_unavailable"}
+
+
+def test_bad_parcel_geometry_means_no_fill(client):
+    tc, h = client
+    h["install"]([])
+    ps = _fill_env()
+    with ps[0], _patch.object(pd, "_resolve_parcel_location", side_effect=ZeroDivisionError), ps[2], \
+         _patch.object(pd, "fetch_open_meteo_daily") as f:
+        r = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01&fill=open_meteo")
+    assert r.status_code == 200 and not f.called
+    assert r.json()["missing_reasons"] == {"2026-10-01": "fill_unavailable"}
