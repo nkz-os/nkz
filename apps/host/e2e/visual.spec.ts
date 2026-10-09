@@ -381,9 +381,9 @@ test.describe('Page visual baseline', () => {
         // be fully up before the modal is opened and captured.
         await waitForViewerReady(page);
         await page.getByRole('button', { name: 'Add' }).click();
-        // Wizard modal's own heading (hardcoded, not the pre-existing
-        // "Assets" panel heading behind it) — proves the modal has mounted.
-        await expect(page.getByText('Crear Nueva Entidad')).toBeVisible({ timeout: 10_000 });
+        // Wizard modal's own heading (not the pre-existing "Assets" panel
+        // heading behind it) — proves the modal has mounted.
+        await expect(page.getByRole('heading', { name: 'Create new entity' })).toBeVisible({ timeout: 10_000 });
         await page.waitForTimeout(300);
         await expect(page).toHaveScreenshot(`entity-wizard-${theme}.png`, { clip: CROPPED_CLIP });
       });
