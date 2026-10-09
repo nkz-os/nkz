@@ -683,6 +683,22 @@ class TestAgroStatusTelemetrySource:
         assert daily_p[-3] == "%:parcel-p1-daily"
         assert daily_p[-1] - daily_p[-2] == timedelta(days=3)
 
+    def test_live_and_daily_patterns_never_overlap(self):
+        # SQL LIKE semantics: the live pattern has no trailing wildcard, so it
+        # cannot match the closed-day entity; each day is counted once.
+        import re as _re
+
+        def like(pattern, value):
+            rx = "".join(".*" if c == "%" else "." if c == "_" else _re.escape(c) for c in pattern)
+            return _re.fullmatch(rx, value) is not None
+
+        executed = []
+        self._get([[], LIVE_ROW, []], executed)
+        live_pat, daily_pat = executed[1][1][-1], executed[2][1][-3]
+        live_id = "urn:ngsi-ld:WeatherObserved:test-tenant:parcel-p1"
+        assert like(live_pat, live_id) and not like(live_pat, live_id + "-daily")
+        assert like(daily_pat, live_id + "-daily") and not like(daily_pat, live_id)
+
     def test_missing_daily_rows_are_not_filled_with_zero(self):
         r = self._get([[], LIVE_ROW, []], [])
         w = r.json()["weather"]

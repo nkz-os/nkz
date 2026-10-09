@@ -192,6 +192,21 @@ def test_gdd_uses_nearest_entity_and_its_daily_twin():
     assert r.get_json()["days_count"] == 0
 
 
+def test_gdd_takes_one_value_per_parcel_and_day_preferring_closed_day():
+    # Live and -daily rows of a parcel collapse to one row per (parcel, day);
+    # the closed-day extremes win over the live readings, so a day is never
+    # counted twice.
+    start = date.today() - timedelta(days=2)
+    cur = FakeCursor(results=[[]])
+    base = "urn:ngsi-ld:WeatherObserved:t:parcel-9"
+    _gdd(cur, f"season_start={start.isoformat()}&base_temp=10&lat=42.0&lon=-1.6", nearest=base)
+    sql = " ".join(cur.executed[-1][0].split())
+    assert "regexp_replace(e.entity_id, '-daily$', '') AS base_id" in sql
+    assert "GROUP BY 1, 2" in sql
+    assert "COALESCE(d_min, a_min)" in sql and "COALESCE(d_max, a_max)" in sql
+    assert "GROUP BY obs_date" in sql
+
+
 def test_gdd_no_nearby_entity_is_all_gap():
     start = date.today() - timedelta(days=2)
     cur = FakeCursor()
