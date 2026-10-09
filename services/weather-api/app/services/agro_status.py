@@ -317,7 +317,7 @@ def _texture_workability(
     soil_moisture: Optional[float],
     field_capacity: float,
     wilting_point: float,
-    recent_precip: float = 0.0,
+    recent_precip: Optional[float] = None,
     humidity: float = 0.0,
 ) -> str:
     """Compute workability semaphore using texture-aware thresholds.
@@ -340,11 +340,11 @@ def _texture_workability(
         return "caution"
 
     # No sensor — fallback to precipitation/humidity heuristic
-    if recent_precip > 5 or humidity > 80:
+    if (recent_precip is not None and recent_precip > 5) or humidity > 80:
         return "too_wet"
     if recent_precip == 0 and humidity < 40:
         return "too_dry"
-    if 1 <= recent_precip <= 5 and 40 <= humidity <= 80:
+    if recent_precip is not None and 1 <= recent_precip <= 5 and 40 <= humidity <= 80:
         return "optimal"
     return "caution"
 
@@ -420,14 +420,14 @@ def calculate_agro_status(
             logger.warning(f"Agro-status downscaling error: {exc}")
 
     # 2. Aggregate 3-day precipitation and ET0 from history
-    precip_3d = 0.0
-    et0_3d = 0.0
-    if weather_3d:
-        for obs in weather_3d:
-            precip_3d += obs.get("precip_mm") or 0
-            et0_val = obs.get("eto_mm")
-            if et0_val is not None:
-                et0_3d += et0_val
+    # None when no day carries the value: an absent record is not 0 mm.
+    precip_3d = None
+    et0_3d = None
+    for obs in weather_3d or []:
+        if obs.get("precip_mm") is not None:
+            precip_3d = (precip_3d or 0.0) + obs["precip_mm"]
+        if obs.get("eto_mm") is not None:
+            et0_3d = (et0_3d or 0.0) + obs["eto_mm"]
 
     weather_data = {
         "temperature": raw_temperature,
@@ -437,8 +437,8 @@ def calculate_agro_status(
         "pressure": weather_observation.get("pressure_hpa"),
         "precipitation": weather_observation.get("precip_mm") or 0,
         "eto_today": weather_observation.get("eto_mm"),
-        "precipitation_3d": round(precip_3d, 2),
-        "eto_3d": round(et0_3d, 2) if et0_3d else None,
+        "precipitation_3d": round(precip_3d, 2) if precip_3d is not None else None,
+        "eto_3d": round(et0_3d, 2) if et0_3d is not None else None,
         "wind_gusts": weather_observation.get("wind_gusts_ms"),
         "observed_at": weather_observation.get(
             "observed_at", datetime.now(timezone.utc)
@@ -453,7 +453,7 @@ def calculate_agro_status(
         "wind_direction": weather_data.get("wind_direction"),
         "pressure": weather_data.get("pressure"),
         "precipitation": weather_data.get("precipitation", 0),
-        "precipitation_3d": weather_data.get("precipitation_3d", 0),
+        "precipitation_3d": weather_data.get("precipitation_3d"),
         "eto_today": weather_data.get("eto_today"),
         "eto_3d": weather_data.get("eto_3d"),
         "wind_gusts": weather_data.get("wind_gusts"),
@@ -598,7 +598,7 @@ def calculate_agro_status(
         if soil_moisture is not None:
             soil_moisture_provenance = "parcel_weather"
 
-    recent_precip = fused.get("precipitation_3d", 0)
+    recent_precip = fused.get("precipitation_3d")
     humidity = fused.get("humidity") or 0
 
     # Compute texture-aware thresholds if soil data available
@@ -670,11 +670,11 @@ def calculate_agro_status(
             else:
                 semaphores["workability"] = "caution"
         else:
-            if recent_precip > 5 or humidity > 80:
+            if (recent_precip is not None and recent_precip > 5) or humidity > 80:
                 semaphores["workability"] = "too_wet"
             elif recent_precip == 0 and humidity < 40:
                 semaphores["workability"] = "too_dry"
-            elif 1 <= recent_precip <= 5 and 40 <= humidity <= 80:
+            elif recent_precip is not None and 1 <= recent_precip <= 5 and 40 <= humidity <= 80:
                 semaphores["workability"] = "optimal"
             else:
                 semaphores["workability"] = "caution"
@@ -696,7 +696,7 @@ def calculate_agro_status(
         hydrologic_group = soil_texture.get(
             "hydrologic_group"
         ) or _scs_hydrologic_group(ksat)
-        if semaphores["workability"] == "too_wet" and recent_precip > 0:
+        if semaphores["workability"] == "too_wet" and (recent_precip or 0) > 0:
             recovery_hours = _estimate_recovery_hours(hydrologic_group, recent_precip)
 
     parcel_name = "Unnamed"
