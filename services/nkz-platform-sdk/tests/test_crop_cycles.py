@@ -121,3 +121,27 @@ def test_all_cycles_listed_with_campaign_labels():
 def test_harvested_without_end_date_is_previous_not_current():
     t = tl([crop("h", status="harvested", plantingDate="2026-03-01")])
     assert t["current"] is None and t["previous"]["crop_id"].endswith(":h")
+
+
+def test_harvest_goes_to_the_cycle_it_ends_not_the_next_one():
+    a = crop("a", status="active", plantingDate="2026-03-01", harvestDate="2026-07-15")
+    b = crop("b", status="planned", sowingWindowStart="2026-08-01", expectedTerminationDate="2026-11-30")
+    t = tl([a, b], [op("h1", "harvesting", "2026-07-20")], at=date(2026, 7, 25))
+    assert t["previous"]["crop_id"].endswith(":a")
+    assert t["previous"]["end"] == {"date": "2026-07-20", "provenance": "actual"}
+    assert t["current"] is None and t["unassigned_operations"] == []
+
+
+def test_end_before_cycle_start_is_reported_not_dropped():
+    c = crop("c", status="active", plantingDate="2026-05-01", harvestDate="2026-09-30")
+    t = tl([c], [op("h0", "harvesting", "2026-04-20")])
+    assert t["current"]["end"]["provenance"] == "planned"
+    assert [u["id"] for u in t["unassigned_operations"]] == ["urn:ngsi-ld:AgriParcelOperation:h0"]
+
+
+def test_actually_sown_cycle_beats_an_overdue_older_one():
+    a = crop("a", status="active", plantingDate="2026-03-01", harvestDate="2026-07-15")
+    b = crop("b", status="planned", sowingWindowStart="2026-08-01", expectedTerminationDate="2026-11-30")
+    t = tl([a, b], [op("s2", "sowing", "2026-08-02")], at=date(2026, 8, 10))
+    assert t["current"]["crop_id"].endswith(":b")
+    assert t["current"]["start"] == {"date": "2026-08-02", "provenance": "actual"}
