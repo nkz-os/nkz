@@ -2632,14 +2632,16 @@ def proxy_parcel_crud(parcel_id=None):
 @app.route("/api/entities/parcels/<path:subpath>", methods=["GET", "POST", "OPTIONS"])
 @cross_origin(origins=_cors_origins, supports_credentials=True)
 def proxy_parcel_modules(subpath):
-    """Proxy the parcel-module CONTROL plane to entity-manager (activation/list).
+    """Proxy the parcel-module CONTROL plane and crop-cycle reads to entity-manager.
 
     Parcel CRUD goes through proxy_parcel_crud above; this handler is for
-    /api/entities/parcels/<id>/modules/... subpaths only.
+    /api/entities/parcels/<id>/modules/... and GET .../crop-cycles only.
     """
     if request.method == "OPTIONS":
         return "", 204
-    if "/modules" not in f"/{subpath}":
+    is_modules = "/modules" in f"/{subpath}"
+    is_crop_cycles = subpath.endswith("/crop-cycles") and request.method == "GET"
+    if not (is_modules or is_crop_cycles):
         return jsonify({"error": "not_found"}), 404
 
     token = get_request_token()
