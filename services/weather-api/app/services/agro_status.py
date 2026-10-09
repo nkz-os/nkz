@@ -440,9 +440,8 @@ def calculate_agro_status(
         "precipitation_3d": round(precip_3d, 2) if precip_3d is not None else None,
         "eto_3d": round(et0_3d, 2) if et0_3d is not None else None,
         "wind_gusts": weather_observation.get("wind_gusts_ms"),
-        "observed_at": weather_observation.get(
-            "observed_at", datetime.now(timezone.utc)
-        ),
+        # Time of the reading itself; never "now" when it is unknown.
+        "observed_at": weather_observation.get("observed_at"),
     }
 
     # 3. Fuse sensor and weather data (Sensor > weather observation)
@@ -457,6 +456,7 @@ def calculate_agro_status(
         "eto_today": weather_data.get("eto_today"),
         "eto_3d": weather_data.get("eto_3d"),
         "wind_gusts": weather_data.get("wind_gusts"),
+        "observed_at": weather_data.get("observed_at"),
         "sources": {
             "temperature": "WEATHER-OBS",
             "humidity": "WEATHER-OBS",

@@ -59,7 +59,7 @@ export interface AgroStatusResponse {
     wind_direction: number | null;
     pressure: number | null;
     precipitation: number;
-    precipitation_3d: number;
+    precipitation_3d: number | null;
     eto_today: number | null;
     eto_3d: number | null;
     wind_gusts: number | null;

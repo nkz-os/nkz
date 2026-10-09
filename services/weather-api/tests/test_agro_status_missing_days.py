@@ -29,3 +29,13 @@ def test_partial_days_sum_what_exists():
     w = calculate_agro_status(42.8, -1.6, {}, dict(_OBS), weather_3d=days)["weather"]
     assert w["precipitation_3d"] == 2.0
     assert w["eto_3d"] == 3.5
+
+
+def test_weather_block_carries_the_reading_time():
+    from datetime import datetime, timezone
+
+    at = datetime(2026, 10, 9, 5, 37, tzinfo=timezone.utc)
+    w = calculate_agro_status(42.8, -1.6, {}, {**_OBS, "observed_at": at})["weather"]
+    assert w["observed_at"] == at
+    w = calculate_agro_status(42.8, -1.6, {}, dict(_OBS))["weather"]
+    assert w["observed_at"] is None
