@@ -33,6 +33,15 @@ export type {
   ForecastTrack,
 } from './timeline/Track';
 
+export { TimelineAxis } from './timeline/TimelineAxis';
+export { TimelineTrackRow } from './timeline/TimelineTrackRow';
+export { TimelineMarkers, type TimelineMarker } from './timeline/TimelineMarkers';
+export { TimelineSparkline } from './timeline/TimelineSparkline';
+export {
+  type TimeRange, DAY_MS, TIMELINE_LABEL_VAR, isoToUtcMs, utcMsToIso, snapToUtcDay,
+  timeToPct, isInRange, monthTicks, nearestTime, latestAtOrBefore,
+} from './timeline/timeScale';
+
 export { CapabilityValue } from './components/CapabilityValue';
 export type { CapabilityValueProps } from './components/CapabilityValue';
 export { EntitlementGuard } from './components/EntitlementGuard';
