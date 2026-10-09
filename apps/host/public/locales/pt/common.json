@@ -1132,5 +1132,12 @@
     "categories": {
       "all": "Todos"
     }
+  },
+  "theme": {
+    "system": "Sistema",
+    "light": "Claro",
+    "dark": "Escuro",
+    "toggle_aria": "Mudar tema ({{label}})",
+    "current_title": "Tema atual: {{label}}. Clique para mudar."
   }
 }

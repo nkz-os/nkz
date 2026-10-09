@@ -1682,5 +1682,12 @@
     "title": "Avisos",
     "viewAll": "Ver todos",
     "empty": "Sin avisos activos"
+  },
+  "theme": {
+    "system": "Sistema",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "toggle_aria": "Cambiar tema ({{label}})",
+    "current_title": "Tema actual: {{label}}. Haz clic para cambiar."
   }
 }

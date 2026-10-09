@@ -52,6 +52,12 @@ function placeholders(text: string): string[] {
  * They live in `common.json`.
  */
 const COMMON_KEYS_IN_ALL_LOCALES: readonly string[] = [
+  // Theme toggle (navigation)
+  'theme.system',
+  'theme.light',
+  'theme.dark',
+  'theme.toggle_aria',
+  'theme.current_title',
   // Forgot-password page (public route)
   'forgot_password.title',
   'forgot_password.subtitle',
