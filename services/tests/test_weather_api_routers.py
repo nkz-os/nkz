@@ -190,7 +190,14 @@ def orion_router(parcel=None, soil=None, weather_observed=None):
             if "Link" not in headers:
                 return orion_response(200, [])
             if q.startswith("hasAgriParcel"):
-                return orion_response(200, soil if soil is not None else [])
+                # Everything linked to the parcel matches the q filter (jobs,
+                # assessments, EO products...); only `type` narrows it, and
+                # `limit` cuts the list in Orion's order.
+                linked = soil if soil is not None else []
+                if params.get("type"):
+                    wanted = params["type"].split(",")
+                    linked = [e for e in linked if e.get("type") in wanted]
+                return orion_response(200, linked[: int(params.get("limit", 20))])
             if q.startswith(("locatedAt", "refParcel")):
                 return orion_response(
                     200, weather_observed if weather_observed is not None else []
@@ -359,6 +366,30 @@ class TestOrionQueryRegressions:
         # The tempero limits are the soil module's, read from the horizon.
         assert r.json()["metrics"]["wet_tillage_limit"] == 0.35
         assert soil_out["hydrologic_group"] == "C"
+
+    def test_soil_is_found_among_other_entities_of_the_parcel(self):
+        """The parcel's first linked entity is often not its soil.
+
+        Live 2026-10-09: the q filter alone with limit=1 returned a
+        DataProcessingJob, so the soil (and its tempero limits) was never read.
+        """
+        linked = [
+            {"id": "urn:ngsi-ld:DataProcessingJob:j1", "type": "DataProcessingJob"},
+            {"id": "urn:ngsi-ld:AgriSoilExtended:p1", "type": "AgriSoilExtended",
+             "horizons": {"type": "Property", "value": [
+                 {"sand": 40.0, "clay": 20.0, "organicCarbon": 1.0,
+                  "wetTillageLimit": 0.35, "dryTillageLimit": 0.13}]}},
+        ]
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY, soil=linked,
+                                            weather_observed=[REAL_WEATHER_OBSERVED])), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection", db_down):
+            r = client.get(self.URL, headers=AUTH)
+
+        assert r.status_code == 200
+        assert r.json()["metrics"]["wet_tillage_limit"] == 0.35
 
     def test_context_aliases_are_read_from_the_names_orion_returns(self):
         """The @context is not injective; compaction returns the writer's alias.

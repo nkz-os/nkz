@@ -879,15 +879,18 @@ def get_parcel_agro_status(
         if isinstance(ts, dict):
             parcel_slope = float(ts.get("value", 0) or 0)
 
-        # 4.5. Try to get soil texture from AgriSoil/AgriSoilExtended entity
-        # linked to this parcel. Query by relationship only — DO NOT filter by
-        # type (FALSE-ZERO guard: AgriSoilExtended entities won't match type=AgriSoil).
+        # 4.5. Soil of this parcel: the AgriSoilExtended (or legacy AgriSoil)
+        # entity linked to it. Both types are listed: filtering by AgriSoil alone
+        # is a FALSE ZERO for AgriSoilExtended. The type filter is required — many
+        # entities link to the parcel (jobs, assessments, EO products) and with
+        # limit=1 the first one is often not the soil.
         soil_texture = None
         try:
             soil_headers = _orion_query_headers(tenant_id)
             soil_response = requests.get(
                 f"{settings.orion_url}/ngsi-ld/v1/entities",
                 params={
+                    "type": "AgriSoilExtended,AgriSoil",
                     # The URN must be quoted: its colons break Orion's q parser
                     # and the request comes back 400, not empty.
                     "q": f'hasAgriParcel=="{parcel_id}"',
