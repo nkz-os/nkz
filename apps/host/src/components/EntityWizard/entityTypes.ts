@@ -73,17 +73,18 @@ export const MACRO_CATEGORIES = {
 } as const;
 
 // ─── Category → types grouping (for the category browser in StepTypeSelection) ─
+// Keys are i18n slugs: rendered as `wizard.categories.<slug>`.
 
 export const ENTITY_CATEGORIES: Record<string, string[]> = {
-  'Cultivos':        ['Vineyard', 'OliveGrove', 'AgriParcel'],
-  'Árboles':         ['AgriTree', 'OliveTree', 'Vine', 'FruitTree'],
-  'Agua':            ['WaterSource', 'Well', 'IrrigationOutlet', 'Spring', 'Pond'],
-  'Robótica':        ['AutonomousMobileRobot', 'ManufacturingMachine'],
-  'Sensores':        ['AgriSensor', 'Device', 'WeatherObserved'],
-  'Infraestructura': ['AgriGreenhouse', 'AgriBuilding', 'IrrigationSystem'],
-  'Ganadería':       ['LivestockAnimal', 'LivestockGroup', 'LivestockFarm'],
-  'Energía':         ['PhotovoltaicInstallation', 'AgriEnergyTracker', 'EnergyStorageSystem'],
-  'Operaciones':     ['AgriOperation'],
+  crops:             ['Vineyard', 'OliveGrove', 'AgriParcel'],
+  trees:             ['AgriTree', 'OliveTree', 'Vine', 'FruitTree'],
+  water:             ['WaterSource', 'Well', 'IrrigationOutlet', 'Spring', 'Pond'],
+  robotics:          ['AutonomousMobileRobot', 'ManufacturingMachine'],
+  sensors:           ['AgriSensor', 'Device', 'WeatherObserved'],
+  infrastructure:    ['AgriGreenhouse', 'AgriBuilding', 'IrrigationSystem'],
+  livestock:         ['LivestockAnimal', 'LivestockGroup', 'LivestockFarm'],
+  energy:            ['PhotovoltaicInstallation', 'AgriEnergyTracker', 'EnergyStorageSystem'],
+  operations:        ['AgriOperation'],
 };
 
 // ─── Sensor health & calibration types ───────────────────────────────────────

@@ -5,6 +5,7 @@ import { ParentEntitySelector } from '../ParentEntitySelector';
 import api from '@/services/api';
 import type { GeoAssetFormData } from '../types';
 import { Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 // Types that support the subdivision (parent-child) workflow
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -23,6 +24,7 @@ const IS_GREENHOUSE = (type: string) => type === 'AgriGreenhouse';
 
 export function StepGeoAssetConfig() {
   const { entityType, formData, updateFormData } = useWizard();
+  const { t } = useI18n();
 
   const needsParcel = PARCEL_ASSOCIATION_TYPES.has(entityType ?? '');
   const [parcels, setParcels] = useState<{ id: string; name: string }[]>([]);
@@ -51,28 +53,28 @@ export function StepGeoAssetConfig() {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Datos del activo</h3>
+      <h3 className="text-lg font-semibold">{t('wizard.asset.title')}</h3>
 
       {/* Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('wizard.fields.name_required')}</label>
         <Input
           type="text"
           value={data.name}
           onChange={(e: any) => updateFormData({ name: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500"
-          placeholder="Nombre del activo"
+          placeholder={t('wizard.asset.name_placeholder')}
         />
       </div>
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('wizard.fields.description')}</label>
         <textarea
           value={data.description ?? ''}
           onChange={(e: any) => updateFormData({ description: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-green-500"
-          placeholder="Descripción opcional"
+          placeholder={t('wizard.fields.description_placeholder')}
           rows={2}
         />
       </div>
@@ -80,50 +82,50 @@ export function StepGeoAssetConfig() {
       {/* AgriParcel: first-class cadastral fields */}
       {isAgriParcel && (
         <div className="pt-4 border-t space-y-3">
-          <h4 className="text-sm font-medium text-gray-700">Datos catastrales</h4>
+          <h4 className="text-sm font-medium text-gray-700">{t('wizard.asset.cadastral_data')}</h4>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Municipio</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.municipality')}</label>
               <Input
                 type="text"
                 value={data.municipality ?? ''}
                 onChange={(e: any) => updateFormData({ municipality: e.target.value })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                placeholder="Ej: Vitoria-Gasteiz"
+                placeholder={t('wizard.asset.municipality_placeholder')}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Provincia</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.province')}</label>
               <Input
                 type="text"
                 value={data.province ?? ''}
                 onChange={(e: any) => updateFormData({ province: e.target.value })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-                placeholder="Ej: Álava"
+                placeholder={t('wizard.asset.province_placeholder')}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Referencia catastral</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.cadastral_reference')}</label>
             <Input
               type="text"
               value={data.cadastralReference ?? ''}
               onChange={(e: any) => updateFormData({ cadastralReference: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500 font-mono"
-              placeholder="Ej: 01001A001000010000DP"
+              placeholder={t('wizard.asset.cadastral_reference_placeholder')}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de cultivo</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.crop_type')}</label>
             <Input
               type="text"
               value={data.cropType ?? ''}
               onChange={(e: any) => updateFormData({ cropType: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
-              placeholder="Ej: Viñedo, Cereal, Olivar"
+              placeholder={t('wizard.asset.crop_type_placeholder')}
             />
           </div>
         </div>
@@ -135,16 +137,16 @@ export function StepGeoAssetConfig() {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             <span className="flex items-center gap-1.5">
               <Sprout className="w-4 h-4 text-nkz-success" />
-              Parcela asociada
+              {t('wizard.asset.linked_parcel')}
             </span>
           </label>
           <p className="text-xs text-nkz-muted mb-2">
-            Vincula este activo a una parcela existente para que el módulo AgriEnergy lo gestione.
+            {t('wizard.asset.linked_parcel_hint')}
           </p>
           {parcelsLoading ? (
-            <p className="text-sm text-nkz-muted">Cargando parcelas...</p>
+            <p className="text-sm text-nkz-muted">{t('wizard.asset.loading_parcels')}</p>
           ) : parcels.length === 0 ? (
-            <p className="text-sm text-amber-600">No hay parcelas creadas. Puedes vincularla después.</p>
+            <p className="text-sm text-amber-600">{t('wizard.asset.no_parcels')}</p>
           ) : (
             <select
               value={data.parentEntity?.id ?? ''}
@@ -156,7 +158,7 @@ export function StepGeoAssetConfig() {
               }}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
             >
-              <option value="">Sin parcela (opcional)</option>
+              <option value="">{t('wizard.asset.no_parcel_option')}</option>
               {parcels.map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -168,11 +170,11 @@ export function StepGeoAssetConfig() {
       {/* AgriGreenhouse: specific fields for greenhouse DT module */}
       {isGreenhouse && (
         <div className="pt-4 border-t space-y-3">
-          <h4 className="text-sm font-medium text-gray-700">Dimensiones del invernadero</h4>
+          <h4 className="text-sm font-medium text-gray-700">{t('wizard.asset.greenhouse_dimensions')}</h4>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Área (m²)</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.area_m2')}</label>
               <Input
                 type="number"
                 min="0"
@@ -181,11 +183,11 @@ export function StepGeoAssetConfig() {
                   additionalAttributes: { ...data.additionalAttributes, area: Number(e.target.value) || 0 }
                 })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm"
-                placeholder="Ej: 2000"
+                placeholder={t('wizard.asset.area_placeholder')}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Altura (m)</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.height_m')}</label>
               <Input
                 type="number"
                 min="0"
@@ -195,14 +197,14 @@ export function StepGeoAssetConfig() {
                   additionalAttributes: { ...data.additionalAttributes, height: Number(e.target.value) || 0 }
                 })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm"
-                placeholder="Ej: 5"
+                placeholder={t('wizard.asset.height_placeholder')}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de cubierta</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.cover_type')}</label>
               <select
                 value={data.additionalAttributes.coverType as string ?? ''}
                 onChange={(e: any) => updateFormData({
@@ -210,14 +212,14 @@ export function StepGeoAssetConfig() {
                 })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
               >
-                <option value="">Seleccionar...</option>
-                <option value="polyethylene">Polietileno</option>
-                <option value="glass">Vidrio</option>
-                <option value="polycarbonate">Policarbonato</option>
+                <option value="">{t('wizard.asset.select_option')}</option>
+                <option value="polyethylene">{t('wizard.asset.cover_polyethylene')}</option>
+                <option value="glass">{t('wizard.asset.cover_glass')}</option>
+                <option value="polycarbonate">{t('wizard.asset.cover_polycarbonate')}</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Orientación</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.orientation')}</label>
               <select
                 value={data.additionalAttributes.orientation as string ?? ''}
                 onChange={(e: any) => updateFormData({
@@ -225,9 +227,9 @@ export function StepGeoAssetConfig() {
                 })}
                 className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-green-500"
               >
-                <option value="">Seleccionar...</option>
-                <option value="N-S">Norte-Sur</option>
-                <option value="E-W">Este-Oeste</option>
+                <option value="">{t('wizard.asset.select_option')}</option>
+                <option value="N-S">{t('wizard.asset.orientation_ns')}</option>
+                <option value="E-W">{t('wizard.asset.orientation_ew')}</option>
               </select>
             </div>
           </div>
@@ -249,7 +251,7 @@ export function StepGeoAssetConfig() {
               className="w-4 h-4 accent-green-600"
             />
             <label htmlFor="isSubdivision" className="text-sm font-medium text-gray-700">
-              Crear como subdivisión de otra entidad existente
+              {t('wizard.asset.create_as_subdivision')}
             </label>
           </div>
 

@@ -4,6 +4,7 @@ import { Model3DUploader } from './Model3DUploader';
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 
 // Lazy-load model-viewer only when AssetBrowser mounts
@@ -48,6 +49,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
     onRotationChange,
     rotation = [0, 0, 0]
 }) => {
+    const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<Tab>('library');
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -59,8 +61,8 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
     useEffect(() => { ensureModelViewer(); }, []);
 
     const isModel = (a: { name?: string; filename?: string; asset_type?: string; id?: string }) => {
-        const t = a.asset_type;
-        if (t === 'model' || t === 'icon') return t === 'model';
+        const assetType = a.asset_type;
+        if (assetType === 'model' || assetType === 'icon') return assetType === 'model';
         const n = (a.filename || a.name || a.id || '').toLowerCase();
         return n.endsWith('.glb') || n.endsWith('.gltf');
     };
@@ -84,8 +86,8 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                     category,
                 });
 
-                const publicModels = publicList.filter(isModel).map((a: any, i: number) => toCard(a, 'Public', i));
-                const tenantModels = tenantList.filter(isModel).map((a: any, i: number) => toCard(a, 'My tenant', i));
+                const publicModels = publicList.filter(isModel).map((a: any, i: number) => toCard(a, 'public', i));
+                const tenantModels = tenantList.filter(isModel).map((a: any, i: number) => toCard(a, 'tenant', i));
                 setPublicAssets([...tenantModels, ...publicModels]);
             } catch (err) {
                 logger.error('Failed to load assets:', err);
@@ -114,7 +116,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                 >
                     <div className="flex items-center gap-2">
                         <Package className="w-4 h-4" />
-                        Librería Pública
+                        {t('wizard.assets_browser.tab_library')}
                     </div>
                 </Button>
                 <Button
@@ -126,7 +128,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                 >
                     <div className="flex items-center gap-2">
                         <Upload className="w-4 h-4" />
-                        Subir Modelo
+                        {t('wizard.assets_browser.tab_upload')}
                     </div>
                 </Button>
             </div>
@@ -140,7 +142,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-nkz-muted w-4 h-4" />
                             <Input
                                 type="text"
-                                placeholder="Buscar activos (olivo, tractor...)"
+                                placeholder={t('wizard.assets_browser.search_placeholder')}
                                 value={searchTerm}
                                 onChange={(e: any) => setSearchTerm(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
@@ -152,7 +154,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                             {loading ? (
                                 <div className="col-span-full py-8 text-center text-nkz-muted">
                                     <Package className="w-8 h-8 mx-auto mb-2 text-nkz-muted animate-pulse" />
-                                    <p>Cargando modelos...</p>
+                                    <p>{t('wizard.assets_browser.loading')}</p>
                                 </div>
                             ) : filteredAssets.map((asset) => (
                                 <Button
@@ -196,7 +198,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                             {shortName(asset)}
                                         </div>
                                         <div className="text-xs text-nkz-muted capitalize flex justify-between items-center mt-1">
-                                            <span>{asset.category}</span>
+                                            <span>{asset.category === 'tenant' ? t('wizard.assets_browser.category_tenant') : t('wizard.assets_browser.category_public')}</span>
                                             <span className="bg-nkz-bg-secondary px-1.5 py-0.5 rounded text-[10px]">GLB</span>
                                         </div>
                                     </div>
@@ -206,7 +208,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                             {!loading && filteredAssets.length === 0 && (
                                 <div className="col-span-full py-8 text-center text-nkz-muted bg-nkz-bg-secondary rounded-lg border border-dashed border-nkz-border">
                                     <Package className="w-8 h-8 mx-auto mb-2 text-nkz-muted" />
-                                    <p>No se encontraron activos</p>
+                                    <p>{t('wizard.assets_browser.empty')}</p>
                                 </div>
                             )}
                         </div>
@@ -234,7 +236,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                     {onScaleChange && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Escala del Modelo: {scale.toFixed(1)}x
+                                {t('wizard.assets_browser.model_scale', { value: scale.toFixed(1) })}
                             </label>
                             <Input
                                 type="range"
@@ -257,7 +259,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                     {onRotationChange && rotation && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Rotación (X, Y, Z)
+                                {t('wizard.assets_browser.rotation')}
                             </label>
                             <div className="grid grid-cols-3 gap-2">
                                 {['X', 'Y', 'Z'].map((axis, i) => (

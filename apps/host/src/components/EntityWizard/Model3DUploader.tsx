@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Upload, X, Check, Loader2 } from 'lucide-react';
 import { uploadToMinIO, isValid3DModelFile, getMaxFileSizeMB, UploadProgress } from '@/utils/minioAssets';
 import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 interface Model3DUploaderProps {
@@ -25,6 +26,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
   onRemove,
   disabled = false
 }) => {
+  const { t } = useI18n();
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
 
     // Validate file type
     if (!isValid3DModelFile(file)) {
-      setError('Invalid file type. Please upload GLB or GLTF.');
+      setError(t('wizard.upload.invalid_type_model'));
       return;
     }
 
@@ -47,7 +49,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
     const maxSizeMB = getMaxFileSizeMB('model');
     const fileSizeMB = file.size / (1024 * 1024);
     if (fileSizeMB > maxSizeMB) {
-      setError(`File too large. Maximum size is ${maxSizeMB}MB.`);
+      setError(t('wizard.upload.file_too_large', { max: maxSizeMB }));
       return;
     }
 
@@ -61,7 +63,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
       });
       onUpload(url);
     } catch (err: any) {
-      setError(err.message || 'Failed to upload 3D model');
+      setError(err.message || t('wizard.upload.model_failed'));
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -83,7 +85,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
   return (
     <div className="space-y-3">
       <label className="block text-sm font-medium text-gray-700">
-        3D Model (Optional)
+        {t('wizard.upload.model_3d_optional')}
       </label>
 
       <div className="space-y-4">
@@ -100,7 +102,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
               <Upload className="w-4 h-4" />
             )}
             <span className="text-sm font-medium">
-              {uploading ? `Uploading... ${uploadProgress}%` : 'Upload 3D Model'}
+              {uploading ? t('wizard.upload.uploading', { progress: uploadProgress }) : t('wizard.upload.upload_model')}
             </span>
             <Input
               ref={fileInputRef}
@@ -135,7 +137,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
         )}
 
         <p className="text-xs text-nkz-muted">
-          Formats: GLB, GLTF. Max size: {getMaxFileSizeMB('model')}MB
+          {t('wizard.upload.formats_model', { max: getMaxFileSizeMB('model') })}
         </p>
 
         {error && (
@@ -147,7 +149,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
         {currentModelUrl && (
           <div className="flex items-center gap-1 text-xs text-nkz-success-strong">
             <Check className="w-3 h-3" />
-            <span>3D model uploaded successfully</span>
+            <span>{t('wizard.upload.model_success')}</span>
           </div>
         )}
 
@@ -156,7 +158,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
           <div className="space-y-3 p-4 bg-nkz-bg-secondary rounded-lg border border-nkz-border">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Scale: {modelScale.toFixed(2)}x
+                {t('wizard.upload.scale', { value: modelScale.toFixed(2) })}
               </label>
               <Input
                 type="range"
@@ -176,7 +178,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
 
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-2">
-                Rotation (degrees)
+                {t('wizard.upload.rotation_degrees')}
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <div>

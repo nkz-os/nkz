@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, Shield, Server, Wifi } from 'lucide-react';
 import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 export interface RobotCredentials {
   robot_uuid: string;
@@ -20,6 +21,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
   robotName,
   credentials
 }) => {
+  const { t } = useI18n();
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -44,7 +46,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
           type="button"
           onClick={() => copyToClipboard(value, fieldName)}
           className="px-3 py-2 border border-nkz-border rounded hover:bg-nkz-bg-secondary transition"
-          title="Copy to clipboard"
+          title={t('wizard.robot_credentials.copy')}
         >
           {copiedField === fieldName
             ? <Check className="w-4 h-4 text-nkz-success-strong" />
@@ -65,9 +67,9 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
               <Shield className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Robot Created</h2>
+              <h2 className="text-xl font-bold text-white">{t('wizard.robot_credentials.title')}</h2>
               <p className="text-sm text-green-100">
-                <span className="font-semibold">{robotName}</span> is ready
+                <span className="font-semibold">{robotName}</span> {t('wizard.robot_credentials.ready_suffix')}
               </p>
             </div>
           </div>
@@ -82,7 +84,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
           <div className="bg-nkz-bg-secondary rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
               <Server className="w-4 h-4 text-nkz-muted" />
-              <h4 className="font-medium text-gray-700">Robot Identity</h4>
+              <h4 className="font-medium text-gray-700">{t('wizard.robot_credentials.identity')}</h4>
             </div>
             <div className="space-y-2">
               <CredentialField label="Robot UUID" value={credentials.robot_uuid} fieldName="uuid" />
@@ -94,19 +96,19 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
           <div className="bg-sky-50 border border-sky-200 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <Wifi className="w-4 h-4 text-sky-600" />
-              <h4 className="font-medium text-sky-900">Network Access (Headscale SDN)</h4>
+              <h4 className="font-medium text-sky-900">{t('wizard.robot_credentials.network_title')}</h4>
             </div>
             <p className="text-sm text-sky-800">
-              Network access is provisioned separately via the{' '}
+              {t('wizard.robot_credentials.network_before')}{' '}
               <a href="/connectivity" className="font-semibold underline hover:text-sky-600">
-                Device Management
+                {t('wizard.robot_credentials.device_management')}
               </a>{' '}
-              page using the Claim Code printed on the device chassis.
+              {t('wizard.robot_credentials.network_after')}
             </p>
             <ol className="text-sm text-sky-800 space-y-1 list-decimal list-inside mt-2">
-              <li>Go to <strong>Device Management → Add Device</strong></li>
-              <li>Enter the device UUID and the Claim Code from the chassis label</li>
-              <li>For rovers/gateways: a Tailscale Pre-Auth Key will be generated</li>
+              <li>{t('wizard.robot_credentials.step1_before')} <strong>{t('wizard.robot_credentials.step1_strong')}</strong></li>
+              <li>{t('wizard.robot_credentials.step2')}</li>
+              <li>{t('wizard.robot_credentials.step3')}</li>
             </ol>
           </div>
         </div>
@@ -118,7 +120,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
             onClick={onClose}
             className="w-full px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-medium"
           >
-            Done
+            {t('wizard.robot_credentials.done')}
           </Button>
         </div>
       </div>

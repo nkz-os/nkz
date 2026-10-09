@@ -11,6 +11,7 @@ import React from 'react';
 import { Check, X, RotateCw, Maximize2, Paintbrush, Grid } from 'lucide-react';
 import { useViewer } from '@/context/ViewerContext';
 import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 interface PlacementToolbarProps {
@@ -22,6 +23,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
     onConfirm,
     onCancel,
 }) => {
+    const { t } = useI18n();
     const {
         mapMode,
         modelPlacement,
@@ -96,7 +98,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                         {isPreviewMode ? <Maximize2 className="w-4 h-4" /> : <Paintbrush className="w-4 h-4" />}
                     </div>
                     <span className="text-sm font-medium text-gray-700">
-                        {isPreviewMode ? 'Preview' : `Stamp (${stampInstances.length})`}
+                        {isPreviewMode ? t('wizard.stamp.preview') : t('wizard.stamp.stamp_count', { count: stampInstances.length })}
                     </span>
                 </div>
 
@@ -181,14 +183,14 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                     <Button
                         onClick={handleCancel}
                         className="w-9 h-9 rounded-lg bg-nkz-bg-secondary hover:bg-gray-200 flex items-center justify-center transition-colors"
-                        title="Cancelar"
+                        title={t('wizard.stamp.cancel')}
                     >
                         <X className="w-5 h-5 text-gray-600" />
                     </Button>
                     <Button
                         onClick={handleConfirm}
                         className="w-9 h-9 rounded-lg bg-nkz-success hover:bg-green-600 flex items-center justify-center transition-colors"
-                        title="Confirmar"
+                        title={t('wizard.stamp.confirm')}
                     >
                         <Check className="w-5 h-5 text-white" />
                     </Button>
@@ -199,8 +201,8 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
             <div className="text-center mt-2">
                 <p className="text-xs text-nkz-muted bg-black/50 text-white px-3 py-1 rounded-full inline-block">
                     {isPreviewMode
-                        ? 'Ajusta escala y rotación, luego confirma'
-                        : 'Haz clic para colocar instancias, arrastra para pintar'}
+                        ? t('wizard.stamp.hint_preview')
+                        : t('wizard.stamp.hint_stamp')}
                 </p>
             </div>
         </div>

@@ -12,6 +12,7 @@ import React, { useEffect } from 'react';
 import { Eraser } from 'lucide-react';
 import { useViewer } from '@/context/ViewerContext';
 import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 export interface InstanceData {
   // Business logic properties
@@ -39,6 +40,7 @@ export const StampTool: React.FC<StampToolProps> = ({
   height: _height = 'h-32', // Reduced default height since no map
   disabled = false
 }) => {
+  const { t } = useI18n();
   const {
     startStampMode,
     cancelStampMode,
@@ -100,7 +102,7 @@ export const StampTool: React.FC<StampToolProps> = ({
       <div className="flex flex-col gap-3 p-3 bg-nkz-bg-secondary rounded-lg border border-nkz-border">
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className="text-xs font-semibold text-nkz-muted">Tamaño Pincel ({stampOptions.brushSize}m)</label>
+            <label className="text-xs font-semibold text-nkz-muted">{t('wizard.stamp.brush_size', { size: stampOptions.brushSize })}</label>
             <Input
               type="range"
               min="1"
@@ -111,7 +113,7 @@ export const StampTool: React.FC<StampToolProps> = ({
             />
           </div>
           <div className="flex-1">
-            <label className="text-xs font-semibold text-nkz-muted">Densidad ({(stampOptions.density * 100).toFixed(0)}%)</label>
+            <label className="text-xs font-semibold text-nkz-muted">{t('wizard.stamp.density', { value: (stampOptions.density * 100).toFixed(0) })}</label>
             <Input
               type="range"
               min="0.1"
@@ -126,14 +128,14 @@ export const StampTool: React.FC<StampToolProps> = ({
 
         <div className="flex justify-between items-center border-t border-nkz-border pt-2 mt-1">
           <span className="text-sm font-medium text-gray-700">
-            <span className="text-nkz-info font-bold">{stampInstances.length}</span> elementos
+            <span className="text-nkz-info font-bold">{stampInstances.length}</span> {t('wizard.stamp.items')}
           </span>
           <Button
             type="button"
             onClick={handleClear}
             className="px-3 py-1.5 bg-white border border-nkz-border rounded text-sm hover:bg-nkz-danger-soft hover:text-nkz-danger-strong hover:border-red-200 flex items-center gap-1 transition-colors"
           >
-            <Eraser className="w-4 h-4" /> Limpiar Todo
+            <Eraser className="w-4 h-4" /> {t('wizard.stamp.clear_all')}
           </Button>
         </div>
       </div>
@@ -141,7 +143,7 @@ export const StampTool: React.FC<StampToolProps> = ({
       {/* Info Box */}
       <div className="bg-nkz-info-soft border border-blue-100 rounded-lg p-3 text-sm text-blue-800">
         <p className="flex items-center gap-2">
-          🖌️ <strong>Modo Pintura Activo:</strong> Haz clic y arrastra sobre el mapa principal para añadir elementos.
+          🖌️ <strong>{t('wizard.stamp.paint_mode_active')}</strong> {t('wizard.stamp.paint_mode_hint')}
         </p>
       </div>
     </div>

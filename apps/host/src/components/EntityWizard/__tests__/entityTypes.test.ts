@@ -6,7 +6,7 @@ describe('ENTITY_TYPE_METADATA', () => {
     expect(Object.keys(ENTITY_TYPE_METADATA)).not.toContain('AgriCrop');
   });
 
-  it('still offers the other Cultivos-category types', () => {
+  it('still offers the other crops-category types', () => {
     const keys = Object.keys(ENTITY_TYPE_METADATA);
     expect(keys).toContain('AgriParcel');
     expect(keys).toContain('Vineyard');
@@ -20,7 +20,7 @@ describe('ENTITY_CATEGORIES', () => {
     expect(allTypes).not.toContain('AgriCrop');
   });
 
-  it('keeps the Cultivos category with its other types', () => {
-    expect(ENTITY_CATEGORIES['Cultivos']).toEqual(['Vineyard', 'OliveGrove', 'AgriParcel']);
+  it('keeps the crops category with its other types', () => {
+    expect(ENTITY_CATEGORIES.crops).toEqual(['Vineyard', 'OliveGrove', 'AgriParcel']);
   });
 });

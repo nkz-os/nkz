@@ -5,6 +5,7 @@ import { ENTITY_TYPE_METADATA, MACRO_CATEGORIES, ENTITY_CATEGORIES } from '../en
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { SDMGuideInfo } from '../SDMGuideInfo';
 import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const COLOR_MAP: Record<string, { border: string; bg: string }> = {
@@ -28,6 +29,7 @@ function getColorStyle(color: string, selected: boolean) {
 
 export function StepTypeSelection() {
   const { entityType, setEntityType, goNext } = useWizard();
+  const { t } = useI18n();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeMacro, setActiveMacro] = useState<keyof typeof MACRO_CATEGORIES | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -46,15 +48,16 @@ export function StepTypeSelection() {
       return (
         type.toLowerCase().includes(s) ||
         meta.keywords.some(k => k.toLowerCase().includes(s)) ||
-        meta.description.toLowerCase().includes(s)
+        meta.description.toLowerCase().includes(s) ||
+        t(`wizard.types.${type}`).toLowerCase().includes(s)
       );
     });
-  }, [searchTerm, activeMacro]);
+  }, [searchTerm, activeMacro, t]);
 
   const groupedTypes = useMemo(() => {
     const groups: Record<string, string[]> = {};
     for (const [cat, types] of Object.entries(ENTITY_CATEGORIES)) {
-      const filtered = types.filter(t => filteredTypes.includes(t));
+      const filtered = types.filter(ty => filteredTypes.includes(ty));
       if (filtered.length > 0) groups[cat] = filtered;
     }
     return groups;
@@ -71,7 +74,7 @@ export function StepTypeSelection() {
     <div className="space-y-5">
       {/* Quick actions — most common entities */}
       <div>
-        <p className="text-xs font-medium text-nkz-muted uppercase tracking-wide mb-2">Acceso rápido</p>
+        <p className="text-xs font-medium text-nkz-muted uppercase tracking-wide mb-2">{t('wizard.type_selection.quick_access')}</p>
         <Button
           onClick={() => handleQuickCreate('AgriParcel')}
           className="w-full flex items-center justify-between px-5 py-4 bg-nkz-accent-base hover:bg-nkz-accent-strong text-white rounded-xl transition-colors shadow-sm"
@@ -79,8 +82,8 @@ export function StepTypeSelection() {
           <div className="flex items-center gap-3">
             <MapPin className="w-5 h-5 flex-shrink-0" />
             <div className="text-left">
-              <div className="font-semibold">Crear nueva parcela</div>
-              <div className="text-xs text-white/70">AgriParcel · Parcela agrícola</div>
+              <div className="font-semibold">{t('wizard.type_selection.new_parcel')}</div>
+              <div className="text-xs text-white/70">{t('wizard.type_selection.new_parcel_hint')}</div>
             </div>
           </div>
           <ArrowRight className="w-5 h-5 flex-shrink-0" />
@@ -90,8 +93,8 @@ export function StepTypeSelection() {
       <SDMGuideInfo />
 
       <div className="border-t border-gray-100 pt-4">
-        <h3 className="text-lg font-semibold mb-1">Otros tipos de entidad</h3>
-        <p className="text-sm text-gray-600">Busca por nombre, tipo o fabricante, o selecciona una categoría.</p>
+        <h3 className="text-lg font-semibold mb-1">{t('wizard.type_selection.other_types')}</h3>
+        <p className="text-sm text-gray-600">{t('wizard.type_selection.other_types_hint')}</p>
       </div>
 
       {/* Search */}
@@ -101,7 +104,7 @@ export function StepTypeSelection() {
           type="text"
           value={searchTerm}
           onChange={(e: any) => setSearchTerm(e.target.value)}
-          placeholder="Buscar: tractor, sensor humedad, Davis, John Deere..."
+          placeholder={t('wizard.type_selection.search_placeholder')}
           className="w-full pl-12 pr-4 py-3 border-2 border-nkz-border rounded-xl focus:ring-2 focus:ring-nkz-accent-base focus:border-nkz-accent-base text-base"
         />
         {searchTerm && (
@@ -124,8 +127,8 @@ export function StepTypeSelection() {
               className={`p-4 rounded-xl border-2 text-left transition-all ${isActive ? '' : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary'}`}
             >
               <Icon className="w-6 h-6 mb-2 text-nkz-muted" style={isActive ? getColorStyle(macro.color, true) : {}} />
-              <div className="font-semibold text-sm">{macro.label}</div>
-              <div className="text-xs text-nkz-muted mt-0.5">{macro.description}</div>
+              <div className="font-semibold text-sm">{t(`wizard.macro.${key}.label`)}</div>
+              <div className="text-xs text-nkz-muted mt-0.5">{t(`wizard.macro.${key}.description`)}</div>
             </Button>
           );
         })}
@@ -134,11 +137,11 @@ export function StepTypeSelection() {
       {/* Results */}
       {searchTerm.trim() ? (
         <div className="space-y-2">
-          <p className="text-sm text-gray-600">{filteredTypes.length} resultado{filteredTypes.length !== 1 ? 's' : ''} para "{searchTerm}"</p>
+          <p className="text-sm text-gray-600">{t(filteredTypes.length === 1 ? 'wizard.type_selection.results_one' : 'wizard.type_selection.results_other', { count: filteredTypes.length, term: searchTerm })}</p>
           {filteredTypes.length === 0 ? (
             <div className="p-6 text-center bg-nkz-bg-secondary rounded-xl">
               <Search className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-              <p className="text-nkz-muted">No se encontraron resultados</p>
+              <p className="text-nkz-muted">{t('wizard.type_selection.no_results')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -154,7 +157,7 @@ export function StepTypeSelection() {
                 onClick={() => toggleCategory(cat)}
                 className="w-full px-4 py-3 flex items-center justify-between bg-nkz-bg-secondary hover:bg-nkz-bg-secondary transition"
               >
-                <span className="font-medium text-sm text-gray-700">{cat}</span>
+                <span className="font-medium text-sm text-gray-700">{t(`wizard.categories.${cat}`)}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-nkz-muted bg-gray-200 px-2 py-0.5 rounded-full">{types.length}</span>
                   {expandedCategories.has(cat)
@@ -181,7 +184,7 @@ export function StepTypeSelection() {
             <Icon className="w-6 h-6 text-nkz-accent-base" />
             <div>
               <div className="font-semibold text-nkz-accent-strong">{entityType}</div>
-              <div className="text-sm text-nkz-accent-base">{meta?.description}</div>
+              <div className="text-sm text-nkz-accent-base">{t(`wizard.types.${entityType}`)}</div>
             </div>
           </div>
         );
@@ -200,6 +203,7 @@ interface TypeCardProps {
 }
 
 function TypeCard({ type, selected, onSelect, compact = false }: TypeCardProps) {
+  const { t } = useI18n();
   const meta = ENTITY_TYPE_METADATA[type];
   const Icon = meta?.icon ?? Activity;
   const style = selected && meta ? getColorStyle(meta.color, true) : {};
@@ -216,7 +220,7 @@ function TypeCard({ type, selected, onSelect, compact = false }: TypeCardProps) 
       <Icon className={`w-${compact ? '4' : '5'} h-${compact ? '4' : '5'} flex-shrink-0 text-nkz-muted`} />
       <div className="min-w-0">
         <div className={`font-medium text-${compact ? 'xs' : 'sm'} truncate`}>{type}</div>
-        {!compact && <div className="text-xs text-nkz-muted truncate">{meta?.description}</div>}
+        {!compact && <div className="text-xs text-nkz-muted truncate">{t(`wizard.types.${type}`)}</div>}
       </div>
     </Button>
   );

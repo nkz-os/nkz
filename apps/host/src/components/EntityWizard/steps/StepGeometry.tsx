@@ -10,6 +10,7 @@ import { validateGeometryWithinParent } from '@/utils/geometryValidation';
 import type { Geometry } from 'geojson';
 import type { GeoAssetFormData } from '../types';
 import { Button } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 // ─── Props — placementState lives in shell (UI state, not form payload) ───────
 
@@ -20,12 +21,13 @@ export interface StepGeometryProps {
 
 export function StepGeometry({ placementState, dispatchPlacement }: StepGeometryProps) {
   const { entityType, formData, updateFormData, setValidationError } = useWizard();
+  const { t } = useI18n();
 
   // Stable callback for array mode — uses SET_STAMPED_INSTANCES (atomic replace, no CLEAR+ADD race)
   const handleArrayInstancesChange = useCallback((instances: PlacementState['stampedInstances']) => {
     dispatchPlacement({ type: 'SET_STAMPED_INSTANCES', payload: instances });
-    setValidationError(instances.length === 0 ? 'Coloca al menos un punto de ancla' : null);
-  }, [dispatchPlacement, setValidationError]);
+    setValidationError(instances.length === 0 ? t('wizard.geometry.anchor_required') : null);
+  }, [dispatchPlacement, setValidationError, t]);
 
   if (!formData) return null;
 
@@ -42,7 +44,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
     if (assetData?.isSubdivision && assetData.parentEntity?.geometry) {
       const result = validateGeometryWithinParent(geometry, assetData.parentEntity.geometry);
       if (!result.valid) {
-        setValidationError(result.error ?? 'La geometría no está dentro del padre');
+        setValidationError(result.error ?? t('wizard.geometry.outside_parent'));
         return;
       }
     }
@@ -56,7 +58,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">
-        {formData.macroCategory === 'assets' ? 'Geometría y ubicación' : 'Ubicación'}
+        {formData.macroCategory === 'assets' ? t('wizard.geometry.title_asset') : t('wizard.steps.location')}
       </h3>
 
       {/* Placement mode (assets only — sensors/fleet are always single point) */}
@@ -72,7 +74,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
       {placementState.mode === 'stamp' && (
         <>
           <div className="bg-nkz-info-soft border border-blue-200 rounded-xl p-4">
-            <h4 className="font-semibold text-blue-900 mb-2">Selecciona el activo a pintar</h4>
+            <h4 className="font-semibold text-blue-900 mb-2">{t('wizard.geometry.select_stamp_asset')}</h4>
             <AssetBrowser
               selectedUrl={formData.model3DUrl}
               onSelect={url => {
@@ -83,14 +85,14 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
               onScaleChange={s => updateFormData({ modelScale: s })}
             />
             {!formData.model3DUrl && (
-              <p className="text-nkz-danger-strong text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
+              <p className="text-nkz-danger-strong text-sm mt-2 font-medium">{t('wizard.geometry.model_required')}</p>
             )}
           </div>
           <StampTool
             modelUrl={formData.model3DUrl}
             onInstancesChange={instances => {
               dispatchPlacement({ type: 'ADD_STAMPED_INSTANCES', payload: instances });
-              setValidationError(instances.length === 0 ? 'Pinta al menos una instancia' : null);
+              setValidationError(instances.length === 0 ? t('wizard.validation.stamp_required') : null);
             }}
             height="h-96"
           />
@@ -101,7 +103,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
       {placementState.mode === 'array' && (
         <>
           <div className="bg-nkz-info-soft border border-blue-200 rounded-xl p-4">
-            <h4 className="font-semibold text-blue-900 mb-2">Selecciona el activo a colocar</h4>
+            <h4 className="font-semibold text-blue-900 mb-2">{t('wizard.geometry.select_array_asset')}</h4>
             <AssetBrowser
               selectedUrl={formData.model3DUrl}
               onSelect={url => {
@@ -112,7 +114,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
               onScaleChange={s => updateFormData({ modelScale: s })}
             />
             {!formData.model3DUrl && (
-              <p className="text-nkz-danger-strong text-sm mt-2 font-medium">Selecciona un modelo 3D para continuar.</p>
+              <p className="text-nkz-danger-strong text-sm mt-2 font-medium">{t('wizard.geometry.model_required')}</p>
             )}
           </div>
           <ArrayTool
@@ -131,7 +133,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
           {/* Geometry type selector (assets only) */}
           {isAsset && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de geometría</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t('wizard.geometry.geometry_type')}</label>
               <div className="grid grid-cols-4 gap-2">
                 {(['Point', 'Polygon', 'LineString', 'MultiLineString'] as const).map(gt => (
                   <Button
@@ -162,8 +164,8 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
 
           {assetData?.isSubdivision && assetData.parentEntity && (
             <div className="p-3 bg-nkz-warning-soft border border-yellow-200 rounded-lg text-sm text-yellow-800">
-              <strong>Padre:</strong> {assetData.parentEntity.name} ({assetData.parentEntity.type})<br />
-              <span className="text-xs text-nkz-warning-strong">La geometría debe quedar completamente dentro de los límites del padre.</span>
+              <strong>{t('wizard.summary.parent')}</strong> {assetData.parentEntity.name} ({assetData.parentEntity.type})<br />
+              <span className="text-xs text-nkz-warning-strong">{t('wizard.geometry.inside_parent_hint')}</span>
             </div>
           )}
         </>

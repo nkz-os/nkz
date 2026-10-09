@@ -194,6 +194,21 @@ describe('locale parity: keys added with full translations (all languages)', () 
   }
 });
 
+describe('locale parity: entity wizard (all languages)', () => {
+  const es = flatten(load('es', 'common'));
+  const wizardKeys = Object.keys(es).filter((key) => key.startsWith('wizard.'));
+
+  for (const lang of LANGUAGES) {
+    it(`${lang}/common.json has every wizard key with the Spanish placeholders`, () => {
+      const flat = flatten(load(lang, 'common'));
+      const problems = wizardKeys.filter(
+        (key) => !(key in flat) || placeholders(flat[key]).join('|') !== placeholders(es[key]).join('|'),
+      );
+      expect(problems, `Wizard keys missing or with wrong placeholders in ${lang}:\n${problems.join('\n')}`).toEqual([]);
+    });
+  }
+});
+
 describe('English locale contains no Spanish text', () => {
   // Spanish-only characters. A leftover Spanish value in `en` is invisible to the
   // es -> en parity check above (the key exists), so scan the values instead.

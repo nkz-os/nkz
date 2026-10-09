@@ -171,28 +171,28 @@ export function StepIoTSensorConfig() {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Datos del sensor</h3>
+      <h3 className="text-lg font-semibold">{t('wizard.iot.title')}</h3>
 
       {/* Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('wizard.fields.name_required')}</label>
         <Input
           type="text"
           value={data.name}
           onChange={(e: any) => updateFormData({ name: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500"
-          placeholder="Ej: Sensor suelo parcela norte"
+          placeholder={t('wizard.iot.name_placeholder')}
         />
       </div>
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('wizard.fields.description')}</label>
         <textarea
           value={data.description ?? ''}
           onChange={(e: any) => updateFormData({ description: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500"
-          placeholder="Descripción opcional"
+          placeholder={t('wizard.fields.description_placeholder')}
           rows={2}
         />
       </div>
@@ -204,8 +204,8 @@ export function StepIoTSensorConfig() {
             <Cable className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-gray-800">Conectividad IoT y Datos</h4>
-            <p className="text-xs text-purple-700">Configura cómo este dispositivo enviará datos</p>
+            <h4 className="text-sm font-bold text-gray-800">{t('wizard.iot.connectivity_title')}</h4>
+            <p className="text-xs text-purple-700">{t('wizard.iot.connectivity_subtitle')}</p>
           </div>
         </div>
 
@@ -213,7 +213,7 @@ export function StepIoTSensorConfig() {
           {/* Profile selector */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Perfil de Dispositivo (Mapeo de Datos) *
+              {t('wizard.iot.device_profile')}
             </label>
             <div className="flex gap-2">
               <select
@@ -223,14 +223,14 @@ export function StepIoTSensorConfig() {
                   !data.deviceProfileId ? 'border-red-300' : 'border-nkz-border'
                 }`}
               >
-                <option value="">-- Selecciona un perfil --</option>
+                <option value="">{t('wizard.iot.select_profile')}</option>
                 {publicProfiles.length > 0 && (
-                  <optgroup label="🏛️ Perfiles Oficiales">
+                  <optgroup label={`🏛️ ${t('wizard.iot.official_profiles')}`}>
                     {publicProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </optgroup>
                 )}
                 {privateProfiles.length > 0 && (
-                  <optgroup label="🏠 Mis Perfiles">
+                  <optgroup label={`🏠 ${t('wizard.iot.my_profiles')}`}>
                     {privateProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </optgroup>
                 )}
@@ -238,7 +238,7 @@ export function StepIoTSensorConfig() {
               <Button
                 onClick={() => setShowHelp(true)}
                 className="px-3 py-2 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary text-gray-600 flex items-center"
-                title="Ayuda y plantillas"
+                title={t('wizard.iot.help_templates')}
               >
                 <HelpCircle className="w-5 h-5" />
               </Button>
@@ -252,7 +252,7 @@ export function StepIoTSensorConfig() {
               onClick={() => setShowHelp(true)}
               className="flex items-center justify-center gap-2 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 py-2 rounded-lg border border-purple-200"
             >
-              <Activity className="w-3 h-3" /> Ver Plantillas
+              <Activity className="w-3 h-3" /> {t('wizard.iot.view_templates')}
             </Button>
 
             <label className="flex items-center justify-center gap-2 text-xs font-medium text-nkz-info bg-nkz-info-soft hover:bg-blue-200 py-2 rounded-lg border border-blue-200 cursor-pointer">
@@ -269,17 +269,17 @@ export function StepIoTSensorConfig() {
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
-              Importar JSON
+              {t('wizard.iot.import_json')}
             </label>
 
             <div className="flex items-center justify-center gap-2 text-xs text-nkz-muted bg-white border border-nkz-border py-2 rounded-lg">
               <Zap className="w-3 h-3 text-yellow-500" />
-              Credenciales MQTT al finalizar
+              {t('wizard.iot.mqtt_on_finish')}
             </div>
           </div>
 
           <p className="text-xs text-nkz-muted italic">
-            * El perfil de dispositivo es obligatorio. Define cómo se traducen los datos del datalogger a atributos SDM estándar. Si no encuentras un perfil adecuado, importa uno o crea uno nuevo desde "Ver Plantillas".
+            {t('wizard.iot.profile_required_hint')}
           </p>
         </div>
       </div>
@@ -289,21 +289,20 @@ export function StepIoTSensorConfig() {
         <summary className="flex items-center gap-2 px-4 py-3 bg-gray-50 hover:bg-gray-100 cursor-pointer list-none">
           <Settings className="w-5 h-5 text-teal-600" />
           <span className="text-sm font-semibold text-gray-800">
-            Configuración de Fiabilidad y Calibración (Health Rules)
+            {t('wizard.iot.health_title')}
           </span>
           <span className="ml-auto text-xs text-nkz-muted transition-transform group-open:rotate-180">▼</span>
         </summary>
 
         <div className="p-4 space-y-4 border-t border-nkz-border">
           <p className="text-xs text-nkz-muted">
-            Define reglas de validación y calibración para las variables del sensor.
-            Estos valores se usan para detectar lecturas anómalas y transformar señales en bruto.
+            {t('wizard.iot.health_hint')}
           </p>
 
           {/* Communication timeout */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Communication Timeout (horas)
+              {t('wizard.iot.comm_timeout')}
             </label>
             <Input
               type="number"
@@ -312,10 +311,10 @@ export function StepIoTSensorConfig() {
               value={(currentHealth as any).communicationTimeoutHours ?? ''}
               onChange={(e: any) => updateCommunicationTimeout(e.target.value !== '' ? Number(e.target.value) : undefined)}
               className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-teal-500"
-              placeholder="Ej: 24"
+              placeholder={t('wizard.iot.comm_timeout_placeholder')}
             />
             <p className="text-xs text-nkz-muted mt-1">
-              Horas sin datos antes de marcar el sensor como no disponible.
+              {t('wizard.iot.comm_timeout_hint')}
             </p>
           </div>
 
@@ -323,7 +322,7 @@ export function StepIoTSensorConfig() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold text-gray-800">
-                Variables ({allVariables.length})
+                {t('wizard.iot.variables', { count: allVariables.length })}
               </h4>
               <div className="flex gap-2">
                 <Input
@@ -331,7 +330,7 @@ export function StepIoTSensorConfig() {
                   value={newVariableName}
                   onChange={(e: any) => setNewVariableName(e.target.value)}
                   className="px-3 py-1.5 text-sm border border-nkz-border rounded-lg w-40"
-                  placeholder="Nueva variable..."
+                  placeholder={t('wizard.iot.new_variable')}
                   onKeyDown={(e: any) => { if (e.key === 'Enter') { e.preventDefault(); addVariable(); } }}
                 />
                 <Button
@@ -339,14 +338,14 @@ export function StepIoTSensorConfig() {
                   disabled={!newVariableName.trim()}
                   className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Plus className="w-3 h-3" /> Añadir
+                  <Plus className="w-3 h-3" /> {t('wizard.iot.add')}
                 </Button>
               </div>
             </div>
 
             {allVariables.length === 0 && (
               <p className="text-xs text-nkz-muted italic py-2">
-                Selecciona un perfil de dispositivo o añade variables manualmente para configurar reglas de salud y calibración.
+                {t('wizard.iot.no_variables')}
               </p>
             )}
 
@@ -361,7 +360,7 @@ export function StepIoTSensorConfig() {
                       type="button"
                       onClick={() => removeVariable(variable)}
                       className="text-red-400 hover:text-red-600 p-1"
-                      title="Eliminar variable"
+                      title={t('wizard.iot.remove_variable')}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -369,7 +368,7 @@ export function StepIoTSensorConfig() {
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {/* Health: minValid */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Min Valid</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">{t('wizard.iot.min_valid')}</label>
                       <Input
                         type="number"
                         value={vHealth.minValid ?? ''}
@@ -380,7 +379,7 @@ export function StepIoTSensorConfig() {
                     </div>
                     {/* Health: maxValid */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Max Valid</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">{t('wizard.iot.max_valid')}</label>
                       <Input
                         type="number"
                         value={vHealth.maxValid ?? ''}
@@ -391,7 +390,7 @@ export function StepIoTSensorConfig() {
                     </div>
                     {/* Health: maxStagnantHours */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Max Stagnant (h)</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">{t('wizard.iot.max_stagnant')}</label>
                       <Input
                         type="number"
                         min="0"
@@ -404,7 +403,7 @@ export function StepIoTSensorConfig() {
                     </div>
                     {/* Calibration: slope */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Slope</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">{t('wizard.iot.slope')}</label>
                       <Input
                         type="number"
                         step="0.01"
@@ -415,7 +414,7 @@ export function StepIoTSensorConfig() {
                     </div>
                     {/* Calibration: offset */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Offset</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">{t('wizard.iot.offset')}</label>
                       <Input
                         type="number"
                         step="0.01"
@@ -426,7 +425,7 @@ export function StepIoTSensorConfig() {
                     </div>
                     {/* Calibration: sensorHardwareId */}
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-0.5">Hardware ID</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-0.5">{t('wizard.iot.hardware_id')}</label>
                       <Input
                         type="text"
                         value={vCalib.sensorHardwareId ?? ''}
