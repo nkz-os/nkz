@@ -75,6 +75,11 @@ def get_crop_cycles_internal(parcel_id):
 
 @crop_cycles_bp.route('/api/internal/notify/crop-cycles', methods=['POST'])
 def notify_crop_cycles():
+    # Same flag-gated receiver auth as the other notification endpoints.
+    from blueprints.notifications import _notify_unauthorized
+    if _notify_unauthorized():
+        logger.warning('Invalid X-Internal-Service-Secret on /notify/crop-cycles')
+        return jsonify({'error': 'Unauthorized'}), 401
     tenant_id = request.headers.get('NGSILD-Tenant') or request.headers.get('Fiware-Service')
     body = request.get_json(force=True, silent=True) or {}
     if tenant_id:
