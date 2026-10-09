@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 import { AUTH_STATE_PATH } from './global.setup';
 
 /**
@@ -49,6 +49,22 @@ import { AUTH_STATE_PATH } from './global.setup';
  * adminUsersErrorMask.
  */
 
+// Opt-in fixture for the Cesium-backed tests: guarantees teardownCesium runs
+// after the test body whether it passed, failed or timed out. Fixture teardown
+// runs for all three outcomes and before the `page` fixture it depends on is
+// closed, so the GL context is released while the page still exists. A teardown
+// failure is reported as its own error next to the test's, never swallowed and
+// never replacing it. Tests that do not request it are unaffected.
+const test = base.extend<{ cesiumTeardown: void }>({
+  // The second argument is Playwright's "run the test now" callback. It is
+  // called `run`, not the conventional `use`, because eslint's react-hooks rule
+  // mistakes any `use(...)` call for a React hook.
+  cesiumTeardown: async ({ page }, run) => {
+    await run();
+    await teardownCesium(page);
+  },
+});
+
 test.use({ storageState: AUTH_STATE_PATH });
 
 type ThemeName = 'light' | 'dark';
@@ -76,7 +92,7 @@ const CROPPED_CLIP = {
 // tests only (the global default stays as configured), and the readiness waits
 // below get their own explicit budget so a genuine hang still fails with a named
 // step rather than the bare test timeout.
-const CESIUM_TEST_TIMEOUT = 120_000;
+const CESIUM_TEST_TIMEOUT = 90_000;
 const CESIUM_READY_TIMEOUT = 60_000;
 
 async function prepare(page: Page, theme: ThemeName, opts: { hideCanvas?: boolean } = {}) {
@@ -124,7 +140,8 @@ async function prepare(page: Page, theme: ThemeName, opts: { hideCanvas?: boolea
 // capture with "Protocol error (Page.captureScreenshot): Unable to capture
 // screenshot" (reproduced consistently: entity-wizard → admin, worker
 // reused). Navigating away first forces the unmount/destroy synchronously
-// before the test ends, so the next test in the worker starts clean.
+// before the test ends, so the next test in the worker starts clean. Run via the
+// `cesiumTeardown` fixture above, so it also happens when the test body fails.
 async function teardownCesium(page: Page) {
   await page.goto('about:blank');
 }
@@ -309,7 +326,7 @@ test.describe('Page visual baseline', () => {
         await expect(page).toHaveScreenshot(`dashboard-${theme}.png`, { fullPage: true });
       });
 
-      test(`unified viewer (${theme})`, async ({ page }) => {
+      test(`unified viewer (${theme})`, async ({ page, cesiumTeardown: _cesiumTeardown }) => {
         // Cesium init + explicit teardown navigation (see teardownCesium)
         // routinely runs past the 30s default under load, and a cold first
         // attempt past 60s (see CESIUM_TEST_TIMEOUT).
@@ -318,10 +335,9 @@ test.describe('Page visual baseline', () => {
         await gotoAndSettle(page, '/entities', { settleTimeout: CESIUM_READY_TIMEOUT });
         await waitForViewerReady(page);
         await expect(page).toHaveScreenshot(`viewer-${theme}.png`, { clip: CROPPED_CLIP });
-        await teardownCesium(page);
       });
 
-      test(`entity wizard (${theme})`, async ({ page }) => {
+      test(`entity wizard (${theme})`, async ({ page, cesiumTeardown: _cesiumTeardown }) => {
         test.setTimeout(CESIUM_TEST_TIMEOUT);
         await prepare(page, theme, { hideCanvas: true });
         await gotoAndSettle(page, '/entities', { settleTimeout: CESIUM_READY_TIMEOUT });
@@ -334,7 +350,6 @@ test.describe('Page visual baseline', () => {
         await expect(page.getByText('Crear Nueva Entidad')).toBeVisible({ timeout: 10_000 });
         await page.waitForTimeout(300);
         await expect(page).toHaveScreenshot(`entity-wizard-${theme}.png`, { clip: CROPPED_CLIP });
-        await teardownCesium(page);
       });
 
       test(`admin (${theme})`, async ({ page }) => {
