@@ -1132,5 +1132,12 @@
     "categories": {
       "all": "Tots"
     }
+  },
+  "theme": {
+    "system": "Sistema",
+    "light": "Clar",
+    "dark": "Fosc",
+    "toggle_aria": "Canvia el tema ({{label}})",
+    "current_title": "Tema actual: {{label}}. Fes clic per canviar-lo."
   }
 }

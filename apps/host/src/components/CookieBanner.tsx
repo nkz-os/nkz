@@ -157,15 +157,15 @@ export const CookieBanner: React.FC = () => {
                 <>
                   <Button
                     type="button"
+                    variant="secondary"
                     onClick={handleReject}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
                   >
                     {t('cookies.reject_optional')}
                   </Button>
                   <Button
                     type="button"
+                    variant="secondary"
                     onClick={() => setShowConfigure(true)}
-                    className="px-4 py-2 text-sm font-medium text-gray-800 bg-nkz-bg-secondary border border-nkz-border rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600"
                   >
                     {t('cookies.configure')}
                   </Button>
@@ -185,7 +185,7 @@ export const CookieBanner: React.FC = () => {
                       setShowConfigure(false);
                       if (preferencesOpen) closePreferences();
                     }}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary dark:bg-gray-800 dark:text-gray-200"
+                    variant="secondary"
                   >
                     {t('cookies.cancel')}
                   </Button>

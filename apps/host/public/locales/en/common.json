@@ -1682,5 +1682,12 @@
     "title": "Alerts",
     "viewAll": "View all",
     "empty": "No active alerts"
+  },
+  "theme": {
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "toggle_aria": "Change theme ({{label}})",
+    "current_title": "Current theme: {{label}}. Click to change."
   }
 }

@@ -1183,5 +1183,12 @@
     "statusError": "Errorea",
     "setupFailed": "{{module}} konfigurazioak huts egin du. Erabili berriro saiatu.",
     "lastError": "Azken errorea: {{error}}"
+  },
+  "theme": {
+    "system": "Sistema",
+    "light": "Argia",
+    "dark": "Iluna",
+    "toggle_aria": "Aldatu gaia ({{label}})",
+    "current_title": "Uneko gaia: {{label}}. Egin klik aldatzeko."
   }
 }

@@ -6,6 +6,7 @@
 import React from 'react';
 import { Moon, Sun, Monitor } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
+import { useI18n } from '@/context/I18nContext';
 import { Button } from '@nekazari/ui-kit';
 
 interface ThemeToggleProps {
@@ -18,6 +19,7 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
   className = '',
 }) => {
   const { theme, resolvedTheme, toggleTheme } = useTheme();
+  const { t } = useI18n();
 
   const getIcon = () => {
     if (theme === 'system') {
@@ -32,18 +34,19 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
 
   const getLabel = () => {
     if (theme === 'system') {
-      return 'Sistema';
+      return t('theme.system');
     }
-    return resolvedTheme === 'dark' ? 'Oscuro' : 'Claro';
+    return resolvedTheme === 'dark' ? t('theme.dark') : t('theme.light');
   };
 
   if (variant === 'compact') {
     return (
       <Button
+        variant="secondary"
         onClick={toggleTheme}
-        className={`inline-flex items-center justify-center w-full rounded-md border border-nkz-border dark:border-gray-600 shadow-sm px-3 py-2 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-nkz-bg-secondary dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${className}`}
-        aria-label={`Cambiar tema (${getLabel()})`}
-        title={`Tema actual: ${getLabel()}`}
+        className={`w-full shadow-sm ${className}`}
+        aria-label={t('theme.toggle_aria', { label: getLabel() })}
+        title={t('theme.current_title', { label: getLabel() })}
       >
         {getIcon()}
         <span className="ml-2 text-xs">{getLabel()}</span>
@@ -53,16 +56,17 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
 
   return (
     <Button
+      variant="secondary"
       onClick={toggleTheme}
-      className={`relative inline-flex items-center justify-center w-10 h-10 rounded-md border border-nkz-border dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-nkz-bg-secondary dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${className}`}
-      aria-label={`Cambiar tema (${getLabel()})`}
-      title={`Tema actual: ${getLabel()}. Click para cambiar.`}
+      className={`relative w-10 h-10 ${className}`}
+      aria-label={t('theme.toggle_aria', { label: getLabel() })}
+      title={t('theme.current_title', { label: getLabel() })}
     >
       <div className="absolute inset-0 flex items-center justify-center transition-all duration-300 transform">
         {resolvedTheme === 'dark' ? (
-          <Moon className="h-5 w-5 text-gray-700 dark:text-gray-200" />
+          <Moon className="h-5 w-5" />
         ) : (
-          <Sun className="h-5 w-5 text-gray-700 dark:text-gray-200" />
+          <Sun className="h-5 w-5" />
         )}
       </div>
       {theme === 'system' && (
