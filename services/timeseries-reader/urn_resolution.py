@@ -1,5 +1,5 @@
 """
-Resolve NGSI-LD entity URNs to Timescale query keys (weather station/municipality or IoT device id).
+Resolve NGSI-LD entity URNs to Timescale query keys (WeatherObserved entity/municipality or IoT device id).
 Read-only: Orion-LD + PostgreSQL (cadastral / catalog). No writes.
 Migrated from entity-manager timeseries-location responsibility (Strangler Fig).
 """
@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 import psycopg2
@@ -90,39 +91,72 @@ def _extract_entity_location(entity: Dict[str, Any]) -> Optional[Tuple[float, fl
     return None
 
 
-def _find_nearest_weather_municipality(
+WEATHER_OBSERVED_ENTITY_TYPES = [
+    "WeatherObserved",
+    "https://saref.etsi.org/saref4agri/WeatherObserved",
+]
+_WEATHER_LOCATION_LOOKBACK_DAYS = 30
+
+
+def nearest_weather_entity(
+    cur,
+    tenant_id: str,
+    lat: float,
+    lon: float,
+    since: Optional[datetime] = None,
+    until: Optional[datetime] = None,
+) -> Optional[str]:
+    """
+    Entity id of the tenant's WeatherObserved entity nearest to (lat, lon).
+
+    Location comes from the latest telemetry_events row of each entity
+    (payload.raw.location coordinates = [lon, lat]); the closed-day ``-daily``
+    twin is not a separate station. Default window: last 30 days.
+    """
+    until = until or datetime.utcnow()
+    since = since or until - timedelta(days=_WEATHER_LOCATION_LOOKBACK_DAYS)
+    cur.execute(
+        """
+        SELECT ent.entity_id
+        FROM (
+            SELECT DISTINCT ON (x.entity_id) x.entity_id,
+                   (x.payload#>>'{raw,location,value,coordinates,0}')::double precision AS lon,
+                   (x.payload#>>'{raw,location,value,coordinates,1}')::double precision AS lat
+            FROM telemetry_events x
+            WHERE x.tenant_id = %s AND x.entity_type = ANY(%s)
+              AND x.observed_at >= %s AND x.observed_at < %s
+              AND x.entity_id NOT LIKE '%%-daily'
+              AND x.payload#>>'{raw,location,value,coordinates,1}' IS NOT NULL
+            ORDER BY x.entity_id, x.observed_at DESC
+        ) ent
+        ORDER BY ST_Distance(
+            ST_SetSRID(ST_MakePoint(ent.lon, ent.lat), 4326),
+            ST_SetSRID(ST_MakePoint(%s, %s), 4326)
+        )
+        LIMIT 1
+        """,
+        (tenant_id, list(WEATHER_OBSERVED_ENTITY_TYPES), since, until, lon, lat),
+    )
+    row = cur.fetchone()
+    return str(row["entity_id"]) if row else None
+
+
+def _find_nearest_weather_entity(
     tenant_id: str, lat: float, lon: float
 ) -> Optional[Tuple[str, str]]:
-    """
-    Find the nearest municipality that has weather data for the given tenant.
-    Uses PostGIS KNN directly on weather_observations.location.
-    """
+    """Nearest WeatherObserved entity of the tenant, as ``(short key, 'spatial')``."""
     if not POSTGRES_URL:
         return None
     try:
         conn = psycopg2.connect(POSTGRES_URL)
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(
-            """
-            SELECT wo.municipality_code,
-                   ST_Distance(wo.location, ST_SetSRID(ST_MakePoint(%s, %s), 4326)) as dist_m
-            FROM weather_observations wo
-            WHERE wo.tenant_id = %s
-              AND wo.location IS NOT NULL
-            ORDER BY wo.location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-            LIMIT 1
-            """,
-            (lon, lat, tenant_id, lon, lat),
-        )
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        if row:
-            logger.debug(
-                "Spatial resolution: nearest municipality %s at %.0fm for (%.4f, %.4f)",
-                row["municipality_code"], row["dist_m"], lat, lon,
-            )
-            return (row["municipality_code"], "municipality")
+        try:
+            entity_id = nearest_weather_entity(cur, tenant_id, lat, lon)
+        finally:
+            cur.close()
+            conn.close()
+        if entity_id:
+            return (normalize_device_id(entity_id), "spatial")
     except Exception as e:
         logger.warning("Spatial weather resolution failed: %s", e)
     return None
@@ -209,7 +243,7 @@ def _resolve_urn_to_weather_key(
     entity: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Optional[str], str]:
     """
-    Mirror entity-manager _resolve_urn_to_timeseries_entity_id for weather_observations keys only.
+    Resolve an entity URN to a WeatherObserved read key (entity short id or municipality code).
     Returns (timeseries_entity_id, source) or (None, reason).
     """
     if not entity_id or not isinstance(entity_id, str):
@@ -237,48 +271,15 @@ def _resolve_urn_to_weather_key(
         if loc is None:
             return None
         lat, lon = loc
-        return _find_nearest_weather_municipality(tenant_id, lat, lon)
+        return _find_nearest_weather_entity(tenant_id, lat, lon)
 
     if etype_short == "WeatherObserved" or etype.endswith("WeatherObserved"):
-        # Direct resolution: entity carries its own municipality code
-        muni_prop = entity.get("municipalityCode")
-        if muni_prop:
-            muni_val = (
-                muni_prop.get("value") if isinstance(muni_prop, dict) else muni_prop
-            )
-            if isinstance(muni_val, str) and muni_val.strip():
-                return (muni_val.strip(), "municipality")
-
-        # Fallback: legacy chain via locatedAt -> parcel -> address
-        # (Also checks old "refParcel" key for backward compatibility with existing Orion-LD entities)
-        ref_parcel = entity.get("locatedAt") or entity.get("refParcel")
-        if ref_parcel:
-            parcel_urn = (
-                ref_parcel.get("object") if isinstance(ref_parcel, dict) else ref_parcel
-            )
-            if parcel_urn:
-                parcel_urn = str(parcel_urn).strip()
-                parcel_entity = fetch_orion_entity(tenant_id, parcel_urn)
-                if parcel_entity:
-                    res = _parcel_urn_to_municipality_code(tenant_id, parcel_urn, parcel_entity)
-                    if res is not None:
-                        return res
-
-        # Spatial fallback: use entity location to find nearest weather data
-        spatial = _resolve_by_location(entity)
-        if spatial is not None:
-            return spatial
-
-        return None, "no_location"
+        # The entity is its own series (rows are keyed by entity id)
+        return (normalize_device_id(entity_id), "entity")
 
     if etype_short in PARCEL_ENTITY_TYPES or "parcel" in etype_short.lower():
-        res = _parcel_urn_to_municipality_code(tenant_id, entity_id, entity)
-        if res is not None:
-            return res
-        spatial = _resolve_by_location(entity)
-        if spatial is not None:
-            return spatial
-        return None, "no_location"
+        # Per-parcel virtual weather station: WeatherObserved entity of this parcel
+        return (normalize_device_id(entity_id), "parcel")
 
     # Unknown type: try spatial resolution as last resort
     spatial = _resolve_by_location(entity)
@@ -290,7 +291,7 @@ def _resolve_urn_to_weather_key(
 
 def plan_timeseries_read(tenant_id: str, entity_urn: str) -> Dict[str, Any]:
     """
-    Decide whether to read telemetry_events (IoT) or weather_observations for this URN.
+    Decide whether to read IoT telemetry or WeatherObserved telemetry (weather mode) for this URN.
     """
     eid = (entity_urn or "").strip()
     device_candidates: List[str] = []

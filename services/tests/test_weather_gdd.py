@@ -47,7 +47,7 @@ def client():
 
 
 class FakeCursor:
-    """Cursor mock that handles multi-query flows (KNN: station query + daily query).
+    """Cursor mock that handles multi-query flows (nearest WeatherObserved entity query + daily query).
 
     - KNN path (lat/lon provided): execute_count tracks:
         1 = set_config, 2 = station query, 3 = daily query
@@ -60,7 +60,7 @@ class FakeCursor:
 
     def __init__(self, rows, station_row=None):
         self._rows = rows
-        self._station_row = station_row or {"station_id": "test_kn_station"}
+        self._station_row = station_row or {"entity_id": "urn:ngsi-ld:WeatherObserved:test:parcel-1"}
         self._execute_count = 0
 
     def execute(self, query, params=None):
