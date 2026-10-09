@@ -728,7 +728,7 @@ const UnifiedViewerInner: React.FC = () => {
                     // a module never spills over the map.
                     <div className={`mb-4 rounded-xl ${overlayPanel.base} flex flex-col overflow-hidden`}>
                         <Suspense fallback={<PanelLoadingFallback />}>
-                            <div className="overflow-y-auto overflow-x-hidden max-h-[40vh] min-h-0 border-b border-slate-200 dark:border-slate-700">
+                            <div className="overflow-y-auto max-h-[40vh] min-h-0 border-b border-slate-200 dark:border-slate-700">
                                 <ViewerTimeline range={timeline.range} source={timeline.source} today={timeline.today} />
                                 <SlotRenderer slot="bottom-panel" className="flex flex-col gap-2 p-2" />
                             </div>

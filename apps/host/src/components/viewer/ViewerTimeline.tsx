@@ -36,7 +36,7 @@ export const ViewerTimeline: React.FC<Props> = ({ range, source, today }) => {
   };
 
   return (
-    <div className="flex flex-col gap-1 px-3 py-2" style={{ [TIMELINE_LABEL_VAR]: LABEL_W } as React.CSSProperties}>
+    <div className="flex flex-col gap-1 px-3 py-2 overflow-x-hidden" style={{ [TIMELINE_LABEL_VAR]: LABEL_W } as React.CSSProperties}>
       <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
         <span>{t(source === 'campaign' ? 'viewer.timeline.campaign' : 'viewer.timeline.lastDays')}</span>
         <span className="text-slate-700 dark:text-slate-200">
