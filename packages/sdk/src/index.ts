@@ -37,6 +37,7 @@ export type {
   SlotType,
   SlotWidgetDefinition,
   ModuleViewerSlots,
+  TimelineTrackProps,
   NKZModuleRegistration,
   ModuleApiContract,
   ModuleCompatibilityResult,

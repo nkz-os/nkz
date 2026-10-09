@@ -14,7 +14,8 @@ export type SlotType =
   | 'bottom-panel'      // Bottom panel: timeline, charts
   | 'layer-toggle'      // Layer manager toggles
   | 'dashboard-widget'  // Dashboard: module-contributed cards
-  | 'admin-tab';        // Admin Control Center: module-contributed tabs
+  | 'admin-tab'         // Admin Control Center: module-contributed tabs
+  | 'timeline-track';   // Bottom timeline: one row per module, on the host axis
 
 /** Definition of a widget rendered in a slot */
 export interface SlotWidgetDefinition {
@@ -60,6 +61,19 @@ export interface ModuleViewerSlots {
   'layer-toggle'?: SlotWidgetDefinition[];
   'dashboard-widget'?: SlotWidgetDefinition[];
   'admin-tab'?: SlotWidgetDefinition[];
+  'timeline-track'?: SlotWidgetDefinition[];
   /** Optional React Context provider wrapping all widgets from this module together */
   moduleProvider?: React.ComponentType<{ children: React.ReactNode }>;
+}
+
+export interface TimelineTrackProps {
+  entityId: string;
+  entityType: string | null;
+  /** Visible window, UTC-midnight ms. */
+  range: { start: number; end: number };
+  /** Shared cursor (ViewerContext.currentDate), UTC-midnight ms. */
+  cursor: number;
+  onCursorChange: (ms: number) => void;
+  /** Start of the forecast zone (today), when inside the range. */
+  forecastFrom?: number;
 }
