@@ -192,7 +192,7 @@ const UnifiedViewerInner: React.FC = () => {
                 api.getLivestock().catch(() => []),
                 api.getWeatherStations().catch(() => []),
                 parcelApi.getParcels().catch(() => []),
-                api.getSDMEntityInstances('AgriCrop', true, 1000).catch(() => []),
+                api.getSDMEntityInstances('AgriCrop').catch(() => []),
                 api.getSDMEntityInstances('AgriBuilding').catch(() => []),
                 // Fetch tree/plant entities
                 api.getSDMEntityInstances('OliveTree').catch(() => []),
