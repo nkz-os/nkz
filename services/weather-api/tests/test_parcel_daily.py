@@ -165,3 +165,90 @@ def test_requires_tenant_header():
     app.dependency_overrides.pop(require_auth, None)
     r = TestClient(app).get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-02")
     assert r.status_code == 401
+
+
+from datetime import date as _date, timedelta as _td
+from unittest.mock import patch as _patch
+
+
+def test_fill_none_keeps_contract_and_adds_source(client):
+    tc, h = client
+    h["install"]([_row("2026-06-01", tempMin=10.0, tempMax=20.0, precipitation=1.0, et0=2.0)])
+    j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-06-01&end=2026-06-02").json()
+    assert j["missing_days"] == ["2026-06-02"]
+    assert [d["source"] for d in j["days"]] == ["parcel_weather", None]
+    assert j["missing_reasons"] == {"2026-06-02": "no_data"}
+    assert j["totals"]["precip_mm"] == 1.0 and "gdd" not in j["totals"]
+
+
+def _fill_env(loc=(-2.1, 42.6), elevation=580.0, today=_date(2026, 10, 9)):
+    entity = {"id": f"urn:ngsi-ld:AgriParcel:{PID}"}
+    if elevation is not None:
+        entity["elevation"] = {"type": "Property", "value": elevation}
+    return [
+        _patch.object(pd, "_fetch_parcel_entity", return_value=entity),
+        _patch.object(pd, "_resolve_parcel_location", return_value=loc),
+        _patch.object(pd, "_today", return_value=today),
+    ]
+
+
+def test_fill_sources_by_window_and_today_not_closed(client):
+    tc, h = client
+    h["install"]([_row("2026-10-07", tempMin=9.0, tempMax=19.0, precipitation=0.0, et0=1.0)])
+    calls = []
+
+    def fake_fetch(kind, lat, lon, elev, d0, d1, http_get=None):
+        calls.append((kind, d0, d1, elev))
+        return {d.isoformat(): {"tmin_c": 5.0, "tmax_c": 15.0, "precip_mm": 0.5, "et0_mm": 1.0,
+                                "radiation_mj_m2": 10.0, "vapour_pressure_kpa": None, "wind2m_ms": 1.0}
+                for d in [d0 + _td(days=i) for i in range((d1 - d0).days + 1)]}
+
+    ps = _fill_env()
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_daily", side_effect=fake_fetch):
+        j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-07-07&end=2026-10-09"
+                   f"&fill=open_meteo&base_temp=10").json()
+    src = {d["date"]: d["source"] for d in j["days"]}
+    assert src["2026-07-07"] == "reanalysis" and src["2026-07-09"] == "model_analysis"
+    assert src["2026-10-07"] == "parcel_weather" and src["2026-10-09"] is None
+    assert j["missing_reasons"] == {"2026-10-09": "not_closed"}
+    assert j["missing_days"] == ["2026-10-09"]
+    assert {c[0] for c in calls} == {"reanalysis", "model_analysis"} and all(c[3] == 580.0 for c in calls)
+    assert j["totals"]["gdd"] is not None
+
+
+def test_fill_never_fills_today(client):
+    tc, h = client
+    h["install"]([])
+    ps = _fill_env()
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_daily", return_value={}) as f:
+        j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-09&end=2026-10-10&fill=open_meteo").json()
+    f.assert_not_called()
+    assert j["missing_reasons"] == {"2026-10-09": "not_closed", "2026-10-10": "not_closed"}
+
+
+def test_fill_archive_failure_is_200(client):
+    tc, h = client
+    h["install"]([])
+    ps = _fill_env()
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_daily", return_value={}):
+        r = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-01-01&end=2026-01-02&fill=open_meteo")
+    assert r.status_code == 200
+    assert r.json()["missing_reasons"] == {"2026-01-01": "fill_unavailable", "2026-01-02": "fill_unavailable"}
+    assert r.json()["totals"]["precip_mm"] is None
+
+
+def test_fill_without_location(client):
+    tc, h = client
+    h["install"]([])
+    ps = _fill_env(loc=None)
+    with ps[0], ps[1], ps[2], _patch.object(pd, "fetch_open_meteo_daily") as f:
+        j = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01&fill=open_meteo").json()
+    f.assert_not_called()
+    assert j["missing_reasons"] == {"2026-10-01": "fill_unavailable"}
+
+
+def test_invalid_fill_value_is_400(client):
+    tc, h = client
+    h["install"]([])
+    r = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01&fill=yes")
+    assert r.status_code == 400
