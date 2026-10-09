@@ -734,7 +734,7 @@ const UnifiedViewerInner: React.FC = () => {
                             </div>
                         </Suspense>
                         <div className="py-2">
-                            <CoreTimelineControls photos={fieldPhotos} />
+                            <CoreTimelineControls />
                         </div>
                     </div>
                 )}

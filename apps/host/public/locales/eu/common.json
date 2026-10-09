@@ -956,7 +956,8 @@
       "current_date": "Egungo data: {{date}}",
       "axis": "Denbora-ardatza",
       "campaign": "Kanpaina",
-      "lastDays": "Azken 90 egunak"
+      "lastDays": "Azken 90 egunak",
+      "today": "Gaur"
     },
     "sensor": {
       "iot_sensor": "IoT Sensorea",
@@ -1002,6 +1003,20 @@
       "vegetation": "Landaredia",
       "risk_on": "ON",
       "risk_off": "OFF"
+    },
+    "fieldPhotos": {
+      "imageError": "Ezin izan da irudia kargatu",
+      "noGps": "GPSrik ez",
+      "close": "Itxi",
+      "prev": "Aurrekoa",
+      "next": "Hurrengoa",
+      "counter": "{{i}} / {{n}}",
+      "window": "Landa-argazkiak dataren inguruan",
+      "window7": "7 egun",
+      "window30": "30 egun",
+      "window90": "90 egun",
+      "windowAll": "Guztiak",
+      "empty": "Ez dago argazkirik tarte honetan"
     },
     "mapmode": {
       "draw_parcel": "Lursaila Marrazten",

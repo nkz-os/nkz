@@ -1,20 +1,15 @@
 // =============================================================================
-// Core Timeline Controls - Bottom-panel date scrub + photo window selector
+// Core Timeline Controls - Bottom-panel "Today" shortcut + photo window selector
 // =============================================================================
-// Renders a date input (bounded to photo date span) and window buttons (7/30/90/All)
-// that drive which field-photo markers are visible via ViewerContext.
+// Renders a Today button (moves the shared cursor to today) and window buttons
+// (7/30/90/All) that drive which field-photo markers are visible via
+// ViewerContext. The cursor itself is moved on the time axis.
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useViewer } from '@/context/ViewerContext';
-import type { FieldPhotoRecord } from '@/utils/fieldPhotos';
-import { Button, Input } from '@nekazari/ui-kit';
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-interface Props {
-    /** Used only to derive the scrub input's min/max date span. */
-    photos: FieldPhotoRecord[];
-}
+import { snapToUtcDay } from '@nekazari/viewer-kit';
+import { Button } from '@nekazari/ui-kit';
 
 const WINDOWS: { key: string; days: number | null }[] = [
     { key: 'viewer.fieldPhotos.window7', days: 7 },
@@ -23,30 +18,19 @@ const WINDOWS: { key: string; days: number | null }[] = [
     { key: 'viewer.fieldPhotos.windowAll', days: null },
 ];
 
-const toDateInput = (d: Date) => d.toISOString().slice(0, 10);
-
-export const CoreTimelineControls: React.FC<Props> = ({ photos }) => {
+export const CoreTimelineControls: React.FC = () => {
     const { t } = useTranslation();
-    const { currentDate, setCurrentDate, photoWindowDays, setPhotoWindowDays } = useViewer();
-
-    const dated = photos.map(p => p.dateObserved).filter(Boolean).sort();
-    const min = dated[0]?.slice(0, 10);
-    const max = dated[dated.length - 1]?.slice(0, 10);
+    const { setCurrentDate, photoWindowDays, setPhotoWindowDays } = useViewer();
 
     return (
         <div className="flex items-center gap-4 px-4 w-full text-slate-700 dark:text-slate-200">
-            <label className="flex items-center gap-2 text-xs">
-                <span className="text-slate-500 dark:text-slate-400">{t('viewer.fieldPhotos.currentDate')}</span>
-                <Input
-                    type="date"
-                    aria-label={t('viewer.fieldPhotos.currentDate')}
-                    value={toDateInput(currentDate)}
-                    min={min}
-                    max={max}
-                    onChange={(e: any) => { if (e.target.value) setCurrentDate(new Date(e.target.value)); }}
-                    className="bg-slate-100 dark:bg-slate-700 rounded-lg px-2 py-1 text-xs"
-                />
-            </label>
+            <Button
+                type="button"
+                onClick={() => setCurrentDate(new Date(snapToUtcDay(Date.now())))}
+                className="px-2 py-1 text-xs rounded-lg transition-all bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600"
+            >
+                {t('viewer.timeline.today')}
+            </Button>
 
             <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 dark:text-slate-400">{t('viewer.fieldPhotos.window')}</span>

@@ -916,7 +916,8 @@
       "current_date": "Data actual: {{date}}",
       "axis": "Eix temporal",
       "campaign": "Campanya",
-      "lastDays": "Últims 90 dies"
+      "lastDays": "Últims 90 dies",
+      "today": "Avui"
     },
     "sensor": {
       "iot_sensor": "Sensor IoT",
@@ -962,6 +963,20 @@
       "vegetation": "Vegetació",
       "risk_on": "ON",
       "risk_off": "OFF"
+    },
+    "fieldPhotos": {
+      "imageError": "No s'ha pogut carregar la imatge",
+      "noGps": "Sense GPS",
+      "close": "Tanca",
+      "prev": "Anterior",
+      "next": "Següent",
+      "counter": "{{i}} de {{n}}",
+      "window": "Fotos de camp al voltant de la data",
+      "window7": "7 d",
+      "window30": "30 d",
+      "window90": "90 d",
+      "windowAll": "Tot",
+      "empty": "No hi ha fotos en aquest rang"
     },
     "mapmode": {
       "draw_parcel": "Dibuixant Parcel·la",

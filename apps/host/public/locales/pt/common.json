@@ -916,7 +916,8 @@
       "current_date": "Data atual: {{date}}",
       "axis": "Eixo temporal",
       "campaign": "Campanha",
-      "lastDays": "Últimos 90 dias"
+      "lastDays": "Últimos 90 dias",
+      "today": "Hoje"
     },
     "sensor": {
       "iot_sensor": "Sensor IoT",
@@ -962,6 +963,20 @@
       "vegetation": "Vegetação",
       "risk_on": "ON",
       "risk_off": "OFF"
+    },
+    "fieldPhotos": {
+      "imageError": "Não foi possível carregar a imagem",
+      "noGps": "Sem GPS",
+      "close": "Fechar",
+      "prev": "Anterior",
+      "next": "Seguinte",
+      "counter": "{{i}} de {{n}}",
+      "window": "Fotos de campo em torno da data",
+      "window7": "7 d",
+      "window30": "30 d",
+      "window90": "90 d",
+      "windowAll": "Tudo",
+      "empty": "Não há fotos neste intervalo"
     },
     "mapmode": {
       "draw_parcel": "A desenhar Parcela",

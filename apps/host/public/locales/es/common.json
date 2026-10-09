@@ -1412,7 +1412,8 @@
       "current_date": "Fecha actual: {{date}}",
       "axis": "Eje temporal",
       "campaign": "Campaña",
-      "lastDays": "Últimos 90 días"
+      "lastDays": "Últimos 90 días",
+      "today": "Hoy"
     },
     "sensor": {
       "iot_sensor": "Sensor IoT",
@@ -1467,12 +1468,11 @@
       "prev": "Anterior",
       "next": "Siguiente",
       "counter": "{{i}} de {{n}}",
-      "window": "Ventana",
+      "window": "Fotos de campo alrededor de la fecha",
       "window7": "7 d",
       "window30": "30 d",
       "window90": "90 d",
       "windowAll": "Todo",
-      "currentDate": "Fecha",
       "empty": "No hay fotos en este rango"
     },
     "mapmode": {
