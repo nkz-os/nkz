@@ -98,6 +98,22 @@ def reconcile_parcel(tenant_id: str, parcel_urn: str, at: date | None = None, cl
     return written
 
 
+def list_parcels(tenant_id: str, client=None) -> list:
+    """Every AgriParcel id of a tenant, paged. No attrs filter: attrs selects
+    entities that HAVE those attributes, and 'id' is not an attribute."""
+    client = client or _client(tenant_id)
+    ids, offset = [], 0
+    try:
+        while True:
+            page = client.query_entities(type='AgriParcel', limit=_PAGE, offset=offset, options='keyValues')
+            ids.extend(e['id'] for e in page or [] if e.get('id'))
+            if not page or len(page) < _PAGE:
+                return ids
+            offset += _PAGE
+    except requests.RequestException as e:
+        raise OrionUnavailable(str(e)) from e
+
+
 def parcels_in_notification(entities: list) -> set:
     out = set()
     for e in entities or []:

@@ -95,17 +95,17 @@ def reconcile_all():
     for tenant_id in _get_active_tenants():
         stats['tenants'] += 1
         try:
-            parcels = svc._client(tenant_id).query_entities(type='AgriParcel', limit=1000, attrs='id', options='keyValues')
+            parcels = svc.list_parcels(tenant_id)
         except Exception as e:  # noqa: BLE001
             logger.warning('reconcile-all: parcels unreadable tenant=%s: %s', tenant_id, e)
             stats['errors'] += 1
             continue
-        for p in parcels:
+        for parcel in parcels:
             stats['parcels'] += 1
             try:
-                stats['written'] += len(svc.reconcile_parcel(tenant_id, p['id']))
+                stats['written'] += len(svc.reconcile_parcel(tenant_id, parcel))
             except Exception as e:  # noqa: BLE001
-                logger.warning('reconcile-all failed tenant=%s parcel=%s: %s', tenant_id, p.get('id'), e)
+                logger.warning('reconcile-all failed tenant=%s parcel=%s: %s', tenant_id, parcel, e)
                 stats['errors'] += 1
     return jsonify(stats), 200
 

@@ -98,3 +98,29 @@ def test_parcels_in_notification():
             {"type": "AgriParcelOperation", "refAgriParcel": {"type": "Relationship", "object": "urn:ngsi-ld:AgriParcel:p2"}},
             {"type": "Other"}]
     assert svc.parcels_in_notification(ents) == {P, "urn:ngsi-ld:AgriParcel:p2"}
+
+
+class PagedOrion(FakeOrion):
+    def __init__(self, n):
+        super().__init__()
+        self.parcels = [{"id": f"urn:ngsi-ld:AgriParcel:p{i}", "type": "AgriParcel"} for i in range(n)]
+        self.calls = []
+
+    def query_entities(self, type=None, q=None, limit=100, offset=0, attrs=None, options=None):
+        self.calls.append({"type": type, "limit": limit, "offset": offset, "attrs": attrs})
+        if type == "AgriParcel":
+            return self.parcels[offset:offset + limit]
+        return super().query_entities(type=type, q=q, limit=limit, offset=offset, attrs=attrs, options=options)
+
+
+def test_list_parcels_pages_and_never_filters_by_attrs():
+    fake = PagedOrion(1203)
+    ids = svc.list_parcels("t", client=fake)
+    assert len(ids) == 1203 and ids[0] == "urn:ngsi-ld:AgriParcel:p0"
+    assert all(c["attrs"] is None for c in fake.calls)
+    assert [c["offset"] for c in fake.calls] == [0, 500, 1000]
+
+
+def test_list_parcels_orion_down_raises():
+    with pytest.raises(svc.OrionUnavailable):
+        svc.list_parcels("t", client=FakeOrion(fail=True))
