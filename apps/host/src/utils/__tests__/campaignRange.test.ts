@@ -63,4 +63,9 @@ describe('resolveTimelineRange', () => {
     expect(resolveTimelineRange([crop({ plantingDate: '2027-01-01' })], P, NOW)).toEqual(DEFAULT);                         // not sown yet
     expect(resolveTimelineRange([crop({ plantingDate: '2025-01-01', harvestDate: '2025-08-01' })], P, NOW)).toEqual(DEFAULT); // finished, no status
   });
+
+  it('caps a perennial campaign to the last 365 days', () => {
+    const r = resolveTimelineRange([crop({ plantingDate: '2008-03-01', status: 'active' })], P, NOW);
+    expect(r).toEqual({ source: 'campaign', range: { start: NOW - 365 * DAY, end: NOW + 30 * DAY } });
+  });
 });

@@ -454,6 +454,7 @@ const UnifiedViewerInner: React.FC = () => {
     // (ThemeContext.applyTheme) stays untouched, so other routes are unaffected.
     const { profile } = useViewerProfile();
 
+    // Focus mode entity filtering (React props layer — reactively safe)
     const displayParcels = isFocusMode && focusParcelId
         ? parcels.filter(p => p.id === focusParcelId)
         : parcels;
