@@ -76,10 +76,13 @@ def test_value_sql_maps_legacy_columns_to_measurement_keys():
         app._weather_value_sql("temp_avg; DROP TABLE x")
 
 
-def test_entity_patterns_cover_urn_short_and_daily_and_escape_wildcards():
+def test_entity_patterns_cover_urn_short_and_escape_wildcards():
     pats = app._weather_entity_patterns(FakeCursor(), "t", "parcel-ab_c%", START, END)
     assert "parcel-ab\\_c\\%" in pats
-    assert "%:parcel-ab\\_c\\%-daily" in pats
+    # Daily totals are not mixed into the live series unless the key names them.
+    assert not any(p.endswith("-daily") for p in pats)
+    daily = app._weather_entity_patterns(FakeCursor(), "t", "parcel-ab-daily", START, END)
+    assert "%:parcel-ab-daily" in daily
 
 
 def test_municipality_key_resolves_entities_by_nearest_catalog_point():

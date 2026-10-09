@@ -492,7 +492,8 @@ _MEASUREMENT_AS_FLOAT_SQL = (
 
 # --- Weather series read from telemetry_events (WeatherObserved rows) ---------
 # Request keys are WeatherObserved entity ids (full URN, `parcel-<id>` or `<id>`;
-# the closed-day `-daily` twin is read along with the live entity) or a
+# the closed-day series is only read when the key names it, `...-daily`: its daily
+# totals must not be averaged with the live instantaneous rows) or a
 # municipality INE code, which selects the WeatherObserved entities of the tenant
 # whose nearest catalog municipality is that code (catalog geom is a Point).
 _MUNICIPALITY_KEY_RE = re.compile(r"^\d{4,6}$")
@@ -537,6 +538,7 @@ def _weather_entity_patterns(
                 WHERE x.tenant_id = %s AND x.entity_type = ANY(%s)
                   AND x.observed_at >= %s AND x.observed_at < %s
                   AND x.payload#>>'{raw,location,value,coordinates,1}' IS NOT NULL
+                  AND x.entity_id NOT LIKE '%%-daily'
                 ORDER BY x.entity_id, x.observed_at DESC
             ) ent
             JOIN LATERAL (
@@ -551,7 +553,7 @@ def _weather_entity_patterns(
         )
         return [_like_escape(str(r["entity_id"])) for r in cursor.fetchall()]
     k = _like_escape(key)
-    return [k, f"%:{k}", f"%:{k}-daily", f"%:parcel-{k}", f"%:parcel-{k}-daily"]
+    return [k, f"%:{k}", f"%:parcel-{k}"]
 
 
 def _weather_row_params(
