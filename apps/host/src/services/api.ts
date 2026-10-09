@@ -1099,7 +1099,10 @@ class ApiService {
             return Array.isArray(response.data) ? response.data : [];
           },
           { label: type },
-        ).catch(() => []);
+        ).catch((e) => {
+          logger.warn(`[api] getMachines: failed to load ${type}`, e);
+          return [];
+        });
       const [robots, machines] = await Promise.all([
         listType('AutonomousMobileRobot'),
         listType('ManufacturingMachine'),

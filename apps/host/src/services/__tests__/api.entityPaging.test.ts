@@ -1,11 +1,15 @@
 /**
  * Regression: the viewer asked Orion-LD for `?type=X` with no limit and got its
- * default page of 20, so a tenant with 41 field photos saw 20. Every full-list
- * service call must walk all pages.
+ * default page of 20, so a list larger than the default page was silently
+ * truncated. Every full-list service call must walk all pages.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
+
+vi.mock('@/utils/logger', () => ({
+  logger: { warn: vi.fn(), error: vi.fn(), debug: vi.fn(), info: vi.fn(), log: vi.fn() },
+}));
 
 vi.mock('axios', () => {
   const client = {
@@ -20,6 +24,7 @@ vi.mock('axios', () => {
   return { default: { create: () => client }, create: () => client };
 });
 
+import { logger } from '@/utils/logger';
 import { api, clearApiCache } from '../api';
 
 type Params = { type: string; limit?: number; offset?: number };
@@ -40,14 +45,15 @@ function serveEntities(totals: Record<string, number>) {
 describe('host entity list calls page through Orion-LD', () => {
   beforeEach(() => {
     get.mockReset();
+    vi.mocked(logger.warn).mockClear();
     clearApiCache();
   });
 
-  it('getSDMEntityInstances returns all 41 entities, not the first 20', async () => {
-    serveEntities({ AgriParcelRecord: 41 });
+  it('getSDMEntityInstances returns all 45 entities, not the first 20', async () => {
+    serveEntities({ AgriParcelRecord: 45 });
     const out = await api.getSDMEntityInstances('AgriParcelRecord');
-    expect(out).toHaveLength(41);
-    expect(new Set(out.map((e: { id: string }) => e.id)).size).toBe(41);
+    expect(out).toHaveLength(45);
+    expect(new Set(out.map((e: { id: string }) => e.id)).size).toBe(45);
   });
 
   it('getSDMEntityInstances sends limit=1000 and an advancing offset, keeping its params', async () => {
@@ -83,6 +89,19 @@ describe('host entity list calls page through Orion-LD', () => {
     serveEntities({ AutonomousMobileRobot: 25, ManufacturingMachine: 30 });
     const out = await api.getMachines();
     expect(out).toHaveLength(55);
+  });
+
+  it('getMachines logs a failing type and still returns the other one', async () => {
+    const boom = new Error('orion down');
+    get.mockImplementation(async (_url: string, cfg: { params: Params }) => {
+      if (cfg.params.type === 'ManufacturingMachine') throw boom;
+      const data = [];
+      for (let i = 0; i < 3; i++) data.push({ id: `urn:ngsi-ld:robot:${i}`, type: cfg.params.type });
+      return { data };
+    });
+    const out = await api.getMachines();
+    expect(out).toHaveLength(3);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('ManufacturingMachine'), boom);
   });
 
   it('getRobots, getLivestock and getWeatherStations return everything', async () => {
