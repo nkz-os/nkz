@@ -713,6 +713,8 @@
       "soil_moisture": "Humedad suelo:",
       "real_sensor_data": "Datos de sensor real",
       "platform_data": "Datos de la plataforma",
+      "regional_estimate": "Estimación regional",
+      "regional_estimate_hint": "Humedad del suelo de reanálisis meteorológico, no medida en la parcela",
       "balance_3_days": "Balance (3 días):",
       "precip_eto_accumulated": "Precip. - ET₀ acumulada",
       "no_data_available": "No hay datos disponibles",

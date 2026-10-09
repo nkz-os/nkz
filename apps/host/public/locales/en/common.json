@@ -667,6 +667,8 @@
       "soil_moisture": "Soil Moisture:",
       "real_sensor_data": "Real sensor data",
       "platform_data": "Platform data",
+      "regional_estimate": "Regional estimate",
+      "regional_estimate_hint": "Soil moisture from weather reanalysis, not measured in the parcel",
       "balance_3_days": "Balance (3 days):",
       "precip_eto_accumulated": "Precip. - ET₀ accumulated",
       "no_data_available": "No data available",

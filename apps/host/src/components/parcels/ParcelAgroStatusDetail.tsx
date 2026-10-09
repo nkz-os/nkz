@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Wind, Droplets, Thermometer, Radio, Cloud, AlertCircle, Loader2, Sprout } from 'lucide-react';
 import api, { type AgroStatusResponse } from '@/services/api';
 import { logger } from '@/utils/logger';
@@ -82,6 +83,7 @@ const badgeColor = (value: Semaphore) => {
 };
 
 export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ parcelId }) => {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<AgroStatusResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -195,7 +197,13 @@ export const ParcelAgroStatusDetail: React.FC<ParcelAgroStatusDetailProps> = ({ 
           statusLabel('workability', semaphores.workability),
           <Droplets className="w-5 h-5" />,
           badgeColor(semaphores.workability),
-          metrics?.moisture != null ? `Humedad suelo: ${safeFixed(metrics.moisture, 1)}%` : undefined
+          metrics?.moisture != null
+            ? `${t('weather.agro_panel.soil_moisture')} ${safeFixed(metrics.moisture, 1)}%${
+                metrics.workability_source === 'regional_estimate'
+                  ? ` · ${t('weather.agro_panel.regional_estimate')}`
+                  : ''
+              }`
+            : undefined
         )}
 
         {detailRow(

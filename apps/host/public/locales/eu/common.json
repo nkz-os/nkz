@@ -602,6 +602,8 @@
       "soil_moisture": "Lurzoruaren hezetasuna:",
       "real_sensor_data": "Sentsore errealaren datuak",
       "platform_data": "Plataformaren datuak",
+      "regional_estimate": "Eskualdeko estimazioa",
+      "regional_estimate_hint": "Lurzoruaren hezetasuna berranalisi meteorologikotik, ez lurzatian neurtua",
       "balance_3_days": "Balantzea (3 egun):",
       "precip_eto_accumulated": "Prezip. - ET₀ metatua",
       "no_data_available": "Ez dago daturik eskuragarri",
