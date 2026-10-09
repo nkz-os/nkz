@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Crop cycles and campaigns** — one resolution of a parcel's crop cycles,
+  campaign (calendar year, labelled by harvest year) and degree-day
+  accumulation start: `nkz_platform_sdk.crop_cycles` (SDK 0.9.0), served by
+  entity-manager at `GET /api/entities/parcels/{id}/crop-cycles` and
+  reconciled into the broker from completed field operations
+  (`actualPlantingDate`, `actualTerminationDate`, `hasAgriCrop`,
+  `lastPlantedAt`).
+
+### Upgrade notes
+
+- New `@context` terms for crop plans (`expectedTerminationDate`,
+  `terminationDate`, `sowingWindowStart`, `sowingWindowEnd`,
+  `terminationMethod`, `cropSeason`, and others). Entities written before this
+  release keep those attributes under the default vocabulary; re-write them
+  with the new context if your installation already holds crop plans.
+
 ## v1.2.0
 
 ### Features
