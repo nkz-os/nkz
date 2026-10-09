@@ -109,61 +109,43 @@ def _import_urn_resolution():
     return urn_resolution
 
 
-def test_resolve_urn_weather_key_direct_municipality_code():
-    """WeatherObserved with municipalityCode should resolve directly, no chain."""
+def test_resolve_urn_weather_key_weather_observed_is_its_own_series():
+    """A WeatherObserved entity is read by its own id (rows live in telemetry_events)."""
     from unittest.mock import patch as _patch
 
     entity = {
         "id": "urn:ngsi-ld:WeatherObserved:test:parcel-p1",
         "type": "WeatherObserved",
         "municipalityCode": {"type": "Property", "value": "31012"},
-        "locatedAt": {
-            "type": "Relationship",
-            "object": "urn:ngsi-ld:AgriParcel:test:p1",
-        },
     }
 
     mod = _import_urn_resolution()
 
-    with (
-        _patch.object(mod, "ORION_URL", "http://fake:1026"),
-        _patch.object(mod, "fetch_orion_entity", return_value=entity),
-    ):
+    with _patch.object(mod, "ORION_URL", "http://fake:1026"):
         result, source = mod._resolve_urn_to_weather_key(
             tenant_id="test",
             entity_id="urn:ngsi-ld:WeatherObserved:test:parcel-p1",
             entity=entity,
         )
 
-    assert result == "31012"
-    assert source == "municipality"
+    assert result == "parcel-p1"
+    assert source == "entity"
 
 
-def test_resolve_urn_weather_key_falls_back_without_municipality_code():
-    """WeatherObserved without municipalityCode falls back to locatedAt chain (legacy refParcel)."""
+def test_resolve_urn_weather_key_unknown_type_without_location():
+    """Unknown type without a location cannot be resolved spatially."""
     from unittest.mock import patch as _patch
 
-    entity = {
-        "id": "urn:ngsi-ld:WeatherObserved:test:parcel-p1",
-        "type": "WeatherObserved",
-        "locatedAt": {
-            "type": "Relationship",
-            "object": "urn:ngsi-ld:AgriParcel:test:p1",
-        },
-    }
+    entity = {"id": "urn:ngsi-ld:Thing:test:t1", "type": "Thing"}
 
     mod = _import_urn_resolution()
 
-    with (
-        _patch.object(mod, "ORION_URL", "http://fake:1026"),
-        _patch.object(mod, "fetch_orion_entity", return_value=None),
-    ):
+    with _patch.object(mod, "ORION_URL", "http://fake:1026"):
         result, source = mod._resolve_urn_to_weather_key(
             tenant_id="test",
-            entity_id="urn:ngsi-ld:WeatherObserved:test:parcel-p1",
+            entity_id="urn:ngsi-ld:Thing:test:t1",
             entity=entity,
         )
 
-    # Without municipalityCode AND without resolvable parcel -> no_location
     assert result is None
     assert source == "no_location"

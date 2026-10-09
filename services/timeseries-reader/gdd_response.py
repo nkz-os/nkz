@@ -13,14 +13,18 @@ def gdd_json_response(
     gdd_total: float,
     mean_daily_gdd: float,
     days_count: int,
+    missing_days: list | None = None,
 ) -> tuple:
     """Build a 200 JSON response for ``GET /api/weather/gdd``.
 
     Response contains ONLY computed values — no echoed user parameters.
     The caller knows what params they sent; gdd_method is a hardcoded constant.
     """
+    missing = list(missing_days or [])
     return jsonify({
         "gdd_total": round(gdd_total, 2),
         "mean_daily_gdd": mean_daily_gdd,
         "days_count": days_count,
+        "missing_days_count": len(missing),
+        "missing_days": missing,
     }), 200

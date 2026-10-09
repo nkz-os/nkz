@@ -66,7 +66,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 try:
-    from urn_resolution import plan_timeseries_read, normalize_device_id
+    from urn_resolution import (
+        WEATHER_OBSERVED_ENTITY_TYPES,
+        nearest_weather_entity,
+        normalize_device_id,
+        plan_timeseries_read,
+    )
 except ImportError as e:
     # This service is fundamentally broken without URN resolution (every /v2
     # read 503s). CRITICAL, not silent: a missing import here must page someone,
@@ -76,12 +81,17 @@ except ImportError as e:
         "urn_resolution unavailable (%s) — /v2 URN endpoints will return 503", e
     )
     plan_timeseries_read = None  # type: ignore
+    nearest_weather_entity = None  # type: ignore
+    WEATHER_OBSERVED_ENTITY_TYPES = [  # type: ignore
+        "WeatherObserved",
+        "https://saref.etsi.org/saref4agri/WeatherObserved",
+    ]
 
     def normalize_device_id(x):  # type: ignore
         return x.rsplit(":", 1)[-1] if x and ":" in x else (x or "")
 
 
-# Whitelist of valid column names to prevent SQL injection (weather_observations only).
+# Whitelist of valid legacy weather column names (SQL identifiers are never built from user input).
 # Never interpolate user input into SQL as identifiers except values verified against these sets.
 VALID_ATTRIBUTES = frozenset(
     {
@@ -99,7 +109,7 @@ VALID_ATTRIBUTES = frozenset(
     }
 )
 
-# NGSI-LD (Smart Data Models) attribute name -> weather_observations DB column
+# NGSI-LD (Smart Data Models) attribute name -> legacy weather column name
 _WEATHER_ATTRIBUTE_MAP: Dict[str, str] = {
     "temperature": "temp_avg",
     "relativeHumidity": "humidity_avg",
@@ -117,7 +127,7 @@ for _col in VALID_ATTRIBUTES:
 
 
 def _require_weather_column(name: str) -> str:
-    """Whitelist gate for weather_observations SQL column identifiers."""
+    """Whitelist gate for legacy weather column names."""
     if name not in VALID_ATTRIBUTES:
         raise ValueError(f"Invalid weather column: {name}")
     return name
@@ -130,7 +140,7 @@ def _sql_weather_column_list(columns: List[str]) -> sql.SQL:
 
 
 def _resolve_weather_attribute(requested: str) -> Optional[str]:
-    """Map NGSI-LD attribute name or DB column name to weather_observations column."""
+    """Map NGSI-LD attribute name or legacy column name to the legacy weather column name."""
     r = (requested or "").strip() if requested else ""
     return _WEATHER_ATTRIBUTE_MAP.get(r)
 
@@ -166,6 +176,8 @@ _VALID_TELEMETRY_BASE = frozenset(
         "soilMoistureTop",
         "soilMoistureSub",
         "tempCurrent",
+        "tempMin",
+        "tempMax",
         "windGusts",
         "windSpeedMax",
         "gddAccumulated",
@@ -182,28 +194,35 @@ _VALID_TELEMETRY_BASE = frozenset(
     }
 )
 
-# NGSI-LD / provisioning typos vs Smart Data Models: UI may show these names but
-# telemetry_events.measurements uses the canonical JSON key (right-hand side).
-# Also maps DB column names (from weather_observations legacy) to NGSI-LD keys.
-_TELEMETRY_MEASUREMENT_UI_ALIASES: Dict[str, str] = {
-    "sensorsinsolation": "solarRadiation",
-    # DB column → NGSI-LD measurement key (weather_observations → telemetry_events migration)
-    "temp_avg": "temperature",
-    "temp_min": "temperature",
-    "temp_max": "temperature",
-    "humidity_avg": "relativeHumidity",
-    "wind_speed_ms": "windSpeed",
-    "wind_direction_deg": "windDirection",
-    "pressure_hpa": "atmosphericPressure",
+# Legacy weather column -> telemetry_events payload.measurements key of a
+# WeatherObserved row (per-parcel entity `...:parcel-<id>`; `...-daily` rows carry
+# the closed-day tempMin/tempMax).
+_WEATHER_COLUMN_TO_MEASUREMENT: Dict[str, str] = {
+    "temp_avg": "airTemperature",
+    "temp_min": "tempMin",
+    "temp_max": "tempMax",
+    "humidity_avg": "humidity",
     "precip_mm": "precipitation",
     "eto_mm": "et0",
     "solar_rad_w_m2": "solarRadiation",
+    "soil_moisture_0_10cm": "soilMoistureTop",
+    "soil_moisture_10_40cm": "soilMoistureSub",
+    "wind_speed_ms": "windSpeed",
+    "wind_gusts_ms": "windGusts",
+    "wind_direction_deg": "windDirection",
+    "pressure_hpa": "atmosphericPressure",
+    "delta_t": "deltaT",
+    "gdd_accumulated": "gddAccumulated",
+}
+
+# NGSI-LD / provisioning typos vs Smart Data Models: UI may show these names but
+# telemetry_events.measurements uses the canonical JSON key (right-hand side).
+# Also maps legacy weather column names to WeatherObserved measurement keys.
+_TELEMETRY_MEASUREMENT_UI_ALIASES: Dict[str, str] = {
+    "sensorsinsolation": "solarRadiation",
+    **_WEATHER_COLUMN_TO_MEASUREMENT,
     "solar_rad_ghi_w_m2": "solarRadiation",
     "solar_rad_dni_w_m2": "solarRadiation",
-    "soil_moisture_0_10cm": "soilMoisture",
-    "soil_moisture_10_40cm": "soilMoisture",
-    "gdd_accumulated": "gddAccumulated",
-    "delta_t": "deltaT",
 }
 
 
@@ -396,7 +415,6 @@ def _execute_align_query(
     """
     n = len(validated_series)
     entity_ids = [eid for eid, _ in validated_series]
-    in_placeholders = ", ".join(["%s"] * n)
     if (
         bucket_interval_override
         and bucket_interval_override in STANDARD_INTERVAL_STRINGS
@@ -406,29 +424,32 @@ def _execute_align_query(
         bucket_interval = calculate_dynamic_bucket(start_dt, end_dt, resolution)
     if bucket_interval not in STANDARD_INTERVAL_STRINGS:
         bucket_interval = "1 hour"
+    patterns_by_entity = {
+        eid: _resolve_weather_patterns(conn, tenant_id, eid, start_dt, end_dt)
+        for eid in dict.fromkeys(entity_ids)
+    }
     locf_parts = []
     params: List[Any] = [bucket_interval]
     for idx, (entity_id, attribute) in enumerate(validated_series):
         if attribute not in VALID_ATTRIBUTES:
             raise ValueError(f"Invalid attribute: {attribute}")
-        # SAFE: idx is an integer from enumerate(), immune to SQLi.
+        # SAFE: idx is an integer from enumerate(); attribute is whitelisted.
         locf_parts.append(
-            f'locf(AVG("{attribute}") FILTER (WHERE station_id = %s OR municipality_code = %s))::float8 AS value_{idx}'
+            f"locf(AVG({_weather_value_sql(attribute)}) FILTER (WHERE e.entity_id LIKE ANY(%s)))::float8 AS value_{idx}"
         )
-        params.extend([entity_id, entity_id])
-    params.extend([tenant_id, start_dt, end_dt])
-    params.extend(entity_ids)
-    params.extend(entity_ids)
+        params.append(patterns_by_entity[entity_id])
+    all_patterns = list(
+        dict.fromkeys(p for pats in patterns_by_entity.values() for p in pats)
+    )
+    params.extend(_weather_row_params(tenant_id, start_dt, end_dt, all_patterns))
     params.append(bucket_interval)
     sql = f"""
         SELECT
-            EXTRACT(EPOCH FROM time_bucket_gapfill(%s::interval, observed_at))::float8 AS timestamp,
+            EXTRACT(EPOCH FROM time_bucket_gapfill(%s::interval, e.observed_at))::float8 AS timestamp,
             {", ".join(locf_parts)}
-        FROM weather_observations
-        WHERE tenant_id = %s
-          AND observed_at >= %s AND observed_at < %s
-          AND (station_id IN ({in_placeholders}) OR municipality_code IN ({in_placeholders}))
-        GROUP BY time_bucket_gapfill(%s::interval, observed_at)
+        FROM telemetry_events e
+        WHERE {_WEATHER_ROW_FILTER}
+        GROUP BY time_bucket_gapfill(%s::interval, e.observed_at)
         ORDER BY timestamp ASC
     """
     cursor = conn.cursor()
@@ -468,6 +489,85 @@ _MEASUREMENT_AS_FLOAT_SQL = (
     "(CASE WHEN e.payload->'measurements'->>%s ~ '" + _NUMERIC_TEXT_PATTERN + "'"
     " THEN (e.payload->'measurements'->>%s)::double precision END)"
 )
+
+# --- Weather series read from telemetry_events (WeatherObserved rows) ---------
+# Request keys are WeatherObserved entity ids (full URN, `parcel-<id>` or `<id>`;
+# the closed-day `-daily` twin is read along with the live entity) or a
+# municipality INE code, which selects the WeatherObserved entities of the tenant
+# whose nearest catalog municipality is that code (catalog geom is a Point).
+_MUNICIPALITY_KEY_RE = re.compile(r"^\d{4,6}$")
+_WEATHER_LOCATION_LOOKBACK_DAYS = 30
+_WEATHER_ROW_FILTER = (
+    "e.tenant_id = %s AND e.entity_type = ANY(%s)"
+    " AND e.observed_at >= %s AND e.observed_at < %s"
+    " AND e.entity_id LIKE ANY(%s)"
+)
+
+
+def _weather_value_sql(column: str) -> str:
+    """Numeric SQL expression for a legacy weather column over telemetry_events alias `e`.
+
+    The measurement key comes from a constant map keyed by a whitelisted column,
+    never from request input, so it is safe to embed as a literal. Missing or
+    non-numeric values are NULL (never defaulted to 0).
+    """
+    key = _WEATHER_COLUMN_TO_MEASUREMENT[_require_weather_column(column)]
+    ref = f"e.payload->'measurements'->>'{key}'"
+    return f"(CASE WHEN {ref} ~ '{_NUMERIC_TEXT_PATTERN}' THEN ({ref})::double precision END)"
+
+
+def _like_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _weather_entity_patterns(
+    cursor, tenant_id: str, key: str, start_dt: datetime, end_dt: datetime
+) -> List[str]:
+    """LIKE patterns over telemetry_events.entity_id selecting the rows for a weather key."""
+    key = (key or "").strip()
+    if _MUNICIPALITY_KEY_RE.match(key):
+        cursor.execute(
+            """
+            SELECT ent.entity_id
+            FROM (
+                SELECT DISTINCT ON (x.entity_id) x.entity_id,
+                       (x.payload#>>'{raw,location,value,coordinates,0}')::double precision AS lon,
+                       (x.payload#>>'{raw,location,value,coordinates,1}')::double precision AS lat
+                FROM telemetry_events x
+                WHERE x.tenant_id = %s AND x.entity_type = ANY(%s)
+                  AND x.observed_at >= %s AND x.observed_at < %s
+                  AND x.payload#>>'{raw,location,value,coordinates,1}' IS NOT NULL
+                ORDER BY x.entity_id, x.observed_at DESC
+            ) ent
+            JOIN LATERAL (
+                SELECT m.ine_code FROM catalog_municipalities m
+                WHERE m.geom IS NOT NULL
+                ORDER BY m.geom <-> ST_SetSRID(ST_MakePoint(ent.lon, ent.lat), 4326)
+                LIMIT 1
+            ) nm ON TRUE
+            WHERE nm.ine_code = %s
+            """,
+            (tenant_id, list(WEATHER_OBSERVED_ENTITY_TYPES), start_dt, end_dt, key),
+        )
+        return [_like_escape(str(r["entity_id"])) for r in cursor.fetchall()]
+    k = _like_escape(key)
+    return [k, f"%:{k}", f"%:{k}-daily", f"%:parcel-{k}", f"%:parcel-{k}-daily"]
+
+
+def _weather_row_params(
+    tenant_id: str, start_dt: datetime, end_dt: datetime, patterns: List[str]
+) -> List[Any]:
+    return [tenant_id, list(WEATHER_OBSERVED_ENTITY_TYPES), start_dt, end_dt, patterns]
+
+
+def _resolve_weather_patterns(
+    conn, tenant_id: str, key: str, start_dt: datetime, end_dt: datetime
+) -> List[str]:
+    cur = conn.cursor()
+    try:
+        return _weather_entity_patterns(cur, tenant_id, key, start_dt, end_dt)
+    finally:
+        cur.close()
 
 
 def _execute_telemetry_align_query(
@@ -612,24 +712,20 @@ def _execute_v2_align_unified_sql(
             key = str(spec.get("key") or "").strip()
             if attr not in VALID_ATTRIBUTES:
                 raise ValueError(f"Invalid weather attribute: {attr}")
+            patterns = _resolve_weather_patterns(conn, tenant_id, key, start_dt, end_dt)
             cte_sql_parts.append(
                 f"""series_{i} AS (
-  SELECT time_bucket_gapfill(%s::interval, observed_at) AS bucket,
-         locf(AVG("{attr}"))::float8 AS value_{i}
-  FROM weather_observations
-  WHERE tenant_id = %s AND observed_at >= %s AND observed_at < %s
-    AND (station_id = %s OR municipality_code = %s)
-  GROUP BY time_bucket_gapfill(%s::interval, observed_at)
+  SELECT time_bucket_gapfill(%s::interval, e.observed_at) AS bucket,
+         locf(AVG({_weather_value_sql(attr)}))::float8 AS value_{i}
+  FROM telemetry_events e
+  WHERE {_WEATHER_ROW_FILTER}
+  GROUP BY time_bucket_gapfill(%s::interval, e.observed_at)
 )"""
             )
             params.extend(
                 [
                     bucket_interval,
-                    tenant_id,
-                    start_dt,
-                    end_dt,
-                    key,
-                    key,
+                    *_weather_row_params(tenant_id, start_dt, end_dt, patterns),
                     bucket_interval,
                 ]
             )
@@ -784,9 +880,9 @@ def health():
 @require_auth
 def list_timeseries_entities():
     """
-    List entity IDs that have timeseries data (weather_observations.station_id and municipality_code).
+    List entity IDs that have timeseries data (WeatherObserved entities and municipality codes).
     Used by DataHub and other clients to show which "entities" can be queried for temp_avg, humidity_avg, etc.
-    Returns: { "entities": [ { "id": "<station_id or municipality_code>", "name": "<label>", "attributes": [...] } ] }
+    Returns: { "entities": [ { "id": "<entity id or municipality_code>", "name": "<label>", "attributes": [...] } ] }
     """
     ctx = _resolve_tenant_context()
     if isinstance(ctx, tuple):
@@ -805,27 +901,53 @@ def list_timeseries_entities():
                     f"Failed to set RLS tenant context: {e}. "
                     "Row-level security may not be enforced for this query."
                 )
+            list_since = datetime.utcnow() - timedelta(
+                days=_WEATHER_LOCATION_LOOKBACK_DAYS
+            )
+            types = list(WEATHER_OBSERVED_ENTITY_TYPES)
             cursor.execute(
                 """
-                SELECT DISTINCT station_id AS id FROM weather_observations
-                WHERE tenant_id = %s AND station_id IS NOT NULL AND station_id != ''
-                UNION
-                SELECT DISTINCT municipality_code AS id FROM weather_observations
-                WHERE tenant_id = %s AND municipality_code IS NOT NULL AND municipality_code != ''
+                SELECT DISTINCT e.entity_id AS id FROM telemetry_events e
+                WHERE e.tenant_id = %s AND e.entity_type = ANY(%s)
+                  AND e.observed_at >= %s AND e.entity_id NOT LIKE '%%-daily'
                 ORDER BY id
             """,
-                (tenant_id, tenant_id),
+                (tenant_id, types, list_since),
             )
-            rows = cursor.fetchall()
+            ids = [r["id"] for r in cursor.fetchall()]
+            cursor.execute(
+                """
+                SELECT DISTINCT nm.ine_code AS id
+                FROM (
+                    SELECT DISTINCT ON (x.entity_id)
+                           (x.payload#>>'{raw,location,value,coordinates,0}')::double precision AS lon,
+                           (x.payload#>>'{raw,location,value,coordinates,1}')::double precision AS lat
+                    FROM telemetry_events x
+                    WHERE x.tenant_id = %s AND x.entity_type = ANY(%s)
+                      AND x.observed_at >= %s
+                      AND x.payload#>>'{raw,location,value,coordinates,1}' IS NOT NULL
+                    ORDER BY x.entity_id, x.observed_at DESC
+                ) ent
+                JOIN LATERAL (
+                    SELECT m.ine_code FROM catalog_municipalities m
+                    WHERE m.geom IS NOT NULL
+                    ORDER BY m.geom <-> ST_SetSRID(ST_MakePoint(ent.lon, ent.lat), 4326)
+                    LIMIT 1
+                ) nm ON TRUE
+                ORDER BY id
+            """,
+                (tenant_id, types, list_since),
+            )
+            ids.extend(r["id"] for r in cursor.fetchall())
             cursor.close()
         entities = [
             {
-                "id": str(r["id"]),
-                "name": str(r["id"]),
+                "id": str(eid),
+                "name": str(eid),
                 "attributes": attributes_list,
                 "source": "timescale",
             }
-            for r in rows
+            for eid in ids
         ]
         return jsonify({"entities": entities})
     except Exception as e:
@@ -916,27 +1038,23 @@ def get_entity_timeseries(entity_id: str):
             if fmt == "arrow" and time_bucket:
                 # Arrow path: single attribute, epoch float8 + value float8 (parameterised bucket)
                 col = _require_weather_column(attribute)
-                query_arrow = sql.SQL(
-                    """
+                patterns = _weather_entity_patterns(
+                    cursor, tenant_id, entity_id, start_dt, end_dt
+                )
+                query_arrow = f"""
                     SELECT
-                        EXTRACT(EPOCH FROM time_bucket(%s::interval, observed_at))::float8 AS timestamp,
-                        AVG({col})::float8 AS value
-                    FROM weather_observations
-                    WHERE tenant_id = %s AND observed_at >= %s AND observed_at < %s
-                      AND (station_id = %s OR municipality_code = %s)
-                    GROUP BY time_bucket(%s::interval, observed_at)
+                        EXTRACT(EPOCH FROM time_bucket(%s::interval, e.observed_at))::float8 AS timestamp,
+                        AVG({_weather_value_sql(col)})::float8 AS value
+                    FROM telemetry_events e
+                    WHERE {_WEATHER_ROW_FILTER}
+                    GROUP BY time_bucket(%s::interval, e.observed_at)
                     ORDER BY timestamp ASC
                 """
-                ).format(col=sql.Identifier(col))
                 cursor.execute(
                     query_arrow,
                     (
                         time_bucket,
-                        tenant_id,
-                        start_dt,
-                        end_dt,
-                        entity_id,
-                        entity_id,
+                        *_weather_row_params(tenant_id, start_dt, end_dt, patterns),
                         time_bucket,
                     ),
                 )
@@ -961,55 +1079,51 @@ def get_entity_timeseries(entity_id: str):
                 ), 400
 
             # JSON path
+            patterns = _weather_entity_patterns(
+                cursor, tenant_id, entity_id, start_dt, end_dt
+            )
+            row_params = _weather_row_params(tenant_id, start_dt, end_dt, patterns)
             if time_bucket:
-                query = """
+                query = f"""
                     SELECT
-                        time_bucket(%s::interval, observed_at) AS timestamp,
-                        AVG(temp_avg) AS temp_avg,
-                        MIN(temp_min) AS temp_min,
-                        MAX(temp_max) AS temp_max,
-                        AVG(humidity_avg) AS humidity_avg,
-                        AVG(precip_mm) AS precip_mm,
-                        AVG(solar_rad_w_m2) AS solar_rad_w_m2,
-                        AVG(eto_mm) AS eto_mm,
-                        AVG(soil_moisture_0_10cm) AS soil_moisture_0_10cm,
-                        AVG(wind_speed_ms) AS wind_speed_ms,
-                        AVG(pressure_hpa) AS pressure_hpa
-                    FROM weather_observations
-                    WHERE tenant_id = %s AND observed_at >= %s AND observed_at < %s
-                      AND (station_id = %s OR municipality_code = %s)
-                    GROUP BY time_bucket(%s::interval, observed_at)
+                        time_bucket(%s::interval, e.observed_at) AS timestamp,
+                        AVG({_weather_value_sql("temp_avg")}) AS temp_avg,
+                        MIN({_weather_value_sql("temp_min")}) AS temp_min,
+                        MAX({_weather_value_sql("temp_max")}) AS temp_max,
+                        AVG({_weather_value_sql("humidity_avg")}) AS humidity_avg,
+                        AVG({_weather_value_sql("precip_mm")}) AS precip_mm,
+                        AVG({_weather_value_sql("solar_rad_w_m2")}) AS solar_rad_w_m2,
+                        AVG({_weather_value_sql("eto_mm")}) AS eto_mm,
+                        AVG({_weather_value_sql("soil_moisture_0_10cm")}) AS soil_moisture_0_10cm,
+                        AVG({_weather_value_sql("wind_speed_ms")}) AS wind_speed_ms,
+                        AVG({_weather_value_sql("pressure_hpa")}) AS pressure_hpa
+                    FROM telemetry_events e
+                    WHERE {_WEATHER_ROW_FILTER}
+                    GROUP BY time_bucket(%s::interval, e.observed_at)
                     ORDER BY timestamp ASC
                     LIMIT %s
                 """
-                cursor.execute(
-                    query,
-                    (
-                        time_bucket,
-                        tenant_id,
-                        start_dt,
-                        end_dt,
-                        entity_id,
-                        entity_id,
-                        time_bucket,
-                        limit,
-                    ),
-                )
+                cursor.execute(query, (time_bucket, *row_params, time_bucket, limit))
             else:
-                query = """
+                query = f"""
                     SELECT
-                        observed_at AS timestamp,
-                        temp_avg, temp_min, temp_max, humidity_avg, precip_mm,
-                        solar_rad_w_m2, eto_mm, soil_moisture_0_10cm, wind_speed_ms, pressure_hpa
-                    FROM weather_observations
-                    WHERE tenant_id = %s AND observed_at >= %s AND observed_at < %s
-                      AND (station_id = %s OR municipality_code = %s)
-                    ORDER BY observed_at ASC
+                        e.observed_at AS timestamp,
+                        {_weather_value_sql("temp_avg")} AS temp_avg,
+                        {_weather_value_sql("temp_min")} AS temp_min,
+                        {_weather_value_sql("temp_max")} AS temp_max,
+                        {_weather_value_sql("humidity_avg")} AS humidity_avg,
+                        {_weather_value_sql("precip_mm")} AS precip_mm,
+                        {_weather_value_sql("solar_rad_w_m2")} AS solar_rad_w_m2,
+                        {_weather_value_sql("eto_mm")} AS eto_mm,
+                        {_weather_value_sql("soil_moisture_0_10cm")} AS soil_moisture_0_10cm,
+                        {_weather_value_sql("wind_speed_ms")} AS wind_speed_ms,
+                        {_weather_value_sql("pressure_hpa")} AS pressure_hpa
+                    FROM telemetry_events e
+                    WHERE {_WEATHER_ROW_FILTER}
+                    ORDER BY e.observed_at ASC
                     LIMIT %s
                 """
-                cursor.execute(
-                    query, (tenant_id, start_dt, end_dt, entity_id, entity_id, limit)
-                )
+                cursor.execute(query, (*row_params, limit))
 
             rows = cursor.fetchall()
             cursor.close()
@@ -1628,20 +1742,20 @@ def _weather_query_columnar(
                 f"Failed to set RLS tenant context for {tenant_id}: {e}. "
                 "Row-level security may not be enforced for this query."
             )
-        col_sql = _sql_weather_column_list(want)
-        query = sql.SQL(
-            """
-            SELECT observed_at AS timestamp, {cols}
-            FROM weather_observations
-            WHERE tenant_id = %s AND observed_at >= %s AND observed_at < %s
-              AND (station_id = %s OR municipality_code = %s)
-            ORDER BY observed_at ASC
+        patterns = _weather_entity_patterns(cur, tenant_id, weather_key, start_dt, end_dt)
+        cols_sql = ", ".join(
+            f'{_weather_value_sql(c)} AS "{_require_weather_column(c)}"' for c in want
+        )
+        query = f"""
+            SELECT e.observed_at AS timestamp, {cols_sql}
+            FROM telemetry_events e
+            WHERE {_WEATHER_ROW_FILTER}
+            ORDER BY e.observed_at ASC
             LIMIT %s
             """
-        ).format(cols=col_sql)
         cur.execute(
             query,
-            (tenant_id, start_dt, end_dt, weather_key, weather_key, limit),
+            (*_weather_row_params(tenant_id, start_dt, end_dt, patterns), limit),
         )
         rows = cur.fetchall()
     finally:
@@ -1796,7 +1910,7 @@ def get_v2_entity_timeseries(entity_urn: str):
             for a in attrs_list:
                 resolved = _resolve_weather_attribute(a)
                 if resolved is None:
-                    # weather_observations is deprecated and cannot serve this
+                    # The legacy weather columns cannot serve this
                     # attribute; keep the original name and fall through to the
                     # telemetry_events fallback below (which 400s if the name is
                     # unknown there too).
@@ -1814,9 +1928,8 @@ def get_v2_entity_timeseries(entity_urn: str):
             )
         )
 
-        # Fallback: if weather_observations has no data for this tenant (deprecated
-        # table no longer populated by weather-worker), retry with telemetry_events
-        # which receives data via Orion-LD → NGSI-LD subscription pipeline.
+        # Fallback: if the WeatherObserved series for the key is empty, retry with
+        # the raw telemetry_events rows of the entity URN (Orion-LD subscription pipeline).
         if not col["timestamps"]:
             logger.info(
                 "weather_fallback_to_telemetry",
@@ -1829,7 +1942,7 @@ def get_v2_entity_timeseries(entity_urn: str):
                 resolved_attrs = []
                 for a in attrs_list:
                     # Map weather column names back to NGSI-LD measurement keys
-                    # (weather_observations columns → telemetry_events payload.measurements keys)
+                    # (legacy weather columns → telemetry_events payload.measurements keys)
                     sk = _resolve_telemetry_measurement_key(a)
                     if sk is None:
                         # Reverse lookup: weather column like 'temp_avg' might map to 'temperature'
@@ -1976,7 +2089,7 @@ def post_v2_timeseries_query():
             if wcol and wk and _SAFE_WEATHER_ENTITY_KEY.match(wk):
                 ordered_specs.append({"kind": "weather", "key": wk, "attr": wcol})
                 continue
-            # weather_observations is deprecated; attributes without a weather
+            # Attributes without a legacy weather
             # column (or entities without a key) are served from telemetry_events
             # like any other NGSI-LD measurement attribute.
         spec, err = _telemetry_series_spec(plan, str(urn).strip(), attr_s)
@@ -2091,27 +2204,26 @@ def get_entity_stats(entity_id: str):
                 attributes = [attribute]
 
             stats = {}
+            patterns = _weather_entity_patterns(
+                cursor, tenant_id, entity_id, start_dt, end_dt
+            )
             for attr in attributes:
-                col = sql.Identifier(_require_weather_column(attr))
-                query = sql.SQL(
-                    """
-                    SELECT 
-                        MIN({col}) as min_val,
-                        MAX({col}) as max_val,
-                        AVG({col}) as avg_val,
-                        COUNT({col}) as count_val,
-                        MIN(observed_at) as first_observed,
-                        MAX(observed_at) as last_observed
-                    FROM weather_observations
-                    WHERE tenant_id = %s
-                        AND observed_at >= %s
-                        AND observed_at < %s
-                        AND (station_id = %s OR municipality_code = %s)
-                        AND {col} IS NOT NULL
+                val = _weather_value_sql(attr)
+                query = f"""
+                    SELECT
+                        MIN({val}) as min_val,
+                        MAX({val}) as max_val,
+                        AVG({val}) as avg_val,
+                        COUNT({val}) as count_val,
+                        MIN(e.observed_at) as first_observed,
+                        MAX(e.observed_at) as last_observed
+                    FROM telemetry_events e
+                    WHERE {_WEATHER_ROW_FILTER}
+                        AND {val} IS NOT NULL
                 """
-                ).format(col=col)
                 cursor.execute(
-                    query, (tenant_id, start_dt, end_dt, entity_id, entity_id)
+                    query,
+                    _weather_row_params(tenant_id, start_dt, end_dt, patterns),
                 )
                 row = cursor.fetchone()
 
@@ -2225,51 +2337,63 @@ def get_weather_gdd():
                 except Exception as e:
                     logger.warning(f"Failed to resolve parcel {parcel_id} from Orion: {e}")
 
+            row_filter = (
+                "e.tenant_id = %s AND e.entity_type = ANY(%s)"
+                " AND e.observed_at >= %s AND e.observed_at < %s"
+            )
+            filter_params: List[Any] = [
+                tenant_id,
+                list(WEATHER_OBSERVED_ENTITY_TYPES),
+                start_dt,
+                end_dt,
+            ]
+            no_station = False
             if use_lat is not None and use_lon is not None:
-                station_query = """
-                    SELECT DISTINCT station_id
-                    FROM weather_observations
-                    WHERE tenant_id = %s
-                      AND observed_at >= %s AND observed_at < %s
-                      AND temp_min IS NOT NULL AND temp_max IS NOT NULL
-                    ORDER BY location <-> ST_SetSRID(ST_MakePoint(%s, %s), 4326)
-                    LIMIT 1
-                """
-                cursor.execute(station_query, (tenant_id, start_dt, end_dt, use_lon, use_lat))
-                station_row = cursor.fetchone()
-                if station_row:
-                    station_id = station_row["station_id"]
-                    daily_query = """
-                        SELECT
-                            DATE(observed_at) AS obs_date,
-                            AVG(temp_min) AS tmin,
-                            AVG(temp_max) AS tmax
-                        FROM weather_observations
-                        WHERE tenant_id = %s
-                          AND station_id = %s
-                          AND observed_at >= %s AND observed_at < %s
-                          AND temp_min IS NOT NULL AND temp_max IS NOT NULL
-                        GROUP BY DATE(observed_at)
-                        ORDER BY obs_date ASC
-                    """
-                    cursor.execute(daily_query, (tenant_id, station_id, start_dt, end_dt))
-                    daily_rows = cursor.fetchall()
+                # Nearest WeatherObserved entity of the tenant; the closed-day
+                # `-daily` twin belongs to the same parcel.
+                nearest = (
+                    nearest_weather_entity(
+                        cursor, tenant_id, use_lat, use_lon, start_dt, end_dt
+                    )
+                    if nearest_weather_entity
+                    else None
+                )
+                if nearest:
+                    base = nearest[: -len("-daily")] if nearest.endswith("-daily") else nearest
+                    row_filter += " AND e.entity_id = ANY(%s)"
+                    filter_params.append([base, f"{base}-daily"])
                 else:
-                    daily_rows = []
-            else:
-                daily_query = """
-                    SELECT
-                        DATE(observed_at) AS obs_date,
-                        AVG(temp_min) AS tmin,
-                        AVG(temp_max) AS tmax
-                    FROM weather_observations
-                    WHERE tenant_id = %s
-                      AND observed_at >= %s AND observed_at < %s
-                      AND temp_min IS NOT NULL AND temp_max IS NOT NULL
-                    GROUP BY DATE(observed_at)
+                    no_station = True
+
+            daily_rows = []
+            if not no_station:
+                # Per entity and UTC day: the -daily row's tempMin/tempMax when
+                # present, else min/max of the live airTemperature readings.
+                tmin_v = _weather_value_sql("temp_min")
+                tmax_v = _weather_value_sql("temp_max")
+                air_v = _weather_value_sql("temp_avg")
+                daily_query = f"""
+                    WITH per_entity AS (
+                        SELECT (e.observed_at AT TIME ZONE 'UTC')::date AS obs_date,
+                               regexp_replace(e.entity_id, '-daily$', '') AS base_id,
+                               AVG({tmin_v}) AS d_min,
+                               AVG({tmax_v}) AS d_max,
+                               MIN({air_v}) AS a_min,
+                               MAX({air_v}) AS a_max
+                        FROM telemetry_events e
+                        WHERE {row_filter}
+                        GROUP BY 1, 2
+                    )
+                    SELECT obs_date,
+                           AVG(COALESCE(d_min, a_min)) AS tmin,
+                           AVG(COALESCE(d_max, a_max)) AS tmax
+                    FROM per_entity
+                    WHERE COALESCE(d_min, a_min) IS NOT NULL
+                      AND COALESCE(d_max, a_max) IS NOT NULL
+                    GROUP BY obs_date
                     ORDER BY obs_date ASC
                 """
-                cursor.execute(daily_query, (tenant_id, start_dt, end_dt))
+                cursor.execute(daily_query, filter_params)
                 daily_rows = cursor.fetchall()
 
             cursor.close()
@@ -2287,10 +2411,20 @@ def get_weather_gdd():
 
         mean_daily = round(total_gdd / days_count, 2) if days_count > 0 else 0.0
 
+        # Days without data are reported, never filled.
+        seen_days = {row["obs_date"] for row in daily_rows}
+        missing_days = []
+        day = start_dt.date()
+        while day <= end_dt.date():
+            if day not in seen_days:
+                missing_days.append(day.isoformat())
+            day += timedelta(days=1)
+
         return gdd_json_response(
             gdd_total=total_gdd,
             mean_daily_gdd=mean_daily,
             days_count=days_count,
+            missing_days=missing_days,
         )
 
     except Exception as e:
