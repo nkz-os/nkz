@@ -21,6 +21,10 @@ class Settings:
         ).rstrip("/")
         # Comma-separated model list; empty = do not send `models`
         self.openmeteo_models = os.getenv("OPENMETEO_MODELS", "").strip()
+        # Archive base URL ending in /v1 (callers append /archive); empty = archive
+        # fill disabled. Comma-separated archive models; empty = do not send.
+        self.openmeteo_archive_url = os.getenv("OPENMETEO_ARCHIVE_URL", "").rstrip("/")
+        self.openmeteo_archive_models = os.getenv("OPENMETEO_ARCHIVE_MODELS", "").strip()
         self.aemet_api_key = os.getenv("AEMET_API_KEY", "")
         self.soil_api_url = os.getenv("SOIL_API_URL", "http://soil-module-service:8000")
         self.weather_map_url = os.getenv(
