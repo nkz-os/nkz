@@ -43,10 +43,11 @@ import { AUTH_STATE_PATH } from './global.setup';
  * robot widgets and the module-federation remote slot 404/502/504 locally.
  * Those error states are captured as-is — they are deterministic (same
  * request, same failure, every run) so they're valid baseline content; see
- * the report for exactly which regions they occupy. The one exception is
+ * the report for exactly which regions they occupy. The exceptions are
  * admin's users-list error alert, whose text carries the upstream HTTP status
- * (502/503/504, whichever the stack answers that run) — it is masked, see
- * adminUsersErrorMask.
+ * (502/503/504, whichever the stack answers that run), and the dashboard's two
+ * "last refreshed" timestamps, which carry the server's wall-clock time — they
+ * are masked, see adminUsersErrorMask and dashboardTimestampsMask.
  */
 
 // Opt-in fixture for the Cesium-backed tests: guarantees teardownCesium runs
@@ -317,13 +318,48 @@ function adminUsersErrorMask(page: Page) {
   return page.getByText(/^Request failed with status code\b/);
 }
 
+// THIRD KNOWN NON-DETERMINISTIC REGION, MASKED DELIBERATELY: the two "last
+// refreshed" stamps on the dashboard. Both render `tenantUsage.timestamp`, the
+// time the backend answered the usage request, so they carry the wall-clock time
+// of the run: `page.clock.install` freezes only the browser's own clock and
+// cannot touch a server-side value.
+//   - "Updated 11:09 AM"                   footer of the "Registered entities" card
+//   - "Data updated 9/10/2026, 11:09:23"   footer of the "Plan Summary" card
+// Selected by their fixed English prefix, which is the localized template with
+// the time left out (`dashboard.updated_at`, `dashboard.plan.updated`); the
+// digits are deliberately not part of the match. Neither element has a role,
+// test id or stable class, and none is added for a test.
+//
+// The mask is painted at the element's bounding box, and that box must not
+// depend on the text it hides, or two runs would differ at the box edge even
+// though the content under it is masked. The first stamp is a block-level footer
+// as wide as its card, so it is already stable. The second is an inline `<span>`
+// whose width follows the digits ("9:09:23" is narrower than "11:09:23"), so the
+// mask is taken one level up instead: the card's footer row, selected as the
+// innermost <div> holding both the stamp and the "Plan: ..." label that shares
+// the row. That row spans the card, so its box is the same every run. The cost
+// is that the plan label on that row is masked with it.
+// Zero matches (a stack that does not report a timestamp) masks nothing.
+function dashboardTimestampsMask(page: Page) {
+  const registeredEntitiesStamp = page.getByText(/^Updated \d{1,2}:\d{2}\b/);
+  const planSummaryFooterRow = page
+    .locator('div')
+    .filter({ has: page.getByText(/^Data updated\b/) })
+    .filter({ has: page.getByText(/^Plan: /) })
+    .last();
+  return registeredEntitiesStamp.or(planSummaryFooterRow);
+}
+
 test.describe('Page visual baseline', () => {
   for (const theme of THEMES) {
     test.describe(`theme=${theme}`, () => {
       test(`dashboard (${theme})`, async ({ page }) => {
         await prepare(page, theme);
         await gotoAndSettle(page, '/dashboard');
-        await expect(page).toHaveScreenshot(`dashboard-${theme}.png`, { fullPage: true });
+        await expect(page).toHaveScreenshot(`dashboard-${theme}.png`, {
+          fullPage: true,
+          mask: [dashboardTimestampsMask(page)],
+        });
       });
 
       test(`unified viewer (${theme})`, async ({ page, cesiumTeardown: _cesiumTeardown }) => {
