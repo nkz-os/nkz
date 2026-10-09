@@ -915,6 +915,19 @@ def get_parcel_agro_status(
                             "organic_carbon": _extract_float(
                                 h.get("organicCarbon"), 0.5
                             ),
+                            # Derived by the soil module (single source): the
+                            # tempero limits and the hydraulics shown with them.
+                            "wet_tillage_limit": _extract_float(
+                                h.get("wetTillageLimit"), None
+                            ),
+                            "dry_tillage_limit": _extract_float(
+                                h.get("dryTillageLimit"), None
+                            ),
+                            "field_capacity": _extract_float(h.get("fieldCapacity"), None),
+                            "wilting_point": _extract_float(h.get("wiltingPoint"), None),
+                            "ksat": _extract_float(h.get("ksatSaturated"), None),
+                            "hydrologic_group": h.get("hydrologicGroup"),
+                            "source": "soil-module",
                         }
                         # Determine USDA texture class
                         silt = 100.0 - soil_texture["sand"] - soil_texture["clay"]

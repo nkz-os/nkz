@@ -68,121 +68,6 @@ def _validated_water_content(value, name: str) -> float:
     return v
 
 
-def _saxton_rawls_2006(
-    sand_pct: float, clay_pct: float, organic_carbon_pct: float
-) -> dict:
-    """Saxton & Rawls (2006) pedotransfer functions.
-
-    Computes field capacity, wilting point, and saturated hydraulic conductivity
-    from soil texture (sand %, clay %, organic carbon %), following Saxton &
-    Rawls 2006 (SSSAJ 70:1569-1578) Eqs. 1-5, 15-16, 18.
-
-    Returns dict with ksat (mm/h), field_capacity (cm3/cm3), wilting_point (cm3/cm3).
-
-    Raises ValueError if the texture is not physically admissible. The regression
-    is a polynomial fitted to real soils: feed it a nodata sentinel and it happily
-    returns a number. SoilGrids ships nodata as -32768 scaled by the layer factor,
-    so it arrives as -3276.8 (or -32.77), and in production that produced
-    field_capacity=305235 cm3/cm3 with a ksat of 8.3 mm/h — a value wrong by six
-    orders of magnitude sitting next to one that looks perfectly ordinary.
-    Callers catch this and fall back to generic thresholds; emitting the number
-    silently is the dangerous option.
-    """
-    import math
-
-    for name, value in (
-        ("sand", sand_pct),
-        ("clay", clay_pct),
-        ("organic carbon", organic_carbon_pct),
-    ):
-        if value is None or not math.isfinite(value):
-            raise ValueError(f"{name} is not a finite number: {value!r}")
-    if not 0.0 <= sand_pct <= 100.0:
-        raise ValueError(f"sand out of range: {sand_pct} (expected 0-100 %)")
-    if not 0.0 <= clay_pct <= 100.0:
-        raise ValueError(f"clay out of range: {clay_pct} (expected 0-100 %)")
-    if sand_pct + clay_pct > 100.0:
-        raise ValueError(
-            f"sand+clay exceed 100 %: {sand_pct} + {clay_pct} = {sand_pct + clay_pct}"
-        )
-    if not 0.0 <= organic_carbon_pct <= 100.0:
-        raise ValueError(
-            f"organic carbon out of range: {organic_carbon_pct} (expected 0-100 %)"
-        )
-
-    s = sand_pct / 100.0
-    c = clay_pct / 100.0
-    om = (organic_carbon_pct * 1.724) / 100.0
-
-    # Wilting point (-1500 kPa)
-    theta_1500t = (
-        -0.024 * s
-        + 0.487 * c
-        + 0.006 * om
-        + 0.005 * s * om
-        - 0.013 * c * om
-        + 0.068 * s * c
-        + 0.031
-    )
-    theta_1500 = theta_1500t + 0.14 * theta_1500t - 0.02
-
-    # Field capacity (-33 kPa)
-    theta_33t = (
-        -0.251 * s
-        + 0.195 * c
-        + 0.011 * om
-        + 0.006 * s * om
-        - 0.027 * c * om
-        + 0.452 * s * c
-        + 0.299
-    )
-    theta_33 = theta_33t + 1.283 * theta_33t**2 - 0.374 * theta_33t - 0.015
-
-    # Saturated -33 kPa (for Ksat computation)
-    theta_s33t = (
-        0.278 * s
-        + 0.034 * c
-        + 0.022 * om
-        - 0.018 * s * om
-        - 0.027 * c * om
-        - 0.584 * s * c
-        + 0.078
-    )
-    theta_s33 = theta_s33t + 0.636 * theta_s33t - 0.107
-
-    # Clamp to physical bounds — extreme textures (e.g. pure sand) can push the
-    # regression slightly negative, which would break the log-based lambda.
-    theta_1500 = max(theta_1500, 0.001)
-    theta_33 = max(theta_33, theta_1500 + 0.001)
-
-    # Eq. 5: saturated moisture from the -33 kPa to saturation increment
-    theta_s = theta_33 + theta_s33 - 0.097 * s + 0.043
-
-    # Eqs. 18 + 15: lambda = 1/B, B = [ln(1500) - ln(33)] / [ln(t33) - ln(t1500)]
-    lam = (math.log(theta_33) - math.log(theta_1500)) / (
-        math.log(1500.0) - math.log(33.0)
-    )
-
-    # Eq. 16: Ks = 1930 * (theta_S - theta_33)^(3 - lambda)
-    diff = max(theta_s - theta_33, 0.001)
-    ksat = 1930.0 * diff ** (3.0 - lam)
-
-    # Belt and braces: the input guard above covers the sentinel that actually bit
-    # us, but a water content outside (0, 1) is meaningless whatever produced it,
-    # and it feeds the workability semaphore and the water balance downstream.
-    if not 0.0 < theta_1500 < 1.0 or not 0.0 < theta_33 < 1.0:
-        raise ValueError(
-            f"non-physical water content for sand={sand_pct} clay={clay_pct}: "
-            f"wilting_point={theta_1500}, field_capacity={theta_33}"
-        )
-
-    return {
-        "ksat": round(ksat, 2),
-        "field_capacity": round(theta_33, 3),
-        "wilting_point": round(theta_1500, 3),
-    }
-
-
 def _extract_soil_moisture(payload: dict) -> Optional[float]:
     """Pull volumetric soil moisture (cm3/cm3) out of a telemetry payload.
 
@@ -259,17 +144,6 @@ def _usda_texture_class(sand: float, clay: float) -> str:
     return "loam"
 
 
-def _scs_hydrologic_group(ksat: float) -> str:
-    """Classify soil into SCS hydrologic group based on saturated conductivity."""
-    if ksat > 36:
-        return "A"
-    if ksat > 3.6:
-        return "B"
-    if ksat > 0.36:
-        return "C"
-    return "D"
-
-
 def _estimate_recovery_hours(hydrologic_group: str, precip_3d: float) -> int:
     """Estimate hours until soil is trafficable after rain, by hydrologic group."""
     base = {"A": 6, "B": 18, "C": 36, "D": 60}
@@ -313,41 +187,49 @@ def _crop_spraying_sensitivity(stage: Optional[str]) -> str:
     return "normal"
 
 
-def _texture_workability(
+def _water_content_or_none(value) -> Optional[float]:
+    try:
+        return _validated_water_content(value, "water_content")
+    except ValueError:
+        return None
+
+
+def _tillage_limits(wet_limit, dry_limit) -> Optional[tuple[float, float]]:
+    """(wet, dry) when both are water contents and dry < wet, else None."""
+    if wet_limit is None or dry_limit is None:
+        return None
+    try:
+        wet = _validated_water_content(wet_limit, "wet_tillage_limit")
+        dry = _validated_water_content(dry_limit, "dry_tillage_limit")
+    except ValueError:
+        return None
+    return (wet, dry) if dry < wet else None
+
+
+def classify_workability(
     soil_moisture: Optional[float],
-    field_capacity: float,
-    wilting_point: float,
-    recent_precip: Optional[float] = None,
-    humidity: float = 0.0,
-) -> str:
-    """Compute workability semaphore using texture-aware thresholds.
+    wet_limit: Optional[float],
+    dry_limit: Optional[float],
+) -> tuple[str, Optional[str]]:
+    """Workability (tempero) state and, when unknown, why.
 
-    When soil_moisture is available (sensor), thresholds are relative to FC and PWP.
-    Falls back to precipitation/humidity heuristic when no sensor data.
+    The limits are not computed here: the soil module publishes them per horizon
+    (`wetTillageLimit`, `dryTillageLimit`; method and sources in its SDM notes).
+    This only compares the soil moisture against them, all in m3/m3.
     """
-    margin = 0.05  # 5% volumetric buffer from FC and PWP
-
-    if soil_moisture is not None:
-        too_wet = field_capacity - margin
-        too_dry = wilting_point + margin
-
-        if soil_moisture > too_wet:
-            return "too_wet"
-        if soil_moisture < too_dry:
-            return "too_dry"
-        if too_dry <= soil_moisture <= too_wet:
-            return "optimal"
-        return "caution"
-
-    # No sensor — fallback to precipitation/humidity heuristic
-    if (recent_precip is not None and recent_precip > 5) or humidity > 80:
-        return "too_wet"
-    if recent_precip == 0 and humidity < 40:
-        return "too_dry"
-    if recent_precip is not None and 1 <= recent_precip <= 5 and 40 <= humidity <= 80:
-        return "optimal"
-    return "caution"
-
+    if soil_moisture is None:
+        return "unknown", "no_soil_moisture"
+    if wet_limit is None or dry_limit is None:
+        return "unknown", "soil_thresholds_missing"
+    limits = _tillage_limits(wet_limit, dry_limit)
+    if limits is None:
+        return "unknown", "invalid_thresholds"
+    wet, dry = limits
+    if soil_moisture > wet:
+        return "too_wet", None
+    if soil_moisture < dry:
+        return "too_dry", None
+    return "optimal", None
 
 def calculate_agro_status(
     lat: float,
@@ -369,9 +251,9 @@ def calculate_agro_status(
     Uses weather data from the weather-worker (WeatherObserved telemetry)
     rather than calling Open-Meteo directly — no external API dependency.
 
-    When soil_texture is provided (sand, clay, organic_carbon from AgriSoil),
-    workability thresholds are texture-aware via Saxton-Rawls 2006 PTF.
-    Falls back to generic thresholds otherwise.
+    Workability compares soil moisture with the tillage limits of the top soil
+    horizon (`soil_texture["wet_tillage_limit"]` / `["dry_tillage_limit"]`,
+    published by the soil module). Without them the semaphore is `unknown`.
 
     Returns a dict with weather, semaphores, and metrics.
     """
@@ -576,7 +458,8 @@ def calculate_agro_status(
             semaphores["spraying"] = "caution"
             spraying_reason = "crop_sensitive"
 
-    # 6b. Workability semaphore — texture-aware when soil data available
+    # 6b. Workability (tempero) semaphore: this parcel's soil moisture against the
+    # limits the soil module publishes for its top horizon.
     soil_moisture = None
     soil_moisture_provenance = None
     if sensor_data and sensor_data.get("payload"):
@@ -599,85 +482,21 @@ def calculate_agro_status(
             soil_moisture_provenance = "parcel_weather"
 
     recent_precip = fused.get("precipitation_3d")
-    humidity = fused.get("humidity") or 0
 
-    # Compute texture-aware thresholds if soil data available
-    fc = None  # field capacity
-    wp = None  # wilting point
-    ksat = None  # saturated hydraulic conductivity
-    texture_applied = False
-
-    if (
-        soil_texture
-        and soil_texture.get("sand") is not None
-        and soil_texture.get("clay") is not None
-    ):
-        try:
-            # Use pre-computed PTF values if available (from _resolve_soil_texture via soil module API).
-            # Avoids redundant Saxton-Rawls calculation — single source of truth.
-            if (
-                soil_texture.get("field_capacity") is not None
-                and soil_texture.get("wilting_point") is not None
-            ):
-                # Validate, do not trust. The PTF guard never runs on this path,
-                # so an upstream nodata sentinel would otherwise pass straight
-                # through to the broker and into the water balance.
-                fc = _validated_water_content(
-                    soil_texture["field_capacity"], "field_capacity"
-                )
-                wp = _validated_water_content(
-                    soil_texture["wilting_point"], "wilting_point"
-                )
-                if wp >= fc:
-                    raise ValueError(
-                        f"wilting_point {wp} is not below field_capacity {fc}"
-                    )
-                ksat = soil_texture.get("ksat")
-                texture_applied = True
-            else:
-                # Fallback: compute PTF on-the-fly (backward compat for callers
-                # that pass raw sand/clay/oc without pre-computed hydraulics)
-                oc = soil_texture.get("organic_carbon", 0.5) or 0.5
-                ptf = _saxton_rawls_2006(
-                    float(soil_texture["sand"]),
-                    float(soil_texture["clay"]),
-                    float(oc),
-                )
-                fc = ptf["field_capacity"]
-                wp = ptf["wilting_point"]
-                ksat = ptf["ksat"]
-                texture_applied = True
-        except Exception as exc:
-            logger.warning(f"Saxton-Rawls PTF failed, using generic thresholds: {exc}")
-
-    if texture_applied and fc is not None and wp is not None:
-        semaphores["workability"] = _texture_workability(
-            soil_moisture, fc, wp, recent_precip, humidity
-        )
-    else:
-        # Generic fallback thresholds
-        if soil_moisture is not None:
-            # Volumetric fraction (cm3/cm3), the same scale the texture-aware
-            # branch uses against field capacity and wilting point. These read
-            # 15/25/10 — a 0-100 percentage — while production data is
-            # 0.067-0.16, so every sensorless parcel would have said `too_dry`.
-            if 0.15 <= soil_moisture <= 0.25:
-                semaphores["workability"] = "optimal"
-            elif soil_moisture > 0.25:
-                semaphores["workability"] = "too_wet"
-            elif soil_moisture < 0.10:
-                semaphores["workability"] = "too_dry"
-            else:
-                semaphores["workability"] = "caution"
-        else:
-            if (recent_precip is not None and recent_precip > 5) or humidity > 80:
-                semaphores["workability"] = "too_wet"
-            elif recent_precip == 0 and humidity < 40:
-                semaphores["workability"] = "too_dry"
-            elif recent_precip is not None and 1 <= recent_precip <= 5 and 40 <= humidity <= 80:
-                semaphores["workability"] = "optimal"
-            else:
-                semaphores["workability"] = "caution"
+    soil = soil_texture or {}
+    wet_limit = soil.get("wet_tillage_limit")
+    dry_limit = soil.get("dry_tillage_limit")
+    semaphores["workability"], workability_reason = classify_workability(
+        soil_moisture, wet_limit, dry_limit
+    )
+    limits_applied = _tillage_limits(wet_limit, dry_limit) is not None
+    # A sensor measures this parcel's soil; the virtual station's moisture comes
+    # from a reanalysis with its own generic soil, so against this parcel's limits
+    # it is only a regional estimate.
+    workability_source = {
+        "iot_sensor": "iot_sensor",
+        "parcel_weather": "regional_estimate",
+    }.get(soil_moisture_provenance)
 
     # 6c. Irrigation semaphore
     water_balance = fused.get("water_balance")
@@ -690,14 +509,14 @@ def calculate_agro_status(
             semaphores["irrigation"] = "alert"
 
     # 7. Post-rain workability recovery prediction
+    hydrologic_group = soil.get("hydrologic_group")
     recovery_hours = None
-    hydrologic_group = None
-    if texture_applied and ksat is not None:
-        hydrologic_group = soil_texture.get(
-            "hydrologic_group"
-        ) or _scs_hydrologic_group(ksat)
-        if semaphores["workability"] == "too_wet" and (recent_precip or 0) > 0:
-            recovery_hours = _estimate_recovery_hours(hydrologic_group, recent_precip)
+    if (
+        hydrologic_group
+        and semaphores["workability"] == "too_wet"
+        and (recent_precip or 0) > 0
+    ):
+        recovery_hours = _estimate_recovery_hours(hydrologic_group, recent_precip)
 
     parcel_name = "Unnamed"
     name_attr = parcel_entity.get("name", {})
@@ -725,18 +544,20 @@ def calculate_agro_status(
             # both: fraction for models, percent for display.
             "moisture": (soil_moisture * 100.0) if soil_moisture is not None else None,
             "soil_moisture_provenance": soil_moisture_provenance,
+            "workability_source": workability_source,
+            "workability_reason": workability_reason,
+            "wet_tillage_limit": wet_limit if limits_applied else None,
+            "dry_tillage_limit": dry_limit if limits_applied else None,
         },
         "soil": {
-            "texture_applied": texture_applied,
-            "field_capacity": fc,
-            "wilting_point": wp,
-            "ksat": ksat,
+            "texture_applied": limits_applied,
+            "field_capacity": _water_content_or_none(soil.get("field_capacity")),
+            "wilting_point": _water_content_or_none(soil.get("wilting_point")),
+            "ksat": soil.get("ksat"),
             "hydrologic_group": hydrologic_group,
             "recovery_hours": recovery_hours,
-            "texture_class": soil_texture.get("texture_class")
-            if soil_texture
-            else None,
-            "source": soil_texture.get("source") if soil_texture else None,
+            "texture_class": soil.get("texture_class"),
+            "source": soil.get("source"),
         }
         if soil_texture
         else None,

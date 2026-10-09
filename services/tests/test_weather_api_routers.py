@@ -337,7 +337,9 @@ class TestOrionQueryRegressions:
             "id": "urn:ngsi-ld:AgriSoilExtended:p1",
             "type": "AgriSoilExtended",
             "horizons": {"type": "Property", "value": [
-                {"sand": 40.0, "clay": 30.0, "organicCarbon": 1.2},
+                {"sand": 40.0, "clay": 30.0, "organicCarbon": 1.2,
+                 "wetTillageLimit": 0.35, "dryTillageLimit": 0.15,
+                 "hydrologicGroup": "C"},
             ]},
         }]
         with patch("app.routers.parcels.requests.get",
@@ -354,6 +356,9 @@ class TestOrionQueryRegressions:
             f"soil texture was not applied: {soil_out}. The q filter value must be "
             "quoted or Orion answers 400 Invalid Q-Filter."
         )
+        # The tempero limits are the soil module's, read from the horizon.
+        assert r.json()["metrics"]["wet_tillage_limit"] == 0.35
+        assert soil_out["hydrologic_group"] == "C"
 
     def test_context_aliases_are_read_from_the_names_orion_returns(self):
         """The @context is not injective; compaction returns the writer's alias.

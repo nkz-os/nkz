@@ -20,11 +20,9 @@ from app.services.agro_status import (  # noqa: E402
     _estimate_recovery_hours,
     _extract_crop_stage,
     _extract_float,
-    _saxton_rawls_2006,
-    _scs_hydrologic_group,
-    _texture_workability,
     _usda_texture_class,
     calculate_agro_status,
+    classify_workability,
 )
 
 PARCEL = {
@@ -91,102 +89,6 @@ def delta_t(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Saxton & Rawls (2006) pedotransfer functions
-# ---------------------------------------------------------------------------
-class TestSaxtonRawls:
-    @pytest.mark.parametrize(
-        "sand,clay",
-        [(85.0, 5.0), (10.0, 60.0), (40.0, 20.0)],
-        ids=["sand", "clay", "loam"],
-    )
-    def test_physical_bounds(self, sand, clay):
-        ptf = _saxton_rawls_2006(sand, clay, 1.0)
-        assert 0.0 < ptf["wilting_point"] < ptf["field_capacity"] < 0.6
-        assert ptf["ksat"] > 0.0
-
-    @pytest.mark.parametrize(
-        "sand,clay",
-        [
-            (-3276.8, -3276.8),
-            (-32768.0, -32768.0),
-            (-32.77, -32.77),
-            (-9999.0, 20.0),
-            (120.0, 10.0),
-            (60.0, 60.0),
-        ],
-        ids=[
-            "soilgrids-nodata-x0.1",
-            "raw-int16-nodata",
-            "soilgrids-nodata-x0.001",
-            "generic-nodata",
-            "over-100",
-            "sand+clay-over-100",
-        ],
-    )
-    def test_rejects_nodata_and_impossible_texture(self, sand, clay):
-        """Refuse to turn a NODATA sentinel into a plausible-looking number.
-
-        SoilGrids ships nodata as -32768 scaled by the layer factor, so it reaches
-        us as -3276.8 / -32.77 depending on the property. Fed straight into the
-        regression it produced field_capacity=305235.055 and wilting_point=65.977
-        in production (montiko, 2026-09-02) — and a ksat of 8.3, which looks
-        entirely reasonable. The caller catches this and falls back to generic
-        thresholds; silently emitting the number is the dangerous option.
-        """
-        with pytest.raises(ValueError):
-            _saxton_rawls_2006(sand, clay, 1.0)
-
-    def test_output_stays_physical_across_the_texture_triangle(self):
-        """No admissible texture may yield a non-physical water content.
-
-        ksat is only asserted non-negative here, deliberately. Sweeping the
-        triangle turned up a SEPARATE defect: heavy clays (sand 30-40 / clay
-        60-70) come out of `round(ksat, 2)` as exactly 0.0. The underlying value
-        is a very small positive — correct for clay — but reporting 0.0 reads as
-        "impermeable", which pushes `_scs_hydrologic_group` to D and inflates
-        `_estimate_recovery_hours`. Fixing that changes agronomic output for
-        those soils, so it is its own change with its own verification; see
-        PENDING.md. This assertion pins that it never goes negative meanwhile.
-        """
-        for sand in range(0, 101, 5):
-            for clay in range(0, 101 - sand, 5):
-                ptf = _saxton_rawls_2006(float(sand), float(clay), 1.0)
-                assert 0.0 < ptf["wilting_point"] < 1.0
-                assert 0.0 < ptf["field_capacity"] < 1.0
-                assert ptf["wilting_point"] < ptf["field_capacity"]
-                assert ptf["ksat"] >= 0.0
-
-    def test_sand_drains_faster_than_clay(self):
-        sand = _saxton_rawls_2006(85.0, 5.0, 1.0)
-        clay = _saxton_rawls_2006(10.0, 60.0, 1.0)
-        assert sand["ksat"] > clay["ksat"]
-
-    def test_clay_holds_more_water_than_sand(self):
-        sand = _saxton_rawls_2006(85.0, 5.0, 1.0)
-        clay = _saxton_rawls_2006(10.0, 60.0, 1.0)
-        assert clay["field_capacity"] > sand["field_capacity"]
-        assert clay["wilting_point"] > sand["wilting_point"]
-
-    @pytest.mark.parametrize(
-        "sand,clay,lo,hi",
-        [
-            (88.0, 5.0, 50.0, 200.0),  # sand — paper Table 3 ≈ 108 mm/h
-            (40.0, 20.0, 3.0, 20.0),  # loam ≈ 13 mm/h
-            (20.0, 15.0, 2.0, 15.0),  # silt loam ≈ 7 mm/h
-            (20.0, 55.0, 0.1, 3.0),  # clay ≈ 1.5 mm/h
-        ],
-        ids=["sand", "loam", "silt_loam", "clay"],
-    )
-    def test_ksat_reference_ranges(self, sand, clay, lo, hi):
-        """Regression: Ksat must be non-zero and in the ballpark of Saxton &
-        Rawls 2006 Table 3. The pre-fix formula returned 0.0 for every
-        non-sandy texture, forcing hydrologic group D and inflated
-        post-rain recovery hours."""
-        ksat = _saxton_rawls_2006(sand, clay, 1.0)["ksat"]
-        assert lo <= ksat <= hi
-
-
-# ---------------------------------------------------------------------------
 # USDA texture triangle
 # ---------------------------------------------------------------------------
 class TestUsdaTextureClass:
@@ -212,18 +114,8 @@ class TestUsdaTextureClass:
 
 
 # ---------------------------------------------------------------------------
-# SCS hydrologic groups + recovery hours
+# Post-rain recovery hours
 # ---------------------------------------------------------------------------
-class TestScsHydrologicGroup:
-    @pytest.mark.parametrize(
-        "ksat,expected",
-        [(40.0, "A"), (36.0, "B"), (10.0, "B"), (3.6, "C"), (1.0, "C"),
-         (0.36, "D"), (0.1, "D")],
-    )
-    def test_boundaries(self, ksat, expected):
-        assert _scs_hydrologic_group(ksat) == expected
-
-
 class TestRecoveryHours:
     @pytest.mark.parametrize(
         "group,base", [("A", 6), ("B", 18), ("C", 36), ("D", 60)]
@@ -239,25 +131,35 @@ class TestRecoveryHours:
 
 
 # ---------------------------------------------------------------------------
-# Texture-aware workability (direct)
+# Workability classification (direct): limits come from the soil module
 # ---------------------------------------------------------------------------
-class TestTextureWorkability:
-    FC, WP = 0.32, 0.12  # margins → too_wet > 0.27, too_dry < 0.17
+class TestClassifyWorkability:
+    WET, DRY = 0.35, 0.13
 
     @pytest.mark.parametrize(
         "moisture,expected",
-        [(0.30, "too_wet"), (0.10, "too_dry"), (0.20, "optimal")],
+        [(0.36, "too_wet"), (0.35, "optimal"), (0.20, "optimal"),
+         (0.13, "optimal"), (0.12, "too_dry")],
     )
-    def test_sensor_thresholds_relative_to_fc_pwp(self, moisture, expected):
-        assert _texture_workability(moisture, self.FC, self.WP) == expected
+    def test_states_against_the_published_limits(self, moisture, expected):
+        assert classify_workability(moisture, self.WET, self.DRY) == (expected, None)
+
+    def test_no_moisture(self):
+        assert classify_workability(None, self.WET, self.DRY) == ("unknown", "no_soil_moisture")
+
+    @pytest.mark.parametrize("wet,dry", [(None, 0.13), (0.35, None), (None, None)])
+    def test_missing_limits(self, wet, dry):
+        assert classify_workability(0.2, wet, dry) == ("unknown", "soil_thresholds_missing")
 
     @pytest.mark.parametrize(
-        "precip,humidity,expected",
-        [(6.0, 50.0, "too_wet"), (0.0, 30.0, "too_dry"),
-         (2.0, 60.0, "optimal"), (0.0, 60.0, "caution")],
+        "wet,dry",
+        [(0.13, 0.35),          # inverted
+         (0.2, 0.2),            # empty range
+         (305.2, 0.13),         # nodata-scale value that survived upstream
+         (-3276.8, -3276.8)],   # SoilGrids nodata sentinel
     )
-    def test_no_sensor_heuristic(self, precip, humidity, expected):
-        assert _texture_workability(None, self.FC, self.WP, precip, humidity) == expected
+    def test_invalid_limits_are_not_used(self, wet, dry):
+        assert classify_workability(0.2, wet, dry) == ("unknown", "invalid_thresholds")
 
 
 # ---------------------------------------------------------------------------
@@ -357,15 +259,24 @@ class TestSprayingSemaphore:
 # ---------------------------------------------------------------------------
 # Workability + irrigation semaphores (orchestrator level)
 # ---------------------------------------------------------------------------
+SOIL = {"sand": 40.0, "clay": 20.0, "organic_carbon": 1.0,
+        "wet_tillage_limit": 0.35, "dry_tillage_limit": 0.13,
+        "field_capacity": 0.30, "wilting_point": 0.13, "ksat": 2.0,
+        "hydrologic_group": "C", "texture_class": "loam", "source": "soil-module"}
+
+
 class TestWorkabilitySemaphore:
     @pytest.mark.parametrize(
         "moisture,expected",
-        [(20, "optimal"), (30, "too_wet"), (5, "too_dry"), (12, "caution")],
+        [(20, "optimal"), (40, "too_wet"), (5, "too_dry")],
     )
-    def test_generic_sensor_thresholds(self, delta_t, moisture, expected):
+    def test_sensor_against_soil_limits(self, delta_t, moisture, expected):
         delta_t(5.0)
-        r = run_agro(sensor_data=make_sensor({"soil_moisture": moisture}))
+        r = run_agro(sensor_data=make_sensor({"soil_moisture": moisture}), soil_texture=SOIL)
         assert r["semaphores"]["workability"] == expected
+        assert r["metrics"]["workability_reason"] is None
+        assert r["metrics"]["wet_tillage_limit"] == 0.35
+        assert r["metrics"]["dry_tillage_limit"] == 0.13
 
     @pytest.mark.parametrize(
         "raw,expected",
@@ -462,109 +373,77 @@ class TestWorkabilitySemaphore:
         assert r["metrics"]["soil_moisture"] == 0.12
         assert r["metrics"]["moisture"] == 12.0
 
-    def test_generic_fallback_reads_the_same_scale_as_the_texture_branch(self, delta_t):
-        """Both branches must treat soil moisture as a 0-1 fraction.
-
-        The texture-aware branch compares against field capacity and wilting
-        point, which are cm3/cm3. The generic fallback used 15/25/10, i.e. a
-        0-100 percentage. Production data is volumetric (0.067-0.16 measured), so
-        once the extractor is wired the fallback would have called every
-        sensorless parcel `too_dry`.
-        """
+    def test_without_soil_limits_there_is_no_guess(self, delta_t):
+        """No limits from the soil module: unknown, never generic thresholds."""
         delta_t(5.0)
-        # 0.20 is comfortably workable on a 0-1 scale; on the old 0-100
-        # thresholds it read as bone dry.
         r = run_agro(sensor_data=make_sensor({"measurements": {"soilMoistureTop": 0.20}}))
-        assert r["semaphores"]["workability"] == "optimal"
+        assert r["semaphores"]["workability"] == "unknown"
+        assert r["metrics"]["workability_reason"] == "soil_thresholds_missing"
 
-    @pytest.mark.parametrize(
-        "vwc,expected",
-        [(0.05, "too_dry"), (0.20, "optimal"), (0.30, "too_wet"), (0.12, "caution")],
-    )
-    def test_generic_fraction_thresholds(self, delta_t, vwc, expected):
-        delta_t(5.0)
-        r = run_agro(sensor_data=make_sensor({"measurements": {"soilMoistureTop": vwc}}))
-        assert r["semaphores"]["workability"] == expected
-
-    def test_no_sensor_heuristic_too_wet(self, delta_t):
-        delta_t(5.0)
-        r = run_agro(weather_3d=[{"precip_mm": 6.0, "eto_mm": 1.0}])
-        assert r["semaphores"]["workability"] == "too_wet"
-
-    def test_precomputed_ptf_takes_priority(self, delta_t):
-        delta_t(5.0)
-        soil = {"sand": 40.0, "clay": 20.0, "field_capacity": 0.32,
-                "wilting_point": 0.12, "ksat": 2.0, "texture_class": "loam",
-                "source": "soil-module"}
-        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}),
-                     soil_texture=soil)
-        assert r["semaphores"]["workability"] == "optimal"
-        # Pre-computed values used verbatim — no Saxton-Rawls recompute
-        assert r["soil"]["field_capacity"] == 0.32
-        assert r["soil"]["wilting_point"] == 0.12
-        assert r["soil"]["texture_applied"] is True
-        assert r["soil"]["texture_class"] == "loam"
-
-    def test_nodata_raw_texture_falls_back_instead_of_emitting_a_number(self, delta_t):
-        """A SoilGrids nodata sentinel must degrade to generic thresholds.
-
-        This is the production case (montiko, 2026-09-02): the AgriSoilExtended
-        horizon carried sand=clay=silt=-3276.8 and agro-status published
-        field_capacity=305235.055 alongside wilting_point=65.977.
-        """
+    def test_soil_without_limits_is_unknown(self, delta_t):
+        """A soil entity ingested before the limits existed (or with nodata)."""
         delta_t(5.0)
         soil = {"sand": -3276.8, "clay": -3276.8, "organic_carbon": 4.0}
-        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}),
-                     soil_texture=soil)
-        assert r["soil"]["texture_applied"] is False
-        assert r["soil"]["field_capacity"] is None
-        assert r["soil"]["wilting_point"] is None
-        assert r["semaphores"]["workability"] != "unknown"
-
-    def test_precomputed_values_are_validated_not_trusted(self, delta_t):
-        """Pre-computed hydraulics from the soil module get the same scrutiny.
-
-        The PTF guard cannot help here — it is never called on this path — so a
-        bad upstream value would otherwise sail straight through to the broker.
-        """
-        delta_t(5.0)
-        soil = {"sand": 40.0, "clay": 20.0, "field_capacity": 305235.055,
-                "wilting_point": 65.977, "ksat": 8.3, "texture_class": "loam",
-                "source": "soil-module"}
-        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}),
-                     soil_texture=soil)
+        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}), soil_texture=soil)
+        assert r["semaphores"]["workability"] == "unknown"
         assert r["soil"]["texture_applied"] is False
         assert r["soil"]["field_capacity"] is None
 
-    def test_precomputed_inverted_pair_is_rejected(self, delta_t):
-        """Wilting point above field capacity is not a soil, it is a bug."""
+    def test_rain_without_moisture_is_unknown_not_a_heuristic(self, delta_t):
         delta_t(5.0)
-        soil = {"sand": 40.0, "clay": 20.0, "field_capacity": 0.12,
-                "wilting_point": 0.32, "ksat": 2.0, "source": "soil-module"}
-        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}),
-                     soil_texture=soil)
-        assert r["soil"]["texture_applied"] is False
+        r = run_agro(weather_3d=[{"precip_mm": 6.0, "eto_mm": 1.0}], soil_texture=SOIL)
+        assert r["semaphores"]["workability"] == "unknown"
+        assert r["metrics"]["workability_reason"] == "no_soil_moisture"
 
-    def test_on_the_fly_ptf_from_raw_texture(self, delta_t):
+    def test_sensor_reading_is_this_parcels_soil(self, delta_t):
         delta_t(5.0)
-        soil = {"sand": 40.0, "clay": 20.0, "organic_carbon": 1.0}
-        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.55}),
-                     soil_texture=soil)
+        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}), soil_texture=SOIL)
+        assert r["metrics"]["workability_source"] == "iot_sensor"
+
+    def test_virtual_station_moisture_is_a_regional_estimate(self, delta_t):
+        delta_t(5.0)
+        r = run_agro(obs_overrides={"soil_moisture_0_10cm": 20.0}, soil_texture=SOIL)
+        assert r["semaphores"]["workability"] == "optimal"
+        assert r["metrics"]["workability_source"] == "regional_estimate"
+
+    def test_no_moisture_has_no_source(self, delta_t):
+        delta_t(5.0)
+        r = run_agro(soil_texture=SOIL)
+        assert r["metrics"]["workability_source"] is None
+
+    def test_soil_module_values_are_used_verbatim(self, delta_t):
+        delta_t(5.0)
+        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}), soil_texture=SOIL)
         assert r["soil"]["texture_applied"] is True
-        assert r["soil"]["field_capacity"] is not None
-        assert r["semaphores"]["workability"] == "too_wet"  # 0.55 above any FC
+        assert r["soil"]["field_capacity"] == 0.30
+        assert r["soil"]["wilting_point"] == 0.13
+        assert r["soil"]["texture_class"] == "loam"
+
+    def test_out_of_range_soil_values_are_validated_not_trusted(self, delta_t):
+        delta_t(5.0)
+        soil = dict(SOIL, field_capacity=305235.055, wet_tillage_limit=305.2)
+        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}), soil_texture=soil)
+        assert r["soil"]["field_capacity"] is None
+        assert r["semaphores"]["workability"] == "unknown"
+        assert r["metrics"]["workability_reason"] == "invalid_thresholds"
+        assert r["metrics"]["wet_tillage_limit"] is None
+
+    def test_inverted_limits_are_rejected(self, delta_t):
+        delta_t(5.0)
+        soil = dict(SOIL, wet_tillage_limit=0.12, dry_tillage_limit=0.32)
+        r = run_agro(sensor_data=make_sensor({"soil_moisture": 0.20}), soil_texture=soil)
+        assert r["semaphores"]["workability"] == "unknown"
+        assert r["soil"]["texture_applied"] is False
 
     def test_recovery_hours_when_too_wet_after_rain(self, delta_t):
         delta_t(5.0)
-        soil = {"sand": 40.0, "clay": 20.0, "field_capacity": 0.32,
-                "wilting_point": 0.12, "ksat": 2.0}
         r = run_agro(
-            sensor_data=make_sensor({"soil_moisture": 0.30}),
-            soil_texture=soil,
+            sensor_data=make_sensor({"soil_moisture": 0.40}),
+            soil_texture=SOIL,
             weather_3d=[{"precip_mm": 10.0, "eto_mm": 2.0}],
         )
         assert r["semaphores"]["workability"] == "too_wet"
-        assert r["soil"]["hydrologic_group"] == "C"  # ksat 2.0 → group C
+        assert r["soil"]["hydrologic_group"] == "C"  # from the soil module
         assert r["soil"]["recovery_hours"] == 36 + 5  # base C + 10mm * 0.5
 
 
