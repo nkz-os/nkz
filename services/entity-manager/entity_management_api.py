@@ -232,6 +232,7 @@ from blueprints.calibration import calibration_bp
 from blueprints.diagnostics import diagnostics_bp
 from notification_handler import notify_bp
 from blueprints.notifications import init_notifications
+from blueprints.crop_cycles import init_crop_cycles
 
 # weather_bp removed — routes now served by standalone weather-api service
 app.register_blueprint(admin_bp)
@@ -250,6 +251,11 @@ try:
     logger.info('Unified notifications blueprint registered')
 except Exception as e:
     logger.error('Failed to register notifications blueprint: %s', e)
+
+try:
+    init_crop_cycles(app)
+except Exception as e:
+    logger.error('Failed to register crop cycles blueprint: %s', e)
 
 # ---------------------------------------------------------------------------
 # NGSI-LD subscription bootstrap at startup
