@@ -6,6 +6,11 @@ import { DAY_MS } from '../timeScale';
 const range = { start: Date.UTC(2026, 3, 1), end: Date.UTC(2026, 3, 1) + 100 * DAY_MS };
 
 describe('TimelineAxis', () => {
+  it('is 40px tall', () => {
+    render(<TimelineAxis range={range} cursor={range.start} onCursorChange={vi.fn()} ariaLabel="axis" />);
+    expect(screen.getByRole('slider', { name: 'axis' }).style.height).toBe('40px');
+  });
+
   it('moves the cursor to the clicked day, snapped to UTC midnight', () => {
     const onCursorChange = vi.fn();
     render(<TimelineAxis range={range} cursor={range.start} onCursorChange={onCursorChange} ariaLabel="axis" />);
