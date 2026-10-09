@@ -106,26 +106,26 @@ export interface StepConfig {
 
 export const STEP_CONFIGS: Record<MacroCategory, StepConfig[]> = {
   assets: [
-    { id: 'type', label: 'Tipo' },
-    { id: 'geo-config', label: 'Datos' },
-    { id: 'geometry', label: 'Geometría' },
-    { id: 'visualization', label: 'Visual' },
-    { id: 'summary', label: 'Resumen' },
+    { id: 'type', label: 'wizard.steps.type' },
+    { id: 'geo-config', label: 'wizard.steps.data' },
+    { id: 'geometry', label: 'wizard.steps.geometry' },
+    { id: 'visualization', label: 'wizard.steps.visual' },
+    { id: 'summary', label: 'wizard.steps.summary' },
   ],
   sensors: [
-    { id: 'type', label: 'Tipo' },
-    { id: 'iot-config', label: 'Datos' },
-    { id: 'geometry', label: 'Ubicación' },
-    { id: 'summary', label: 'Resumen' },
+    { id: 'type', label: 'wizard.steps.type' },
+    { id: 'iot-config', label: 'wizard.steps.data' },
+    { id: 'geometry', label: 'wizard.steps.location' },
+    { id: 'summary', label: 'wizard.steps.summary' },
   ],
   fleet: [
-    { id: 'type', label: 'Tipo' },
-    { id: 'fleet-config', label: 'Datos' },
-    { id: 'geometry', label: 'Ubicación' },
-    { id: 'visualization', label: 'Visual' },
-    { id: 'summary', label: 'Resumen' },
+    { id: 'type', label: 'wizard.steps.type' },
+    { id: 'fleet-config', label: 'wizard.steps.data' },
+    { id: 'geometry', label: 'wizard.steps.location' },
+    { id: 'visualization', label: 'wizard.steps.visual' },
+    { id: 'summary', label: 'wizard.steps.summary' },
   ],
 };
 
 /** Steps shown before a category is known (only type selection) */
-export const INITIAL_STEPS: StepConfig[] = [{ id: 'type', label: 'Tipo' }];
+export const INITIAL_STEPS: StepConfig[] = [{ id: 'type', label: 'wizard.steps.type' }];

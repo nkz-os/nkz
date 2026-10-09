@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Upload, X, Image as ImageIcon, Check, Loader2 } from 'lucide-react';
 import { uploadToMinIO, isValidIconFile, getMaxFileSizeMB, UploadProgress } from '@/utils/minioAssets';
 import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 interface IconUploaderProps {
   currentIconUrl?: string;
@@ -18,6 +19,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
   onRemove,
   disabled = false
 }) => {
+  const { t } = useI18n();
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
 
     // Validate file type
     if (!isValidIconFile(file)) {
-      setError('Invalid file type. Please upload PNG, JPG, SVG, or WebP.');
+      setError(t('wizard.upload.invalid_type_icon'));
       return;
     }
 
@@ -41,7 +43,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
     const maxSizeMB = getMaxFileSizeMB('icon');
     const fileSizeMB = file.size / (1024 * 1024);
     if (fileSizeMB > maxSizeMB) {
-      setError(`File too large. Maximum size is ${maxSizeMB}MB.`);
+      setError(t('wizard.upload.file_too_large', { max: maxSizeMB }));
       return;
     }
 
@@ -63,7 +65,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
       onUpload(url);
       setPreview(url);
     } catch (err: any) {
-      setError(err.message || 'Failed to upload icon');
+      setError(err.message || t('wizard.upload.icon_failed'));
       setPreview(null);
     } finally {
       setUploading(false);
@@ -87,7 +89,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
   return (
     <div className="space-y-3">
       <label className="block text-sm font-medium text-gray-700">
-        Icon (2D)
+        {t('wizard.upload.icon_2d')}
       </label>
 
       <div className="flex items-start gap-4">
@@ -97,7 +99,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
             {preview ? (
               <img
                 src={preview}
-                alt="Icon preview"
+                alt={t('wizard.upload.icon_preview')}
                 className="w-full h-full object-contain"
               />
             ) : (
@@ -120,7 +122,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
                 <Upload className="w-4 h-4" />
               )}
               <span className="text-sm font-medium">
-                {uploading ? `Uploading... ${uploadProgress}%` : 'Upload Icon'}
+                {uploading ? t('wizard.upload.uploading', { progress: uploadProgress }) : t('wizard.upload.upload_icon')}
               </span>
               <Input
                 ref={fileInputRef}
@@ -155,7 +157,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
           )}
 
           <p className="text-xs text-nkz-muted">
-            Formats: PNG, JPG, SVG, WebP. Max size: {getMaxFileSizeMB('icon')}MB
+            {t('wizard.upload.formats_icon', { max: getMaxFileSizeMB('icon') })}
           </p>
 
           {error && (
@@ -167,7 +169,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
           {currentIconUrl && currentIconUrl !== preview && (
             <div className="flex items-center gap-1 text-xs text-nkz-success-strong">
               <Check className="w-3 h-3" />
-              <span>Icon uploaded successfully</span>
+              <span>{t('wizard.upload.icon_success')}</span>
             </div>
           )}
         </div>

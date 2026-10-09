@@ -1,6 +1,7 @@
 import React from 'react';
 import { MousePointer2, Brush, Grid3x3, AlertTriangle } from 'lucide-react';
 import { Button } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 export type PlacementMode = 'single' | 'multi' | 'stamp' | 'array' | 'line' | 'polygon';
 
@@ -11,6 +12,7 @@ interface PlacementModeSelectorProps {
 }
 
 export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mode, onChange, entityType }) => {
+    const { t } = useI18n();
 
     // Stamp mode is only recommended for vegetation
     const isVegetation = entityType && ['OliveGrove', 'Vineyard', 'AgriTree', 'OliveTree', 'Vine'].includes(entityType);
@@ -31,9 +33,9 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                         <MousePointer2 className="w-6 h-6" />
                     </div>
                     <div>
-                        <div className="font-semibold text-gray-900">Placement Individual</div>
+                        <div className="font-semibold text-gray-900">{t('wizard.placement.single_title')}</div>
                         <p className="text-sm text-nkz-muted mt-1">
-                            Coloca entidades una a una. Ideal para edificios, sensores o infraestructura específica.
+                            {t('wizard.placement.single_desc')}
                         </p>
                     </div>
                 </div>
@@ -54,13 +56,13 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                     </div>
                     <div>
                         <div className="font-semibold text-gray-900 flex items-center gap-2">
-                            Stamp Mode (Pincel)
+                            {t('wizard.placement.stamp_title')}
                             <span className="bg-nkz-success-soft text-nkz-success-strong text-xs px-2 py-0.5 rounded-full font-bold">GPU INSTANCED</span>
                         </div>
                         <p className="text-sm text-nkz-muted mt-1">
-                            Pinta vegetación masiva usando instanciado GPU.
+                            {t('wizard.placement.stamp_desc')}
                             <br />
-                            <span className="text-xs font-medium">Requiere modelo .glb optimizado (Draco).</span>
+                            <span className="text-xs font-medium">{t('wizard.placement.stamp_requirement')}</span>
                         </p>
                     </div>
                 </div>
@@ -68,7 +70,7 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                 {!isVegetation && mode === 'stamp' && (
                     <div className="mt-3 p-2 bg-nkz-warning-soft text-nkz-warning-strong text-xs rounded border border-yellow-200 flex items-center gap-2">
                         <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                        Este modo está diseñado para vegetación (Árboles/Cultivos).
+                        {t('wizard.placement.stamp_vegetation_warning')}
                     </div>
                 )}
             </Button>
@@ -88,13 +90,13 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                     </div>
                     <div>
                         <div className="font-semibold text-gray-900 flex items-center gap-2">
-                            Array Mode (Grilla)
+                            {t('wizard.placement.array_title')}
                             <span className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full font-bold">GPU INSTANCED</span>
                         </div>
                         <p className="text-sm text-nkz-muted mt-1">
-                            Coloca entidades en una cuadrícula regular. Ideal para paneles solares, viñedos u olivares.
+                            {t('wizard.placement.array_desc')}
                             <br />
-                            <span className="text-xs font-medium">Filas × Columnas con espaciado y orientación ajustable.</span>
+                            <span className="text-xs font-medium">{t('wizard.placement.array_requirement')}</span>
                         </p>
                     </div>
                 </div>

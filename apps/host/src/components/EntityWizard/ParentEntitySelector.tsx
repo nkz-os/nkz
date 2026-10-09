@@ -3,6 +3,7 @@ import { Search, MapPin, Building, Sprout } from 'lucide-react';
 import api from '@/services/api';
 import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 
 export interface ParentEntity {
@@ -26,6 +27,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
   entityType,
   disabled = false
 }) => {
+  const { t } = useI18n();
   const [parents, setParents] = useState<ParentEntity[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -68,7 +70,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-gray-700">
-        Create as subdivision of...
+        {t('wizard.parent.create_as_subdivision')}
       </label>
       
       <div className="relative">
@@ -88,7 +90,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                 <span className="text-xs text-nkz-muted">({selectedParent.type})</span>
               </>
             ) : (
-              <span className="text-nkz-muted">Select parent entity (optional)</span>
+              <span className="text-nkz-muted">{t('wizard.parent.select_placeholder')}</span>
             )}
           </span>
           <span className="text-xs text-nkz-muted">▼</span>
@@ -101,7 +103,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                 <Search className="absolute left-2 top-2.5 w-4 h-4 text-nkz-muted" />
                 <Input
                   type="text"
-                  placeholder="Search parent entities..."
+                  placeholder={t('wizard.parent.search_placeholder')}
                   value={searchTerm}
                   onChange={(e: any) => setSearchTerm(e.target.value)}
                   className="w-full pl-8 pr-2 py-1.5 text-sm border border-nkz-border rounded focus:ring-2 focus:ring-green-500"
@@ -122,15 +124,15 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                   !selectedParentId ? 'bg-nkz-success-soft text-nkz-success-strong' : ''
                 }`}
               >
-                <span className="font-medium">None (independent entity)</span>
+                <span className="font-medium">{t('wizard.parent.none')}</span>
               </Button>
             </div>
 
             {loading ? (
-              <div className="p-4 text-center text-sm text-nkz-muted">Loading...</div>
+              <div className="p-4 text-center text-sm text-nkz-muted">{t('wizard.parent.loading')}</div>
             ) : filteredParents.length === 0 ? (
               <div className="p-4 text-center text-sm text-nkz-muted">
-                {searchTerm ? 'No matching entities found' : 'No parent entities available'}
+                {searchTerm ? t('wizard.parent.no_matches') : t('wizard.parent.none_available')}
               </div>
             ) : (
               filteredParents.map((parent) => (
@@ -160,8 +162,8 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
 
       {selectedParent && (
         <p className="text-xs text-nkz-muted">
-          The new entity will be created as a subdivision of "{selectedParent.name}".
-          Its geometry must be completely within the parent's boundaries.
+          {t('wizard.parent.subdivision_note', { name: selectedParent.name })}{' '}
+          {t('wizard.parent.subdivision_geometry_note')}
         </p>
       )}
     </div>

@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, AlertTriangle, Wifi, Server, Key, FileDown, Radio, Zap } from 'lucide-react';
 import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 export interface MqttCredentials {
   host: string;
@@ -37,6 +38,7 @@ export const MqttCredentialsModal: React.FC<MqttCredentialsModalProps> = ({
   deviceName,
   credentials
 }) => {
+  const { t } = useI18n();
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [allCopied, setAllCopied] = useState(false);
 
@@ -131,7 +133,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           type="button"
           onClick={() => copyToClipboard(value, fieldName)}
           className="px-3 py-2 border border-nkz-border rounded hover:bg-nkz-bg-secondary transition"
-          title="Copy to clipboard"
+          title={t('wizard.mqtt.copy')}
         >
           {copiedField === fieldName ? (
             <Check className="w-4 h-4 text-nkz-success-strong" />
@@ -153,10 +155,10 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
               <div className="p-2 bg-white/20 rounded-lg">
                 <Radio className="w-6 h-6 text-white" />
               </div>
-              <h2 className="text-xl font-bold text-white">Sensor IoT Provisionado</h2>
+              <h2 className="text-xl font-bold text-white">{t('wizard.mqtt.title')}</h2>
             </div>
             <p className="text-sm text-teal-100">
-              Dispositivo <span className="font-semibold">{deviceName}</span> configurado y listo para enviar datos
+              {t('wizard.mqtt.device_before')} <span className="font-semibold">{deviceName}</span> {t('wizard.mqtt.device_after')}
             </p>
           </div>
           <Button
@@ -172,7 +174,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <p className="text-sm text-amber-800">
-              <strong>⚠️ IMPORTANTE:</strong> Guarda la API Key ahora. <strong>NO podrás verla después.</strong>
+              <strong>{t('wizard.mqtt.warning_label')}</strong> {t('wizard.mqtt.warning_save')} <strong>{t('wizard.mqtt.warning_once')}</strong>
             </p>
           </div>
         </div>
@@ -187,7 +189,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
               className="flex items-center justify-center gap-2 px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium shadow-sm"
             >
               <FileDown className="w-5 h-5" />
-              Descargar Config JSON
+              {t('wizard.mqtt.download_config')}
             </Button>
             <Button
               type="button"
@@ -201,12 +203,12 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
               {allCopied ? (
                 <>
                   <Check className="w-5 h-5" />
-                  ¡Copiado!
+                  {t('wizard.mqtt.copied')}
                 </>
               ) : (
                 <>
                   <Copy className="w-5 h-5" />
-                  Copiar Todo
+                  {t('wizard.mqtt.copy_all')}
                 </>
               )}
             </Button>
@@ -218,11 +220,11 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             <div className="bg-nkz-danger-soft rounded-xl p-4 border-2 border-red-300">
               <div className="flex items-center gap-2 mb-3">
                 <Key className="w-5 h-5 text-nkz-danger-strong" />
-                <h4 className="font-bold text-red-900">API Key (Secreto)</h4>
-                <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-full">Una sola vez</span>
+                <h4 className="font-bold text-red-900">{t('wizard.mqtt.api_key_secret')}</h4>
+                <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-full">{t('wizard.mqtt.once')}</span>
               </div>
               <CredentialField 
-                label="API Key para autenticación MQTT" 
+                label={t('wizard.mqtt.api_key_label')} 
                 value={credentials.api_key} 
                 fieldName="api_key" 
               />
@@ -232,7 +234,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             <div className="bg-nkz-bg-secondary rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Server className="w-4 h-4 text-nkz-muted" />
-                <h4 className="font-medium text-gray-700">Información del Dispositivo</h4>
+                <h4 className="font-medium text-gray-700">{t('wizard.mqtt.device_info')}</h4>
               </div>
               <div className="space-y-2">
                 <CredentialField label="Device ID" value={credentials.device_id} fieldName="device_id" />
@@ -243,14 +245,14 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             <div className="bg-teal-50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Wifi className="w-4 h-4 text-teal-600" />
-                <h4 className="font-medium text-teal-900">Conexión MQTT</h4>
+                <h4 className="font-medium text-teal-900">{t('wizard.mqtt.connection')}</h4>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <CredentialField label="Host" value={credentials.host} fieldName="host" />
-                <CredentialField label="Puerto" value={String(credentials.port)} fieldName="port" />
+                <CredentialField label={t('wizard.mqtt.port')} value={String(credentials.port)} fieldName="port" />
               </div>
               <div className="mt-2 text-xs text-teal-700">
-                Protocolo: <code className="bg-teal-100 px-1 rounded">{credentials.protocol}</code>
+                {t('wizard.mqtt.protocol')}: <code className="bg-teal-100 px-1 rounded">{credentials.protocol}</code>
               </div>
             </div>
 
@@ -258,23 +260,23 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             <div className="bg-indigo-50 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Zap className="w-4 h-4 text-indigo-600" />
-                <h4 className="font-medium text-indigo-900">Topics MQTT</h4>
+                <h4 className="font-medium text-indigo-900">{t('wizard.mqtt.topics')}</h4>
               </div>
               <div className="space-y-2">
                 <CredentialField 
-                  label="Enviar Datos (publish)" 
+                  label={t('wizard.mqtt.topic_publish')} 
                   value={credentials.topics.publish_data} 
                   fieldName="topic_data" 
                 />
                 {credentials.topics.publish_data_json && (
                   <CredentialField 
-                    label="Enviar Datos JSON" 
+                    label={t('wizard.mqtt.topic_publish_json')} 
                     value={credentials.topics.publish_data_json} 
                     fieldName="topic_json" 
                   />
                 )}
                 <CredentialField 
-                  label="Recibir Comandos" 
+                  label={t('wizard.mqtt.topic_commands')} 
                   value={credentials.topics.commands} 
                   fieldName="topic_cmd" 
                 />
@@ -285,7 +287,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             <div className="bg-nkz-bg-secondary rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Server className="w-4 h-4 text-nkz-muted" />
-                <h4 className="font-medium text-gray-700">Ejemplo de Payload JSON</h4>
+                <h4 className="font-medium text-gray-700">{t('wizard.mqtt.example_payload')}</h4>
               </div>
               <pre className="bg-gray-900 text-green-400 p-3 rounded-lg text-sm overflow-x-auto">
 {JSON.stringify(credentials.example_payload || { 
@@ -299,13 +301,13 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
 
           {/* Instructions */}
           <div className="bg-nkz-info-soft border border-blue-200 rounded-xl p-4">
-            <h4 className="font-medium text-blue-900 mb-2">Próximos pasos:</h4>
+            <h4 className="font-medium text-blue-900 mb-2">{t('wizard.mqtt.next_steps')}</h4>
             <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-              <li>Descarga el archivo de configuración JSON</li>
-              <li>Configura tu dispositivo con la API Key y los topics</li>
-              <li>Conecta por MQTT a <code className="bg-nkz-info-soft px-1 rounded">{credentials.host}:{credentials.port}</code></li>
-              <li>Envía datos al topic de publicación en formato JSON</li>
-              <li>Verifica en el visor que los datos aparecen correctamente</li>
+              <li>{t('wizard.mqtt.step1')}</li>
+              <li>{t('wizard.mqtt.step2')}</li>
+              <li>{t('wizard.mqtt.step3')} <code className="bg-nkz-info-soft px-1 rounded">{credentials.host}:{credentials.port}</code></li>
+              <li>{t('wizard.mqtt.step4')}</li>
+              <li>{t('wizard.mqtt.step5')}</li>
             </ol>
           </div>
         </div>
@@ -317,7 +319,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             onClick={onClose}
             className="w-full px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium"
           >
-            He guardado las credenciales
+            {t('wizard.mqtt.saved')}
           </Button>
         </div>
       </div>

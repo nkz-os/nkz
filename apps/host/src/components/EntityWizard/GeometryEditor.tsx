@@ -18,6 +18,7 @@ import { validateGeometryWithinParent } from '@/utils/geometryValidation';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { logger } from '@/utils/logger';
 import { Button } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 // NOTE: CesiumMap import removed - all geometry types now use global viewer via startDrawing
 
@@ -46,6 +47,10 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   height = 'h-96',
   disabled = false
 }) => {
+  const { t } = useI18n();
+  // t is not memoized; keep a ref so callbacks can translate without changing their identity
+  const tRef = useRef(t);
+  tRef.current = t;
   const { cesiumViewer, startDrawing } = useViewer(); // Use generic viewer context
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<any>(null);
@@ -352,7 +357,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
     const validation = validateGeometryWithinParent(geometry, parentGeometry.geometry);
 
     if (!validation.valid) {
-      setValidationError(validation.error || 'Invalid geometry');
+      setValidationError(validation.error || tRef.current('wizard.geometry_editor.invalid_geometry'));
       onValidationChange?.(false, validation.error);
 
       // Update entity color to red
@@ -621,13 +626,13 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
     // Instructions for all geometry types
     switch (geometryType) {
       case 'Point':
-        return 'Click on the map to select a location.';
+        return t('wizard.geometry_editor.instr_point');
       case 'Polygon':
-        return 'Click to add points. Double-click or right-click to finish. Minimum 3 points required.';
+        return t('wizard.geometry_editor.instr_polygon');
       case 'LineString':
-        return 'Click to add points. Right-click to finish. Minimum 2 points required.';
+        return t('wizard.geometry_editor.instr_line');
       case 'MultiLineString':
-        return 'Click to add points for each line. Right-click to finish current line.';
+        return t('wizard.geometry_editor.instr_multiline');
       default:
         return '';
     }
@@ -648,12 +653,12 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                 )}
               </div>
               <h3 className="text-lg font-semibold text-gray-900">
-                {geometryType === 'Point' ? 'Seleccionar Ubicación' : 'Interactive Map Mode'}
+                {geometryType === 'Point' ? t('wizard.geometry_editor.select_location') : t('wizard.geometry_editor.interactive_mode')}
               </h3>
               <p className="text-nkz-muted max-w-sm mx-auto mt-1">
                 {geometryType === 'Point'
-                  ? 'Haz clic en el mapa para seleccionar la ubicación. El wizard se ocultará mientras seleccionas.'
-                  : `Use the main map to draw the ${geometryType}. The wizard will hide temporarily while you draw.`}
+                  ? t('wizard.geometry_editor.point_hint')
+                  : t('wizard.geometry_editor.draw_hint', { type: geometryType })}
               </p>
             </div>
 
@@ -670,7 +675,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                     // Validate
                     if (parentGeometry) {
                       const val = validateGeometryWithinParent(geom, parentGeometry.geometry);
-                      setValidationError(val.valid ? null : val.error || 'Invalid');
+                      setValidationError(val.valid ? null : val.error || t('wizard.geometry_editor.invalid'));
                       onValidationChange?.(val.valid, val.error);
                     } else {
                       setValidationError(null);
@@ -683,12 +688,12 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                 {geometryType === 'Point' ? (
                   <>
                     <MapPin className="w-4 h-4" />
-                    {currentGeometry ? 'Cambiar Ubicación' : 'Seleccionar en Mapa'}
+                    {currentGeometry ? t('wizard.geometry_editor.change_location') : t('wizard.geometry_editor.select_on_map')}
                   </>
                 ) : (
                   <>
                     <PenTool className="w-4 h-4" />
-                    {currentGeometry ? 'Redraw Geometry' : 'Start Drawing'}
+                    {currentGeometry ? t('wizard.geometry_editor.redraw') : t('wizard.geometry_editor.start_drawing')}
                   </>
                 )}
               </Button>
@@ -704,7 +709,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                   className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-700 border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary font-medium transition shadow-sm"
                 >
                   <Eraser className="w-4 h-4" />
-                  Clear
+                  {t('wizard.geometry_editor.clear')}
                 </Button>
               )}
             </div>
@@ -712,26 +717,26 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
             {currentGeometry && (
               <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border border-nkz-border text-left w-full max-w-md">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-gray-700">Selected Geometry</span>
+                  <span className="text-sm font-semibold text-gray-700">{t('wizard.geometry_editor.selected_geometry')}</span>
                   {validationError ? (
                     <span className="text-xs text-nkz-danger-strong flex items-center gap-1 font-medium">
                       <AlertCircle className="w-3 h-3" /> {validationError}
                     </span>
                   ) : (
                     <span className="text-xs text-nkz-success-strong flex items-center gap-1 font-medium">
-                      <CheckCircle2 className="w-3 h-3" /> Valid
+                      <CheckCircle2 className="w-3 h-3" /> {t('wizard.geometry_editor.valid')}
                     </span>
                   )}
                 </div>
                 <div className="text-xs text-mono bg-nkz-bg-secondary p-2 rounded border border-gray-100 overflow-hidden text-ellipsis whitespace-nowrap">
                   {currentGeometry.type === 'Point' ? (
                     <>
-                      📍 Lat: {(currentGeometry as Point).coordinates[1].toFixed(6)}, Lon: {(currentGeometry as Point).coordinates[0].toFixed(6)}
+                      📍 {t('wizard.geometry_editor.coordinates', { lat: (currentGeometry as Point).coordinates[1].toFixed(6), lon: (currentGeometry as Point).coordinates[0].toFixed(6) })}
                     </>
                   ) : (
                     <>
-                      Type: {currentGeometry.type} •
-                      {area ? ` Area: ${area.toFixed(2)} ha` : ' Coordinates captured'}
+                      {t('wizard.geometry_editor.type_label', { type: currentGeometry.type })} •
+                      {' '}{area ? t('wizard.geometry_editor.area_ha', { value: area.toFixed(2) }) : t('wizard.geometry_editor.coordinates_captured')}
                     </>
                   )}
                 </div>
@@ -761,12 +766,12 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
             ) : (
               <div className="flex items-center gap-2 text-nkz-success-strong">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Geometry valid</span>
+                <span>{t('wizard.geometry_editor.geometry_valid')}</span>
               </div>
             )}
             {area !== null && (
               <div className="text-xs text-gray-600 mt-1">
-                Area: {area.toFixed(2)} ha
+                {t('wizard.geometry_editor.area_ha', { value: area.toFixed(2) })}
               </div>
             )}
           </div>
@@ -780,7 +785,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
               onClick={handleUndo}
               disabled={disabled || pointsRef.current.length === 0}
               className="px-3 py-2 bg-white rounded shadow hover:bg-nkz-bg-secondary transition disabled:opacity-50"
-              title="Undo last point"
+              title={t('wizard.geometry_editor.undo_last_point')}
             >
               <RotateCcw className="w-4 h-4" />
             </Button>
@@ -791,7 +796,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
               onClick={handleClear}
               disabled={disabled}
               className="px-3 py-2 bg-white rounded shadow hover:bg-nkz-bg-secondary transition disabled:opacity-50"
-              title="Clear geometry"
+              title={t('wizard.geometry_editor.clear_geometry')}
             >
               <Eraser className="w-4 h-4" />
             </Button>
@@ -801,7 +806,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
 
       {parentGeometry && (
         <div className="text-xs text-gray-600 bg-nkz-warning-soft border border-yellow-200 rounded px-3 py-2">
-          <strong>Parent:</strong> {parentGeometry.name} (shown in gray)
+          <strong>{t('wizard.summary.parent')}</strong> {t('wizard.geometry_editor.parent_shown', { name: parentGeometry.name })}
         </div>
       )}
     </div>

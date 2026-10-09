@@ -1,12 +1,14 @@
 import { useWizard } from '../WizardContext';
 import type { FleetFormData } from '../types';
 import { Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const ROBOT_TYPES = ['Wheeled', 'Tracked', 'Aerial', 'Legged', 'Hybrid'] as const;
 
 export function StepFleetConfig() {
   const { entityType, formData, updateFormData } = useWizard();
+  const { t } = useI18n();
 
   if (!formData || formData.macroCategory !== 'fleet') return null;
   const data = formData as FleetFormData;
@@ -16,28 +18,28 @@ export function StepFleetConfig() {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Datos de la unidad</h3>
+      <h3 className="text-lg font-semibold">{t('wizard.fleet.title')}</h3>
 
       {/* Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('wizard.fields.name_required')}</label>
         <Input
           type="text"
           value={data.name}
           onChange={(e: any) => updateFormData({ name: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-indigo-500"
-          placeholder={isRobot ? 'Ej: Rover Norte-01' : isMachine ? 'Ej: Fendt 516 #3' : 'Nombre de la unidad'}
+          placeholder={isRobot ? t('wizard.fleet.name_placeholder_robot') : isMachine ? t('wizard.fleet.name_placeholder_machine') : t('wizard.fleet.name_placeholder')}
         />
       </div>
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{t('wizard.fields.description')}</label>
         <textarea
           value={data.description ?? ''}
           onChange={(e: any) => updateFormData({ description: e.target.value })}
           className="w-full px-4 py-2 border border-nkz-border rounded-lg focus:ring-2 focus:ring-indigo-500"
-          placeholder="Descripción opcional"
+          placeholder={t('wizard.fields.description_placeholder')}
           rows={2}
         />
       </div>
@@ -45,17 +47,17 @@ export function StepFleetConfig() {
       {/* Common: manufacturer + serialNumber */}
       <div className="grid grid-cols-2 gap-3 pt-3 border-t">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Fabricante</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.fields.manufacturer')}</label>
           <Input
             type="text"
             value={data.manufacturer ?? ''}
             onChange={(e: any) => updateFormData({ manufacturer: e.target.value })}
             className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-            placeholder={isRobot ? 'Ej: Naio Technologies' : 'Ej: Fendt, John Deere'}
+            placeholder={isRobot ? t('wizard.fleet.manufacturer_placeholder_robot') : t('wizard.fleet.manufacturer_placeholder_machine')}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Número de serie</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.fields.serial_number')}</label>
           <Input
             type="text"
             value={data.serialNumber ?? ''}
@@ -69,31 +71,31 @@ export function StepFleetConfig() {
       {/* Robot-specific */}
       {isRobot && (
         <div className="pt-3 border-t space-y-3">
-          <h4 className="text-sm font-medium text-gray-700">Configuración ROS2</h4>
+          <h4 className="text-sm font-medium text-gray-700">{t('wizard.fleet.ros2_config')}</h4>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Tipo de robot</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.fleet.robot_type')}</label>
             <select
               value={data.robotType ?? ''}
               onChange={(e: any) => updateFormData({ robotType: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
             >
-              <option value="">-- Selecciona tipo --</option>
-              {ROBOT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              <option value="">{t('wizard.fleet.select_type')}</option>
+              {ROBOT_TYPES.map(rt => <option key={rt} value={rt}>{rt}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Namespace ROS2</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.fleet.ros2_namespace')}</label>
             <Input
               type="text"
               value={data.rosNamespace ?? ''}
               onChange={(e: any) => updateFormData({ rosNamespace: e.target.value })}
               className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500"
-              placeholder="Ej: /robot_norte_01"
+              placeholder={t('wizard.fleet.ros2_namespace_placeholder')}
             />
             <p className="text-xs text-nkz-muted mt-1">
-              Namespace ROS2 único. Las credenciales de red se generan al finalizar.
+              {t('wizard.fleet.ros2_namespace_hint')}
             </p>
           </div>
         </div>
@@ -111,7 +113,7 @@ export function StepFleetConfig() {
               className="w-4 h-4 accent-indigo-600"
             />
             <label htmlFor="isobus" className="text-sm font-medium text-gray-700">
-              Compatible con ISOBUS (ISO 11783)
+              {t('wizard.fleet.isobus_compatible')}
             </label>
           </div>
         </div>

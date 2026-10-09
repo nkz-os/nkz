@@ -31,6 +31,7 @@ import { submitFleet } from './submission/submitFleet';
 import type { EntityWizardProps, GeoAssetFormData, IoTSensorFormData, FleetFormData } from './types';
 import type { StepId } from './types';
 import { Button } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
 
 // ─── Step icon map ───────────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ function StepRouter({ stepId, placementState, dispatchPlacement }: StepRouterPro
 
 function StepperIndicator() {
   const { steps, stepIndex } = useWizard();
+  const { t } = useI18n();
   return (
     <div className="flex items-center gap-0 mt-2">
       {steps.map((s, i) => {
@@ -104,7 +106,7 @@ function StepperIndicator() {
                       : 'text-gray-400'
                 }`}
               >
-                {s.label}
+                {t(s.label)}
               </span>
             </div>
             {/* Connector line */}
@@ -123,6 +125,7 @@ function StepperIndicator() {
 }
 
 // ─── Validate current step before advancing ───────────────────────────────────
+// Returns an i18n key, translated by the caller.
 
 function validateStep(
   stepId: StepId,
@@ -132,25 +135,25 @@ function validateStep(
 ): string | null {
   switch (stepId) {
     case 'type':
-      return entityType ? null : 'Por favor selecciona un tipo de entidad';
+      return entityType ? null : 'wizard.validation.type_required';
 
     case 'geo-config':
     case 'fleet-config':
-      return formData?.name.trim() ? null : 'El nombre es obligatorio';
+      return formData?.name.trim() ? null : 'wizard.validation.name_required';
 
     case 'iot-config': {
-      if (!formData?.name.trim()) return 'El nombre es obligatorio';
+      if (!formData?.name.trim()) return 'wizard.validation.name_required';
       const iotData = formData as IoTSensorFormData;
-      if (!iotData.deviceProfileId) return 'El perfil de dispositivo es obligatorio para sensores IoT';
+      if (!iotData.deviceProfileId) return 'wizard.validation.device_profile_required';
       return null;
     }
 
     case 'geometry':
       if (placementState.mode === 'stamp') {
-        return placementState.stampedInstances.length > 0 ? null : 'Pinta al menos una instancia';
+        return placementState.stampedInstances.length > 0 ? null : 'wizard.validation.stamp_required';
       }
       if (placementState.mode === 'array') {
-        return placementState.stampedInstances.length > 0 ? null : 'Configura el punto de ancla y los parámetros de la grilla';
+        return placementState.stampedInstances.length > 0 ? null : 'wizard.validation.array_required';
       }
       // Point geometry is optional (coordinates may be unknown)
       return null;
@@ -174,6 +177,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
     loading, error, validationError,
     setLoading, setError, reset,
   } = useWizard();
+  const { t } = useI18n();
 
   const { mapMode } = useViewer();
   const [placementState, dispatchPlacement] = useReducer(placementReducer, INITIAL_STATE);
@@ -204,7 +208,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
 
   const handleNext = () => {
     const err = validateStep(currentStep.id, entityType, formData as any, placementState);
-    if (err) { setError(err); return; }
+    if (err) { setError(t(err)); return; }
     goNext();
   };
 
@@ -212,7 +216,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
     setLoading(true);
     setError(null);
     try {
-      if (!entityType || !formData) throw new Error('Estado del wizard incompleto');
+      if (!entityType || !formData) throw new Error(t('wizard.errors.incomplete_state'));
 
       switch (formData.macroCategory) {
         case 'assets': {
@@ -246,7 +250,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
         }
       }
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || 'Error al crear la entidad';
+      const msg = err.response?.data?.error || err.message || t('wizard.errors.create_failed');
       setError(msg);
     } finally {
       setLoading(false);
@@ -268,7 +272,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
           {/* Header */}
           <div className="bg-white px-8 pt-6 pb-4 border-b flex justify-between items-start sticky top-0 z-10 rounded-t-2xl">
             <div>
-              <h2 className="text-xl font-bold text-nkz-text-primary">Crear Nueva Entidad</h2>
+              <h2 className="text-xl font-bold text-nkz-text-primary">{t('wizard.title')}</h2>
               <StepperIndicator />
             </div>
             <Button
@@ -304,7 +308,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
               disabled={isFirstStep || loading}
               leadingIcon={<ArrowLeft className="w-4 h-4" />}
             >
-              Atrás
+              {t('wizard.back')}
             </Button>
 
             {isLastStep ? (
@@ -315,7 +319,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
                 disabled={loading}
                 trailingIcon={loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               >
-                {loading ? 'Creando...' : 'Crear Entidad'}
+                {loading ? t('wizard.creating') : t('wizard.create')}
               </Button>
             ) : (
               <Button
@@ -325,7 +329,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
                 disabled={loading}
                 trailingIcon={<ArrowRight className="w-4 h-4" />}
               >
-                Siguiente
+                {t('wizard.next')}
               </Button>
             )}
           </div>
@@ -337,8 +341,8 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
         <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center">
           <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm w-full mx-4">
             <Loader2 className="w-12 h-12 text-nkz-info animate-spin mb-4" />
-            <h3 className="text-xl font-bold text-nkz-text-primary">Creando entidad...</h3>
-            <p className="text-nkz-text-muted mt-2 text-sm text-center">No cierre esta ventana, por favor.</p>
+            <h3 className="text-xl font-bold text-nkz-text-primary">{t('wizard.creating_entity')}</h3>
+            <p className="text-nkz-text-muted mt-2 text-sm text-center">{t('wizard.do_not_close')}</p>
           </div>
         </div>
       )}
