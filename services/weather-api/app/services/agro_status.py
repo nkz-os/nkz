@@ -3,7 +3,8 @@ Agronomic status calculation for parcels.
 
 Fuses sensor data with weather observations (from weather-worker) to calculate
 spraying, workability, and irrigation semaphores. No direct Open-Meteo dependency
-— all weather data comes from the pre-ingested weather_observations table.
+— all weather data comes from the parcel's own WeatherObserved series
+(telemetry_events), pre-ingested by weather-worker.
 """
 
 import logging
@@ -365,7 +366,7 @@ def calculate_agro_status(
     """
     Calculate agronomic status with semaphores for a parcel.
 
-    Uses weather data from the weather-worker (weather_observations table)
+    Uses weather data from the weather-worker (WeatherObserved telemetry)
     rather than calling Open-Meteo directly — no external API dependency.
 
     When soil_texture is provided (sand, clay, organic_carbon from AgriSoil),

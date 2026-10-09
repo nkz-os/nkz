@@ -71,11 +71,10 @@ def get_nearest_municipality(
 ):
     """Get nearest municipality to given coordinates.
 
-    Primary: nearest municipality that HAS weather data (weather_observations)
-    within ``max_distance_km`` — the weather-context municipality. Fallback:
-    nearest municipality from the full catalog (centroid lat/lon), so a parcel
-    far from any weather station still resolves to a municipality instead of a
-    hard 404 (which the host logs as an error).
+    Nearest municipality of the full catalog (centroid lat/lon), independent of
+    any weather data. ``max_distance_km`` is accepted for backwards
+    compatibility and ignored: a parcel far from any centroid still resolves to
+    a municipality instead of a hard 404 (which the host logs as an error).
     """
     if not tenant_id:
         tenant_id = SHARED_TENANT
@@ -86,38 +85,6 @@ def get_nearest_municipality(
         )
 
     try:
-        with get_db_connection(tenant_id) as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
-                SELECT
-                    cm.ine_code, cm.name, cm.province, cm.autonomous_community,
-                    cm.latitude, cm.longitude,
-                    ST_Distance(
-                        wo.location::geography,
-                        ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
-                    ) / 1000.0 as distance_km
-                FROM weather_observations wo
-                JOIN catalog_municipalities cm ON cm.ine_code = wo.municipality_code
-                WHERE wo.location IS NOT NULL
-                AND ST_Distance(
-                    wo.location::geography,
-                    ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
-                ) / 1000.0 <= %s
-                ORDER BY distance_km ASC
-                LIMIT 1
-                """,
-                (longitude, latitude, longitude, latitude, max_distance_km),
-            )
-            municipality = cur.fetchone()
-            cur.close()
-
-        if municipality:
-            return {"municipality": dict(municipality)}
-
-        # Fallback: nearest municipality from the full catalog (centroid), so
-        # the endpoint does not 404 when the parcel is far from the (8)
-        # municipalities that actually have weather observations.
         with get_db_connection(tenant_id) as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(

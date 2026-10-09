@@ -6,6 +6,7 @@ GET /api/weather/parcel/{parcel_id}/agro-status — agronomic semaphores.
 from common.tenant_constants import SHARED_TENANT
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import requests
@@ -16,6 +17,7 @@ from psycopg2.extras import RealDictCursor
 from app.auth import require_auth, require_auth_optional
 from app.config import settings, with_models
 from app.deps import get_db_connection
+from app.routers.observations import _WEATHER_ENTITY_TYPES
 from app.services.agro_status import (
     calculate_agro_status,
     _usda_texture_class,
@@ -33,6 +35,71 @@ router = APIRouter(prefix="/api/weather", tags=["parcels"])
 # same-altitude stations for the variables the downscaler does not correct
 # (precipitation, wind, soil moisture).
 ALTITUDE_WEIGHT_KM_PER_100M = 10.0
+
+
+# Live WeatherObserved measurement keys per agro-status field. The platform
+# @context is not injective, so a field can arrive under several aliases; the
+# first alias present (and not null) wins.
+_LIVE_MEASUREMENT_KEYS = {
+    "temp_avg": ("airTemperature", "temperature"),
+    "humidity_avg": ("relativeHumidity", "humidity"),
+    "precip_mm": ("precipitation",),
+    "wind_speed_ms": ("windSpeed",),
+    "wind_gusts_ms": ("windGusts",),
+    "wind_direction_deg": ("windDirection",),
+    "pressure_hpa": ("atmosphericPressure",),
+    "solar_rad_w_m2": ("solarRadiation",),
+    "eto_mm": ("et0",),
+    "soil_moisture_0_10cm": ("soilMoistureTop",),
+    "soil_moisture_10_40cm": ("soilMoistureSub",),
+    "gdd_accumulated": ("gddAccumulated",),
+    "delta_t": ("deltaT",),
+}
+
+
+def _measurements_dict(raw) -> dict:
+    """telemetry_events payload.measurements as a dict (psycopg2 may hand a str)."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _measurement(measurements: dict, *keys):
+    """First non-null measurement among several aliases; None when absent."""
+    for key in keys:
+        value = measurements.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _escape_like(s: str) -> str:
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _live_weather_observation(observed_at, measurements: dict) -> dict:
+    """Agro-status observation dict from a parcel's live WeatherObserved row.
+
+    Fields the row does not carry stay None: nothing is defaulted or filled.
+    """
+    obs = {"observed_at": observed_at}
+    for field, keys in _LIVE_MEASUREMENT_KEYS.items():
+        obs[field] = _measurement(measurements, *keys)
+    obs["soil_moisture_0_10cm"] = _soil_percent(obs["soil_moisture_0_10cm"])
+    obs["soil_moisture_10_40cm"] = _soil_percent(obs["soil_moisture_10_40cm"])
+    # Live rows carry no daily extremes (those live on the closed-day series).
+    obs["temp_min"] = None
+    obs["temp_max"] = None
+    obs["precip_probability"] = None
+    obs["solar_rad_ghi_w_m2"] = obs["solar_rad_w_m2"]
+    obs["solar_rad_dni_w_m2"] = None
+    obs["source"] = _measurement(measurements, "sourceConfidence") or "OPEN-METEO"
+    obs["data_type"] = "HISTORY"
+    obs["metadata"] = {}
+    return obs
 
 
 def _cross_validate_sensors(sensors: list) -> dict:
@@ -676,7 +743,8 @@ def get_parcel_agro_status(
     """
     Get agronomic weather status for a parcel.
 
-    Uses weather-worker data (weather_observations) — no direct Open-Meteo call.
+    Uses the parcel's own WeatherObserved series (telemetry_events) — no direct
+    Open-Meteo call.
     Fuses sensor data when available within 5km radius.
     Applies spatial downscaling for parcel-specific microclimate.
     """
@@ -848,96 +916,84 @@ def get_parcel_agro_status(
         except Exception as e:
             logger.debug(f"Could not fetch AgriSoil for parcel {parcel_id}: {e}")
 
-        # 5. Query weather_observations: nearest municipality, latest obs, and 3-day history
+        # 5. Read the parcel's OWN WeatherObserved series from telemetry_events:
+        # the latest live row for current conditions and the closed-day
+        # ("...-daily") rows of the last 3 days for the water balance. The
+        # series is fetched at the parcel centroid, so there is no regional
+        # station and no altitude gap to correct.
         weather_observation = {}
         weather_3d = []
-        station_altitude = 0.0
+        station_altitude = parcel_altitude
+        parcel_bare = _escape_like(parcel_id.split(":")[-1])
 
         try:
             conn = get_db_connection(tenant_id)
             try:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
 
-                # 5a. Find nearest municipality with weather data, weighted by
-                # altitude (a same-altitude station slightly farther away beats a
-                # very-different-altitude station that is a bit closer).
+                # 5a/5b. Latest live observation (the trailing "-daily" series
+                # entity does not match this pattern).
                 cur.execute(
                     """
-                    SELECT municipality_code,
-                           metadata->>'station_elevation_m' as station_elevation_m
-                    FROM weather_observations
-                    WHERE tenant_id = %s AND location IS NOT NULL
-                    ORDER BY
-                        (ST_Distance(location::geography,
-                                     ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography)
-                         / 1000.0)
-                        + %s * ABS(
-                            COALESCE((metadata->>'station_elevation_m')::float, %s) - %s
-                          ) / 100.0
+                    SELECT observed_at, payload->'measurements' AS measurements
+                    FROM telemetry_events
+                    WHERE tenant_id = %s
+                      AND entity_type IN (%s, %s)
+                      AND entity_id LIKE %s ESCAPE '\\'
+                    ORDER BY observed_at DESC
                     LIMIT 1
                     """,
-                    (tenant_id, lon, lat, ALTITUDE_WEIGHT_KM_PER_100M,
-                     parcel_altitude, parcel_altitude),
+                    (tenant_id, *_WEATHER_ENTITY_TYPES, f"%:parcel-{parcel_bare}"),
                 )
-                nearest = cur.fetchone()
-
-                if nearest:
-                    muni_code = nearest["municipality_code"]
-                    if nearest.get("station_elevation_m"):
-                        station_altitude = float(nearest["station_elevation_m"])
-                    else:
-                        # Unknown station elevation → no lapse correction.
-                        # Treating it as sea level would apply a full lapse-rate
-                        # correction on top of an unknown baseline (~3 degC too
-                        # cold at 450 m). Fall back to the parcel altitude (no-op).
-                        station_altitude = parcel_altitude
-
-                    # 5b. Latest observation for current conditions
-                    cur.execute(
-                        """
-                        SELECT observed_at, temp_avg, temp_min, temp_max,
-                               humidity_avg, precip_mm, precip_probability,
-                               wind_speed_ms, wind_gusts_ms, wind_direction_deg,
-                               pressure_hpa,
-                               solar_rad_w_m2, solar_rad_ghi_w_m2, solar_rad_dni_w_m2,
-                               eto_mm, soil_moisture_0_10cm, soil_moisture_10_40cm,
-                               gdd_accumulated, delta_t,
-                               source, data_type, metadata
-                        FROM weather_observations
-                        WHERE tenant_id = %s
-                          AND municipality_code = %s
-                          AND source = 'OPEN-METEO'
-                        ORDER BY observed_at DESC
-                        LIMIT 1
-                        """,
-                        (tenant_id, muni_code),
+                row = cur.fetchone()
+                if row:
+                    weather_observation = _live_weather_observation(
+                        row["observed_at"], _measurements_dict(row.get("measurements"))
                     )
-                    row = cur.fetchone()
-                    if row:
-                        weather_observation = dict(row)
 
-                    # 5c. Last 3 days for water balance aggregation
-                    cur.execute(
-                        """
-                        SELECT precip_mm, eto_mm, observed_at
-                        FROM weather_observations
-                        WHERE tenant_id = %s
-                          AND municipality_code = %s
-                          AND source = 'OPEN-METEO'
-                          AND data_type = 'HISTORY'
-                          AND observed_at >= NOW() - INTERVAL '3 days'
-                        ORDER BY observed_at DESC
-                        """,
-                        (tenant_id, muni_code),
-                    )
-                    weather_3d = [dict(r) for r in cur.fetchall()]
+                # 5c. Closed days D-3..D-1 (UTC day label) for water balance
+                # aggregation. Days without a record are simply absent: they are
+                # neither filled with zero nor interpolated.
+                today = datetime.now(timezone.utc).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
+                cur.execute(
+                    """
+                    SELECT observed_at, payload->'measurements' AS measurements
+                    FROM telemetry_events
+                    WHERE tenant_id = %s
+                      AND entity_type IN (%s, %s)
+                      AND entity_id LIKE %s ESCAPE '\\'
+                      AND observed_at >= %s AND observed_at < %s
+                    ORDER BY observed_at DESC
+                    """,
+                    (
+                        tenant_id,
+                        *_WEATHER_ENTITY_TYPES,
+                        f"%:parcel-{parcel_bare}-daily",
+                        today - timedelta(days=3),
+                        today,
+                    ),
+                )
+                seen_days = set()
+                for r in cur.fetchall():
+                    day = r["observed_at"].date() if hasattr(r["observed_at"], "date") else None
+                    if day in seen_days:
+                        continue  # one record per day, latest wins
+                    seen_days.add(day)
+                    m = _measurements_dict(r.get("measurements"))
+                    weather_3d.append({
+                        "observed_at": r["observed_at"],
+                        "precip_mm": _measurement(m, "precipitation"),
+                        "eto_mm": _measurement(m, "et0"),
+                    })
             finally:
                 cur.close()
                 conn.close()
         except Exception as e:
-            logger.warning(f"Could not fetch weather observations: {e}")
+            logger.warning(f"Could not fetch parcel weather from telemetry_events: {e}")
 
-        # 5d. Fallback: if no PG data, query WeatherObserved directly from Orion-LD.
+        # 5d. Fallback: if no telemetry data, query WeatherObserved directly from Orion-LD.
         # Query by locatedAt relationship only — DO NOT filter by type.
         # The stored entity type may be expanded to a URI (e.g. saref4agri:WeatherObserved)
         # that differs from the platform context expansion (nkz:WeatherObserved).
@@ -1032,46 +1088,6 @@ def get_parcel_agro_status(
                         )
             except Exception as e:
                 logger.warning(f"Orion WeatherObserved fallback failed: {e}")
-
-        # 5e. Fallback for 3-day history: query telemetry_events for water balance
-        if not weather_3d:
-            try:
-                conn = get_db_connection(tenant_id)
-                try:
-                    cur = conn.cursor(cursor_factory=RealDictCursor)
-                    cur.execute(
-                        """
-                        SELECT DISTINCT ON (DATE(observed_at))
-                            observed_at,
-                            payload #>> '{measurements,precipitation}' as precip_mm,
-                            payload #>> '{measurements,et0}' as eto_mm
-                        FROM telemetry_events
-                        WHERE tenant_id = %s
-                          AND entity_type = 'WeatherObserved'
-                          AND entity_id LIKE %s
-                          AND entity_id NOT LIKE '%%-daily'
-                          AND observed_at >= NOW() - INTERVAL '3 days'
-                        ORDER BY DATE(observed_at) DESC
-                        """,
-                        (tenant_id, f"%{parcel_id.split(':')[-1]}%"),
-                    )
-                    rows = cur.fetchall()
-                    for row in rows:
-                        precip = float(row["precip_mm"]) if row["precip_mm"] else 0.0
-                        eto = float(row["eto_mm"]) if row["eto_mm"] else 0.0
-                        weather_3d.append({
-                            "observed_at": row["observed_at"],
-                            "precip_mm": precip,
-                            "eto_mm": eto,
-                        })
-                    logger.debug(
-                        f"Telemetry 3d fallback for {parcel_id}: {len(weather_3d)} rows"
-                    )
-                finally:
-                    cur.close()
-                    conn.close()
-            except Exception as e:
-                logger.warning(f"Telemetry 3d fallback failed: {e}")
 
         # 5f. Weather-map per-parcel raster (parcel_weather tier) — override the
         # regional proxy for the fields the raster provides. The raster is

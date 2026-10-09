@@ -9,7 +9,7 @@ coordinates forecast, and NGSI-LD compliance of the agroStatus persist call.
 import sys
 import os
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -52,6 +52,15 @@ PARCEL_ENTITY = {
         "value": {"type": "Point", "coordinates": [-1.64, 42.49]},
     },
     "elevation": {"type": "Property", "value": 450.0},
+}
+
+LIVE_ROW = {
+    "observed_at": NOW,
+    "measurements": {
+        "airTemperature": 22.0, "relativeHumidity": 55.0, "precipitation": 0.0,
+        "windSpeed": 3.0, "windGusts": 4.0, "windDirection": 180,
+        "atmosphericPressure": 1013.0, "et0": 4.0,
+    },
 }
 
 LATEST_OBS_ROW = {
@@ -225,9 +234,9 @@ class TestAgroStatusEndpoint:
     def test_happy_path_with_db_weather(self):
         script = [
             [],  # sensors near parcel → none
-            {"municipality_code": "31201", "station_elevation_m": "445"},  # nearest
-            LATEST_OBS_ROW,  # latest observation
-            [{"precip_mm": 2.0, "eto_mm": 1.0, "observed_at": NOW}],  # 3-day history
+            LIVE_ROW,  # latest live WeatherObserved row of the parcel
+            [{"measurements": {"precipitation": 2.0, "et0": 1.0},
+              "observed_at": NOW}],  # closed-day rows
         ]
         with patch("app.routers.parcels.requests.get",
                    side_effect=orion_router(parcel=PARCEL_ENTITY)), \
@@ -454,38 +463,38 @@ class TestResolveParcelLocation:
 # Observations endpoints
 # ---------------------------------------------------------------------------
 class TestObservationsEndpoints:
-    def test_latest_primary_source(self):
-        rows = [dict(LATEST_OBS_ROW, municipality_code="31201")]
-        with patch("app.routers.observations.get_db_connection", fake_db([rows])):
-            r = client.get("/api/weather/observations/latest", headers=AUTH)
-        assert r.status_code == 200
-        obs = r.json()["observations"]
-        assert len(obs) == 1
-        assert obs[0]["temp_avg"] == 22.0
-
-    def test_latest_falls_back_to_telemetry_events(self):
+    def test_latest_reads_telemetry_events(self):
         telemetry_row = {
-            "entity_id": "urn:ngsi-ld:WeatherObserved:test-tenant:p1",
+            "entity_id": "urn:ngsi-ld:WeatherObserved:test-tenant:parcel-p1",
             "observed_at": NOW,
-            "measurements_raw": {"temperature": 19.0, "municipalityCode": "31201"},
+            "measurements_raw": {"airTemperature": 19.0, "municipalityCode": "31201"},
             "location_raw": {
                 "type": "GeoProperty",
                 "value": {"type": "Point", "coordinates": [-1.6, 42.5]},
             },
         }
-        script = [[], [telemetry_row]]  # weather_observations empty → telemetry
-        with patch("app.routers.observations.get_db_connection", fake_db(script)):
+        with patch("app.routers.observations.get_db_connection",
+                   fake_db([[telemetry_row]])):
             r = client.get("/api/weather/observations/latest", headers=AUTH)
         assert r.status_code == 200
         obs = r.json()["observations"]
-        assert obs[0]["temp_avg"] == 19.0  # NGSI-LD attr mapped to DB column name
+        assert obs[0]["temp_avg"] == 19.0  # NGSI-LD attr mapped to response field
+        assert "precip_mm" not in obs[0]  # absent stays absent, never 0
         assert obs[0]["longitude"] == -1.6
         assert obs[0]["latitude"] == 42.5
 
+    def test_latest_empty_when_no_telemetry(self):
+        with patch("app.routers.observations.get_db_connection", fake_db([[]])):
+            r = client.get("/api/weather/observations/latest", headers=AUTH)
+        assert r.status_code == 200
+        assert r.json() == {"observations": []}
+
     def test_observations_with_filters(self):
         rows = [
-            dict(LATEST_OBS_ROW, municipality_code="31201"),
-            dict(LATEST_OBS_ROW, municipality_code="31201", temp_avg=20.0),
+            {"entity_id": "e1", "observed_at": NOW,
+             "measurements_raw": {"temperature": 22.0}, "location_raw": None},
+            {"entity_id": "e1", "observed_at": NOW,
+             "measurements_raw": {"temperature": 20.0}, "location_raw": None},
         ]
         with patch("app.routers.observations.get_db_connection", fake_db([rows])):
             r = client.get(
@@ -626,3 +635,101 @@ class TestPersistAgroStatus:
         with patch("app.routers.parcels.requests.patch",
                    side_effect=RuntimeError("orion down")):
             _persist_agro_status_to_orion("t", PARCEL_ID, {})  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# telemetry_events as the only weather source (weather_observations retired)
+# ---------------------------------------------------------------------------
+def recording_db(script, executed):
+    """Like fake_db, but records every (query, params) executed."""
+    shared = list(script)
+
+    class _Cur(FakeCursor):
+        def execute(self, query, params=None):
+            executed.append((query, params))
+            super().execute(query, params)
+
+    class _Conn(FakeConn):
+        def cursor(self, cursor_factory=None):
+            return _Cur(self._script)
+
+    return lambda tenant_id="shared": _Conn(shared)
+
+
+class TestAgroStatusTelemetrySource:
+    URL = f"/api/weather/parcel/{PARCEL_ID}/agro-status"
+
+    def _get(self, script, executed):
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY)), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection",
+                   recording_db(script, executed)):
+            return client.get(self.URL, headers=AUTH)
+
+    def test_queries_only_parcel_own_telemetry_series(self):
+        executed = []
+        r = self._get([[], LIVE_ROW, []], executed)
+        assert r.status_code == 200
+        sql = " ".join(q for q, _ in executed)
+        assert "weather_observations" not in sql
+        live_q, live_p = executed[1]
+        daily_q, daily_p = executed[2]
+        assert "telemetry_events" in live_q and "telemetry_events" in daily_q
+        assert live_p[0] == "test-tenant"
+        assert "https://saref.etsi.org/saref4agri/WeatherObserved" in live_p
+        assert live_p[-1] == "%:parcel-p1"
+        assert daily_p[-3] == "%:parcel-p1-daily"
+        assert daily_p[-1] - daily_p[-2] == timedelta(days=3)
+
+    def test_missing_daily_rows_are_not_filled_with_zero(self):
+        r = self._get([[], LIVE_ROW, []], [])
+        w = r.json()["weather"]
+        assert w["temperature"] == 22.0
+        assert w["eto_3d"] is None
+        assert w["water_balance"] is None
+
+    def test_partial_daily_rows_report_what_exists(self):
+        daily = [
+            {"observed_at": NOW, "measurements": {"precipitation": 3.0, "et0": 2.0}},
+            {"observed_at": NOW - timedelta(days=1), "measurements": {"precipitation": 1.0}},
+        ]
+        r = self._get([[], LIVE_ROW, daily], [])
+        w = r.json()["weather"]
+        assert w["precipitation_3d"] == 4.0
+        assert w["eto_3d"] == 2.0  # only the day that has et0
+
+    def test_live_row_without_measurement_stays_none(self):
+        row = {"observed_at": NOW, "measurements": {"airTemperature": 18.0}}
+        r = self._get([[], row, []], [])
+        w = r.json()["weather"]
+        assert w["temperature"] == 18.0
+        assert w["humidity"] is None
+        assert w["wind_speed"] is None
+
+
+class TestMunicipalityNear:
+    URL = "/api/weather/municipality/near"
+
+    def test_uses_catalog_only(self):
+        executed = []
+        row = {"ine_code": "31201", "name": "X", "province": "P",
+               "autonomous_community": "C", "latitude": 42.5,
+               "longitude": -1.6, "distance_km": 1.2}
+        with patch("app.routers.locations.get_db_connection",
+                   recording_db([row], executed)):
+            r = client.get(self.URL, params={"latitude": 42.49, "longitude": -1.64},
+                           headers=AUTH)
+        assert r.status_code == 200
+        assert r.json()["municipality"]["ine_code"] == "31201"
+        assert len(executed) == 1
+        assert "weather_observations" not in executed[0][0]
+        assert "catalog_municipalities" in executed[0][0]
+
+    def test_empty_catalog_is_404(self):
+        with patch("app.routers.locations.get_db_connection",
+                   recording_db([None], [])):
+            r = client.get(self.URL, params={"latitude": 42.49, "longitude": -1.64},
+                           headers=AUTH)
+        assert r.status_code == 404
