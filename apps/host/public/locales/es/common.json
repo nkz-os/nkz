@@ -286,7 +286,13 @@
     "type_to_search": "Escribe al menos 2 caracteres para buscar",
     "user_assigned": "Usuario asignado al tenant.",
     "users_count": "usuarios",
-    "users_tab": "Usuarios"
+    "users_tab": "Usuarios",
+    "tenants_tab": "Gestión Tenants",
+    "terms_tab": "Términos",
+    "platform_apis_tab": "APIs Plataforma",
+    "platform_tab": "Plataforma",
+    "logs_tab": "Logs",
+    "assets_tab": "Assets"
   },
   "dashboard": {
     "title": "Panel",

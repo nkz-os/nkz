@@ -152,7 +152,7 @@
     "external_apis": "External APIs",
     "external_apis_desc": "Credentials for Sentinel Hub, AEMET, etc.",
     "go_home": "Go Home",
-    "nek_codes": "NEK Codes",
+    "nek_codes": "Códigos NEK",
     "nek_codes_desc": "Generate NEK activation codes",
     "user_management_panel": "User Management",
     "user_management_panel_desc": "View, assign and delete users",
@@ -242,7 +242,13 @@
     "type_to_search": "Escreve pelo menos 2 caracteres para pesquisar",
     "user_assigned": "Utilizador atribuído ao tenant.",
     "users_count": "utilizadores",
-    "users_tab": "Utilizadores"
+    "users_tab": "Utilizadores",
+    "tenants_tab": "Gestão de tenants",
+    "terms_tab": "Termos",
+    "platform_apis_tab": "APIs da plataforma",
+    "platform_tab": "Plataforma",
+    "logs_tab": "Logs",
+    "assets_tab": "Ativos"
   },
   "dashboard": {
     "title": "Painel",

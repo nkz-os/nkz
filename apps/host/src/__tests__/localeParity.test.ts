@@ -121,6 +121,16 @@ const COMMON_KEYS_IN_ALL_LOCALES: readonly string[] = [
   'admin.user_assigned',
   'admin.users_count',
   'admin.users_tab',
+  // Platform admin control center tabs (AdminManagement). `admin.nek_codes` and
+  // the root `limits` are reused for two of the eight tabs.
+  'admin.tenants_tab',
+  'admin.nek_codes',
+  'limits',
+  'admin.terms_tab',
+  'admin.platform_apis_tab',
+  'admin.platform_tab',
+  'admin.logs_tab',
+  'admin.assets_tab',
 ];
 
 /**
