@@ -6,13 +6,11 @@
  * page, and a key that exists nowhere is rendered as the raw key. Neither
  * produces an error, so this test is the only thing that notices.
  *
- * Scope on purpose:
+ * Scope:
  *  - `es` -> `en` is asserted for the whole `common.json`.
- *  - ca/eu/fr/pt are NOT asserted for full parity: they still have known gaps
- *    that are being completed separately, so a blanket check would fail by
- *    design. Instead, a fixed list of keys that were added together with their
- *    translations is asserted in all six locales; it cannot be tripped by the
- *    pre-existing gaps.
+ *  - `es` -> ca/eu/fr/pt is asserted for the whole `common.json`, `layout.json`
+ *    and `navigation.json`: every key and every `{{placeholder}}`.
+ *  - A fixed list of keys is additionally asserted in all six locales.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -194,18 +192,26 @@ describe('locale parity: keys added with full translations (all languages)', () 
   }
 });
 
-describe('locale parity: entity wizard (all languages)', () => {
-  const es = flatten(load('es', 'common'));
-  const wizardKeys = Object.keys(es).filter((key) => key.startsWith('wizard.'));
+describe('locale parity: es -> ca/eu/fr/pt (full)', () => {
+  for (const namespace of ['common', 'layout', 'navigation']) {
+    const es = flatten(load('es', namespace));
 
-  for (const lang of LANGUAGES) {
-    it(`${lang}/common.json has every wizard key with the Spanish placeholders`, () => {
-      const flat = flatten(load(lang, 'common'));
-      const problems = wizardKeys.filter(
-        (key) => !(key in flat) || placeholders(flat[key]).join('|') !== placeholders(es[key]).join('|'),
-      );
-      expect(problems, `Wizard keys missing or with wrong placeholders in ${lang}:\n${problems.join('\n')}`).toEqual([]);
-    });
+    for (const lang of ['ca', 'eu', 'fr', 'pt']) {
+      it(`${lang}/${namespace}.json has every Spanish key`, () => {
+        const flat = flatten(load(lang, namespace));
+        const missing = Object.keys(es).filter((key) => !(key in flat));
+        expect(missing, `Keys in es/${namespace}.json missing from ${lang}:\n${missing.join('\n')}`).toEqual([]);
+      });
+
+      it(`${lang}/${namespace}.json keeps the Spanish placeholders`, () => {
+        const flat = flatten(load(lang, namespace));
+        const mismatched = Object.keys(es)
+          .filter((key) => key in flat)
+          .filter((key) => placeholders(es[key]).join('|') !== placeholders(flat[key]).join('|'))
+          .map((key) => `${key}: es=${placeholders(es[key]).join(',')} ${lang}=${placeholders(flat[key]).join(',')}`);
+        expect(mismatched, `Placeholder mismatch in ${lang}/${namespace}.json:\n${mismatched.join('\n')}`).toEqual([]);
+      });
+    }
   }
 });
 
