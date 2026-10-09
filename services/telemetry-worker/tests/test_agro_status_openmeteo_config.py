@@ -1,6 +1,17 @@
 """agro_status_service Open-Meteo fallback honours OPENMETEO_API_URL / OPENMETEO_MODELS."""
 
+import os
+import sys
 from unittest.mock import MagicMock, patch
+
+_TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+_SVC_DIR = os.path.normpath(os.path.join(_TEST_DIR, ".."))
+_SERVICES_DIR = os.path.normpath(os.path.join(_SVC_DIR, ".."))
+_COMMON_DIR = os.path.join(_SERVICES_DIR, "common")
+
+for _p in [_SVC_DIR, _SERVICES_DIR, _COMMON_DIR]:
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from telemetry_worker.services import agro_status_service as mod
 
