@@ -20,6 +20,7 @@ import type {
 import { getConfig } from '@/config/environment';
 import { logger } from '@/utils/logger';
 import { notifySessionExpired } from './sessionExpiry';
+import { fetchAllPages } from './ngsiPaging';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl;
@@ -513,11 +514,16 @@ class ApiService {
   // Entities - Robots
   async getRobots(): Promise<Robot[]> {
     try {
-      const response = await this.client.get('/ngsi-ld/v1/entities', {
-        params: { type: 'AutonomousMobileRobot' },
-        headers: { 'Accept': 'application/ld+json' },
-      });
-      return Array.isArray(response.data) ? response.data : [];
+      return await fetchAllPages<Robot>(
+        async (offset, limit) => {
+          const response = await this.client.get('/ngsi-ld/v1/entities', {
+            params: { type: 'AutonomousMobileRobot', limit, offset },
+            headers: { 'Accept': 'application/ld+json' },
+          });
+          return Array.isArray(response.data) ? response.data : [];
+        },
+        { label: 'AutonomousMobileRobot' },
+      );
     } catch (error) {
       logger.warn('Error fetching robots:', error);
       return [];
@@ -788,12 +794,8 @@ class ApiService {
   // Note: getSDMEntities, getSDMEntitySchema, and createSDMEntity are defined later
   // to avoid duplication. See lines 1066-1094 for implementations.
 
-  /**
-   * `limit` is optional: without it Orion-LD answers with its default page (20).
-   * Pass it only where the full list matters; it is part of the cache key.
-   */
-  async getSDMEntityInstances(entityType: string, useCache: boolean = true, limit?: number): Promise<any[]> {
-    const cacheKey = limit != null ? `entities:${entityType}:limit=${limit}` : `entities:${entityType}`;
+  async getSDMEntityInstances(entityType: string, useCache: boolean = true): Promise<any[]> {
+    const cacheKey = `entities:${entityType}`;
 
     // Check cache first
     if (useCache) {
@@ -804,16 +806,20 @@ class ApiService {
     }
 
     try {
-      const response = await retryRequest(
-        () => this.client.get('/ngsi-ld/v1/entities', {
-          params: limit != null ? { type: entityType, limit } : { type: entityType },
-        }),
-        3,
-        1000
+      // Orion-LD returns an array directly; retry applies per page
+      const data = await fetchAllPages<any>(
+        async (offset, limit) => {
+          const response = await retryRequest(
+            () => this.client.get('/ngsi-ld/v1/entities', {
+              params: { type: entityType, limit, offset },
+            }),
+            3,
+            1000
+          );
+          return Array.isArray(response.data) ? response.data : (response.data.instances || []);
+        },
+        { label: entityType },
       );
-
-      // Orion-LD returns an array directly
-      const data = Array.isArray(response.data) ? response.data : (response.data.instances || []);
 
       // Cache for 60 seconds
       if (useCache) {
@@ -1083,19 +1089,21 @@ class ApiService {
   async getMachines(): Promise<AgriculturalMachine[]> {
     try {
       // Query for AutonomousMobileRobot and ManufacturingMachine
-      const [robotsRes, machinesRes] = await Promise.all([
-        this.client.get('/ngsi-ld/v1/entities', {
-          params: { type: 'AutonomousMobileRobot', options: 'keyValues' },
-          headers: { 'Accept': 'application/ld+json' }
-        }).catch(() => ({ data: [] })),
-        this.client.get('/ngsi-ld/v1/entities', {
-          params: { type: 'ManufacturingMachine', options: 'keyValues' },
-          headers: { 'Accept': 'application/ld+json' }
-        }).catch(() => ({ data: [] }))
+      const listType = (type: string): Promise<any[]> =>
+        fetchAllPages<any>(
+          async (offset, limit) => {
+            const response = await this.client.get('/ngsi-ld/v1/entities', {
+              params: { type, options: 'keyValues', limit, offset },
+              headers: { 'Accept': 'application/ld+json' }
+            });
+            return Array.isArray(response.data) ? response.data : [];
+          },
+          { label: type },
+        ).catch(() => []);
+      const [robots, machines] = await Promise.all([
+        listType('AutonomousMobileRobot'),
+        listType('ManufacturingMachine'),
       ]);
-
-      const robots = Array.isArray(robotsRes.data) ? robotsRes.data : [];
-      const machines = Array.isArray(machinesRes.data) ? machinesRes.data : [];
 
       return [...robots, ...machines].map((m: any) => {
         // Determine type description based on entity type
@@ -1126,12 +1134,16 @@ class ApiService {
 
   async getLivestock(): Promise<LivestockAnimal[]> {
     try {
-      const response = await this.client.get('/ngsi-ld/v1/entities', {
-        params: { type: 'LivestockAnimal', options: 'keyValues' },
-        headers: { 'Accept': 'application/ld+json' },
-      });
-
-      const payload = Array.isArray(response.data) ? response.data : [];
+      const payload = await fetchAllPages<any>(
+        async (offset, limit) => {
+          const response = await this.client.get('/ngsi-ld/v1/entities', {
+            params: { type: 'LivestockAnimal', options: 'keyValues', limit, offset },
+            headers: { 'Accept': 'application/ld+json' },
+          });
+          return Array.isArray(response.data) ? response.data : [];
+        },
+        { label: 'LivestockAnimal' },
+      );
 
       return payload.map((l: any) => ({
         id: l.id,
@@ -1150,10 +1162,16 @@ class ApiService {
 
   async getWeatherStations(): Promise<WeatherStation[]> {
     try {
-      const response = await this.client.get('/ngsi-ld/v1/entities', {
-        params: { type: 'WeatherObserved' },
-        headers: { 'Accept': 'application/ld+json' },
-      });
+      const entities = await fetchAllPages<any>(
+        async (offset, limit) => {
+          const response = await this.client.get('/ngsi-ld/v1/entities', {
+            params: { type: 'WeatherObserved', limit, offset },
+            headers: { 'Accept': 'application/ld+json' },
+          });
+          return Array.isArray(response.data) ? response.data : [];
+        },
+        { label: 'WeatherObserved' },
+      );
       // Map NGSI-LD response
       // Per-parcel closed-day series entities are not stations: discriminate by
       // the dailySummary attribute (#1043); the "-daily" id suffix stays as a
@@ -1162,8 +1180,7 @@ class ApiService {
         w?.dailySummary === true ||
         w?.dailySummary?.value === true ||
         String(w?.id ?? '').endsWith('-daily');
-      const payload = (Array.isArray(response.data) ? response.data : [])
-        .filter((w: any) => !isClosedDay(w));
+      const payload = entities.filter((w: any) => !isClosedDay(w));
 
       return payload.map((w: any) => ({
         id: w.id,
@@ -1186,14 +1203,19 @@ class ApiService {
 
   async getParcels(): Promise<Parcel[]> {
     try {
-      const response = await this.client.get('/ngsi-ld/v1/entities', {
-        params: { type: 'AgriParcel' },
-        headers: {
-          'Accept': 'application/json',
-          'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`,
+      return await fetchAllPages<Parcel>(
+        async (offset, limit) => {
+          const response = await this.client.get('/ngsi-ld/v1/entities', {
+            params: { type: 'AgriParcel', limit, offset },
+            headers: {
+              'Accept': 'application/json',
+              'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`,
+            },
+          });
+          return Array.isArray(response.data) ? response.data : [];
         },
-      });
-      return Array.isArray(response.data) ? response.data : [];
+        { label: 'AgriParcel' },
+      );
     } catch (error) {
       logger.warn('Error fetching parcels:', error);
       return [];

@@ -11,6 +11,7 @@ import type { Parcel } from '@/types';
 import { getConfig } from '@/config/environment';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { api } from '@/services/api';
+import { fetchAllPages } from './ngsiPaging';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const config = getConfig();
@@ -160,15 +161,19 @@ class ParcelApiService {
      */
     async getParcels(): Promise<Parcel[]> {
         try {
-            const response = await this.client.get('/ngsi-ld/v1/entities', {
-                params: { type: 'AgriParcel' },
-                headers: {
-                    'Accept': 'application/json',
-                    'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`,
+            const entities = await fetchAllPages<any>(
+                async (offset, limit) => {
+                    const response = await this.client.get('/ngsi-ld/v1/entities', {
+                        params: { type: 'AgriParcel', limit, offset },
+                        headers: {
+                            'Accept': 'application/json',
+                            'Link': `<${config.external.contextUrl}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"`,
+                        },
+                    });
+                    return Array.isArray(response.data) ? response.data : [];
                 },
-            });
-
-            const entities = Array.isArray(response.data) ? response.data : [];
+                { label: 'AgriParcel' },
+            );
             return entities.map(e => this.fromNGSILD(e));
         } catch (error) {
             logger.error('Error fetching parcels:', error);
