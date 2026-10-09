@@ -1149,7 +1149,15 @@ class ApiService {
         headers: { 'Accept': 'application/ld+json' },
       });
       // Map NGSI-LD response
-      const payload = Array.isArray(response.data) ? response.data : [];
+      // Per-parcel closed-day series entities are not stations: discriminate by
+      // the dailySummary attribute (#1043); the "-daily" id suffix stays as a
+      // legacy guard.
+      const isClosedDay = (w: any): boolean =>
+        w?.dailySummary === true ||
+        w?.dailySummary?.value === true ||
+        String(w?.id ?? '').endsWith('-daily');
+      const payload = (Array.isArray(response.data) ? response.data : [])
+        .filter((w: any) => !isClosedDay(w));
 
       return payload.map((w: any) => ({
         id: w.id,

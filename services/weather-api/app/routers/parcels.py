@@ -406,7 +406,7 @@ def get_parcel_weather(
             f"{settings.orion_url}/ngsi-ld/v1/entities",
             params={
                 "q": f'locatedAt=="{parcel_id}"',
-                "limit": 1,
+                "limit": 10,
             },
             headers=_orion_query_headers(tenant_id),
             timeout=10,
@@ -415,10 +415,23 @@ def get_parcel_weather(
         wo_entity = None
         if wo_resp.status_code == 200:
             wo_data = wo_resp.json()
-            if isinstance(wo_data, list) and len(wo_data) > 0:
-                wo_entity = wo_data[0]
-            elif isinstance(wo_data, dict) and wo_data.get("id"):
-                wo_entity = wo_data
+            if isinstance(wo_data, dict):
+                wo_data = [wo_data]
+            # Skip the closed-day series entity (dailySummary true, #1043): it
+            # is not the current-conditions station. The "-daily" id suffix
+            # stays as a legacy guard only.
+            def _is_closed_day(e):
+                node = e.get("dailySummary")
+                if isinstance(node, dict) and node.get("value") is True:
+                    return True
+                return str(e.get("id", "")).endswith("-daily")
+
+            wo_entity = next(
+                (e for e in wo_data
+                 if isinstance(e, dict) and e.get("id")
+                 and not _is_closed_day(e)),
+                None,
+            )
 
         # Guard: verify the entity has weather-like attributes before using it.
         # Querying without type filter avoids FALSE-ZERO when the stored type URI
@@ -1036,6 +1049,7 @@ def get_parcel_agro_status(
                         WHERE tenant_id = %s
                           AND entity_type = 'WeatherObserved'
                           AND entity_id LIKE %s
+                          AND entity_id NOT LIKE '%%-daily'
                           AND observed_at >= NOW() - INTERVAL '3 days'
                         ORDER BY DATE(observed_at) DESC
                         """,

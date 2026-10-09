@@ -14,6 +14,7 @@ Routes:
   GET  /api/weather/observations
   GET  /api/weather/parcel/{parcel_id}
   GET  /api/weather/parcel/{parcel_id}/agro-status
+  GET  /api/weather/parcel/{parcel_id}/daily          (closed-day series, gaps flagged)
   GET  /api/weather/alerts
   OPTIONS /api/weather/{subpath:path}
 """
@@ -32,6 +33,7 @@ from app.routers import (
     municipalities,
     municipality_forecast,
     observations,
+    parcel_daily,
     parcels,
     preflight,
 )
@@ -64,6 +66,7 @@ app.include_router(municipality_forecast.router)
 app.include_router(locations.router)
 app.include_router(observations.router)
 app.include_router(parcels.router)
+app.include_router(parcel_daily.router)
 app.include_router(alerts.router)
 app.include_router(preflight.router)
 
