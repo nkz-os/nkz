@@ -36,6 +36,12 @@ from nkz_platform_sdk.agronomy import (
     confidence_from_match,
     confidence_from_fidelity,
 )
+from nkz_platform_sdk.crop_cycles import (
+    Boundary,
+    CropCycle,
+    CropCycleTimeline,
+    resolve_crop_cycles,
+)
 
 __all__ = [
     "ModuleApp",
@@ -55,6 +61,10 @@ __all__ = [
     "combine_confidence",
     "confidence_from_match",
     "confidence_from_fidelity",
+    "resolve_crop_cycles",
+    "CropCycleTimeline",
+    "CropCycle",
+    "Boundary",
     "SensorFidelity",
     "generate_hmac_signature",
     "verify_hmac_signature",
