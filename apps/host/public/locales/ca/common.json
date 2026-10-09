@@ -913,7 +913,10 @@
     "timeline": {
       "button": "Timeline",
       "label": "Timeline - Control temporal unificat",
-      "current_date": "Data actual: {{date}}"
+      "current_date": "Data actual: {{date}}",
+      "axis": "Eix temporal",
+      "campaign": "Campanya",
+      "lastDays": "Últims 90 dies"
     },
     "sensor": {
       "iot_sensor": "Sensor IoT",

@@ -1349,7 +1349,10 @@
     "timeline": {
       "button": "Timeline",
       "label": "Timeline - Unified temporal control",
-      "current_date": "Current date: {{date}}"
+      "current_date": "Current date: {{date}}",
+      "axis": "Time axis",
+      "campaign": "Season",
+      "lastDays": "Last 90 days"
     },
     "sensor": {
       "iot_sensor": "IoT Sensor",

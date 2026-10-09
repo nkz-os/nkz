@@ -953,7 +953,10 @@
     "timeline": {
       "button": "Denbora-lerroa",
       "label": "Denbora-lerroa - Denborala batutako kontrola",
-      "current_date": "Egungo data: {{date}}"
+      "current_date": "Egungo data: {{date}}",
+      "axis": "Denbora-ardatza",
+      "campaign": "Kanpaina",
+      "lastDays": "Azken 90 egunak"
     },
     "sensor": {
       "iot_sensor": "IoT Sensorea",

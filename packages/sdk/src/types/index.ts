@@ -3,7 +3,7 @@
  * Licensed under Apache-2.0
  */
 
-export type { SlotType, SlotWidgetDefinition, ModuleViewerSlots } from './slots';
+export type { SlotType, SlotWidgetDefinition, ModuleViewerSlots, TimelineTrackProps } from './slots';
 export type {
   NKZModuleRegistration,
   ModuleApiContract,

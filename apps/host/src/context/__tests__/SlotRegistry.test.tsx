@@ -87,6 +87,18 @@ describe('SlotRegistryProvider', () => {
     expect(result.current.isModuleActive('lidar')).toBe(true);
   });
 
+  it('stops offering timeline tracks of a module that is switched off', () => {
+    modules = [{
+      id: 'vegetation',
+      viewerSlots: { 'timeline-track': [{ id: 'vegetation-track', component: 'T', priority: 1 }] },
+    }];
+    const { result } = renderHook(() => useSlotRegistry(), { wrapper });
+    expect(result.current.getVisibleWidgets('timeline-track').map((w) => w.id)).toEqual(['vegetation-track']);
+
+    act(() => result.current.deactivateModule('vegetation'));
+    expect(result.current.getVisibleWidgets('timeline-track')).toEqual([]);
+  });
+
   it('never deactivates core', () => {
     const { result } = renderHook(() => useSlotRegistry(), { wrapper });
     act(() => result.current.deactivateModule('core'));

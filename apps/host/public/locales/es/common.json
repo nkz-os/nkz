@@ -1409,7 +1409,10 @@
     "timeline": {
       "button": "Timeline",
       "label": "Timeline - Control temporal unificado",
-      "current_date": "Fecha actual: {{date}}"
+      "current_date": "Fecha actual: {{date}}",
+      "axis": "Eje temporal",
+      "campaign": "Campaña",
+      "lastDays": "Últimos 90 días"
     },
     "sensor": {
       "iot_sensor": "Sensor IoT",

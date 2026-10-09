@@ -25,7 +25,10 @@ import { cadastralApi } from '@/services/cadastralApi';
 import { parseFieldPhotos, photosInWindow, FieldPhotoRecord } from '@/utils/fieldPhotos';
 import { FieldPhotoCarousel } from '@/components/viewer/FieldPhotoCarousel';
 import { CoreTimelineControls } from '@/components/viewer/CoreTimelineControls';
+import { ViewerTimeline } from './viewer/ViewerTimeline';
+import { useViewerTimelineRange } from '@/hooks/useViewerTimelineRange';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
+import { isRelatedToParcel } from '@/utils/entityRelations';
 import { logger } from '@/utils/logger';
 import { useViewerProfile } from '@/context/ThemeContext';
 import { ThemeProvider } from '@nekazari/design-tokens';
@@ -132,6 +135,10 @@ const UnifiedViewerInner: React.FC = () => {
     const [farms, setFarms] = useState<any[]>([]);
     const [carouselIndex, setCarouselIndex] = useState<number | null>(null);
 
+    // Shared timeline window + cursor reset on entity change. Here (always mounted), not in the
+    // bottom panel, so opening/closing the panel never moves a user-set cursor.
+    const timeline = useViewerTimelineRange(crops);
+
     // Normalize NGSI-LD entities whose attributes use full URIs (from SDM @context)
     // into short names expected by CesiumMap rendering code.
     const NGSILD_ATTR_URI_MAP: Record<string, string> = {
@@ -185,7 +192,7 @@ const UnifiedViewerInner: React.FC = () => {
                 api.getLivestock().catch(() => []),
                 api.getWeatherStations().catch(() => []),
                 parcelApi.getParcels().catch(() => []),
-                api.getSDMEntityInstances('AgriCrop').catch(() => []),
+                api.getSDMEntityInstances('AgriCrop', true, 1000).catch(() => []),
                 api.getSDMEntityInstances('AgriBuilding').catch(() => []),
                 // Fetch tree/plant entities
                 api.getSDMEntityInstances('OliveTree').catch(() => []),
@@ -454,24 +461,6 @@ const UnifiedViewerInner: React.FC = () => {
     const { profile } = useViewerProfile();
 
     // Focus mode entity filtering (React props layer — reactively safe)
-    function isRelatedToParcel(entity: any, parcelId: string): boolean {
-        if (!entity || !parcelId) return false;
-        const attrs = ['hasAgriParcel', 'refAgriParcel', 'locatedAt', 'belongsTo', 'hasAgriFarm'];
-        for (const attr of attrs) {
-            const val = entity[attr];
-            if (!val) continue;
-            // NGSI-LD Relationship uses { type: 'Relationship', object: 'urn:...' }
-            // Simplified/Normalized can be { value: 'urn:...' } or a plain string
-            // Legacy flattened can be { id: 'urn:...' }
-            const resolved = typeof val === 'object' && val?.value ? val.value : val;
-            const targetId = typeof resolved === 'object'
-                ? (resolved?.object || resolved?.id || String(resolved))
-                : resolved;
-            if (String(targetId) === parcelId) return true;
-        }
-        return false;
-    }
-
     const displayParcels = isFocusMode && focusParcelId
         ? parcels.filter(p => p.id === focusParcelId)
         : parcels;
@@ -739,10 +728,10 @@ const UnifiedViewerInner: React.FC = () => {
                     // a module never spills over the map.
                     <div className={`mb-4 rounded-xl ${overlayPanel.base} flex flex-col overflow-hidden`}>
                         <Suspense fallback={<PanelLoadingFallback />}>
-                            <SlotRenderer
-                                slot="bottom-panel"
-                                className="flex flex-col gap-2 p-2 overflow-y-auto max-h-[40vh] min-h-0 border-b border-slate-200 dark:border-slate-700"
-                            />
+                            <div className="overflow-y-auto max-h-[40vh] min-h-0 border-b border-slate-200 dark:border-slate-700">
+                                <ViewerTimeline range={timeline.range} source={timeline.source} today={timeline.today} />
+                                <SlotRenderer slot="bottom-panel" className="flex flex-col gap-2 p-2" />
+                            </div>
                         </Suspense>
                         <div className="py-2">
                             <CoreTimelineControls photos={fieldPhotos} />

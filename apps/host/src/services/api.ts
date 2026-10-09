@@ -788,8 +788,12 @@ class ApiService {
   // Note: getSDMEntities, getSDMEntitySchema, and createSDMEntity are defined later
   // to avoid duplication. See lines 1066-1094 for implementations.
 
-  async getSDMEntityInstances(entityType: string, useCache: boolean = true): Promise<any[]> {
-    const cacheKey = `entities:${entityType}`;
+  /**
+   * `limit` is optional: without it Orion-LD answers with its default page (20).
+   * Pass it only where the full list matters; it is part of the cache key.
+   */
+  async getSDMEntityInstances(entityType: string, useCache: boolean = true, limit?: number): Promise<any[]> {
+    const cacheKey = limit != null ? `entities:${entityType}:limit=${limit}` : `entities:${entityType}`;
 
     // Check cache first
     if (useCache) {
@@ -801,7 +805,9 @@ class ApiService {
 
     try {
       const response = await retryRequest(
-        () => this.client.get('/ngsi-ld/v1/entities', { params: { type: entityType } }),
+        () => this.client.get('/ngsi-ld/v1/entities', {
+          params: limit != null ? { type: entityType, limit } : { type: entityType },
+        }),
         3,
         1000
       );
