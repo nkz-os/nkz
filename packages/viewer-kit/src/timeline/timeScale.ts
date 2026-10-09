@@ -11,10 +11,15 @@ export const TIMELINE_LABEL_VAR = '--nkz-timeline-label-w';
 export function isoToUtcMs(iso: string): number {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
   if (!m) return NaN;
-  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  // Validate the date by round-tripping: if the parsed date doesn't match, it was invalid (e.g. Feb 30)
+  if (utcMsToIso(ms) !== iso.slice(0, 10)) return NaN;
+  return ms;
 }
 
+/** Returns empty string for non-finite input (NaN, Infinity). */
 export function utcMsToIso(ms: number): string {
+  if (!Number.isFinite(ms)) return '';
   return new Date(ms).toISOString().slice(0, 10);
 }
 

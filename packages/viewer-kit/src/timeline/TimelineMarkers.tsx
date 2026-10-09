@@ -17,7 +17,7 @@ export function TimelineMarkers({ range, markers, onSelect }: {
             title={m.title}
             aria-pressed={!!m.selected}
             onClick={() => onSelect?.(m.id)}
-            className="absolute rounded-full cursor-pointer focus:outline-none"
+            className="absolute rounded-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base"
             style={{
               left: `${timeToPct(m.time, range)}%`, top: '50%', width: size, height: size,
               marginLeft: -size / 2, marginTop: -size / 2, backgroundColor: m.color,

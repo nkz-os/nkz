@@ -41,4 +41,14 @@ describe('timeScale', () => {
     expect(latestAtOrBefore(items, i => i.t, 25)).toEqual({ t: 20 });
     expect(latestAtOrBefore(items, i => i.t, 5)).toBeNull();
   });
+
+  it('rejects impossible calendar dates in isoToUtcMs', () => {
+    expect(Number.isNaN(isoToUtcMs('2026-02-30'))).toBe(true);
+    expect(Number.isNaN(isoToUtcMs('2026-13-01'))).toBe(true);
+  });
+
+  it('utcMsToIso returns empty string for non-finite input', () => {
+    expect(utcMsToIso(NaN)).toBe('');
+    expect(utcMsToIso(Infinity)).toBe('');
+  });
 });

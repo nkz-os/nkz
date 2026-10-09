@@ -20,8 +20,27 @@ describe('TimelineAxis', () => {
     render(<TimelineAxis range={range} cursor={range.end} onCursorChange={onCursorChange} ariaLabel="axis" />);
     const track = screen.getByRole('slider', { name: 'axis' });
     fireEvent.keyDown(track, { key: 'ArrowLeft' });
-    expect(onCursorChange).toHaveBeenLastCalledWith(range.end - DAY_MS);
+    expect(onCursorChange).toHaveBeenCalledTimes(1);
+    expect(onCursorChange).toHaveBeenCalledWith(range.end - DAY_MS);
     fireEvent.keyDown(track, { key: 'ArrowRight' });
-    expect(onCursorChange).toHaveBeenLastCalledWith(range.end);
+    expect(onCursorChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call onCursorChange when pointerDown lands on the cursor's own day", () => {
+    const onCursorChange = vi.fn();
+    render(<TimelineAxis range={range} cursor={range.start} onCursorChange={onCursorChange} ariaLabel="axis" />);
+    const track = screen.getByRole('slider', { name: 'axis' });
+    track.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(track, { clientX: 0, pointerId: 1 });
+    expect(onCursorChange).not.toHaveBeenCalled();
+  });
+
+  it('ignores pointerDown with non-primary button', () => {
+    const onCursorChange = vi.fn();
+    render(<TimelineAxis range={range} cursor={range.start} onCursorChange={onCursorChange} ariaLabel="axis" />);
+    const track = screen.getByRole('slider', { name: 'axis' });
+    track.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent.pointerDown(track, { clientX: 500, pointerId: 1, button: 2 });
+    expect(onCursorChange).not.toHaveBeenCalled();
   });
 });

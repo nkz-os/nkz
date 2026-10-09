@@ -25,17 +25,23 @@ export function TimelineAxis({ range, cursor, onCursorChange, forecastFrom, loca
     const rect = ref.current?.getBoundingClientRect();
     if (!rect || rect.width === 0) return;
     const ms = range.start + ((clientX - rect.left) / rect.width) * (range.end - range.start);
-    onCursorChange(clamp(snapToUtcDay(ms), range));
-  }, [range, onCursorChange]);
+    const newCursor = clamp(snapToUtcDay(ms), range);
+    if (newCursor !== cursor) {
+      onCursorChange(newCursor);
+    }
+  }, [range, cursor, onCursorChange]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     e.preventDefault();
-    onCursorChange(clamp(snapToUtcDay(cursor) + (e.key === 'ArrowLeft' ? -DAY_MS : DAY_MS), range));
+    const newCursor = clamp(snapToUtcDay(cursor) + (e.key === 'ArrowLeft' ? -DAY_MS : DAY_MS), range);
+    if (newCursor !== cursor) {
+      onCursorChange(newCursor);
+    }
   };
 
   const fmt = (ms: number) => new Date(ms).toLocaleDateString(locale, { month: 'short', timeZone: 'UTC' });
-  const now = Date.now();
+  const todaySnapped = snapToUtcDay(Date.now());
 
   return (
     <div
@@ -48,11 +54,16 @@ export function TimelineAxis({ range, cursor, onCursorChange, forecastFrom, loca
       aria-valuetext={new Date(cursor).toLocaleDateString(locale, { timeZone: 'UTC' })}
       tabIndex={0}
       onKeyDown={onKeyDown}
-      onPointerDown={e => { dragging.current = true; e.currentTarget.setPointerCapture?.(e.pointerId); fromClientX(e.clientX); }}
+      onPointerDown={e => {
+        if (e.button !== 0) return;
+        dragging.current = true;
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        fromClientX(e.clientX);
+      }}
       onPointerMove={e => { if (dragging.current) fromClientX(e.clientX); }}
       onPointerUp={() => { dragging.current = false; }}
       onPointerCancel={() => { dragging.current = false; }}
-      className="relative cursor-pointer select-none focus:outline-none"
+      className="relative cursor-pointer select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base"
       style={{ height: 28, touchAction: 'none' }}
     >
       {forecastFrom != null && forecastFrom < range.end && (
@@ -71,10 +82,10 @@ export function TimelineAxis({ range, cursor, onCursorChange, forecastFrom, loca
           <span className="absolute text-nkz-text-muted whitespace-nowrap" style={{ bottom: 10, left: 3, fontSize: 10 }}>{fmt(t)}</span>
         </div>
       ))}
-      {isInRange(now, range) && (
+      {isInRange(todaySnapped, range) && (
         <div
           className="absolute"
-          style={{ left: `${timeToPct(now, range)}%`, top: 0, bottom: 0, borderLeft: '1px dashed var(--nkz-color-text-muted, #94a3b8)', pointerEvents: 'none' }}
+          style={{ left: `${timeToPct(todaySnapped, range)}%`, top: 0, bottom: 0, borderLeft: '1px dashed var(--nkz-color-text-muted, #94a3b8)', pointerEvents: 'none' }}
         />
       )}
       <div
