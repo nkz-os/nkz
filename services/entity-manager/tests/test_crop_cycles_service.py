@@ -124,3 +124,25 @@ def test_list_parcels_pages_and_never_filters_by_attrs():
 def test_list_parcels_orion_down_raises():
     with pytest.raises(svc.OrionUnavailable):
         svc.list_parcels("t", client=FakeOrion(fail=True))
+
+
+class OpsPagingOrion(FakeOrion):
+    def __init__(self, n_ops):
+        super().__init__(crops=[dict(CROP)])
+        self.op_calls = []
+        self.many = [dict(SOW, id=f"urn:ngsi-ld:AgriParcelOperation:x{i}") for i in range(n_ops)]
+
+    def query_entities(self, type=None, q=None, limit=100, offset=0, attrs=None, options=None):
+        if type == "AgriParcelOperation":
+            self.op_calls.append({"q": q, "offset": offset, "limit": limit})
+            return self.many[offset:offset + limit]
+        return super().query_entities(type=type, q=q, limit=limit, offset=offset, attrs=attrs, options=options)
+
+
+def test_operations_are_paged_and_filtered_to_cycle_boundaries():
+    fake = OpsPagingOrion(1100)
+    svc.timeline("t", P, AT, client=fake)
+    assert [c["offset"] for c in fake.op_calls] == [0, 500, 1000]
+    q = fake.op_calls[0]["q"]
+    assert 'hasAgriParcel=="urn:ngsi-ld:AgriParcel:p1"' in q
+    assert 'operationType=="sowing","harvesting","tillage"' in q

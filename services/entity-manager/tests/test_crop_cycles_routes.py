@@ -104,3 +104,13 @@ def test_reconcile_all_walks_every_parcel_of_every_tenant():
 
 def test_reconcile_all_requires_secret():
     assert client.post('/api/internal/crop-cycles/reconcile-all').status_code == 401
+
+
+def test_notify_is_gated_when_the_flag_is_on(monkeypatch):
+    monkeypatch.setenv('NOTIFY_REQUIRE_INTERNAL_SECRET', 'true')
+    body = {'data': [{'type': 'AgriCrop', 'hasAgriParcel': 'urn:ngsi-ld:AgriParcel:p1'}]}
+    with patch.object(svc, 'reconcile_parcel', return_value=[]) as rec:
+        r = client.post('/api/internal/notify/crop-cycles', json=body, headers={'NGSILD-Tenant': 't'})
+        assert r.status_code == 401 and rec.call_count == 0
+        r = client.post('/api/internal/notify/crop-cycles', json=body, headers={'NGSILD-Tenant': 't', **H})
+        assert r.status_code == 204 and rec.call_count == 1

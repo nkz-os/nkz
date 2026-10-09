@@ -37,12 +37,27 @@ def _client(tenant_id: str):
     return SyncOrionClient(tenant_id, base_url=ORION_URL, context_url=CONTEXT_URL or None)
 
 
+# Only operations that can set a cycle boundary; a parcel's history of sprays and
+# irrigations must not push its sowings out of the page.
+_BOUNDARY_OPERATIONS = 'operationType=="sowing","harvesting","tillage"'
+
+
+def _query_all(client, entity_type: str, q: str) -> list:
+    out, offset = [], 0
+    while True:
+        page = client.query_entities(type=entity_type, q=q, limit=_PAGE, offset=offset, options='keyValues') or []
+        out.extend(page)
+        if len(page) < _PAGE:
+            return out
+        offset += _PAGE
+
+
 def _load(client, parcel_urn: str):
     try:
         parcel = client.get_entity(parcel_urn, options='keyValues')
         q = f'hasAgriParcel=="{parcel_urn}"'
-        crops = client.query_entities(type='AgriCrop', q=q, limit=_PAGE, options='keyValues')
-        ops = client.query_entities(type='AgriParcelOperation', q=q, limit=_PAGE, options='keyValues')
+        crops = _query_all(client, 'AgriCrop', q)
+        ops = _query_all(client, 'AgriParcelOperation', f'{q};{_BOUNDARY_OPERATIONS}')
     except requests.HTTPError as e:
         if e.response is not None and e.response.status_code == 404:
             raise ParcelNotFound(parcel_urn) from e
