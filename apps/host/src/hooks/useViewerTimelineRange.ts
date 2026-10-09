@@ -7,17 +7,19 @@ import { useEffect, useMemo } from 'react';
 import { snapToUtcDay } from '@nekazari/viewer-kit';
 import { useViewer } from '@/context/ViewerContext';
 import { useSlotRegistryOptional } from '@/context/SlotRegistry';
-import { resolveTimelineRange } from '@/utils/campaignRange';
+import { rangeFromCropCycles, resolveTimelineRange, type CropCycles } from '@/utils/campaignRange';
 
-export function useViewerTimelineRange(crops: unknown[]) {
+export function useViewerTimelineRange(crops: unknown[], cycles: CropCycles | null = null) {
   const { selectedEntityId, setCurrentDate } = useViewer();
   const slotRegistry = useSlotRegistryOptional();
   const hasTracks = (slotRegistry?.getVisibleWidgets('timeline-track').length ?? 0) > 0;
   const today = snapToUtcDay(Date.now());
 
+  // The platform's crop-cycle resolution wins; the local derivation from the
+  // crop list stays as the fallback while it loads or when it is unavailable.
   const resolved = useMemo(
-    () => resolveTimelineRange(crops, selectedEntityId ?? '', today),
-    [crops, selectedEntityId, today],
+    () => rangeFromCropCycles(cycles, today) ?? resolveTimelineRange(crops, selectedEntityId ?? '', today),
+    [cycles, crops, selectedEntityId, today],
   );
 
   // New entity → cursor at today (or at the end of a window that is already over).

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveTimelineRange } from '../campaignRange';
+import { rangeFromCropCycles, resolveTimelineRange } from '../campaignRange';
 
 const P = 'urn:ngsi-ld:AgriParcel:p1';
 const NOW = Date.UTC(2026, 9, 9);
@@ -74,5 +74,23 @@ describe('resolveTimelineRange', () => {
       plantingDate: '2026-09-01', expectedTerminationDate: '2062-01-01', status: 'active',
     })], P, NOW);
     expect(r).toEqual({ source: 'campaign', range: { start: D('2026-09-01'), end: NOW + 365 * DAY } });
+  });
+});
+
+describe('rangeFromCropCycles', () => {
+  const cyc = (s: string | null, e: string | null) => ({ start: { date: s }, end: { date: e } });
+  it('uses the current cycle', () => {
+    expect(rangeFromCropCycles({ current: cyc('2026-03-12', '2026-11-30'), next: null }, NOW))
+      .toEqual({ source: 'campaign', range: { start: D('2026-03-12'), end: D('2026-11-30') } });
+  });
+  it('open-ended current cycle ends 30 days ahead', () => {
+    expect(rangeFromCropCycles({ current: cyc('2026-03-12', null), next: null }, NOW)!.range.end).toBe(NOW + 30 * DAY);
+  });
+  it('caps the window at 365 days back', () => {
+    expect(rangeFromCropCycles({ current: cyc('2015-02-01', null), next: null }, NOW)!.range.start).toBe(NOW - 365 * DAY);
+  });
+  it('no current cycle → null (caller falls back)', () => {
+    expect(rangeFromCropCycles({ current: null, next: cyc('2026-10-15', '2027-06-30') }, NOW)).toBeNull();
+    expect(rangeFromCropCycles(null, NOW)).toBeNull();
   });
 });

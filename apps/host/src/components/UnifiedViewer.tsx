@@ -27,6 +27,7 @@ import { FieldPhotoCarousel } from '@/components/viewer/FieldPhotoCarousel';
 import { CoreTimelineControls } from '@/components/viewer/CoreTimelineControls';
 import { ViewerTimeline } from './viewer/ViewerTimeline';
 import { useViewerTimelineRange } from '@/hooks/useViewerTimelineRange';
+import { useParcelCropCycles } from '@/hooks/useParcelCropCycles';
 import { calculatePolygonAreaHectares } from '@/utils/geo';
 import { isRelatedToParcel } from '@/utils/entityRelations';
 import { logger } from '@/utils/logger';
@@ -137,7 +138,8 @@ const UnifiedViewerInner: React.FC = () => {
 
     // Shared timeline window + cursor reset on entity change. Here (always mounted), not in the
     // bottom panel, so opening/closing the panel never moves a user-set cursor.
-    const timeline = useViewerTimelineRange(crops);
+    const cropCycles = useParcelCropCycles(selectedEntityId ?? null);
+    const timeline = useViewerTimelineRange(crops, cropCycles);
 
     // Normalize NGSI-LD entities whose attributes use full URIs (from SDM @context)
     // into short names expected by CesiumMap rendering code.

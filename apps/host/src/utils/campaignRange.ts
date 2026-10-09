@@ -61,3 +61,24 @@ export function resolveTimelineRange(
     source: 'default',
   };
 }
+
+export interface CycleDto { start: { date: string | null }; end: { date: string | null } }
+export interface CropCycles { current: CycleDto | null; next: CycleDto | null }
+
+/** Window of the parcel's current crop cycle as resolved by the platform. */
+export function rangeFromCropCycles(
+  cycles: CropCycles | null, now: number,
+): { range: TimeRange; source: 'campaign' } | null {
+  const cur = cycles?.current;
+  const start = cur?.start.date ? isoToUtcMs(cur.start.date) : NaN;
+  if (!Number.isFinite(start)) return null;
+  const declared = cur?.end.date ? isoToUtcMs(cur.end.date) : NaN;
+  const end = Number.isFinite(declared) && declared >= now ? declared : now + DEFAULT_FUTURE_DAYS * DAY_MS;
+  return {
+    range: {
+      start: Math.max(start, now - MAX_PAST_DAYS * DAY_MS),
+      end: Math.min(end, now + MAX_FUTURE_DAYS * DAY_MS),
+    },
+    source: 'campaign',
+  };
+}
