@@ -20,7 +20,7 @@ import paho.mqtt.client as mqtt
 from common.auth_middleware import require_auth
 from common.api_errors import internal_error
 from common.ngsi_headers import inject_fiware_headers
-from db_helper import get_db_connection_with_tenant, get_db_connection_simple
+from db_helper import get_db_connection_with_tenant, get_db_connection_simple, return_db_connection
 
 # Import shared config
 from helpers import ORION_URL, CONTEXT_URL
@@ -162,26 +162,21 @@ def register_sensor():
                 'error': 'Location (lat, lon) is required'
             }), 400
 
-        conn = get_db_connection_with_tenant(tenant_id)
-        if not conn:
-            return jsonify({'error': 'Database connection error'}), 500
-
         try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-
-            # Check if profile exists and get SDM mapping
-            cur.execute("""
-                SELECT id, sdm_entity_type, sdm_device_category, mapping
-                FROM sensor_profiles
-                WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
-                ORDER BY tenant_id NULLS LAST
-                LIMIT 1
-            """, (profile_code, tenant_id))
-
-            profile_row = cur.fetchone()
-            if not profile_row:
+            with get_db_connection_with_tenant(tenant_id) as conn:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                # Check if profile exists and get SDM mapping
+                cur.execute("""
+                    SELECT id, sdm_entity_type, sdm_device_category, mapping
+                    FROM sensor_profiles
+                    WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
+                    ORDER BY tenant_id NULLS LAST
+                    LIMIT 1
+                """, (profile_code, tenant_id))
+                profile_row = cur.fetchone()
                 cur.close()
-                conn.close()
+
+            if not profile_row:
                 return jsonify({
                     'error': f'Profile "{profile_code}" not found'
                 }), 404
@@ -191,9 +186,6 @@ def register_sensor():
             # one attribute that tells machines of the same type apart.
             device_category = profile_row.get('sdm_device_category')
             profile_mapping = profile_row.get('mapping') or {}
-
-            cur.close()
-            conn.close()
 
             # ── Dedup check via Orion-LD ──────────────────────────────────
             orion_check_url = (
@@ -514,61 +506,57 @@ def list_sensor_profiles():
     """List available sensor profiles"""
     try:
         tenant_id = g.tenant
-        conn = get_db_connection_with_tenant(tenant_id)
-        if not conn:
-            return jsonify({'error': 'Database connection error'}), 500
 
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
-                SELECT code, name, description, sdm_entity_type, sdm_category, mapping, metadata, health_defaults
-                FROM sensor_profiles
-                WHERE tenant_id IS NULL OR tenant_id = %s
-                ORDER BY code
-            """, (tenant_id,))
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute("""
+                    SELECT code, name, description, sdm_entity_type, sdm_category, mapping, metadata, health_defaults
+                    FROM sensor_profiles
+                    WHERE tenant_id IS NULL OR tenant_id = %s
+                    ORDER BY code
+                """, (tenant_id,))
 
-            profiles = []
-            for row in cur.fetchall():
-                profile_data = {
-                    'code': row['code'],
-                    'name': row['name'],
-                    'description': row['description'],
-                    'sdm_entity_type': row['sdm_entity_type'],
-                    'sdm_category': row['sdm_category']
-                }
+                profiles = []
+                for row in cur.fetchall():
+                    profile_data = {
+                        'code': row['code'],
+                        'name': row['name'],
+                        'description': row['description'],
+                        'sdm_entity_type': row['sdm_entity_type'],
+                        'sdm_category': row['sdm_category']
+                    }
 
-                # Include metadata if available
-                if row.get('metadata'):
-                    profile_data['metadata'] = row['metadata']
+                    # Include metadata if available
+                    if row.get('metadata'):
+                        profile_data['metadata'] = row['metadata']
 
-                # Include health_defaults if available
-                if row.get('health_defaults'):
-                    profile_data['health_defaults'] = row['health_defaults']
+                    # Include health_defaults if available
+                    if row.get('health_defaults'):
+                        profile_data['health_defaults'] = row['health_defaults']
 
-                # Include mapping info for frontend hints
-                if row.get('mapping'):
-                    mapping = row['mapping']
-                    if isinstance(mapping, dict):
-                        measurements = mapping.get('measurements', [])
-                        if measurements:
-                            # Extract SDM attributes for hints
-                            sdm_attributes = [m.get('sdmAttribute') for m in measurements if m.get('sdmAttribute')]
-                            if sdm_attributes:
-                                profile_data['sdm_attributes'] = sdm_attributes
+                    # Include mapping info for frontend hints
+                    if row.get('mapping'):
+                        mapping = row['mapping']
+                        if isinstance(mapping, dict):
+                            measurements = mapping.get('measurements', [])
+                            if measurements:
+                                # Extract SDM attributes for hints
+                                sdm_attributes = [m.get('sdmAttribute') for m in measurements if m.get('sdmAttribute')]
+                                if sdm_attributes:
+                                    profile_data['sdm_attributes'] = sdm_attributes
 
-                profiles.append(profile_data)
+                    profiles.append(profile_data)
 
-            cur.close()
-            conn.close()
+                cur.close()
 
-            return jsonify({
-                'profiles': profiles
-            }), 200
+                return jsonify({
+                    'profiles': profiles
+                }), 200
 
-        except Exception as e:
-            conn.close()
-            logger.error(f"Error listing profiles: {e}")
-            return jsonify({'error': 'Database error'}), 500
+            except Exception as e:
+                logger.error(f"Error listing profiles: {e}")
+                return jsonify({'error': 'Database error'}), 500
 
     except Exception as e:
         logger.error(f"Error in list_sensor_profiles: {e}")
@@ -581,35 +569,31 @@ def sensor_profiles_status():
     """Check if sensor profiles are initialized"""
     try:
         tenant_id = g.tenant
-        conn = get_db_connection_with_tenant(tenant_id)
-        if not conn:
-            return jsonify({'error': 'Database connection error'}), 500
 
-        try:
-            cur = conn.cursor()
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            try:
+                cur = conn.cursor()
 
-            # Count global profiles (tenant_id IS NULL)
-            cur.execute("SELECT COUNT(*) FROM sensor_profiles WHERE tenant_id IS NULL")
-            global_count = cur.fetchone()[0] or 0
+                # Count global profiles (tenant_id IS NULL)
+                cur.execute("SELECT COUNT(*) FROM sensor_profiles WHERE tenant_id IS NULL")
+                global_count = cur.fetchone()[0] or 0
 
-            # Count tenant-specific profiles
-            cur.execute("SELECT COUNT(*) FROM sensor_profiles WHERE tenant_id = %s", (tenant_id,))
-            tenant_count = cur.fetchone()[0] or 0
+                # Count tenant-specific profiles
+                cur.execute("SELECT COUNT(*) FROM sensor_profiles WHERE tenant_id = %s", (tenant_id,))
+                tenant_count = cur.fetchone()[0] or 0
 
-            cur.close()
-            conn.close()
+                cur.close()
 
-            return jsonify({
-                'initialized': global_count > 0,
-                'global_profiles': global_count,
-                'tenant_profiles': tenant_count,
-                'total': global_count + tenant_count
-            }), 200
+                return jsonify({
+                    'initialized': global_count > 0,
+                    'global_profiles': global_count,
+                    'tenant_profiles': tenant_count,
+                    'total': global_count + tenant_count
+                }), 200
 
-        except Exception as e:
-            conn.close()
-            logger.error(f"Error checking profiles status: {e}")
-            return jsonify({'error': 'Database error'}), 500
+            except Exception as e:
+                logger.error(f"Error checking profiles status: {e}")
+                return jsonify({'error': 'Database error'}), 500
 
     except Exception as e:
         logger.error(f"Error in sensor_profiles_status: {e}")
@@ -627,68 +611,64 @@ def list_tenant_sensors():
     """List sensors for the current tenant"""
     try:
         tenant_id = g.tenant
-        conn = get_db_connection_with_tenant(tenant_id)
-        if not conn:
-            return jsonify({'error': 'Database connection error'}), 500
 
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
-                SELECT
-                    s.id,
-                    s.external_id,
-                    s.name,
-                    sp.code as profile_code,
-                    sp.name as profile_name,
-                    s.is_under_canopy,
-                    s.metadata,
-                    s.created_at,
-                    ST_X(s.installation_location::geometry) as lon,
-                    ST_Y(s.installation_location::geometry) as lat,
-                    (SELECT MAX(observed_at) FROM telemetry_events
-                     WHERE tenant_id = %s AND device_id = s.external_id) as last_telemetry
-                FROM sensors s
-                JOIN sensor_profiles sp ON s.profile_id = sp.id
-                WHERE s.tenant_id = %s
-                ORDER BY s.created_at DESC
-            """, (tenant_id, tenant_id))
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute("""
+                    SELECT
+                        s.id,
+                        s.external_id,
+                        s.name,
+                        sp.code as profile_code,
+                        sp.name as profile_name,
+                        s.is_under_canopy,
+                        s.metadata,
+                        s.created_at,
+                        ST_X(s.installation_location::geometry) as lon,
+                        ST_Y(s.installation_location::geometry) as lat,
+                        (SELECT MAX(observed_at) FROM telemetry_events
+                         WHERE tenant_id = %s AND device_id = s.external_id) as last_telemetry
+                    FROM sensors s
+                    JOIN sensor_profiles sp ON s.profile_id = sp.id
+                    WHERE s.tenant_id = %s
+                    ORDER BY s.created_at DESC
+                """, (tenant_id, tenant_id))
 
-            sensors = []
-            for row in cur.fetchall():
-                sensor_data = {
-                    'id': str(row['id']),
-                    'external_id': row['external_id'],
-                    'name': row['name'],
-                    'profile': {
-                        'code': row['profile_code'],
-                        'name': row['profile_name']
-                    },
-                    'is_under_canopy': row['is_under_canopy'],
-                    'metadata': row['metadata'],
-                    'created_at': row['created_at'].isoformat(),
-                    'last_telemetry': row['last_telemetry'].isoformat() if row['last_telemetry'] else None
-                }
-
-                # Add location if coordinates are available
-                if row['lon'] is not None and row['lat'] is not None:
-                    sensor_data['installation_location'] = {
-                        'lon': float(row['lon']),
-                        'lat': float(row['lat'])
+                sensors = []
+                for row in cur.fetchall():
+                    sensor_data = {
+                        'id': str(row['id']),
+                        'external_id': row['external_id'],
+                        'name': row['name'],
+                        'profile': {
+                            'code': row['profile_code'],
+                            'name': row['profile_name']
+                        },
+                        'is_under_canopy': row['is_under_canopy'],
+                        'metadata': row['metadata'],
+                        'created_at': row['created_at'].isoformat(),
+                        'last_telemetry': row['last_telemetry'].isoformat() if row['last_telemetry'] else None
                     }
 
-                sensors.append(sensor_data)
+                    # Add location if coordinates are available
+                    if row['lon'] is not None and row['lat'] is not None:
+                        sensor_data['installation_location'] = {
+                            'lon': float(row['lon']),
+                            'lat': float(row['lat'])
+                        }
 
-            cur.close()
-            conn.close()
+                    sensors.append(sensor_data)
 
-            return jsonify({
-                'sensors': sensors
-            }), 200
+                cur.close()
 
-        except Exception as e:
-            conn.close()
-            logger.error(f"Error listing sensors: {e}")
-            return jsonify({'error': 'Database error'}), 500
+                return jsonify({
+                    'sensors': sensors
+                }), 200
+
+            except Exception as e:
+                logger.error(f"Error listing sensors: {e}")
+                return jsonify({'error': 'Database error'}), 500
 
     except Exception as e:
         logger.error(f"Error in list_tenant_sensors: {e}")
@@ -707,61 +687,57 @@ def get_device_telemetry(device_id):
     try:
         device_id = _normalize_device_id(device_id)
         tenant_id = g.tenant
-        conn = get_db_connection_with_tenant(tenant_id)
-        if not conn:
-            return jsonify({'error': 'Database connection error'}), 500
 
         # Get query parameters
         start_time = request.args.get('start_time')
         end_time = request.args.get('end_time')
         limit = int(request.args.get('limit', 1000))
 
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            query = """
-                SELECT
-                    observed_at,
-                    payload,
-                    metadata
-                FROM telemetry_events
-                WHERE tenant_id = %s AND device_id = %s
-            """
-            params = [tenant_id, device_id]
+                query = """
+                    SELECT
+                        observed_at,
+                        payload,
+                        metadata
+                    FROM telemetry_events
+                    WHERE tenant_id = %s AND device_id = %s
+                """
+                params = [tenant_id, device_id]
 
-            if start_time:
-                query += " AND observed_at >= %s"
-                params.append(start_time)
-            if end_time:
-                query += " AND observed_at <= %s"
-                params.append(end_time)
+                if start_time:
+                    query += " AND observed_at >= %s"
+                    params.append(start_time)
+                if end_time:
+                    query += " AND observed_at <= %s"
+                    params.append(end_time)
 
-            query += " ORDER BY observed_at DESC LIMIT %s"
-            params.append(limit)
+                query += " ORDER BY observed_at DESC LIMIT %s"
+                params.append(limit)
 
-            cur.execute(query, params)
+                cur.execute(query, params)
 
-            telemetry = []
-            for row in cur.fetchall():
-                telemetry.append({
-                    'observed_at': row['observed_at'].isoformat(),
-                    'payload': row['payload'],
-                    'metadata': row['metadata']
-                })
+                telemetry = []
+                for row in cur.fetchall():
+                    telemetry.append({
+                        'observed_at': row['observed_at'].isoformat(),
+                        'payload': row['payload'],
+                        'metadata': row['metadata']
+                    })
 
-            cur.close()
-            conn.close()
+                cur.close()
 
-            return jsonify({
-                'device_id': device_id,
-                'telemetry': telemetry,
-                'count': len(telemetry)
-            }), 200
+                return jsonify({
+                    'device_id': device_id,
+                    'telemetry': telemetry,
+                    'count': len(telemetry)
+                }), 200
 
-        except Exception as e:
-            conn.close()
-            logger.error(f"Error getting telemetry: {e}")
-            return jsonify({'error': 'Database error'}), 500
+            except Exception as e:
+                logger.error(f"Error getting telemetry: {e}")
+                return jsonify({'error': 'Database error'}), 500
 
     except Exception as e:
         logger.error(f"Error in get_device_telemetry: {e}")
@@ -775,44 +751,40 @@ def get_device_latest_telemetry(device_id):
     try:
         device_id = _normalize_device_id(device_id)
         tenant_id = g.tenant
-        conn = get_db_connection_with_tenant(tenant_id)
-        if not conn:
-            return jsonify({'error': 'Database connection error'}), 500
 
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
-                SELECT
-                    observed_at,
-                    payload,
-                    metadata
-                FROM telemetry_events
-                WHERE tenant_id = %s AND device_id = %s
-                ORDER BY observed_at DESC
-                LIMIT 1
-            """, (tenant_id, device_id))
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute("""
+                    SELECT
+                        observed_at,
+                        payload,
+                        metadata
+                    FROM telemetry_events
+                    WHERE tenant_id = %s AND device_id = %s
+                    ORDER BY observed_at DESC
+                    LIMIT 1
+                """, (tenant_id, device_id))
 
-            row = cur.fetchone()
-            cur.close()
-            conn.close()
+                row = cur.fetchone()
+                cur.close()
 
-            if row:
-                return jsonify({
-                    'device_id': device_id,
-                    'observed_at': row['observed_at'].isoformat(),
-                    'payload': row['payload'],
-                    'metadata': row['metadata']
-                }), 200
-            else:
-                return jsonify({
-                    'device_id': device_id,
-                    'message': 'No telemetry data available'
-                }), 404
+                if row:
+                    return jsonify({
+                        'device_id': device_id,
+                        'observed_at': row['observed_at'].isoformat(),
+                        'payload': row['payload'],
+                        'metadata': row['metadata']
+                    }), 200
+                else:
+                    return jsonify({
+                        'device_id': device_id,
+                        'message': 'No telemetry data available'
+                    }), 404
 
-        except Exception as e:
-            conn.close()
-            logger.error(f"Error getting latest telemetry: {e}")
-            return jsonify({'error': 'Database error'}), 500
+            except Exception as e:
+                logger.error(f"Error getting latest telemetry: {e}")
+                return jsonify({'error': 'Database error'}), 500
 
     except Exception as e:
         logger.error(f"Error in get_device_latest_telemetry: {e}")
@@ -826,53 +798,49 @@ def get_device_telemetry_stats(device_id):
     try:
         device_id = _normalize_device_id(device_id)
         tenant_id = g.tenant
-        conn = get_db_connection_with_tenant(tenant_id)
-        if not conn:
-            return jsonify({'error': 'Database connection error'}), 500
 
         # Get query parameters
         start_time = request.args.get('start_time')
         end_time = request.args.get('end_time')
 
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            query = """
-                SELECT
-                    COUNT(*) as total_records,
-                    MIN(observed_at) as first_record,
-                    MAX(observed_at) as last_record
-                FROM telemetry_events
-                WHERE tenant_id = %s AND device_id = %s
-            """
-            params = [tenant_id, device_id]
+                query = """
+                    SELECT
+                        COUNT(*) as total_records,
+                        MIN(observed_at) as first_record,
+                        MAX(observed_at) as last_record
+                    FROM telemetry_events
+                    WHERE tenant_id = %s AND device_id = %s
+                """
+                params = [tenant_id, device_id]
 
-            if start_time:
-                query += " AND observed_at >= %s"
-                params.append(start_time)
-            if end_time:
-                query += " AND observed_at <= %s"
-                params.append(end_time)
+                if start_time:
+                    query += " AND observed_at >= %s"
+                    params.append(start_time)
+                if end_time:
+                    query += " AND observed_at <= %s"
+                    params.append(end_time)
 
-            cur.execute(query, params)
-            row = cur.fetchone()
+                cur.execute(query, params)
+                row = cur.fetchone()
 
-            cur.close()
-            conn.close()
+                cur.close()
 
-            return jsonify({
-                'device_id': device_id,
-                'stats': {
-                    'total_records': row['total_records'],
-                    'first_record': row['first_record'].isoformat() if row['first_record'] else None,
-                    'last_record': row['last_record'].isoformat() if row['last_record'] else None
-                }
-            }), 200
+                return jsonify({
+                    'device_id': device_id,
+                    'stats': {
+                        'total_records': row['total_records'],
+                        'first_record': row['first_record'].isoformat() if row['first_record'] else None,
+                        'last_record': row['last_record'].isoformat() if row['last_record'] else None
+                    }
+                }), 200
 
-        except Exception as e:
-            conn.close()
-            logger.error(f"Error getting telemetry stats: {e}")
-            return jsonify({'error': 'Database error'}), 500
+            except Exception as e:
+                logger.error(f"Error getting telemetry stats: {e}")
+                return jsonify({'error': 'Database error'}), 500
 
     except Exception as e:
         logger.error(f"Error in get_device_telemetry_stats: {e}")
@@ -935,22 +903,17 @@ def send_device_command(device_id):
             return jsonify({'error': 'Payload must be a JSON object'}), 400
 
         # Get device info to determine MQTT topic
-        conn = get_db_connection_with_tenant(tenant_id)
-        if not conn:
-            return jsonify({'error': 'Database connection error'}), 500
-
         try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
-                SELECT external_id
-                FROM sensors
-                WHERE tenant_id = %s AND external_id = %s
-                LIMIT 1
-            """, (tenant_id, device_id))
-
-            device = cur.fetchone()
-            cur.close()
-            conn.close()
+            with get_db_connection_with_tenant(tenant_id) as conn:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute("""
+                    SELECT external_id
+                    FROM sensors
+                    WHERE tenant_id = %s AND external_id = %s
+                    LIMIT 1
+                """, (tenant_id, device_id))
+                device = cur.fetchone()
+                cur.close()
 
             if not device:
                 return jsonify({'error': 'Device not found'}), 404
@@ -1094,65 +1057,61 @@ def get_device_commands(device_id):
     """Get command history for a device"""
     try:
         tenant_id = g.tenant
-        conn = get_db_connection_with_tenant(tenant_id)
-        if not conn:
-            return jsonify({'error': 'Database connection error'}), 500
 
         # Get query parameters
         limit = int(request.args.get('limit', 50))
         status = request.args.get('status')  # optional filter
 
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_connection_with_tenant(tenant_id) as conn:
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            query = """
-                SELECT
-                    id,
-                    command_type,
-                    payload,
-                    status,
-                    sent_at,
-                    executed_at,
-                    response
-                FROM commands
-                WHERE tenant_id = %s AND device_id = %s
-            """
-            params = [tenant_id, device_id]
+                query = """
+                    SELECT
+                        id,
+                        command_type,
+                        payload,
+                        status,
+                        sent_at,
+                        executed_at,
+                        response
+                    FROM commands
+                    WHERE tenant_id = %s AND device_id = %s
+                """
+                params = [tenant_id, device_id]
 
-            if status:
-                query += " AND status = %s"
-                params.append(status)
+                if status:
+                    query += " AND status = %s"
+                    params.append(status)
 
-            query += " ORDER BY sent_at DESC LIMIT %s"
-            params.append(limit)
+                query += " ORDER BY sent_at DESC LIMIT %s"
+                params.append(limit)
 
-            cur.execute(query, params)
+                cur.execute(query, params)
 
-            commands = []
-            for row in cur.fetchall():
-                commands.append({
-                    'id': str(row['id']),
-                    'command_type': row['command_type'],
-                    'payload': row['payload'] if isinstance(row['payload'], dict) else json.loads(row['payload']) if row['payload'] else {},
-                    'status': row['status'],
-                    'sent_at': row['sent_at'].isoformat() if row['sent_at'] else None,
-                    'executed_at': row['executed_at'].isoformat() if row['executed_at'] else None,
-                    'response': row['response'] if isinstance(row['response'], dict) else json.loads(row['response']) if row['response'] else None
-                })
+                commands = []
+                for row in cur.fetchall():
+                    commands.append({
+                        'id': str(row['id']),
+                        'command_type': row['command_type'],
+                        'payload': row['payload'] if isinstance(row['payload'], dict) else json.loads(row['payload']) if row['payload'] else {},
+                        'status': row['status'],
+                        'sent_at': row['sent_at'].isoformat() if row['sent_at'] else None,
+                        'executed_at': row['executed_at'].isoformat() if row['executed_at'] else None,
+                        'response': row['response'] if isinstance(row['response'], dict) else json.loads(row['response']) if row['response'] else None
+                    })
 
-            cur.close()
-            conn.close()
+                cur.close()
 
-            return jsonify({
-                'device_id': device_id,
-                'commands': commands,
-                'count': len(commands)
-            }), 200
+                return jsonify({
+                    'device_id': device_id,
+                    'commands': commands,
+                    'count': len(commands)
+                }), 200
 
-        except Exception as e:
-            conn.close()
-            logger.error(f"Error getting commands: {e}")
-            return jsonify({'error': 'Database error'}), 500
+            except Exception as e:
+                logger.error(f"Error getting commands: {e}")
+                return jsonify({'error': 'Database error'}), 500
 
     except Exception as e:
         logger.error(f"Error in get_device_commands: {e}")
@@ -1213,14 +1172,11 @@ def check_entity_heartbeat():
                     MAX(observed_at) as last_seen,
                     COUNT(*) as event_count
                 FROM telemetry_events
-                WHERE tenant_id = %s
-                  AND (device_id = %s OR device_id LIKE %s)
-                LIMIT 1
-            """, (tenant_id, device_id, f'%{device_id}%'))
+                WHERE tenant_id = %s AND device_id = %s
+            """, (tenant_id, device_id))
 
             row = cur.fetchone()
             cur.close()
-            conn.close()
 
             if row and row['event_count'] and row['event_count'] > 0:
                 return jsonify({
@@ -1239,9 +1195,10 @@ def check_entity_heartbeat():
 
         except Exception as db_error:
             logger.error(f"Database error checking heartbeat: {db_error}")
-            if conn:
-                conn.close()
             return jsonify({'connected': False}), 200
+        finally:
+            # A pooled connection goes back to the pool; closing it leaks the slot.
+            return_db_connection(conn)
 
     except Exception as e:
         logger.error(f"Error checking heartbeat: {e}")
