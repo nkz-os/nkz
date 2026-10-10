@@ -171,7 +171,7 @@ def register_sensor():
 
             # Check if profile exists and get SDM mapping
             cur.execute("""
-                SELECT id, sdm_entity_type, mapping
+                SELECT id, sdm_entity_type, sdm_device_category, mapping
                 FROM sensor_profiles
                 WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
                 ORDER BY tenant_id NULLS LAST
@@ -187,6 +187,9 @@ def register_sensor():
                 }), 404
 
             sdm_entity_type = profile_row.get('sdm_entity_type') or 'Device'
+            # tractor / implement / robot / harvester for machines, NULL for devices: the
+            # one attribute that tells machines of the same type apart.
+            device_category = profile_row.get('sdm_device_category')
             profile_mapping = profile_row.get('mapping') or {}
 
             cur.close()
@@ -257,6 +260,8 @@ def register_sensor():
                 'status': {'type': 'Property', 'value': 'active'},
             }
 
+            if device_category:
+                orion_entity['category'] = {'type': 'Property', 'value': device_category}
             if metadata:
                 orion_entity['metadata'] = {
                     'type': 'Property',

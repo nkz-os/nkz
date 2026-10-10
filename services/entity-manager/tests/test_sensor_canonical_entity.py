@@ -160,3 +160,18 @@ def test_no_parcel_means_no_controlled_asset():
 def test_the_platform_specific_parcel_id_attribute_is_gone(payload):
     """`parcelId` era una Property inventada; la relación canónica es `controlledAsset`."""
     assert "parcelId" not in _register(payload)
+
+
+MACHINE_ROBOT = {"id": 2, "sdm_entity_type": "ManufacturingMachine",
+                 "sdm_device_category": "robot", "mapping": {"measurements": []}}
+
+
+def test_a_machine_profile_writes_its_category():
+    """Sin `category` un robot es indistinguible de un tractor y la cuota de robots no lo ve."""
+    entity = _register(dict(BASE), profile_row=MACHINE_ROBOT)
+    assert entity["type"] == "ManufacturingMachine"
+    assert entity["category"] == {"type": "Property", "value": "robot"}
+
+
+def test_a_device_profile_has_no_category():
+    assert "category" not in _register(dict(BASE))
