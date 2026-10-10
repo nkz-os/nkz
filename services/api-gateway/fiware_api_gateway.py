@@ -736,8 +736,11 @@ def enforce_agriparcel_single_writer():
             "hint": "Use POST/PATCH/DELETE /api/entities/parcels",
         }), 403
 
-    # URL contains AgriParcel URN: /ngsi-ld/v1/entities/urn:ngsi-ld:AgriParcel:...
-    if "AgriParcel" in path and request.method in ("PUT", "PATCH", "DELETE"):
+    # Entity id is an AgriParcel URN: /ngsi-ld/v1/entities/urn:ngsi-ld:AgriParcel:...
+    # Only the id segment counts; attribute names such as /attrs/hasAgriParcel
+    # belong to other entities that reference a parcel.
+    entity_id = path.split("/ngsi-ld/v1/entities", 1)[1].lstrip("/").split("/", 1)[0]
+    if "AgriParcel" in entity_id and request.method in ("PUT", "PATCH", "DELETE"):
         logger.warning("AgriParcel write blocked: %s %s from %s", request.method, path, request.remote_addr)
         return jsonify({
             "error": "AgriParcel writes must go through entity-manager API",
