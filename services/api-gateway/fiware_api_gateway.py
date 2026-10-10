@@ -1354,9 +1354,14 @@ def get_device_stats():
         return jsonify({"error": "Internal server error"}), 500
 
 
+# Device is the canonical sensor type; AgriSensor and AgriDevice are legacy types
+# still read until nothing writes them. Orion-LD treats a comma list as OR.
+SENSOR_ENTITY_TYPES = "Device,AgriSensor,AgriDevice"
+
+
 @app.route("/api/sensors/stats", methods=["GET"])
 def get_sensor_stats():
-    """Get sensor statistics (AgriSensor count)"""
+    """Get sensor statistics (count of sensor entities)"""
     # Validate JWT token
     token = get_request_token()
     if not token:
@@ -1374,10 +1379,10 @@ def get_sensor_stats():
     headers = {}
     headers = inject_fiware_headers(headers, tenant)
 
-    # Query Orion for AgriSensor count
+    # Query Orion for the sensor count
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        params = {"type": "AgriSensor", "limit": 1, "count": "true"}
+        params = {"type": SENSOR_ENTITY_TYPES, "limit": 1, "count": "true"}
 
         response = requests.get(orion_url, headers=headers, params=params, timeout=10)
 
@@ -1401,7 +1406,7 @@ def get_sensor_stats():
 
 @app.route("/api/sensors", methods=["GET"])
 def get_sensors():
-    """Proxy to Orion-LD for AgriSensor entities (Legacy API support)"""
+    """Proxy to Orion-LD for sensor entities (Legacy API support)"""
     # Validate JWT token
     token = get_request_token()
     if not token:
@@ -1423,7 +1428,7 @@ def get_sensors():
     # Forward request to Orion-LD
     try:
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-        params = {"type": "AgriSensor"}
+        params = {"type": SENSOR_ENTITY_TYPES}
         # Merge with existing query params
         params.update(request.args)
 
