@@ -22,9 +22,12 @@ INTERNAL_SERVICE_SECRET = os.getenv('INTERNAL_SERVICE_SECRET', '')
 SERVICE_HOST = os.getenv('SERVICE_HOST', 'entity-manager-service')
 SERVICE_PORT = os.getenv('SERVICE_PORT', '5000')
 NOTIFICATION_URL = f'http://{SERVICE_HOST}:{SERVICE_PORT}/api/internal/notify/crop-cycles'
+# Throttling 0, explicit (the SDK default is 30 s): Orion drops the notifications that
+# fall inside the window, so a burst of edits would only be seen by the daily sweep.
+# The reconciler writes only on change, so its own writes do not loop.
 CROP_CYCLE_SUBSCRIPTIONS = [
-    {'type': 'AgriCrop', 'throttling': 1},
-    {'type': 'AgriParcelOperation', 'throttling': 1},
+    {'type': 'AgriCrop', 'throttling': 0},
+    {'type': 'AgriParcelOperation', 'throttling': 0},
 ]
 
 
@@ -51,6 +54,9 @@ def _serve(tenant_id: str, parcel_id: str):
         return jsonify(svc.timeline(tenant_id, svc.normalize_parcel_urn(parcel_id), at)), 200
     except svc.ParcelNotFound:
         return jsonify({'error': 'parcel not found'}), 404
+    except svc.BrokerRejected as e:
+        logger.error('crop-cycles: broker rejected the request tenant=%s parcel=%s: %s', tenant_id, parcel_id, e)
+        return jsonify({'error': 'context broker rejected the request'}), 502
     except svc.OrionUnavailable as e:
         logger.warning('crop-cycles unavailable tenant=%s parcel=%s: %s', tenant_id, parcel_id, e)
         return jsonify({'error': 'context broker unavailable'}), 503
@@ -97,7 +103,14 @@ def reconcile_all():
         return jsonify({'error': 'Unauthorized'}), 401
     from blueprints.notifications import _get_active_tenants
     stats = {'tenants': 0, 'parcels': 0, 'written': 0, 'errors': 0}
-    for tenant_id in _get_active_tenants():
+    tenants = _get_active_tenants()
+    # A tenant created after start-up gets its subscriptions here (idempotent).
+    try:
+        ensure_crop_cycle_subscriptions(tenants)
+    except Exception as e:  # noqa: BLE001 — the sweep itself still runs
+        logger.warning('reconcile-all: crop-cycle subscriptions not ensured: %s', e)
+        stats['errors'] += 1
+    for tenant_id in tenants:
         stats['tenants'] += 1
         try:
             parcels = svc.list_parcels(tenant_id)
@@ -115,7 +128,7 @@ def reconcile_all():
     return jsonify(stats), 200
 
 
-def ensure_crop_cycle_subscriptions():
+def ensure_crop_cycle_subscriptions(tenants=None):
     from blueprints.notifications import _get_active_tenants
     registrar = SubscriptionRegistrar(
         orion_url=svc.ORION_URL,
@@ -125,7 +138,7 @@ def ensure_crop_cycle_subscriptions():
         notification_headers=({'X-Internal-Service-Secret': INTERNAL_SERVICE_SECRET}
                               if INTERNAL_SERVICE_SECRET else None),
     )
-    result = asyncio.run(registrar.ensure_all(_get_active_tenants()))
+    result = asyncio.run(registrar.ensure_all(tenants if tenants is not None else _get_active_tenants()))
     logger.info('crop-cycle subscriptions: created=%d skipped=%d errors=%d',
                 result['created'], result['skipped'], len(result['errors']))
 

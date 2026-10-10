@@ -146,3 +146,23 @@ def test_operations_are_paged_and_filtered_to_cycle_boundaries():
     q = fake.op_calls[0]["q"]
     assert 'hasAgriParcel=="urn:ngsi-ld:AgriParcel:p1"' in q
     assert 'operationType=="sowing","harvesting","tillage"' in q
+
+
+class RejectingOrion(FakeOrion):
+    def __init__(self, status):
+        super().__init__()
+        self.status = status
+
+    def get_entity(self, eid, options=None):
+        r = requests.Response(); r.status_code = self.status
+        raise requests.HTTPError(response=r)
+
+
+def test_broker_rejection_is_not_reported_as_unavailable():
+    with pytest.raises(svc.BrokerRejected):
+        svc.timeline("t", P, AT, client=RejectingOrion(400))
+
+
+def test_broker_server_error_is_unavailable():
+    with pytest.raises(svc.OrionUnavailable):
+        svc.timeline("t", P, AT, client=RejectingOrion(500))

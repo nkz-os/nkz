@@ -95,7 +95,8 @@ def test_reconcile_all_walks_every_parcel_of_every_tenant():
     import blueprints.notifications as notif
     with patch.object(notif, '_get_active_tenants', return_value=['a', 'b']), \
          patch.object(svc, 'list_parcels', side_effect=lambda t: [f'urn:ngsi-ld:AgriParcel:{t}1', f'urn:ngsi-ld:AgriParcel:{t}2']), \
-         patch.object(svc, 'reconcile_parcel', return_value=[('x', 'y')]) as rec:
+         patch.object(svc, 'reconcile_parcel', return_value=[('x', 'y')]) as rec, \
+         patch.object(bp, 'ensure_crop_cycle_subscriptions'):
         r = client.post('/api/internal/crop-cycles/reconcile-all', headers=H)
     assert r.status_code == 200
     assert r.json == {'tenants': 2, 'parcels': 4, 'written': 4, 'errors': 0}
@@ -114,3 +115,25 @@ def test_notify_is_gated_when_the_flag_is_on(monkeypatch):
         assert r.status_code == 401 and rec.call_count == 0
         r = client.post('/api/internal/notify/crop-cycles', json=body, headers={'NGSILD-Tenant': 't', **H})
         assert r.status_code == 204 and rec.call_count == 1
+
+
+def test_broker_rejection_is_502():
+    with patch.object(svc, 'timeline', side_effect=svc.BrokerRejected('400 bad request')):
+        assert client.get('/api/entities/parcels/p1/crop-cycles').status_code == 502
+
+
+def test_subscriptions_are_not_throttled():
+    # Orion drops notifications inside a throttling window: a burst of edits would only
+    # reach the reconciler through the daily sweep.
+    from nkz_platform_sdk.subscriptions import SubscriptionDef
+    assert all(SubscriptionDef(**s).throttling == 0 for s in bp.CROP_CYCLE_SUBSCRIPTIONS)
+
+
+def test_reconcile_all_ensures_every_tenant_subscriptions():
+    import blueprints.notifications as notif
+    with patch.object(notif, '_get_active_tenants', return_value=['a', 'b']), \
+         patch.object(svc, 'list_parcels', return_value=[]), \
+         patch.object(bp, 'ensure_crop_cycle_subscriptions') as ensure:
+        r = client.post('/api/internal/crop-cycles/reconcile-all', headers=H)
+    assert r.status_code == 200
+    ensure.assert_called_once_with(['a', 'b'])

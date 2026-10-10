@@ -145,3 +145,14 @@ def test_actually_sown_cycle_beats_an_overdue_older_one():
     t = tl([a, b], [op("s2", "sowing", "2026-08-02")], at=date(2026, 8, 10))
     assert t["current"]["crop_id"].endswith(":b")
     assert t["current"]["start"] == {"date": "2026-08-02", "provenance": "actual"}
+
+
+def test_cycle_is_current_on_its_end_day_and_not_after():
+    # Both boundaries are inclusive (spec §3, amended 2026-10-10): on harvest day the crop still holds the parcel.
+    wheat = crop("w", status="active", plantingDate={"@type": "Date", "@value": "2026-03-01"},
+                 harvestDate={"@type": "Date", "@value": "2026-07-20"})
+    harvest = op("h", "harvesting", "2026-07-15", hasAgriCrop="urn:ngsi-ld:AgriCrop:t:w")
+    on_end = tl([wheat], [harvest], at=date(2026, 7, 15))
+    after = tl([wheat], [harvest], at=date(2026, 7, 16))
+    assert on_end["current"] is not None and on_end["current"]["end"]["date"] == "2026-07-15"
+    assert after["current"] is None and after["previous"]["crop_id"] == "urn:ngsi-ld:AgriCrop:t:w"

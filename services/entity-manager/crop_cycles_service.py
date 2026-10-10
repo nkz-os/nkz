@@ -29,6 +29,10 @@ class OrionUnavailable(Exception):
     pass
 
 
+class BrokerRejected(Exception):
+    """The broker answered but refused the request (4xx other than 404): a request bug, not an outage."""
+
+
 def normalize_parcel_urn(parcel_id: str) -> str:
     return parcel_id if parcel_id.startswith('urn:') else f'urn:ngsi-ld:AgriParcel:{parcel_id}'
 
@@ -59,8 +63,11 @@ def _load(client, parcel_urn: str):
         crops = _query_all(client, 'AgriCrop', q)
         ops = _query_all(client, 'AgriParcelOperation', f'{q};{_BOUNDARY_OPERATIONS}')
     except requests.HTTPError as e:
-        if e.response is not None and e.response.status_code == 404:
+        status = e.response.status_code if e.response is not None else None
+        if status == 404:
             raise ParcelNotFound(parcel_urn) from e
+        if status is not None and 400 <= status < 500:
+            raise BrokerRejected(f'{status}: {e}') from e
         raise OrionUnavailable(str(e)) from e
     except requests.RequestException as e:
         raise OrionUnavailable(str(e)) from e
