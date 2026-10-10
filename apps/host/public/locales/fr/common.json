@@ -2019,7 +2019,27 @@
       "retry": "Réessayer",
       "delete_success": "{{count}} entité(s) supprimée(s) avec succès",
       "delete_error": "Erreur lors de la suppression des entités",
-      "export_empty": "Aucune ressource à exporter"
+      "export_empty": "Aucune ressource à exporter",
+      "tree": {
+        "unassigned": "{{count}} non assigné(s)",
+        "expand_all": "Développer",
+        "collapse_all": "Réduire",
+        "empty": "Aucun actif à afficher"
+      },
+      "assign": {
+        "title": "Assigner à une parcelle",
+        "current": "Actuellement assigné à :",
+        "remove": "Retirer",
+        "search_placeholder": "Rechercher une parcelle...",
+        "empty": "Aucune parcelle disponible",
+        "located_in": "Situé dans la parcelle",
+        "updated": "Relation mise à jour",
+        "will_remove": "L'assignation actuelle sera supprimée",
+        "cancel": "Annuler",
+        "save": "Enregistrer",
+        "saved": "Enregistré",
+        "error": "Impossible de mettre à jour la relation"
+      }
     },
     "filters": {
       "title": "Filtres",

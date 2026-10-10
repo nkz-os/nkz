@@ -1993,7 +1993,27 @@
       "retry": "Reintentar",
       "delete_success": "{{count}} entidad(es) eliminada(s) correctamente",
       "delete_error": "Error al eliminar entidades",
-      "export_empty": "No hay assets para exportar"
+      "export_empty": "No hay assets para exportar",
+      "tree": {
+        "unassigned": "{{count}} sin asignar",
+        "expand_all": "Expandir",
+        "collapse_all": "Colapsar",
+        "empty": "No hay assets para mostrar"
+      },
+      "assign": {
+        "title": "Asignar a parcela",
+        "current": "Actualmente asignado a:",
+        "remove": "Quitar",
+        "search_placeholder": "Buscar parcela...",
+        "empty": "No hay parcelas disponibles",
+        "located_in": "Ubicado en parcela",
+        "updated": "Relación actualizada",
+        "will_remove": "Se eliminará la asignación actual",
+        "cancel": "Cancelar",
+        "save": "Guardar",
+        "saved": "Guardado",
+        "error": "Error al actualizar la relación"
+      }
     },
     "filters": {
       "title": "Filtros",

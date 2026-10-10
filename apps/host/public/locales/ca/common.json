@@ -2019,7 +2019,27 @@
       "retry": "Tornar a intentar",
       "delete_success": "{{count}} entitat(s) eliminada(es) correctament",
       "delete_error": "Error en eliminar entitats",
-      "export_empty": "No hi ha assets per exportar"
+      "export_empty": "No hi ha assets per exportar",
+      "tree": {
+        "unassigned": "{{count}} sense assignar",
+        "expand_all": "Desplega",
+        "collapse_all": "Plega",
+        "empty": "No hi ha actius per mostrar"
+      },
+      "assign": {
+        "title": "Assigna a una parcel·la",
+        "current": "Assignat actualment a:",
+        "remove": "Treu",
+        "search_placeholder": "Cerca una parcel·la...",
+        "empty": "No hi ha parcel·les disponibles",
+        "located_in": "Ubicat a la parcel·la",
+        "updated": "Relació actualitzada",
+        "will_remove": "S'eliminarà l'assignació actual",
+        "cancel": "Cancel·la",
+        "save": "Desa",
+        "saved": "Desat",
+        "error": "No s'ha pogut actualitzar la relació"
+      }
     },
     "filters": {
       "title": "Filtres",

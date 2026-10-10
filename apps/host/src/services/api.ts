@@ -21,6 +21,7 @@ import { getConfig } from '@/config/environment';
 import { logger } from '@/utils/logger';
 import { notifySessionExpired } from './sessionExpiry';
 import { fetchAllPages } from './ngsiPaging';
+import { pickParentRelationships } from '@/utils/entityRelations';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl;
@@ -857,6 +858,17 @@ class ApiService {
     });
   }
 
+  /** Merge-patch: creates or overwrites the given attributes (PATCH /attrs only updates existing ones). */
+  async mergeSDMEntity(entityId: string, fragment: Record<string, unknown>): Promise<void> {
+    await this.client.patch(`/ngsi-ld/v1/entities/${entityId}`, fragment, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  async deleteSDMEntityAttribute(entityId: string, attribute: string): Promise<void> {
+    await this.client.delete(`/ngsi-ld/v1/entities/${entityId}/attrs/${encodeURIComponent(attribute)}`);
+  }
+
   async getSDMEntityInstance(_entityType: string, entityId: string): Promise<any> {
     const response = await this.client.get(`/ngsi-ld/v1/entities/${entityId}`);
     return response.data;
@@ -1203,7 +1215,9 @@ class ApiService {
           pressure: w.pressure || 1013,
           windSpeed: w.windSpeed || 0
         },
-        lastUpdate: w.modifiedAt || new Date().toISOString()
+        lastUpdate: w.modifiedAt || new Date().toISOString(),
+        // Keeps the station under its parcel in the asset tree.
+        ...pickParentRelationships(w),
       }));
     } catch (error) {
       logger.warn('Error fetching weather stations:', error);

@@ -2019,7 +2019,27 @@
       "retry": "Tentar novamente",
       "delete_success": "{{count}} entidade(s) excluída(s) com sucesso",
       "delete_error": "Erro ao excluir entidades",
-      "export_empty": "Não há recursos para exportar"
+      "export_empty": "Não há recursos para exportar",
+      "tree": {
+        "unassigned": "{{count}} sem atribuição",
+        "expand_all": "Expandir",
+        "collapse_all": "Recolher",
+        "empty": "Nenhum ativo para mostrar"
+      },
+      "assign": {
+        "title": "Atribuir a uma parcela",
+        "current": "Atualmente atribuído a:",
+        "remove": "Remover",
+        "search_placeholder": "Pesquisar parcela...",
+        "empty": "Nenhuma parcela disponível",
+        "located_in": "Localizado na parcela",
+        "updated": "Relação atualizada",
+        "will_remove": "A atribuição atual será removida",
+        "cancel": "Cancelar",
+        "save": "Salvar",
+        "saved": "Salvo",
+        "error": "Não foi possível atualizar a relação"
+      }
     },
     "filters": {
       "title": "Filtros",
