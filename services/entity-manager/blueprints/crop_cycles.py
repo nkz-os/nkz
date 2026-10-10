@@ -7,7 +7,8 @@ import asyncio
 import hmac
 import logging
 import os
-from datetime import date, datetime, timezone
+import threading
+from datetime import date
 
 from flask import Blueprint, g, jsonify, request
 from nkz_platform_sdk import SubscriptionRegistrar
@@ -22,10 +23,53 @@ INTERNAL_SERVICE_SECRET = os.getenv('INTERNAL_SERVICE_SECRET', '')
 SERVICE_HOST = os.getenv('SERVICE_HOST', 'entity-manager-service')
 SERVICE_PORT = os.getenv('SERVICE_PORT', '5000')
 NOTIFICATION_URL = f'http://{SERVICE_HOST}:{SERVICE_PORT}/api/internal/notify/crop-cycles'
+# Throttling 0, explicit (the SDK default is 30 s): Orion drops the notifications that
+# fall inside the window, so a burst of edits would only be seen by the daily sweep.
+# The reconciler writes only on change, so its own writes do not loop.
 CROP_CYCLE_SUBSCRIPTIONS = [
-    {'type': 'AgriCrop', 'throttling': 1},
-    {'type': 'AgriParcelOperation', 'throttling': 1},
+    {'type': 'AgriCrop', 'throttling': 0},
+    {'type': 'AgriParcelOperation', 'throttling': 0},
 ]
+
+
+# Notified parcels wait here, deduplicated, and are reconciled off the request thread:
+# without throttling a burst of edits arrives as many notifications, and answering each
+# inline would hold the workers and make Orion time out and pause the subscription.
+_pending: set = set()
+_pending_lock = threading.Lock()
+_wake = threading.Event()
+_worker = None
+
+
+def _ensure_worker():
+    # Started lazily inside each gunicorn worker (a thread does not survive the fork).
+    global _worker
+    with _pending_lock:
+        if _worker is None or not _worker.is_alive():
+            _worker = threading.Thread(target=_worker_loop, name='crop-cycle-reconcile', daemon=True)
+            _worker.start()
+
+
+def _worker_loop():
+    while True:
+        _wake.wait()
+        _wake.clear()
+        drain_pending()
+
+
+def drain_pending():
+    """Reconcile every queued (tenant, parcel) once; a parcel queued again meanwhile runs again."""
+    while True:
+        with _pending_lock:
+            if not _pending:
+                return
+            batch = sorted(_pending)
+            _pending.clear()
+        for tenant_id, parcel in batch:
+            try:
+                svc.reconcile_parcel(tenant_id, parcel)
+            except Exception as e:  # noqa: BLE001 — one parcel must not drop the batch
+                logger.warning('crop-cycle reconcile failed tenant=%s parcel=%s: %s', tenant_id, parcel, e)
 
 
 def _secret_ok() -> bool:
@@ -33,24 +77,31 @@ def _secret_ok() -> bool:
     return bool(INTERNAL_SERVICE_SECRET) and hmac.compare_digest(provided, INTERNAL_SERVICE_SECRET)
 
 
+_BAD_AT = object()
+
+
 def _at():
+    """The `at` query date; None when absent (the service then uses today at the parcel)."""
     raw = request.args.get('at')
     if not raw:
-        return datetime.now(timezone.utc).date()
+        return None
     try:
         return date.fromisoformat(raw)
     except ValueError:
-        return None
+        return _BAD_AT
 
 
 def _serve(tenant_id: str, parcel_id: str):
     at = _at()
-    if at is None:
+    if at is _BAD_AT:
         return jsonify({'error': 'at must be YYYY-MM-DD'}), 400
     try:
         return jsonify(svc.timeline(tenant_id, svc.normalize_parcel_urn(parcel_id), at)), 200
     except svc.ParcelNotFound:
         return jsonify({'error': 'parcel not found'}), 404
+    except svc.BrokerRejected as e:
+        logger.error('crop-cycles: broker rejected the request tenant=%s parcel=%s: %s', tenant_id, parcel_id, e)
+        return jsonify({'error': 'context broker rejected the request'}), 502
     except svc.OrionUnavailable as e:
         logger.warning('crop-cycles unavailable tenant=%s parcel=%s: %s', tenant_id, parcel_id, e)
         return jsonify({'error': 'context broker unavailable'}), 503
@@ -82,12 +133,12 @@ def notify_crop_cycles():
         return jsonify({'error': 'Unauthorized'}), 401
     tenant_id = request.headers.get('NGSILD-Tenant') or request.headers.get('Fiware-Service')
     body = request.get_json(force=True, silent=True) or {}
-    if tenant_id:
-        for parcel in svc.parcels_in_notification(body.get('data', [])):
-            try:
-                svc.reconcile_parcel(tenant_id, parcel)
-            except Exception as e:  # noqa: BLE001 — one parcel must not drop the batch
-                logger.warning('crop-cycle reconcile failed tenant=%s parcel=%s: %s', tenant_id, parcel, e)
+    parcels = svc.parcels_in_notification(body.get('data', [])) if tenant_id else set()
+    if parcels:
+        with _pending_lock:
+            _pending.update((tenant_id, p) for p in parcels)
+        _ensure_worker()
+        _wake.set()
     return '', 204
 
 
@@ -97,7 +148,15 @@ def reconcile_all():
         return jsonify({'error': 'Unauthorized'}), 401
     from blueprints.notifications import _get_active_tenants
     stats = {'tenants': 0, 'parcels': 0, 'written': 0, 'errors': 0}
-    for tenant_id in _get_active_tenants():
+    tenants = _get_active_tenants()
+    # A tenant created after start-up gets its subscriptions here (idempotent).
+    try:
+        result = ensure_crop_cycle_subscriptions(tenants)
+        stats['errors'] += len((result or {}).get('errors') or [])
+    except Exception as e:  # noqa: BLE001 — the sweep itself still runs
+        logger.warning('reconcile-all: crop-cycle subscriptions not ensured: %s', e)
+        stats['errors'] += 1
+    for tenant_id in tenants:
         stats['tenants'] += 1
         try:
             parcels = svc.list_parcels(tenant_id)
@@ -115,7 +174,7 @@ def reconcile_all():
     return jsonify(stats), 200
 
 
-def ensure_crop_cycle_subscriptions():
+def ensure_crop_cycle_subscriptions(tenants=None):
     from blueprints.notifications import _get_active_tenants
     registrar = SubscriptionRegistrar(
         orion_url=svc.ORION_URL,
@@ -125,9 +184,11 @@ def ensure_crop_cycle_subscriptions():
         notification_headers=({'X-Internal-Service-Secret': INTERNAL_SERVICE_SECRET}
                               if INTERNAL_SERVICE_SECRET else None),
     )
-    result = asyncio.run(registrar.ensure_all(_get_active_tenants()))
-    logger.info('crop-cycle subscriptions: created=%d skipped=%d errors=%d',
-                result['created'], result['skipped'], len(result['errors']))
+    result = asyncio.run(registrar.ensure_all(tenants if tenants is not None else _get_active_tenants()))
+    log = logger.warning if result['errors'] else logger.info
+    log('crop-cycle subscriptions: created=%d skipped=%d errors=%d %s',
+        result['created'], result['skipped'], len(result['errors']), result['errors'][:5])
+    return result
 
 
 def init_crop_cycles(app):
