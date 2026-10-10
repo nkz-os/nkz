@@ -71,6 +71,7 @@ from api_errors import internal_error  # noqa: E402
 from log_helpers import redact  # noqa: E402
 from hash_utils import api_key_digest, salted_credential_digest  # noqa: E402
 from proxy_helpers import safe_json_proxy_response  # noqa: E402
+from ngsi_payload_guard import shorthand_null_attributes  # noqa: E402
 
 # Import Keycloak authentication
 try:
@@ -1095,6 +1096,26 @@ def internal_cache_invalidate():
     return jsonify({"ok": True}), 200
 
 
+def _reject_shorthand_null(body, tenant, target):
+    """400 when a mutation body uses the bare null token as an attribute value.
+
+    The broker mishandles it on attribute-fragment endpoints; attribute removal
+    goes through DELETE /entities/{id}/attrs/{name}.
+    """
+    offending = shorthand_null_attributes(body)
+    if not offending:
+        return None
+    logger.warning(
+        "Rejected NGSI-LD null shorthand: tenant=%s target=%s method=%s attributes=%s",
+        tenant, target, request.method, offending,
+    )
+    return jsonify({
+        "error": "Bare 'urn:ngsi-ld:null' is not accepted as an attribute value",
+        "attributes": offending,
+        "hint": "Remove attributes with DELETE /ngsi-ld/v1/entities/{id}/attrs/{name}",
+    }), 400
+
+
 @app.route(
     "/ngsi-ld/v1/entities/<path:entity_id>", methods=["GET", "PUT", "PATCH", "DELETE"]
 )
@@ -1110,6 +1131,11 @@ def entity_by_id(entity_id):
     )
     if err:
         return err
+
+    if request.method in ("PUT", "PATCH"):
+        rejected = _reject_shorthand_null(request.get_json(silent=True), tenant, entity_id)
+        if rejected:
+            return rejected
 
     # Forward request to Orion-LD
     try:
@@ -1158,6 +1184,9 @@ def entities():
         if request.method in ("POST", "PUT", "PATCH")
         else None
     )
+    rejected = _reject_shorthand_null(json_body, tenant, "entities")
+    if rejected:
+        return rejected
     if isinstance(json_body, dict) and "@context" not in json_body:
         json_body["@context"] = [
             "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",

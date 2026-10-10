@@ -80,6 +80,14 @@ assert _api_spec.loader is not None
 _api_spec.loader.exec_module(_api_errors_mod)
 sys.modules["common.api_errors"] = _api_errors_mod
 
+# blueprints/entities.py imports the pure payload guard at module level.
+_guard_path = os.path.join(_services_dir, "common", "ngsi_payload_guard.py")
+_guard_spec = importlib.util.spec_from_file_location("common.ngsi_payload_guard", _guard_path)
+_guard_mod = importlib.util.module_from_spec(_guard_spec)
+assert _guard_spec.loader is not None
+_guard_spec.loader.exec_module(_guard_mod)
+sys.modules["common.ngsi_payload_guard"] = _guard_mod
+
 # modules.py imports common.internal_auth at module level. It only needs os and
 # logging, so load the real thing rather than a mock: the header contract is
 # exactly what these tests exercise.
