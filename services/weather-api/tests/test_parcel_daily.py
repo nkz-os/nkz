@@ -53,6 +53,9 @@ def client(monkeypatch):
         monkeypatch.setattr(pd, "get_db_connection", lambda tid: conn)
         return conn
 
+    # No IoT devices unless a test says otherwise (keeps the broker out of these tests).
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: [])
+
     holder["install"] = install
     yield TestClient(app), holder
     app.dependency_overrides.pop(require_auth, None)
@@ -73,7 +76,8 @@ def test_one_record_per_day_with_missing_flagged_not_filled(client):
     assert d1["tmin_c"] == 11.2 and d1["tmax_c"] == 24.5 and d1["precip_mm"] == 3.4
     assert d1["et0_mm"] == 3.9 and d1["vapour_pressure_kpa"] == 1.23 and d1["wind2m_ms"] == 3.7
     assert d1["radiation_mj_m2"] == pytest.approx(179.398 * 0.0864, abs=1e-3)
-    assert all(d2[k] is None for k in d2 if k != "date")  # absent day: nothing invented
+    assert all(d2[k] is None for k in d2 if k not in ("date", "sources"))  # absent day: nothing invented
+    assert all(v is None for v in d2["sources"].values())
     assert d3["tmin_c"] == 5.0 and d3["tmax_c"] is None and d3["et0_mm"] is None
     assert body["missing_days"] == ["2026-10-02"]
     assert body["units"]["radiation_mj_m2"] == "MJ m-2 d-1"
@@ -302,3 +306,61 @@ def test_bad_parcel_geometry_means_no_fill(client):
         r = tc.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01&fill=open_meteo")
     assert r.status_code == 200 and not f.called
     assert r.json()["missing_reasons"] == {"2026-10-01": "fill_unavailable"}
+
+
+# ---- IoT sensors ----------------------------------------------------------
+
+def _sensor_day(day, tmin, tmax):
+    from app.services.sensor_daily import Reading
+    out = []
+    for h in range(24):
+        t = tmin + (tmax - tmin) * h / 23
+        out.append(Reading("dev1", datetime.fromisoformat(f"{day}T{h:02d}:10:00+00:00"), "airTemperature", t))
+    return out
+
+
+def test_sensor_values_take_precedence_and_say_so(client, monkeypatch):
+    c, h = client
+    h["install"]([_row("2026-10-01", **FULL)])
+    monkeypatch.setattr(pd, "_parcel_devices", lambda urn, tid: ["dev1"])
+    monkeypatch.setattr(pd, "_fetch_parcel_entity", lambda urn, tid: {"id": urn})  # no timeZone: UTC days
+    monkeypatch.setattr(pd, "_sensor_readings", lambda tid, devices, lo, hi: _sensor_day("2026-10-01", 10.0, 22.0))
+    body = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01").json()
+    d = body["days"][0]
+    assert d["tmin_c"] == 10.0 and d["tmax_c"] == 22.0
+    assert d["sources"]["tmin_c"] == "iot_sensor" and d["sources"]["et0_mm"] == "parcel_weather"
+    assert body["sensor_devices"] == ["dev1"] and body["sensors_unavailable"] is False
+    assert body["totals"]  # totals computed over the merged days
+
+
+def test_without_sensors_every_field_names_its_base(client):
+    c, h = client
+    h["install"]([_row("2026-10-01", **FULL)])
+    body = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01").json()
+    assert set(body["days"][0]["sources"].values()) == {"parcel_weather"}
+    assert body["sensor_devices"] == [] and body["sensors_unavailable"] is False
+
+
+def test_sensor_lookup_failure_still_serves_the_series(client, monkeypatch):
+    c, h = client
+    h["install"]([_row("2026-10-01", **FULL)])
+
+    def boom(urn, tid):
+        raise RuntimeError("broker down")
+    monkeypatch.setattr(pd, "_parcel_devices", boom)
+    r = c.get(f"/api/weather/parcel/{PID}/daily?start=2026-10-01&end=2026-10-01")
+    assert r.status_code == 200 and r.json()["sensors_unavailable"] is True
+    assert r.json()["days"][0]["tmin_c"] == 11.2
+
+
+def test_sensor_readings_query_is_scoped_and_valid_only(monkeypatch):
+    rows = [{"device_id": "dev1", "observed_at": datetime(2026, 10, 1, 10, tzinfo=timezone.utc),
+             "measurements": {"airTemperature": 18.5, "batteryLevel": 80}}]
+    conn = _Conn(rows)
+    monkeypatch.setattr(pd, "get_db_connection", lambda tid: conn)
+    out = pd._sensor_readings("tenant-a", ["dev1"], datetime(2026, 10, 1, tzinfo=timezone.utc),
+                              datetime(2026, 10, 2, tzinfo=timezone.utc))
+    q, params = conn.executed[0]
+    assert "DeviceMeasurement" in q and "quality_flag" in q and "tenant_id = %s" in q
+    assert params[0] == "tenant-a" and ["dev1"] in params
+    assert [(r.device, r.variable, r.value) for r in out] == [("dev1", "airTemperature", 18.5), ("dev1", "batteryLevel", 80.0)]
