@@ -105,7 +105,7 @@ export const OSSLanding: React.FC = () => {
       {/* Language Selector - Fixed Top Right */}
       <div className="fixed top-4 right-4 z-50">
         <div className="relative inline-block text-left">
-          <Button
+          <Button variant="ghost"
             type="button"
             onClick={() => setShowLanguageMenu(!showLanguageMenu)}
             className={`inline-flex items-center justify-center w-full rounded-lg border transition-all ${
@@ -121,7 +121,7 @@ export const OSSLanding: React.FC = () => {
             <>
               <div className="absolute right-0 mt-2 w-48 rounded-lg shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
                 {Object.entries(supportedLanguages).map(([code, name]) => (
-                  <Button
+                  <Button variant="ghost"
                     key={code}
                     onClick={() => handleLanguageChange(code)}
                     className={`block w-full text-left px-4 py-2 text-sm transition-colors ${

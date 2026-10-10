@@ -68,7 +68,7 @@ export const ParcelConfirmationModal: React.FC<ParcelConfirmationModalProps> = (
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
             {t('parcels.confirm_parcel_title')}
           </h3>
-          <Button
+          <Button variant="ghost"
             onClick={onCancel}
             className="text-nkz-muted hover:text-gray-600 transition-colors"
           >
@@ -124,7 +124,7 @@ export const ParcelConfirmationModal: React.FC<ParcelConfirmationModalProps> = (
         </div>
 
         <div className="flex gap-3 pt-4 border-t border-nkz-border">
-          <Button
+          <Button variant="ghost"
             onClick={onCancel}
             className="flex-1 px-4 py-2 border border-nkz-border rounded-lg text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary transition-colors"
           >

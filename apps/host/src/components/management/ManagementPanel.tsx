@@ -229,7 +229,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                             Propiedades
                         </h3>
                         {!isEditing ? (
-                            <Button
+                            <Button variant="ghost"
                                 onClick={() => setIsEditing(true)}
                                 className="text-sm text-orange-600 hover:text-orange-700 font-medium px-3 py-1 hover:bg-orange-50 rounded-md transition-colors"
                             >
@@ -237,7 +237,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                             </Button>
                         ) : (
                             <div className="flex gap-2">
-                                <Button
+                                <Button variant="ghost"
                                     onClick={() => {
                                         setIsEditing(false);
                                         // Reset form
@@ -248,7 +248,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                                 >
                                     <X className="w-4 h-4" />
                                 </Button>
-                                <Button
+                                <Button variant="ghost"
                                     onClick={handleSave}
                                     disabled={loading}
                                     className="p-1 text-nkz-success-strong hover:text-nkz-success-strong hover:bg-nkz-success-soft rounded"

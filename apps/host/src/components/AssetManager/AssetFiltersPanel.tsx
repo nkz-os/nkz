@@ -113,7 +113,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
         
         <div className="flex items-center gap-1">
           {activeFilterCount > 0 && (
-            <Button
+            <Button variant="ghost"
               onClick={onReset}
               className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded"
             >
@@ -121,7 +121,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
               {t('entities.filters.clear')}
             </Button>
           )}
-          <Button
+          <Button variant="ghost"
             onClick={onClose}
             className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600"
           >
@@ -141,7 +141,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
             {statusOptions.map(({ value, label, color }) => {
               const isActive = filters.statuses.includes(value);
               return (
-                <Button
+                <Button variant="ghost"
                   key={value}
                   onClick={() => toggleStatus(value)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
@@ -165,7 +165,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
             {t('entities.filters.location')}
           </h4>
           <div className="flex gap-2">
-            <Button
+            <Button variant="ghost"
               onClick={() => onFiltersChange({ 
                 hasLocation: filters.hasLocation === true ? null : true 
               })}
@@ -178,7 +178,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
               {t('entities.filters.with_location')}
               {filters.hasLocation === true && <Check className="w-3 h-3" />}
             </Button>
-            <Button
+            <Button variant="ghost"
               onClick={() => onFiltersChange({ 
                 hasLocation: filters.hasLocation === false ? null : false 
               })}
@@ -215,7 +215,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
                       .map(({ type, label, count }) => {
                         const isActive = filters.types.includes(type);
                         return (
-                          <Button
+                          <Button variant="ghost"
                             key={type}
                             onClick={() => toggleType(type)}
                             className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-all ${

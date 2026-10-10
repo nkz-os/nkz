@@ -116,7 +116,7 @@ export const TenantCreateModal: React.FC<TenantCreateModalProps> = ({
           <h3 className="text-nkz-lg font-semibold text-nkz-text-primary">
             {t('admin.create_tenant_title', { defaultValue: 'Create Tenant' })}
           </h3>
-          <Button
+          <Button variant="ghost"
             onClick={onClose}
             className="text-nkz-text-muted hover:text-nkz-text-secondary"
           >

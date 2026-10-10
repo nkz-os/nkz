@@ -66,7 +66,7 @@ export const UserEditModal: React.FC<UserEditModalProps> = ({
             <h3 className="text-lg font-medium text-gray-900">
               {t('settings.users.edit_title')}: {[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}
             </h3>
-            <Button onClick={onClose} className="text-nkz-muted hover:text-gray-600">
+            <Button variant="ghost" onClick={onClose} className="text-nkz-muted hover:text-gray-600">
               <X className="w-5 h-5" />
             </Button>
           </div>

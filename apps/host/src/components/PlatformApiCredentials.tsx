@@ -203,7 +203,7 @@ export const PlatformApiCredentials: React.FC = () => {
               </p>
             </div>
           </div>
-          <Button
+          <Button variant="ghost"
             onClick={loadCredentials}
             disabled={loading}
             className="px-4 py-2 text-gray-600 hover:text-gray-900 disabled:opacity-50"
@@ -295,7 +295,7 @@ export const PlatformApiCredentials: React.FC = () => {
                   className="w-full px-3 py-2 pr-10 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required={!copernicus.configured}
                 />
-                <Button
+                <Button variant="ghost"
                   type="button"
                   onClick={() => togglePasswordVisibility('copernicus')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600"
@@ -380,7 +380,7 @@ export const PlatformApiCredentials: React.FC = () => {
                   className="w-full px-3 py-2 pr-10 border border-nkz-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required={!aemet.configured}
                 />
-                <Button
+                <Button variant="ghost"
                   type="button"
                   onClick={() => togglePasswordVisibility('aemet')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600"

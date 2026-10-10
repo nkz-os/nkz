@@ -239,7 +239,7 @@ export const DeviceCommands: React.FC<DeviceCommandsProps> = ({
             <History className="w-5 h-5" />
             {t('sensors.command_history')}
           </h3>
-          <Button
+          <Button variant="ghost"
             onClick={loadCommandHistory}
             disabled={isLoadingHistory}
             className="p-2 text-gray-600 hover:text-gray-900 transition disabled:opacity-50"

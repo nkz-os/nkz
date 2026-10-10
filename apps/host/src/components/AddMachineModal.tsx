@@ -181,7 +181,7 @@ export const AddMachineModal: React.FC<AddMachineModalProps> = ({
             <Tractor className="w-6 h-6" />
             {t('machines.title')}
           </h2>
-          <Button
+          <Button variant="ghost"
             onClick={onClose}
             className="text-white hover:text-gray-200 transition"
             disabled={loading}

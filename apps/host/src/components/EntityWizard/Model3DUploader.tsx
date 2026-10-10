@@ -115,7 +115,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
           </label>
 
           {currentModelUrl && !uploading && (
-            <Button
+            <Button variant="ghost"
               type="button"
               onClick={handleRemove}
               disabled={disabled}

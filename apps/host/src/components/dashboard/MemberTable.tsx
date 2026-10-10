@@ -153,7 +153,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div className="flex items-center justify-end gap-2">
                     {onEdit ? (
-                      <Button
+                      <Button variant="ghost"
                         onClick={() => onEdit(member)}
                         className="text-nkz-info hover:text-blue-900"
                         title={t('dashboard.members.action_edit_roles')}
@@ -162,7 +162,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                       </Button>
                     ) : null}
                     {onResetPassword ? (
-                      <Button
+                      <Button variant="ghost"
                         onClick={() => onResetPassword(member)}
                         className="text-orange-600 hover:text-orange-900"
                         title={t('dashboard.members.action_reset_password')}
@@ -171,7 +171,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                       </Button>
                     ) : null}
                     {onDelete ? (
-                      <Button
+                      <Button variant="ghost"
                         onClick={() => onDelete(member)}
                         className="text-nkz-danger-strong hover:text-red-900"
                         title={t('admin.delete_user')}

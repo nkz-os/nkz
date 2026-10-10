@@ -134,7 +134,7 @@ export const Navigation: React.FC = () => {
             {/* LEFT SECTION: Logo & Mega Menu */}
             <div className="flex items-center gap-4">
               {/* Mobile Hamburger (Visible only on mobile) */}
-              <Button
+              <Button variant="ghost"
                 onClick={() => setMobileDrawerOpen(true)}
                 className="md:hidden p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-nkz-bg-secondary dark:hover:bg-gray-800 transition-colors"
                 aria-label={t("openMenu")}
@@ -323,7 +323,7 @@ export const Navigation: React.FC = () => {
               <NotificationBell />
 
               {/* Logout Button (Desktop) */}
-              <Button
+              <Button variant="ghost"
                 onClick={handleLogout}
                 className="hidden md:flex p-2 text-nkz-muted hover:text-nkz-danger-strong hover:bg-nkz-danger-soft dark:hover:bg-red-900/20 rounded-lg transition-colors"
                 title={t('layout.logout', { defaultValue: 'Cerrar sesión' })}

@@ -161,7 +161,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
               {t('wizard.mqtt.device_before')} <span className="font-semibold">{deviceName}</span> {t('wizard.mqtt.device_after')}
             </p>
           </div>
-          <Button
+          <Button variant="ghost"
             onClick={onClose}
             className="text-white/70 hover:text-white ml-4 p-1"
           >
@@ -191,7 +191,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
               <FileDown className="w-5 h-5" />
               {t('wizard.mqtt.download_config')}
             </Button>
-            <Button
+            <Button variant="ghost"
               type="button"
               onClick={copyAllCredentials}
               className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition font-medium shadow-sm ${

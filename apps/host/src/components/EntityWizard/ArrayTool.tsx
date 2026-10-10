@@ -136,7 +136,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
           <span className="text-purple-800 font-mono text-xs">
             {settings.anchor.lat.toFixed(6)}, {settings.anchor.lon.toFixed(6)}
           </span>
-          <Button
+          <Button variant="ghost"
             type="button"
             onClick={handlePickAnchor}
             className="ml-auto text-xs text-purple-600 hover:text-purple-800 underline"

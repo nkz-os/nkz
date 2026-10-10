@@ -144,7 +144,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
             </div>
           </div>
           {!isDeleting && (
-            <Button
+            <Button variant="ghost"
               onClick={handleCancel}
               className="p-1 rounded-lg hover:bg-nkz-bg-secondary text-nkz-muted hover:text-gray-600 transition-colors"
               aria-label="Cerrar"
@@ -274,7 +274,7 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
           >
             Cancelar
           </Button>
-          <Button
+          <Button variant="ghost"
             onClick={handleConfirm}
             disabled={!isConfirmEnabled}
             className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${

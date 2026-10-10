@@ -197,7 +197,7 @@ export const ModuleVisibilitySettings: React.FC = () => {
                     const hidden = rule.hiddenRoles.includes(role);
                     return (
                       <td key={role} className="text-center px-3 py-2">
-                        <Button
+                        <Button variant="ghost"
                           type="button"
                           disabled={saving || isReadOnly}
                           onClick={() => toggleRoleVisibility(mod.id, role)}

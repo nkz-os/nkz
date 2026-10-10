@@ -135,7 +135,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         Comienza creando tu primera parcela agrícola.
                         Puedes dibujarla manualmente o seleccionarla del catastro.
                     </p>
-                    <Button
+                    <Button variant="ghost"
                         onClick={onRefresh}
                         className="text-nkz-success-strong hover:text-nkz-success-strong font-medium"
                     >
@@ -161,7 +161,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                 <td className="px-4 py-4 max-w-xs" style={{ paddingLeft: `${indent * 24 + 16}px` }}>
                     <div className="flex items-center gap-2">
                         {isParent && zonesCount > 0 && (
-                            <Button
+                            <Button variant="ghost"
                                 onClick={((e: any) => {
                                     e.stopPropagation();
                                     toggleExpand(parcel.id);
@@ -278,7 +278,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
             <div className="mb-4 bg-white p-3 rounded-lg border border-nkz-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-700">Filtro:</span>
-                    <Button
+                    <Button variant="ghost"
                         onClick={() => setFilter('all')}
                         className={`px-3 py-1 text-sm rounded-md transition-colors ${
                             filter === 'all'
@@ -288,7 +288,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                     >
                         Todas ({parcels.length})
                     </Button>
-                    <Button
+                    <Button variant="ghost"
                         onClick={() => setFilter('parcels')}
                         className={`px-3 py-1 text-sm rounded-md transition-colors ${
                             filter === 'parcels'
@@ -298,7 +298,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                     >
                         Parcelas ({parcels.filter(p => p.category !== 'managementZone').length})
                     </Button>
-                    <Button
+                    <Button variant="ghost"
                         onClick={() => setFilter('zones')}
                         className={`px-3 py-1 text-sm rounded-md transition-colors ${
                             filter === 'zones'

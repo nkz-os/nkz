@@ -219,7 +219,7 @@ export const TenantUsersManagement: React.FC<TenantUsersManagementProps> = ({ ca
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">{t('settings.users.create_title')}</h3>
-                <Button
+                <Button variant="ghost"
                   onClick={() => setShowCreateUserModal(false)}
                   className="text-nkz-muted hover:text-gray-600"
                 >

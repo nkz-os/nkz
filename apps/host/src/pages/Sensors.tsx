@@ -479,7 +479,7 @@ export const Sensors: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button
+                            <Button variant="ghost"
                               onClick={() => navigate(`/entities?focus=${encodeURIComponent(sensor.id)}`)}
                               className="inline-flex items-center gap-1 text-sm font-medium text-teal-600 hover:text-teal-800 transition px-3 py-1.5 rounded-lg hover:bg-teal-50"
                               title={t('sensors.view_on_map')}
@@ -487,7 +487,7 @@ export const Sensors: React.FC = () => {
                               <MapPin className="w-4 h-4" />
                             </Button>
                             {canEdit && (
-                              <Button
+                              <Button variant="ghost"
                                 onClick={() => handleDelete(sensor)}
                                 className="inline-flex items-center gap-1 text-sm font-medium text-nkz-danger-strong hover:text-red-800 transition px-3 py-1.5 rounded-lg hover:bg-nkz-danger-soft"
                                 title={t('common.delete')}

@@ -94,7 +94,7 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
                 <div className="flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-3">
                     {/* Undo */}
                     {onUndo && mapMode === 'DRAW_PARCEL' && (
-                        <Button
+                        <Button variant="ghost"
                             onClick={onUndo}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100"
                             title={t('viewer.toolbar.undo_title')}
@@ -105,7 +105,7 @@ export const MapToolbar: React.FC<MapToolbarProps> = ({
 
                     {/* Clear */}
                     {onClear && mapMode === 'DRAW_PARCEL' && (
-                        <Button
+                        <Button variant="ghost"
                             onClick={onClear}
                             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100"
                             title={t('viewer.toolbar.clear_title')}

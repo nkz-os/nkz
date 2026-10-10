@@ -83,7 +83,7 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
         <h2 className="text-nkz-lg font-semibold text-nkz-text-primary">
           {t('registration.step_security') || 'Security'}
         </h2>
-        <Button
+        <Button variant="ghost"
           type="button"
           onClick={onBack}
           className="text-nkz-sm text-nkz-text-muted hover:text-nkz-text-primary transition-colors"
@@ -114,7 +114,7 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
             autoComplete="new-password"
             className="pr-10"
           />
-          <Button
+          <Button variant="ghost"
             type="button"
             onClick={() => setShowPassword(!showPassword)}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-nkz-text-muted hover:text-nkz-text-primary p-1"
@@ -172,7 +172,7 @@ export const StepSecurity: React.FC<StepSecurityProps> = ({
             error={formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword}
             className="pr-10"
           />
-          <Button
+          <Button variant="ghost"
             type="button"
             onClick={() => setShowConfirm(!showConfirm)}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-nkz-text-muted hover:text-nkz-text-primary p-1"

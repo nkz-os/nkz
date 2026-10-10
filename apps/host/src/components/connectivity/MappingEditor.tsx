@@ -227,7 +227,7 @@ export const MappingEditor: React.FC<MappingEditorProps> = ({
                                 </div>
 
                                 {!readonly && (
-                                    <Button
+                                    <Button variant="ghost"
                                         onClick={() => removeMapping(index)}
                                         className="mt-5 p-2 text-red-400 hover:text-red-300 hover:bg-nkz-danger/10 rounded-lg transition-colors"
                                         title="Eliminar mapeo"

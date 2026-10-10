@@ -113,7 +113,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
             </div>
             
             <div className="p-1">
-              <Button
+              <Button variant="ghost"
                 type="button"
                 onClick={() => {
                   onSelect(null);
@@ -136,7 +136,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
               </div>
             ) : (
               filteredParents.map((parent) => (
-                <Button
+                <Button variant="ghost"
                   key={parent.id}
                   type="button"
                   onClick={() => {

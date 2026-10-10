@@ -2001,7 +2001,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
           </Button>
 
           {/* 3D Terrain Toggle */}
-          <Button
+          <Button variant="ghost"
             type="button"
             onClick={() => {
               // Toggle logic would go here if we had a setEnable3DTerrain prop or state
@@ -2033,7 +2033,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                 </div>
                 <div className="p-1 border-b border-slate-700">
                   {/* Auto toggle */}
-                  <Button
+                  <Button variant="ghost"
                     onClick={() => {
                       manualPickRef.current = false;
                       setLayerAutoMode(true);
@@ -2045,21 +2045,21 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                     <div className="text-xs text-slate-500">Automático según región</div>
                   </Button>
                   {/* Always-visible base layer options. Selecting one disables auto mode. */}
-                  <Button
+                  <Button variant="ghost"
                     onClick={() => { manualPickRef.current = true; setLayerAutoMode(false); setBaseLayer('osm'); }}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'osm' && !layerAutoMode ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                   >
                     <div className="font-medium">Callejero (OSM)</div>
                     <div className="text-xs text-slate-500">OpenStreetMap global</div>
                   </Button>
-                  <Button
+                  <Button variant="ghost"
                     onClick={() => { manualPickRef.current = true; setLayerAutoMode(false); setBaseLayer('pnoa'); }}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'pnoa' && !layerAutoMode ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                   >
                     <div className="font-medium">Ortofoto (PNOA)</div>
                     <div className="text-xs text-slate-500">Alta resolución (España)</div>
                   </Button>
-                  <Button
+                  <Button variant="ghost"
                     onClick={() => { manualPickRef.current = true; setLayerAutoMode(false); setBaseLayer('esri'); }}
                     className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'esri' && !layerAutoMode ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                   >
@@ -2067,7 +2067,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                     <div className="text-xs text-slate-500">Imágenes satelitales globales</div>
                   </Button>
                   {import.meta.env.VITE_CESIUM_ION_TOKEN && (
-                    <Button
+                    <Button variant="ghost"
                       onClick={() => { manualPickRef.current = true; setLayerAutoMode(false); setBaseLayer('cesium'); }}
                       className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${baseLayer === 'cesium' && !layerAutoMode ? 'bg-blue-600/20 text-blue-400' : 'text-slate-300 hover:bg-slate-700'}`}
                     >
@@ -2094,7 +2094,7 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
                           { id: 'cesium_world', name: 'Cesium World (Global)', desc: 'Terreno mundial (~30m)' }
                         ] : [])
                       ].map((provider) => (
-                        <Button
+                        <Button variant="ghost"
                           key={provider.id}
                           onClick={() => {
                             if (provider.id !== 'auto') { manualPickRef.current = true; setLayerAutoMode(false); }

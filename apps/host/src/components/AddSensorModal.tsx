@@ -155,7 +155,7 @@ export const AddSensorModal: React.FC<AddSensorModalProps> = ({
             <Gauge className="w-6 h-6" />
             Registrar Nuevo Sensor
           </h2>
-          <Button
+          <Button variant="ghost"
             onClick={onClose}
             className="text-white hover:text-gray-200 transition"
             disabled={loading}

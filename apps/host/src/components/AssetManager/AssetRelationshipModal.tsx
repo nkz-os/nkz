@@ -203,7 +203,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
               <p className="text-sm text-slate-500">{asset.name}</p>
             </div>
           </div>
-          <Button
+          <Button variant="ghost"
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
           >
@@ -223,7 +223,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
                   ({ASSET_TYPE_REGISTRY[currentParent.type]?.label || currentParent.type})
                 </span>
               </div>
-              <Button
+              <Button variant="ghost"
                 onClick={handleRemove}
                 className="flex items-center gap-1 text-xs text-nkz-danger-strong hover:text-nkz-danger-strong px-2 py-1 rounded hover:bg-nkz-danger-soft"
               >
@@ -335,14 +335,14 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
           
           {/* Actions */}
           <div className="flex items-center gap-2">
-            <Button
+            <Button variant="ghost"
               onClick={onClose}
               disabled={isLoading}
               className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
             >
               Cancelar
             </Button>
-            <Button
+            <Button variant="ghost"
               onClick={handleSave}
               disabled={isLoading || !hasChanges || success}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${

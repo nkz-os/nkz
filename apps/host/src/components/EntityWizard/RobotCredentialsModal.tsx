@@ -73,7 +73,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
               </p>
             </div>
           </div>
-          <Button onClick={onClose} className="text-white/70 hover:text-white p-1">
+          <Button variant="ghost" onClick={onClose} className="text-white/70 hover:text-white p-1">
             <X className="w-6 h-6" />
           </Button>
         </div>

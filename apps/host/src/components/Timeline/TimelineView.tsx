@@ -383,7 +383,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
             Histórico - {entityName || entityId}
           </h3>
         </div>
-        <Button
+        <Button variant="ghost"
           onClick={() => fetchData()}
           disabled={isLoading}
           className="p-2 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
@@ -399,7 +399,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
 
       {/* Time Range Presets */}
       <div className="flex flex-wrap gap-2">
-        <Button
+        <Button variant="ghost"
           onClick={() => handlePresetChange('24h')}
           className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
             timeRangePreset === '24h'
@@ -409,7 +409,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         >
           Últimas 24h
         </Button>
-        <Button
+        <Button variant="ghost"
           onClick={() => handlePresetChange('7d')}
           className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
             timeRangePreset === '7d'
@@ -419,7 +419,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         >
           Semana
         </Button>
-        <Button
+        <Button variant="ghost"
           onClick={() => handlePresetChange('30d')}
           className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
             timeRangePreset === '30d'
@@ -429,7 +429,7 @@ export const TimelineView: React.FC<TimelineViewProps> = ({
         >
           Mes
         </Button>
-        <Button
+        <Button variant="ghost"
           onClick={() => handlePresetChange('custom')}
           className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
             timeRangePreset === 'custom'

@@ -35,7 +35,7 @@ export const CoreTimelineControls: React.FC = () => {
             <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 dark:text-slate-400">{t('viewer.fieldPhotos.window')}</span>
                 {WINDOWS.map(w => (
-                    <Button
+                    <Button variant="ghost"
                         key={w.key}
                         type="button"
                         aria-pressed={photoWindowDays === w.days}

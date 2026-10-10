@@ -185,7 +185,7 @@ export const DashboardImproved: React.FC = () => {
               ? t('dashboard.updated_at', { time: new Date(lastUsageUpdate).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) })
               : undefined}
           >
-            <Button
+            <Button variant="ghost"
               onClick={() => navigate('/entities')}
               className="text-xs text-white/80 hover:text-white underline underline-offset-2 transition"
             >

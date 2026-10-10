@@ -240,7 +240,7 @@ export const CopernicusCredentials: React.FC = () => {
             </p>
           </div>
         </div>
-        <Button
+        <Button variant="ghost"
           onClick={() => { loadConfig(); loadCredentialStatus(); }}
           disabled={loading}
           className="text-gray-500 hover:text-gray-700"

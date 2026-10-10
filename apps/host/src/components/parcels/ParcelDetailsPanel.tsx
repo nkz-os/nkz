@@ -267,7 +267,7 @@ export const ParcelDetailsPanel: React.FC<ParcelDetailsPanelProps> = ({
                             {parcel.id}
                         </p>
                     </div>
-                    <Button
+                    <Button variant="ghost"
                         onClick={onClose}
                         className="p-1 text-nkz-muted hover:text-nkz-text-secondary hover:bg-nkz-bg-secondary rounded transition-colors"
                         title="Cerrar"

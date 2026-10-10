@@ -1064,7 +1064,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
       >
         <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
           {/* 3D Toggle */}
-          <Button
+          <Button variant="ghost"
             type="button"
             onClick={() => setEnable3D(!enable3D)}
             className={`inline-flex items-center justify-center rounded-full p-2 transition ${enable3D
@@ -1093,7 +1093,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                   <div className="px-3 py-2 bg-nkz-bg-secondary border-b border-nkz-border">
                     <p className="text-xs font-semibold text-gray-700">Modelo de Elevación</p>
                   </div>
-                  <Button
+                  <Button variant="ghost"
                     type="button"
                     onClick={() => {
                       setTerrainProvider('auto');
@@ -1105,7 +1105,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                     <div className="font-medium">Auto</div>
                     <div className="text-xs text-nkz-muted mt-0.5">Detectar según ubicación</div>
                   </Button>
-                  <Button
+                  <Button variant="ghost"
                     type="button"
                     onClick={() => {
                       setTerrainProvider('idena');
@@ -1117,7 +1117,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                     <div className="font-medium">IDENA</div>
                     <div className="text-xs text-nkz-muted mt-0.5">Navarra (5m resolución)</div>
                   </Button>
-                  <Button
+                  <Button variant="ghost"
                     type="button"
                     onClick={() => {
                       setTerrainProvider('ign');
@@ -1145,7 +1145,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
             </Button>
             {showLayerPicker && (
               <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-nkz-border min-w-[180px] overflow-hidden z-30">
-                <Button
+                <Button variant="ghost"
                   type="button"
                   onClick={() => {
                     setBaseLayer('osm');
@@ -1156,7 +1156,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                 >
                   OpenStreetMap
                 </Button>
-                <Button
+                <Button variant="ghost"
                   type="button"
                   onClick={() => {
                     setBaseLayer('pnoa');
@@ -1167,7 +1167,7 @@ export const CesiumPolygonDrawer = React.forwardRef<CesiumPolygonDrawerRef, Cesi
                 >
                   PNOA (Ortofoto)
                 </Button>
-                <Button
+                <Button variant="ghost"
                   type="button"
                   onClick={() => {
                     setBaseLayer('cnig');

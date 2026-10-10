@@ -174,7 +174,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
           Vista Previa 3D
         </label>
         <div className="flex items-center gap-2">
-          <Button
+          <Button variant="ghost"
             type="button"
             onClick={() => setAutoRotate(!autoRotate)}
             className={`p-1.5 rounded transition ${
@@ -407,7 +407,7 @@ export const SceneComposer: React.FC<SceneComposerProps> = ({
 
           {/* Reset button */}
           <div className="flex justify-end pt-2">
-            <Button
+            <Button variant="ghost"
               type="button"
               onClick={resetTransform}
               className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-200 rounded-lg transition"

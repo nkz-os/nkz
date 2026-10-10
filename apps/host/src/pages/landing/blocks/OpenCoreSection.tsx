@@ -92,7 +92,7 @@ export const OpenCoreSection: React.FC = () => {
                 </li>
               ))}
             </ul>
-            <Button
+            <Button variant="ghost"
               onClick={() => navigate('/register')}
               className="inline-flex items-center gap-1.5 text-[#1F4D38] font-medium text-sm hover:underline group"
             >

@@ -108,7 +108,7 @@ export function StepTypeSelection() {
           className="w-full pl-12 pr-4 py-3 border-2 border-nkz-border rounded-xl focus:ring-2 focus:ring-nkz-accent-base focus:border-nkz-accent-base text-base"
         />
         {searchTerm && (
-          <Button onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600">
+          <Button variant="ghost" onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600">
             <X className="w-5 h-5" />
           </Button>
         )}

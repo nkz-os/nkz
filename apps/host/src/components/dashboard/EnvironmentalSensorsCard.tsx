@@ -71,7 +71,7 @@ export const EnvironmentalSensorsCard: React.FC<EnvironmentalSensorsCardProps> =
         )}
 
         {sensors.length > 4 && (
-          <Button
+          <Button variant="ghost"
             onClick={() => navigate('/sensors')}
             className="w-full mt-4 py-3 text-nkz-success-strong hover:bg-nkz-success-soft rounded-xl transition font-medium"
           >

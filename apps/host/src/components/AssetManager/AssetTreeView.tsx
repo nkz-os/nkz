@@ -175,7 +175,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
         onContextMenu={(e) => onContextMenu(e, asset)}
       >
         {/* Expand/Collapse Button */}
-        <Button
+        <Button variant="ghost"
           onClick={((e: any) => {
             e.stopPropagation();
             if (hasChildren) onToggleExpand(asset.id);
@@ -228,7 +228,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
         
         {/* Actions (visible on hover) */}
         <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
+          <Button variant="ghost"
             onClick={((e: any) => {
               e.stopPropagation();
               onContextMenu(e, asset);
@@ -334,13 +334,13 @@ export const AssetTreeView: React.FC<AssetTreeViewProps> = ({
           )}
         </div>
         <div className="flex items-center gap-1">
-          <Button
+          <Button variant="ghost"
             onClick={handleExpandAll}
             className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100"
           >
             Expandir
           </Button>
-          <Button
+          <Button variant="ghost"
             onClick={handleCollapseAll}
             className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100"
           >

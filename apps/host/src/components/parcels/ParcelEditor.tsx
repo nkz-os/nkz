@@ -60,7 +60,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
                 {/* Method Selector */}
                 <div className="absolute top-4 left-4 z-10 bg-white rounded-lg shadow-lg p-2">
                     <div className="flex gap-2">
-                        <Button
+                        <Button variant="ghost"
                             onClick={() => setMethod('manual')}
                             className={`px-4 py-2 rounded-md font-medium transition-colors ${method === 'manual'
                                 ? 'bg-green-600 text-white'
@@ -69,7 +69,7 @@ export const ParcelEditor: React.FC<ParcelEditorProps> = ({
                         >
                             Dibujo Manual
                         </Button>
-                        <Button
+                        <Button variant="ghost"
                             onClick={() => setMethod('cadastral')}
                             className={`px-4 py-2 rounded-md font-medium transition-colors ${method === 'cadastral'
                                 ? 'bg-green-600 text-white'

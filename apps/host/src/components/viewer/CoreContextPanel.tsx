@@ -361,7 +361,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                     {getEntityIcon()}
                     {t('viewer.context.details')}
                 </h2>
-                <Button
+                <Button variant="ghost"
                     onClick={clearSelection}
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
                     title={t('close')}
@@ -505,7 +505,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
             {/* Actions - Only show for non-parcel entities */}
             {selectedEntityType !== 'AgriParcel' && (
                 <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-                    <Button
+                    <Button variant="ghost"
                         onClick={clearSelection}
                         className="w-full py-2 text-sm text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
                     >
@@ -621,7 +621,7 @@ const EntityTelemetrySection: React.FC<EntityTelemetrySectionProps> = ({
                             })}
                         </span>
                     )}
-                    <Button
+                    <Button variant="ghost"
                         onClick={refreshLatest}
                         disabled={isLoadingLatest}
                         className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
@@ -766,7 +766,7 @@ const TelemetryTabsSection: React.FC<TelemetryTabsSectionProps> = ({
         <div className="space-y-2">
             {/* Tabs */}
             <div className="flex border-b border-slate-200">
-                <Button
+                <Button variant="ghost"
                     onClick={() => setActiveTab('realtime')}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'realtime'
                         ? 'border-b-2 border-blue-600 text-nkz-info'
@@ -775,7 +775,7 @@ const TelemetryTabsSection: React.FC<TelemetryTabsSectionProps> = ({
                 >
                     {t('viewer.telemetry.tab_realtime')}
                 </Button>
-                <Button
+                <Button variant="ghost"
                     onClick={() => setActiveTab('historical')}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'historical'
                         ? 'border-b-2 border-blue-600 text-nkz-info'

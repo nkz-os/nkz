@@ -329,7 +329,7 @@ export const CesiumAssetDrawer: React.FC<CesiumAssetDrawerProps> = ({
         {assetType.geometryType === 'Polygon' && `Dibuja un polígono (${currentPoints.length} puntos). Clic derecho para terminar`}
       </span>
       {onCancel && (
-        <Button
+        <Button variant="ghost"
           onClick={() => {
             cleanup();
             setIsDrawing(false);

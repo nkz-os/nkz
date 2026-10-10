@@ -135,7 +135,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
             </label>
 
             {preview && preview !== defaultIconPath && !uploading && (
-              <Button
+              <Button variant="ghost"
                 type="button"
                 onClick={handleRemove}
                 disabled={disabled}

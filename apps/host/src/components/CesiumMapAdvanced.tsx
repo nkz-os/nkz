@@ -612,7 +612,7 @@ export const CesiumMapAdvanced: React.FC<CesiumMapAdvancedProps> = ({
               <Layers className="w-5 h-5 text-gray-600" />
               <h4 className="font-semibold text-gray-900">Capas</h4>
             </div>
-            <Button
+            <Button variant="ghost"
               onClick={() => setShowLayerPanel(false)}
               className="text-nkz-muted hover:text-gray-600"
             >

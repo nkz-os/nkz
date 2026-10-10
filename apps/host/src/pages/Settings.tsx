@@ -189,7 +189,7 @@ export const Settings: React.FC = () => {
                       ? `${user?.firstName || editedFirstName || ''} ${user?.lastName || editedLastName || ''}`
                       : (user?.firstName || editedFirstName || user?.lastName || editedLastName || t('settings.profile.not_set'))}
                   </p>
-                  <Button
+                  <Button variant="ghost"
                     onClick={handleStartEditName}
                     className="flex items-center gap-1 text-nkz-info hover:text-nkz-info transition text-sm font-medium"
                     title={t('settings.profile.edit_name')}
@@ -213,7 +213,7 @@ export const Settings: React.FC = () => {
               <div className="flex items-center gap-2">
                 <p className="text-gray-900 font-mono text-sm flex-1">{currentTenantId}</p>
                 {currentTenantId !== 'N/A' && (
-                  <Button
+                  <Button variant="ghost"
                     onClick={handleCopyTenantId}
                     className="text-nkz-muted hover:text-gray-600 transition"
                     title={t('settings.copy_tenant_id')}

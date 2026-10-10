@@ -70,7 +70,7 @@ export const Layout: React.FC<LayoutProps> = ({
                   <User className="w-4 h-4 mr-1" />
                   {user?.email}
                 </div>
-                <Button
+                <Button variant="ghost"
                   onClick={handleLogout}
                   className="flex items-center text-sm text-nkz-muted dark:text-nkz-muted hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                 >
@@ -81,7 +81,7 @@ export const Layout: React.FC<LayoutProps> = ({
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-nkz-muted dark:text-nkz-muted">
-              <Button
+              <Button variant="ghost"
                 type="button"
                 onClick={openPreferences}
                 className="underline hover:text-gray-700 dark:hover:text-gray-200"
