@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class SensorHealthBeat:
-    """Runs periodic health checks against all AgriSensor entities."""
+    """Runs periodic health checks against all sensor entities (Device and legacy types)."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -68,7 +68,7 @@ class SensorHealthBeat:
         sensors = []
         url = (
             f"{self.settings.orion_url}/ngsi-ld/v1/entities"
-            f"?type=AgriSensor&attrs=healthConfig,reliabilityStatus,isSilenced,location"
+            f"?type=Device,AgriSensor,AgriDevice&attrs=healthConfig,reliabilityStatus,isSilenced,location"
             f"&limit=500"
         )
         headers = {

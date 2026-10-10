@@ -71,3 +71,34 @@ def test_health_config_without_health_config():
     if isinstance(hc, dict):
         hc = hc.get("value", hc)
     assert hc == {}
+
+
+def test_fetch_sensors_queries_canonical_and_legacy_types():
+    """Device is the canonical sensor; AgriSensor and AgriDevice are still read."""
+    import asyncio
+    from unittest.mock import patch
+
+    seen = []
+
+    class _Resp:
+        status_code = 200
+        headers = {}
+
+        def json(self):
+            return []
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, url, headers=None, timeout=None):
+            seen.append(url)
+            return _Resp()
+
+    beat = SensorHealthBeat(Settings())
+    with patch("sensor_health_beat.worker.httpx.AsyncClient", return_value=_Client()):
+        asyncio.run(beat._fetch_sensors("t"))
+    assert "type=Device,AgriSensor,AgriDevice&" in seen[0]
