@@ -16,6 +16,8 @@ from helpers.constants import (
     ORION_URL,
     PARCEL_ENTITY_TYPES,
     ROBOT_ENTITY_TYPES,
+    ROBOT_MACHINE_CATEGORY,
+    ROBOT_MACHINE_TYPE,
     SENSOR_ENTITY_TYPES,
 )
 
@@ -129,10 +131,12 @@ def _extract_number(value):
         return None
 
 
-def _count_entities_by_type(entity_type, tenant):
-    """Count entities of a type for a tenant via Orion-LD."""
+def _count_entities_by_type(entity_type, tenant, q=None):
+    """Count entities of a type (optionally filtered by an NGSI-LD q) via Orion-LD."""
     orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
     params = {'type': entity_type, 'limit': 1, 'count': 'true'}
+    if q:
+        params['q'] = q
     headers = {'Accept': 'application/ld+json'}
     headers = inject_fiware_headers(headers, tenant)
     try:
@@ -142,20 +146,38 @@ def _count_entities_by_type(entity_type, tenant):
         return None
     if resp.status_code != 200:
         return None
+    # Orion-LD sends the bare total ("12"); Content-Range carries "a-b/12". The body
+    # is no fallback: with limit=1 its length is at most 1, not the total.
     count_header = resp.headers.get('Ngsild-Results-Count') or resp.headers.get('Content-Range')
-    if count_header and '/' in count_header:
+    if count_header:
         try:
-            total = count_header.split('/')[-1]
-            return int(total)
-        except Exception:
+            return int(count_header.split('/')[-1])
+        except ValueError:
             pass
-    try:
-        data = resp.json()
-        if isinstance(data, list):
-            return len(data)
-    except Exception:
-        pass
     return None
+
+
+def _is_robot(entity_type, entity_data) -> bool:
+    """A legacy robot type, or a ManufacturingMachine whose category is robot."""
+    if entity_type in ROBOT_ENTITY_TYPES:
+        return True
+    if entity_type != ROBOT_MACHINE_TYPE:
+        return False
+    category = (entity_data or {}).get('category')
+    if isinstance(category, dict):
+        category = category.get('value')
+    return category == ROBOT_MACHINE_CATEGORY
+
+
+def _count_robots(tenant: str) -> int:
+    """Robots of a tenant, legacy types plus robot machines; unknown counts as 0."""
+    total = 0
+    for robot_type in ROBOT_ENTITY_TYPES:
+        total += _count_entities_by_type(robot_type, tenant) or 0
+    total += _count_entities_by_type(
+        ROBOT_MACHINE_TYPE, tenant, q=f'category=="{ROBOT_MACHINE_CATEGORY}"'
+    ) or 0
+    return total
 
 
 def _count_all_entities(tenant: str) -> Optional[int]:
@@ -232,10 +254,7 @@ def _gather_usage_for_tenant(tenant: str) -> Dict[str, Any]:
     parcels_total = 0
     total_area = 0.0
 
-    for entity_type in ROBOT_ENTITY_TYPES:
-        count = _count_entities_by_type(entity_type, tenant)
-        if isinstance(count, int) and count > 0:
-            robots_total += count
+    robots_total = _count_robots(tenant)
 
     for entity_type in SENSOR_ENTITY_TYPES:
         count = _count_entities_by_type(entity_type, tenant)

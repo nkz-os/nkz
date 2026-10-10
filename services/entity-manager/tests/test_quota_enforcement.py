@@ -152,3 +152,70 @@ def test_orion_queries_are_bounded_and_fail_open():
         assert tenant_limits._sum_parcel_area("AgriParcel", "t") == 0.0
         for call in get.call_args_list:
             assert call.kwargs.get("timeout")
+
+
+def test_robot_detection_by_category():
+    from helpers.tenant_limits import _is_robot
+
+    assert _is_robot("AgriculturalRobot", {})
+    assert _is_robot("ManufacturingMachine", {"category": "robot"})
+    assert _is_robot("ManufacturingMachine", {"category": {"type": "Property", "value": "robot"}})
+    assert not _is_robot("ManufacturingMachine", {"category": "tractor"})
+    assert not _is_robot("ManufacturingMachine", {})
+    assert not _is_robot("Device", {})
+
+
+def test_robot_count_includes_machines_with_robot_category():
+    from unittest.mock import patch
+
+    from helpers import tenant_limits
+
+    counts = {
+        ("AgriculturalRobot", None): 1,
+        ("ManufacturingMachine", 'category=="robot"'): 2,
+    }
+
+    def fake(entity_type, tenant, q=None):
+        return counts.get((entity_type, q))
+
+    with patch.object(tenant_limits, "_count_entities_by_type", side_effect=fake):
+        assert tenant_limits._count_robots("t") == 3
+    with patch.object(tenant_limits, "_count_entities_by_type", return_value=None):
+        assert tenant_limits._count_robots("t") == 0  # unknown counts fail open
+
+
+def test_count_by_type_forwards_the_query():
+    from unittest.mock import MagicMock, patch
+
+    from requests.structures import CaseInsensitiveDict
+
+    from helpers import tenant_limits
+
+    resp = MagicMock(status_code=200, headers=CaseInsensitiveDict({"NGSILD-Results-Count": "4"}))
+    with patch.object(tenant_limits.requests, "get", return_value=resp) as get:
+        assert tenant_limits._count_entities_by_type("ManufacturingMachine", "t", q='category=="robot"') == 4
+    assert get.call_args.kwargs["params"]["q"] == 'category=="robot"'
+
+
+def test_sensor_types_default_to_canonical_and_legacy(monkeypatch):
+    import importlib
+
+    import helpers.constants as constants
+
+    monkeypatch.delenv("SENSOR_ENTITY_TYPES", raising=False)
+    importlib.reload(constants)
+    assert {"Device", "AgriSensor", "AgriDevice"} <= constants.SENSOR_ENTITY_TYPES
+
+
+def test_count_without_a_total_header_is_unknown_not_one():
+    """With limit=1 the body length is never the total; unknown must stay unknown."""
+    from unittest.mock import MagicMock, patch
+
+    from requests.structures import CaseInsensitiveDict
+
+    from helpers import tenant_limits
+
+    resp = MagicMock(status_code=200, headers=CaseInsensitiveDict())
+    resp.json.return_value = [{"id": "x"}]
+    with patch.object(tenant_limits.requests, "get", return_value=resp):
+        assert tenant_limits._count_entities_by_type("AgriParcel", "t") is None

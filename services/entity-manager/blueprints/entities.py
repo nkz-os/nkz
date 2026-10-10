@@ -23,10 +23,10 @@ from db_helper import get_db_connection_with_tenant, return_db_connection, get_d
 # Import shared helpers
 from helpers import (
     ORION_URL, CONTEXT_URL, _extract_number,
-    get_limits_for_tenant, _count_all_entities, _count_entities_by_type,
+    get_limits_for_tenant, _count_all_entities, _count_entities_by_type, _count_robots, _is_robot,
     _check_entity_total_limit, _check_parcel_count_limit, _sum_parcel_area,
     MAX_ROBOTS, MAX_SENSORS, MAX_AREA_HECTARES,
-    ROBOT_ENTITY_TYPES, SENSOR_ENTITY_TYPES, PARCEL_ENTITY_TYPES,
+    SENSOR_ENTITY_TYPES, PARCEL_ENTITY_TYPES,
     log_entity_operation, require_entity_ownership
 )
 
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # Custom/invented types are rejected with 422.
 SDM_ALLOWED_TYPES = {
     'AgriParcel', 'AgriCrop', 'AgriBuilding', 'AgriSensor',
-    'AgriculturalRobot', 'Device', 'WeatherObserved', 'WeatherForecast',
+    'AgriculturalRobot', 'Device', 'ManufacturingMachine', 'WeatherObserved', 'WeatherForecast',
     'CarbonAssessment', 'CarbonStock', 'VegetationIndex',
     'AgriParcelOperation', 'AgriParcelRecord',
     'CropHealthObservation', 'SoilObservation',
@@ -390,13 +390,9 @@ def create_instance(entity_type):
                     'message_en': f'Your plan allows up to {max_entities_total} entities. Upgrade to Pro to increase the limit.',
                 }), 403
 
-        # Límite de robots - contar todos los tipos de robots
-        if entity_type in ROBOT_ENTITY_TYPES and max_robots < 999999:
-            robots_total = 0
-            for robot_type in ROBOT_ENTITY_TYPES:
-                count = _count_entities_by_type(robot_type, tenant)
-                if count is not None:
-                    robots_total += count
+        # Límite de robots: tipos legados y ManufacturingMachine con category robot
+        if _is_robot(entity_type, entity_data) and max_robots < 999999:
+            robots_total = _count_robots(tenant)
             if robots_total >= max_robots:
                 return jsonify({'error': 'Robot limit exceeded', 'limit': max_robots, 'current': robots_total}), 403
         # Límite de sensores - contar todos los tipos de sensores
