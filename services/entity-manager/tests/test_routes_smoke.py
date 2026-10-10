@@ -1147,16 +1147,27 @@ class TestRobotRoutes:
     def test_requires_auth(self, anon_client, method, path):
         assert anon_client.open(path, method=method).status_code == 401
 
+    @patch("blueprints.entities.requests.post", return_value=_make_response(201, {}))
+    @patch("blueprints.entities.requests.get", return_value=_make_response(200, []))
     @patch("entity_management_api.get_db_connection_with_tenant")
-    def test_provision_robot_ok(self, mock_db, client):
+    def test_provision_robot_ok(self, mock_db, mock_get, mock_post, client):
         mock_db.return_value = _make_db_conn()
         r = client.post(
             "/api/robots/provision",
             content_type="application/json",
             data=json.dumps({"robotId": "R-001", "type": "sprayer"}),
         )
-        assert r.status_code in (201, 200, 400, 500), f"POST robot got {r.status_code}"
-        r.get_json()
+        assert r.status_code in (201, 200), f"POST robot got {r.status_code}"
+        assert r.get_json()["credentials"]["ros_namespace"].endswith("/robot_001")
+
+    @patch("blueprints.entities.requests.get", return_value=_make_response(503, {}))
+    def test_provision_robot_without_broker_is_503(self, mock_get, client):
+        r = client.post(
+            "/api/robots/provision",
+            content_type="application/json",
+            data=json.dumps({"robotId": "R-001", "type": "sprayer"}),
+        )
+        assert r.status_code == 503
 
 
 # ============================================================================

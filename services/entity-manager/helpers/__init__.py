@@ -15,6 +15,8 @@ from helpers.constants import (
     PARCEL_ENTITY_TYPES,
     POSTGRES_URL,
     ROBOT_ENTITY_TYPES,
+    ROBOT_MACHINE_CATEGORY,
+    ROBOT_MACHINE_TYPE,
     SENSOR_ENTITY_TYPES,
 )
 from helpers.tenant_limits import (
@@ -63,6 +65,8 @@ __all__ = [
     'POSTGRES_URL',
     'require_entity_ownership',
     'ROBOT_ENTITY_TYPES',
+    'ROBOT_MACHINE_CATEGORY',
+    'ROBOT_MACHINE_TYPE',
     'SENSOR_ENTITY_TYPES',
     'upsert_limits_in_orion',
 ]

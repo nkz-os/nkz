@@ -27,6 +27,7 @@ from helpers import (
     _check_entity_total_limit, _check_parcel_count_limit, _sum_parcel_area,
     MAX_ROBOTS, MAX_SENSORS, MAX_AREA_HECTARES,
     SENSOR_ENTITY_TYPES, PARCEL_ENTITY_TYPES,
+    ROBOT_ENTITY_TYPES, ROBOT_MACHINE_TYPE, ROBOT_MACHINE_CATEGORY,
     log_entity_operation, require_entity_ownership
 )
 
@@ -807,33 +808,40 @@ def get_parent_entities():
 
 
 # === Lines 2329-2354 from entity_management_api.py ===
+_ROS_INDEX_RE = re.compile(r'/robot_(\d+)$')
+_ROBOT_PAGE = 1000
+
+
 def _get_next_robot_index(tenant_id: str) -> int:
-    """Get next sequential robot index for tenant"""
-    try:
-        conn = get_db_connection_with_tenant(tenant_id)
-        if not conn:
-            return 1  # Default to 1 if DB unavailable
+    """One above the highest robot_NNN namespace in use, so no live robot shares it.
 
-        try:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            # Query Orion-LD to count existing robots for this tenant
-            orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-            params = {'type': 'AgriculturalRobot', 'options': 'count'}
-            headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant_id)
-
-            response = requests.get(orion_url, params=params, headers=headers, timeout=5)
-            if response.status_code == 200:
-                count = response.json()
-                if isinstance(count, list):
-                    return len(count) + 1
-                elif isinstance(count, dict) and 'count' in count:
-                    return count['count'] + 1
-            return 1
-        finally:
-            return_db_connection(conn)
-    except Exception as e:
-        logger.error("Error calculating parcel count limit: %s", e)
-        return 1
+    A count would collide once a robot is deleted. Raises RuntimeError when Orion-LD does
+    not answer: a guessed index could hand two robots the same ROS namespace.
+    """
+    queries = [{'type': t} for t in sorted(ROBOT_ENTITY_TYPES)]
+    queries.append({'type': ROBOT_MACHINE_TYPE, 'q': f'category=="{ROBOT_MACHINE_CATEGORY}"'})
+    headers = inject_fiware_headers({'Accept': 'application/json'}, tenant_id)
+    highest = 0
+    for query in queries:
+        offset = 0
+        while True:
+            params = dict(query, attrs='rosNamespace', limit=_ROBOT_PAGE, offset=offset)
+            resp = requests.get(f"{ORION_URL}/ngsi-ld/v1/entities", params=params,
+                                headers=headers, timeout=5)
+            if resp.status_code != 200:
+                raise RuntimeError(f"Orion-LD answered {resp.status_code} listing robots")
+            items = resp.json()
+            for item in items:
+                namespace = item.get('rosNamespace')
+                if isinstance(namespace, dict):
+                    namespace = namespace.get('value')
+                match = _ROS_INDEX_RE.search(namespace) if isinstance(namespace, str) else None
+                if match:
+                    highest = max(highest, int(match.group(1)))
+            if len(items) < _ROBOT_PAGE:
+                break
+            offset += _ROBOT_PAGE
+    return highest + 1
 
 
 # === Lines 2357-2432 from entity_management_api.py ===
@@ -856,7 +864,11 @@ def provision_robot():
         robot_uuid = str(uuid.uuid4())
 
         # 2. Generate ROS_NAMESPACE
-        robot_index = _get_next_robot_index(tenant_id)
+        try:
+            robot_index = _get_next_robot_index(tenant_id)
+        except (requests.RequestException, RuntimeError, ValueError) as e:
+            logger.error("Cannot allocate a ROS namespace for tenant %s: %s", tenant_id, e)
+            return jsonify({'error': 'Robot registry unavailable, try again later'}), 503
         ros_namespace = f"/{tenant_id}/robot_{robot_index:03d}"
 
         # 3. Build robot entity for Orion-LD
