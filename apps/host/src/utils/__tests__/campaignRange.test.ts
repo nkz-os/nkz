@@ -89,8 +89,19 @@ describe('rangeFromCropCycles', () => {
   it('caps the window at 365 days back', () => {
     expect(rangeFromCropCycles({ current: cyc('2015-02-01', null), next: null }, NOW)!.range.start).toBe(NOW - 365 * DAY);
   });
-  it('no current cycle → null (caller falls back)', () => {
-    expect(rangeFromCropCycles({ current: null, next: cyc('2026-10-15', '2027-06-30') }, NOW)).toBeNull();
+  it('without a current cycle, spans the recent past and the next cycle', () => {
+    expect(rangeFromCropCycles({ current: null, next: cyc('2026-10-15', '2027-06-30') }, NOW))
+      .toEqual({ source: 'campaign', range: { start: NOW - 90 * DAY, end: D('2027-06-30') } });
+  });
+  it('next cycle without an end: its start plus a default season, capped at 365 days ahead', () => {
+    expect(rangeFromCropCycles({ current: null, next: cyc('2026-10-15', null) }, NOW)!.range.end)
+      .toBe(D('2026-10-15') + 180 * DAY);
+    expect(rangeFromCropCycles({ current: null, next: cyc('2026-10-15', '2040-01-01') }, NOW)!.range.end)
+      .toBe(NOW + 365 * DAY);
+  });
+  it('no current and no usable next cycle → null (caller falls back)', () => {
+    expect(rangeFromCropCycles({ current: null, next: null }, NOW)).toBeNull();
+    expect(rangeFromCropCycles({ current: null, next: cyc(null, null) }, NOW)).toBeNull();
     expect(rangeFromCropCycles(null, NOW)).toBeNull();
   });
 });
