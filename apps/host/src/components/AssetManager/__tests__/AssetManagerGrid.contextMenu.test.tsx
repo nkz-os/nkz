@@ -2,6 +2,27 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { UnifiedAsset } from '@/types/assets';
 
+const parcel: UnifiedAsset = {
+  id: 'urn:ngsi-ld:AgriParcel:p1',
+  type: 'AgriParcel',
+  name: 'North field',
+  category: 'parcels',
+  status: 'active',
+  hasLocation: false,
+  rawEntity: {},
+};
+
+const zone: UnifiedAsset = {
+  id: 'urn:ngsi-ld:AgriParcelZone:p1:z1',
+  type: 'AgriParcelZone',
+  name: 'North quadrant',
+  category: 'parcels',
+  status: 'active',
+  hasLocation: false,
+  parentId: parcel.id,
+  rawEntity: {},
+};
+
 const crop: UnifiedAsset = {
   id: 'urn:ngsi-ld:AgriCrop:c1',
   type: 'AgriCrop',
@@ -14,8 +35,8 @@ const crop: UnifiedAsset = {
 
 vi.mock('@/hooks/useAssets', () => ({
   useAssets: () => ({
-    assets: [crop],
-    filteredAssets: [crop],
+    assets: [parcel, zone, crop],
+    filteredAssets: [parcel, zone, crop],
     selectedAssets: new Set<string>(),
     isLoading: false,
     isRefreshing: false,
@@ -27,8 +48,8 @@ vi.mock('@/hooks/useAssets', () => ({
     setSort: vi.fn(),
     countsByCategory: {},
     countsByType: {},
-    totalCount: 1,
-    filteredCount: 1,
+    totalCount: 3,
+    filteredCount: 3,
     toggleAsset: vi.fn(),
     selectAll: vi.fn(),
     deselectAll: vi.fn(),
@@ -62,5 +83,18 @@ describe('AssetManagerGrid context menu', () => {
     for (const hardcoded of ['Ver en mapa', 'Asignar a Parcela...', 'Copiar ID', 'Eliminar']) {
       expect(screen.queryByText(hardcoded)).toBeNull();
     }
+  });
+
+  it('offers only parcels as parents, not zones or other land entities', () => {
+    render(<AssetManagerGrid showCategoryNav={false} />);
+
+    const before = { parcel: screen.getAllByText('North field').length, zone: screen.getAllByText('North quadrant').length };
+
+    fireEvent.contextMenu(screen.getByText('Wheat'));
+    fireEvent.click(screen.getByText('entities.assets.assign.title…'));
+
+    // The modal adds one option per eligible parent next to the list rows.
+    expect(screen.getAllByText('North field')).toHaveLength(before.parcel + 1);
+    expect(screen.getAllByText('North quadrant')).toHaveLength(before.zone);
   });
 });

@@ -134,6 +134,54 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
     supportsHierarchy: true,
     supportsTelemetry: false,
   },
+  AgriParcelZone: {
+    type: 'AgriParcelZone',
+    label: 'Zona de parcela',
+    labelPlural: 'Zonas de parcela',
+    category: 'parcels',
+    icon: 'grid-2x2',
+    color: 'green',
+    description: 'Zona dentro de una parcela',
+    supportsLocation: true,
+    supportsHierarchy: false,
+    supportsTelemetry: false,
+  },
+  AgriSoil: {
+    type: 'AgriSoil',
+    label: 'Suelo',
+    labelPlural: 'Suelos',
+    category: 'parcels',
+    icon: 'layers',
+    color: 'amber',
+    description: 'Suelo de una parcela',
+    supportsLocation: true,
+    supportsHierarchy: false,
+    supportsTelemetry: false,
+  },
+  AgriSoilExtended: {
+    type: 'AgriSoilExtended',
+    label: 'Suelo',
+    labelPlural: 'Suelos',
+    category: 'parcels',
+    icon: 'layers',
+    color: 'amber',
+    description: 'Suelo de una parcela',
+    supportsLocation: true,
+    supportsHierarchy: false,
+    supportsTelemetry: false,
+  },
+  AgriFarm: {
+    type: 'AgriFarm',
+    label: 'Explotación',
+    labelPlural: 'Explotaciones',
+    category: 'parcels',
+    icon: 'warehouse',
+    color: 'green',
+    description: 'Explotación agraria',
+    supportsLocation: true,
+    supportsHierarchy: true,
+    supportsTelemetry: false,
+  },
   
   // Sensors
   AgriSensor: {
@@ -196,6 +244,18 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
     icon: 'building-2',
     color: 'slate',
     description: 'Edificio agrícola',
+    supportsLocation: true,
+    supportsHierarchy: false,
+    supportsTelemetry: false,
+  },
+  AgriGreenhouse: {
+    type: 'AgriGreenhouse',
+    label: 'Invernadero',
+    labelPlural: 'Invernaderos',
+    category: 'infrastructure',
+    icon: 'warehouse',
+    color: 'slate',
+    description: 'Invernadero',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: false,
@@ -464,6 +524,22 @@ function extractName(entity: any): string {
   return entity.id ?? '';
 }
 
+const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Name for entities without one (module-generated zones, soils): the type label
+ * plus the last id segment, a uuid shortened to its first block.
+ */
+function fallbackName(entity: any, typeLabel: string): string {
+  const tail = String(entity.id ?? '').split(':').pop() ?? '';
+  const shortTail = UUID_SEGMENT.test(tail) ? tail.slice(0, 8) : tail;
+  return shortTail ? `${typeLabel} · ${shortTail}` : typeLabel;
+}
+
+function hasName(entity: any): boolean {
+  return typeof entity?.name === 'string' || entity?.name?.value != null;
+}
+
 /**
  * Extract coordinates from NGSI-LD location
  */
@@ -551,7 +627,7 @@ export function normalizeToAsset(entity: any): UnifiedAsset {
   return {
     id: entity.id,
     type: entity.type,
-    name: extractName(entity),
+    name: hasName(entity) ? extractName(entity) : fallbackName(entity, typeInfo.label),
     category: typeInfo.category,
     status: extractStatus(entity),
     statusLabel: entity.status?.value || entity.status || 'Desconocido',

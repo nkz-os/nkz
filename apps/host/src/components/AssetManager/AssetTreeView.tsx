@@ -16,6 +16,9 @@ import {
   Building2,
   Droplets,
   Box,
+  Grid2x2,
+  Layers,
+  Warehouse,
   MoreVertical,
   FolderTree,
   CloudSun,
@@ -49,7 +52,18 @@ export interface AssetTreeViewProps {
  */
 function getAssetIcon(asset: UnifiedAsset): React.ReactNode {
   const iconClass = "w-4 h-4";
-  
+
+  switch (asset.type) {
+    case 'AgriParcelZone':
+      return <Grid2x2 className={`${iconClass} text-nkz-success-strong`} />;
+    case 'AgriSoil':
+    case 'AgriSoilExtended':
+      return <Layers className={`${iconClass} text-amber-700`} />;
+    case 'AgriFarm':
+    case 'AgriGreenhouse':
+      return <Warehouse className={`${iconClass} text-slate-600`} />;
+  }
+
   switch (asset.category) {
     case 'parcels':
       return <MapPin className={`${iconClass} text-nkz-success`} />;
