@@ -260,6 +260,7 @@ fails on it.
 | `terrainAspect` | atributo | sin-revisar | Not yet reviewed |
 | `terrainSlope` | atributo | sin-revisar | Not yet reviewed |
 | `texturaSuelo` | atributo | sin-revisar | Not yet reviewed |
+| `timeZone` | atributo | extension-declarada | IANA time zone of the parcel, resolved from its location; SDM AgriParcel has no time-zone attribute, and consumers need the parcel's local day |
 | `tipoAbono` | atributo | sin-revisar | Not yet reviewed |
 | `tipoFertilizante` | atributo | sin-revisar | Not yet reviewed |
 | `treeCount` | atributo | sin-revisar | Not yet reviewed |

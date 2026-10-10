@@ -566,6 +566,7 @@
       "altitude": "https://nkz-os.org/ns/altitude",
       "terrainAspect": "nkz:terrainAspect",
       "terrainSlope": "nkz:terrainSlope",
+      "timeZone": "https://nkz-os.org/ns/timeZone",
       "minBounds": "https://nkz-os.org/ns/minBounds",
       "maxBounds": "https://nkz-os.org/ns/maxBounds",
       "connectivityStatus": "https://nkz-os.org/ns/connectivityStatus",
