@@ -1994,7 +1994,27 @@
       "retry": "Saiatu berriro",
       "delete_success": "{{count}} entitate ondo ezabatu d(ir)a",
       "delete_error": "Errorea entitateak ezabatzean",
-      "export_empty": "Ez dago esportatzeko asset-ik"
+      "export_empty": "Ez dago esportatzeko asset-ik",
+      "tree": {
+        "unassigned": "{{count}} esleitu gabe",
+        "expand_all": "Zabaldu",
+        "collapse_all": "Tolestu",
+        "empty": "Ez dago aktiborik erakusteko"
+      },
+      "assign": {
+        "title": "Lursail bati esleitu",
+        "current": "Unean esleituta:",
+        "remove": "Kendu",
+        "search_placeholder": "Bilatu lursaila...",
+        "empty": "Ez dago lursailik eskuragarri",
+        "located_in": "Lursail honetan kokatuta",
+        "updated": "Erlazioa eguneratu da",
+        "will_remove": "Uneko esleipena kenduko da",
+        "cancel": "Utzi",
+        "save": "Gorde",
+        "saved": "Gordeta",
+        "error": "Ezin izan da erlazioa eguneratu"
+      }
     },
     "filters": {
       "title": "Iragazkiak",

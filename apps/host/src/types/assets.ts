@@ -4,6 +4,7 @@
 // Provides a normalized view of all entity types for the asset management UI.
 
 import { logger } from '@/utils/logger';
+import { resolveParentRelationship } from '@/utils/entityRelations';
 
 // =============================================================================
 // Asset Categories
@@ -363,8 +364,9 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   },
   
   // Weather
-  WeatherObserved: {
-    type: 'WeatherObserved',
+  // WeatherObserved stations reach the asset list as the api.getWeatherStations() projection
+  WeatherStation: {
+    type: 'WeatherStation',
     label: 'Estación Meteo',
     labelPlural: 'Estaciones Meteo',
     category: 'weather',
@@ -563,7 +565,7 @@ export function normalizeToAsset(entity: any): UnifiedAsset {
     coordinates,
     geometryType: location?.type as any,
     municipality: entity.municipality || entity.address?.municipality,
-    parentId: entity.refParent?.object || entity.refParent,
+    parentId: resolveParentRelationship(entity)?.parentId,
     parentName: undefined, // Will be populated by hook if needed
     childCount: entity.children?.length || 0,
     createdAt: entity.dateCreated?.value ? new Date(entity.dateCreated.value) : undefined,

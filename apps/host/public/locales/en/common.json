@@ -1993,7 +1993,27 @@
       "retry": "Retry",
       "delete_success": "{{count}} entity(ies) deleted successfully",
       "delete_error": "Error deleting entities",
-      "export_empty": "There are no assets to export"
+      "export_empty": "There are no assets to export",
+      "tree": {
+        "unassigned": "{{count}} unassigned",
+        "expand_all": "Expand",
+        "collapse_all": "Collapse",
+        "empty": "No assets to show"
+      },
+      "assign": {
+        "title": "Assign to parcel",
+        "current": "Currently assigned to:",
+        "remove": "Remove",
+        "search_placeholder": "Search parcel...",
+        "empty": "No parcels available",
+        "located_in": "Located in parcel",
+        "updated": "Relationship updated",
+        "will_remove": "The current assignment will be removed",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saved": "Saved",
+        "error": "Could not update the relationship"
+      }
     },
     "filters": {
       "title": "Filters",

@@ -133,13 +133,9 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Get potential parents (parcels and farms)
+  // Get potential parents (parcels; assignment writes hasAgriParcel)
   const potentialParents = useMemo(() => {
-    return assets.filter(a =>
-      a.category === 'parcels' ||
-      a.type === 'AgriFarm' ||
-      a.type === 'AgriGreenhouse'
-    );
+    return assets.filter(a => a.category === 'parcels');
   }, [assets]);
 
   // Close context menu on click outside
