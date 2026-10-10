@@ -136,3 +136,19 @@ def test_level_to_tier_roundtrip():
     """Every tier should round-trip through PLAN_LEVELS → LEVEL_TO_TIER."""
     for tier, level in _TQ_PLAN_LEVELS.items():
         assert _TQ_LEVEL_TO_TIER[level] == tier
+
+
+def test_orion_queries_are_bounded_and_fail_open():
+    """A hung or unreachable broker must not block the worker or raise."""
+    from unittest.mock import patch
+
+    import requests
+
+    from helpers import tenant_limits
+
+    with patch.object(tenant_limits.requests, "get") as get:
+        get.side_effect = requests.Timeout("hung")
+        assert tenant_limits._count_entities_by_type("AgriParcel", "t") is None
+        assert tenant_limits._sum_parcel_area("AgriParcel", "t") == 0.0
+        for call in get.call_args_list:
+            assert call.kwargs.get("timeout")
