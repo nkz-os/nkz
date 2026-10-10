@@ -61,6 +61,14 @@ describe('normalizeToAsset land entities', () => {
     expect(soil.name).toBe('Suelo · da36ccd2');
   });
 
+  it('shortens a uuid inside the last id segment', () => {
+    const crop = normalizeToAsset({
+      id: 'urn:ngsi-ld:AgriCrop:tenant-a:da36ccd2-85d2-4c76-b552-c5c835a987c1-default',
+      type: 'AgriCrop',
+    });
+    expect(crop.name).toBe('Cultivo · da36ccd2-default');
+  });
+
   it('keeps a real name', () => {
     expect(normalizeToAsset({ id: 'urn:ngsi-ld:AgriParcelZone:z', type: 'AgriParcelZone', name: 'North quadrant' }).name)
       .toBe('North quadrant');

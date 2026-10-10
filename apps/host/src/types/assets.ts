@@ -524,15 +524,15 @@ function extractName(entity: any): string {
   return entity.id ?? '';
 }
 
-const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
 /**
- * Name for entities without one (module-generated zones, soils): the type label
- * plus the last id segment, a uuid shortened to its first block.
+ * Name for entities without one (module-generated zones, soils, crops): the type
+ * label plus the last id segment, with any uuid in it shortened to its first block.
  */
 function fallbackName(entity: any, typeLabel: string): string {
   const tail = String(entity.id ?? '').split(':').pop() ?? '';
-  const shortTail = UUID_SEGMENT.test(tail) ? tail.slice(0, 8) : tail;
+  const shortTail = tail.replace(UUID, uuid => uuid.slice(0, 8));
   return shortTail ? `${typeLabel} · ${shortTail}` : typeLabel;
 }
 
