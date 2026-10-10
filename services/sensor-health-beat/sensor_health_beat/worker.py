@@ -54,18 +54,18 @@ class SensorHealthBeat:
     async def run_once(self) -> None:
         """Executes one full health check cycle."""
         logger.info("Starting health beat cycle")
-        tenants = await self._list_tenants_with_sensors()
+        tenants = await self._list_live_tenants()
         for tenant_id in tenants:
             await self._check_tenant(tenant_id)
         logger.info(f"Health beat cycle complete for {len(tenants)} tenants")
 
-    async def _list_tenants_with_sensors(self) -> List[str]:
-        """Query TimescaleDB for distinct tenants with telemetry data."""
+    async def _list_live_tenants(self) -> List[str]:
+        """Tenants not deleted. Telemetry is no source: it outlives deleted tenants."""
         if not self._pg_pool:
             return []
         async with self._pg_pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT DISTINCT tenant_id FROM telemetry_events WHERE tenant_id IS NOT NULL"
+                "SELECT tenant_id FROM tenants WHERE deleted_at IS NULL ORDER BY tenant_id"
             )
             return [r["tenant_id"] for r in rows]
 
