@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { cn } from '../lib/cn';
+import { cn } from '../utils/cn';
 
 type BadgeIntent = 'default' | 'positive' | 'warning' | 'negative' | 'info';
 

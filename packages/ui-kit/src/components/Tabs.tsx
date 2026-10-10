@@ -5,7 +5,7 @@
 
 import React from 'react';
 import * as RadixTabs from '@radix-ui/react-tabs';
-import { cn } from '../lib/cn';
+import { cn } from '../utils/cn';
 
 interface TabsProps {
   defaultValue: string;

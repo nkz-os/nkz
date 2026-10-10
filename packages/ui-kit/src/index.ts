@@ -5,7 +5,7 @@
  * @see https://github.com/nkz-os/nekazari-public/tree/main/packages/ui-kit
  */
 
-export { cn } from './lib/cn';
+export { cn } from './utils/cn';
 export * from './components/Button';
 export * from './components/Card';
 export * from './components/Surface';

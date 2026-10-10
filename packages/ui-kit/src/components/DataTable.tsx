@@ -15,7 +15,7 @@ import {
   type ColumnFiltersState,
   type OnChangeFn,
 } from '@tanstack/react-table';
-import { cn } from '../lib/cn';
+import { cn } from '../utils/cn';
 
 type TableDensity = 'comfortable' | 'compact';
 

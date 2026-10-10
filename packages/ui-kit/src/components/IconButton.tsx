@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { cn } from '../lib/cn';
+import { cn } from '../utils/cn';
 
 interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   'aria-label': string;

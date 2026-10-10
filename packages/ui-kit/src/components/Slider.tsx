@@ -4,7 +4,7 @@
  */
 
 import * as RadixSlider from '@radix-ui/react-slider';
-import { cn } from '../lib/cn';
+import { cn } from '../utils/cn';
 
 interface SliderProps {
   value: number;

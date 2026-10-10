@@ -3,7 +3,7 @@
  * Licensed under Apache-2.0
  */
 
-import { cn } from '../lib/cn';
+import { cn } from '../utils/cn';
 
 type TrendDirection = 'up' | 'down' | 'neutral';
 

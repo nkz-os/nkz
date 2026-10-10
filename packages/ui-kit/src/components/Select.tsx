@@ -4,7 +4,7 @@
  */
 
 import * as RadixSelect from '@radix-ui/react-select';
-import { cn } from '../lib/cn';
+import { cn } from '../utils/cn';
 
 type SelectSize = 'sm' | 'md';
 

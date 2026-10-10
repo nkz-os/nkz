@@ -4,7 +4,7 @@
  */
 
 import * as RadixSwitch from '@radix-ui/react-switch';
-import { cn } from '../lib/cn';
+import { cn } from '../utils/cn';
 
 interface SwitchProps {
   checked: boolean;

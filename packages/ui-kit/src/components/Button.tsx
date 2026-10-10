@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { cn } from '../lib/cn';
+import { cn } from '../utils/cn';
 import { useHMI } from '../context/HMIContext';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
