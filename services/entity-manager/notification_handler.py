@@ -3,7 +3,7 @@ Notification handler for Orion-LD subscriptions (Flask blueprint).
 
 Receives NGSI-LD entity notifications from Orion-LD subscriptions
 and persists to the appropriate database tables:
-  - AgriSensor -> sensors table
+  - Device (and legacy AgriSensor) -> sensors table
   - DeviceCommand -> commands table
 """
 
@@ -80,6 +80,16 @@ def _extract_prop(entity: dict, key: str) -> Any:
     return prop
 
 
+def _parcel_ref(entity: dict) -> Optional[str]:
+    """Parcel URN of a device: `controlledAsset` (SDM), else legacy `parcelId`."""
+    asset = entity.get("controlledAsset")
+    if isinstance(asset, dict) and asset.get("object"):
+        return asset["object"]
+    if isinstance(asset, str) and asset:
+        return asset
+    return _extract_prop(entity, "parcelId") or None
+
+
 def _compute_severity(probability_score: float) -> str:
     if probability_score >= 95:
         return "critical"
@@ -116,8 +126,9 @@ def handle_notification():
             by_type.setdefault(etype, []).append(e)
 
         total = 0
-        if "AgriSensor" in by_type:
-            total += _handle_agrisensor(tenant_id, by_type["AgriSensor"])
+        for device_type in ("Device", "AgriSensor"):
+            if device_type in by_type:
+                total += _handle_agrisensor(tenant_id, by_type[device_type])
         if "DeviceCommand" in by_type:
             total += _handle_device_command(
                 tenant_id, by_type["DeviceCommand"]
@@ -133,7 +144,7 @@ def handle_notification():
 
 
 def _handle_agrisensor(tenant_id: str, entities: list) -> int:
-    """Persist AgriSensor entities to sensors table."""
+    """Persist Device (or legacy AgriSensor) entities to the sensors table."""
     persisted = 0
     conn = _get_conn()
     try:
@@ -147,7 +158,7 @@ def _handle_agrisensor(tenant_id: str, entities: list) -> int:
                 is_under_canopy = _extract_prop(entity, "isUnderCanopy")
                 metadata_val = _extract_prop(entity, "metadata")
                 altitude = _extract_prop(entity, "altitudeMeters")
-                parcel_id = _extract_prop(entity, "parcelId")
+                parcel_id = _parcel_ref(entity)
                 installed_at = _extract_prop(entity, "installedAt")
                 status = _extract_prop(entity, "status") or "active"
 
