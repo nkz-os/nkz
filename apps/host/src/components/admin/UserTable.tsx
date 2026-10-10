@@ -149,7 +149,7 @@ export const UserTable: React.FC<UserTableProps> = ({
               <td className="px-6 py-4 text-right">
                 <div className="flex justify-end gap-2">
                   {actions.editRoles && onEditRoles && (
-                    <Button
+                    <Button variant="ghost"
                       onClick={() => onEditRoles(user)}
                       className="p-2 text-nkz-text-muted hover:text-nkz-info transition-colors"
                       title="Edit roles"
@@ -158,7 +158,7 @@ export const UserTable: React.FC<UserTableProps> = ({
                     </Button>
                   )}
                   {actions.resetPassword && onResetPassword && (
-                    <Button
+                    <Button variant="ghost"
                       onClick={() => onResetPassword(user.id)}
                       className="p-2 text-nkz-text-muted hover:text-nkz-warning transition-colors"
                       title="Reset password"
@@ -167,7 +167,7 @@ export const UserTable: React.FC<UserTableProps> = ({
                     </Button>
                   )}
                   {actions.deleteUser && onDeleteUser && (
-                    <Button
+                    <Button variant="ghost"
                       onClick={() => onDeleteUser(user.id, user.email)}
                       className="p-2 text-nkz-text-muted hover:text-nkz-danger transition-colors"
                       title="Delete user"

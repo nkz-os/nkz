@@ -15,7 +15,7 @@ import {
   type ColumnFiltersState,
   type OnChangeFn,
 } from '@tanstack/react-table';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 type TableDensity = 'comfortable' | 'compact';
 
@@ -71,7 +71,7 @@ export function DataTable<TData extends Record<string, unknown>>({
   }
 
   return (
-    <div className={clsx('overflow-x-auto', className)}>
+    <div className={cn('overflow-x-auto', className)}>
       <table className="w-full border-collapse">
         <thead>
           {table.getHeaderGroups().map((headerGroup) => (
@@ -79,7 +79,7 @@ export function DataTable<TData extends Record<string, unknown>>({
               {headerGroup.headers.map((header) => (
                 <th
                   key={header.id}
-                  className={clsx(
+                  className={cn(
                     'text-left text-nkz-xs font-semibold text-nkz-text-secondary uppercase tracking-wider',
                     'px-nkz-stack py-nkz-inline border-b border-nkz-border',
                     header.column.getCanSort() && 'cursor-pointer select-none hover:text-nkz-text-primary'
@@ -102,7 +102,7 @@ export function DataTable<TData extends Record<string, unknown>>({
           {table.getRowModel().rows.map((row) => (
             <tr
               key={row.id}
-              className={clsx(
+              className={cn(
                 'border-b border-nkz-border transition-colors duration-nkz-fast',
                 onRowClick && 'cursor-pointer hover:bg-nkz-surface-sunken'
               )}
@@ -111,7 +111,7 @@ export function DataTable<TData extends Record<string, unknown>>({
               {row.getVisibleCells().map((cell) => (
                 <td
                   key={cell.id}
-                  className={clsx(
+                  className={cn(
                     'px-nkz-stack text-nkz-sm text-nkz-text-primary',
                     rowHeightClasses[density]
                   )}

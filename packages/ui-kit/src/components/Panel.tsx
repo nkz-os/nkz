@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 import { Surface } from './Surface';
 
 interface PanelProps {
@@ -19,7 +19,7 @@ function PanelRoot({ variant = 'solid', children, className }: PanelProps) {
       variant="default"
       padding="none"
       radius="lg"
-      className={clsx(
+      className={cn(
         variant === 'glass' && 'backdrop-blur-xl saturate-[180%]',
         variant === 'opaque' && 'bg-nkz-surface border border-nkz-border',
         'flex flex-col',
@@ -34,7 +34,7 @@ function PanelRoot({ variant = 'solid', children, className }: PanelProps) {
 function PanelHeader({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div
-      className={clsx(
+      className={cn(
         'flex items-center justify-between px-nkz-stack py-nkz-inline border-b border-nkz-border',
         className
       )}
@@ -58,13 +58,13 @@ function PanelActions({ children }: { children: React.ReactNode }) {
 }
 
 function PanelBody({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={clsx('px-nkz-stack py-nkz-stack', className)}>{children}</div>;
+  return <div className={cn('px-nkz-stack py-nkz-stack', className)}>{children}</div>;
 }
 
 function PanelFooter({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div
-      className={clsx(
+      className={cn(
         'px-nkz-stack py-nkz-inline border-t border-nkz-border text-nkz-text-muted text-nkz-xs',
         className
       )}

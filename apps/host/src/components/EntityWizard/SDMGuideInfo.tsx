@@ -21,7 +21,7 @@ export const SDMGuideInfo: React.FC = () => {
 
   return (
     <div className="bg-nkz-info-soft border-2 border-blue-200 rounded-xl p-5 relative animate-in fade-in slide-in-from-top-2 duration-200">
-      <Button 
+      <Button variant="ghost" 
         onClick={() => setIsOpen(false)}
         className="absolute top-3 right-3 text-blue-400 hover:text-nkz-info transition-colors"
       >

@@ -97,7 +97,7 @@ export const DeviceProfileHelpModal: React.FC<DeviceProfileHelpModalProps> = ({
                             <p className="text-indigo-100 text-sm mt-0.5">Map your IoT data to FIWARE Smart Data Models</p>
                         </div>
                     </div>
-                    <Button
+                    <Button variant="ghost"
                         onClick={onClose}
                         className="text-white/70 hover:text-white p-1 hover:bg-white/10 rounded-lg transition"
                     >

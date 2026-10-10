@@ -4,7 +4,7 @@
  */
 
 import * as RadixSelect from '@radix-ui/react-select';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 type SelectSize = 'sm' | 'md';
 
@@ -43,7 +43,7 @@ export function Select({
   return (
     <RadixSelect.Root value={value} onValueChange={onValueChange} disabled={disabled}>
       <RadixSelect.Trigger
-        className={clsx(
+        className={cn(
           'inline-flex items-center justify-between w-full gap-nkz-inline',
           'bg-nkz-surface border rounded-nkz-md text-nkz-text-primary',
           'transition-colors duration-nkz-fast',
@@ -66,7 +66,7 @@ export function Select({
         <RadixSelect.Content
           position="popper"
           sideOffset={4}
-          className={clsx(
+          className={cn(
             'z-nkz-dropdown bg-nkz-surface-raised border border-nkz-border rounded-nkz-md shadow-nkz-lg',
             'overflow-hidden min-w-[var(--radix-select-trigger-width)]'
           )}
@@ -77,7 +77,7 @@ export function Select({
                 key={opt.value}
                 value={opt.value}
                 disabled={opt.disabled}
-                className={clsx(
+                className={cn(
                   'relative flex items-center px-nkz-inline py-nkz-tight text-nkz-sm rounded-nkz-sm',
                   'text-nkz-text-primary cursor-pointer select-none',
                   'focus:outline-none focus-visible:bg-nkz-surface-sunken data-[highlighted]:bg-nkz-surface-sunken',

@@ -107,7 +107,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
         <div className="space-y-4">
             {/* Tabs */}
             <div className="flex border-b border-nkz-border">
-                <Button
+                <Button variant="ghost"
                     onClick={() => setActiveTab('library')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'library'
                         ? 'border-blue-500 text-nkz-info'
@@ -119,7 +119,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                         {t('wizard.assets_browser.tab_library')}
                     </div>
                 </Button>
-                <Button
+                <Button variant="ghost"
                     onClick={() => setActiveTab('upload')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'upload'
                         ? 'border-blue-500 text-nkz-info'

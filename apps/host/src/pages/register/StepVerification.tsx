@@ -130,7 +130,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
         <h2 className="text-nkz-lg font-semibold text-nkz-text-primary">
           {t('registration.step_verify') || 'Verification'}
         </h2>
-        <Button
+        <Button variant="ghost"
           type="button"
           onClick={onBack}
           className="text-nkz-sm text-nkz-text-muted hover:text-nkz-text-primary transition-colors"
@@ -239,7 +239,7 @@ export const StepVerification: React.FC<StepVerificationProps> = ({
                     {t('registration.resend_otp', { seconds: resendCountdown }) || `Resend code in ${resendCountdown}s`}
                   </span>
                 ) : (
-                  <Button
+                  <Button variant="ghost"
                     type="button"
                     onClick={handleSendOtp}
                     className="text-nkz-xs text-nkz-accent-base hover:text-nkz-accent-strong font-medium"

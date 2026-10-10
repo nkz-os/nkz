@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 type BadgeIntent = 'default' | 'positive' | 'warning' | 'negative' | 'info';
 
@@ -25,7 +25,7 @@ const intentClasses: Record<BadgeIntent, string> = {
 export function Badge({ intent = 'default', children, className }: BadgeProps) {
   return (
     <span
-      className={clsx(
+      className={cn(
         'inline-flex items-center rounded-nkz-full px-nkz-inline py-0.5',
         'text-nkz-xs font-medium leading-4',
         intentClasses[intent],

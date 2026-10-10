@@ -94,14 +94,14 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                         }
                       }}
                     />
-                    <Button
+                    <Button variant="ghost"
                       onClick={() => handleSaveEdit(parcel.id)}
                       className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
                       title={t('parcels.save')}
                     >
                       <Check className="w-4 h-4" />
                     </Button>
-                    <Button
+                    <Button variant="ghost"
                       onClick={handleCancelEdit}
                       className="p-1 text-nkz-muted hover:bg-nkz-bg-secondary rounded transition-colors"
                       title={t('parcels.cancel')}
@@ -115,7 +115,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                       {parcel.name}
                     </h4>
                     {canEdit && (
-                      <Button
+                      <Button variant="ghost"
                         onClick={() => handleStartEdit(parcel)}
                         className="p-1 text-nkz-muted hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
                         title={t('parcels.edit_name')}
@@ -148,7 +148,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
               
               <div className="flex items-center gap-2">
                 {onView && (
-                  <Button
+                  <Button variant="ghost"
                     onClick={() => onView(parcel)}
                     className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
                     title={t('ndvi.view_ndvi')}
@@ -157,7 +157,7 @@ export const ParcelList: React.FC<ParcelListProps> = ({
                   </Button>
                 )}
                 {canEdit && editingId !== parcel.id && (
-                  <Button
+                  <Button variant="ghost"
                     onClick={() => onRemove(parcel.id)}
                     className="p-1.5 text-red-400 hover:text-nkz-danger-strong hover:bg-nkz-danger-soft rounded transition-colors"
                     title={t('parcels.remove_parcel')}

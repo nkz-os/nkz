@@ -99,7 +99,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium">{toast.message}</p>
       </div>
-      <Button
+      <Button variant="ghost"
         onClick={() => onRemove(toast.id)}
         className="flex-shrink-0 text-nkz-muted hover:text-gray-600 transition-colors"
         aria-label={t('close')}

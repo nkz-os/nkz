@@ -256,7 +256,7 @@ export const ExternalApiCredentials: React.FC = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button
+          <Button variant="ghost"
             onClick={loadCredentials}
             disabled={loading}
             className="px-4 py-2 text-gray-600 hover:text-gray-900 disabled:opacity-50"
@@ -299,7 +299,7 @@ export const ExternalApiCredentials: React.FC = () => {
             <h3 className="text-lg font-semibold text-gray-900">
               {editingId ? t('settings.external_apis.edit_credential') : t('settings.external_apis.new_credential')}
             </h3>
-            <Button
+            <Button variant="ghost"
               onClick={() => setShowForm(false)}
               className="text-nkz-muted hover:text-gray-600"
             >
@@ -546,14 +546,14 @@ export const ExternalApiCredentials: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end gap-2">
-                      <Button
+                      <Button variant="ghost"
                         onClick={() => handleEdit(credential)}
                         className="text-nkz-info hover:text-blue-900"
                         title={t('edit')}
                       >
                         <Edit2 className="w-4 h-4" />
                       </Button>
-                      <Button
+                      <Button variant="ghost"
                         onClick={() => handleDelete(credential.id, credential.service_name)}
                         className="text-nkz-danger-strong hover:text-red-900"
                         title={t('delete')}

@@ -293,7 +293,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
           {/* Actions */}
           <div className="flex items-center gap-1">
-            <Button
+            <Button variant="ghost"
               onClick={() => refresh()}
               disabled={isRefreshing}
               className="p-1.5 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
@@ -302,7 +302,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </Button>
 
-            <Button
+            <Button variant="ghost"
               onClick={() => setShowFilters(!showFilters)}
               className={`p-1.5 rounded-lg transition-colors ${showFilters || Object.values(filters).some(v =>
                 Array.isArray(v) ? v.length > 0 : v !== '' && v !== null
@@ -318,7 +318,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             <div className="w-px h-4 bg-slate-200 mx-1" />
 
             {/* View Mode Toggles */}
-            <Button
+            <Button variant="ghost"
               onClick={() => setViewMode('list')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'list'
                 ? 'bg-white/15 text-white'
@@ -329,7 +329,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               <List className="w-4 h-4" />
             </Button>
 
-            <Button
+            <Button variant="ghost"
               onClick={() => setViewMode('tree')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'tree'
                 ? 'bg-emerald-100 text-emerald-700'
@@ -340,7 +340,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
               <FolderTree className="w-4 h-4" />
             </Button>
 
-            <Button
+            <Button variant="ghost"
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-lg transition-colors ${viewMode === 'grid'
                 ? 'bg-white/15 text-white'
@@ -414,7 +414,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
           <div className="flex items-center gap-2 text-sm text-blue-800">
             <CheckSquare className="w-4 h-4" />
             <span className="font-medium">{t('entities.assets.selected_count', { count: selectedAssets.size })}</span>
-            <Button
+            <Button variant="ghost"
               onClick={deselectAll}
               className="text-nkz-info hover:text-blue-800 hover:underline"
             >
@@ -466,7 +466,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
             <div className="flex flex-col items-center gap-3 text-center px-4">
               <AlertCircle className="w-10 h-10 text-red-400" />
               <p className="text-sm text-slate-600">{error}</p>
-              <Button
+              <Button variant="ghost"
                 onClick={() => refresh()}
                 className="text-sm text-nkz-info hover:text-blue-800 hover:underline"
               >
@@ -489,7 +489,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                   : t('entities.assets.no_assets')}
               </p>
               {(filters.search || filters.categories.length > 0) && (
-                <Button
+                <Button variant="ghost"
                   onClick={resetFilters}
                   className="text-sm text-nkz-info hover:text-blue-800 hover:underline"
                 >
@@ -535,21 +535,21 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                   {renderCheckbox()}
                 </Button>
 
-                <Button
+                <Button variant="ghost"
                   onClick={() => handleSortChange('name')}
                   className="flex-1 min-w-[180px] flex items-center gap-1 hover:text-white text-left"
                 >
                   Nombre {renderSortIcon('name')}
                 </Button>
 
-                <Button
+                <Button variant="ghost"
                   onClick={() => handleSortChange('type')}
                   className="w-28 flex-shrink-0 flex items-center gap-1 hover:text-white"
                 >
                   Tipo {renderSortIcon('type')}
                 </Button>
 
-                <Button
+                <Button variant="ghost"
                   onClick={() => handleSortChange('status')}
                   className="w-24 flex-shrink-0 flex items-center gap-1 hover:text-white"
                 >
@@ -557,7 +557,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
                 </Button>
 
                 {!compact && (
-                  <Button
+                  <Button variant="ghost"
                     onClick={() => handleSortChange('municipality')}
                     className="w-32 flex-shrink-0 flex items-center gap-1 hover:text-white hidden md:flex"
                   >
@@ -761,7 +761,7 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
     >
-      <Button
+      <Button variant="ghost"
         onClick={onView}
         className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 text-slate-700"
       >
@@ -770,7 +770,7 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
       </Button>
 
       {canAssignParent && (
-        <Button
+        <Button variant="ghost"
           onClick={onAssignParent}
           className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 text-slate-700"
         >
@@ -779,7 +779,7 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
         </Button>
       )}
 
-      <Button
+      <Button variant="ghost"
         onClick={() => {
           navigator.clipboard.writeText(asset.id);
           onClose();
@@ -792,7 +792,7 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
 
       <div className="border-t border-slate-100 my-1" />
 
-      <Button
+      <Button variant="ghost"
         onClick={onDelete}
         className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-nkz-danger-soft text-nkz-danger-strong"
       >

@@ -202,7 +202,7 @@ export const CadastralSelector: React.FC<CadastralSelectorProps> = ({
                 {selectedParcel.municipality}, {selectedParcel.province}
               </p>
             </div>
-            <Button
+            <Button variant="ghost"
               onClick={handleClear}
               className="text-sm text-nkz-success-strong hover:text-green-900 underline"
             >

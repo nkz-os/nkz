@@ -3,7 +3,7 @@
  * Licensed under Apache-2.0
  */
 
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 type SkeletonVariant = 'text' | 'circle' | 'rect';
 
@@ -28,7 +28,7 @@ export function Skeleton({
 }: SkeletonProps) {
   return (
     <div
-      className={clsx(
+      className={cn(
         'bg-nkz-border animate-pulse',
         variantClasses[variant],
         className

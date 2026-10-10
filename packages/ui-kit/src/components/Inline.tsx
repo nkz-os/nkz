@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 type InlineGap = 'tight' | 'inline' | 'stack' | 'section';
 
@@ -48,7 +48,7 @@ export function Inline({
 }: InlineProps) {
   return (
     <div
-      className={clsx(
+      className={cn(
         'flex flex-row',
         wrap && 'flex-wrap',
         gapMap[gap],

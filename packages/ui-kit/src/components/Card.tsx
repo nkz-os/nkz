@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 import { useHMI } from '../context/HMIContext';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -23,7 +23,7 @@ export const Card: React.FC<CardProps> = ({ className, padding = 'md', children,
 
   return (
     <div
-      className={clsx(
+      className={cn(
         isHmiMode
           ? 'rounded-none border-4 border-nkz-border-strong bg-nkz-surface text-nkz-text-primary shadow-none'
           : 'rounded-nkz-lg border border-nkz-border bg-nkz-surface text-nkz-text-primary shadow-nkz-sm',

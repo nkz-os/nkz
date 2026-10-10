@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 type MetricGridColumns = 2 | 3 | 4 | 6;
 
@@ -24,7 +24,7 @@ const gridCols: Record<MetricGridColumns, string> = {
 export function MetricGrid({ columns = 4, children, className }: MetricGridProps) {
   return (
     <div
-      className={clsx(
+      className={cn(
         'grid gap-nkz-stack',
         gridCols[columns],
         className

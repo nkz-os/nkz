@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 /* ───────── DetailGrid ───────── */
 
@@ -22,7 +22,7 @@ const gridColumns: Record<NonNullable<DetailGridProps['columns']>, string> = {
 
 export function DetailGrid({ children, columns = 2, className }: DetailGridProps) {
   return (
-    <div className={clsx('grid gap-nkz-stack', gridColumns[columns], className)}>
+    <div className={cn('grid gap-nkz-stack', gridColumns[columns], className)}>
       {children}
     </div>
   );
@@ -38,7 +38,7 @@ interface DetailItemProps {
 
 export function DetailItem({ label, value, className }: DetailItemProps) {
   return (
-    <div className={clsx('flex flex-col gap-0.5', className)}>
+    <div className={cn('flex flex-col gap-0.5', className)}>
       <span className="text-nkz-xs text-nkz-text-secondary font-medium uppercase tracking-wider">
         {label}
       </span>

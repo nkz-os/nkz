@@ -5,7 +5,7 @@
 
 import React from 'react';
 import * as RadixTabs from '@radix-ui/react-tabs';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 interface TabsProps {
   defaultValue: string;
@@ -46,7 +46,7 @@ function TabsList({
   className?: string;
 }) {
   return (
-    <RadixTabs.List className={clsx('flex border-b border-nkz-border', className)}>
+    <RadixTabs.List className={cn('flex border-b border-nkz-border', className)}>
       {children}
     </RadixTabs.List>
   );
@@ -57,7 +57,7 @@ function TabsTrigger({ value, children, count, disabled }: TabsTriggerProps) {
     <RadixTabs.Trigger
       value={value}
       disabled={disabled}
-      className={clsx(
+      className={cn(
         'px-nkz-stack py-nkz-inline text-nkz-sm font-medium',
         'border-b-2 border-transparent -mb-[1px]',
         'text-nkz-text-secondary hover:text-nkz-text-primary',
@@ -87,7 +87,7 @@ function TabsContent({
   className?: string;
 }) {
   return (
-    <RadixTabs.Content value={value} className={clsx('pt-nkz-stack', className)}>
+    <RadixTabs.Content value={value} className={cn('pt-nkz-stack', className)}>
       {children}
     </RadixTabs.Content>
   );

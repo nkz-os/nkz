@@ -253,7 +253,7 @@ export const GlobalAssetManager: React.FC = () => {
                             {activeTab === 'public' ? 'Public models and icons (all tenants).' : 'Your tenant’s models and icons.'}
                         </p>
                     </div>
-                    <Button
+                    <Button variant="ghost"
                         onClick={loadAssets}
                         disabled={isLoading}
                         className="p-2 text-nkz-muted hover:text-nkz-info transition-colors"
@@ -265,7 +265,7 @@ export const GlobalAssetManager: React.FC = () => {
 
                 {/* Tabs */}
                 <div className="flex border-b border-nkz-border mb-4">
-                    <Button
+                    <Button variant="ghost"
                         onClick={() => { setActiveTab('public'); setError(null); setSuccess(null); }}
                         className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'public' ? 'border-blue-500 text-nkz-info' : 'border-transparent text-nkz-muted hover:text-gray-700'}`}
                     >
@@ -273,7 +273,7 @@ export const GlobalAssetManager: React.FC = () => {
                         Public
                     </Button>
                     {canManageTenant && (
-                        <Button
+                        <Button variant="ghost"
                             onClick={() => { setActiveTab('tenant'); setError(null); setSuccess(null); }}
                             className={`px-4 py-2 text-sm font-medium border-b-2 flex items-center gap-2 ${activeTab === 'tenant' ? 'border-blue-500 text-nkz-info' : 'border-transparent text-nkz-muted hover:text-gray-700'}`}
                         >
@@ -361,7 +361,7 @@ export const GlobalAssetManager: React.FC = () => {
                                             Download
                                         </a>
                                     )}
-                                    <Button
+                                    <Button variant="ghost"
                                         onClick={() => activeTab === 'public' ? handleDeletePublic(asset.key) : handleDeleteTenant(asset)}
                                         className="p-2 text-nkz-muted hover:text-nkz-danger-strong transition-colors rounded-full hover:bg-nkz-danger-soft"
                                         title="Delete"

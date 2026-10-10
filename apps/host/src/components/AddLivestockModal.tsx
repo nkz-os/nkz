@@ -180,7 +180,7 @@ export const AddLivestockModal: React.FC<AddLivestockModalProps> = ({
             <Heart className="w-6 h-6" />
             {t('livestock.title')}
           </h2>
-          <Button
+          <Button variant="ghost"
             onClick={onClose}
             className="text-white hover:text-gray-200 transition"
             disabled={loading}

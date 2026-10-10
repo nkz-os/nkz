@@ -147,7 +147,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
               className="h-7 w-auto dark:invert"
             />
           </Link>
-          <Button
+          <Button variant="ghost"
             onClick={onClose}
             className="p-2 rounded-md text-nkz-muted dark:text-nkz-muted hover:text-nkz-muted dark:hover:text-nkz-muted hover:bg-nkz-bg-secondary dark:hover:bg-gray-800 transition-colors"
             aria-label={t("closeMenu")}

@@ -166,7 +166,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
               Importación masiva de entidades
             </h2>
           </div>
-          <Button onClick={handleClose} className="text-nkz-muted hover:text-gray-600 transition">
+          <Button variant="ghost" onClick={handleClose} className="text-nkz-muted hover:text-gray-600 transition">
             <X className="w-5 h-5" />
           </Button>
         </div>
@@ -249,7 +249,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
                 <span className="text-gray-600 dark:text-nkz-muted">
                   <span className="font-semibold text-gray-900 dark:text-white">{rows.length}</span> entidades de <span className="font-mono bg-nkz-bg-secondary dark:bg-gray-700 px-1 rounded">{fileName}</span>
                 </span>
-                <Button
+                <Button variant="ghost"
                   onClick={() => { setStep('upload'); }}
                   disabled={step === 'creating'}
                   className="text-xs text-nkz-info hover:underline disabled:opacity-50"
@@ -356,7 +356,7 @@ export const BulkImportModal: React.FC<Props> = ({ isOpen, onClose, onSuccess })
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-nkz-border dark:border-gray-700 flex-shrink-0">
-          <Button
+          <Button variant="ghost"
             onClick={step === 'results' ? handleClose : handleClose}
             className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition"
           >

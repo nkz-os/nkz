@@ -80,7 +80,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
           <h3 className="text-lg font-semibold text-gray-900">
             Propiedades del Activo
           </h3>
-          <Button
+          <Button variant="ghost"
             onClick={onCancel}
             className="text-nkz-muted hover:text-gray-600 transition-colors"
           >
@@ -207,7 +207,7 @@ export const AssetPropertiesDialog: React.FC<AssetPropertiesDialogProps> = ({
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 p-4 border-t border-nkz-border bg-nkz-bg-secondary">
-          <Button
+          <Button variant="ghost"
             onClick={onCancel}
             className="px-4 py-2 border border-nkz-border rounded-lg text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary transition-colors"
           >

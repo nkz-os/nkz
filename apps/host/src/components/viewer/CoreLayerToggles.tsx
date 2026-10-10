@@ -56,7 +56,7 @@ const CoreLayerToggles: React.FC<CoreLayerTogglesProps> = ({ compact = false }) 
         return (
             <div className="flex flex-wrap gap-1">
                 {LAYER_DEFINITIONS.map(layer => (
-                    <Button
+                    <Button variant="ghost"
                         key={layer.id}
                         onClick={() => toggleLayer(layer.id)}
                         className={`p-2 rounded-lg transition-all ${isLayerActive(layer.id)
@@ -77,7 +77,7 @@ const CoreLayerToggles: React.FC<CoreLayerTogglesProps> = ({ compact = false }) 
     return (
         <div className="space-y-1">
             {LAYER_DEFINITIONS.map(layer => (
-                <Button
+                <Button variant="ghost"
                     key={layer.id}
                     onClick={() => toggleLayer(layer.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${isLayerActive(layer.id)

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 type SurfaceVariant = 'default' | 'raised' | 'sunken';
 type SurfacePadding = 'none' | 'tight' | 'inline' | 'stack' | 'section';
@@ -54,7 +54,7 @@ export function Surface({
 }: SurfaceProps) {
   return (
     <Tag
-      className={clsx(variantMap[variant], paddingMap[padding], radiusMap[radius], className)}
+      className={cn(variantMap[variant], paddingMap[padding], radiusMap[radius], className)}
       {...(props as React.HTMLAttributes<HTMLElement>)}
     />
   );

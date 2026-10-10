@@ -77,7 +77,7 @@ export const UserCreateModal: React.FC<UserCreateModalProps> = ({
           <h3 className="text-nkz-lg font-semibold text-nkz-text-primary">
             {t('admin.create_user_title', { defaultValue: 'Create New User' })}
           </h3>
-          <Button onClick={onClose} className="text-nkz-text-muted hover:text-nkz-text-secondary">
+          <Button variant="ghost" onClick={onClose} className="text-nkz-text-muted hover:text-nkz-text-secondary">
             <X className="h-5 w-5" />
           </Button>
         </div>

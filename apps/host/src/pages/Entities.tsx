@@ -361,7 +361,7 @@ export const Entities: React.FC = () => {
 
           {/* Tabs */}
           <div className="flex border-b border-nkz-border flex-shrink-0 bg-white rounded-t-lg px-2">
-            <Button
+            <Button variant="ghost"
               onClick={() => setActiveTab('crops')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'crops'
                 ? 'border-nkz-accent-base text-nkz-accent-base bg-nkz-accent-soft/50'
@@ -373,7 +373,7 @@ export const Entities: React.FC = () => {
                 Cultivos <span className="bg-nkz-bg-secondary text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.crops}</span>
               </div>
             </Button>
-            <Button
+            <Button variant="ghost"
               onClick={() => setActiveTab('fleet')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'fleet'
                 ? 'border-blue-500 text-nkz-info bg-nkz-info-soft/50'
@@ -385,7 +385,7 @@ export const Entities: React.FC = () => {
                 Flota <span className="bg-nkz-bg-secondary text-gray-600 px-2 py-0.5 rounded-full text-xs">{entityCounts.fleet}</span>
               </div>
             </Button>
-            <Button
+            <Button variant="ghost"
               onClick={() => setActiveTab('installations')}
               className={`px-6 py-4 font-medium text-sm transition-all border-b-2 ${activeTab === 'installations'
                 ? 'border-orange-500 text-orange-600 bg-orange-50/50'

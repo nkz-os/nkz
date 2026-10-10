@@ -160,7 +160,7 @@ export const ParcelModulesPanel: React.FC<ParcelModulesPanelProps> = ({ parcelId
                                                     badge
                                                 )}
                                                 {canManage && status === 'error' && (
-                                                    <Button
+                                                    <Button variant="ghost"
                                                         className="text-xs text-nkz-info hover:underline"
                                                         onClick={() => handleToggle(m.id, label, true)}
                                                         disabled={isBusy}

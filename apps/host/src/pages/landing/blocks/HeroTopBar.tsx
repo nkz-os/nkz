@@ -78,7 +78,7 @@ export const HeroTopBar: React.FC<Props> = ({
               <>
                 <div className="absolute right-0 mt-2 w-40 rounded-lg shadow-lg bg-white ring-1 ring-black/5 z-20 overflow-hidden">
                   {Object.entries(supportedLanguages).map(([code, name]) => (
-                    <Button
+                    <Button variant="ghost"
                       key={code}
                       onClick={() => onLanguageChange(code)}
                       className={`block w-full text-left px-4 py-2 text-sm transition-colors ${

@@ -1,6 +1,6 @@
 {
   "name": "@nekazari/ui-kit",
-  "version": "1.0.2-alpha.4",
+  "version": "1.0.2-alpha.5",
   "private": false,
   "license": "Apache-2.0",
   "repository": {
@@ -47,7 +47,8 @@
     "@radix-ui/react-toggle": "^1.1.18",
     "@radix-ui/react-tooltip": "^1.2.16",
     "@tanstack/react-table": "^8.0.0",
-    "clsx": "^2.1.1"
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.6.1"
   },
   "peerDependencies": {
     "react": "^18.3.1",

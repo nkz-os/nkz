@@ -127,7 +127,7 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
           <h3 className="text-nkz-lg font-semibold text-nkz-text-primary">
             {t('admin.assign_user_title', { defaultValue: 'Assign Existing User' })}
           </h3>
-          <Button onClick={onClose} className="text-nkz-text-muted hover:text-nkz-text-secondary">
+          <Button variant="ghost" onClick={onClose} className="text-nkz-text-muted hover:text-nkz-text-secondary">
             <X className="h-5 w-5" />
           </Button>
         </div>
@@ -213,7 +213,7 @@ export const UserAssignModal: React.FC<UserAssignModalProps> = ({
                 </p>
                 <p className="text-nkz-xs text-nkz-text-secondary">{selectedUser.email}</p>
               </div>
-              <Button
+              <Button variant="ghost"
                 onClick={() => setSelectedUser(null)}
                 className="ml-auto text-nkz-xs text-nkz-info hover:underline"
               >

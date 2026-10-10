@@ -106,7 +106,7 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
         <label className="block text-sm font-medium text-gray-700">
           {t('wizard.icons.default_icon')}
         </label>
-        <Button
+        <Button variant="ghost"
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
           className="text-xs text-nkz-info hover:text-blue-800 flex items-center gap-1"

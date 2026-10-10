@@ -199,7 +199,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
         <div className="space-y-6 h-full flex flex-col">
             {/* Header / Tabs */}
             <div className="flex items-center gap-1 border-b border-gray-700 pb-2 mb-2">
-                <Button
+                <Button variant="ghost"
                     onClick={() => setActiveTab('status')}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'status'
                         ? 'bg-purple-600 text-white'
@@ -209,7 +209,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                     <Wifi className="w-4 h-4" />
                     Estado y Credenciales
                 </Button>
-                <Button
+                <Button variant="ghost"
                     onClick={() => setActiveTab('profile')}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${activeTab === 'profile'
                         ? 'bg-purple-600 text-white'
@@ -297,7 +297,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                         <code className="text-xs text-green-400 break-all">
                                             {newlyRegeneratedKey ? iotDetails.topics?.publish_data?.replace('<API_KEY>', newlyRegeneratedKey) : iotDetails.topics?.publish_data}
                                         </code>
-                                        <Button
+                                        <Button variant="ghost"
                                             onClick={() => copyToClipboard(newlyRegeneratedKey ? iotDetails.topics?.publish_data?.replace('<API_KEY>', newlyRegeneratedKey) : iotDetails.topics?.publish_data)}
                                             className="p-1 hover:bg-gray-700 rounded text-nkz-muted"
                                         >
@@ -314,7 +314,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                             API Key
                                         </h4>
                                         {!newlyRegeneratedKey && (
-                                            <Button
+                                            <Button variant="ghost"
                                                 onClick={() => setShowRegenerateConfirm(true)}
                                                 className="text-xs text-red-400 hover:text-red-300 hover:underline"
                                             >
@@ -327,7 +327,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
                                         <div className="p-4 bg-green-900/20 border border-green-500/50 rounded-lg animate-in fade-in slide-in-from-top-2">
                                             <div className="flex justify-between items-start mb-2">
                                                 <label className="text-xs font-bold text-green-400 uppercase">Nueva Clave Generada</label>
-                                                <Button onClick={() => copyToClipboard(newlyRegeneratedKey)} className="text-green-400 hover:text-green-300">
+                                                <Button variant="ghost" onClick={() => copyToClipboard(newlyRegeneratedKey)} className="text-green-400 hover:text-green-300">
                                                     <Copy className="w-4 h-4" />
                                                 </Button>
                                             </div>
@@ -418,7 +418,7 @@ export const ConnectivityPanel: React.FC<ConnectivityPanelProps> = ({
 
                         {/* Switch to Custom */}
                         {mode === 'profile' && selectedProfileId && !readonly && (
-                            <Button
+                            <Button variant="ghost"
                                 onClick={() => setMode('custom')}
                                 className="mt-3 text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
                             >

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 /* ───────── SettingsList ───────── */
 
@@ -15,7 +15,7 @@ interface SettingsListProps {
 
 export function SettingsList({ children, className }: SettingsListProps) {
   return (
-    <div className={clsx('divide-y divide-nkz-border', className)}>
+    <div className={cn('divide-y divide-nkz-border', className)}>
       {children}
     </div>
   );
@@ -33,7 +33,7 @@ interface SettingsItemProps {
 export function SettingsItem({ label, description, control, className }: SettingsItemProps) {
   return (
     <div
-      className={clsx(
+      className={cn(
         'flex items-center justify-between gap-nkz-stack py-nkz-inline',
         className
       )}

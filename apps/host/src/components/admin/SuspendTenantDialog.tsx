@@ -173,7 +173,7 @@ export const SuspendTenantDialog: React.FC<SuspendTenantDialogProps> = ({
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <Button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary" disabled={suspending}>
+          <Button variant="ghost" onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary" disabled={suspending}>
             {t('common.cancel')}
           </Button>
           <Button

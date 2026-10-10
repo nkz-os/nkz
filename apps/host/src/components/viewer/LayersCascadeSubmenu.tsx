@@ -38,7 +38,7 @@ const CollapsibleGroup: React.FC<CollapsibleGroupProps> = ({
   }, [storageKey, isOpen])
   return (
     <div className="py-1">
-      <Button
+      <Button variant="ghost"
         type="button"
         onClick={() => setIsOpen(v => !v)}
         aria-expanded={isOpen}

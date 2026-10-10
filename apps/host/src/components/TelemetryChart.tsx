@@ -263,7 +263,7 @@ export const TelemetryChart: React.FC<TelemetryChartProps> = ({
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <Button
+          <Button variant="ghost"
             onClick={loadTelemetryData}
             className="p-1 text-gray-600 hover:text-gray-900 transition"
             title={t('sensors.refresh')}

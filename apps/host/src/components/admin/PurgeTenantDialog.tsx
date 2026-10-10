@@ -121,7 +121,7 @@ export const PurgeTenantDialog: React.FC<Props> = ({ tenantId, tenantName, onClo
               </label>
             </div>
             <div className="mt-4 flex justify-end gap-3">
-              <Button onClick={() => setStep('inventory')} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">
+              <Button variant="ghost" onClick={() => setStep('inventory')} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">
                 {t('common.back')}
               </Button>
               <Button onClick={handleStartPurge}
@@ -138,7 +138,7 @@ export const PurgeTenantDialog: React.FC<Props> = ({ tenantId, tenantName, onClo
             <PurgeProgressBar phases={phases} running={running} />
             {step === 'done' && (
               <div className="mt-6 text-center">
-                <Button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">
+                <Button variant="ghost" onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">
                   {t('common.close')}
                 </Button>
               </div>

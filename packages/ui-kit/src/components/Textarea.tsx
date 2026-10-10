@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   error?: boolean;
@@ -16,7 +16,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       <textarea
         ref={ref}
         disabled={disabled}
-        className={clsx(
+        className={cn(
           'w-full bg-nkz-surface border rounded-nkz-md text-nkz-text-primary',
           'transition-colors duration-nkz-fast resize-y min-h-[80px]',
           'placeholder:text-nkz-text-muted',

@@ -3,7 +3,7 @@
  * Licensed under Apache-2.0
  */
 
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 type ProgressSize = 'sm' | 'md';
 type ProgressIntent = 'default' | 'positive' | 'warning' | 'negative';
@@ -38,14 +38,14 @@ export function ProgressBar({
   const clampedValue = Math.max(0, Math.min(100, value));
 
   return (
-    <div className={clsx('flex flex-col gap-nkz-tight', className)}>
+    <div className={cn('flex flex-col gap-nkz-tight', className)}>
       {showLabel && (
         <div className="flex justify-between text-nkz-xs text-nkz-text-secondary">
           <span>{Math.round(clampedValue)}%</span>
         </div>
       )}
       <div
-        className={clsx(
+        className={cn(
           'w-full bg-nkz-surface-sunken rounded-nkz-full overflow-hidden',
           sizeClasses[size]
         )}
@@ -55,7 +55,7 @@ export function ProgressBar({
         aria-valuemax={100}
       >
         <div
-          className={clsx(
+          className={cn(
             'h-full rounded-nkz-full transition-all duration-nkz-fast',
             intentClasses[intent]
           )}

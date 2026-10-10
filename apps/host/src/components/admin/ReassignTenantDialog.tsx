@@ -75,7 +75,7 @@ export const ReassignTenantDialog: React.FC<Props> = ({
         )}
 
         <div className="mt-6 flex justify-end gap-3">
-          <Button onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">{t('cancel')}</Button>
+          <Button variant="ghost" onClick={onClose} className="px-4 py-2 border border-nkz-border rounded text-nkz-text-secondary">{t('cancel')}</Button>
           <Button onClick={handleReassign}
             disabled={!selectedTenantId || reassigning}
             className="px-4 py-2 bg-nkz-accent-base text-white rounded disabled:opacity-50">

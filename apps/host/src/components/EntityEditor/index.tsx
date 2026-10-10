@@ -74,7 +74,7 @@ const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> =
             </h2>
             <p className="text-xs text-nkz-muted">{entityType} &mdash; {entityId.split(':').pop()}</p>
           </div>
-          <Button onClick={handleClose} className="p-1 text-nkz-muted hover:text-gray-600">
+          <Button variant="ghost" onClick={handleClose} className="p-1 text-nkz-muted hover:text-gray-600">
             <X className="w-5 h-5" />
           </Button>
         </div>
@@ -103,7 +103,7 @@ const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> =
             )}
           </div>
           <div className="flex gap-3">
-            <Button
+            <Button variant="ghost"
               onClick={handleClose}
               className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-lg transition"
             >

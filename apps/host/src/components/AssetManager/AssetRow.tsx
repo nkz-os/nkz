@@ -206,7 +206,7 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
       )}
       
       {/* Actions */}
-      <Button
+      <Button variant="ghost"
         onClick={((e: any) => {
           e.stopPropagation();
           onContextMenu?.(e);

@@ -130,7 +130,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                         } ${isChild ? 'ml-6 border-l-2 border-l-gray-300' : ''}`}
                 >
                     {hasChildren && (
-                        <Button
+                        <Button variant="ghost"
                             onClick={((e: any) => toggleParent(entity.id, e)) as any}
                             className="p-1 hover:bg-gray-200 rounded text-nkz-muted"
                         >
@@ -146,7 +146,7 @@ export const EntityList: React.FC<EntityListProps> = ({
                         <div className="flex items-center justify-between mb-0.5">
                             <p className="font-medium text-gray-900 truncate">{entity.name || 'Sin nombre'}</p>
                             <div className="flex items-center gap-1">
-                                <Button
+                                <Button variant="ghost"
                                     onClick={((e: any) => {
                                         e.stopPropagation();
                                         openEntityEditor(entity.id, entity.type);

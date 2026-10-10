@@ -38,7 +38,7 @@ export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) =
           {restoring ? <Loader2 className="h-3 w-3 animate-spin inline mr-1" /> : null}
           {t('admin.confirm_restore')}
         </Button>
-        <Button onClick={() => setConfirming(false)}
+        <Button variant="ghost" onClick={() => setConfirming(false)}
           className="text-sm px-3 py-1 border border-nkz-border rounded text-nkz-text-secondary">
           {t('cancel')}
         </Button>
@@ -47,7 +47,7 @@ export const RestoreTenantButton: React.FC<Props> = ({ tenantId, onRestored }) =
   }
 
   return (
-    <Button onClick={() => setConfirming(true)}
+    <Button variant="ghost" onClick={() => setConfirming(true)}
       className="inline-flex items-center gap-1 text-sm px-3 py-1 border border-nkz-success text-nkz-success-strong rounded hover:bg-nkz-success-soft">
       <RotateCcw className="h-4 w-4" />
       {t('admin.restore_tenant')}

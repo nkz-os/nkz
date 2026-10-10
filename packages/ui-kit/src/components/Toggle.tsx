@@ -4,7 +4,7 @@
  */
 
 import * as RadixToggle from '@radix-ui/react-toggle';
-import clsx from 'clsx';
+import { cn } from '../utils/cn';
 
 interface ToggleProps {
   checked: boolean;
@@ -27,7 +27,7 @@ export function Toggle({
         pressed={checked}
         onPressedChange={onChange}
         disabled={disabled}
-        className={clsx(
+        className={cn(
           'rounded-nkz-full transition-colors duration-nkz-fast',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base focus-visible:ring-offset-2',
           'disabled:opacity-50 disabled:cursor-not-allowed',
@@ -41,7 +41,7 @@ export function Toggle({
           // own (also dark) track — fails 1.4.11 in every profile we
           // measured. Its boundary is carried by elevation (shadow-sm)
           // instead of color, per WCAG 1.4.11's own allowance.
-          className={clsx(
+          className={cn(
             'block rounded-full bg-white shadow-sm transition-transform duration-nkz-fast',
             size === 'sm' ? 'w-3 h-3' : 'w-4 h-4',
             checked

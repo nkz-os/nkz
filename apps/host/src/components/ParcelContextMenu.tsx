@@ -96,7 +96,7 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
           <Save className="w-4 h-4 text-emerald-600" />
           {t('parcels.save_parcel')}
         </h3>
-        <Button
+        <Button variant="ghost"
           onClick={onClose}
           className="text-nkz-muted hover:text-gray-600 transition-colors"
         >
@@ -148,7 +148,7 @@ export const ParcelContextMenu: React.FC<ParcelContextMenuProps> = ({
       </div>
 
       <div className="flex gap-2 pt-2 border-t border-nkz-border">
-        <Button
+        <Button variant="ghost"
           onClick={onClose}
           className="flex-1 px-3 py-2 border border-nkz-border rounded-lg text-sm font-medium text-gray-700 hover:bg-nkz-bg-secondary transition-colors"
         >

@@ -77,7 +77,7 @@ export const ParcelEditModal: React.FC<ParcelEditModalProps> = ({
                             </p>
                         )}
                     </div>
-                    <Button
+                    <Button variant="ghost"
                         onClick={onCancel}
                         className="p-1 text-nkz-muted hover:text-gray-600 hover:bg-nkz-bg-secondary rounded transition-colors"
                     >

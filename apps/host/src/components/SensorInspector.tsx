@@ -420,7 +420,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                             <Pencil className="w-3.5 h-3.5" />
                             Editar
                         </Button>
-                        <Button
+                        <Button variant="ghost"
                             onClick={onClose}
                             className="p-2 text-nkz-muted hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
                         >
@@ -432,7 +432,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                 {/* Time Range Selector */}
                 <div className="flex gap-2 mt-4">
                     {(['1h', '6h', '24h'] as const).map((range) => (
-                        <Button
+                        <Button variant="ghost"
                             key={range}
                             onClick={() => setTimeRange(range)}
                             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${timeRange === range
@@ -443,7 +443,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                             {range}
                         </Button>
                     ))}
-                    <Button
+                    <Button variant="ghost"
                         onClick={loadTelemetry}
                         disabled={loading}
                         className="ml-auto p-1.5 text-nkz-muted hover:text-white hover:bg-gray-700/50 rounded-lg transition-colors"
@@ -454,7 +454,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
 
                 {/* Tab Navigation */}
                 <div className="flex gap-1 mt-4 border-b border-gray-700/50 pb-0">
-                    <Button
+                    <Button variant="ghost"
                         onClick={() => setActiveTab('telemetry')}
                         className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-colors ${activeTab === 'telemetry'
                             ? 'bg-gray-800 text-white border-b-2 border-blue-500'
@@ -464,7 +464,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                         <Activity className="w-3.5 h-3.5" />
                         Telemetría
                     </Button>
-                    <Button
+                    <Button variant="ghost"
                         onClick={() => setActiveTab('connectivity')}
                         className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-colors ${activeTab === 'connectivity'
                             ? 'bg-gray-800 text-white border-b-2 border-purple-500'
@@ -474,7 +474,7 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                         <Cable className="w-3.5 h-3.5" />
                         Conectividad
                     </Button>
-                    <Button
+                    <Button variant="ghost"
                         onClick={() => setActiveTab('management')}
                         className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-t-lg transition-colors ${activeTab === 'management'
                             ? 'bg-gray-800 text-white border-b-2 border-red-500'

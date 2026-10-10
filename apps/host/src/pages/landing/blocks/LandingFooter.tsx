@@ -94,7 +94,7 @@ export const LandingFooter: React.FC<Props> = ({
           <div className="flex items-center gap-4">
             <NkzAttribution variant="commercial" />
             <div className="relative">
-              <Button
+              <Button variant="ghost"
                 onClick={() => setShowLanguageMenu(!showLanguageMenu)}
                 className="inline-flex items-center gap-1 text-[#A8B1AC] hover:text-[#FAFAF7] transition-colors"
               >
@@ -105,7 +105,7 @@ export const LandingFooter: React.FC<Props> = ({
                 <>
                   <div className="absolute bottom-full right-0 mb-2 w-36 rounded-lg shadow-lg bg-white ring-1 ring-black/5 z-20 overflow-hidden">
                     {Object.entries(supportedLanguages).map(([code, name]) => (
-                      <Button
+                      <Button variant="ghost"
                         key={code}
                         onClick={() => onLanguageChange(code)}
                         className={`block w-full text-left px-3 py-2 text-xs transition-colors ${

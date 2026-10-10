@@ -54,7 +54,7 @@ const ModuleRow: React.FC<{ module: ModuleDefinition }> = ({ module }) => {
                     />
                 </div>
                 {canExpand && (
-                    <Button
+                    <Button variant="ghost"
                         type="button"
                         onClick={() => setExpanded(v => !v)}
                         aria-expanded={expanded}
@@ -102,7 +102,7 @@ export const ViewerModulesSection: React.FC = () => {
 
     return (
         <section className="mb-3 rounded-lg border border-slate-200 dark:border-slate-700">
-            <Button
+            <Button variant="ghost"
                 type="button"
                 onClick={() => setOpen(v => !v)}
                 aria-expanded={open}

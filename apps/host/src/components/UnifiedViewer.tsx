@@ -716,7 +716,7 @@ const UnifiedViewerInner: React.FC = () => {
                     marginRight: rightSidebarState === 'expanded' ? '600px' : rightSidebarState === 'compact' ? '400px' : '0px',
                 }}
             >
-                <Button
+                <Button variant="ghost"
                     onClick={toggleBottomPanel}
                     className={`absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full z-40 px-4 py-1 rounded-t-lg ${overlayPanel.base} hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-xs text-slate-600 dark:text-slate-300 flex items-center gap-1`}
                 >
