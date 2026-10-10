@@ -172,3 +172,33 @@ def test_broker_server_error_is_unavailable():
 def test_broker_timeouts_and_rate_limits_are_unavailable(status):
     with pytest.raises(svc.OrionUnavailable):
         svc.timeline("t", P, AT, client=RejectingOrion(status))
+
+
+from datetime import datetime, timezone  # noqa: E402
+
+
+def test_local_today_follows_the_parcel_time_zone():
+    late_utc = datetime(2026, 10, 9, 23, 30, tzinfo=timezone.utc)  # 01:30 on the 10th in Madrid
+    assert svc.local_today({"timeZone": "Europe/Madrid"}, now=late_utc) == date(2026, 10, 10)
+    assert svc.local_today({"timeZone": {"value": "Europe/Madrid"}}, now=late_utc) == date(2026, 10, 10)
+
+
+def test_local_today_falls_back_to_utc(caplog):
+    late_utc = datetime(2026, 10, 9, 23, 30, tzinfo=timezone.utc)
+    assert svc.local_today({}, now=late_utc) == date(2026, 10, 9)
+    with caplog.at_level("WARNING"):
+        assert svc.local_today({"timeZone": "Mars/Olympus"}, now=late_utc) == date(2026, 10, 9)
+    assert any("Mars/Olympus" in r.getMessage() for r in caplog.records)
+
+
+def test_timeline_without_at_uses_the_parcel_day(monkeypatch):
+    seen, real = {}, svc.resolve_crop_cycles
+
+    def resolve(urn, crops, ops, at):
+        seen["at"] = at
+        return real(urn, crops, ops, at)
+
+    monkeypatch.setattr(svc, "resolve_crop_cycles", resolve)
+    monkeypatch.setattr(svc, "local_today", lambda parcel, now=None: date(2026, 10, 10))
+    svc.timeline("t", P, None, client=FakeOrion(parcel={"id": P, "type": "AgriParcel", "timeZone": "Europe/Madrid"}))
+    assert seen["at"] == date(2026, 10, 10)

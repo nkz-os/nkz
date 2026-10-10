@@ -168,3 +168,9 @@ def test_reconcile_all_counts_subscription_errors():
                       return_value={'created': 0, 'skipped': 0, 'errors': ['a/AgriCrop: 400', 'a/AgriParcelOperation: 400']}):
         r = client.post('/api/internal/crop-cycles/reconcile-all', headers=H)
     assert r.json['errors'] == 2
+
+
+def test_route_without_at_lets_the_service_use_the_parcel_day():
+    with patch.object(svc, 'timeline', return_value={'ok': 1}) as tl:
+        assert client.get('/api/entities/parcels/p1/crop-cycles').status_code == 200
+    assert tl.call_args.args[2] is None

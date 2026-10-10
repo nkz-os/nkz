@@ -8,7 +8,7 @@ import hmac
 import logging
 import os
 import threading
-from datetime import date, datetime, timezone
+from datetime import date
 
 from flask import Blueprint, g, jsonify, request
 from nkz_platform_sdk import SubscriptionRegistrar
@@ -77,19 +77,23 @@ def _secret_ok() -> bool:
     return bool(INTERNAL_SERVICE_SECRET) and hmac.compare_digest(provided, INTERNAL_SERVICE_SECRET)
 
 
+_BAD_AT = object()
+
+
 def _at():
+    """The `at` query date; None when absent (the service then uses today at the parcel)."""
     raw = request.args.get('at')
     if not raw:
-        return datetime.now(timezone.utc).date()
+        return None
     try:
         return date.fromisoformat(raw)
     except ValueError:
-        return None
+        return _BAD_AT
 
 
 def _serve(tenant_id: str, parcel_id: str):
     at = _at()
-    if at is None:
+    if at is _BAD_AT:
         return jsonify({'error': 'at must be YYYY-MM-DD'}), 400
     try:
         return jsonify(svc.timeline(tenant_id, svc.normalize_parcel_urn(parcel_id), at)), 200
