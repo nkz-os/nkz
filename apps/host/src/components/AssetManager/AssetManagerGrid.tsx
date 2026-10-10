@@ -751,6 +751,8 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
   onAssignParent,
   onDelete,
 }) => {
+  const { t } = useI18n();
+
   return ReactDOM.createPortal(
     <div
       className="fixed z-[9999] min-w-[180px] bg-white rounded-lg shadow-xl border border-slate-200 py-1 text-sm"
@@ -762,7 +764,7 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
         className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 text-slate-700"
       >
         <Eye className="w-4 h-4" />
-        Ver en mapa
+        {t('entities.assets.menu.view_on_map')}
       </Button>
 
       {canAssignParent && (
@@ -771,7 +773,7 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
           className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 text-slate-700"
         >
           <Link2 className="w-4 h-4" />
-          Asignar a Parcela...
+          {t('entities.assets.assign.title')}…
         </Button>
       )}
 
@@ -783,7 +785,7 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
         className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-50 text-slate-700"
       >
         <Copy className="w-4 h-4" />
-        Copiar ID
+        {t('entities.assets.menu.copy_id')}
       </Button>
 
       <div className="border-t border-slate-100 my-1" />
@@ -793,7 +795,7 @@ const AssetContextMenu: React.FC<AssetContextMenuProps> = ({
         className="w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-nkz-danger-soft text-nkz-danger-strong"
       >
         <Trash2 className="w-4 h-4" />
-        Eliminar
+        {t('entities.assets.delete')}
       </Button>
     </div>,
     document.body

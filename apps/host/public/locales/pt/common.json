@@ -2039,6 +2039,10 @@
         "save": "Salvar",
         "saved": "Salvo",
         "error": "Não foi possível atualizar a relação"
+      },
+      "menu": {
+        "view_on_map": "Ver no mapa",
+        "copy_id": "Copiar ID"
       }
     },
     "filters": {

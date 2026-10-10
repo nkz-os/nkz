@@ -2013,6 +2013,10 @@
         "save": "Save",
         "saved": "Saved",
         "error": "Could not update the relationship"
+      },
+      "menu": {
+        "view_on_map": "View on map",
+        "copy_id": "Copy ID"
       }
     },
     "filters": {
