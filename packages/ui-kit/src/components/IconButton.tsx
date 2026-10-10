@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 
 interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   'aria-label': string;
@@ -24,7 +24,7 @@ export function IconButton({
 }: IconButtonProps) {
   return (
     <button
-      className={clsx(
+      className={cn(
         'inline-flex items-center justify-center rounded-nkz-md',
         'transition-colors duration-nkz-fast',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base',

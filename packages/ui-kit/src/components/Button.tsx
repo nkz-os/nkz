@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 import { useHMI } from '../context/HMIContext';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -49,14 +49,14 @@ export function Button({
 }: ButtonProps) {
   const { isHmiMode } = useHMI();
 
-  const classes = clsx(
+  const classes = cn(
     'inline-flex items-center justify-center font-medium',
     'transition-colors duration-nkz-fast',
     'focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base focus-visible:ring-offset-2',
     'disabled:opacity-50 disabled:cursor-not-allowed',
     isHmiMode
       ? 'rounded-sm min-h-[64px] min-w-[64px] px-6 py-4 text-lg uppercase tracking-wide border-2'
-      : clsx('rounded-nkz-md', sizeClasses[size]),
+      : cn('rounded-nkz-md', sizeClasses[size]),
     isHmiMode
       ? variant === 'primary'
         ? 'bg-nkz-accent-base text-nkz-text-on-accent border-nkz-text-on-accent hover:bg-nkz-accent-strong'

@@ -3,7 +3,7 @@
  * Licensed under Apache-2.0
  */
 
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 
 type TrendDirection = 'up' | 'down' | 'neutral';
 
@@ -35,7 +35,7 @@ export function MetricCard({
 }: MetricCardProps) {
   return (
     <div
-      className={clsx(
+      className={cn(
         'relative bg-nkz-surface border border-nkz-border rounded-nkz-md p-nkz-stack',
         'flex flex-col gap-nkz-tight',
         className
@@ -59,7 +59,7 @@ export function MetricCard({
         )}
       </div>
       {trend && (
-        <span className={clsx('text-nkz-xs font-medium', trendColors[trend.direction])}>
+        <span className={cn('text-nkz-xs font-medium', trendColors[trend.direction])}>
           {trend.direction === 'up' && '↑ '}
           {trend.direction === 'down' && '↓ '}
           {trend.value}

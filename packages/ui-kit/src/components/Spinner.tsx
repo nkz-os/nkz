@@ -3,7 +3,7 @@
  * Licensed under Apache-2.0
  */
 
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 
 type SpinnerSize = 'sm' | 'md' | 'lg';
 
@@ -21,7 +21,7 @@ const sizeClasses: Record<SpinnerSize, string> = {
 export function Spinner({ size = 'md', className }: SpinnerProps) {
   return (
     <div
-      className={clsx(
+      className={cn(
         'rounded-full border-nkz-border border-t-nkz-accent-base animate-spin',
         sizeClasses[size],
         className

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 
 type InputSize = 'sm' | 'md';
 
@@ -21,7 +21,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <div className="relative flex items-center">
         {prefix && (
           <span
-            className={clsx(
+            className={cn(
               'absolute left-0 flex items-center justify-center text-nkz-text-muted pointer-events-none',
               size === 'sm' ? 'w-7 h-7' : 'w-9 h-9'
             )}
@@ -32,7 +32,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           disabled={disabled}
-          className={clsx(
+          className={cn(
             'w-full bg-nkz-surface border rounded-nkz-md text-nkz-text-primary',
             'transition-colors duration-nkz-fast',
             'placeholder:text-nkz-text-muted',
@@ -50,7 +50,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         />
         {suffix && (
           <span
-            className={clsx(
+            className={cn(
               'absolute right-0 flex items-center justify-center text-nkz-text-muted pointer-events-none',
               size === 'sm' ? 'w-7 h-7' : 'w-9 h-9'
             )}

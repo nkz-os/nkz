@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 
 /* ───────── FormGrid ───────── */
 
@@ -22,7 +22,7 @@ const gridColumns: Record<NonNullable<FormGridProps['columns']>, string> = {
 
 export function FormGrid({ children, columns = 1, className }: FormGridProps) {
   return (
-    <div className={clsx('grid gap-nkz-stack', gridColumns[columns], className)}>
+    <div className={cn('grid gap-nkz-stack', gridColumns[columns], className)}>
       {children}
     </div>
   );
@@ -56,7 +56,7 @@ export function FormField({
   className,
 }: FormFieldProps) {
   return (
-    <div className={clsx('flex flex-col gap-nkz-tight', spanClasses[span], className)}>
+    <div className={cn('flex flex-col gap-nkz-tight', spanClasses[span], className)}>
       <label className="flex items-center gap-nkz-tight text-nkz-sm font-medium text-nkz-text-primary">
         {label}
         {required && <span className="text-nkz-danger" aria-label="required">*</span>}

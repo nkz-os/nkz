@@ -4,7 +4,7 @@
  */
 
 import * as RadixSwitch from '@radix-ui/react-switch';
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 
 interface SwitchProps {
   checked: boolean;
@@ -26,7 +26,7 @@ export function Switch({
       checked={checked}
       onCheckedChange={onChange}
       disabled={disabled}
-      className={clsx(
+      className={cn(
         'w-9 h-5 rounded-nkz-full relative transition-colors duration-nkz-fast',
         'focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base focus-visible:ring-offset-2',
         'disabled:opacity-50 disabled:cursor-not-allowed',
@@ -39,7 +39,7 @@ export function Switch({
         // own (also dark) track — fails 1.4.11 in every profile we
         // measured. Its boundary is carried by elevation (shadow-sm)
         // instead of color, per WCAG 1.4.11's own allowance.
-        className={clsx(
+        className={cn(
           'block w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-nkz-fast',
           checked ? 'translate-x-[18px]' : 'translate-x-[2px]'
         )}

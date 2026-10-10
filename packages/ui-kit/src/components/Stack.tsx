@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 
 type StackGap = 'tight' | 'inline' | 'stack' | 'section';
 
@@ -45,7 +45,7 @@ export function Stack({
 }: StackProps) {
   return (
     <div
-      className={clsx(
+      className={cn(
         'flex flex-col',
         gapMap[gap],
         align && alignMap[align],

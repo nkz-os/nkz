@@ -4,7 +4,7 @@
  */
 
 import * as RadixSlider from '@radix-ui/react-slider';
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 
 interface SliderProps {
   value: number;
@@ -30,7 +30,7 @@ export function Slider({
   className,
 }: SliderProps) {
   return (
-    <div className={clsx('flex flex-col gap-nkz-tight', className)}>
+    <div className={cn('flex flex-col gap-nkz-tight', className)}>
       {(label || unit) && (
         <div className="flex justify-between text-nkz-xs">
           {label && <span className="text-nkz-text-secondary">{label}</span>}
@@ -60,7 +60,7 @@ export function Slider({
           // own (also dark) track — fails 1.4.11 in every profile we
           // measured. Its boundary is carried by elevation (shadow-nkz-sm)
           // instead of color, per WCAG 1.4.11's own allowance.
-          className={clsx(
+          className={cn(
             'block w-4 h-4 bg-white rounded-full shadow-nkz-sm border border-nkz-border-strong',
             'focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base',
             'disabled:opacity-50 disabled:cursor-not-allowed'

@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 
 interface EmptyStateProps {
   icon?: React.ReactNode;
@@ -17,7 +17,7 @@ interface EmptyStateProps {
 export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
   return (
     <div
-      className={clsx(
+      className={cn(
         'flex flex-col items-center justify-center text-center py-nkz-section px-nkz-stack',
         className
       )}

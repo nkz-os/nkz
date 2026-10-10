@@ -4,7 +4,7 @@
  */
 
 import * as RadixCheckbox from '@radix-ui/react-checkbox';
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 
 interface CheckboxProps {
   checked: boolean;
@@ -24,7 +24,7 @@ export function Checkbox({ checked, onChange, label, disabled, id }: CheckboxPro
         checked={checked}
         onCheckedChange={onChange}
         disabled={disabled}
-        className={clsx(
+        className={cn(
           'flex items-center justify-center w-4 h-4 rounded-nkz-xs border',
           'transition-colors duration-nkz-fast',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base focus-visible:ring-offset-2',
@@ -49,7 +49,7 @@ export function Checkbox({ checked, onChange, label, disabled, id }: CheckboxPro
       {label && (
         <label
           htmlFor={checkId}
-          className={clsx(
+          className={cn(
             'text-nkz-sm text-nkz-text-primary select-none cursor-pointer',
             disabled && 'opacity-50 cursor-not-allowed'
           )}
