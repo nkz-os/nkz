@@ -42,3 +42,16 @@ def test_import():
         importlib.import_module("sdm_api")
     except (ModuleNotFoundError, ImportError, ValueError) as e:
         pytest.fail(f"Could not import sdm_api: {e}")
+
+
+def test_device_is_provisioned_in_the_iot_agent():
+    """Device is the canonical sensor type; it must get IoT Agent provisioning."""
+    with open(_MAIN_FILE) as f:
+        tree = ast.parse(f.read())
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            getattr(t, "id", None) == "IOT_ENTITY_TYPES" for t in node.targets
+        ):
+            assert "Device" in ast.literal_eval(node.value)
+            return
+    pytest.fail("IOT_ENTITY_TYPES not found")
