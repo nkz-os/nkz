@@ -145,3 +145,33 @@ def test_telemetry_lookups_use_the_device_key_not_the_entity_urn():
     for sql, args in calls:
         assert "device_id = $2" in sql
         assert args[1] == "S1"
+
+
+def test_tenants_come_from_the_tenant_registry_not_from_telemetry():
+    """Telemetry outlives deleted tenants; listing it also scans the whole hypertable."""
+    import asyncio
+
+    calls = []
+
+    class _Conn:
+        async def fetch(self, sql, *args):
+            calls.append(sql)
+            return [{"tenant_id": "a"}, {"tenant_id": "b"}]
+
+    class _Acquire:
+        async def __aenter__(self):
+            return _Conn()
+
+        async def __aexit__(self, *a):
+            return False
+
+    class _Pool:
+        def acquire(self):
+            return _Acquire()
+
+    beat = SensorHealthBeat(Settings())
+    beat._pg_pool = _Pool()
+    assert asyncio.run(beat._list_live_tenants()) == ["a", "b"]
+    assert "FROM tenants" in calls[0]
+    assert "deleted_at IS NULL" in calls[0]
+    assert "telemetry_events" not in calls[0]
