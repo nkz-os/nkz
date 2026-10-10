@@ -46,9 +46,17 @@ SUBSCRIPTIONS = [
         # producer writes it. A separate entry, not an edit of the one above: the
         # reconciler keys on the id and never rewrites an existing subscription's
         # entity list.
+        # Readings are written onto the Device too; watching only the fields the
+        # sensors table stores keeps them from notifying here, and without a
+        # throttle a new device's creation cannot be swallowed by another's.
         "description": "Entity Manager - Device registration",
         "type": "Subscription",
         "entities": [{"type": "Device"}],
+        "watchedAttributes": [
+            "name", "externalId", "profileCode", "controlledAsset", "parcelId",
+            "location", "status", "metadata", "isUnderCanopy", "altitudeMeters",
+            "installedAt",
+        ],
         "notification": {
             "endpoint": {
                 "uri": NOTIFICATION_URL,
@@ -56,7 +64,6 @@ SUBSCRIPTIONS = [
             },
             "format": "normalized",
         },
-        "throttling": 5,
         "isActive": True,
     },
     {

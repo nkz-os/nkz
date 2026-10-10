@@ -49,3 +49,14 @@ def test_a_device_notification_is_persisted():
                                      headers={"NGSILD-Tenant": "t"})
     assert res.get_json()["persisted"] == 1
     handler.assert_called_once_with("t", [device])
+
+
+def test_device_registration_ignores_readings():
+    """Readings land on the Device itself; without watchedAttributes every one
+    would notify, and the per-subscription throttle could swallow a new
+    device's creation."""
+    sub = next(s for s in sm.SUBSCRIPTIONS if s["entities"][0]["type"] == "Device")
+    watched = set(sub["watchedAttributes"])
+    assert {"name", "externalId", "profileCode", "controlledAsset", "location", "status"} <= watched
+    assert "airTemperature" not in watched
+    assert "throttling" not in sub
