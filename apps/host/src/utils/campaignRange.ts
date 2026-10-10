@@ -65,12 +65,14 @@ export function resolveTimelineRange(
 export interface CycleDto { start: { date: string | null }; end: { date: string | null } }
 export interface CropCycles { current: CycleDto | null; next: CycleDto | null }
 
-/** Window of the parcel's current crop cycle as resolved by the platform. */
+/** Window of the parcel's current crop cycle as resolved by the platform; without one,
+ * the recent past plus the next cycle, so the present and the coming campaign show together. */
 export function rangeFromCropCycles(
   cycles: CropCycles | null, now: number,
 ): { range: TimeRange; source: 'campaign' } | null {
   const cur = cycles?.current;
-  const start = cur?.start.date ? isoToUtcMs(cur.start.date) : NaN;
+  if (!cur) return rangeOfNextCycle(cycles?.next ?? null, now);
+  const start = cur.start.date ? isoToUtcMs(cur.start.date) : NaN;
   if (!Number.isFinite(start)) return null;
   const declared = cur?.end.date ? isoToUtcMs(cur.end.date) : NaN;
   const end = Number.isFinite(declared) && declared >= now ? declared : now + DEFAULT_FUTURE_DAYS * DAY_MS;
@@ -79,6 +81,17 @@ export function rangeFromCropCycles(
       start: Math.max(start, now - MAX_PAST_DAYS * DAY_MS),
       end: Math.min(end, now + MAX_FUTURE_DAYS * DAY_MS),
     },
+    source: 'campaign',
+  };
+}
+
+function rangeOfNextCycle(next: CycleDto | null, now: number): { range: TimeRange; source: 'campaign' } | null {
+  const start = next?.start.date ? isoToUtcMs(next.start.date) : NaN;
+  if (!Number.isFinite(start)) return null;
+  const declared = next?.end.date ? isoToUtcMs(next.end.date) : NaN;
+  const end = Number.isFinite(declared) && declared > start ? declared : start + DEFAULT_SEASON_DAYS * DAY_MS;
+  return {
+    range: { start: now - DEFAULT_PAST_DAYS * DAY_MS, end: Math.min(end, now + MAX_FUTURE_DAYS * DAY_MS) },
     source: 'campaign',
   };
 }
