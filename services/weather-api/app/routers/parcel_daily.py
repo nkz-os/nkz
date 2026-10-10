@@ -25,6 +25,7 @@ from app.auth import require_auth
 from app.deps import get_db_connection
 from app.config import settings
 from app.routers.parcels import _normalize_parcel_id, _orion_headers, _resolve_parcel_location
+from app.services import sensor_daily
 from app.services.daily_fill import fetch_open_meteo_daily, plan_fill
 from app.services.daily_totals import compute_totals
 
@@ -107,6 +108,79 @@ def _fetch_parcel_entity(parcel_urn: str, tenant_id: str) -> Optional[Dict[str, 
     except Exception as e:  # noqa: BLE001 — no location means no fill, not an error
         logger.warning("parcel lookup for fill failed %s: %s", parcel_urn, e)
         return None
+
+
+def _parcel_devices(parcel_urn: str, tenant_id: str) -> List[str]:
+    """Short ids of the IoT devices whose controlledAsset is the parcel (raises when the broker fails)."""
+    resp = requests.get(
+        f"{settings.orion_url}/ngsi-ld/v1/entities",
+        params={"type": "Device", "q": f'controlledAsset=="{parcel_urn}"', "limit": 100},
+        headers=_orion_headers(tenant_id),
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"device lookup returned {resp.status_code}")
+    return sorted({e["id"].split(":")[-1] for e in resp.json() if e.get("id")})
+
+
+def _sensor_readings(tenant_id: str, devices: List[str], lo: datetime, hi: datetime) -> List[sensor_daily.Reading]:
+    """Valid, calibrated readings of the devices in [lo, hi) (raises when the store fails)."""
+    conn = get_db_connection(tenant_id)
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT device_id, observed_at, payload->'measurements' AS measurements
+            FROM telemetry_events
+            WHERE tenant_id = %s
+              AND entity_type = 'DeviceMeasurement'
+              AND device_id = ANY(%s)
+              AND quality_flag = 'valid'
+              AND observed_at >= %s AND observed_at < %s
+            """,
+            (tenant_id, devices, lo, hi),
+        )
+        rows = cur.fetchall()
+    finally:
+        conn.close()
+    out: List[sensor_daily.Reading] = []
+    for row in rows:
+        m = row.get("measurements") or {}
+        if isinstance(m, str):
+            m = json.loads(m)
+        ts = row["observed_at"]
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        for name, value in m.items():
+            v = _num(value)
+            if v is not None:
+                out.append(sensor_daily.Reading(row["device_id"], ts, name, v))
+    return out
+
+
+def _apply_sensors(tenant_id: str, parcel_urn: str, d0: date, d1: date, days: List[Dict[str, Any]],
+                   entity: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Fold the parcel's IoT sensors into `days` (precedence sensor > parcel weather > fill).
+
+    A sensor failure never takes the series down: it is served without them and says so.
+    """
+    try:
+        devices = _parcel_devices(parcel_urn, tenant_id)
+        if devices:
+            entity = entity or _fetch_parcel_entity(parcel_urn, tenant_id) or {}
+            tz_attr = entity.get("timeZone")
+            tz = sensor_daily.tz_or_utc(tz_attr.get("value") if isinstance(tz_attr, dict) else tz_attr)
+            # Local days can start up to 14 h either side of UTC midnight.
+            lo = datetime(d0.year, d0.month, d0.day, tzinfo=timezone.utc) - timedelta(hours=14)
+            hi = datetime(d1.year, d1.month, d1.day, tzinfo=timezone.utc) + timedelta(days=1, hours=14)
+            sensor_daily.merge(days, sensor_daily.aggregate(_sensor_readings(tenant_id, devices, lo, hi), tz))
+        else:
+            sensor_daily.merge(days, {})
+        return {"sensor_devices": devices, "sensors_unavailable": False}
+    except Exception as e:  # noqa: BLE001 — the model series does not depend on sensors
+        logger.warning("IoT sensors unavailable for %s tenant=%s: %s", parcel_urn, tenant_id, e)
+        sensor_daily.merge(days, {})
+        return {"sensor_devices": [], "sensors_unavailable": True}
 
 
 def _parcel_elevation(entity: Dict[str, Any]) -> Optional[float]:
@@ -199,6 +273,7 @@ def get_parcel_daily(
     reasons: Dict[str, str] = {}
     unfilled = [date.fromisoformat(d["date"]) for d in days if d["source"] is None]
     today = _today()
+    entity: Optional[Dict[str, Any]] = None
     if fill == "open_meteo" and unfilled:
         plan = plan_fill(unfilled, today)
         for d in plan["not_closed"]:
@@ -239,6 +314,8 @@ def get_parcel_daily(
         for d in unfilled:
             reasons[d.isoformat()] = "not_closed" if d >= today else "no_data"
 
+    sensors = _apply_sensors(tenant_id, parcel_urn, d0, d1, days, entity)
+
     missing = [d["date"] for d in days if d["source"] is None]
     closed = [d for d in days if d["source"] is not None]
 
@@ -251,5 +328,6 @@ def get_parcel_daily(
         "missing_reasons": reasons,
         "totals": compute_totals(closed, base_temp, upper_cutoff),
         "units": _UNITS,
+        **sensors,
         "source": _SOURCE if fill == "none" else f"{_SOURCE}; gaps: Open-Meteo model analysis (recent) and reanalysis archive",
     }
