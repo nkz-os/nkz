@@ -126,8 +126,10 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
         parcelApi.getParcels().catch(() => []),
         api.getRobots().catch(() => []),
         api.getSDMEntityInstances('AgriSensor').catch(() => []), // Changed from getSensors() to use SDM like /sensors page
-        api.getMachines().catch(() => []),
-        api.getLivestock().catch(() => []),
+        // SDM entities, not the map projections: those use display types, drop the
+        // parcel relationships and getMachines() repeats the robots.
+        api.getSDMEntityInstances('ManufacturingMachine').catch(() => []),
+        api.getSDMEntityInstances('LivestockAnimal').catch(() => []),
         api.getWeatherStations().catch(() => []),
         api.getSDMEntityInstances('AgriCrop').catch(() => []),
         api.getSDMEntityInstances('AgriBuilding').catch(() => []),

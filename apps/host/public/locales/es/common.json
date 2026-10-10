@@ -2013,6 +2013,10 @@
         "save": "Guardar",
         "saved": "Guardado",
         "error": "Error al actualizar la relación"
+      },
+      "menu": {
+        "view_on_map": "Ver en mapa",
+        "copy_id": "Copiar ID"
       }
     },
     "filters": {

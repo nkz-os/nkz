@@ -2039,6 +2039,10 @@
         "save": "Enregistrer",
         "saved": "Enregistré",
         "error": "Impossible de mettre à jour la relation"
+      },
+      "menu": {
+        "view_on_map": "Voir sur la carte",
+        "copy_id": "Copier l'ID"
       }
     },
     "filters": {

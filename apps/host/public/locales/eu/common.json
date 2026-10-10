@@ -2014,6 +2014,10 @@
         "save": "Gorde",
         "saved": "Gordeta",
         "error": "Ezin izan da erlazioa eguneratu"
+      },
+      "menu": {
+        "view_on_map": "Ikusi mapan",
+        "copy_id": "Kopiatu IDa"
       }
     },
     "filters": {

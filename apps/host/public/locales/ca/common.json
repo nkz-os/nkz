@@ -2039,6 +2039,10 @@
         "save": "Desa",
         "saved": "Desat",
         "error": "No s'ha pogut actualitzar la relació"
+      },
+      "menu": {
+        "view_on_map": "Mostra al mapa",
+        "copy_id": "Copia l'ID"
       }
     },
     "filters": {
