@@ -49,6 +49,9 @@ services:
       start_period: 30s
 
   orion-ld:
+    # Orion-LD occasionally exits during start-up in CI; without a restart the
+    # whole run tests against a broken stack and fails on unrelated screenshots.
+    restart: on-failure
     healthcheck:
       interval: 5s
       retries: 15
