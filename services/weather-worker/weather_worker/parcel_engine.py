@@ -10,6 +10,7 @@ tenant_weather_locations. It does NOT write to PostgreSQL UI tables.
 """
 
 import logging
+import re
 import os
 import sys
 import time
@@ -189,7 +190,7 @@ class ParcelWeatherEngine:
                 headers = self._make_headers(tid)
                 params = {
                     "type": "AgriParcel",
-                    "attrs": "location,name,elevation,terrainAspect,terrainSlope,cropStatus",
+                    "attrs": "location,name,elevation,terrainAspect,terrainSlope,cropStatus,timeZone",
                     "limit": min(self.max_parcels, 1000),
                 }
                 url = f"{self.orion_url}/ngsi-ld/v1/entities"
@@ -863,6 +864,8 @@ class ParcelWeatherEngine:
                     f"Skipping parcel {p.get('id')}: no resolvable location"
                 )
 
+        stats.update(self._ensure_parcel_timezones(enriched))
+
         clusters = self._cluster_parcels(enriched, self.cluster_radius_km)
         stats["clusters"] = len(clusters)
 
@@ -1031,6 +1034,70 @@ class ParcelWeatherEngine:
     # ------------------------------------------------------------------
     # Closed day (final previous day) — see weather_worker/closed_day.py
     # ------------------------------------------------------------------
+
+    # Static per parcel, so each is looked up once; the cap keeps a large first run
+    # (or a big import of parcels) from bursting the provider in a single cycle.
+    TIMEZONE_LOOKUPS_PER_CYCLE = 50
+    _IANA_ZONE = re.compile(r"^(UTC|GMT|[A-Za-z]+(/[A-Za-z0-9_+\-]+)+)$")
+
+    def _ensure_parcel_timezones(self, parcels: List[Dict[str, Any]]) -> Dict[str, int]:
+        """Write AgriParcel.timeZone (IANA name) for parcels that lack it.
+
+        The parcel's own zone, not its cluster's: two parcels a few km apart can sit
+        on both sides of a time-zone border. Consumers derive the parcel's local day
+        from it (crop cycles, daily sensor aggregation).
+        """
+        stats = {"timezone_written": 0, "timezone_errors": 0}
+        lookups = 0
+        for p in parcels:
+            tenant_id, pid = p.get("_tenant"), p.get("id")
+            current = p.get("timeZone")
+            current = current.get("value") if isinstance(current, dict) else current
+            if not tenant_id or not pid or "_centroid" not in p or current:
+                continue
+            if lookups >= self.TIMEZONE_LOOKUPS_PER_CYCLE:
+                break
+            lookups += 1
+            lon, lat = p["_centroid"]
+            tz = self._fetch_timezone(lat, lon)
+            if not tz or not self._IANA_ZONE.match(tz):
+                logger.warning("No usable time zone for parcel %s: %r", pid, tz)
+                stats["timezone_errors"] += 1
+                continue
+            try:
+                resp = requests.post(
+                    f"{self.orion_url}/ngsi-ld/v1/entities/{pid}/attrs",
+                    headers=self._make_headers(tenant_id),
+                    json={"timeZone": {"type": "Property", "value": tz}},
+                    timeout=10,
+                )
+                if resp.status_code in (200, 204):
+                    stats["timezone_written"] += 1
+                else:
+                    logger.warning("timeZone write for %s returned %s", pid, resp.status_code)
+                    stats["timezone_errors"] += 1
+            except Exception as e:  # noqa: BLE001 — retried next cycle
+                logger.warning("timeZone write for %s failed: %s", pid, e)
+                stats["timezone_errors"] += 1
+        return stats
+
+    def _fetch_timezone(self, latitude: float, longitude: float) -> Optional[str]:
+        """IANA zone of a point, resolved by the provider (``timezone=auto``)."""
+        try:
+            resp = requests.get(
+                f"{self.openmeteo_url}/forecast",
+                params={"latitude": latitude, "longitude": longitude, "timezone": "auto",
+                        "forecast_days": 1, "daily": "temperature_2m_max"},
+                timeout=20,
+            )
+            if resp.status_code != 200:
+                logger.warning("Open-Meteo time zone lookup returned %s", resp.status_code)
+                return None
+            tz = resp.json().get("timezone")
+            return tz if isinstance(tz, str) else None
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Open-Meteo time zone lookup failed: %s", e)
+            return None
 
     def _fetch_openmeteo_closed_day(
         self, latitude: float, longitude: float, past_days: int = 2

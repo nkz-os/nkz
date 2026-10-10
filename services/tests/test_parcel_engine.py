@@ -619,8 +619,9 @@ def test_cycle_skips_a_parcel_with_no_corrected_observations(caplog):
 
     assert stats["weather_forecast_written"] == 0
     # The closed-day series ("...-daily") has its own fetch and is still due.
+    # Entity upserts only (lists); attribute fragments such as the parcel's timeZone are not observations.
     running = [
-        p for p in posts if p["body"]
+        p for p in posts if isinstance(p["body"], list) and p["body"]
         and not any(str(e.get("id", "")).endswith("-daily") for e in p["body"])
     ]
     assert not running, "nada que publicar, nada publicado"
