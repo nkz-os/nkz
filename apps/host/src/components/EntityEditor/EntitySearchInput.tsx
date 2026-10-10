@@ -50,17 +50,19 @@ export const EntitySearchInput: React.FC<Props> = ({
     const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const response = await (api as any).client.get('/ngsi-ld/v1/entities', {
-          params: { type: resolvedTarget, q: searchTerm, limit: 10 },
-        });
-        const entities = Array.isArray(response.data) ? response.data : (response.data?.instances || []);
+        // Filtered here: the broker reads a bare `q` as an attribute name, and its
+        // regex filter rejects free text. The list is paged and cached by the API.
+        const entities = await api.getSDMEntityInstances(resolvedTarget);
+        const needle = searchTerm.toLowerCase();
         const items: SearchResult[] = entities
           .filter((e: any) => e.id !== currentEntityId)
           .map((e: any) => ({
             id: e.id,
             name: getNGSIValue(e.name) || e.id?.split(':')?.pop() || e.id,
             type: e.type || resolvedTarget,
-          }));
+          }))
+          .filter((item: SearchResult) => String(item.name).toLowerCase().includes(needle))
+          .slice(0, 10);
         setResults(items);
       } catch { setResults([]); }
       finally { setSearching(false); }
