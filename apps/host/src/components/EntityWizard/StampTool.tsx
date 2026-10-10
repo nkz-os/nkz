@@ -109,7 +109,7 @@ export const StampTool: React.FC<StampToolProps> = ({
               max="50"
               value={stampOptions.brushSize}
               onChange={(e: any) => updateStampOptions({ brushSize: parseInt(e.target.value) })}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
+              className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-nkz-surface-sunken accent-blue-600"
             />
           </div>
           <div className="flex-1">
@@ -121,19 +121,19 @@ export const StampTool: React.FC<StampToolProps> = ({
               step="0.1"
               value={stampOptions.density}
               onChange={(e: any) => updateStampOptions({ density: parseFloat(e.target.value) })}
-              className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
+              className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-nkz-surface-sunken accent-blue-600"
             />
           </div>
         </div>
 
         <div className="flex justify-between items-center border-t border-nkz-border pt-2 mt-1">
-          <span className="text-sm font-medium text-gray-700">
+          <span className="text-sm font-medium text-nkz-text-primary">
             <span className="text-nkz-info font-bold">{stampInstances.length}</span> {t('wizard.stamp.items')}
           </span>
-          <Button
+          <Button variant="ghost"
             type="button"
             onClick={handleClear}
-            className="px-3 py-1.5 bg-white border border-nkz-border rounded text-sm hover:bg-nkz-danger-soft hover:text-nkz-danger-strong hover:border-red-200 flex items-center gap-1 transition-colors"
+            className="px-3 py-1.5 bg-nkz-surface border border-nkz-border rounded text-sm hover:bg-nkz-danger-soft hover:text-nkz-danger-strong hover:border-nkz-danger/30 flex items-center gap-1 transition-colors"
           >
             <Eraser className="w-4 h-4" /> {t('wizard.stamp.clear_all')}
           </Button>
@@ -141,7 +141,7 @@ export const StampTool: React.FC<StampToolProps> = ({
       </div>
 
       {/* Info Box */}
-      <div className="bg-nkz-info-soft border border-blue-100 rounded-lg p-3 text-sm text-blue-800">
+      <div className="bg-nkz-info-soft border border-nkz-info/30 rounded-lg p-3 text-sm text-nkz-info-strong">
         <p className="flex items-center gap-2">
           🖌️ <strong>{t('wizard.stamp.paint_mode_active')}</strong> {t('wizard.stamp.paint_mode_hint')}
         </p>

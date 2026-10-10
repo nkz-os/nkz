@@ -18,13 +18,13 @@ export function StepSummary() {
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">{t('wizard.steps.summary')}</h3>
 
-      <div className="bg-gradient-to-br from-green-50 to-blue-50 p-5 rounded-xl border border-green-200 space-y-3">
+      <div className="bg-nkz-surface-sunken p-5 rounded-xl border border-nkz-success/30 space-y-3">
         {/* Header */}
-        <div className="flex items-center gap-3 pb-3 border-b border-green-200">
+        <div className="flex items-center gap-3 pb-3 border-b border-nkz-success/30">
           <Icon className="w-8 h-8 text-nkz-success" />
           <div>
-            <div className="font-bold text-lg text-gray-900">{formData.name || t('wizard.summary.unnamed')}</div>
-            <div className="text-sm text-gray-600">{entityType}</div>
+            <div className="font-bold text-lg text-nkz-text-primary">{formData.name || t('wizard.summary.unnamed')}</div>
+            <div className="text-sm text-nkz-text-secondary">{entityType}</div>
           </div>
         </div>
 
@@ -33,7 +33,7 @@ export function StepSummary() {
           {formData.description && (
             <div className="col-span-2">
               <span className="text-nkz-muted">{t('wizard.summary.description')}</span>
-              <span className="ml-2 text-gray-900">{formData.description}</span>
+              <span className="ml-2 text-nkz-text-primary">{formData.description}</span>
             </div>
           )}
 
@@ -41,19 +41,19 @@ export function StepSummary() {
           {assetData?.isSubdivision && assetData.parentEntity && (
             <div>
               <span className="text-nkz-muted">{t('wizard.summary.parent')}</span>
-              <span className="ml-2 text-gray-900">{assetData.parentEntity.name}</span>
+              <span className="ml-2 text-nkz-text-primary">{assetData.parentEntity.name}</span>
             </div>
           )}
           {assetData?.municipality && (
             <div>
               <span className="text-nkz-muted">{t('wizard.summary.municipality')}</span>
-              <span className="ml-2 text-gray-900">{assetData.municipality}</span>
+              <span className="ml-2 text-nkz-text-primary">{assetData.municipality}</span>
             </div>
           )}
           {assetData?.cadastralReference && (
             <div className="col-span-2">
               <span className="text-nkz-muted">{t('wizard.summary.cadastral_ref')}</span>
-              <span className="ml-2 text-gray-900 font-mono text-xs">{assetData.cadastralReference}</span>
+              <span className="ml-2 text-nkz-text-primary font-mono text-xs">{assetData.cadastralReference}</span>
             </div>
           )}
 
@@ -61,31 +61,31 @@ export function StepSummary() {
           {formData.geometry && (
             <div>
               <span className="text-nkz-muted">{t('wizard.summary.geometry')}</span>
-              <span className="ml-2 text-gray-900">{formData.geometry.type}</span>
+              <span className="ml-2 text-nkz-text-primary">{formData.geometry.type}</span>
             </div>
           )}
         </div>
 
         {/* Visual assets */}
         {(formData.defaultIconKey || formData.iconUrl || formData.model3DUrl) && (
-          <div className="flex gap-4 pt-3 border-t border-green-200">
+          <div className="flex gap-4 pt-3 border-t border-nkz-success/30">
             {(formData.defaultIconKey || formData.iconUrl) && (
               <div className="flex items-center gap-2 text-sm">
-                <div className="w-8 h-8 bg-white rounded-lg border border-nkz-border flex items-center justify-center">
+                <div className="w-8 h-8 bg-nkz-surface rounded-lg border border-nkz-border flex items-center justify-center">
                   {formData.iconUrl
                     ? <img src={formData.iconUrl} alt={t('wizard.summary.icon')} className="w-6 h-6 object-contain" />
-                    : <Icon className="w-5 h-5 text-gray-600" />
+                    : <Icon className="w-5 h-5 text-nkz-text-secondary" />
                   }
                 </div>
-                <span className="text-gray-600">{formData.iconUrl ? t('wizard.summary.icon_custom') : t('wizard.summary.icon_default')}</span>
+                <span className="text-nkz-text-secondary">{formData.iconUrl ? t('wizard.summary.icon_custom') : t('wizard.summary.icon_default')}</span>
               </div>
             )}
             {formData.model3DUrl && (
               <div className="flex items-center gap-2 text-sm">
-                <div className="w-8 h-8 bg-white rounded-lg border border-nkz-border flex items-center justify-center">
-                  <Building2 className="w-5 h-5 text-gray-600" />
+                <div className="w-8 h-8 bg-nkz-surface rounded-lg border border-nkz-border flex items-center justify-center">
+                  <Building2 className="w-5 h-5 text-nkz-text-secondary" />
                 </div>
-                <span className="text-gray-600">{t('wizard.summary.model_3d')}</span>
+                <span className="text-nkz-text-secondary">{t('wizard.summary.model_3d')}</span>
               </div>
             )}
           </div>
@@ -94,12 +94,12 @@ export function StepSummary() {
 
       {/* Robot-specific note */}
       {entityType === 'AutonomousMobileRobot' && (
-        <div className="p-3 bg-nkz-warning-soft border border-yellow-200 rounded-lg text-sm text-yellow-800">
+        <div className="p-3 bg-nkz-warning-soft border border-nkz-warning/30 rounded-lg text-sm text-nkz-warning-strong">
           <strong>{t('wizard.summary.note')}</strong> {t('wizard.summary.robot_note_before')} <a href="/connectivity" className="underline font-medium">{t('wizard.summary.robot_note_link')}</a> {t('wizard.summary.robot_note_after')}
         </div>
       )}
 
-      <p className="text-sm text-gray-600">{t('wizard.summary.review_hint')}</p>
+      <p className="text-sm text-nkz-text-secondary">{t('wizard.summary.review_hint')}</p>
     </div>
   );
 }

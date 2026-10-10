@@ -111,7 +111,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                     onClick={() => setActiveTab('library')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'library'
                         ? 'border-blue-500 text-nkz-info'
-                        : 'border-transparent text-nkz-muted hover:text-gray-700'
+                        : 'border-transparent text-nkz-muted hover:text-nkz-text-primary'
                         }`}
                 >
                     <div className="flex items-center gap-2">
@@ -123,7 +123,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                     onClick={() => setActiveTab('upload')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'upload'
                         ? 'border-blue-500 text-nkz-info'
-                        : 'border-transparent text-nkz-muted hover:text-gray-700'
+                        : 'border-transparent text-nkz-muted hover:text-nkz-text-primary'
                         }`}
                 >
                     <div className="flex items-center gap-2">
@@ -157,12 +157,12 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                     <p>{t('wizard.assets_browser.loading')}</p>
                                 </div>
                             ) : filteredAssets.map((asset) => (
-                                <Button
+                                <Button variant="ghost"
                                     key={asset.key}
                                     onClick={() => onSelect(asset.url)}
                                     className={`group relative border-2 rounded-xl text-left transition-all hover:shadow-md flex flex-col overflow-hidden h-[220px] ${selectedUrl === asset.url
                                         ? 'border-blue-500 ring-2 ring-blue-200'
-                                        : 'border-nkz-border hover:border-blue-300'
+                                        : 'border-nkz-border hover:border-nkz-info/30'
                                         }`}
                                 >
                                     {/* 3D Preview */}
@@ -193,8 +193,8 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                     </div>
 
                                     {/* Asset Info */}
-                                    <div className="p-3 bg-white w-full border-t border-gray-100">
-                                        <div className="font-medium text-sm text-gray-900 capitalize truncate" title={asset.name}>
+                                    <div className="p-3 bg-nkz-surface w-full border-t border-nkz-border">
+                                        <div className="font-medium text-sm text-nkz-text-primary capitalize truncate" title={asset.name}>
                                             {shortName(asset)}
                                         </div>
                                         <div className="text-xs text-nkz-muted capitalize flex justify-between items-center mt-1">
@@ -235,7 +235,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                     {/* Scale */}
                     {onScaleChange && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-nkz-text-primary mb-2">
                                 {t('wizard.assets_browser.model_scale', { value: scale.toFixed(1) })}
                             </label>
                             <Input
@@ -245,7 +245,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                                 step="0.1"
                                 value={scale}
                                 onChange={(e: any) => onScaleChange(parseFloat(e.target.value))}
-                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                className="w-full h-2 bg-nkz-surface-sunken rounded-lg appearance-none cursor-pointer accent-blue-600"
                             />
                             <div className="flex justify-between text-xs text-nkz-muted mt-1">
                                 <span>0.1x</span>
@@ -258,7 +258,7 @@ export const AssetBrowser: React.FC<AssetBrowserProps> = ({
                     {/* Rotation */}
                     {onRotationChange && rotation && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <label className="block text-sm font-medium text-nkz-text-primary mb-2">
                                 {t('wizard.assets_browser.rotation')}
                             </label>
                             <div className="grid grid-cols-3 gap-2">

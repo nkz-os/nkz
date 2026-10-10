@@ -121,7 +121,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
     mono?: boolean;
   }> = ({ label, value, fieldName, sensitive = false, mono = true }) => (
     <div className="space-y-1">
-      <label className="block text-xs font-medium text-gray-700">{label}</label>
+      <label className="block text-xs font-medium text-nkz-text-primary">{label}</label>
       <div className="flex items-center gap-2">
         <Input
           type={sensitive ? 'password' : 'text'}
@@ -129,7 +129,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           readOnly
           className={`flex-1 px-3 py-2 text-sm border border-nkz-border rounded bg-nkz-bg-secondary ${mono ? 'font-mono' : ''}`}
         />
-        <Button
+        <Button variant="ghost"
           type="button"
           onClick={() => copyToClipboard(value, fieldName)}
           className="px-3 py-2 border border-nkz-border rounded hover:bg-nkz-bg-secondary transition"
@@ -147,12 +147,12 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-nkz-surface rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-5 flex justify-between items-start rounded-t-2xl">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-white/20 rounded-lg">
+              <div className="p-2 bg-nkz-surface/20 rounded-lg">
                 <Radio className="w-6 h-6 text-white" />
               </div>
               <h2 className="text-xl font-bold text-white">{t('wizard.mqtt.title')}</h2>
@@ -163,17 +163,17 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           </div>
           <Button variant="ghost"
             onClick={onClose}
-            className="text-white/70 hover:text-white ml-4 p-1"
+            className="text-nkz-text-on-accent/70 hover:text-nkz-text-on-accent hover:bg-nkz-text-on-accent/10 ml-4 p-1"
           >
             <X className="w-6 h-6" />
           </Button>
         </div>
 
         {/* Warning Banner */}
-        <div className="bg-amber-50 border-b border-amber-200 px-6 py-3">
+        <div className="bg-nkz-warning-soft border-b border-nkz-warning/30 px-6 py-3">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-            <p className="text-sm text-amber-800">
+            <AlertTriangle className="w-5 h-5 text-nkz-warning-strong flex-shrink-0" />
+            <p className="text-sm text-nkz-warning-strong">
               <strong>{t('wizard.mqtt.warning_label')}</strong> {t('wizard.mqtt.warning_save')} <strong>{t('wizard.mqtt.warning_once')}</strong>
             </p>
           </div>
@@ -183,22 +183,19 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
         <div className="p-6 space-y-5">
           {/* Quick Actions */}
           <div className="grid grid-cols-2 gap-3">
-            <Button
+            <Button variant="primary"
               type="button"
               onClick={downloadConfigFile}
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium shadow-sm"
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition font-medium shadow-sm"
             >
               <FileDown className="w-5 h-5" />
               {t('wizard.mqtt.download_config')}
             </Button>
-            <Button variant="ghost"
+            <Button
               type="button"
+              variant={allCopied ? 'primary' : 'secondary'}
               onClick={copyAllCredentials}
-              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition font-medium shadow-sm ${
-                allCopied 
-                  ? 'bg-green-600 text-white' 
-                  : 'bg-nkz-bg-secondary text-gray-700 hover:bg-gray-200'
-              }`}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition font-medium shadow-sm"
             >
               {allCopied ? (
                 <>
@@ -217,11 +214,11 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           {/* Credentials Sections */}
           <div className="space-y-4">
             {/* API Key Section - MOST IMPORTANT */}
-            <div className="bg-nkz-danger-soft rounded-xl p-4 border-2 border-red-300">
+            <div className="bg-nkz-surface-sunken rounded-xl p-4 border-2 border-nkz-danger/30">
               <div className="flex items-center gap-2 mb-3">
                 <Key className="w-5 h-5 text-nkz-danger-strong" />
-                <h4 className="font-bold text-red-900">{t('wizard.mqtt.api_key_secret')}</h4>
-                <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-full">{t('wizard.mqtt.once')}</span>
+                <h4 className="font-bold text-nkz-danger-strong">{t('wizard.mqtt.api_key_secret')}</h4>
+                <span className="text-xs bg-red-200 text-nkz-danger-strong px-2 py-0.5 rounded-full">{t('wizard.mqtt.once')}</span>
               </div>
               <CredentialField 
                 label={t('wizard.mqtt.api_key_label')} 
@@ -234,7 +231,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             <div className="bg-nkz-bg-secondary rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Server className="w-4 h-4 text-nkz-muted" />
-                <h4 className="font-medium text-gray-700">{t('wizard.mqtt.device_info')}</h4>
+                <h4 className="font-medium text-nkz-text-primary">{t('wizard.mqtt.device_info')}</h4>
               </div>
               <div className="space-y-2">
                 <CredentialField label="Device ID" value={credentials.device_id} fieldName="device_id" />
@@ -242,25 +239,25 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             </div>
 
             {/* MQTT Connection Section */}
-            <div className="bg-teal-50 rounded-xl p-4">
+            <div className="bg-nkz-surface-sunken rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Wifi className="w-4 h-4 text-teal-600" />
-                <h4 className="font-medium text-teal-900">{t('wizard.mqtt.connection')}</h4>
+                <h4 className="font-medium text-nkz-success-strong">{t('wizard.mqtt.connection')}</h4>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <CredentialField label="Host" value={credentials.host} fieldName="host" />
                 <CredentialField label={t('wizard.mqtt.port')} value={String(credentials.port)} fieldName="port" />
               </div>
-              <div className="mt-2 text-xs text-teal-700">
-                {t('wizard.mqtt.protocol')}: <code className="bg-teal-100 px-1 rounded">{credentials.protocol}</code>
+              <div className="mt-2 text-xs text-nkz-success-strong">
+                {t('wizard.mqtt.protocol')}: <code className="bg-nkz-success-soft px-1 rounded">{credentials.protocol}</code>
               </div>
             </div>
 
             {/* Topics Section */}
-            <div className="bg-indigo-50 rounded-xl p-4">
+            <div className="bg-nkz-surface-sunken rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Zap className="w-4 h-4 text-indigo-600" />
-                <h4 className="font-medium text-indigo-900">{t('wizard.mqtt.topics')}</h4>
+                <h4 className="font-medium text-nkz-info-strong">{t('wizard.mqtt.topics')}</h4>
               </div>
               <div className="space-y-2">
                 <CredentialField 
@@ -287,7 +284,7 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
             <div className="bg-nkz-bg-secondary rounded-xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Server className="w-4 h-4 text-nkz-muted" />
-                <h4 className="font-medium text-gray-700">{t('wizard.mqtt.example_payload')}</h4>
+                <h4 className="font-medium text-nkz-text-primary">{t('wizard.mqtt.example_payload')}</h4>
               </div>
               <pre className="bg-gray-900 text-green-400 p-3 rounded-lg text-sm overflow-x-auto">
 {JSON.stringify(credentials.example_payload || { 
@@ -300,9 +297,9 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
           </div>
 
           {/* Instructions */}
-          <div className="bg-nkz-info-soft border border-blue-200 rounded-xl p-4">
-            <h4 className="font-medium text-blue-900 mb-2">{t('wizard.mqtt.next_steps')}</h4>
-            <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+          <div className="bg-nkz-surface-sunken border border-nkz-info/30 rounded-xl p-4">
+            <h4 className="font-medium text-nkz-info-strong mb-2">{t('wizard.mqtt.next_steps')}</h4>
+            <ol className="text-sm text-nkz-info-strong space-y-1 list-decimal list-inside">
               <li>{t('wizard.mqtt.step1')}</li>
               <li>{t('wizard.mqtt.step2')}</li>
               <li>{t('wizard.mqtt.step3')} <code className="bg-nkz-info-soft px-1 rounded">{credentials.host}:{credentials.port}</code></li>
@@ -313,11 +310,11 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
         </div>
 
         {/* Footer */}
-        <div className="bg-nkz-bg-secondary px-6 py-4 border-t rounded-b-2xl">
-          <Button
+        <div className="bg-nkz-bg-secondary px-6 py-4 border-t border-nkz-border rounded-b-2xl">
+          <Button variant="primary"
             type="button"
             onClick={onClose}
-            className="w-full px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition font-medium"
+            className="w-full px-4 py-3 rounded-xl transition font-medium"
           >
             {t('wizard.mqtt.saved')}
           </Button>

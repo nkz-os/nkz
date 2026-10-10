@@ -69,16 +69,16 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">
+      <label className="block text-sm font-medium text-nkz-text-primary">
         {t('wizard.parent.create_as_subdivision')}
       </label>
       
       <div className="relative">
-        <Button
+        <Button variant="ghost"
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}
           disabled={disabled}
-          className={`w-full px-4 py-2 text-left border rounded-lg bg-white flex items-center justify-between ${
+          className={`w-full px-4 py-2 text-left border rounded-lg bg-nkz-surface flex items-center justify-between ${
             disabled ? 'bg-nkz-bg-secondary cursor-not-allowed' : 'hover:border-green-500'
           } ${selectedParent ? 'border-green-500' : 'border-nkz-border'}`}
         >
@@ -97,8 +97,8 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
         </Button>
 
         {isOpen && !disabled && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-nkz-border rounded-lg shadow-lg max-h-60 overflow-auto">
-            <div className="p-2 border-b">
+          <div className="absolute z-50 w-full mt-1 bg-nkz-surface border border-nkz-border rounded-lg shadow-lg max-h-60 overflow-auto">
+            <div className="p-2 border-b border-nkz-border">
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 w-4 h-4 text-nkz-muted" />
                 <Input

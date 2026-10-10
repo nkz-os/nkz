@@ -22,7 +22,7 @@ export function StepFleetConfig() {
 
       {/* Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{t('wizard.fields.name_required')}</label>
+        <label className="block text-sm font-medium text-nkz-text-primary mb-1">{t('wizard.fields.name_required')}</label>
         <Input
           type="text"
           value={data.name}
@@ -34,7 +34,7 @@ export function StepFleetConfig() {
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{t('wizard.fields.description')}</label>
+        <label className="block text-sm font-medium text-nkz-text-primary mb-1">{t('wizard.fields.description')}</label>
         <textarea
           value={data.description ?? ''}
           onChange={(e: any) => updateFormData({ description: e.target.value })}
@@ -45,9 +45,9 @@ export function StepFleetConfig() {
       </div>
 
       {/* Common: manufacturer + serialNumber */}
-      <div className="grid grid-cols-2 gap-3 pt-3 border-t">
+      <div className="grid grid-cols-2 gap-3 pt-3 border-t border-nkz-border">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.fields.manufacturer')}</label>
+          <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.fields.manufacturer')}</label>
           <Input
             type="text"
             value={data.manufacturer ?? ''}
@@ -57,7 +57,7 @@ export function StepFleetConfig() {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.fields.serial_number')}</label>
+          <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.fields.serial_number')}</label>
           <Input
             type="text"
             value={data.serialNumber ?? ''}
@@ -70,15 +70,15 @@ export function StepFleetConfig() {
 
       {/* Robot-specific */}
       {isRobot && (
-        <div className="pt-3 border-t space-y-3">
-          <h4 className="text-sm font-medium text-gray-700">{t('wizard.fleet.ros2_config')}</h4>
+        <div className="pt-3 border-t border-nkz-border space-y-3">
+          <h4 className="text-sm font-medium text-nkz-text-primary">{t('wizard.fleet.ros2_config')}</h4>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.fleet.robot_type')}</label>
+            <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.fleet.robot_type')}</label>
             <select
               value={data.robotType ?? ''}
               onChange={(e: any) => updateFormData({ robotType: e.target.value })}
-              className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
+              className="w-full px-3 py-2 border border-nkz-border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 bg-nkz-surface"
             >
               <option value="">{t('wizard.fleet.select_type')}</option>
               {ROBOT_TYPES.map(rt => <option key={rt} value={rt}>{rt}</option>)}
@@ -86,7 +86,7 @@ export function StepFleetConfig() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.fleet.ros2_namespace')}</label>
+            <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.fleet.ros2_namespace')}</label>
             <Input
               type="text"
               value={data.rosNamespace ?? ''}
@@ -103,7 +103,7 @@ export function StepFleetConfig() {
 
       {/* Machine-specific (tractor/implement) */}
       {isMachine && (
-        <div className="pt-3 border-t">
+        <div className="pt-3 border-t border-nkz-border">
           <div className="flex items-center gap-2">
             <Input
               type="checkbox"
@@ -112,7 +112,7 @@ export function StepFleetConfig() {
               onChange={(e: any) => updateFormData({ isobusCompatible: e.target.checked })}
               className="w-4 h-4 accent-indigo-600"
             />
-            <label htmlFor="isobus" className="text-sm font-medium text-gray-700">
+            <label htmlFor="isobus" className="text-sm font-medium text-nkz-text-primary">
               {t('wizard.fleet.isobus_compatible')}
             </label>
           </div>

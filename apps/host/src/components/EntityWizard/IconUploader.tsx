@@ -88,7 +88,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
 
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-medium text-gray-700">
+      <label className="block text-sm font-medium text-nkz-text-primary">
         {t('wizard.upload.icon_2d')}
       </label>
 
@@ -139,7 +139,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
                 type="button"
                 onClick={handleRemove}
                 disabled={disabled}
-                className="px-4 py-2 border border-red-300 text-nkz-danger-strong rounded-lg hover:bg-nkz-danger-soft transition disabled:opacity-50"
+                className="px-4 py-2 border border-nkz-danger/30 text-nkz-danger-strong rounded-lg hover:bg-nkz-danger-soft transition disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -148,7 +148,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
 
           {/* Upload Progress Bar */}
           {uploading && uploadProgress > 0 && (
-            <div className="w-full bg-gray-200 rounded-full h-1.5">
+            <div className="w-full bg-nkz-surface-sunken rounded-full h-1.5">
               <div 
                 className="bg-nkz-success h-1.5 rounded-full transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
@@ -161,7 +161,7 @@ export const IconUploader: React.FC<IconUploaderProps> = ({
           </p>
 
           {error && (
-            <div className="text-xs text-nkz-danger-strong bg-nkz-danger-soft border border-red-200 rounded px-2 py-1">
+            <div className="text-xs text-nkz-danger-strong bg-nkz-danger-soft border border-nkz-danger/30 rounded px-2 py-1">
               {error}
             </div>
           )}

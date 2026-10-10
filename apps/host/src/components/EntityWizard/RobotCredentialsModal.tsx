@@ -34,7 +34,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
 
   const CredentialField: React.FC<{ label: string; value: string; fieldName: string }> = ({ label, value, fieldName }) => (
     <div className="space-y-1">
-      <label className="block text-xs font-medium text-gray-700">{label}</label>
+      <label className="block text-xs font-medium text-nkz-text-primary">{label}</label>
       <div className="flex items-center gap-2">
         <Input
           type="text"
@@ -42,7 +42,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
           readOnly
           className="flex-1 px-3 py-2 text-sm border border-nkz-border rounded bg-nkz-bg-secondary font-mono"
         />
-        <Button
+        <Button variant="ghost"
           type="button"
           onClick={() => copyToClipboard(value, fieldName)}
           className="px-3 py-2 border border-nkz-border rounded hover:bg-nkz-bg-secondary transition"
@@ -59,11 +59,11 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+      <div className="bg-nkz-surface rounded-2xl shadow-2xl max-w-lg w-full">
         {/* Header */}
         <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-5 flex justify-between items-start rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-lg">
+            <div className="p-2 bg-nkz-surface/20 rounded-lg">
               <Shield className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -73,7 +73,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
               </p>
             </div>
           </div>
-          <Button variant="ghost" onClick={onClose} className="text-white/70 hover:text-white p-1">
+          <Button variant="ghost" onClick={onClose} className="text-nkz-text-on-accent/70 hover:text-nkz-text-on-accent hover:bg-nkz-text-on-accent/10 p-1">
             <X className="w-6 h-6" />
           </Button>
         </div>
@@ -84,7 +84,7 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
           <div className="bg-nkz-bg-secondary rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3">
               <Server className="w-4 h-4 text-nkz-muted" />
-              <h4 className="font-medium text-gray-700">{t('wizard.robot_credentials.identity')}</h4>
+              <h4 className="font-medium text-nkz-text-primary">{t('wizard.robot_credentials.identity')}</h4>
             </div>
             <div className="space-y-2">
               <CredentialField label="Robot UUID" value={credentials.robot_uuid} fieldName="uuid" />
@@ -93,19 +93,19 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
           </div>
 
           {/* Network provisioning notice */}
-          <div className="bg-sky-50 border border-sky-200 rounded-xl p-4">
+          <div className="bg-nkz-surface-sunken border border-nkz-info/30 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <Wifi className="w-4 h-4 text-sky-600" />
-              <h4 className="font-medium text-sky-900">{t('wizard.robot_credentials.network_title')}</h4>
+              <h4 className="font-medium text-nkz-info-strong">{t('wizard.robot_credentials.network_title')}</h4>
             </div>
-            <p className="text-sm text-sky-800">
+            <p className="text-sm text-nkz-info-strong">
               {t('wizard.robot_credentials.network_before')}{' '}
               <a href="/connectivity" className="font-semibold underline hover:text-sky-600">
                 {t('wizard.robot_credentials.device_management')}
               </a>{' '}
               {t('wizard.robot_credentials.network_after')}
             </p>
-            <ol className="text-sm text-sky-800 space-y-1 list-decimal list-inside mt-2">
+            <ol className="text-sm text-nkz-info-strong space-y-1 list-decimal list-inside mt-2">
               <li>{t('wizard.robot_credentials.step1_before')} <strong>{t('wizard.robot_credentials.step1_strong')}</strong></li>
               <li>{t('wizard.robot_credentials.step2')}</li>
               <li>{t('wizard.robot_credentials.step3')}</li>
@@ -114,11 +114,11 @@ export const RobotCredentialsModal: React.FC<RobotCredentialsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="bg-nkz-bg-secondary px-6 py-4 border-t rounded-b-2xl">
-          <Button
+        <div className="bg-nkz-bg-secondary px-6 py-4 border-t border-nkz-border rounded-b-2xl">
+          <Button variant="primary"
             type="button"
             onClick={onClose}
-            className="w-full px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-medium"
+            className="w-full px-4 py-3 rounded-xl transition font-medium"
           >
             {t('wizard.robot_credentials.done')}
           </Button>

@@ -84,7 +84,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
 
   return (
     <div className="space-y-3">
-      <label className="block text-sm font-medium text-gray-700">
+      <label className="block text-sm font-medium text-nkz-text-primary">
         {t('wizard.upload.model_3d_optional')}
       </label>
 
@@ -119,7 +119,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
               type="button"
               onClick={handleRemove}
               disabled={disabled}
-              className="px-4 py-2 border border-red-300 text-nkz-danger-strong rounded-lg hover:bg-nkz-danger-soft transition disabled:opacity-50"
+              className="px-4 py-2 border border-nkz-danger/30 text-nkz-danger-strong rounded-lg hover:bg-nkz-danger-soft transition disabled:opacity-50"
             >
               <X className="w-4 h-4" />
             </Button>
@@ -128,7 +128,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
 
         {/* Upload Progress Bar */}
         {uploading && uploadProgress > 0 && (
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-nkz-surface-sunken rounded-full h-2">
             <div 
               className="bg-nkz-success h-2 rounded-full transition-all duration-300"
               style={{ width: `${uploadProgress}%` }}
@@ -141,7 +141,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
         </p>
 
         {error && (
-          <div className="text-xs text-nkz-danger-strong bg-nkz-danger-soft border border-red-200 rounded px-2 py-1">
+          <div className="text-xs text-nkz-danger-strong bg-nkz-danger-soft border border-nkz-danger/30 rounded px-2 py-1">
             {error}
           </div>
         )}
@@ -157,7 +157,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
         {currentModelUrl && (
           <div className="space-y-3 p-4 bg-nkz-bg-secondary rounded-lg border border-nkz-border">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-nkz-text-primary mb-1">
                 {t('wizard.upload.scale', { value: modelScale.toFixed(2) })}
               </label>
               <Input
@@ -177,12 +177,12 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-2">
+              <label className="block text-xs font-medium text-nkz-text-primary mb-2">
                 {t('wizard.upload.rotation_degrees')}
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">X</label>
+                  <label className="block text-xs text-nkz-text-secondary mb-1">X</label>
                   <Input
                     type="number"
                     min="0"
@@ -198,7 +198,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Y</label>
+                  <label className="block text-xs text-nkz-text-secondary mb-1">Y</label>
                   <Input
                     type="number"
                     min="0"
@@ -214,7 +214,7 @@ export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Z</label>
+                  <label className="block text-xs text-nkz-text-secondary mb-1">Z</label>
                   <Input
                     type="number"
                     min="0"

@@ -643,7 +643,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
       <div className={`${height} rounded-lg overflow-hidden border border-nkz-border bg-nkz-bg-secondary relative`}>
         {cesiumViewer ? (
           // Global Viewer Mode UI
-          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 p-6 text-center">
+          <div className="w-full h-full flex flex-col items-center justify-center bg-nkz-surface-sunken p-6 text-center">
             <div className="mb-4">
               <div className="w-16 h-16 bg-nkz-info-soft rounded-full flex items-center justify-center mx-auto mb-3">
                 {geometryType === 'Point' ? (
@@ -652,7 +652,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                   <PenTool className="w-8 h-8 text-nkz-info" />
                 )}
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-nkz-text-primary">
                 {geometryType === 'Point' ? t('wizard.geometry_editor.select_location') : t('wizard.geometry_editor.interactive_mode')}
               </h3>
               <p className="text-nkz-muted max-w-sm mx-auto mt-1">
@@ -664,6 +664,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
 
             <div className="flex gap-3">
               <Button
+                variant="primary"
                 onClick={() => {
                   startDrawing(geometryType, (geom) => {
                     setCurrentGeometry(geom);
@@ -683,7 +684,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                     }
                   });
                 }}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition shadow-sm"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
               >
                 {geometryType === 'Point' ? (
                   <>
@@ -699,14 +700,14 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
               </Button>
 
               {currentGeometry && (
-                <Button
+                <Button variant="ghost"
                   onClick={() => {
                     setCurrentGeometry(null);
                     onGeometryChange(null);
                     setArea(null);
                     setValidationError(null);
                   }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-700 border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary font-medium transition shadow-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-nkz-surface text-nkz-text-primary border border-nkz-border rounded-lg hover:bg-nkz-bg-secondary font-medium transition shadow-sm"
                 >
                   <Eraser className="w-4 h-4" />
                   {t('wizard.geometry_editor.clear')}
@@ -715,9 +716,9 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
             </div>
 
             {currentGeometry && (
-              <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border border-nkz-border text-left w-full max-w-md">
+              <div className="mt-6 bg-nkz-surface p-4 rounded-lg shadow-sm border border-nkz-border text-left w-full max-w-md">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-gray-700">{t('wizard.geometry_editor.selected_geometry')}</span>
+                  <span className="text-sm font-semibold text-nkz-text-primary">{t('wizard.geometry_editor.selected_geometry')}</span>
                   {validationError ? (
                     <span className="text-xs text-nkz-danger-strong flex items-center gap-1 font-medium">
                       <AlertCircle className="w-3 h-3" /> {validationError}
@@ -728,7 +729,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-mono bg-nkz-bg-secondary p-2 rounded border border-gray-100 overflow-hidden text-ellipsis whitespace-nowrap">
+                <div className="text-xs text-mono bg-nkz-bg-secondary p-2 rounded border border-nkz-border overflow-hidden text-ellipsis whitespace-nowrap">
                   {currentGeometry.type === 'Point' ? (
                     <>
                       📍 {t('wizard.geometry_editor.coordinates', { lat: (currentGeometry as Point).coordinates[1].toFixed(6), lon: (currentGeometry as Point).coordinates[0].toFixed(6) })}
@@ -750,14 +751,14 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
 
         {/* Instructions overlay */}
         {!currentGeometry && !isDrawing && (
-          <div className="absolute top-4 left-4 bg-white/90 px-3 py-2 rounded shadow text-sm z-10 max-w-xs">
-            <p className="font-medium text-gray-800">{getInstructions()}</p>
+          <div className="absolute top-4 left-4 bg-nkz-surface/90 px-3 py-2 rounded shadow text-sm z-10 max-w-xs">
+            <p className="font-medium text-nkz-text-primary">{getInstructions()}</p>
           </div>
         )}
 
         {/* Status overlay */}
         {currentGeometry && (
-          <div className="absolute bottom-4 left-4 bg-white/90 px-3 py-2 rounded shadow text-sm z-10">
+          <div className="absolute bottom-4 left-4 bg-nkz-surface/90 px-3 py-2 rounded shadow text-sm z-10">
             {validationError ? (
               <div className="flex items-center gap-2 text-nkz-danger-strong">
                 <AlertCircle className="w-4 h-4" />
@@ -770,7 +771,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
               </div>
             )}
             {area !== null && (
-              <div className="text-xs text-gray-600 mt-1">
+              <div className="text-xs text-nkz-text-secondary mt-1">
                 {t('wizard.geometry_editor.area_ha', { value: area.toFixed(2) })}
               </div>
             )}
@@ -780,22 +781,22 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
         {/* Tools */}
         <div className="absolute top-4 right-4 flex gap-2 z-10">
           {isDrawing && (
-            <Button
+            <Button variant="ghost"
               type="button"
               onClick={handleUndo}
               disabled={disabled || pointsRef.current.length === 0}
-              className="px-3 py-2 bg-white rounded shadow hover:bg-nkz-bg-secondary transition disabled:opacity-50"
+              className="px-3 py-2 bg-nkz-surface rounded shadow hover:bg-nkz-bg-secondary transition disabled:opacity-50"
               title={t('wizard.geometry_editor.undo_last_point')}
             >
               <RotateCcw className="w-4 h-4" />
             </Button>
           )}
           {currentGeometry && (
-            <Button
+            <Button variant="ghost"
               type="button"
               onClick={handleClear}
               disabled={disabled}
-              className="px-3 py-2 bg-white rounded shadow hover:bg-nkz-bg-secondary transition disabled:opacity-50"
+              className="px-3 py-2 bg-nkz-surface rounded shadow hover:bg-nkz-bg-secondary transition disabled:opacity-50"
               title={t('wizard.geometry_editor.clear_geometry')}
             >
               <Eraser className="w-4 h-4" />
@@ -805,7 +806,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
       </div>
 
       {parentGeometry && (
-        <div className="text-xs text-gray-600 bg-nkz-warning-soft border border-yellow-200 rounded px-3 py-2">
+        <div className="text-xs text-nkz-warning-strong bg-nkz-warning-soft border border-nkz-warning/30 rounded px-3 py-2">
           <strong>{t('wizard.summary.parent')}</strong> {t('wizard.geometry_editor.parent_shown', { name: parentGeometry.name })}
         </div>
       )}
