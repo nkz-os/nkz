@@ -83,6 +83,23 @@ jobs:
           path: apps/host/playwright-report/
           retention-days: 7
 
+      # A screenshot only shows that a request failed; the backend logs say why.
+      - name: Collect backend logs (on failure)
+        if: failure()
+        run: |
+          mkdir -p stack-logs
+          for svc in entity-manager api-gateway; do
+            docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail=500 "$svc" > "stack-logs/$svc.log" 2>&1 || true
+          done
+
+      - name: Upload backend logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stack-logs
+          path: stack-logs/
+          retention-days: 7
+
       - name: Cleanup
         if: always()
         run: docker compose -f docker-compose.yml -f docker-compose.ci.yml down -v
