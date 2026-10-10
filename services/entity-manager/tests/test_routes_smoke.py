@@ -87,6 +87,14 @@ assert _api_spec.loader is not None
 _api_spec.loader.exec_module(_api_errors_mod)
 sys.modules["common.api_errors"] = _api_errors_mod
 
+# blueprints/entities.py imports the pure payload guard at module level.
+_guard_path = os.path.join(_services_dir, "common", "ngsi_payload_guard.py")
+_guard_spec = importlib.util.spec_from_file_location("common.ngsi_payload_guard", _guard_path)
+_guard_mod = importlib.util.module_from_spec(_guard_spec)
+assert _guard_spec.loader is not None
+_guard_spec.loader.exec_module(_guard_mod)
+sys.modules["common.ngsi_payload_guard"] = _guard_mod
+
 # modules.py imports common.internal_auth at module level. It only needs os and
 # logging, so load the real thing rather than a mock: the header contract is
 # exactly what these tests exercise.
@@ -531,6 +539,18 @@ class TestEntityRoutes:
         )
         assert r.status_code in (200, 500), f"PATCH instance got {r.status_code}"
         r.get_json()
+
+    @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
+    @patch("entity_management_api.requests.patch", return_value=_make_response(204, {}))
+    def test_patch_instance_rejects_null_shorthand(self, mock_patch, mock_get, client):
+        r = client.patch(
+            "/instances/AgriCrop/test-id",
+            content_type="application/json",
+            data=json.dumps({"refAgriParcel": "urn:ngsi-ld:null"}),
+        )
+        assert r.status_code == 400
+        assert r.get_json()["attributes"] == ["refAgriParcel"]
+        mock_patch.assert_not_called()
 
     @patch("entity_management_api.requests.get", return_value=_make_response(200, {}))
     @patch(

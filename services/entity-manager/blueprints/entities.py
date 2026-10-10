@@ -17,6 +17,7 @@ import requests
 
 from common.auth_middleware import require_auth, inject_fiware_headers
 from common.api_errors import internal_error
+from common.ngsi_payload_guard import shorthand_null_attributes
 from db_helper import get_db_connection_with_tenant, return_db_connection, get_db_connection_simple
 
 # Import shared helpers
@@ -506,6 +507,19 @@ def update_instance(entity_type, entity_id):
         # Attribute fragments carry no @context: PATCH /attrs goes as
         # application/json + Link header (ETSI GS CIM 009 mutual exclusivity).
         data.pop('@context', None)
+
+        # The broker mishandles the bare null token on /attrs; removal goes
+        # through DELETE /entities/{id}/attrs/{name}.
+        offending = shorthand_null_attributes(data)
+        if offending:
+            logger.warning(
+                "Rejected NGSI-LD null shorthand: tenant=%s entity=%s attributes=%s",
+                g.tenant, entity_id, offending,
+            )
+            return jsonify({
+                'error': "Bare 'urn:ngsi-ld:null' is not accepted as an attribute value",
+                'attributes': offending,
+            }), 400
 
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs"
         headers = inject_fiware_headers({}, g.tenant, body=data)
