@@ -148,7 +148,7 @@ def test_actually_sown_cycle_beats_an_overdue_older_one():
 
 
 def test_cycle_is_current_on_its_end_day_and_not_after():
-    # Both boundaries are inclusive (spec §3, amended 2026-10-10): on harvest day the crop still holds the parcel.
+    # Both boundaries are inclusive: on harvest day the crop still holds the parcel.
     wheat = crop("w", status="active", plantingDate={"@type": "Date", "@value": "2026-03-01"},
                  harvestDate={"@type": "Date", "@value": "2026-07-20"})
     harvest = op("h", "harvesting", "2026-07-15", hasAgriCrop="urn:ngsi-ld:AgriCrop:t:w")

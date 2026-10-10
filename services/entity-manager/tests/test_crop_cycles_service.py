@@ -166,3 +166,9 @@ def test_broker_rejection_is_not_reported_as_unavailable():
 def test_broker_server_error_is_unavailable():
     with pytest.raises(svc.OrionUnavailable):
         svc.timeline("t", P, AT, client=RejectingOrion(500))
+
+
+@pytest.mark.parametrize("status", [408, 429])
+def test_broker_timeouts_and_rate_limits_are_unavailable(status):
+    with pytest.raises(svc.OrionUnavailable):
+        svc.timeline("t", P, AT, client=RejectingOrion(status))

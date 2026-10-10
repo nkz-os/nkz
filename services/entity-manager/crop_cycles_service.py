@@ -66,7 +66,8 @@ def _load(client, parcel_urn: str):
         status = e.response.status_code if e.response is not None else None
         if status == 404:
             raise ParcelNotFound(parcel_urn) from e
-        if status is not None and 400 <= status < 500:
+        # 408/429 are the broker being slow or busy, not a bad request.
+        if status is not None and 400 <= status < 500 and status not in (408, 429):
             raise BrokerRejected(f'{status}: {e}') from e
         raise OrionUnavailable(str(e)) from e
     except requests.RequestException as e:
