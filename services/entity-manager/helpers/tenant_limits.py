@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 _limits_cache: dict = {}
 _limits_cache_ts: dict = {}
 _LIMITS_TTL_SECONDS = 60
+# Usage counts run inside request handlers; a hung broker must not hold the worker.
+_ORION_TIMEOUT_SECONDS = 5
 
 
 def _get_limits_from_db(tenant: str):
@@ -133,7 +135,11 @@ def _count_entities_by_type(entity_type, tenant):
     params = {'type': entity_type, 'limit': 1, 'count': 'true'}
     headers = {'Accept': 'application/ld+json'}
     headers = inject_fiware_headers(headers, tenant)
-    resp = requests.get(orion_url, params=params, headers=headers)
+    try:
+        resp = requests.get(orion_url, params=params, headers=headers, timeout=_ORION_TIMEOUT_SECONDS)
+    except requests.RequestException as e:
+        logger.error(f"_count_entities_by_type failed for {entity_type}: {e}")
+        return None
     if resp.status_code != 200:
         return None
     count_header = resp.headers.get('Ngsild-Results-Count') or resp.headers.get('Content-Range')
@@ -196,7 +202,11 @@ def _sum_parcel_area(entity_type, tenant):
     while True:
         p = dict(params)
         p['offset'] = page * 1000
-        resp = requests.get(orion_url, params=p, headers=headers)
+        try:
+            resp = requests.get(orion_url, params=p, headers=headers, timeout=_ORION_TIMEOUT_SECONDS)
+        except requests.RequestException as e:
+            logger.error(f"_sum_parcel_area failed for {entity_type}: {e}")
+            break
         if resp.status_code != 200:
             break
         try:
