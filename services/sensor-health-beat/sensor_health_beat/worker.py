@@ -18,8 +18,18 @@ from .config import Settings
 logger = logging.getLogger(__name__)
 
 
+def _device_key(entity_id: str) -> str:
+    """Device key of telemetry rows: the last URN segment.
+
+    Canonical readings are stored under the DeviceMeasurement URN, so the
+    device's own URN never matches entity_id; device_id holds this key for
+    legacy and canonical devices alike.
+    """
+    return entity_id.rsplit(":", 1)[-1] if ":" in entity_id else entity_id
+
+
 class SensorHealthBeat:
-    """Runs periodic health checks against all AgriSensor entities."""
+    """Runs periodic health checks against all sensor entities (Device and legacy types)."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -68,7 +78,7 @@ class SensorHealthBeat:
         sensors = []
         url = (
             f"{self.settings.orion_url}/ngsi-ld/v1/entities"
-            f"?type=AgriSensor&attrs=healthConfig,reliabilityStatus,isSilenced,location"
+            f"?type=Device,AgriSensor,AgriDevice&attrs=healthConfig,reliabilityStatus,isSilenced,location"
             f"&limit=500"
         )
         headers = {
@@ -204,11 +214,11 @@ class SensorHealthBeat:
             row = await conn.fetchrow(
                 """
                 SELECT observed_at FROM telemetry_events
-                WHERE tenant_id = $1 AND entity_id = $2
+                WHERE tenant_id = $1 AND device_id = $2
                 ORDER BY observed_at DESC LIMIT 1
                 """,
                 tenant_id,
-                entity_id,
+                _device_key(entity_id),
             )
             return row["observed_at"] if row else None
 
@@ -227,12 +237,12 @@ class SensorHealthBeat:
                     MAX(observed_at) AS last_ts
                 FROM telemetry_events
                 WHERE tenant_id = $1
-                  AND entity_id = $2
+                  AND device_id = $2
                   AND observed_at > NOW() - ($4 || ' hours')::INTERVAL
                   AND payload->'measurements' ? $3
                 """,
                 tenant_id,
-                entity_id,
+                _device_key(entity_id),
                 variable,
                 str(window_hours),
             )
@@ -258,13 +268,13 @@ class SensorHealthBeat:
             rows = await conn.fetch(
                 """
                 SELECT quality_flag FROM telemetry_events
-                WHERE tenant_id = $1 AND entity_id = $2
+                WHERE tenant_id = $1 AND device_id = $2
                   AND quality_flag IS NOT NULL
                 ORDER BY observed_at DESC
                 LIMIT $3
                 """,
                 tenant_id,
-                entity_id,
+                _device_key(entity_id),
                 self.settings.recovery_valid_count,
             )
             if len(rows) < self.settings.recovery_valid_count:

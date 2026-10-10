@@ -36,14 +36,20 @@ KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', 'nekazari')
 MAX_ROBOTS = int(os.getenv('MAX_ROBOTS', '999999'))
 MAX_SENSORS = int(os.getenv('MAX_SENSORS', '999999'))
 MAX_AREA_HECTARES = float(os.getenv('MAX_AREA_HECTARES', '1000000000'))
+# Legacy robot types. Canonical robots are ManufacturingMachine with
+# category "robot" (see ROBOT_MACHINE_TYPE below).
 ROBOT_ENTITY_TYPES = {
     t.strip()
     for t in os.getenv('ROBOT_ENTITY_TYPES', 'AgriculturalRobot').split(',')
     if t.strip()
 }
+ROBOT_MACHINE_TYPE = 'ManufacturingMachine'
+ROBOT_MACHINE_CATEGORY = 'robot'
+# Device is the canonical sensor type; AgriSensor and AgriDevice are legacy
+# types still counted until nothing writes them.
 SENSOR_ENTITY_TYPES = {
     t.strip()
-    for t in os.getenv('SENSOR_ENTITY_TYPES', 'AgriSensor').split(',')
+    for t in os.getenv('SENSOR_ENTITY_TYPES', 'Device,AgriSensor,AgriDevice').split(',')
     if t.strip()
 }
 # Only FIWARE Smart Data Model types are valid parcels.

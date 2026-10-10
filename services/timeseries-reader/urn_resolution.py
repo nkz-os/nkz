@@ -50,13 +50,17 @@ def normalize_device_id(entity_id: Optional[str]) -> str:
     return entity_id
 
 
-def _is_agri_sensor_type(etype: str) -> bool:
+# Device and ManufacturingMachine are the canonical device types; AgriSensor and
+# AgriDevice are legacy ones still read until nothing writes them.
+_DEVICE_TYPES = {"Device", "ManufacturingMachine", "AgriSensor", "AgriDevice"}
+
+
+def _is_device_type(etype: Optional[str]) -> bool:
+    """True for a device type, short or expanded (".../Device", "nkz:AgriSensor")."""
     et = (etype or "").strip()
     if not et:
         return False
-    if et == "AgriSensor":
-        return True
-    return et.endswith("/AgriSensor") or "AgriSensor" == et.split("/")[-1]
+    return et.rsplit("/", 1)[-1].rsplit(":", 1)[-1] in _DEVICE_TYPES
 
 
 def _extract_entity_location(entity: Dict[str, Any]) -> Optional[Tuple[float, float]]:
@@ -318,7 +322,7 @@ def plan_timeseries_read(tenant_id: str, entity_urn: str) -> Dict[str, Any]:
         }
 
     ent = fetch_orion_entity(tenant_id, eid) if ORION_URL else None
-    if ent and _is_agri_sensor_type(ent.get("type") or ""):
+    if ent and _is_device_type(ent.get("type")):
         return {
             "mode": "telemetry",
             "weather_key": None,

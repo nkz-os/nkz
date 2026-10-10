@@ -8,7 +8,7 @@ export const KNOWN_ENTITY_TYPES: Set<string> = new Set([
   'PhotovoltaicInstallation', 'EnergyStorageSystem', 'WindTurbine',
   'LivestockAnimal', 'LivestockGroup', 'LivestockFarm', 'LivestockBarn',
   'WeatherObserved', 'WeatherForecast', 'WeatherAlert',
-  'Device', 'DeviceModel', 'Fleet', 'Property',
+  'Device', 'DeviceModel', 'DeviceMeasurement', 'ManufacturingMachine', 'Fleet', 'Property',
   'Vehicle', 'VehicleFleet', 'Road', 'RoadSegment',
   'AirQualityObserved', 'NoiseLevelObserved', 'WaterQualityObserved',
 ]);

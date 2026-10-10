@@ -66,7 +66,7 @@ def mqtt_endpoint_for_devices() -> dict:
 
 
 # Types that require IoT provisioning
-IOT_ENTITY_TYPES = {'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'ManufacturingMachine', 'LivestockAnimal', 'AgriculturalMachine'}
+IOT_ENTITY_TYPES = {'Device', 'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'ManufacturingMachine', 'LivestockAnimal', 'AgriculturalMachine'}
 
 # SOTA: Use local unified context from API Gateway
 CONTEXT_URL = os.getenv('CONTEXT_URL', 'http://api-gateway-service:5000/ngsi-ld-context.json')
@@ -361,7 +361,7 @@ def get_sdm_entities():
             }
         },
         "AgriSensor": {
-            "description": "Agricultural sensor device (SAREF4AGRI)",
+            "description": "Agricultural sensor device (legacy — prefer Device)",
             "attributes": {
                 "name": {"type": "Text", "description": "Sensor name"},
                 "description": {"type": "Text", "description": "Sensor description"},
@@ -599,7 +599,7 @@ def get_sdm_entities():
             }
         },
         "Device": {
-            "description": "Generic IoT device (legacy — prefer AgriSensor)",
+            "description": "IoT device (SDM dataModel.Device)",
             "attributes": {
                 "name": {"type": "Text", "description": "Device name"},
                 "location": {"type": "geo:json", "description": "Device location"},
