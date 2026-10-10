@@ -135,7 +135,8 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
 
   // Get potential parents (parcels; assignment writes hasAgriParcel)
   const potentialParents = useMemo(() => {
-    return assets.filter(a => a.category === 'parcels');
+    // The parcels category also holds zones, soils and farms; only parcels can be parents.
+    return assets.filter(a => a.type === 'AgriParcel');
   }, [assets]);
 
   // Close context menu on click outside

@@ -13,10 +13,17 @@ const tractor = {
 };
 const animal = { id: 'urn:ngsi-ld:LivestockAnimal:a1', type: 'LivestockAnimal', hasAgriParcel: rel };
 
+const land = ['AgriParcelZone', 'AgriSoil', 'AgriSoilExtended', 'AgriFarm', 'AgriGreenhouse'].map(type => ({
+  id: `urn:ngsi-ld:${type}:x1`,
+  type,
+  refAgriParcel: rel,
+}));
+
 const sdm: Record<string, unknown[]> = {
   AutonomousMobileRobot: [robot],
   ManufacturingMachine: [tractor],
   LivestockAnimal: [animal],
+  ...Object.fromEntries(land.map(entity => [entity.type, [entity]])),
 };
 
 const { api } = vi.hoisted(() => ({
@@ -62,6 +69,21 @@ describe('useAssets', () => {
       expect(found).toHaveLength(1);
       expect(found[0]).toMatchObject({ type: entity.type, category, parentId: PARCEL });
       expect(found[0].rawEntity).toEqual(entity);
+    }
+  });
+
+  it('lists soil, zones, farms and greenhouses under their parcel', async () => {
+    api.getRobots.mockResolvedValue([]);
+    api.getMachines.mockResolvedValue([]);
+    api.getLivestock.mockResolvedValue([]);
+    api.getWeatherStations.mockResolvedValue([]);
+    api.getSDMEntityInstances.mockImplementation(async (type: string) => sdm[type] ?? []);
+
+    const { result } = renderHook(() => useAssets());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    for (const entity of land) {
+      expect(result.current.assets.find(a => a.id === entity.id)).toMatchObject({ type: entity.type, parentId: PARCEL });
     }
   });
 });

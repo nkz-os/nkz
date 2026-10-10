@@ -21,6 +21,9 @@ import {
   Leaf,
   Cpu,
   CircleDot,
+  Grid2x2,
+  Layers,
+  Warehouse,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -55,6 +58,9 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   'users': Beef,
   'truck': Tractor,
   'building': Building2,
+  'grid-2x2': Grid2x2,
+  'layers': Layers,
+  'warehouse': Warehouse,
 };
 
 // =============================================================================
