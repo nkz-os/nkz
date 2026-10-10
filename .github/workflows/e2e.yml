@@ -47,6 +47,20 @@ jobs:
             fi
             sleep 3
           done
+          # The frontend can be healthy while the context broker is not; every
+          # entity request then fails and the visual tests report misleading diffs.
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:1026/version > /dev/null 2>&1; then
+              echo "Orion-LD ready after $((i * 3))s"
+              break
+            fi
+            if [ "$i" = 60 ]; then
+              echo "::error::Orion-LD not ready"
+              docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail=200 orion-ld mongodb
+              exit 1
+            fi
+            sleep 3
+          done
 
       - name: Verify health
         run: |
@@ -88,7 +102,7 @@ jobs:
         if: failure()
         run: |
           mkdir -p stack-logs
-          for svc in entity-manager api-gateway; do
+          for svc in entity-manager api-gateway orion-ld mongodb; do
             docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail=500 "$svc" > "stack-logs/$svc.log" 2>&1 || true
           done
 
