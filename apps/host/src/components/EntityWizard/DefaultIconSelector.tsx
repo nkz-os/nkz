@@ -103,13 +103,13 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <label className="block text-sm font-medium text-gray-700">
+        <label className="block text-sm font-medium text-nkz-text-primary">
           {t('wizard.icons.default_icon')}
         </label>
         <Button variant="ghost"
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="text-xs text-nkz-info hover:text-blue-800 flex items-center gap-1"
+          className="text-xs text-nkz-info hover:text-nkz-info-strong flex items-center gap-1"
         >
           {isExpanded ? (
             <>{t('wizard.icons.fewer_options')} <ChevronUp className="w-3 h-3" /></>
@@ -125,18 +125,18 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
           <p className="text-xs text-nkz-muted mb-2">{t('wizard.icons.suggested_for', { type: entityType })}</p>
           <div className="flex flex-wrap gap-2">
             {suggestedIcons.map(({ key, icon: Icon, labelKey }) => (
-              <Button
+              <Button variant="ghost"
                 key={key}
                 type="button"
                 onClick={() => onSelect(selectedIcon === key ? null : key)}
                 className={`p-3 rounded-lg border-2 transition flex flex-col items-center gap-1 min-w-[70px] ${
                   selectedIcon === key
-                    ? 'border-green-500 bg-nkz-success-soft'
+                    ? 'border-green-500 bg-nkz-surface-sunken'
                     : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary'
                 }`}
               >
-                <Icon className={`w-6 h-6 ${selectedIcon === key ? 'text-nkz-success' : 'text-gray-600'}`} />
-                <span className="text-xs text-gray-600">{t(`wizard.icons.${labelKey}`)}</span>
+                <Icon className={`w-6 h-6 ${selectedIcon === key ? 'text-nkz-success' : 'text-nkz-text-secondary'}`} />
+                <span className="text-xs text-nkz-text-secondary">{t(`wizard.icons.${labelKey}`)}</span>
                 {selectedIcon === key && (
                   <Check className="w-3 h-3 text-nkz-success-strong absolute top-1 right-1" />
                 )}
@@ -154,18 +154,18 @@ export const DefaultIconSelector: React.FC<DefaultIconSelectorProps> = ({
               <p className="text-xs font-medium text-nkz-muted mb-2">{t(`wizard.icons.${categoryKey}`)}</p>
               <div className="flex flex-wrap gap-2">
                 {icons.map(({ key, icon: Icon, labelKey }) => (
-                  <Button
+                  <Button variant="ghost"
                     key={key}
                     type="button"
                     onClick={() => onSelect(selectedIcon === key ? null : key)}
                     className={`p-2 rounded-lg border transition flex items-center gap-2 ${
                       selectedIcon === key
-                        ? 'border-green-500 bg-nkz-success-soft'
+                        ? 'border-green-500 bg-nkz-surface-sunken'
                         : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary'
                     }`}
                   >
                     <Icon className={`w-4 h-4 ${selectedIcon === key ? 'text-nkz-success' : 'text-nkz-muted'}`} />
-                    <span className="text-xs text-gray-600">{t(`wizard.icons.${labelKey}`)}</span>
+                    <span className="text-xs text-nkz-text-secondary">{t(`wizard.icons.${labelKey}`)}</span>
                   </Button>
                 ))}
               </div>

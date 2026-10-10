@@ -73,8 +73,8 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
       {/* Stamp mode: asset library + paint tool */}
       {placementState.mode === 'stamp' && (
         <>
-          <div className="bg-nkz-info-soft border border-blue-200 rounded-xl p-4">
-            <h4 className="font-semibold text-blue-900 mb-2">{t('wizard.geometry.select_stamp_asset')}</h4>
+          <div className="bg-nkz-surface-sunken border border-nkz-info/30 rounded-xl p-4">
+            <h4 className="font-semibold text-nkz-info-strong mb-2">{t('wizard.geometry.select_stamp_asset')}</h4>
             <AssetBrowser
               selectedUrl={formData.model3DUrl}
               onSelect={url => {
@@ -102,8 +102,8 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
       {/* Array mode: asset library + grid tool */}
       {placementState.mode === 'array' && (
         <>
-          <div className="bg-nkz-info-soft border border-blue-200 rounded-xl p-4">
-            <h4 className="font-semibold text-blue-900 mb-2">{t('wizard.geometry.select_array_asset')}</h4>
+          <div className="bg-nkz-surface-sunken border border-nkz-info/30 rounded-xl p-4">
+            <h4 className="font-semibold text-nkz-info-strong mb-2">{t('wizard.geometry.select_array_asset')}</h4>
             <AssetBrowser
               selectedUrl={formData.model3DUrl}
               onSelect={url => {
@@ -133,14 +133,14 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
           {/* Geometry type selector (assets only) */}
           {isAsset && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t('wizard.geometry.geometry_type')}</label>
+              <label className="block text-sm font-medium text-nkz-text-primary mb-2">{t('wizard.geometry.geometry_type')}</label>
               <div className="grid grid-cols-4 gap-2">
                 {(['Point', 'Polygon', 'LineString', 'MultiLineString'] as const).map(gt => (
-                  <Button
+                  <Button variant="ghost"
                     key={gt}
                     type="button"
                     onClick={() => updateFormData({ geometryType: gt, geometry: null })}
-                    className={`p-2 rounded border text-sm ${geometryType === gt ? 'border-green-500 bg-nkz-success-soft' : 'border-nkz-border hover:border-green-200'}`}
+                    className={`p-2 rounded border text-sm ${geometryType === gt ? 'border-green-500 bg-nkz-surface-sunken' : 'border-nkz-border hover:border-nkz-success/30'}`}
                   >
                     {gt}
                   </Button>
@@ -163,7 +163,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
           />
 
           {assetData?.isSubdivision && assetData.parentEntity && (
-            <div className="p-3 bg-nkz-warning-soft border border-yellow-200 rounded-lg text-sm text-yellow-800">
+            <div className="p-3 bg-nkz-warning-soft border border-nkz-warning/30 rounded-lg text-sm text-nkz-warning-strong">
               <strong>{t('wizard.summary.parent')}</strong> {assetData.parentEntity.name} ({assetData.parentEntity.type})<br />
               <span className="text-xs text-nkz-warning-strong">{t('wizard.geometry.inside_parent_hint')}</span>
             </div>

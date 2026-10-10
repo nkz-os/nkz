@@ -57,7 +57,7 @@ export function StepGeoAssetConfig() {
 
       {/* Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{t('wizard.fields.name_required')}</label>
+        <label className="block text-sm font-medium text-nkz-text-primary mb-1">{t('wizard.fields.name_required')}</label>
         <Input
           type="text"
           value={data.name}
@@ -69,7 +69,7 @@ export function StepGeoAssetConfig() {
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">{t('wizard.fields.description')}</label>
+        <label className="block text-sm font-medium text-nkz-text-primary mb-1">{t('wizard.fields.description')}</label>
         <textarea
           value={data.description ?? ''}
           onChange={(e: any) => updateFormData({ description: e.target.value })}
@@ -81,12 +81,12 @@ export function StepGeoAssetConfig() {
 
       {/* AgriParcel: first-class cadastral fields */}
       {isAgriParcel && (
-        <div className="pt-4 border-t space-y-3">
-          <h4 className="text-sm font-medium text-gray-700">{t('wizard.asset.cadastral_data')}</h4>
+        <div className="pt-4 border-t border-nkz-border space-y-3">
+          <h4 className="text-sm font-medium text-nkz-text-primary">{t('wizard.asset.cadastral_data')}</h4>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.municipality')}</label>
+              <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.asset.municipality')}</label>
               <Input
                 type="text"
                 value={data.municipality ?? ''}
@@ -96,7 +96,7 @@ export function StepGeoAssetConfig() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.province')}</label>
+              <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.asset.province')}</label>
               <Input
                 type="text"
                 value={data.province ?? ''}
@@ -108,7 +108,7 @@ export function StepGeoAssetConfig() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.cadastral_reference')}</label>
+            <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.asset.cadastral_reference')}</label>
             <Input
               type="text"
               value={data.cadastralReference ?? ''}
@@ -119,7 +119,7 @@ export function StepGeoAssetConfig() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.crop_type')}</label>
+            <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.asset.crop_type')}</label>
             <Input
               type="text"
               value={data.cropType ?? ''}
@@ -133,8 +133,8 @@ export function StepGeoAssetConfig() {
 
       {/* Parcel association (AgriEnergyTracker, PhotovoltaicInstallation) */}
       {needsParcel && (
-        <div className="pt-4 border-t">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="pt-4 border-t border-nkz-border">
+          <label className="block text-sm font-medium text-nkz-text-primary mb-1">
             <span className="flex items-center gap-1.5">
               <Sprout className="w-4 h-4 text-nkz-success" />
               {t('wizard.asset.linked_parcel')}
@@ -169,12 +169,12 @@ export function StepGeoAssetConfig() {
 
       {/* AgriGreenhouse: specific fields for greenhouse DT module */}
       {isGreenhouse && (
-        <div className="pt-4 border-t space-y-3">
-          <h4 className="text-sm font-medium text-gray-700">{t('wizard.asset.greenhouse_dimensions')}</h4>
+        <div className="pt-4 border-t border-nkz-border space-y-3">
+          <h4 className="text-sm font-medium text-nkz-text-primary">{t('wizard.asset.greenhouse_dimensions')}</h4>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.area_m2')}</label>
+              <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.asset.area_m2')}</label>
               <Input
                 type="number"
                 min="0"
@@ -187,7 +187,7 @@ export function StepGeoAssetConfig() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.height_m')}</label>
+              <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.asset.height_m')}</label>
               <Input
                 type="number"
                 min="0"
@@ -204,7 +204,7 @@ export function StepGeoAssetConfig() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.cover_type')}</label>
+              <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.asset.cover_type')}</label>
               <select
                 value={data.additionalAttributes.coverType as string ?? ''}
                 onChange={(e: any) => updateFormData({
@@ -219,7 +219,7 @@ export function StepGeoAssetConfig() {
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">{t('wizard.asset.orientation')}</label>
+              <label className="block text-xs font-medium text-nkz-text-secondary mb-1">{t('wizard.asset.orientation')}</label>
               <select
                 value={data.additionalAttributes.orientation as string ?? ''}
                 onChange={(e: any) => updateFormData({
@@ -238,7 +238,7 @@ export function StepGeoAssetConfig() {
 
       {/* Subdivision / parent entity */}
       {canSubdivide && (
-        <div className="pt-4 border-t">
+        <div className="pt-4 border-t border-nkz-border">
           <div className="flex items-center gap-2 mb-3">
             <Input
               type="checkbox"
@@ -250,7 +250,7 @@ export function StepGeoAssetConfig() {
               })}
               className="w-4 h-4 accent-green-600"
             />
-            <label htmlFor="isSubdivision" className="text-sm font-medium text-gray-700">
+            <label htmlFor="isSubdivision" className="text-sm font-medium text-nkz-text-primary">
               {t('wizard.asset.create_as_subdivision')}
             </label>
           </div>

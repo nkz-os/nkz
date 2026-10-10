@@ -90,14 +90,14 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
 
     return (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            <div className="bg-white rounded-2xl shadow-2xl border border-nkz-border p-3 flex items-center gap-4">
+            <div className="bg-nkz-surface rounded-2xl shadow-2xl border border-nkz-border p-3 flex items-center gap-4">
                 {/* Mode Indicator */}
                 <div className="flex items-center gap-2 pr-3 border-r border-nkz-border">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isPreviewMode ? 'bg-nkz-info-soft text-nkz-info' : 'bg-nkz-success-soft text-nkz-success'
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isPreviewMode ? 'bg-nkz-info-soft text-nkz-info-strong' : 'bg-nkz-success-soft text-nkz-success-strong'
                         }`}>
                         {isPreviewMode ? <Maximize2 className="w-4 h-4" /> : <Paintbrush className="w-4 h-4" />}
                     </div>
-                    <span className="text-sm font-medium text-gray-700">
+                    <span className="text-sm font-medium text-nkz-text-primary">
                         {isPreviewMode ? t('wizard.stamp.preview') : t('wizard.stamp.stamp_count', { count: stampInstances.length })}
                     </span>
                 </div>
@@ -112,7 +112,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                         step="0.1"
                         value={isPreviewMode ? (modelPlacement?.scale ?? 1) : 1}
                         onChange={(e: any) => handleScaleChange(parseFloat(e.target.value))}
-                        className="w-20 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
+                        className="w-20 h-1.5 rounded-lg appearance-none cursor-pointer bg-nkz-surface-sunken accent-blue-600"
                         disabled={!isPreviewMode}
                     />
                     <span className="text-xs text-nkz-muted w-8">
@@ -131,7 +131,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                             step="15"
                             value={modelPlacement?.rotation[0] ?? 0}
                             onChange={(e: any) => handleRotationChange(parseFloat(e.target.value))}
-                            className="w-20 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-blue-600"
+                            className="w-20 h-1.5 rounded-lg appearance-none cursor-pointer bg-nkz-surface-sunken accent-blue-600"
                         />
                         <span className="text-xs text-nkz-muted w-10">
                             {modelPlacement?.rotation[0] ?? 0}°
@@ -152,7 +152,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                                 step="0.1"
                                 value={stampOptions.density}
                                 onChange={(e: any) => handleDensityChange(parseFloat(e.target.value))}
-                                className="w-16 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-green-600"
+                                className="w-16 h-1.5 rounded-lg appearance-none cursor-pointer bg-nkz-surface-sunken accent-green-600"
                             />
                             <span className="text-xs text-nkz-muted w-8">
                                 {(stampOptions.density * 100).toFixed(0)}%
@@ -169,7 +169,7 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
                                 step="1"
                                 value={stampOptions.brushSize}
                                 onChange={(e: any) => handleBrushSizeChange(parseFloat(e.target.value))}
-                                className="w-16 h-1.5 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-green-600"
+                                className="w-16 h-1.5 rounded-lg appearance-none cursor-pointer bg-nkz-surface-sunken accent-green-600"
                             />
                             <span className="text-xs text-nkz-muted w-10">
                                 {stampOptions.brushSize}m
@@ -180,16 +180,16 @@ export const PlacementToolbar: React.FC<PlacementToolbarProps> = ({
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 pl-3 border-l border-nkz-border">
-                    <Button
+                    <Button variant="ghost"
                         onClick={handleCancel}
-                        className="w-9 h-9 rounded-lg bg-nkz-bg-secondary hover:bg-gray-200 flex items-center justify-center transition-colors"
+                        className="w-9 h-9 rounded-lg bg-nkz-bg-secondary hover:bg-nkz-surface-sunken flex items-center justify-center transition-colors"
                         title={t('wizard.stamp.cancel')}
                     >
-                        <X className="w-5 h-5 text-gray-600" />
+                        <X className="w-5 h-5 text-nkz-text-secondary" />
                     </Button>
-                    <Button
+                    <Button variant="primary"
                         onClick={handleConfirm}
-                        className="w-9 h-9 rounded-lg bg-nkz-success hover:bg-green-600 flex items-center justify-center transition-colors"
+                        className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
                         title={t('wizard.stamp.confirm')}
                     >
                         <Check className="w-5 h-5 text-white" />

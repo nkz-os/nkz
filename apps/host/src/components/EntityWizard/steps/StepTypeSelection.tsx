@@ -8,23 +8,22 @@ import { Button, Input } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const COLOR_MAP: Record<string, { border: string; bg: string }> = {
-  green:  { border: '#22c55e', bg: '#f0fdf4' },
-  teal:   { border: '#14b8a6', bg: '#f0fdfa' },
-  indigo: { border: '#6366f1', bg: '#eef2ff' },
-  blue:   { border: '#3b82f6', bg: '#eff6ff' },
-  purple: { border: '#a855f7', bg: '#faf5ff' },
-  orange: { border: '#f97316', bg: '#fff7ed' },
-  yellow: { border: '#eab308', bg: '#fefce8' },
-  brown:  { border: '#92400e', bg: '#fef3c7' },
-  gray:   { border: '#6b7280', bg: '#f9fafb' },
+// Selection accent per entity colour; the background comes from a theme token.
+const COLOR_MAP: Record<string, { border: string }> = {
+  green:  { border: '#22c55e' },
+  teal:   { border: '#14b8a6' },
+  indigo: { border: '#6366f1' },
+  blue:   { border: '#3b82f6' },
+  purple: { border: '#a855f7' },
+  orange: { border: '#f97316' },
+  yellow: { border: '#eab308' },
+  brown:  { border: '#92400e' },
+  gray:   { border: '#6b7280' },
 };
 
 function getColorStyle(color: string, selected: boolean) {
   const c = COLOR_MAP[color] ?? COLOR_MAP.gray;
-  return selected
-    ? { borderColor: c.border, backgroundColor: c.bg }
-    : {};
+  return selected ? { borderColor: c.border } : {};
 }
 
 export function StepTypeSelection() {
@@ -75,9 +74,9 @@ export function StepTypeSelection() {
       {/* Quick actions — most common entities */}
       <div>
         <p className="text-xs font-medium text-nkz-muted uppercase tracking-wide mb-2">{t('wizard.type_selection.quick_access')}</p>
-        <Button
+        <Button variant="primary"
           onClick={() => handleQuickCreate('AgriParcel')}
-          className="w-full flex items-center justify-between px-5 py-4 bg-nkz-accent-base hover:bg-nkz-accent-strong text-white rounded-xl transition-colors shadow-sm"
+          className="w-full flex items-center justify-between px-5 py-4 rounded-xl transition-colors shadow-sm"
         >
           <div className="flex items-center gap-3">
             <MapPin className="w-5 h-5 flex-shrink-0" />
@@ -92,9 +91,9 @@ export function StepTypeSelection() {
 
       <SDMGuideInfo />
 
-      <div className="border-t border-gray-100 pt-4">
+      <div className="border-t border-nkz-border pt-4">
         <h3 className="text-lg font-semibold mb-1">{t('wizard.type_selection.other_types')}</h3>
-        <p className="text-sm text-gray-600">{t('wizard.type_selection.other_types_hint')}</p>
+        <p className="text-sm text-nkz-text-secondary">{t('wizard.type_selection.other_types_hint')}</p>
       </div>
 
       {/* Search */}
@@ -108,7 +107,7 @@ export function StepTypeSelection() {
           className="w-full pl-12 pr-4 py-3 border-2 border-nkz-border rounded-xl focus:ring-2 focus:ring-nkz-accent-base focus:border-nkz-accent-base text-base"
         />
         {searchTerm && (
-          <Button variant="ghost" onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-gray-600">
+          <Button variant="ghost" onClick={() => setSearchTerm('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-nkz-muted hover:text-nkz-text-secondary">
             <X className="w-5 h-5" />
           </Button>
         )}
@@ -120,13 +119,13 @@ export function StepTypeSelection() {
           const Icon = macro.icon;
           const isActive = activeMacro === key;
           return (
-            <Button
+            <Button variant="ghost"
               key={key}
               onClick={() => setActiveMacro(isActive ? null : key)}
               style={isActive ? getColorStyle(macro.color, true) : {}}
-              className={`p-4 rounded-xl border-2 text-left transition-all ${isActive ? '' : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary'}`}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${isActive ? 'bg-nkz-surface-sunken' : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary'}`}
             >
-              <Icon className="w-6 h-6 mb-2 text-nkz-muted" style={isActive ? getColorStyle(macro.color, true) : {}} />
+              <Icon className="w-6 h-6 mb-2 text-nkz-muted" style={isActive ? { color: COLOR_MAP[macro.color]?.border } : {}} />
               <div className="font-semibold text-sm">{t(`wizard.macro.${key}.label`)}</div>
               <div className="text-xs text-nkz-muted mt-0.5">{t(`wizard.macro.${key}.description`)}</div>
             </Button>
@@ -137,10 +136,10 @@ export function StepTypeSelection() {
       {/* Results */}
       {searchTerm.trim() ? (
         <div className="space-y-2">
-          <p className="text-sm text-gray-600">{t(filteredTypes.length === 1 ? 'wizard.type_selection.results_one' : 'wizard.type_selection.results_other', { count: filteredTypes.length, term: searchTerm })}</p>
+          <p className="text-sm text-nkz-text-secondary">{t(filteredTypes.length === 1 ? 'wizard.type_selection.results_one' : 'wizard.type_selection.results_other', { count: filteredTypes.length, term: searchTerm })}</p>
           {filteredTypes.length === 0 ? (
             <div className="p-6 text-center bg-nkz-bg-secondary rounded-xl">
-              <Search className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+              <Search className="w-10 h-10 text-nkz-text-muted mx-auto mb-2" />
               <p className="text-nkz-muted">{t('wizard.type_selection.no_results')}</p>
             </div>
           ) : (
@@ -153,20 +152,20 @@ export function StepTypeSelection() {
         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
           {Object.entries(groupedTypes).map(([cat, types]) => (
             <div key={cat} className="border border-nkz-border rounded-lg overflow-hidden">
-              <Button
+              <Button variant="ghost"
                 onClick={() => toggleCategory(cat)}
                 className="w-full px-4 py-3 flex items-center justify-between bg-nkz-bg-secondary hover:bg-nkz-bg-secondary transition"
               >
-                <span className="font-medium text-sm text-gray-700">{t(`wizard.categories.${cat}`)}</span>
+                <span className="font-medium text-sm text-nkz-text-primary">{t(`wizard.categories.${cat}`)}</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-nkz-muted bg-gray-200 px-2 py-0.5 rounded-full">{types.length}</span>
+                  <span className="text-xs text-nkz-muted bg-nkz-surface-sunken px-2 py-0.5 rounded-full">{types.length}</span>
                   {expandedCategories.has(cat)
                     ? <ChevronDown className="w-4 h-4 text-nkz-muted" />
                     : <ChevronRight className="w-4 h-4 text-nkz-muted" />}
                 </div>
               </Button>
               {expandedCategories.has(cat) && (
-                <div className="p-2 grid grid-cols-2 gap-2 bg-white">
+                <div className="p-2 grid grid-cols-2 gap-2 bg-nkz-surface">
                   {types.map(type => <TypeCard key={type} type={type} selected={entityType === type} onSelect={setEntityType} compact />)}
                 </div>
               )}
@@ -181,10 +180,10 @@ export function StepTypeSelection() {
         const Icon = meta?.icon ?? Activity;
         return (
           <div className="p-4 bg-nkz-accent-soft border-2 border-nkz-accent-base rounded-xl flex items-center gap-3">
-            <Icon className="w-6 h-6 text-nkz-accent-base" />
+            <Icon className="w-6 h-6 text-nkz-accent-strong" />
             <div>
               <div className="font-semibold text-nkz-accent-strong">{entityType}</div>
-              <div className="text-sm text-nkz-accent-base">{t(`wizard.types.${entityType}`)}</div>
+              <div className="text-sm text-nkz-accent-strong">{t(`wizard.types.${entityType}`)}</div>
             </div>
           </div>
         );
@@ -208,10 +207,10 @@ function TypeCard({ type, selected, onSelect, compact = false }: TypeCardProps) 
   const Icon = meta?.icon ?? Activity;
   const style = selected && meta ? getColorStyle(meta.color, true) : {};
   const baseClass = `rounded-lg border-2 text-left transition flex items-${compact ? 'center' : 'start'} gap-${compact ? '2' : '3'} p-${compact ? '2.5' : '3'}`;
-  const borderClass = selected ? '' : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary';
+  const borderClass = selected ? 'bg-nkz-surface-sunken' : 'border-nkz-border hover:border-nkz-border hover:bg-nkz-bg-secondary';
 
   return (
-    <Button
+    <Button variant="ghost"
       key={type}
       onClick={() => onSelect(type)}
       style={style}

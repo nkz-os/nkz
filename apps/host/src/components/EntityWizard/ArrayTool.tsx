@@ -122,24 +122,24 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
     <div className="space-y-3">
       {/* Anchor */}
       {!anchorSet || !settings.anchor ? (
-        <Button
+        <Button variant="primary"
           type="button"
           onClick={handlePickAnchor}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl transition-colors font-medium"
         >
           <MapPin className="w-5 h-5" />
           {t('wizard.array.clickAnchor')}
         </Button>
       ) : (
-        <div className="flex items-center gap-2 p-2 bg-purple-50 border border-purple-200 rounded-lg text-sm">
-          <MapPin className="w-4 h-4 text-purple-600" />
-          <span className="text-purple-800 font-mono text-xs">
+        <div className="flex items-center gap-2 p-2 bg-nkz-info-soft border border-nkz-info/30 rounded-lg text-sm">
+          <MapPin className="w-4 h-4 text-nkz-info-strong" />
+          <span className="text-nkz-info-strong font-mono text-xs">
             {settings.anchor.lat.toFixed(6)}, {settings.anchor.lon.toFixed(6)}
           </span>
           <Button variant="ghost"
             type="button"
             onClick={handlePickAnchor}
-            className="ml-auto text-xs text-purple-600 hover:text-purple-800 underline"
+            className="ml-auto text-xs text-nkz-info hover:text-nkz-info-strong underline"
           >
             {t('wizard.array.changeAnchor')}
           </Button>
@@ -205,7 +205,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             max={359}
             value={settings.bearing}
             onChange={(e: any) => updateSetting('bearing', parseInt(e.target.value))}
-            className="w-full mt-1 h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-purple-600"
+            className="w-full mt-1 h-2 rounded-lg appearance-none cursor-pointer bg-nkz-surface-sunken accent-purple-600"
           />
           <div className="flex justify-between text-[10px] text-nkz-muted mt-0.5">
             <span>N (0°)</span>
@@ -258,19 +258,19 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             })}
             className="rounded border-nkz-border text-purple-600 focus:ring-purple-500"
           />
-          <span className="text-sm text-gray-700">{t('wizard.array.randomRotation')}</span>
+          <span className="text-sm text-nkz-text-primary">{t('wizard.array.randomRotation')}</span>
         </label>
       </div>
 
       {/* AgriEnergyTracker-specific controls */}
       {entityType === 'AgriEnergyTracker' && (
-        <div className="p-3 bg-nkz-warning-soft rounded-lg border border-yellow-200 space-y-3">
+        <div className="p-3 bg-nkz-surface-sunken rounded-lg border border-nkz-warning/30 space-y-3">
           <div className="flex items-center gap-2 text-xs font-semibold text-nkz-warning-strong">
             <Sun className="w-3 h-3" />
             {t('wizard.array.solarParams')}
           </div>
           <div>
-            <label className="text-xs text-gray-600 flex items-center gap-1">
+            <label className="text-xs text-nkz-text-secondary flex items-center gap-1">
               {t('wizard.array.tilt')} ({settings.tilt}°)
             </label>
             <Input
@@ -279,7 +279,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
               max={90}
               value={settings.tilt}
               onChange={(e: any) => updateSetting('tilt', parseInt(e.target.value))}
-              className="w-full mt-1 h-2 rounded-lg appearance-none cursor-pointer bg-gray-200 accent-yellow-500"
+              className="w-full mt-1 h-2 rounded-lg appearance-none cursor-pointer bg-nkz-surface-sunken accent-yellow-500"
             />
             <div className="flex justify-between text-[10px] text-nkz-muted mt-0.5">
               <span>{t('wizard.array.tiltFlat')} (0°)</span>
@@ -288,7 +288,7 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
             </div>
           </div>
           <div>
-            <label className="text-xs text-gray-600 flex items-center gap-1">
+            <label className="text-xs text-nkz-text-secondary flex items-center gap-1">
               <Zap className="w-3 h-3" />
               {t('wizard.array.nominalPower')}
             </label>
@@ -316,21 +316,21 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
 
       {/* Summary bar */}
       <div className="flex justify-between items-center p-2 bg-nkz-bg-secondary rounded-lg border border-nkz-border">
-        <span className="text-sm font-medium text-gray-700">
+        <span className="text-sm font-medium text-nkz-text-primary">
           <span className="text-purple-600 font-bold">{settings.rows * settings.columns}</span>{' '}
           {t('wizard.array.total')}
         </span>
-        <Button
+        <Button variant="ghost"
           type="button"
           onClick={handleClear}
-          className="px-3 py-1.5 bg-white border border-nkz-border rounded text-sm hover:bg-nkz-danger-soft hover:text-nkz-danger-strong hover:border-red-200 flex items-center gap-1 transition-colors"
+          className="px-3 py-1.5 bg-nkz-surface border border-nkz-border rounded text-sm hover:bg-nkz-danger-soft hover:text-nkz-danger-strong hover:border-nkz-danger/30 flex items-center gap-1 transition-colors"
         >
           <Eraser className="w-4 h-4" /> {t('wizard.array.clearAnchor')}
         </Button>
       </div>
 
       {/* Help text */}
-      <div className="bg-purple-50 border border-purple-100 rounded-lg p-3 text-sm text-purple-800">
+      <div className="bg-nkz-info-soft border border-nkz-info/30 rounded-lg p-3 text-sm text-nkz-info-strong">
         <p>
           <strong>{t('wizard.array.title')}:</strong>{' '}
           {t('wizard.array.description')}

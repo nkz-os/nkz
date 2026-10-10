@@ -88,7 +88,7 @@ function StepperIndicator() {
                     ? 'bg-nkz-accent-base text-white shadow-sm'
                     : isActive
                       ? 'bg-nkz-accent-soft text-nkz-accent-strong ring-2 ring-nkz-accent-base/30'
-                      : 'bg-gray-100 text-gray-400'
+                      : 'bg-nkz-surface-sunken text-nkz-text-muted'
                 }`}
               >
                 {isDone ? (
@@ -103,7 +103,7 @@ function StepperIndicator() {
                     ? 'font-semibold text-nkz-accent-strong'
                     : isDone
                       ? 'text-nkz-text-secondary'
-                      : 'text-gray-400'
+                      : 'text-nkz-text-muted'
                 }`}
               >
                 {t(s.label)}
@@ -113,7 +113,7 @@ function StepperIndicator() {
             {i < steps.length - 1 && (
               <div
                 className={`w-8 h-px mx-1 self-start mt-4 transition-colors ${
-                  i < stepIndex ? 'bg-nkz-accent-base' : 'bg-gray-200'
+                  i < stepIndex ? 'bg-nkz-accent-base' : 'bg-nkz-surface-sunken'
                 }`}
               />
             )}
@@ -264,13 +264,13 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
           ? 'pointer-events-none'
           : 'bg-black bg-opacity-50'
       }`}>
-        <div className={`bg-white shadow-xl flex flex-col transition-all duration-300 ${
+        <div className={`bg-nkz-surface text-nkz-text-primary shadow-xl flex flex-col transition-all duration-300 ${
           isMapInteractMode
             ? 'absolute top-20 right-4 w-96 max-h-[80vh] pointer-events-auto rounded-xl border border-nkz-border'
             : 'rounded-2xl max-w-5xl w-full max-h-[85vh] mx-4'
         }`}>
           {/* Header */}
-          <div className="bg-white px-8 pt-6 pb-4 border-b flex justify-between items-start sticky top-0 z-10 rounded-t-2xl">
+          <div className="bg-nkz-surface px-8 pt-6 pb-4 border-b border-nkz-border flex justify-between items-start sticky top-0 z-10 rounded-t-2xl">
             <div>
               <h2 className="text-xl font-bold text-nkz-text-primary">{t('wizard.title')}</h2>
               <StepperIndicator />
@@ -300,7 +300,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
           </div>
 
           {/* Footer */}
-          <div className="bg-nkz-bg-secondary px-8 py-4 border-t flex justify-between items-center rounded-b-2xl">
+          <div className="bg-nkz-bg-secondary px-8 py-4 border-t border-nkz-border flex justify-between items-center rounded-b-2xl">
             <Button
               variant="ghost"
               size="md"
@@ -339,7 +339,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
       {/* Loading overlay */}
       {loading && (
         <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm w-full mx-4">
+          <div className="bg-nkz-surface p-8 rounded-3xl shadow-2xl flex flex-col items-center max-w-sm w-full mx-4">
             <Loader2 className="w-12 h-12 text-nkz-info animate-spin mb-4" />
             <h3 className="text-xl font-bold text-nkz-text-primary">{t('wizard.creating_entity')}</h3>
             <p className="text-nkz-text-muted mt-2 text-sm text-center">{t('wizard.do_not_close')}</p>
