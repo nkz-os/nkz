@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { getNGSIValue } from '@/types/ngsi-ld';
 import type { NGSAttribute } from '@/types/ngsi-ld';
 import type { EditorFormState, EntityEditorContextValue } from './types';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const EntityEditorContext = createContext<EntityEditorContextValue | null>(null);
 
 export function useEntityEditor(): EntityEditorContextValue {
@@ -23,13 +23,17 @@ export const EntityEditorProvider: React.FC<{
     originalAttributes: { ...initialAttributes },
   });
 
-  const setField = useCallback((key: string, attr: NGSAttribute) => {
+  // `undefined` clears the attribute. Relationships compare by object, properties by value.
+  const setField = useCallback((key: string, attr: NGSAttribute | undefined) => {
     setFormState(prev => {
-      const next = { ...prev, attributes: { ...prev.attributes, [key]: attr } };
+      const attributes = { ...prev.attributes };
+      if (attr === undefined) delete attributes[key];
+      else attributes[key] = attr;
+      const next = { ...prev, attributes };
       const dirty = new Set(prev.dirtyFields);
       const orig = prev.originalAttributes[key];
-      const origValue = orig && (orig as any).value;
-      const newValue = (attr as any).value;
+      const origValue = orig === undefined ? undefined : getNGSIValue(orig);
+      const newValue = attr === undefined ? undefined : getNGSIValue(attr);
       if (JSON.stringify(origValue) !== JSON.stringify(newValue)) {
         dirty.add(key);
       } else {

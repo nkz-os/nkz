@@ -10,6 +10,8 @@ import { RelationshipSection } from './sections/RelationshipSection';
 import { VisualSection } from './sections/VisualSection';
 import { AdditionalAttributes } from './sections/AdditionalAttributes';
 import { useEntityEditor } from './EntityEditorContext';
+import { planEditorSave } from './saveOperations';
+import type { EditorSaveOperation } from './saveOperations';
 import { logger } from '@/utils/logger';
 import type { EntityEditorProps } from './types';
 import type { NGSAttribute } from '@/types/ngsi-ld';
@@ -25,6 +27,19 @@ function buildAttributeKeys(entity: any): Record<string, NGSAttribute> {
     }
   }
   return attrs;
+}
+
+async function applyOperation(entityId: string, operation: EditorSaveOperation): Promise<void> {
+  if (operation.kind === 'merge') {
+    await api.mergeSDMEntity(entityId, operation.fragment);
+    return;
+  }
+  try {
+    await api.deleteSDMEntityAttribute(entityId, operation.attribute);
+  } catch (err: any) {
+    // Already absent: the removal is done.
+    if (err?.response?.status !== 404) throw err;
+  }
 }
 
 const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> = ({ onClose, onSuccess }) => {
@@ -46,13 +61,9 @@ const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> =
     setSaving(true);
     setSaveError(null);
     try {
-      const patch: Record<string, NGSAttribute> = {};
-      formState.dirtyFields.forEach(key => {
-        if (formState.attributes[key]) {
-          patch[key] = formState.attributes[key];
-        }
-      });
-      await api.updateSDMEntity(entityType, entityId, patch);
+      for (const operation of planEditorSave(formState)) {
+        await applyOperation(entityId, operation);
+      }
       onSuccess?.();
       onClose();
     } catch (err: any) {
@@ -153,11 +164,10 @@ export const EntityEditorModal: React.FC<EntityEditorProps> = ({ entityId, entit
 
   if (!isOpen) return null;
 
-  const initialAttributes = entity ? buildAttributeKeys(entity) : {};
-
+  // The provider takes its initial state on mount, so it mounts only with the entity.
   return (
-    <EntityEditorProvider entityId={entityId} entityType={entityType} initialAttributes={initialAttributes}>
-      {loading ? (
+    <>
+      {loading || (!entity && !fetchError) ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-2xl p-8 text-center">
             <Loader2 className="w-8 h-8 animate-spin text-nkz-info mx-auto mb-4" />
@@ -173,9 +183,11 @@ export const EntityEditorModal: React.FC<EntityEditorProps> = ({ entityId, entit
           </div>
         </div>
       ) : (
-        <EditorContent onClose={onClose} onSuccess={onSuccess} />
+        <EntityEditorProvider key={entity.id ?? entityId} entityId={entityId} entityType={entityType} initialAttributes={buildAttributeKeys(entity)}>
+          <EditorContent onClose={onClose} onSuccess={onSuccess} />
+        </EntityEditorProvider>
       )}
-    </EntityEditorProvider>
+    </>
   );
 };
 

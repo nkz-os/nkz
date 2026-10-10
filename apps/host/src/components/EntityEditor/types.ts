@@ -30,7 +30,7 @@ export interface EditorFormState {
 
 export interface EntityEditorContextValue {
   formState: EditorFormState;
-  setField: (key: string, attr: NGSAttribute) => void;
+  setField: (key: string, attr: NGSAttribute | undefined) => void;
   hasChanges: boolean;
   resetAll: () => void;
   entityType: string;
