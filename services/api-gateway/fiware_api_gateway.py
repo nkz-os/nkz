@@ -247,14 +247,22 @@ _ROUTE_CACHE_TTL = 300
 
 # A module's backend_service is operator-supplied data in marketplace_modules;
 # the gateway only ever proxies to a plain in-cluster service name, optionally
-# namespace-qualified, with an explicit port and no path/userinfo/query.
+# namespace-qualified, with an explicit port and no path/userinfo/query. The
+# host label starts with a letter (Kubernetes Service names are DNS-1035), so
+# numeric or hex IP spellings such as 2130706433 or 0x7f000001 never match.
 PLATFORM_NAMESPACE = os.getenv("PLATFORM_NAMESPACE", "nekazari")
 _MODULE_BACKEND_URL_RE = re.compile(
-    r"^http://[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+    r"^http://[a-z](?:[a-z0-9-]*[a-z0-9])?"
     rf"(?:\.{re.escape(PLATFORM_NAMESPACE)}(?:\.svc(?:\.cluster\.local)?)?)?"
     r":\d{2,5}$"
 )
 _MODULE_API_PREFIX_RE = re.compile(r"^/api/[a-z0-9][a-z0-9/_-]*$")
+# backend_mount is concatenated straight after backend_service, and
+# strip_remainder_prefix is matched against the request path: both must be plain
+# paths, or "@host" style values would redirect the request off the allowlisted
+# service. The strip prefix may omit the leading slash (it is normalised later).
+_MODULE_MOUNT_RE = re.compile(r"^/[a-z0-9][a-z0-9/_-]*$")
+_MODULE_STRIP_RE = re.compile(r"^/?[a-z0-9][a-z0-9/_-]*$")
 
 
 def _refresh_route_registry() -> dict[str, dict]:
@@ -278,18 +286,27 @@ def _refresh_route_registry() -> dict[str, dict]:
             backend = meta.get("backend_service", "")
             if not prefix or not backend:
                 continue
-            if not _MODULE_API_PREFIX_RE.match(prefix) or not _MODULE_BACKEND_URL_RE.match(backend):
+            mount = meta.get("backend_mount") or prefix
+            strip = meta.get("strip_remainder_prefix") or ""
+            if not (
+                all(isinstance(v, str) for v in (prefix, backend, mount, strip))
+                and _MODULE_API_PREFIX_RE.match(prefix)
+                and _MODULE_BACKEND_URL_RE.match(backend)
+                and _MODULE_MOUNT_RE.match(mount)
+                and (not strip or _MODULE_STRIP_RE.match(strip))
+            ):
                 logger.error(
-                    "Route registry: module %s skipped, unsafe api_prefix=%r backend_service=%r",
-                    row["id"], prefix, backend,
+                    "Route registry: module %s skipped, unsafe api_prefix=%r "
+                    "backend_service=%r backend_mount=%r strip_remainder_prefix=%r",
+                    row["id"], prefix, backend, mount, strip,
                 )
                 continue
             routes[prefix] = {
                 "backend_service": backend,
-                "backend_mount": meta.get("backend_mount") or prefix,
+                "backend_mount": mount,
                 "module_id": row["id"],
                 "requires_auth": meta.get("requires_auth", True),
-                "strip_remainder_prefix": meta.get("strip_remainder_prefix", ""),
+                "strip_remainder_prefix": strip,
             }
         cur.close()
         conn.close()
