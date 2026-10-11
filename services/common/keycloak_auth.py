@@ -425,13 +425,10 @@ def require_keycloak_auth(f):
             return jsonify({'user': g.current_user})
     
     The decorator:
-    1. Validates JWT token using Keycloak JWKs (or trusts API Gateway validation)
-    2. Extracts tenant_id from claims or X-Tenant-ID header
+    1. Validates the JWT signature using Keycloak JWKs
+    2. Extracts tenant_id from the token claims
     3. Stores user info in Flask g for access in route handlers
     4. Optionally verifies HMAC signature if X-Auth-Signature header present
-    
-    If X-Tenant-ID header is present (from API Gateway), it trusts the API Gateway
-    validation and only decodes (doesn't validate signature) the token.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -447,37 +444,18 @@ def require_keycloak_auth(f):
         if not token:
             return jsonify({'error': 'Missing or invalid authorization header'}), 401
         
-        # Check if request comes from API Gateway (trusted internal service)
-        # API Gateway validates tokens and passes tenant via X-Tenant-ID
-        trusted_tenant = request.headers.get('X-Tenant-ID')
-        trust_api_gateway = os.getenv('TRUST_API_GATEWAY', 'false').lower() == 'true'
-        
         try:
-            if trust_api_gateway and trusted_tenant:
-                # Trust API Gateway validation - only decode token without signature verification
-                logger.debug("Trusting API Gateway validation, decoding token without signature verification")
-                try:
-                    # Decode without verification when trusting API Gateway
-                    payload = jwt.decode(token, options={"verify_signature": False, "verify_exp": True})
-                    tenant_id = trusted_tenant  # Use tenant from header
-                except jwt.ExpiredSignatureError:
-                    logger.warning("Token expired even though from API Gateway")
-                    return jsonify({'error': 'Token has expired'}), 401
-                except Exception as e:
-                    logger.warning(f"Token decode failed: {e}")
-                    return jsonify({'error': 'Invalid token'}), 401
-            else:
-                # Full validation - validate token signature with Keycloak JWKs
-                payload = validate_keycloak_token(token)
-                if not payload:
-                    return jsonify({'error': 'Token validation failed'}), 401
-                
-                # Extract tenant_id
-                tenant_id = extract_tenant_id(payload)
-                if not tenant_id:
-                    logger.warning("No tenant_id in token")
-                    return jsonify({'error': 'Tenant ID not found in token'}), 401
-            
+            # Full validation - validate token signature with Keycloak JWKs
+            payload = validate_keycloak_token(token)
+            if not payload:
+                return jsonify({'error': 'Token validation failed'}), 401
+
+            # Extract tenant_id
+            tenant_id = extract_tenant_id(payload)
+            if not tenant_id:
+                logger.warning("No tenant_id in token")
+                return jsonify({'error': 'Tenant ID not found in token'}), 401
+
             # Verify HMAC signature if present
             hmac_signature = request.headers.get('X-Auth-Signature')
             if hmac_signature:
