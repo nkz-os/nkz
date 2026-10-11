@@ -67,6 +67,33 @@ def test_roller_crimper_never_ends_a_main_crop():
     assert [u["id"] for u in t["unassigned_operations"]] == ["urn:ngsi-ld:AgriParcelOperation:r1"]
 
 
+def test_mowing_ends_a_cover_crop():
+    cover = crop("c", cropRole="cover_crop", status="terminated", sowingWindowStart="2025-10-01",
+                 expectedTerminationDate="2026-04-20")
+    main = crop("m", cropRole="main_crop", status="active", plantingDate="2026-05-01",
+                harvestDate="2026-10-30")
+    t = tl([cover, main], [op("w1", "tillage", "2026-04-22", tillageType="mowing")])
+    assert t["previous"]["crop_id"].endswith(":c")
+    assert t["previous"]["end"] == {"date": "2026-04-22", "provenance": "actual"}
+
+
+def test_termination_ends_a_catch_crop():
+    catch = crop("k", cropRole="catch_crop", status="terminated", sowingWindowStart="2025-08-01",
+                 expectedTerminationDate="2025-11-15")
+    t = tl([catch], [op("r1", "tillage", "2025-11-10", tillageType="roller_crimper")], at=date(2026, 1, 10))
+    assert t["previous"]["end"] == {"date": "2025-11-10", "provenance": "actual"}
+
+
+def test_mowing_never_ends_a_main_or_perennial_crop():
+    # Alfalfa and meadows are mowed several times a year: a cut is never the end of the stand.
+    alfalfa = crop("a", cropRole="main_crop", status="active", plantingDate="2025-09-01",
+                   cropLifecycle="perennial")
+    t = tl([alfalfa], [op("w1", "tillage", "2026-06-01", tillageType="mowing")])
+    assert t["current"]["crop_id"].endswith(":a")
+    assert t["current"]["end"]["provenance"] != "actual"
+    assert [u["id"] for u in t["unassigned_operations"]] == ["urn:ngsi-ld:AgriParcelOperation:w1"]
+
+
 def test_perennial_accumulates_from_campaign_start():
     t = tl([crop("v", status="active", plantingDate="2015-02-01", cropLifecycle="perennial")])
     assert t["current"]["lifecycle"] == "perennial"
