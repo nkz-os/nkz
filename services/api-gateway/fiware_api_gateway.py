@@ -528,6 +528,9 @@ def enforce_pat_scopes():
     info = resolve_pat_info(tok, TENANT_WEBHOOK_URL)
     if not info:
         return jsonify({"error": "Invalid or expired PAT"}), 401
+    if _is_tenant_suspended(info["tenant_id"]):
+        logger.warning("Rejected PAT request from suspended tenant %s", info["tenant_id"])
+        return jsonify({"error": "TENANT_SUSPENDED"}), 403
 
     scopes = info.get("scopes") or []
     if not scopes:
@@ -961,7 +964,7 @@ def add_security_headers(response):
     return response
 
 
-def validate_jwt_token(token):
+def _validate_jwt_signature(token):
     """Validate JWT token - uses Keycloak if available, falls back to JWT_SECRET"""
     if KEYCLOAK_AUTH_AVAILABLE:
         try:
@@ -992,6 +995,23 @@ def validate_jwt_token(token):
     except jwt.InvalidTokenError as e:
         logger.warning(f"Invalid JWT token (fallback): {e}")
         return None
+
+
+def validate_jwt_token(token, *, check_suspension=True):
+    """Validate the JWT and, by default, refuse tokens of suspended tenants.
+
+    Suspension is checked here so every route inherits it; ``create_session``
+    passes ``check_suspension=False`` to return its explicit TENANT_SUSPENDED
+    answer instead of a generic 401.
+    """
+    payload = _validate_jwt_signature(token)
+    if not payload or not check_suspension:
+        return payload
+    tenant = extract_tenant_id(payload)
+    if tenant and tenant != "platform" and _is_tenant_suspended(tenant):
+        logger.warning("Rejected request from suspended tenant %s", tenant)
+        return None
+    return payload
 
 
 def inject_fiware_headers(headers, tenant=None):
@@ -1026,7 +1046,7 @@ def create_session():
     token = data["token"]
 
     # STRICT VALIDATION: Restore JWKS signature and issuer check
-    payload = validate_jwt_token(token)
+    payload = validate_jwt_token(token, check_suspension=False)
     if not payload:
         logger.warning("Session creation failed: Invalid or expired token")
         return jsonify({"error": "Invalid or expired token"}), 401
