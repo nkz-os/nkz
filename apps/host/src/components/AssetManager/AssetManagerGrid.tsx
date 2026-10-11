@@ -116,7 +116,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
   const { checkDependenciesBatch, shouldBlockDeletion, isChecking: isCheckingDependencies } = useEntityDependencies();
 
   // Local state
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [viewMode, setViewMode] = useState<ViewMode>('tree');
   const [showFilters, setShowFilters] = useState(false);
   const [activeCategory, setActiveCategory] = useState<AssetCategory | null>(initialCategory);
   const [contextMenu, setContextMenu] = useState<{

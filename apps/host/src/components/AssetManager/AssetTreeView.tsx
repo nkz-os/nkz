@@ -222,6 +222,15 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
 
 TreeNodeRow.displayName = 'TreeNodeRow';
 
+/** Ids of the parcels, at any depth, that have something nested under them. */
+function parcelsWithChildren(nodes: AssetTreeNode[], ids: Set<string> = new Set()): Set<string> {
+  for (const node of nodes) {
+    if (node.asset.type === 'AgriParcel' && node.children.length > 0) ids.add(node.asset.id);
+    parcelsWithChildren(node.children, ids);
+  }
+  return ids;
+}
+
 // =============================================================================
 // Main Component
 // =============================================================================
@@ -236,11 +245,11 @@ export const AssetTreeView: React.FC<AssetTreeViewProps> = ({
 }) => {
   const { t } = useI18n();
 
-  // State for expanded nodes
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  
   // Build tree structure
   const tree = useMemo(() => buildAssetTree(assets), [assets]);
+
+  // Parcels start open so what hangs from them shows at once
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => parcelsWithChildren(tree));
   
   // Count orphans (assets without parent that aren't parcels)
   const orphanCount = useMemo(() => {

@@ -36,11 +36,29 @@ describe('AssetTreeView', () => {
 
     expect(screen.getByText('North field')).toBeTruthy();
     expect(screen.getByText('Loose sensor')).toBeTruthy();
-    expect(screen.queryByText('virtual North field')).toBeNull();
+    expect(screen.getByText('virtual North field')).toBeTruthy();
     expect(screen.getByText('entities.assets.tree.unassigned:1')).toBeTruthy();
 
-    fireEvent.click(screen.getByText('entities.assets.tree.expand_all'));
-    expect(screen.getByText('virtual North field')).toBeTruthy();
+    fireEvent.click(screen.getByText('entities.assets.tree.collapse_all'));
+    expect(screen.queryByText('virtual North field')).toBeNull();
+  });
+
+  it('opens every parcel, sub-parcels included, so what hangs from them shows at once', () => {
+    render(
+      <AssetTreeView
+        {...props}
+        assets={[
+          asset('p1', 'North field', 'parcels', 'AgriParcel'),
+          asset('p2', 'North field, east half', 'parcels', 'AgriParcel', 'p1'),
+          asset('c1', 'Rye', 'vegetation', 'AgriCrop', 'p2'),
+          asset('z1', 'High wetness zone', 'parcels', 'AgriParcelZone', 'p1'),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('North field, east half')).toBeTruthy();
+    expect(screen.getByText('Rye')).toBeTruthy();
+    expect(screen.getByText('High wetness zone')).toBeTruthy();
   });
 
   it('renders the empty state through i18n', () => {
