@@ -2921,10 +2921,12 @@ def internal_validate_pat():
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT tenant_id, is_active, scopes, expires_at
-            FROM api_keys
-            WHERE key_hash = %s
-              AND key_type = 'pat'
+            SELECT k.tenant_id, k.is_active, k.scopes, k.expires_at
+            FROM api_keys k
+            LEFT JOIN tenants t ON t.tenant_id = k.tenant_id
+            WHERE k.key_hash = %s
+              AND k.key_type = 'pat'
+              AND t.deleted_at IS NULL
             LIMIT 1
             """,
             (token_hash,),
