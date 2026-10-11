@@ -1274,37 +1274,9 @@ def entity_operations_query():
         return jsonify({"error": "Internal server error"}), 500
 
 
-@app.route(
-    "/ngsi-ld/v1/subscriptions", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
-)
-def subscriptions():
-    """Proxy to Orion-LD Context Broker subscriptions endpoint"""
-    # No PAT support on this route today — allow_pat=False so a PAT-shaped
-    # token still falls through to validate_jwt_token() and gets the same
-    # "Invalid or expired token" 401 it gets today (PAT tokens are not valid
-    # JWTs), instead of being resolved as a PAT.
-    tenant, headers, err = resolve_request_auth(allow_pat=False, header_mode="canonical")
-    if err:
-        return err
-
-    # Forward request to Orion-LD
-    try:
-        orion_url = f"{ORION_URL}/ngsi-ld/v1/subscriptions"
-        if request.method == "GET":
-            response = requests.get(orion_url, headers=headers, params=request.args, timeout=PROXY_TIMEOUT)
-        elif request.method == "POST":
-            response = requests.post(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
-        elif request.method == "PUT":
-            response = requests.put(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
-        elif request.method == "PATCH":
-            response = requests.patch(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
-        elif request.method == "DELETE":
-            response = requests.delete(orion_url, headers=headers, timeout=PROXY_TIMEOUT)
-        return safe_proxy_response(response)
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error forwarding request to Orion-LD: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+# Subscription management is not a user-facing API: Orion returns receiverInfo
+# (internal auth headers) verbatim, and users must not aim notifications at
+# internal services. Workers and modules register subscriptions in-cluster.
 
 
 @app.route("/api/devices/stats", methods=["GET"])
