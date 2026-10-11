@@ -48,9 +48,18 @@ def _sanitize_urn_segment(value: str) -> str:
 @dataclass
 class SubscriptionDef:
     type: str
-    throttling: int = 30
+    # Seconds between notifications; None sends no throttling, so none is applied.
+    # Orion-LD rejects 0 (400 on create and on update), hence None for "no throttling".
+    throttling: int | None = 30
     watched_attributes: list[str] | None = None
     condition: dict | None = None
+
+    def __post_init__(self) -> None:
+        if self.throttling is not None and self.throttling <= 0:
+            raise ValueError(
+                f"{self.type}: throttling must be positive, or None for no throttling "
+                f"(got {self.throttling})"
+            )
 
 
 class SubscriptionRegistrar:
@@ -118,9 +127,10 @@ class SubscriptionRegistrar:
                 "endpoint": endpoint,
                 "format": "normalized",
             },
-            "throttling": sub.throttling,
             "isActive": True,
         }
+        if sub.throttling is not None:
+            body["throttling"] = sub.throttling
         if sub.watched_attributes:
             body["watchedAttributes"] = sub.watched_attributes
         if sub.condition:
