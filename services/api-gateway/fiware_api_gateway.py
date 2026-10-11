@@ -4551,6 +4551,7 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
     <n8n-host>/<tenant_id>/  ->  http://n8n-<tenant_id>-service:5678/
 
     n8n uses its own basic auth, so this route is PUBLIC (no JWT required).
+    Browser cookies are not forwarded.
     Rewrites /static/base-path.js to inject correct BASE_PATH for the tenant.
     """
     import re
@@ -4590,13 +4591,15 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
             headers[hdr] = request.headers[hdr]
 
     try:
+        # Never forward browser cookies: the platform session cookie must not
+        # reach a workload that runs tenant-authored code. n8n keeps its own
+        # auth via X-N8N-API-KEY / its login form.
         resp = requests.request(
             method=request.method,
             url=target,
             headers=headers,
             params=request.args,
             data=request.get_data(),
-            cookies=request.cookies,
             allow_redirects=True,
             timeout=60,
         )
