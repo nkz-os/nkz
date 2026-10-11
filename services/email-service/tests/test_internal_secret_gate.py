@@ -74,3 +74,15 @@ def test_gate_on_without_secret_configured_refuses(client):
             "/send/notification", json={}, headers={"X-Internal-Service-Secret": ""}
         )
     assert resp.status_code == 401
+
+
+def test_non_ascii_secret_header_is_401_not_500(client):
+    # Werkzeug decodes header values as latin-1; comparing str with non-ASCII
+    # characters would raise TypeError and surface as a 500.
+    with _gate(True, "s"):
+        resp = client.post(
+            "/send/notification",
+            json={},
+            headers={"X-Internal-Service-Secret": "é"},
+        )
+    assert resp.status_code == 401

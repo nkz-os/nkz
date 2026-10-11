@@ -62,7 +62,11 @@ def _require_internal_secret():
     if not EMAIL_REQUIRE_INTERNAL_SECRET:
         return None
     provided = request.headers.get("X-Internal-Service-Secret", "")
-    if not INTERNAL_SERVICE_SECRET or not hmac.compare_digest(provided, INTERNAL_SERVICE_SECRET):
+    # Compare bytes: compare_digest raises TypeError on non-ASCII str, which
+    # an unauthenticated caller could trigger to get a 500 instead of a 401.
+    if not INTERNAL_SERVICE_SECRET or not hmac.compare_digest(
+        provided.encode("utf-8"), INTERNAL_SERVICE_SECRET.encode("utf-8")
+    ):
         logger.warning("Rejected unauthenticated call to %s", request.path)
         return jsonify({"error": "Unauthorized"}), 401
     return None
