@@ -46,3 +46,13 @@ def test_pat_of_suspended_tenant_is_rejected(client, monkeypatch):
     )
     assert resp.status_code == 403
     assert resp.get_json()["error"] == "TENANT_SUSPENDED"
+
+
+def test_tenant_route_keeps_explicit_suspended_answer(client, monkeypatch):
+    monkeypatch.setattr(gw, "validate_keycloak_token", lambda token: dict(PAYLOAD))
+    monkeypatch.setattr(gw, "_is_tenant_suspended", lambda tenant: True)
+    with patch.object(gw.requests, "get") as m:
+        resp = client.get("/api/tenant/plan", headers={"Authorization": "Bearer t"})
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "TENANT_SUSPENDED"
+    assert not m.called

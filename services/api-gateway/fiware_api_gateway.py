@@ -3108,13 +3108,16 @@ def proxy_push_register():
     tenant = extract_tenant_id(payload)
     if not tenant:
         return jsonify({"error": "Tenant not present in token"}), 401
+    user_id = payload.get("sub")
+    if not user_id:
+        return jsonify({"error": "Subject not present in token"}), 401
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return jsonify({"error": "JSON object body required"}), 400
     # Identity comes from the validated token, never from the client body:
     # otherwise a user could register a device under someone else's account
     # and receive their notifications.
-    body["user_id"] = payload.get("sub", "")
+    body["user_id"] = user_id
     body["tenant_id"] = tenant
     target_url = "http://push-notification-service:5000/register"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
@@ -3142,7 +3145,9 @@ def proxy_tenant_requests(subpath):
         logger.warning(f"Missing or invalid authorization for /api/tenant/{subpath}")
         return jsonify({"error": "Missing or invalid authorization header"}), 401
 
-    payload = validate_jwt_token(token)
+    # check_suspension=False: the explicit TENANT_SUSPENDED answer below must
+    # reach the client instead of a generic 401.
+    payload = validate_jwt_token(token, check_suspension=False)
     if not payload:
         logger.warning(f"Token validation failed for /api/tenant/{subpath}")
         return jsonify({"error": "Invalid or expired token"}), 401

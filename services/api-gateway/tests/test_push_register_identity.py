@@ -44,3 +44,17 @@ def test_register_rejects_non_object_body(client, monkeypatch):
         headers={"Authorization": "Bearer t"},
     )
     assert resp.status_code == 400
+
+
+def test_register_rejects_token_without_subject(client, monkeypatch):
+    monkeypatch.setattr(
+        gw, "validate_jwt_token", lambda token, **kw: {"sub": "", "tenant_id": "acme"}
+    )
+    with patch.object(gw.requests, "post") as m:
+        resp = client.post(
+            "/api/push/register",
+            json={"token": "ExponentPushToken[x]", "platform": "ios"},
+            headers={"Authorization": "Bearer t"},
+        )
+    assert resp.status_code == 401
+    assert not m.called
