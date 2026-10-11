@@ -1086,16 +1086,6 @@ class ApiService {
     }
   }
 
-  async regenerateIoTKey(id: string): Promise<any> {
-    const response = await this.client.post(`/sdm/entities/${id}/iot/regenerate-key`);
-    return response.data;
-  }
-
-  async getIoTDetails(id: string): Promise<any> {
-    const response = await this.client.get(`/sdm/entities/${id}/iot/details`);
-    return response.data;
-  }
-
   // Entities - Parcels
   async getMachines(): Promise<AgriculturalMachine[]> {
     try {
@@ -1628,14 +1618,6 @@ class ApiService {
    */
   async createSDMIoTEntity(entityType: string, body: Record<string, unknown>): Promise<any> {
     const response = await this.client.post(`/sdm/entities/${entityType}/instances`, body);
-    return response.data;
-  }
-
-  async batchCreateEntities(
-    entityType: string,
-    entities: Array<{ name: string; lat?: number | null; lng?: number | null; [key: string]: any }>
-  ): Promise<{ created: number; errors: any[]; entity_ids: string[] }> {
-    const response = await this.client.post(`/sdm/entities/${entityType}/batch`, { entities });
     return response.data;
   }
 
