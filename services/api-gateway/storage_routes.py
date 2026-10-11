@@ -3,9 +3,9 @@
 The path layout in the bucket is:
     tenants/<tenant-id>/modules/<module-id>/<user-path>
 
-Modules can only read/write within their own scope. The gateway derives
-the tenant from the authenticated token (X-Tenant-ID) and the module
-from the X-Module-Id header injected by the SDK.
+Modules can only read/write within their own scope. The tenant is taken
+from the validated JWT (never from a client header) and the module from the
+X-Module-Id header injected by the SDK.
 """
 
 import os
@@ -66,6 +66,27 @@ def _validate_path(path):
     return None
 
 
+def _tenant_from_token():
+    """Resolve the caller's tenant from the validated JWT (never from a header).
+
+    Imported lazily: the gateway module imports this blueprint at load time, so
+    a top-level import here would be circular. At request time the module is
+    already loaded.
+    """
+    import fiware_api_gateway as gw
+
+    token = gw.get_request_token()
+    if not token:
+        return None, (jsonify({"error": "Missing or invalid authorization"}), 401)
+    payload = gw.validate_jwt_token(token)
+    if not payload:
+        return None, (jsonify({"error": "Invalid or expired token"}), 401)
+    tenant = gw.extract_tenant_id(payload)
+    if not tenant:
+        return None, (jsonify({"error": "Tenant not present in token"}), 401)
+    return tenant, None
+
+
 def _scoped_key(tenant_id, module_id, path):
     return f"tenants/{tenant_id}/modules/{module_id}/{path}"
 
@@ -75,10 +96,10 @@ def presigned_url():
     if request.method == "OPTIONS":
         return ("", 204)
 
-    tenant_id = request.headers.get("X-Tenant-ID")
+    tenant_id, err = _tenant_from_token()
+    if err:
+        return err
     module_id = request.headers.get("X-Module-Id")
-    if not tenant_id:
-        return jsonify({"error": "X-Tenant-ID header missing"}), 401
     if not module_id:
         return jsonify({"error": "X-Module-Id header missing"}), 400
 
@@ -131,10 +152,10 @@ def list_objects():
     if request.method == "OPTIONS":
         return ("", 204)
 
-    tenant_id = request.headers.get("X-Tenant-ID")
+    tenant_id, err = _tenant_from_token()
+    if err:
+        return err
     module_id = request.headers.get("X-Module-Id")
-    if not tenant_id:
-        return jsonify({"error": "X-Tenant-ID header missing"}), 401
     if not module_id:
         return jsonify({"error": "X-Module-Id header missing"}), 400
 

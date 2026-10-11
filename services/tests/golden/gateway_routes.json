@@ -31,7 +31,6 @@
   "DELETE /n8n/<tenant_id>/<path:subpath>": 404,
   "DELETE /ngsi-ld/v1/entities": 401,
   "DELETE /ngsi-ld/v1/entities/<path:entity_id>": 401,
-  "DELETE /ngsi-ld/v1/subscriptions": 401,
   "GET /": 200,
   "GET /<tenant_id>": 404,
   "GET /<tenant_id>/<path:subpath>": 404,
@@ -97,7 +96,6 @@
   "GET /ngsi-ld/v1/entities": 401,
   "GET /ngsi-ld/v1/entities/<path:entity_id>": 401,
   "GET /ngsi-ld/v1/entityOperations/query": 401,
-  "GET /ngsi-ld/v1/subscriptions": 401,
   "GET /static/<path:subpath>": 404,
   "GET /version": 200,
   "PATCH /<tenant_id>": 404,
@@ -123,7 +121,6 @@
   "PATCH /n8n/<tenant_id>/<path:subpath>": 404,
   "PATCH /ngsi-ld/v1/entities": 401,
   "PATCH /ngsi-ld/v1/entities/<path:entity_id>": 401,
-  "PATCH /ngsi-ld/v1/subscriptions": 401,
   "POST /<tenant_id>": 404,
   "POST /<tenant_id>/<path:subpath>": 404,
   "POST /admin/external-api-credentials": 401,
@@ -170,7 +167,6 @@
   "POST /n8n/<tenant_id>/<path:subpath>": 404,
   "POST /ngsi-ld/v1/entities": 401,
   "POST /ngsi-ld/v1/entityOperations/query": 401,
-  "POST /ngsi-ld/v1/subscriptions": 401,
   "PUT /<tenant_id>": 404,
   "PUT /<tenant_id>/<path:subpath>": 404,
   "PUT /admin/external-api-credentials/<credential_id>": 401,
@@ -195,6 +191,5 @@
   "PUT /n8n/<tenant_id>": 404,
   "PUT /n8n/<tenant_id>/<path:subpath>": 404,
   "PUT /ngsi-ld/v1/entities": 401,
-  "PUT /ngsi-ld/v1/entities/<path:entity_id>": 401,
-  "PUT /ngsi-ld/v1/subscriptions": 401
+  "PUT /ngsi-ld/v1/entities/<path:entity_id>": 401
 }

@@ -27,6 +27,7 @@ import boto3
 import re
 import ipaddress
 from collections import defaultdict, deque
+from urllib.parse import unquote
 
 # Configure logging FIRST
 logging.basicConfig(level=logging.INFO)
@@ -245,6 +246,26 @@ _route_cache_ts: float = 0.0
 _ROUTE_CACHE_TTL = 300
 
 
+# A module's backend_service is operator-supplied data in marketplace_modules;
+# the gateway only ever proxies to a plain in-cluster service name, optionally
+# namespace-qualified, with an explicit port and no path/userinfo/query. The
+# host label starts with a letter (Kubernetes Service names are DNS-1035), so
+# numeric or hex IP spellings such as 2130706433 or 0x7f000001 never match.
+PLATFORM_NAMESPACE = os.getenv("PLATFORM_NAMESPACE", "nekazari")
+_MODULE_BACKEND_URL_RE = re.compile(
+    r"^http://[a-z](?:[a-z0-9-]*[a-z0-9])?"
+    rf"(?:\.{re.escape(PLATFORM_NAMESPACE)}(?:\.svc(?:\.cluster\.local)?)?)?"
+    r":\d{2,5}$"
+)
+_MODULE_API_PREFIX_RE = re.compile(r"^/api/[a-z0-9][a-z0-9/_-]*$")
+# backend_mount is concatenated straight after backend_service, and
+# strip_remainder_prefix is matched against the request path: both must be plain
+# paths, or "@host" style values would redirect the request off the allowlisted
+# service. The strip prefix may omit the leading slash (it is normalised later).
+_MODULE_MOUNT_RE = re.compile(r"^/[a-z0-9][a-z0-9/_-]*$")
+_MODULE_STRIP_RE = re.compile(r"^/?[a-z0-9][a-z0-9/_-]*$")
+
+
 def _refresh_route_registry() -> dict[str, dict]:
     """Load active module routes from marketplace_modules.metadata JSONB."""
     global _route_cache, _route_cache_ts
@@ -264,14 +285,30 @@ def _refresh_route_registry() -> dict[str, dict]:
                 meta = json.loads(meta)
             prefix = meta.get("api_prefix", "")
             backend = meta.get("backend_service", "")
-            if prefix and backend:
-                routes[prefix] = {
-                    "backend_service": backend,
-                    "backend_mount": meta.get("backend_mount") or prefix,
-                    "module_id": row["id"],
-                    "requires_auth": meta.get("requires_auth", True),
-                    "strip_remainder_prefix": meta.get("strip_remainder_prefix", ""),
-                }
+            if not prefix or not backend:
+                continue
+            mount = meta.get("backend_mount") or prefix
+            strip = meta.get("strip_remainder_prefix") or ""
+            if not (
+                all(isinstance(v, str) for v in (prefix, backend, mount, strip))
+                and _MODULE_API_PREFIX_RE.match(prefix)
+                and _MODULE_BACKEND_URL_RE.match(backend)
+                and _MODULE_MOUNT_RE.match(mount)
+                and (not strip or _MODULE_STRIP_RE.match(strip))
+            ):
+                logger.error(
+                    "Route registry: module %s skipped, unsafe api_prefix=%r "
+                    "backend_service=%r backend_mount=%r strip_remainder_prefix=%r",
+                    row["id"], prefix, backend, mount, strip,
+                )
+                continue
+            routes[prefix] = {
+                "backend_service": backend,
+                "backend_mount": mount,
+                "module_id": row["id"],
+                "requires_auth": meta.get("requires_auth", True),
+                "strip_remainder_prefix": strip,
+            }
         cur.close()
         conn.close()
     except Exception as exc:
@@ -501,6 +538,35 @@ def _validate_oidc_token(token, module_id=""):
         return False
 
 
+def _has_dot_segment(path: str) -> bool:
+    """True when any segment of the fully decoded path is '.' or '..'.
+
+    Segments end at '/', '?' or '#': once decoded, an encoded '?' or '#' makes
+    the HTTP client cut the URL there, so '..%3F' would still collapse '..'.
+    Decoding is repeated until stable so a double-encoded sequence (%252E%252E)
+    cannot slip past a single unquote and be collapsed later by the HTTP client.
+    """
+    decoded = path
+    for _ in range(5):
+        nxt = unquote(decoded)
+        if nxt == decoded:
+            break
+        decoded = nxt
+    return any(seg in (".", "..") for seg in re.split(r"[/?#]", decoded))
+
+
+# Registered first: Flask runs before_request hooks in registration order, and
+# this must run before any auth, PAT or proxy hook sees the request.
+@app.before_request
+def reject_dot_segments():
+    """Proxies build upstream URLs from <path:> captures; a '.' or '..' segment
+    would be collapsed by the HTTP client and hit a different upstream resource."""
+    if _has_dot_segment(request.path):
+        logger.warning("Rejected path with dot segment: %s", request.path)
+        return jsonify({"error": "Invalid path"}), 400
+    return None
+
+
 @app.before_request
 def record_request_start_time():
     """Record start time for request duration logging."""
@@ -528,6 +594,9 @@ def enforce_pat_scopes():
     info = resolve_pat_info(tok, TENANT_WEBHOOK_URL)
     if not info:
         return jsonify({"error": "Invalid or expired PAT"}), 401
+    if _is_tenant_suspended(info["tenant_id"]):
+        logger.warning("Rejected PAT request from suspended tenant %s", info["tenant_id"])
+        return jsonify({"error": "TENANT_SUSPENDED"}), 403
 
     scopes = info.get("scopes") or []
     if not scopes:
@@ -791,8 +860,7 @@ def resolve_request_auth(
         (normalized NGSILD-Tenant/Fiware-Service + Fiware-ServicePath +
         Content-Type/Link per @context-in-body + Accept), plus X-Tenant-ID
         and, in the JWT branch only, X-Auth-Signature via
-        ``generate_hmac_signature``. Matches entity_by_id / entities /
-        subscriptions.
+        ``generate_hmac_signature``. Matches entity_by_id / entities.
       "raw" — headers built with the literal (non-normalized) tenant string
         assigned directly to NGSILD-Tenant/Fiware-Service, no Link/
         ServicePath/Accept, no HMAC signature, with an explicit
@@ -961,7 +1029,7 @@ def add_security_headers(response):
     return response
 
 
-def validate_jwt_token(token):
+def _validate_jwt_signature(token):
     """Validate JWT token - uses Keycloak if available, falls back to JWT_SECRET"""
     if KEYCLOAK_AUTH_AVAILABLE:
         try:
@@ -992,6 +1060,23 @@ def validate_jwt_token(token):
     except jwt.InvalidTokenError as e:
         logger.warning(f"Invalid JWT token (fallback): {e}")
         return None
+
+
+def validate_jwt_token(token, *, check_suspension=True):
+    """Validate the JWT and, by default, refuse tokens of suspended tenants.
+
+    Suspension is checked here so every route inherits it; ``create_session``
+    passes ``check_suspension=False`` to return its explicit TENANT_SUSPENDED
+    answer instead of a generic 401.
+    """
+    payload = _validate_jwt_signature(token)
+    if not payload or not check_suspension:
+        return payload
+    tenant = extract_tenant_id(payload)
+    if tenant and tenant != "platform" and _is_tenant_suspended(tenant):
+        logger.warning("Rejected request from suspended tenant %s", tenant)
+        return None
+    return payload
 
 
 def inject_fiware_headers(headers, tenant=None):
@@ -1026,7 +1111,7 @@ def create_session():
     token = data["token"]
 
     # STRICT VALIDATION: Restore JWKS signature and issuer check
-    payload = validate_jwt_token(token)
+    payload = validate_jwt_token(token, check_suspension=False)
     if not payload:
         logger.warning("Session creation failed: Invalid or expired token")
         return jsonify({"error": "Invalid or expired token"}), 401
@@ -1274,37 +1359,9 @@ def entity_operations_query():
         return jsonify({"error": "Internal server error"}), 500
 
 
-@app.route(
-    "/ngsi-ld/v1/subscriptions", methods=["GET", "POST", "PUT", "PATCH", "DELETE"]
-)
-def subscriptions():
-    """Proxy to Orion-LD Context Broker subscriptions endpoint"""
-    # No PAT support on this route today — allow_pat=False so a PAT-shaped
-    # token still falls through to validate_jwt_token() and gets the same
-    # "Invalid or expired token" 401 it gets today (PAT tokens are not valid
-    # JWTs), instead of being resolved as a PAT.
-    tenant, headers, err = resolve_request_auth(allow_pat=False, header_mode="canonical")
-    if err:
-        return err
-
-    # Forward request to Orion-LD
-    try:
-        orion_url = f"{ORION_URL}/ngsi-ld/v1/subscriptions"
-        if request.method == "GET":
-            response = requests.get(orion_url, headers=headers, params=request.args, timeout=PROXY_TIMEOUT)
-        elif request.method == "POST":
-            response = requests.post(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
-        elif request.method == "PUT":
-            response = requests.put(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
-        elif request.method == "PATCH":
-            response = requests.patch(orion_url, headers=headers, json=request.json, timeout=PROXY_TIMEOUT)
-        elif request.method == "DELETE":
-            response = requests.delete(orion_url, headers=headers, timeout=PROXY_TIMEOUT)
-        return safe_proxy_response(response)
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error forwarding request to Orion-LD: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+# Subscription management is not a user-facing API: Orion returns receiverInfo
+# (internal auth headers) verbatim, and users must not aim notifications at
+# internal services. Workers and modules register subscriptions in-cluster.
 
 
 @app.route("/api/devices/stats", methods=["GET"])
@@ -1497,7 +1554,7 @@ def timeseries_proxy(path):
     # header (do not forward) — header_mode="raw" builds NGSILD-Tenant/
     # Fiware-Service/X-Delegated-Tenant-ID from the server-resolved tenant
     # only, same as before. This route rate-limits the PAT branch but NOT
-    # the JWT branch (the inverse of entity_by_id/entities/subscriptions),
+    # the JWT branch (the inverse of entity_by_id/entities),
     # and never sets X-Auth-Signature (not needed by timeseries-reader).
     tenant, headers, err = resolve_request_auth(
         header_mode="raw",
@@ -3050,14 +3107,26 @@ def proxy_push_register():
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({"error": "Invalid token"}), 401
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+    user_id = payload.get("sub")
+    if not user_id:
+        return jsonify({"error": "Subject not present in token"}), 401
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"error": "JSON object body required"}), 400
+    # Identity comes from the validated token, never from the client body:
+    # otherwise a user could register a device under someone else's account
+    # and receive their notifications.
+    body["user_id"] = user_id
+    body["tenant_id"] = tenant
     target_url = "http://push-notification-service:5000/register"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     try:
-        response = requests.post(
-            target_url, headers=headers, json=request.get_json(silent=True), timeout=10
-        )
-        return (response.content, response.status_code, response.headers.items())
-    except Exception as e:
+        response = requests.post(target_url, headers=headers, json=body, timeout=10)
+        return safe_proxy_response(response)
+    except requests.exceptions.RequestException as e:
         logger.error(f"Error proxying push register: {e}")
         return jsonify({"error": "Internal service connection error"}), 502
 
@@ -3078,7 +3147,9 @@ def proxy_tenant_requests(subpath):
         logger.warning(f"Missing or invalid authorization for /api/tenant/{subpath}")
         return jsonify({"error": "Missing or invalid authorization header"}), 401
 
-    payload = validate_jwt_token(token)
+    # check_suspension=False: the explicit TENANT_SUSPENDED answer below must
+    # reach the client instead of a generic 401.
+    payload = validate_jwt_token(token, check_suspension=False)
     if not payload:
         logger.warning(f"Token validation failed for /api/tenant/{subpath}")
         return jsonify({"error": "Invalid or expired token"}), 401
@@ -4578,7 +4649,9 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
 
     <n8n-host>/<tenant_id>/  ->  http://n8n-<tenant_id>-service:5678/
 
-    n8n uses its own basic auth, so this route is PUBLIC (no JWT required).
+    n8n uses its own login, so this route is PUBLIC (no JWT required).
+    Only n8n's own cookies are forwarded, and its Set-Cookie answers are scoped
+    to this tenant's path prefix; the platform session cookie never reaches n8n.
     Rewrites /static/base-path.js to inject correct BASE_PATH for the tenant.
     """
     import re
@@ -4602,6 +4675,11 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
             # Serving some other tenant's n8n is worse than serving nothing.
             return jsonify({"error": "Not Found"}), 404
 
+    # The tenant is echoed into a Set-Cookie Path, an inline script and rewritten
+    # HTML, so it must be a plain DNS-label-like token whatever its source.
+    if not re.fullmatch(r"[a-z0-9-]{1,63}", tenant_id):
+        return jsonify({"error": "Not Found"}), 404
+
     safe_tenant = re.sub(r"[^a-z0-9-]", "-", tenant_id.lower()).strip("-")[:63]
     service = f"n8n-{safe_tenant}-service"
     # Reconstruct the full path that n8n expects
@@ -4618,18 +4696,44 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
             headers[hdr] = request.headers[hdr]
 
     try:
+        # Only n8n's own cookies are forwarded, and its Set-Cookie answers are
+        # scoped to this tenant's path prefix; the platform session cookie never
+        # reaches n8n (it runs tenant-authored code). n8n sets Path=/ on a host
+        # shared by every tenant, so unscoped cookies would leak across tenants.
+        n8n_cookies = {
+            k: v for k, v in request.cookies.items() if k.startswith("n8n-")
+        }
         resp = requests.request(
             method=request.method,
             url=target,
             headers=headers,
             params=request.args,
             data=request.get_data(),
-            cookies=request.cookies,
+            cookies=n8n_cookies,
             allow_redirects=True,
             timeout=60,
         )
         body = resp.content
-        resp_headers = dict(resp.headers)
+        resp_headers = {
+            k: v for k, v in resp.headers.items() if k.lower() != "set-cookie"
+        }
+        # urllib3's header dict keeps repeated Set-Cookie values apart; a plain
+        # dict of the response headers would collapse them into one.
+        raw_getlist = getattr(getattr(getattr(resp, "raw", None), "headers", None), "getlist", None)
+        if callable(raw_getlist):
+            set_cookies = list(raw_getlist("Set-Cookie"))
+        else:
+            joined = resp.headers.get("Set-Cookie")
+            set_cookies = re.split(r",\s*(?=[^;,\s]+=)", joined) if joined else []
+        scoped_path = f"/{tenant_id}/"
+        set_cookies = [
+            re.sub(
+                r"(?i)(;\s*path\s*=\s*)/(?=\s*(?:;|$))",
+                lambda m: m.group(1) + scoped_path,
+                value,
+            )
+            for value in set_cookies
+        ]
         resp_headers.pop("Content-Encoding", None)
         resp_headers.pop("Transfer-Encoding", None)
         resp_headers.pop("Content-Security-Policy", None)
@@ -4653,7 +4757,10 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
         else:
             resp_headers["Content-Length"] = str(len(body))
 
-        return make_response(body, resp.status_code, resp_headers)
+        response = make_response(body, resp.status_code, resp_headers)
+        for value in set_cookies:
+            response.headers.add("Set-Cookie", value)
+        return response
     except Exception as e:
         logger.error(f"n8n tenant proxy error to {target}: {e}")
         return internal_error(e, "gateway_n8n_proxy", status=502, user_message="n8n instance unavailable")
