@@ -170,6 +170,73 @@ def _resolve_description(module_row, lang=None):
 
 SUPPORTED_LANGUAGES = ['es', 'en', 'eu', 'fr', 'pt', 'ca']
 
+# Longest translated menu name accepted at publish time.
+LABEL_MAX_LENGTH = 80
+
+
+def _i18n_map(value, max_len=None):
+    """Return a clean ``{lang: text}`` map from an untrusted value.
+
+    Keeps only SUPPORTED_LANGUAGES whose value is a non-blank string (trimmed)
+    and, when ``max_len`` is given, no longer than it. Anything else, including
+    a non-dict ``value``, yields ``{}``.
+    """
+    if not isinstance(value, dict):
+        return {}
+    cleaned = {}
+    for lang in SUPPORTED_LANGUAGES:
+        text = value.get(lang)
+        if not isinstance(text, str):
+            continue
+        text = text.strip()
+        if not text or (max_len is not None and len(text) > max_len):
+            continue
+        cleaned[lang] = text
+    return cleaned
+
+
+def _parse_metadata(module_row):
+    """Return a module row's ``metadata`` as a dict (it may arrive as JSON text)."""
+    metadata = module_row.get('metadata') or {}
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _i18n_fields(metadata):
+    """API fields carrying every translation of a module's name and description."""
+    return {
+        'labelI18n': _i18n_map(metadata.get('label_i18n')),
+        'descriptionI18n': _i18n_map(metadata.get('description_i18n')),
+    }
+
+
+def _publish_metadata(manifest):
+    """Metadata a publish merges (``||``) over the stored one.
+
+    A key left out here keeps its stored value, so translations survive
+    publishes whose manifest does not carry them.
+    """
+    metadata = {
+        'hostApiVersion': manifest.get('hostApiVersion', ''),
+        'deploy_method': 'dist_endpoint',
+        'slots': manifest.get('slots', {}),
+    }
+    description_i18n = _i18n_map(manifest.get('description_i18n'))
+    if description_i18n:
+        metadata['description_i18n'] = description_i18n
+    navigation = manifest.get('navigation')
+    label_i18n = _i18n_map(
+        navigation.get('label') if isinstance(navigation, dict) else None,
+        LABEL_MAX_LENGTH,
+    )
+    if label_i18n:
+        metadata['label_i18n'] = label_i18n
+    return metadata
+
 
 def _get_user_lang():
     """Extract best language from Accept-Language header."""
@@ -309,7 +376,8 @@ def get_tenant_modules():
                     'icon_url': icon_url,
                     'moduleType': row.get('module_type', 'ADDON_FREE'),
                     'metadata': metadata,
-                    'tenantConfig': tenant_config
+                    'tenantConfig': tenant_config,
+                    **_i18n_fields(metadata),
                 }
 
                 # Add navigation items if present in metadata
@@ -566,6 +634,7 @@ def get_marketplace_modules():
         for m in modules_raw:
             m_dict = dict(m)
             m_dict['description'] = _resolve_description(m, user_lang)
+            m_dict.update(_i18n_fields(_parse_metadata(m)))
             modules.append(m_dict)
 
         return jsonify(modules), 200
@@ -1027,13 +1096,7 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
     # Using a versioned path would cause chunk 404s when version_hash differs from publicPath.
     remote_entry_url = f'/modules/{module_id}/mf-manifest.json'
 
-    description_i18n = manifest.get('description_i18n', None)
-    metadata = json.dumps({
-        'hostApiVersion': manifest.get('hostApiVersion', ''),
-        'deploy_method': 'dist_endpoint',
-        'slots': manifest.get('slots', {}),
-        'description_i18n': description_i18n if isinstance(description_i18n, dict) else {},
-    })
+    metadata = json.dumps(_publish_metadata(manifest))
 
     conn = None
     try:
