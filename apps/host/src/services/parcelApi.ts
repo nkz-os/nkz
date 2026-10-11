@@ -247,6 +247,18 @@ class ParcelApiService {
     }
 
     /**
+     * Create or overwrite NGSI-LD attributes of a parcel and remove others, via
+     * entity-manager: the gateway lets only entity-manager write parcels.
+     */
+    async updateParcelAttributes(
+        id: string,
+        attributes: Record<string, unknown>,
+        remove: string[],
+    ): Promise<void> {
+        await this.client.patch(`/api/entities/parcels/${encodeURIComponent(id)}`, { attributes, remove });
+    }
+
+    /**
      * Delete a parcel via entity-manager (cascades to child zones).
      */
     async deleteParcel(id: string): Promise<void> {
