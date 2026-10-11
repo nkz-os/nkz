@@ -657,9 +657,6 @@ export const SensorInspector: React.FC<SensorInspectorProps> = ({
                     ) : (
                         <ManagementPanel
                             entity={entity}
-                            onUpdate={() => {
-                                loadTelemetry();
-                            }}
                             onDelete={() => {
                                 onClose();
                                 window.location.reload();

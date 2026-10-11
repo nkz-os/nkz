@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
 /* eslint-disable @typescript-eslint/no-explicit-any */
-    Save,
     Trash2,
     AlertTriangle,
-    Check,
-    X,
     RotateCcw,
     Settings
 } from 'lucide-react';
 import api from '@/services/api';
+import { openEntityEditor } from '@/components/EntityEditor';
 import { useI18n } from '@/context/I18nContext';
 import { logger } from '@/utils/logger';
-import { Button, Input } from '@nekazari/ui-kit';
+import { Button } from '@nekazari/ui-kit';
 
 
 
@@ -23,24 +21,21 @@ interface ManagementPanelProps {
         name: string;
         [key: string]: any;
     };
-    onUpdate: () => void;
     onDelete: () => void;
 }
 
 export const ManagementPanel: React.FC<ManagementPanelProps> = ({
     entity,
-    onUpdate,
     onDelete
 }) => {
     const { t } = useI18n();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [schema, setSchema] = useState<any>(null);
 
-    // Edit state
-    const [isEditing, setIsEditing] = useState(false);
+    // Shown read-only; editing goes through the entity editor, which works on the
+    // NGSI-LD entity rather than on this list row.
     const [formData, setFormData] = useState<Record<string, any>>({});
 
     // Load schema to know editable fields
@@ -83,45 +78,6 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
         }
     }, [entity]);
 
-    const handleSave = async () => {
-        setLoading(true);
-        setError(null);
-        setSuccess(null);
-
-        try {
-            // Prepare update object - strictly properties that changed
-            // Note: This assumes a generic update endpoint or we construct patch 
-            // For now, let's assume we use the standard patching mechanism
-
-            const updates: Record<string, any> = {};
-            Object.keys(formData).forEach(key => {
-                // Create NGSI-LD structure for update
-                updates[key] = {
-                    type: 'Property',
-                    value: formData[key]
-                };
-            });
-
-            // API call to update attributes
-            await api.patch(`/ngsi-ld/v1/entities/${entity.id}/attrs`, updates, {
-                headers: { 'Content-Type': 'application/ld+json' }
-            });
-
-            setSuccess(t('common.saved_successfully'));
-            setIsEditing(false);
-            if (onUpdate) onUpdate();
-
-            // Clear success message after 3s
-            setTimeout(() => setSuccess(null), 3000);
-
-        } catch (err: any) {
-            logger.error('Error updating entity:', err);
-            setError(err.response?.data?.error || err.message || 'Error al guardar');
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const handleDelete = async () => {
         setLoading(true);
         try {
@@ -139,65 +95,16 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
         // Skip internal fields
         if (['id', 'type', 'location', 'createdAt', 'modifiedAt', '@context'].includes(key)) return null;
 
-        // Determine type from schema if possible, else guess
+        // Label from the schema when it has one
         const attrSchema = schema?.attributes?.[key];
-        const type = attrSchema?.type || typeof value;
         const label = attrSchema?.description || key;
 
-        if (!isEditing) {
-            return (
-                <div key={key} className="flex flex-col py-2 border-b border-gray-100 last:border-0 hover:bg-nkz-bg-secondary px-2 rounded -mx-2 bg-transparent transition-colors">
-                    <span className="text-xs font-semibold text-nkz-muted uppercase tracking-wider mb-1">{label}</span>
-                    <span className="text-gray-800 break-words font-medium">
-                        {typeof value === 'boolean' ? (value ? 'Sí' : 'No') : String(value)}
-                    </span>
-                </div>
-            );
-        }
-
-        // Editable Inputs
-        if (type === 'Boolean' || typeof value === 'boolean') {
-            return (
-                <div key={key} className="flex items-center py-3 border-b border-gray-100">
-                    <Input
-                        type="checkbox"
-                        id={`field-${key}`}
-                        checked={!!formData[key]}
-                        onChange={(e: any) => setFormData({ ...formData, [key]: e.target.checked })}
-                        className="w-4 h-4 text-orange-600 rounded border-nkz-border focus:ring-orange-500"
-                    />
-                    <label htmlFor={`field-${key}`} className="ml-3 text-sm font-medium text-gray-700">
-                        {label}
-                    </label>
-                </div>
-            );
-        }
-
-        // Number input
-        if (type === 'Number' || typeof value === 'number') {
-            return (
-                <div key={key} className="py-2">
-                    <label className="block text-xs font-semibold text-nkz-muted uppercase mb-1">{label}</label>
-                    <Input
-                        type="number"
-                        value={formData[key] || ''}
-                        onChange={(e: any) => setFormData({ ...formData, [key]: parseFloat(e.target.value) })}
-                        className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-shadow text-sm"
-                    />
-                </div>
-            );
-        }
-
-        // Default Text
         return (
-            <div key={key} className="py-2">
-                <label className="block text-xs font-semibold text-nkz-muted uppercase mb-1">{label}</label>
-                <Input
-                    type="text"
-                    value={formData[key] || ''}
-                    onChange={(e: any) => setFormData({ ...formData, [key]: e.target.value })}
-                    className="w-full px-3 py-2 border border-nkz-border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-shadow text-sm"
-                />
+            <div key={key} className="flex flex-col py-2 border-b border-gray-100 last:border-0 hover:bg-nkz-bg-secondary px-2 rounded -mx-2 bg-transparent transition-colors">
+                <span className="text-xs font-semibold text-nkz-muted uppercase tracking-wider mb-1">{label}</span>
+                <span className="text-gray-800 break-words font-medium">
+                    {typeof value === 'boolean' ? (value ? 'Sí' : 'No') : String(value)}
+                </span>
             </div>
         );
     };
@@ -213,13 +120,6 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                 </div>
             )}
 
-            {success && (
-                <div className="m-4 mb-0 p-3 bg-nkz-success-soft border border-green-200 rounded-lg flex items-center gap-2 text-sm text-green-800 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <Check className="w-4 h-4 flex-shrink-0" />
-                    <span>{success}</span>
-                </div>
-            )}
-
             {/* Main Content - Attributes */}
             <div className="flex-1 overflow-y-auto p-4">
                 <div className="bg-white rounded-xl shadow-sm border border-nkz-border overflow-hidden">
@@ -228,36 +128,12 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                             <Settings className="w-4 h-4 text-nkz-muted" />
                             Propiedades
                         </h3>
-                        {!isEditing ? (
-                            <Button variant="ghost"
-                                onClick={() => setIsEditing(true)}
-                                className="text-sm text-orange-600 hover:text-orange-700 font-medium px-3 py-1 hover:bg-orange-50 rounded-md transition-colors"
-                            >
-                                Editar
-                            </Button>
-                        ) : (
-                            <div className="flex gap-2">
-                                <Button variant="ghost"
-                                    onClick={() => {
-                                        setIsEditing(false);
-                                        // Reset form
-                                        setError(null);
-                                    }}
-                                    className="p-1 text-nkz-muted hover:text-gray-700 hover:bg-nkz-bg-secondary rounded"
-                                    title="Cancelar"
-                                >
-                                    <X className="w-4 h-4" />
-                                </Button>
-                                <Button variant="ghost"
-                                    onClick={handleSave}
-                                    disabled={loading}
-                                    className="p-1 text-nkz-success-strong hover:text-nkz-success-strong hover:bg-nkz-success-soft rounded"
-                                    title={t("save")}
-                                >
-                                    <Save className="w-4 h-4" />
-                                </Button>
-                            </div>
-                        )}
+                        <Button variant="ghost"
+                            onClick={() => openEntityEditor(entity.id, entity.type)}
+                            className="text-sm text-orange-600 hover:text-orange-700 font-medium px-3 py-1 hover:bg-orange-50 rounded-md transition-colors"
+                        >
+                            {t('edit')}
+                        </Button>
                     </div>
 
                     <div className="p-4 space-y-1">
