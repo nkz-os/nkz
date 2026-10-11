@@ -370,9 +370,12 @@ def verify_hmac_signature(signature_header: str, token: str, tenant_id: str) -> 
     Returns:
         True if signature is valid, False otherwise
     """
-    if not signature_header or not HMAC_SECRET:
-        logger.warning("HMAC signature verification skipped (not configured)")
-        return True  # Don't block if not configured
+    if not HMAC_SECRET:
+        logger.error("HMAC_SECRET not configured; refusing signed request (fail-closed)")
+        return False
+    if not signature_header:
+        logger.warning("HMAC signature header missing")
+        return False
     
     try:
         parts = signature_header.split(':')
