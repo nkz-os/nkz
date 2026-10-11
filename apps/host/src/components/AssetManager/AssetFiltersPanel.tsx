@@ -8,6 +8,7 @@ import {
   AssetFilters,
   AssetStatus,
   ASSET_TYPE_REGISTRY,
+  assetTypeLabel,
 } from '@/types/assets';
 import { useI18n } from '@/context/I18nContext';
 import { Button } from '@nekazari/ui-kit';
@@ -48,7 +49,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
       }
       groups[category].push({
         type,
-        label: info.label,
+        label: assetTypeLabel(type, t),
         count: countsByType[type] || 0,
       });
     });
@@ -59,7 +60,7 @@ export const AssetFiltersPanel: React.FC<AssetFiltersPanelProps> = memo(({
     });
     
     return groups;
-  }, [countsByType]);
+  }, [countsByType, t]);
   
   // Count active filters
   const activeFilterCount = useMemo(() => {

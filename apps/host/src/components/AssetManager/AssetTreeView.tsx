@@ -25,7 +25,7 @@ import {
   Truck,
   Beef,
 } from 'lucide-react';
-import { UnifiedAsset, ASSET_TYPE_REGISTRY } from '@/types/assets';
+import { UnifiedAsset, assetTypeLabel } from '@/types/assets';
 import { Button } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
 import { buildAssetTree, type AssetTreeNode } from './assetTree';
@@ -117,7 +117,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
   const isExpanded = expandedNodes.has(asset.id);
   const isSelected = selectedAssets.has(asset.id);
   const hasChildren = children.length > 0;
-  const typeInfo = ASSET_TYPE_REGISTRY[asset.type];
+  const { t } = useI18n();
   
   // Indent based on depth
   const paddingLeft = 12 + (depth * 20);
@@ -172,7 +172,7 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
             )}
           </div>
           <p className="text-xs text-slate-500 truncate">
-            {typeInfo?.label || asset.type}
+            {assetTypeLabel(asset.type, t)}
             {asset.municipality && ` • ${asset.municipality}`}
           </p>
         </div>

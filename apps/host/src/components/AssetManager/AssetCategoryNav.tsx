@@ -14,7 +14,7 @@ import {
   CloudSun,
   LayoutGrid,
 } from 'lucide-react';
-import { AssetCategory, CATEGORY_REGISTRY } from '@/types/assets';
+import { AssetCategory, categoryLabel } from '@/types/assets';
 import { useI18n } from '@/context/I18nContext';
 import { Button } from '@nekazari/ui-kit';
 
@@ -82,7 +82,6 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
           const isAll = cat === 'all';
           const isActive = isAll ? activeCategory === null : activeCategory === cat;
           const count = isAll ? totalCount : (countsByCategory[cat as AssetCategory] || 0);
-          const info = isAll ? null : CATEGORY_REGISTRY[cat as AssetCategory];
           const Icon = CATEGORY_ICONS[cat];
           
           // Color classes based on category
@@ -138,7 +137,7 @@ export const AssetCategoryNav: React.FC<AssetCategoryNavProps> = memo(({
               <Icon className="w-3.5 h-3.5" />
               {!compact && (
                 <span>
-                  {isAll ? t('entities.categories.all') : info?.label || cat}
+                  {isAll ? t('entities.categories.all') : categoryLabel(cat as AssetCategory, t)}
                 </span>
               )}
               <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${

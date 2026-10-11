@@ -37,8 +37,8 @@ import {
   UnifiedAsset,
   AssetCategory,
   SortField,
-  ASSET_TYPE_REGISTRY,
   CATEGORY_REGISTRY,
+  assetTypeLabel,
 } from '@/types/assets';
 import { AssetFiltersPanel } from './AssetFiltersPanel';
 import { AssetRow } from './AssetRow';
@@ -667,7 +667,7 @@ const AssetGridCard: React.FC<AssetGridCardProps> = ({
   onClick,
   onContextMenu,
 }) => {
-  const typeInfo = ASSET_TYPE_REGISTRY[asset.type];
+  const { t } = useI18n();
   const categoryInfo = CATEGORY_REGISTRY[asset.category];
 
   return (
@@ -708,7 +708,7 @@ const AssetGridCard: React.FC<AssetGridCardProps> = ({
 
       {/* Type */}
       <p className="text-xs text-slate-500 truncate mt-0.5">
-        {typeInfo?.label || asset.type}
+        {assetTypeLabel(asset.type, t)}
       </p>
 
       {/* Status */}

@@ -4,7 +4,8 @@ import type { AssetCategory, UnifiedAsset } from '@/types/assets';
 
 vi.mock('@/context/I18nContext', () => ({
   useI18n: () => ({
-    t: (key: string, opts?: Record<string, unknown>) => (opts?.count !== undefined ? `${key}:${opts.count}` : key),
+    t: (key: string, opts?: Record<string, unknown>) =>
+      key === 'entities.assets.types.AgriParcel' ? 'Parcel' : opts?.count !== undefined ? `${key}:${opts.count}` : key,
   }),
 }));
 
@@ -35,6 +36,7 @@ describe('AssetTreeView', () => {
     );
 
     expect(screen.getByText('North field')).toBeTruthy();
+    expect(screen.getByText('Parcel')).toBeTruthy();
     expect(screen.getByText('Loose sensor')).toBeTruthy();
     expect(screen.getByText('virtual North field')).toBeTruthy();
     expect(screen.getByText('entities.assets.tree.unassigned:1')).toBeTruthy();

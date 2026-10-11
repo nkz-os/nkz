@@ -2017,6 +2017,35 @@
       "menu": {
         "view_on_map": "View on map",
         "copy_id": "Copy ID"
+      },
+      "types": {
+        "AgriParcel": "Parcel",
+        "Vineyard": "Vineyard",
+        "OliveGrove": "Olive grove",
+        "AgriParcelZone": "Parcel zone",
+        "AgriSoil": "Soil",
+        "AgriSoilExtended": "Soil",
+        "AgriFarm": "Farm",
+        "AgriSensor": "Sensor",
+        "Device": "Device",
+        "AutonomousMobileRobot": "Robot",
+        "ManufacturingMachine": "Tractor",
+        "AgriBuilding": "Building",
+        "AgriGreenhouse": "Greenhouse",
+        "IrrigationSystem": "Irrigation system",
+        "AgriEnergyTracker": "Solar tracker",
+        "PhotovoltaicInstallation": "PV installation",
+        "AgriCrop": "Crop",
+        "AgriTree": "Tree",
+        "OliveTree": "Olive tree",
+        "Vine": "Vine",
+        "FruitTree": "Fruit tree",
+        "LivestockAnimal": "Animal",
+        "LivestockGroup": "Herd",
+        "WaterSource": "Water source",
+        "Well": "Well",
+        "Pond": "Pond",
+        "WeatherStation": "Weather station"
       }
     },
     "filters": {
@@ -2037,7 +2066,15 @@
       "unknown": "Unk."
     },
     "categories": {
-      "all": "All"
+      "all": "All",
+      "parcels": "Parcels",
+      "sensors": "Sensors",
+      "fleet": "Fleet",
+      "infrastructure": "Infrastructure",
+      "vegetation": "Vegetation",
+      "livestock": "Livestock",
+      "water": "Water",
+      "weather": "Weather"
     }
   },
   "parcel": {

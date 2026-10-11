@@ -3,6 +3,7 @@
 // =============================================================================
 // Provides a normalized view of all entity types for the asset management UI.
 
+import i18n from 'i18next';
 import { logger } from '@/utils/logger';
 import { resolveParentRelationship } from '@/utils/entityRelations';
 
@@ -83,14 +84,12 @@ export interface UnifiedAsset {
 // Asset Type Metadata
 // =============================================================================
 
+// Labels live in the locales: entities.assets.types.<type> and entities.categories.<id>.
 export interface AssetTypeInfo {
   type: string;
-  label: string;
-  labelPlural: string;
   category: AssetCategory;
   icon: string;              // Lucide icon name
   color: string;             // Tailwind color class
-  description: string;
   supportsLocation: boolean;
   supportsHierarchy: boolean;
   supportsTelemetry: boolean;
@@ -100,84 +99,63 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   // Parcels
   AgriParcel: {
     type: 'AgriParcel',
-    label: 'Parcela',
-    labelPlural: 'Parcelas',
     category: 'parcels',
     icon: 'map-pin',
     color: 'green',
-    description: 'Parcela agrícola',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: false,
   },
   Vineyard: {
     type: 'Vineyard',
-    label: 'Viñedo',
-    labelPlural: 'Viñedos',
     category: 'parcels',
     icon: 'grape',
     color: 'purple',
-    description: 'Viñedo',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: false,
   },
   OliveGrove: {
     type: 'OliveGrove',
-    label: 'Olivar',
-    labelPlural: 'Olivares',
     category: 'parcels',
     icon: 'trees',
     color: 'green',
-    description: 'Olivar',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: false,
   },
   AgriParcelZone: {
     type: 'AgriParcelZone',
-    label: 'Zona de parcela',
-    labelPlural: 'Zonas de parcela',
     category: 'parcels',
     icon: 'grid-2x2',
     color: 'green',
-    description: 'Zona dentro de una parcela',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: false,
   },
   AgriSoil: {
     type: 'AgriSoil',
-    label: 'Suelo',
-    labelPlural: 'Suelos',
     category: 'parcels',
     icon: 'layers',
     color: 'amber',
-    description: 'Suelo de una parcela',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: false,
   },
   AgriSoilExtended: {
     type: 'AgriSoilExtended',
-    label: 'Suelo',
-    labelPlural: 'Suelos',
     category: 'parcels',
     icon: 'layers',
     color: 'amber',
-    description: 'Suelo de una parcela',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: false,
   },
   AgriFarm: {
     type: 'AgriFarm',
-    label: 'Explotación',
-    labelPlural: 'Explotaciones',
     category: 'parcels',
     icon: 'warehouse',
     color: 'green',
-    description: 'Explotación agraria',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: false,
@@ -186,24 +164,18 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   // Sensors
   AgriSensor: {
     type: 'AgriSensor',
-    label: 'Sensor',
-    labelPlural: 'Sensores',
     category: 'sensors',
     icon: 'gauge',
     color: 'teal',
-    description: 'Sensor agrícola',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
   },
   Device: {
     type: 'Device',
-    label: 'Dispositivo',
-    labelPlural: 'Dispositivos',
     category: 'sensors',
     icon: 'cpu',
     color: 'cyan',
-    description: 'Dispositivo IoT',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
@@ -212,24 +184,18 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   // Fleet
   AutonomousMobileRobot: {
     type: 'AutonomousMobileRobot',
-    label: 'Robot',
-    labelPlural: 'Robots',
     category: 'fleet',
     icon: 'bot',
     color: 'indigo',
-    description: 'Robot agrícola autónomo',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
   },
   ManufacturingMachine: {
     type: 'ManufacturingMachine',
-    label: 'Tractor',
-    labelPlural: 'Tractores',
     category: 'fleet',
     icon: 'tractor',
     color: 'amber',
-    description: 'Tractor ISOBUS',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
@@ -238,60 +204,45 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   // Infrastructure
   AgriBuilding: {
     type: 'AgriBuilding',
-    label: 'Edificio',
-    labelPlural: 'Edificios',
     category: 'infrastructure',
     icon: 'building-2',
     color: 'slate',
-    description: 'Edificio agrícola',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: false,
   },
   AgriGreenhouse: {
     type: 'AgriGreenhouse',
-    label: 'Invernadero',
-    labelPlural: 'Invernaderos',
     category: 'infrastructure',
     icon: 'warehouse',
     color: 'slate',
-    description: 'Invernadero',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: false,
   },
   IrrigationSystem: {
     type: 'IrrigationSystem',
-    label: 'Sistema de Riego',
-    labelPlural: 'Sistemas de Riego',
     category: 'infrastructure',
     icon: 'droplets',
     color: 'blue',
-    description: 'Sistema de riego',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
   },
   AgriEnergyTracker: {
     type: 'AgriEnergyTracker',
-    label: 'Seguidor Solar',
-    labelPlural: 'Seguidores Solares',
     category: 'infrastructure',
     icon: 'sun',
     color: 'yellow',
-    description: 'Seguidor solar fotovoltaico',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
   },
   PhotovoltaicInstallation: {
     type: 'PhotovoltaicInstallation',
-    label: 'Instalación FV',
-    labelPlural: 'Instalaciones FV',
     category: 'infrastructure',
     icon: 'sun',
     color: 'yellow',
-    description: 'Instalación fotovoltaica',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
@@ -300,60 +251,45 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   // Vegetation
   AgriCrop: {
     type: 'AgriCrop',
-    label: 'Cultivo',
-    labelPlural: 'Cultivos',
     category: 'vegetation',
     icon: 'leaf',
     color: 'emerald',
-    description: 'Cultivo agrícola',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: false,
   },
   AgriTree: {
     type: 'AgriTree',
-    label: 'Árbol',
-    labelPlural: 'Árboles',
     category: 'vegetation',
     icon: 'tree-deciduous',
     color: 'green',
-    description: 'Árbol individual',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: false,
   },
   OliveTree: {
     type: 'OliveTree',
-    label: 'Olivo',
-    labelPlural: 'Olivos',
     category: 'vegetation',
     icon: 'tree-deciduous',
     color: 'green',
-    description: 'Olivo individual',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: false,
   },
   Vine: {
     type: 'Vine',
-    label: 'Cepa',
-    labelPlural: 'Cepas',
     category: 'vegetation',
     icon: 'grape',
     color: 'purple',
-    description: 'Cepa de vid',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: false,
   },
   FruitTree: {
     type: 'FruitTree',
-    label: 'Frutal',
-    labelPlural: 'Frutales',
     category: 'vegetation',
     icon: 'apple',
     color: 'orange',
-    description: 'Árbol frutal',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: false,
@@ -362,24 +298,18 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   // Livestock
   LivestockAnimal: {
     type: 'LivestockAnimal',
-    label: 'Animal',
-    labelPlural: 'Animales',
     category: 'livestock',
     icon: 'beef',
     color: 'amber',
-    description: 'Animal individual',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: true,
   },
   LivestockGroup: {
     type: 'LivestockGroup',
-    label: 'Rebaño',
-    labelPlural: 'Rebaños',
     category: 'livestock',
     icon: 'users',
     color: 'amber',
-    description: 'Grupo de animales',
     supportsLocation: true,
     supportsHierarchy: true,
     supportsTelemetry: false,
@@ -388,36 +318,27 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   // Water
   WaterSource: {
     type: 'WaterSource',
-    label: 'Fuente de Agua',
-    labelPlural: 'Fuentes de Agua',
     category: 'water',
     icon: 'droplet',
     color: 'blue',
-    description: 'Fuente de agua',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
   },
   Well: {
     type: 'Well',
-    label: 'Pozo',
-    labelPlural: 'Pozos',
     category: 'water',
     icon: 'circle-dot',
     color: 'blue',
-    description: 'Pozo',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
   },
   Pond: {
     type: 'Pond',
-    label: 'Estanque',
-    labelPlural: 'Estanques',
     category: 'water',
     icon: 'waves',
     color: 'blue',
-    description: 'Estanque/Balsa',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: false,
@@ -427,12 +348,9 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
   // WeatherObserved stations reach the asset list as the api.getWeatherStations() projection
   WeatherStation: {
     type: 'WeatherStation',
-    label: 'Estación Meteo',
-    labelPlural: 'Estaciones Meteo',
     category: 'weather',
     icon: 'cloud-sun',
     color: 'sky',
-    description: 'Estación meteorológica',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: true,
@@ -445,68 +363,50 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
 
 export interface CategoryInfo {
   id: AssetCategory;
-  label: string;
   icon: string;
   color: string;
-  description: string;
 }
 
 export const CATEGORY_REGISTRY: Record<AssetCategory, CategoryInfo> = {
   parcels: {
     id: 'parcels',
-    label: 'Parcelas',
     icon: 'map',
     color: 'green',
-    description: 'Terrenos y zonas de cultivo',
   },
   sensors: {
     id: 'sensors',
-    label: 'Sensores',
     icon: 'gauge',
     color: 'teal',
-    description: 'Sensores y dispositivos IoT',
   },
   fleet: {
     id: 'fleet',
-    label: 'Flota',
     icon: 'truck',
     color: 'indigo',
-    description: 'Robots, tractores y maquinaria',
   },
   infrastructure: {
     id: 'infrastructure',
-    label: 'Infraestructura',
     icon: 'building',
     color: 'slate',
-    description: 'Edificios y sistemas',
   },
   vegetation: {
     id: 'vegetation',
-    label: 'Vegetación',
     icon: 'trees',
     color: 'emerald',
-    description: 'Cultivos y árboles',
   },
   livestock: {
     id: 'livestock',
-    label: 'Ganadería',
     icon: 'beef',
     color: 'amber',
-    description: 'Animales y rebaños',
   },
   water: {
     id: 'water',
-    label: 'Agua',
     icon: 'droplets',
     color: 'blue',
-    description: 'Recursos hídricos',
   },
   weather: {
     id: 'weather',
-    label: 'Meteorología',
     icon: 'cloud-sun',
     color: 'sky',
-    description: 'Estaciones meteorológicas',
   },
 };
 
@@ -522,6 +422,33 @@ function extractName(entity: any): string {
   if (typeof entity.name === 'string') return entity.name;
   if (entity.name?.value != null) return String(entity.name.value);
   return entity.id ?? '';
+}
+
+type Translate = (key: string) => string;
+
+/** Outside React the shared i18next instance translates, in the active language. */
+const translateCommon: Translate = key => String(i18n.t(key, { ns: 'common' }) ?? key);
+
+export function assetTypeLabelKey(type: string): string {
+  return `entities.assets.types.${type}`;
+}
+
+export function categoryLabelKey(category: AssetCategory): string {
+  return `entities.categories.${category}`;
+}
+
+/** Label of an asset type in the user's language; a type without one shows its NGSI-LD type. */
+export function assetTypeLabel(type: string, t: Translate = translateCommon): string {
+  const key = assetTypeLabelKey(type);
+  const label = t(key);
+  return label && label !== key ? label : type;
+}
+
+/** Label of an asset category in the user's language. */
+export function categoryLabel(category: AssetCategory, t: Translate = translateCommon): string {
+  const key = categoryLabelKey(category);
+  const label = t(key);
+  return label && label !== key ? label : category;
 }
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
@@ -611,11 +538,9 @@ function extractStatus(entity: any): AssetStatus {
 export function normalizeToAsset(entity: any): UnifiedAsset {
   const typeInfo = ASSET_TYPE_REGISTRY[entity.type] || {
     type: entity.type,
-    label: entity.type,
     category: 'sensors' as AssetCategory,
     icon: 'box',
     color: 'gray',
-    description: 'Entidad desconocida',
     supportsLocation: true,
     supportsHierarchy: false,
     supportsTelemetry: false,
@@ -627,7 +552,7 @@ export function normalizeToAsset(entity: any): UnifiedAsset {
   return {
     id: entity.id,
     type: entity.type,
-    name: hasName(entity) ? extractName(entity) : fallbackName(entity, typeInfo.label),
+    name: hasName(entity) ? extractName(entity) : fallbackName(entity, assetTypeLabel(entity.type)),
     category: typeInfo.category,
     status: extractStatus(entity),
     statusLabel: entity.status?.value || entity.status || 'Desconocido',
