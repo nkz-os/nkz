@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '@/services/api';
 import { openEntityEditor } from '@/components/EntityEditor';
+import { Trans } from 'react-i18next';
 import { useI18n } from '@/context/I18nContext';
 import { logger } from '@/utils/logger';
 import { Button } from '@nekazari/ui-kit';
@@ -85,7 +86,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
             if (onDelete) onDelete();
         } catch (err: any) {
             logger.error('Error deleting entity:', err);
-            setError(err.response?.data?.error || err.message || 'Error al eliminar');
+            setError(err.response?.data?.error || err.message || t('entities.management.delete_error'));
             setLoading(false);
             setShowDeleteConfirm(false);
         }
@@ -103,7 +104,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
             <div key={key} className="flex flex-col py-2 border-b border-gray-100 last:border-0 hover:bg-nkz-bg-secondary px-2 rounded -mx-2 bg-transparent transition-colors">
                 <span className="text-xs font-semibold text-nkz-muted uppercase tracking-wider mb-1">{label}</span>
                 <span className="text-gray-800 break-words font-medium">
-                    {typeof value === 'boolean' ? (value ? 'Sí' : 'No') : String(value)}
+                    {typeof value === 'boolean' ? (value ? t('entities.management.yes') : t('entities.management.no')) : String(value)}
                 </span>
             </div>
         );
@@ -126,7 +127,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                     <div className="px-4 py-3 bg-nkz-bg-secondary border-b border-nkz-border flex justify-between items-center">
                         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                             <Settings className="w-4 h-4 text-nkz-muted" />
-                            Propiedades
+                            {t('entities.management.properties')}
                         </h3>
                         <Button variant="ghost"
                             onClick={() => openEntityEditor(entity.id, entity.type)}
@@ -148,7 +149,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
 
                         {Object.keys(formData).length <= 1 && (
                             <p className="text-nkz-muted text-sm italic text-center py-4">
-                                Sin propiedades adicionales
+                                {t('entities.management.no_properties')}
                             </p>
                         )}
                     </div>
@@ -163,23 +164,28 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                         className="w-full flex items-center justify-center gap-2 px-4 py-3 text-nkz-danger-strong bg-nkz-danger-soft hover:bg-nkz-danger-soft rounded-lg border border-red-200 transition-colors font-medium"
                     >
                         <Trash2 className="w-4 h-4" />
-                        Eliminar Entidad
+                        {t('entities.management.delete_entity')}
                     </Button>
                 ) : (
                     <div className="bg-nkz-danger-soft rounded-lg border border-red-200 p-4 animate-in zoom-in-95 duration-200">
                         <h4 className="font-bold text-red-900 mb-2 flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5" />
-                            ¿Estás seguro?
+                            {t('entities.management.confirm_title')}
                         </h4>
                         <p className="text-sm text-red-800 mb-4">
-                            Esta acción eliminará <strong>{entity.name}</strong> permanentemente. No se puede deshacer.
+                            <Trans
+                                i18nKey="entities.management.confirm_delete"
+                                ns="common"
+                                values={{ name: entity.name }}
+                                components={{ strong: <strong /> }}
+                            />
                         </p>
                         <div className="flex gap-3">
                             <Button
                                 onClick={() => setShowDeleteConfirm(false)}
                                 className="flex-1 px-3 py-2 bg-white text-gray-700 border border-nkz-border rounded-md hover:bg-nkz-bg-secondary font-medium transition-colors"
                             >
-                                Cancelar
+                                {t('cancel')}
                             </Button>
                             <Button
                                 onClick={handleDelete}
@@ -187,7 +193,7 @@ export const ManagementPanel: React.FC<ManagementPanelProps> = ({
                                 className="flex-1 px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 shadow-sm font-medium transition-colors flex justify-center items-center gap-2"
                             >
                                 {loading ? <RotateCcw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                                Confirmar
+                                {t('confirm')}
                             </Button>
                         </div>
                     </div>

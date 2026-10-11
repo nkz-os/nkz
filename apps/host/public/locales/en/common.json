@@ -2075,6 +2075,16 @@
       "livestock": "Livestock",
       "water": "Water",
       "weather": "Weather"
+    },
+    "management": {
+      "properties": "Properties",
+      "no_properties": "No additional properties",
+      "yes": "Yes",
+      "no": "No",
+      "delete_entity": "Delete entity",
+      "confirm_title": "Are you sure?",
+      "confirm_delete": "This action will permanently delete <strong>{{name}}</strong>. It cannot be undone.",
+      "delete_error": "Error deleting"
     }
   },
   "parcel": {
