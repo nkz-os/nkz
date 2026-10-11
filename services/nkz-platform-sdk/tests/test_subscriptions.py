@@ -483,3 +483,54 @@ async def test_periodic_heal_never_raises_on_heal_cycle_failure(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         await registrar.periodic_heal(["montiko"], interval_minutes=60)
     assert sleep_calls == 2
+
+
+# --- throttling ---------------------------------------------------------------
+# Orion-LD answers 400 ("Negative Number not allowed in this position") to a
+# throttling of 0, on create and on update; a subscription without the member
+# is not throttled at all.
+
+
+def test_none_throttling_is_left_out_so_orion_does_not_throttle():
+    body = _registrar()._body(SubscriptionDef(type="AgriCrop", throttling=None))
+    assert "throttling" not in body
+
+
+def test_default_throttling_stays_thirty_seconds():
+    assert _registrar()._body(SubscriptionDef(type="AgriCrop"))["throttling"] == 30
+
+
+@pytest.mark.parametrize("throttling", [0, -1])
+def test_non_positive_throttling_is_rejected_when_declared(throttling):
+    with pytest.raises(ValueError, match="throttling"):
+        SubscriptionDef(type="AgriCrop", throttling=throttling)
+
+
+def test_non_positive_throttling_is_rejected_in_a_registrar_declaration():
+    with pytest.raises(ValueError, match="throttling"):
+        SubscriptionRegistrar(
+            orion_url=ORION,
+            notification_url=NOTIFY,
+            subscriptions=[{"type": "AgriCrop", "throttling": 0}],
+            module_name="entity-manager-crop-cycles",
+        )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_converge_patch_leaves_out_none_throttling():
+    patch = respx.patch(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:entity-manager-crop-cycles:AgriCrop"
+    ).mock(return_value=Response(204))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(return_value=Response(409, json={"title": "duplicate"}))
+    registrar = SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "AgriCrop", "throttling": None}],
+        module_name="entity-manager-crop-cycles",
+    )
+
+    result = await registrar.ensure_all(["tenant-a"])
+
+    assert result["converged"] == 1 and result["errors"] == []
+    assert "throttling" not in json.loads(patch.calls[0].request.content)
