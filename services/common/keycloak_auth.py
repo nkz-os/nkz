@@ -42,6 +42,11 @@ ALLOWED_AUDIENCES = {
 # Realm role embedded in realm_access.roles for service tokens from nkz-api-gateway (client credentials).
 SYSTEM_GATEWAY_ROLE = os.getenv('SYSTEM_GATEWAY_ROLE', 'urn:nkz:role:system-gateway')
 HMAC_SECRET = os.getenv('HMAC_SECRET', os.getenv('JWT_SECRET', ''))  # Fallback temporal
+if not HMAC_SECRET:
+    logger.critical(
+        "HMAC_SECRET is unset: any request carrying X-Auth-Signature will be rejected "
+        "(fail-closed). Declare HMAC_SECRET on this service if the gateway signs calls to it."
+    )
 
 # JWKs URL - Always use internal URL for performance/connectivity
 # Keycloak with KC_HTTP_RELATIVE_PATH=/auth exposes JWKS at /auth/realms/{realm}/protocol/openid-connect/certs
