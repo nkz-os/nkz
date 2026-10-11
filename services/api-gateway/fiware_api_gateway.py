@@ -4675,6 +4675,11 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
             # Serving some other tenant's n8n is worse than serving nothing.
             return jsonify({"error": "Not Found"}), 404
 
+    # The tenant is echoed into a Set-Cookie Path, an inline script and rewritten
+    # HTML, so it must be a plain DNS-label-like token whatever its source.
+    if not re.fullmatch(r"[a-z0-9-]{1,63}", tenant_id):
+        return jsonify({"error": "Not Found"}), 404
+
     safe_tenant = re.sub(r"[^a-z0-9-]", "-", tenant_id.lower()).strip("-")[:63]
     service = f"n8n-{safe_tenant}-service"
     # Reconstruct the full path that n8n expects

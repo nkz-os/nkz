@@ -5,6 +5,8 @@ answers to the tenant path prefix so one tenant's n8n session is not sent to
 another tenant's URLs on the shared host."""
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 import fiware_api_gateway as gw
 
 
@@ -58,3 +60,29 @@ def test_n8n_proxy_keeps_narrower_cookie_path_unchanged(client, monkeypatch):
     with patch.object(gw.requests, "request", return_value=upstream):
         resp = client.get("/acme/", base_url="http://n8n.test")
     assert resp.headers.getlist("Set-Cookie") == ["n8n-y=1; Path=/rest; HttpOnly"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/;acme/rest/login",
+        "/acme'+(!![]+[])+'/static/base-path.js",
+        "/ACME/",
+    ],
+)
+def test_n8n_proxy_rejects_unsafe_tenant_segment(client, monkeypatch, path):
+    monkeypatch.setattr(gw, "N8N_PROXY_HOST", "n8n.test")
+    upstream = _upstream(["n8n-auth=abc; Path=/; HttpOnly"])
+    with patch.object(gw.requests, "request", return_value=upstream) as m:
+        resp = client.get(path, base_url="http://n8n.test")
+    assert resp.status_code == 404
+    assert not m.called
+    assert not resp.headers.getlist("Set-Cookie")
+
+
+def test_n8n_proxy_still_serves_valid_tenant_segment(client, monkeypatch):
+    monkeypatch.setattr(gw, "N8N_PROXY_HOST", "n8n.test")
+    with patch.object(gw.requests, "request", return_value=_upstream()) as m:
+        resp = client.get("/acme/", base_url="http://n8n.test")
+    assert resp.status_code == 200
+    assert m.call_args.kwargs["url"] == "http://n8n-acme-service:5678/"
