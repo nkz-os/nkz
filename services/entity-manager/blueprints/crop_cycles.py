@@ -23,12 +23,13 @@ INTERNAL_SERVICE_SECRET = os.getenv('INTERNAL_SERVICE_SECRET', '')
 SERVICE_HOST = os.getenv('SERVICE_HOST', 'entity-manager-service')
 SERVICE_PORT = os.getenv('SERVICE_PORT', '5000')
 NOTIFICATION_URL = f'http://{SERVICE_HOST}:{SERVICE_PORT}/api/internal/notify/crop-cycles'
-# Throttling 0, explicit (the SDK default is 30 s): Orion drops the notifications that
+# No throttling, explicit (the SDK default is 30 s): Orion drops the notifications that
 # fall inside the window, so a burst of edits would only be seen by the daily sweep.
+# None leaves the member out; Orion-LD rejects a throttling of 0.
 # The reconciler writes only on change, so its own writes do not loop.
 CROP_CYCLE_SUBSCRIPTIONS = [
-    {'type': 'AgriCrop', 'throttling': 0},
-    {'type': 'AgriParcelOperation', 'throttling': 0},
+    {'type': 'AgriCrop', 'throttling': None},
+    {'type': 'AgriParcelOperation', 'throttling': None},
 ]
 
 

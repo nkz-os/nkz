@@ -145,9 +145,16 @@ def test_broker_rejection_is_502():
 
 def test_subscriptions_are_not_throttled():
     # Orion drops notifications inside a throttling window: a burst of edits would only
-    # reach the reconciler through the daily sweep.
-    from nkz_platform_sdk.subscriptions import SubscriptionDef
-    assert all(SubscriptionDef(**s).throttling == 0 for s in bp.CROP_CYCLE_SUBSCRIPTIONS)
+    # reach the reconciler through the daily sweep. Orion-LD rejects a throttling of 0,
+    # so no throttling means sending none.
+    from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
+    registrar = SubscriptionRegistrar(
+        orion_url='http://orion:1026',
+        notification_url='http://entity-manager/notify',
+        subscriptions=bp.CROP_CYCLE_SUBSCRIPTIONS,
+        module_name='entity-manager-crop-cycles',
+    )
+    assert all('throttling' not in registrar._body(s) for s in registrar._subs)
 
 
 def test_reconcile_all_ensures_every_tenant_subscriptions():
