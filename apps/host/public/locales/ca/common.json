@@ -2101,16 +2101,6 @@
       "livestock": "Ramaderia",
       "water": "Aigua",
       "weather": "Meteorologia"
-    },
-    "management": {
-      "properties": "Propietats",
-      "no_properties": "Sense propietats addicionals",
-      "yes": "Sí",
-      "no": "No",
-      "delete_entity": "Eliminar l'entitat",
-      "confirm_title": "Segur que vols continuar?",
-      "confirm_delete": "Aquesta acció eliminarà <strong>{{name}}</strong> permanentment. No es pot desfer.",
-      "delete_error": "Error en eliminar"
     }
   },
   "parcel": {
