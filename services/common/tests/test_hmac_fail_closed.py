@@ -51,32 +51,36 @@ def test_require_auth_401_without_signature(monkeypatch):
     assert resp.status_code == 401
 
 
-def _reload_keycloak_auth(monkeypatch, caplog, secret):
-    """Reload keycloak_auth under a given HMAC_SECRET env and return CRITICAL messages.
+def _import_probe(monkeypatch, caplog, secret):
+    """Import a separate copy of keycloak_auth under a given HMAC_SECRET env.
 
-    The module is reloaded again with the original environment in `finally`, so
-    later tests see it in the state it had before this test.
+    Returns the CRITICAL messages logged while it loaded. The shared module is
+    never reloaded: a reload would redefine TokenValidationError while
+    auth_middleware keeps the class it imported earlier, so its `except` clause
+    would stop matching.
     """
-    import importlib
+    import importlib.util
     import logging
 
     monkeypatch.delenv("JWT_SECRET", raising=False)
     monkeypatch.setenv("HMAC_SECRET", secret)
-    try:
-        with caplog.at_level(logging.CRITICAL):
-            caplog.clear()
-            importlib.reload(keycloak_auth)
-            return [r.getMessage() for r in caplog.records if r.levelno == logging.CRITICAL]
-    finally:
-        monkeypatch.undo()
-        importlib.reload(keycloak_auth)
+    spec = importlib.util.spec_from_file_location(
+        "keycloak_auth_probe", keycloak_auth.__file__
+    )
+    probe = importlib.util.module_from_spec(spec)
+    with caplog.at_level(logging.CRITICAL):
+        caplog.clear()
+        spec.loader.exec_module(probe)
+        return [r.getMessage() for r in caplog.records if r.levelno == logging.CRITICAL]
 
 
 def test_import_logs_critical_when_secret_unset(monkeypatch, caplog):
-    messages = _reload_keycloak_auth(monkeypatch, caplog, "")
+    messages = _import_probe(monkeypatch, caplog, "")
     assert any("HMAC_SECRET is unset" in m for m in messages)
+    assert keycloak_auth.TokenValidationError is auth_middleware.TokenValidationError
 
 
 def test_import_is_silent_when_secret_set(monkeypatch, caplog):
-    messages = _reload_keycloak_auth(monkeypatch, caplog, "s3cret")
+    messages = _import_probe(monkeypatch, caplog, "s3cret")
     assert not any("HMAC_SECRET is unset" in m for m in messages)
+    assert keycloak_auth.TokenValidationError is auth_middleware.TokenValidationError
