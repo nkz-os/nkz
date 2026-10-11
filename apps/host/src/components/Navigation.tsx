@@ -17,6 +17,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useModules } from '@/context/ModuleContext';
 import { useI18n } from '@/context/I18nContext';
+import { moduleLabel } from '@/utils/moduleI18n';
 import { LanguageSelector } from './LanguageSelector';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
@@ -54,7 +55,7 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
 export const Navigation: React.FC = () => {
   const { user, logout } = useAuth();
   const { modules, visibilityRules } = useModules();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -231,7 +232,7 @@ export const Navigation: React.FC = () => {
                                 <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-nkz-muted'}`} />
                               )}
                               <span className="font-medium truncate">
-                                {module.label || module.displayName || module.name}
+                                {moduleLabel(module, language)}
                               </span>
                             </Link>
                           );

@@ -15,7 +15,8 @@ vi.mock('@/context/ModuleContext', () => ({ useModules: () => ({ modules }) }));
 vi.mock('@/context/SlotRegistry', () => ({
   useSlotRegistry: () => ({ isModuleActive: (id: string) => active.has(id), toggleModule }),
 }));
-vi.mock('@/context/I18nContext', () => ({ useI18n: () => ({ t: (k: string) => k }) }));
+let language: string | undefined;
+vi.mock('@/context/I18nContext', () => ({ useI18n: () => ({ t: (k: string) => k, language }) }));
 vi.mock('@/components/SlotRenderer', () => ({
   SlotRenderer: ({ moduleId }: { moduleId?: string }) => <div>{`options:${moduleId}`}</div>,
 }));
@@ -23,6 +24,7 @@ vi.mock('@/components/SlotRenderer', () => ({
 import { ViewerModulesSection } from '../ViewerModulesSection';
 
 beforeEach(() => {
+  language = undefined;
   active = new Set(['core', 'lidar']);
   toggleModule.mockClear();
   modules = [
@@ -44,6 +46,28 @@ describe('ViewerModulesSection', () => {
     expect(screen.getByRole('switch', { name: 'LiDAR' })).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Riesgos' })).toBeInTheDocument();
     expect(screen.queryByText('Nada')).not.toBeInTheDocument();
+  });
+
+  it('shows the module name in the UI language and follows a language change', () => {
+    modules = [
+      {
+        id: 'lidar',
+        displayName: 'LiDAR',
+        labelI18n: { es: 'LiDAR (es)', en: 'LiDAR (en)' },
+        viewerSlots: toggleSlots,
+      },
+    ];
+    language = 'es';
+    const { rerender } = render(<ViewerModulesSection />);
+    expect(screen.getByRole('switch', { name: 'LiDAR (es)' })).toBeInTheDocument();
+
+    language = 'en';
+    rerender(<ViewerModulesSection />);
+    expect(screen.getByRole('switch', { name: 'LiDAR (en)' })).toBeInTheDocument();
+
+    language = 'fr';
+    rerender(<ViewerModulesSection />);
+    expect(screen.getByRole('switch', { name: 'LiDAR' })).toBeInTheDocument();
   });
 
   it('reflects and toggles the module switch', () => {

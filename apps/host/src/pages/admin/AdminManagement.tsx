@@ -7,6 +7,7 @@ import {
   FileText, Activity, Box, Monitor, Puzzle, UserPlus, UserCheck,
 } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
+import { moduleLabel } from '@/utils/moduleI18n';
 import { useConfirm } from '@/context/ConfirmContext';
 import client from '@/services/api';
 import { format } from 'date-fns';
@@ -116,7 +117,7 @@ const PLATFORM_ADMIN_ROLES = [
 ];
 
 export const AdminManagement: React.FC = () => {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { showNotification } = useNotification();
   const confirm = useConfirm();
   const { modules } = useModules();
@@ -523,7 +524,7 @@ export const AdminManagement: React.FC = () => {
             }`}
           >
             <Puzzle className="h-5 w-5" />
-            {module.displayName || module.name}
+            {moduleLabel(module, language)}
           </Button>
         ))}
       </div>

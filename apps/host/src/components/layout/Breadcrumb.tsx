@@ -9,6 +9,7 @@ import { useLocation, Link } from 'react-router-dom';
 import { ChevronRight, Home, Leaf } from 'lucide-react';
 import { getNavigationItemByPath } from '@/config/navigation';
 import { useI18n } from '@/context/I18nContext';
+import { moduleLabel, type ModuleTextSource } from '@/utils/moduleI18n';
 import { useModules } from '@/context/ModuleContext';
 
 export interface BreadcrumbItem {
@@ -32,7 +33,8 @@ interface BreadcrumbProps {
  */
 const generateBreadcrumbsFromPath = (
   pathname: string,
-  modules: Array<{ id: string; routePath: string; label?: string; displayName?: string; metadata?: { icon?: string } }> = []
+  modules: Array<ModuleTextSource & { id: string; routePath: string; metadata?: { icon?: string } }> = [],
+  lang?: string
 ): BreadcrumbItem[] => {
   const segments = pathname.split('/').filter(Boolean);
   const items: BreadcrumbItem[] = [];
@@ -71,7 +73,7 @@ const generateBreadcrumbsFromPath = (
       
       if (module) {
         items.push({
-          label: module.label || module.displayName || module.id,
+          label: moduleLabel(module, lang),
           path: module.routePath,
           icon: Leaf, // Default icon for modules
         });
@@ -94,11 +96,11 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({
   className = '',
 }) => {
   const location = useLocation();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { modules } = useModules();
 
   // Generate breadcrumbs if not provided (includes support for dynamic modules)
-  const breadcrumbItems = items || generateBreadcrumbsFromPath(location.pathname, modules || []);
+  const breadcrumbItems = items || generateBreadcrumbsFromPath(location.pathname, modules || [], language);
 
   // Filter out home if hideHome is true
   const displayItems = hideHome 

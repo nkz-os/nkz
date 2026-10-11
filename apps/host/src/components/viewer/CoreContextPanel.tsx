@@ -8,6 +8,7 @@ import React, { useMemo, useState } from 'react';
 import { useViewer } from '@/context/ViewerContext';
 import { useModules } from '@/context/ModuleContext';
 import { useI18n } from '@/context/I18nContext';
+import { moduleLabel } from '@/utils/moduleI18n';
 import { ParcelDetailsPanel } from '@/components/parcels/ParcelDetailsPanel';
 import { TimelineView } from '@/components/Timeline/TimelineView';
 import { useTelemetry } from '@/hooks/useTelemetry';
@@ -175,7 +176,7 @@ const SensorDetailsPanel: React.FC<{ entityData: any }> = ({ entityData }) => {
 };
 
 const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
-    const { t } = useI18n();
+    const { t, language } = useI18n();
     const {
         selectedEntityId,
         selectedEntityType,
@@ -224,7 +225,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
             })
             .map(module => ({
                 id: module.id,
-                displayName: module.displayName,
+                displayName: moduleLabel(module, language),
                 contextPanel: module.metadata?.contextPanel || {},
                 icon: module.metadata?.icon || module.icon,
                 color: module.metadata?.color || '#10B981',
@@ -280,7 +281,7 @@ const CoreContextPanel: React.FC<CoreContextPanelProps> = ({ entityData }) => {
                 ))}
             </div>
         );
-    }, [modules, selectedEntityType]);
+    }, [modules, selectedEntityType, language]);
 
     // If no entity selected, show placeholder
     if (!selectedEntityId) {

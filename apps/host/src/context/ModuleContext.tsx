@@ -16,6 +16,7 @@ import type { ModuleViewerSlots } from '@nekazari/sdk';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { getConfig } from '@/config/environment';
 import { checkModuleContract } from '@/utils/moduleContract';
+import { sanitizeI18nMap, type I18nMap } from '@/utils/moduleI18n';
 import { carryOverViewerSlots, shouldPreload, MAX_PRELOAD_ATTEMPTS } from './moduleSlotMerge';
 
 // =============================================================================
@@ -30,6 +31,10 @@ export interface ModuleDefinition {
   version: string;
   routePath: string;
   label: string;
+  // Translations of the module name / description, keyed by language
+  // (es, en, ca, eu, fr, pt). Resolve with moduleLabel / moduleDescription.
+  labelI18n?: I18nMap;
+  descriptionI18n?: I18nMap;
   // Local modules (bundled) - these fields are optional
   isLocal?: boolean;
   // Remote modules - required if isLocal is false
@@ -102,6 +107,8 @@ const validateAndSanitizeModule = (module: any): ModuleDefinition | null => {
     scope: typeof module.scope === 'string' ? module.scope : undefined,
     module: typeof module.module === 'string' ? module.module : undefined,
     description: typeof module.description === 'string' ? module.description : undefined,
+    labelI18n: sanitizeI18nMap(module.labelI18n),
+    descriptionI18n: sanitizeI18nMap(module.descriptionI18n),
     icon: typeof module.icon === 'string' ? module.icon : undefined,
     icon_url: typeof module.icon_url === 'string' ? module.icon_url : undefined,
     metadata: module.metadata && typeof module.metadata === 'object' ? module.metadata : undefined,

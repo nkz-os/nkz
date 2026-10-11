@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge, Button, SettingsList, SettingsItem, Switch, Spinner, Tooltip } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
+import { moduleLabel } from '@/utils/moduleI18n';
 import { useToastContext } from '@/context/ToastContext';
 import { useModules } from '@/context/ModuleContext';
 import { useAuth } from '@/context/KeycloakAuthContext';
@@ -30,7 +31,7 @@ const STATUS_INTENT: Record<SetupStatus, StatusBadgeIntent> = {
 };
 
 export const ParcelModulesPanel: React.FC<ParcelModulesPanelProps> = ({ parcelId }) => {
-    const { t } = useI18n();
+    const { t, language } = useI18n();
     const toast = useToastContext();
     const { modules } = useModules();
     const { hasAnyRole } = useAuth();
@@ -137,7 +138,7 @@ export const ParcelModulesPanel: React.FC<ParcelModulesPanelProps> = ({ parcelId
                                 // showing ON next to the error badge reads as broken.
                                 const enabled = (activation?.enabled ?? false) && status !== 'error';
                                 const isBusy = busyModuleId === m.id;
-                                const label = m.label || m.displayName;
+                                const label = moduleLabel(m, language);
 
                                 const badge = status ? (
                                     <Badge intent={STATUS_INTENT[status]}>{statusLabel(status)}</Badge>

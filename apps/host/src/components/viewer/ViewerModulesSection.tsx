@@ -14,6 +14,7 @@ import { LayerMenuRowEmbeddedContext } from '@nekazari/module-kit';
 import { useModules, type ModuleDefinition } from '@/context/ModuleContext';
 import { useSlotRegistry } from '@/context/SlotRegistry';
 import { useI18n } from '@/context/I18nContext';
+import { moduleLabel } from '@/utils/moduleI18n';
 import { SlotRenderer } from '@/components/SlotRenderer';
 
 const OPEN_STORAGE_KEY = 'nkz.viewer.modulesSection.open';
@@ -34,11 +35,11 @@ const ModuleIcon: React.FC<{ module: ModuleDefinition }> = ({ module }) => {
 };
 
 const ModuleRow: React.FC<{ module: ModuleDefinition }> = ({ module }) => {
-    const { t } = useI18n();
+    const { t, language } = useI18n();
     const { isModuleActive, toggleModule } = useSlotRegistry();
     const [expanded, setExpanded] = useState(false);
     const active = isModuleActive(module.id);
-    const name = module.displayName || module.name || module.id;
+    const name = moduleLabel(module, language);
     const canExpand = active && hasLayerOptions(module);
 
     return (
