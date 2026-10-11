@@ -245,6 +245,18 @@ _route_cache_ts: float = 0.0
 _ROUTE_CACHE_TTL = 300
 
 
+# A module's backend_service is operator-supplied data in marketplace_modules;
+# the gateway only ever proxies to a plain in-cluster service name, optionally
+# namespace-qualified, with an explicit port and no path/userinfo/query.
+PLATFORM_NAMESPACE = os.getenv("PLATFORM_NAMESPACE", "nekazari")
+_MODULE_BACKEND_URL_RE = re.compile(
+    r"^http://[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+    rf"(?:\.{re.escape(PLATFORM_NAMESPACE)}(?:\.svc(?:\.cluster\.local)?)?)?"
+    r":\d{2,5}$"
+)
+_MODULE_API_PREFIX_RE = re.compile(r"^/api/[a-z0-9][a-z0-9/_-]*$")
+
+
 def _refresh_route_registry() -> dict[str, dict]:
     """Load active module routes from marketplace_modules.metadata JSONB."""
     global _route_cache, _route_cache_ts
@@ -264,14 +276,21 @@ def _refresh_route_registry() -> dict[str, dict]:
                 meta = json.loads(meta)
             prefix = meta.get("api_prefix", "")
             backend = meta.get("backend_service", "")
-            if prefix and backend:
-                routes[prefix] = {
-                    "backend_service": backend,
-                    "backend_mount": meta.get("backend_mount") or prefix,
-                    "module_id": row["id"],
-                    "requires_auth": meta.get("requires_auth", True),
-                    "strip_remainder_prefix": meta.get("strip_remainder_prefix", ""),
-                }
+            if not prefix or not backend:
+                continue
+            if not _MODULE_API_PREFIX_RE.match(prefix) or not _MODULE_BACKEND_URL_RE.match(backend):
+                logger.error(
+                    "Route registry: module %s skipped, unsafe api_prefix=%r backend_service=%r",
+                    row["id"], prefix, backend,
+                )
+                continue
+            routes[prefix] = {
+                "backend_service": backend,
+                "backend_mount": meta.get("backend_mount") or prefix,
+                "module_id": row["id"],
+                "requires_auth": meta.get("requires_auth", True),
+                "strip_remainder_prefix": meta.get("strip_remainder_prefix", ""),
+            }
         cur.close()
         conn.close()
     except Exception as exc:
