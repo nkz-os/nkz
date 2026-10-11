@@ -1149,11 +1149,12 @@ def deploy_module_dist(module_id):
     Validates manifest.json, uploads all files to the nekazari-frontend bucket,
     and upserts the module row in marketplace_modules.
 
-    Auth: PlatformAdmin or TenantAdmin (not Farmer).
+    Auth: PlatformAdmin only — the bundle is served to every tenant.
     """
     user_roles = _get_user_roles()
-    if 'PlatformAdmin' not in user_roles and 'TenantAdmin' not in user_roles:
-        return jsonify({'error': 'Insufficient permissions. PlatformAdmin or TenantAdmin required.'}), 403
+    if 'PlatformAdmin' not in user_roles:
+        logger.warning("module bundle write denied: module=%s roles=%s", module_id, user_roles)
+        return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
 
     if 'file' not in request.files:
         return jsonify({'error': 'No files provided. Send dist/ files with field name "file".'}), 400
@@ -1248,8 +1249,9 @@ def deploy_module_version(module_id):
     Files must already be in MinIO at /modules/<module_id>/<version>/.
     """
     user_roles = _get_user_roles()
-    if 'PlatformAdmin' not in user_roles and 'TenantAdmin' not in user_roles:
-        return jsonify({'error': 'Insufficient permissions.'}), 403
+    if 'PlatformAdmin' not in user_roles:
+        logger.warning("module bundle write denied: module=%s roles=%s", module_id, user_roles)
+        return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
 
     data = request.get_json(silent=True) or {}
     version = (data.get('version') or '').strip()
@@ -1333,8 +1335,9 @@ def rollback_module_version(module_id):
     The version must exist in deployment history.
     """
     user_roles = _get_user_roles()
-    if 'PlatformAdmin' not in user_roles and 'TenantAdmin' not in user_roles:
-        return jsonify({'error': 'Insufficient permissions.'}), 403
+    if 'PlatformAdmin' not in user_roles:
+        logger.warning("module bundle write denied: module=%s roles=%s", module_id, user_roles)
+        return jsonify({'error': 'Insufficient permissions. PlatformAdmin required.'}), 403
 
     data = request.get_json(silent=True) or {}
     version = (data.get('version') or '').strip()

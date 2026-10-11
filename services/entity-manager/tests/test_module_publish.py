@@ -336,3 +336,45 @@ def test_fiware_gate_returns_404_if_module_not_found():
         result = _mod._fiware_publish_gate("nonexistent")
     assert result is not None
     assert result[1] == 404
+
+
+# ---------------------------------------------------------------------------
+# A bundle under modules/<id>/ is served to every tenant: only the platform
+# may write it. TenantAdmin must be refused on dist, deploy and rollback.
+# ---------------------------------------------------------------------------
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize(
+    "path",
+    [
+        "/api/modules/some-module/dist",
+        "/api/modules/some-module/deploy",
+        "/api/modules/some-module/rollback",
+    ],
+)
+def test_bundle_routes_refuse_tenant_admin(client, monkeypatch, path):
+    import blueprints.modules as m
+
+    monkeypatch.setattr(m, "_get_user_roles", lambda: ["TenantAdmin", "Farmer"])
+    r = client.post(path, headers={"Authorization": "Bearer t"}, data={})
+    assert r.status_code == 403
+    assert "PlatformAdmin" in r.get_json()["error"]
+
+
+@_pytest.mark.parametrize(
+    "path",
+    [
+        "/api/modules/some-module/dist",
+        "/api/modules/some-module/deploy",
+        "/api/modules/some-module/rollback",
+    ],
+)
+def test_bundle_routes_let_platform_admin_reach_validation(client, monkeypatch, path):
+    import blueprints.modules as m
+
+    monkeypatch.setattr(m, "_get_user_roles", lambda: ["PlatformAdmin"])
+    r = client.post(path, headers={"Authorization": "Bearer t"}, data={})
+    # Past the role gate: an empty body is a validation error, not a 403.
+    assert r.status_code == 400
