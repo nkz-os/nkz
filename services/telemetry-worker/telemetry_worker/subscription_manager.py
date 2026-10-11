@@ -260,7 +260,14 @@ def _matches_are_stale(matches: list) -> bool:
     if not INTERNAL_SERVICE_SECRET:
         return False
     endpoint = matches[0].get("notification", {}).get("endpoint", {})
-    return not endpoint.get("receiverInfo")
+    info = endpoint.get("receiverInfo") or []
+    current = next(
+        (h.get("value") for h in info if h.get("key") == "X-Internal-Service-Secret"),
+        None,
+    )
+    # Stale when the header is missing or carries a value other than the
+    # configured secret (i.e. after a rotation): the caller recreates it.
+    return current != INTERNAL_SERVICE_SECRET
 
 
 def _delete_subscription(headers: dict, sub_id: str) -> None:
