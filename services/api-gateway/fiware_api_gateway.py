@@ -4642,8 +4642,9 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
 
     <n8n-host>/<tenant_id>/  ->  http://n8n-<tenant_id>-service:5678/
 
-    n8n uses its own basic auth, so this route is PUBLIC (no JWT required).
-    Browser cookies are not forwarded.
+    n8n uses its own login, so this route is PUBLIC (no JWT required).
+    Only n8n's own cookies are forwarded, and its Set-Cookie answers are scoped
+    to this tenant's path prefix; the platform session cookie never reaches n8n.
     Rewrites /static/base-path.js to inject correct BASE_PATH for the tenant.
     """
     import re
@@ -4683,20 +4684,44 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
             headers[hdr] = request.headers[hdr]
 
     try:
-        # Never forward browser cookies: the platform session cookie must not
-        # reach a workload that runs tenant-authored code. n8n keeps its own
-        # auth via X-N8N-API-KEY / its login form.
+        # Only n8n's own cookies are forwarded, and its Set-Cookie answers are
+        # scoped to this tenant's path prefix; the platform session cookie never
+        # reaches n8n (it runs tenant-authored code). n8n sets Path=/ on a host
+        # shared by every tenant, so unscoped cookies would leak across tenants.
+        n8n_cookies = {
+            k: v for k, v in request.cookies.items() if k.startswith("n8n-")
+        }
         resp = requests.request(
             method=request.method,
             url=target,
             headers=headers,
             params=request.args,
             data=request.get_data(),
+            cookies=n8n_cookies,
             allow_redirects=True,
             timeout=60,
         )
         body = resp.content
-        resp_headers = dict(resp.headers)
+        resp_headers = {
+            k: v for k, v in resp.headers.items() if k.lower() != "set-cookie"
+        }
+        # urllib3's header dict keeps repeated Set-Cookie values apart; a plain
+        # dict of the response headers would collapse them into one.
+        raw_getlist = getattr(getattr(getattr(resp, "raw", None), "headers", None), "getlist", None)
+        if callable(raw_getlist):
+            set_cookies = list(raw_getlist("Set-Cookie"))
+        else:
+            joined = resp.headers.get("Set-Cookie")
+            set_cookies = re.split(r",\s*(?=[^;,\s]+=)", joined) if joined else []
+        scoped_path = f"/{tenant_id}/"
+        set_cookies = [
+            re.sub(
+                r"(?i)(;\s*path\s*=\s*)/(?=\s*(?:;|$))",
+                lambda m: m.group(1) + scoped_path,
+                value,
+            )
+            for value in set_cookies
+        ]
         resp_headers.pop("Content-Encoding", None)
         resp_headers.pop("Transfer-Encoding", None)
         resp_headers.pop("Content-Security-Policy", None)
@@ -4720,7 +4745,10 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
         else:
             resp_headers["Content-Length"] = str(len(body))
 
-        return make_response(body, resp.status_code, resp_headers)
+        response = make_response(body, resp.status_code, resp_headers)
+        for value in set_cookies:
+            response.headers.add("Set-Cookie", value)
+        return response
     except Exception as e:
         logger.error(f"n8n tenant proxy error to {target}: {e}")
         return internal_error(e, "gateway_n8n_proxy", status=502, user_message="n8n instance unavailable")
