@@ -2032,11 +2032,11 @@
         "AutonomousMobileRobot": "Robota",
         "ManufacturingMachine": "Traktorea",
         "AgriBuilding": "Eraikina",
-        "AgriGreenhouse": "Berotegia",
+        "AgriGreenhouse": "Negutegia",
         "IrrigationSystem": "Ureztatze-sistema",
         "AgriEnergyTracker": "Eguzki-jarraitzailea",
         "PhotovoltaicInstallation": "Instalazio fotovoltaikoa",
-        "AgriCrop": "Laborantza",
+        "AgriCrop": "Laborea",
         "AgriTree": "Zuhaitza",
         "OliveTree": "Olibondoa",
         "Vine": "Mahatsondoa",
@@ -2076,6 +2076,16 @@
       "livestock": "Abeltzaintza",
       "water": "Ura",
       "weather": "Meteorologia"
+    },
+    "management": {
+      "properties": "Propietateak",
+      "no_properties": "Ez dago propietate gehigarririk",
+      "yes": "Bai",
+      "no": "Ez",
+      "delete_entity": "Ezabatu entitatea",
+      "confirm_title": "Ziur zaude?",
+      "confirm_delete": "Ekintza honek <strong>{{name}}</strong> betiko ezabatuko du. Ezin da desegin.",
+      "delete_error": "Errorea ezabatzean"
     }
   },
   "parcel": {

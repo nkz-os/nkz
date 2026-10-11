@@ -2064,11 +2064,11 @@
         "AgriCrop": "Culture",
         "AgriTree": "Arbre",
         "OliveTree": "Olivier",
-        "Vine": "Cep de vigne",
+        "Vine": "Pied de vigne",
         "FruitTree": "Arbre fruitier",
         "LivestockAnimal": "Animal",
         "LivestockGroup": "Troupeau",
-        "WaterSource": "Source d'eau",
+        "WaterSource": "Point d'eau",
         "Well": "Puits",
         "Pond": "Étang",
         "WeatherStation": "Station météo"
@@ -2101,6 +2101,16 @@
       "livestock": "Élevage",
       "water": "Eau",
       "weather": "Météo"
+    },
+    "management": {
+      "properties": "Propriétés",
+      "no_properties": "Aucune propriété supplémentaire",
+      "yes": "Oui",
+      "no": "Non",
+      "delete_entity": "Supprimer l'entité",
+      "confirm_title": "Voulez-vous vraiment continuer ?",
+      "confirm_delete": "Cette action supprimera définitivement <strong>{{name}}</strong>. Elle est irréversible.",
+      "delete_error": "Erreur lors de la suppression"
     }
   },
   "parcel": {

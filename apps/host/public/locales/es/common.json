@@ -2075,6 +2075,16 @@
       "livestock": "Ganadería",
       "water": "Agua",
       "weather": "Meteorología"
+    },
+    "management": {
+      "properties": "Propiedades",
+      "no_properties": "Sin propiedades adicionales",
+      "yes": "Sí",
+      "no": "No",
+      "delete_entity": "Eliminar entidad",
+      "confirm_title": "¿Estás seguro?",
+      "confirm_delete": "Esta acción eliminará <strong>{{name}}</strong> permanentemente. No se puede deshacer.",
+      "delete_error": "Error al eliminar"
     }
   },
   "parcel": {
