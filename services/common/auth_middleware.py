@@ -26,6 +26,11 @@ JWT_SECRET = os.getenv("JWT_SECRET")  # DEPRECATED, fallback only if enabled
 HMAC_SECRET = os.getenv("HMAC_SECRET", JWT_SECRET or "")
 ALLOW_JWT_FALLBACK = os.getenv("ALLOW_JWT_FALLBACK", "false").lower() == "true"
 REQUIRE_HMAC_SIGNATURE = os.getenv("REQUIRE_HMAC_SIGNATURE", "true").lower() == "true"
+if REQUIRE_HMAC_SIGNATURE and not HMAC_SECRET:
+    logger.critical(
+        "REQUIRE_HMAC_SIGNATURE is on but HMAC_SECRET is unset: every "
+        "signature-protected route will answer 503 until the secret is deployed"
+    )
 
 # Try to import Keycloak auth module
 try:
@@ -50,10 +55,10 @@ except ImportError as e:
         signature_header: str, token: str, tenant_id: str
     ) -> bool:
         if not HMAC_SECRET:
-            logger.warning(
-                "HMAC secret not configured, skipping signature verification"
+            logger.error(
+                "HMAC_SECRET not configured; refusing signed request (fail-closed)"
             )
-            return True
+            return False
         if not signature_header:
             logger.warning("Missing signature header")
             return False
@@ -240,7 +245,18 @@ def require_auth(_func=None, *, require_hmac: bool = None):
             should_require_hmac = (
                 require_hmac if require_hmac is not None else REQUIRE_HMAC_SIGNATURE
             )
-            if should_require_hmac and HMAC_SECRET:
+            if should_require_hmac:
+                if not HMAC_SECRET:
+                    logger.critical(
+                        "HMAC required but HMAC_SECRET unset; rejecting %s",
+                        request.path,
+                    )
+                    return (
+                        jsonify(
+                            {"error": "Service misconfigured: signature secret missing"}
+                        ),
+                        503,
+                    )
                 signature = request.headers.get("X-Auth-Signature")
                 if not signature or not verify_hmac_signature(signature, token, tenant):
                     return jsonify({"error": "Invalid or missing signature"}), 401

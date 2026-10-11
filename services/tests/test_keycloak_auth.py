@@ -396,18 +396,24 @@ class TestHmacSignature:
         sig = mod.generate_hmac_signature("token", "tenant")
         assert sig == ""
 
-    def test_verify_without_signature_configured_returns_true(
+    def test_verify_without_secret_configured_fails_closed(
         self, mock_keycloak_config, monkeypatch
     ):
-        """When HMAC is not configured, verification should not block requests."""
+        """When HMAC is not configured, verification must refuse, not pass."""
         monkeypatch.setenv("HMAC_SECRET", "")
         monkeypatch.setenv("JWT_SECRET", "")
 
         _, mod = _make_app()
 
-        # Empty signature header with no secret -> should pass (not block)
-        result = mod.verify_hmac_signature("", "token", "tenant")
-        assert result is True
+        assert mod.verify_hmac_signature("", "token", "tenant") is False
+        assert mod.verify_hmac_signature("abc:123", "token", "tenant") is False
+
+    def test_verify_with_secret_but_missing_header_is_rejected(
+        self, mock_keycloak_config
+    ):
+        _, mod = _make_app()
+
+        assert mod.verify_hmac_signature("", "token", "tenant") is False
 
 
 # =========================================================================
