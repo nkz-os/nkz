@@ -15,7 +15,10 @@ const { api } = vi.hoisted(() => ({
   },
 }));
 
+const { parcelApi } = vi.hoisted(() => ({ parcelApi: { updateParcelAttributes: vi.fn() } }));
+
 vi.mock('@/services/api', () => ({ default: api }));
+vi.mock('@/services/parcelApi', () => ({ parcelApi }));
 vi.mock('@/context/I18nContext', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 vi.mock('@/utils/logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), debug: vi.fn(), info: vi.fn(), log: vi.fn() },
@@ -26,7 +29,13 @@ import { EntityEditorModal } from '../index';
 function openEditor(entity: Record<string, unknown>, onSuccess = vi.fn()) {
   api.getSDMEntityInstance.mockResolvedValue(entity);
   render(
-    <EntityEditorModal entityId={DEVICE} entityType="Device" isOpen onClose={vi.fn()} onSuccess={onSuccess} />,
+    <EntityEditorModal
+      entityId={entity.id as string}
+      entityType={entity.type as string}
+      isOpen
+      onClose={vi.fn()}
+      onSuccess={onSuccess}
+    />,
   );
   return onSuccess;
 }
@@ -41,6 +50,8 @@ beforeEach(() => {
   api.mergeSDMEntity.mockResolvedValue(undefined);
   api.deleteSDMEntityAttribute.mockResolvedValue(undefined);
   api.client.get.mockReset();
+  parcelApi.updateParcelAttributes.mockReset();
+  parcelApi.updateParcelAttributes.mockResolvedValue(undefined);
 });
 
 describe('EntityEditorModal load', () => {
@@ -134,5 +145,45 @@ describe('EntityEditorModal save', () => {
     fireEvent.click(screen.getByText('common.save'));
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+  });
+});
+
+describe('EntityEditorModal parcel save', () => {
+  it('saves a parcel through entity-manager, its only writer, in one call', async () => {
+    const onSuccess = openEditor({
+      id: PARCEL,
+      type: 'AgriParcel',
+      name: { type: 'Property', value: 'North field' },
+      refAgriFarm: { type: 'Relationship', object: 'urn:ngsi-ld:AgriFarm:f1' },
+    });
+
+    await waitFor(() => expect(screen.getByText('f1')).toBeTruthy());
+    fireEvent.change(field('editor.field.description'), { target: { value: 'Rye' } });
+    fireEvent.click(screen.getByText('f1').parentElement!.querySelector('button')!);
+    fireEvent.click(screen.getByText('common.save'));
+
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(parcelApi.updateParcelAttributes).toHaveBeenCalledWith(
+      PARCEL,
+      { description: { type: 'Property', value: 'Rye' } },
+      ['refAgriFarm'],
+    );
+    expect(api.mergeSDMEntity).not.toHaveBeenCalled();
+    expect(api.deleteSDMEntityAttribute).not.toHaveBeenCalled();
+  });
+
+  it("shows entity-manager's reason when it rejects the change", async () => {
+    parcelApi.updateParcelAttributes.mockRejectedValue(
+      Object.assign(new Error('Request failed'), {
+        response: { status: 422, data: { error: 'A parcel keeps its geometry; location cannot be removed' } },
+      }),
+    );
+    openEditor({ id: PARCEL, type: 'AgriParcel', name: { type: 'Property', value: 'North field' } });
+
+    await waitFor(() => expect(field('editor.field.name').value).toBe('North field'));
+    fireEvent.change(field('editor.field.name'), { target: { value: 'North' } });
+    fireEvent.click(screen.getByText('common.save'));
+
+    expect(await screen.findByText('A parcel keeps its geometry; location cannot be removed')).toBeTruthy();
   });
 });

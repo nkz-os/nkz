@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Loader2, Save } from 'lucide-react';
 import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
+import { parcelApi } from '@/services/parcelApi';
 import { EntityEditorProvider } from './EntityEditorContext';
 import { BasicAttributes } from './sections/BasicAttributes';
 import { GeometrySection } from './sections/GeometrySection';
@@ -42,6 +43,17 @@ async function applyOperation(entityId: string, operation: EditorSaveOperation):
   }
 }
 
+/** Parcels are written only by entity-manager, so their changes go there in one call. */
+async function saveParcel(entityId: string, operations: EditorSaveOperation[]): Promise<void> {
+  const attributes: Record<string, NGSAttribute> = {};
+  const remove: string[] = [];
+  for (const operation of operations) {
+    if (operation.kind === 'merge') Object.assign(attributes, operation.fragment);
+    else remove.push(operation.attribute);
+  }
+  await parcelApi.updateParcelAttributes(entityId, attributes, remove);
+}
+
 const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> = ({ onClose, onSuccess }) => {
   const { t } = useI18n();
   const { formState, hasChanges, entityType, entityId } = useEntityEditor();
@@ -61,14 +73,19 @@ const EditorContent: React.FC<{ onClose: () => void; onSuccess?: () => void }> =
     setSaving(true);
     setSaveError(null);
     try {
-      for (const operation of planEditorSave(formState)) {
-        await applyOperation(entityId, operation);
+      const operations = planEditorSave(formState);
+      if (entityType === 'AgriParcel') {
+        await saveParcel(entityId, operations);
+      } else {
+        for (const operation of operations) {
+          await applyOperation(entityId, operation);
+        }
       }
       onSuccess?.();
       onClose();
     } catch (err: any) {
       logger.error('[EntityEditor] Save failed:', err);
-      setSaveError(err.response?.data?.detail || err.message || 'Save failed');
+      setSaveError(err.response?.data?.error || err.response?.data?.detail || err.message || 'Save failed');
     } finally {
       setSaving(false);
     }

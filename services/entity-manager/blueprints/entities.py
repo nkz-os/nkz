@@ -1059,10 +1059,51 @@ def create_parcel():
     return jsonify({"id": entity_id, "uuid": parcel_uuid}), 201
 
 
+_NGSI_LD_NULL = "urn:ngsi-ld:null"
+_RESERVED_ATTRIBUTES = {"id", "type", "@context"}
+
+
+def _parcel_attribute_errors(attributes: dict, remove: list) -> Optional[tuple]:
+    """Return (message, status) when an attribute fragment or remove list is unusable."""
+    if not isinstance(attributes, dict):
+        return "attributes must be an object of NGSI-LD attributes", 400
+    if not isinstance(remove, list) or not all(isinstance(n, str) for n in remove):
+        return "remove must be a list of attribute names", 400
+    reserved = _RESERVED_ATTRIBUTES & (set(attributes) | set(remove))
+    if reserved:
+        return f"Reserved names cannot be written: {sorted(reserved)}", 400
+    both = set(attributes) & set(remove)
+    if both:
+        return f"Attributes both written and removed: {sorted(both)}", 400
+    for name, attr in attributes.items():
+        if not isinstance(attr, dict) or not attr.get("type"):
+            return f"Attribute '{name}' must be an NGSI-LD attribute with a type", 400
+        # The broker mishandles the null token; removal goes through the remove list.
+        if attr == _NGSI_LD_NULL or _NGSI_LD_NULL in (attr.get("value"), attr.get("object")):
+            return f"Attribute '{name}' carries the null token; use remove instead", 400
+    if "location" in remove:
+        return "A parcel keeps its geometry; location cannot be removed", 422
+    if "location" in attributes:
+        location = attributes["location"]
+        geometry = location.get("value")
+        if location.get("type") != "GeoProperty" or not isinstance(geometry, dict):
+            return "location must be a GeoProperty", 422
+        err = _validate_geometry(geometry)
+        if err:
+            return err, 422
+    return None
+
+
 @entities_bp.route('/entities/parcels/<parcel_id>', methods=['PATCH'])
 @require_auth
 def update_parcel(parcel_id: str):
-    """Update an AgriParcel's attributes."""
+    """Update an AgriParcel's attributes.
+
+    The body may carry the flat fields below, NGSI-LD ``attributes`` to create or
+    overwrite, and a ``remove`` list of attribute names to delete. Writes go as one
+    merge-patch (PATCH /attrs only updates attributes the parcel already has), then a
+    DELETE per removed attribute.
+    """
     tenant = g.tenant
     data = request.json or {}
 
@@ -1086,22 +1127,42 @@ def update_parcel(parcel_id: str):
             return jsonify({"error": err}), 422
         attrs["location"] = {"type": "GeoProperty", "value": data["geometry"]}
 
-    if not attrs:
+    attributes = data.get("attributes", {})
+    remove = data.get("remove", [])
+    problem = _parcel_attribute_errors(attributes, remove)
+    if problem:
+        return jsonify({"error": problem[0]}), problem[1]
+    attrs.update(attributes)
+
+    if not attrs and not remove:
         return jsonify({"error": "No attributes to update"}), 400
 
-    headers = inject_fiware_headers(
-        {"Content-Type": "application/json"}, tenant
-    )
-    resp = requests.patch(
-        f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}/attrs",
-        json=attrs, headers=headers, timeout=10,
-    )
-    if resp.status_code == 404:
-        return jsonify({"error": "Parcel not found"}), 404
-    if resp.status_code >= 400:
-        return jsonify({"error": "Failed to update parcel", "details": resp.text[:200]}), 500
+    entity_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
+    if attrs:
+        headers = inject_fiware_headers(
+            {"Content-Type": "application/json"}, tenant
+        )
+        resp = requests.patch(entity_url, json=attrs, headers=headers, timeout=10)
+        if resp.status_code == 404:
+            return jsonify({"error": "Parcel not found"}), 404
+        if resp.status_code == 400:
+            return jsonify({"error": "Rejected by the context broker", "details": resp.text[:200]}), 400
+        if resp.status_code >= 400:
+            return jsonify({"error": "Failed to update parcel", "details": resp.text[:200]}), 500
 
-    return jsonify({"id": entity_id}), 200
+    for name in remove:
+        resp = requests.delete(
+            f"{entity_url}/attrs/{name}", headers=inject_fiware_headers({}, tenant), timeout=10,
+        )
+        # 404: the attribute is already gone, which is what was asked
+        if resp.status_code >= 400 and resp.status_code != 404:
+            logger.error(
+                "Orion delete of parcel attribute failed: tenant=%s parcel=%s attribute=%s status=%s",
+                tenant, entity_id, name, resp.status_code,
+            )
+            return jsonify({"error": f"Failed to remove '{name}'", "details": resp.text[:200]}), 500
+
+    return jsonify({"id": entity_id, "updated": sorted(attrs), "removed": remove}), 200
 
 
 @entities_bp.route('/entities/parcels/<parcel_id>', methods=['DELETE'])
