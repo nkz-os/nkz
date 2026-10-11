@@ -65,10 +65,12 @@ fails on it.
 | `EnergyMeter` | entidad | extension-declarada | Platform extension — no SDM equivalent |
 | `EnergyStorageSystem` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `expectedTerminationDate` | atributo | extension-declarada | Planned end of a crop cycle in a crop plan; SDM has harvesting intervals only for crop types |
+| `irrigationRegime` | atributo | extension-declarada | Rainfed or irrigated regime of one crop cycle; SDM has only the parcel's irrigation equipment type and the crop's watering frequency |
 | `LivestockAnimal` | entidad | extension-declarada | Platform extension — SAREF4AGRI has no LivestockAnimal class |
 | `LivestockFarm` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `LivestockGroup` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `LivestockProduction` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
+| `management` | atributo | extension-declarada | Organic or conventional production of one crop cycle; not modelled in SDM AgriCrop |
 | `OpenChannelFlow` | entidad | sin-revisar | Not yet reviewed |
 | `PhotovoltaicInstallation` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `plantingDateSource` | atributo | extension-declarada | Provenance of plantingDate (planned or manually declared); not modelled in SDM |

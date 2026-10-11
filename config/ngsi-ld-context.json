@@ -501,6 +501,8 @@
       "cropSeason": "https://nkz-os.org/ns/cropSeason",
       "cropSegmentSeq": "https://nkz-os.org/ns/cropSegmentSeq",
       "expectedTerminationDate": "https://nkz-os.org/ns/expectedTerminationDate",
+      "irrigationRegime": "https://nkz-os.org/ns/irrigationRegime",
+      "management": "https://nkz-os.org/ns/management",
       "plantingDateSource": "https://nkz-os.org/ns/plantingDateSource",
       "sowingWindowEnd": "https://nkz-os.org/ns/sowingWindowEnd",
       "sowingWindowStart": "https://nkz-os.org/ns/sowingWindowStart",
