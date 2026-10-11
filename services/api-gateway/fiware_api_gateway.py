@@ -539,8 +539,10 @@ def _validate_oidc_token(token, module_id=""):
 
 
 def _has_dot_segment(path: str) -> bool:
-    """True when any '/'-separated segment of the fully decoded path is '.' or '..'.
+    """True when any segment of the fully decoded path is '.' or '..'.
 
+    Segments end at '/', '?' or '#': once decoded, an encoded '?' or '#' makes
+    the HTTP client cut the URL there, so '..%3F' would still collapse '..'.
     Decoding is repeated until stable so a double-encoded sequence (%252E%252E)
     cannot slip past a single unquote and be collapsed later by the HTTP client.
     """
@@ -550,7 +552,7 @@ def _has_dot_segment(path: str) -> bool:
         if nxt == decoded:
             break
         decoded = nxt
-    return any(seg in (".", "..") for seg in decoded.split("/"))
+    return any(seg in (".", "..") for seg in re.split(r"[/?#]", decoded))
 
 
 # Registered first: Flask runs before_request hooks in registration order, and

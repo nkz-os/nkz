@@ -18,6 +18,10 @@ PAYLOAD = {"sub": "u1", "tenant_id": "acme", "exp": 9999999999}
         "../subscriptions",
         "urn:ngsi-ld:AgriParcel:x/../../subscriptions",
         "urn:ngsi-ld:AgriParcel:x/./attrs",
+        "..%3F",
+        "..%23",
+        "..%3Fx=1",
+        "urn:x/..%3F",
     ],
 )
 @pytest.mark.parametrize("method", ["get", "patch", "delete"])
@@ -47,11 +51,16 @@ def test_normal_entity_path_still_proxied(client, monkeypatch):
     assert g.call_args.args[0].endswith("/ngsi-ld/v1/entities/urn:ngsi-ld:AgriParcel:acme:1/attrs/area")
 
 
-@pytest.mark.parametrize("path", ["/a/../b", "/a/./b", "/..", "/%2e%2e/x", "/%252e%252e/x"])
+@pytest.mark.parametrize(
+    "path", ["/a/../b", "/a/./b", "/..", "/%2e%2e/x", "/%252e%252e/x", "/a/..?x", "/a/..#"]
+)
 def test_has_dot_segment_detects_encoded_forms(path):
     assert gw._has_dot_segment(path)
 
 
-@pytest.mark.parametrize("path", ["/a/b", "/a.b/c", "/urn:ngsi-ld:X:1/attrs/..name", "/x/.hidden"])
+@pytest.mark.parametrize(
+    "path",
+    ["/a/b", "/a.b/c", "/urn:ngsi-ld:X:1/attrs/..name", "/x/.hidden", "/urn:x:a?b", "/a#frag", "/a.b..c"],
+)
 def test_has_dot_segment_ignores_dots_inside_names(path):
     assert not gw._has_dot_segment(path)
