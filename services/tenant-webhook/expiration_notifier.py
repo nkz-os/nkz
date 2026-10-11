@@ -24,6 +24,8 @@ import psycopg2
 import requests
 from psycopg2.extras import RealDictCursor
 
+from common.internal_auth import internal_service_headers
+
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -174,6 +176,7 @@ def send_expiration_notification(activation: dict[str, Any]) -> bool:
                 "plan": activation["plan"],
                 "tenant": activation["tenant"],
             },
+            headers=internal_service_headers("expiration notifier"),
             timeout=10,
         )
 

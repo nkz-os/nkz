@@ -64,6 +64,7 @@ if not common_path_found:
 # Imported AFTER sys.path is augmented so it works in both container and dev.
 from tenant_utils import normalize_tenant_id  # noqa: E402
 from hash_utils import api_key_digest  # noqa: E402
+from common.internal_auth import internal_service_headers  # noqa: E402
 
 try:
     from keycloak_auth import (
@@ -446,6 +447,19 @@ CREATE_ROS2_SCRIPT = os.getenv("CREATE_ROS2_SCRIPT", "/app/scripts/create-tenant
 TENANT_NAMESPACE_PREFIX = os.getenv("TENANT_NAMESPACE_PREFIX", "nekazari-tenant-")
 N8N_NKZ_SERVICE_URL = os.getenv("N8N_NKZ_SERVICE_URL", "http://n8n-nkz-api-service:8000")
 K8S_API_TIMEOUT = int(os.getenv("K8S_API_TIMEOUT", "15"))
+EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
+
+
+def _email_post(path: str, payload: dict, timeout: int = 10):
+    """POST to email-service with the internal service secret header."""
+    url = f"{EMAIL_SERVICE_URL}{path}"
+    return requests.post(
+        url,
+        json=payload,
+        headers=internal_service_headers("tenant-webhook email"),
+        timeout=timeout,
+    )
+
 
 # Import config manager for URL construction
 try:
@@ -2057,10 +2071,9 @@ def woocommerce_webhook():  # noqa: C901
 
             # Send activation email
             try:
-                EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
-                email_response = requests.post(
-                    f"{EMAIL_SERVICE_URL}/send/activation",
-                    json={
+                email_response = _email_post(
+                    "/send/activation",
+                    {
                         "email": email.lower(),
                         "farmer_name": email.split("@")[0],  # Use email prefix as name
                         "activation_code": activation_code,
@@ -2216,10 +2229,9 @@ def generate_activation_code():  # noqa: C901
 
             # Send activation email
             try:
-                EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
-                email_response = requests.post(
-                    f"{EMAIL_SERVICE_URL}/send/activation",
-                    json={
+                email_response = _email_post(
+                    "/send/activation",
+                    {
                         "email": email.lower(),
                         "farmer_name": email.split("@")[0],  # Use email prefix as name
                         "activation_code": activation_code,
@@ -4111,9 +4123,10 @@ def _purge_phase_close(tenant_id: str) -> dict:
             current_user = g.get('current_user', {})
             admin_email = current_user.get('email', '') if isinstance(current_user, dict) else ''
             if admin_email:
-                requests.post(
-                    f"{email_service_url}/send",
-                    json={
+                # TODO owner: /send does not exist on email-service
+                _email_post(
+                    "/send",
+                    {
                         "to": admin_email,
                         "subject": f"Tenant {tenant_id} purged",
                         "body": f"Hard purge of tenant '{tenant_id}' completed at {datetime.utcnow().isoformat()}Z.\n\nAll data has been permanently deleted.",
@@ -5146,15 +5159,13 @@ def forgot_password():
 
             # Also send custom email using email-service for consistency
             try:
-                EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
-
                 # Generate a reset link that Keycloak will accept
                 # Keycloak generates its own token, but we can provide a generic reset URL
                 reset_link = f"{KEYCLOAK_PUBLIC_URL}/realms/{KEYCLOAK_REALM}/login-actions/reset-credentials?client_id=nekazari-frontend"  # noqa: E501
 
-                email_response = requests.post(
-                    f"{EMAIL_SERVICE_URL}/send/password-reset",
-                    json={
+                email_response = _email_post(
+                    "/send/password-reset",
+                    {
                         "email": email.lower(),
                         "farmer_name": (
                             f"{user_info.get('firstName', '')} "
@@ -5231,10 +5242,9 @@ def activate_tenant():  # noqa: C901
 
             # Send notification email about failure
             try:
-                EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
-                requests.post(
-                    f"{EMAIL_SERVICE_URL}/send/activation-failure",
-                    json={
+                _email_post(
+                    "/send/activation-failure",
+                    {
                         "user_email": email.lower(),
                         "tenant_name": tenant_name,
                         "activation_code": code,
@@ -5392,10 +5402,9 @@ def activate_tenant():  # noqa: C901
 
             # Send notification email about failure
             try:
-                EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
-                requests.post(
-                    f"{EMAIL_SERVICE_URL}/send/activation-failure",
-                    json={
+                _email_post(
+                    "/send/activation-failure",
+                    {
                         "user_email": email.lower(),
                         "tenant_name": tenant_name,
                         "activation_code": code,
@@ -5446,10 +5455,9 @@ def activate_tenant():  # noqa: C901
         # Send welcome email to user
         if user_success and api_key:
             try:
-                EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
-                welcome_response = requests.post(
-                    f"{EMAIL_SERVICE_URL}/send/welcome",
-                    json={
+                welcome_response = _email_post(
+                    "/send/welcome",
+                    {
                         "email": email.lower(),
                         "farmer_name": tenant_name or email.split("@")[0],
                         "farm_name": tenant_name,
@@ -5468,10 +5476,9 @@ def activate_tenant():  # noqa: C901
 
         # Send notification email to platform admin and tenant admin about successful registration
         try:
-            EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
-            requests.post(
-                f"{EMAIL_SERVICE_URL}/send/activation-success",
-                json={
+            _email_post(
+                "/send/activation-success",
+                {
                     "user_email": email.lower(),
                     "tenant_id": tenant_id,
                     "tenant_name": tenant_name,
@@ -5972,12 +5979,11 @@ def invite_user_to_tenant():  # noqa: C901
 
         # Send invitation email
         try:
-            EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
             invitation_url = f"{FRONTEND_URL}/accept-invitation?code={invitation_code}"
 
-            email_response = requests.post(
-                f"{EMAIL_SERVICE_URL}/send/invitation",
-                json={
+            email_response = _email_post(
+                "/send/invitation",
+                {
                     "email": invitee_email,
                     "inviter_name": inviter_name,
                     "tenant_name": tenant_id,
@@ -6487,10 +6493,9 @@ def request_registration_otp():
                     # register with their email. Must never affect the
                     # anti-enumeration response below (same status/body either way).
                     try:
-                        email_service_url = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
-                        requests.post(
-                            f"{email_service_url}/email/account-exists",
-                            json={"email": email, "language": language},
+                        _email_post(
+                            "/email/account-exists",
+                            {"email": email, "language": language},
                             timeout=10
                         )
                     except Exception as notify_err:
@@ -6513,16 +6518,15 @@ def request_registration_otp():
         redis_client.setex(redis_key, 900, otp)  # 900 seconds = 15 minutes
         
         # 4. Call email-service to send the OTP
-        email_service_url = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
         email_payload = {
             "email": email,
             "otp": otp,
             "language": language
         }
 
-        email_resp = requests.post(
-            f"{email_service_url}/email/verification-otp",
-            json=email_payload,
+        email_resp = _email_post(
+            "/email/verification-otp",
+            email_payload,
             timeout=10
         )
 
@@ -6689,10 +6693,9 @@ def register_tenant():
             # 8. Send welcome email to user (best-effort, don't block registration)
             if api_key:
                 try:
-                    EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
-                    welcome_response = requests.post(
-                        f"{EMAIL_SERVICE_URL}/send/welcome",
-                        json={
+                    welcome_response = _email_post(
+                        "/send/welcome",
+                        {
                             "email": email.lower(),
                             "farmer_name": (
                                 data.get("first_name")
@@ -6716,10 +6719,9 @@ def register_tenant():
 
             # 9. Send admin notification about new registration (best-effort)
             try:
-                EMAIL_SERVICE_URL = os.getenv("EMAIL_SERVICE_URL", "http://email-service:5000")
-                requests.post(
-                    f"{EMAIL_SERVICE_URL}/email/activation-success",
-                    json={
+                _email_post(
+                    "/email/activation-success",
+                    {
                         "user_email": email.lower(),
                         "tenant_id": tenant_id,
                         "tenant_name": organization_name,
