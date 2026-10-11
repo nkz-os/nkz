@@ -867,7 +867,12 @@ class ApiService {
     return response.data;
   }
 
-  async deleteSDMEntity(_entityType: string, entityId: string): Promise<void> {
+  async deleteSDMEntity(entityType: string, entityId: string): Promise<void> {
+    // Only entity-manager may write parcels; its route also removes the parcel's zones.
+    if (entityType === 'AgriParcel') {
+      await this.client.delete(`/api/entities/parcels/${encodeURIComponent(entityId)}`);
+      return;
+    }
     await this.client.delete(`/ngsi-ld/v1/entities/${entityId}`);
   }
 
