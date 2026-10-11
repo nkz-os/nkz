@@ -3022,14 +3022,23 @@ def proxy_push_register():
     payload = validate_jwt_token(token)
     if not payload:
         return jsonify({"error": "Invalid token"}), 401
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"error": "JSON object body required"}), 400
+    # Identity comes from the validated token, never from the client body:
+    # otherwise a user could register a device under someone else's account
+    # and receive their notifications.
+    body["user_id"] = payload.get("sub", "")
+    body["tenant_id"] = tenant
     target_url = "http://push-notification-service:5000/register"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     try:
-        response = requests.post(
-            target_url, headers=headers, json=request.get_json(silent=True), timeout=10
-        )
-        return (response.content, response.status_code, response.headers.items())
-    except Exception as e:
+        response = requests.post(target_url, headers=headers, json=body, timeout=10)
+        return safe_proxy_response(response)
+    except requests.exceptions.RequestException as e:
         logger.error(f"Error proxying push register: {e}")
         return jsonify({"error": "Internal service connection error"}), 502
 
