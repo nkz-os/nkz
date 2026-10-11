@@ -813,8 +813,7 @@ def resolve_request_auth(
         (normalized NGSILD-Tenant/Fiware-Service + Fiware-ServicePath +
         Content-Type/Link per @context-in-body + Accept), plus X-Tenant-ID
         and, in the JWT branch only, X-Auth-Signature via
-        ``generate_hmac_signature``. Matches entity_by_id / entities /
-        subscriptions.
+        ``generate_hmac_signature``. Matches entity_by_id / entities.
       "raw" — headers built with the literal (non-normalized) tenant string
         assigned directly to NGSILD-Tenant/Fiware-Service, no Link/
         ServicePath/Accept, no HMAC signature, with an explicit
@@ -1508,7 +1507,7 @@ def timeseries_proxy(path):
     # header (do not forward) — header_mode="raw" builds NGSILD-Tenant/
     # Fiware-Service/X-Delegated-Tenant-ID from the server-resolved tenant
     # only, same as before. This route rate-limits the PAT branch but NOT
-    # the JWT branch (the inverse of entity_by_id/entities/subscriptions),
+    # the JWT branch (the inverse of entity_by_id/entities),
     # and never sets X-Auth-Signature (not needed by timeseries-reader).
     tenant, headers, err = resolve_request_auth(
         header_mode="raw",
