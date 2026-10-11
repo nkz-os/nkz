@@ -16,6 +16,8 @@ from typing import Any
 ASSIGN_TOLERANCE_DAYS = 60
 _CLOSED = {"harvested", "terminated"}
 _EXCLUDED = {"cancelled"}
+_TERMINATING_TILLAGE = frozenset({"roller_crimper", "mowing"})  # field-operations tillageType values that end a cover
+_TERMINABLE_ROLES = frozenset({"cover_crop", "catch_crop"})
 _PERENNIAL, _ANNUAL = "perennial", "annual"
 
 
@@ -202,12 +204,13 @@ def resolve_crop_cycles(
             continue
         typ = _value(o.get("operationType"))
         is_start = typ == "sowing"
-        is_end = typ == "harvesting" or (typ == "tillage" and _value(o.get("tillageType")) == "roller_crimper")
+        is_end = typ == "harvesting" or (typ == "tillage" and _value(o.get("tillageType")) in _TERMINATING_TILLAGE)
         if not (is_start or is_end):
             continue
         cands = [r for r in raw if _window_contains(r["ps"] or r["planting"], r["pe"], d)]
         if is_end and typ == "tillage":
-            cands = [r for r in cands if r["role"] == "cover_crop"]
+            # Rolling or mowing ends a cover or catch crop; a main crop or a perennial stand is mowed and lives on.
+            cands = [r for r in cands if r["role"] in _TERMINABLE_ROLES]
         if not cands:
             unassigned.append(_op_ref(o, d))
             continue
