@@ -2018,6 +2018,35 @@
       "menu": {
         "view_on_map": "Ikusi mapan",
         "copy_id": "Kopiatu IDa"
+      },
+      "types": {
+        "AgriParcel": "Lursaila",
+        "Vineyard": "Mahastia",
+        "OliveGrove": "Olibadia",
+        "AgriParcelZone": "Lursail-eremua",
+        "AgriSoil": "Lurzorua",
+        "AgriSoilExtended": "Lurzorua",
+        "AgriFarm": "Ustiategia",
+        "AgriSensor": "Sentsorea",
+        "Device": "Gailua",
+        "AutonomousMobileRobot": "Robota",
+        "ManufacturingMachine": "Traktorea",
+        "AgriBuilding": "Eraikina",
+        "AgriGreenhouse": "Berotegia",
+        "IrrigationSystem": "Ureztatze-sistema",
+        "AgriEnergyTracker": "Eguzki-jarraitzailea",
+        "PhotovoltaicInstallation": "Instalazio fotovoltaikoa",
+        "AgriCrop": "Laborantza",
+        "AgriTree": "Zuhaitza",
+        "OliveTree": "Olibondoa",
+        "Vine": "Mahatsondoa",
+        "FruitTree": "Fruta-arbola",
+        "LivestockAnimal": "Animalia",
+        "LivestockGroup": "Artaldea",
+        "WaterSource": "Ur-iturria",
+        "Well": "Putzua",
+        "Pond": "Urmaela",
+        "WeatherStation": "Meteo-estazioa"
       }
     },
     "filters": {
@@ -2038,7 +2067,15 @@
       "unknown": "Ezezag."
     },
     "categories": {
-      "all": "Guztiak"
+      "all": "Guztiak",
+      "parcels": "Lursailak",
+      "sensors": "Sentsoreak",
+      "fleet": "Flota",
+      "infrastructure": "Azpiegitura",
+      "vegetation": "Landaredia",
+      "livestock": "Abeltzaintza",
+      "water": "Ura",
+      "weather": "Meteorologia"
     }
   },
   "parcel": {

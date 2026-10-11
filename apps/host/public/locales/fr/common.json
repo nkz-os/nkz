@@ -2043,6 +2043,35 @@
       "menu": {
         "view_on_map": "Voir sur la carte",
         "copy_id": "Copier l'ID"
+      },
+      "types": {
+        "AgriParcel": "Parcelle",
+        "Vineyard": "Vignoble",
+        "OliveGrove": "Oliveraie",
+        "AgriParcelZone": "Zone de parcelle",
+        "AgriSoil": "Sol",
+        "AgriSoilExtended": "Sol",
+        "AgriFarm": "Exploitation",
+        "AgriSensor": "Capteur",
+        "Device": "Appareil",
+        "AutonomousMobileRobot": "Robot",
+        "ManufacturingMachine": "Tracteur",
+        "AgriBuilding": "Bâtiment",
+        "AgriGreenhouse": "Serre",
+        "IrrigationSystem": "Système d'irrigation",
+        "AgriEnergyTracker": "Suiveur solaire",
+        "PhotovoltaicInstallation": "Installation PV",
+        "AgriCrop": "Culture",
+        "AgriTree": "Arbre",
+        "OliveTree": "Olivier",
+        "Vine": "Cep de vigne",
+        "FruitTree": "Arbre fruitier",
+        "LivestockAnimal": "Animal",
+        "LivestockGroup": "Troupeau",
+        "WaterSource": "Source d'eau",
+        "Well": "Puits",
+        "Pond": "Étang",
+        "WeatherStation": "Station météo"
       }
     },
     "filters": {
@@ -2063,7 +2092,15 @@
       "unknown": "Inconnu"
     },
     "categories": {
-      "all": "Tous"
+      "all": "Tous",
+      "parcels": "Parcelles",
+      "sensors": "Capteurs",
+      "fleet": "Flotte",
+      "infrastructure": "Infrastructure",
+      "vegetation": "Végétation",
+      "livestock": "Élevage",
+      "water": "Eau",
+      "weather": "Météo"
     }
   },
   "parcel": {

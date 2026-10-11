@@ -17,7 +17,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import api from '@/services/api';
-import { UnifiedAsset, ASSET_TYPE_REGISTRY } from '@/types/assets';
+import { UnifiedAsset, assetTypeLabel } from '@/types/assets';
 import { logger } from '@/utils/logger';
 import { Button, Input } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
@@ -167,7 +167,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
                 <MapPin className="w-4 h-4 text-nkz-success" />
                 <span className="font-medium text-sm text-slate-700">{currentParent.name}</span>
                 <span className="text-xs text-slate-400">
-                  ({ASSET_TYPE_REGISTRY[currentParent.type]?.label || currentParent.type})
+                  ({assetTypeLabel(currentParent.type, t)})
                 </span>
               </div>
               {removable && (
@@ -206,7 +206,6 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
           ) : (
             filteredParents.map(parent => {
               const isSelected = selectedParentId === parent.id;
-              const typeInfo = ASSET_TYPE_REGISTRY[parent.type];
               
               return (
                 <Button variant="ghost"
@@ -226,7 +225,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
                       {parent.name}
                     </p>
                     <p className="text-xs text-slate-500 truncate">
-                      {typeInfo?.label || parent.type}
+                      {assetTypeLabel(parent.type, t)}
                       {parent.municipality && ` • ${parent.municipality}`}
                     </p>
                   </div>

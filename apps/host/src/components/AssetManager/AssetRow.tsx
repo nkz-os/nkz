@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { UnifiedAsset, ASSET_TYPE_REGISTRY } from '@/types/assets';
+import { UnifiedAsset, ASSET_TYPE_REGISTRY, assetTypeLabel } from '@/types/assets';
 import { useI18n } from '@/context/I18nContext';
 import { Button } from '@nekazari/ui-kit';
 
@@ -173,8 +173,8 @@ export const AssetRow: React.FC<AssetRowProps> = memo(({
       
       {/* Type */}
       <div className="w-28 flex-shrink-0">
-        <span className="text-xs text-white/60 bg-white/10 px-2 py-0.5 rounded-full truncate inline-block max-w-full" title={typeInfo?.label || asset.type}>
-          {typeInfo?.label || asset.type}
+        <span className="text-xs text-white/60 bg-white/10 px-2 py-0.5 rounded-full truncate inline-block max-w-full" title={assetTypeLabel(asset.type, t)}>
+          {assetTypeLabel(asset.type, t)}
         </span>
       </div>
       

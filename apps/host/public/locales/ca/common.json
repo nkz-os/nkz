@@ -2043,6 +2043,35 @@
       "menu": {
         "view_on_map": "Mostra al mapa",
         "copy_id": "Copia l'ID"
+      },
+      "types": {
+        "AgriParcel": "Parcel·la",
+        "Vineyard": "Vinya",
+        "OliveGrove": "Oliverar",
+        "AgriParcelZone": "Zona de parcel·la",
+        "AgriSoil": "Sòl",
+        "AgriSoilExtended": "Sòl",
+        "AgriFarm": "Explotació",
+        "AgriSensor": "Sensor",
+        "Device": "Dispositiu",
+        "AutonomousMobileRobot": "Robot",
+        "ManufacturingMachine": "Tractor",
+        "AgriBuilding": "Edifici",
+        "AgriGreenhouse": "Hivernacle",
+        "IrrigationSystem": "Sistema de reg",
+        "AgriEnergyTracker": "Seguidor solar",
+        "PhotovoltaicInstallation": "Instal·lació FV",
+        "AgriCrop": "Cultiu",
+        "AgriTree": "Arbre",
+        "OliveTree": "Olivera",
+        "Vine": "Cep",
+        "FruitTree": "Arbre fruiter",
+        "LivestockAnimal": "Animal",
+        "LivestockGroup": "Ramat",
+        "WaterSource": "Font d'aigua",
+        "Well": "Pou",
+        "Pond": "Bassa",
+        "WeatherStation": "Estació meteo"
       }
     },
     "filters": {
@@ -2063,7 +2092,15 @@
       "unknown": "Desc."
     },
     "categories": {
-      "all": "Tots"
+      "all": "Tots",
+      "parcels": "Parcel·les",
+      "sensors": "Sensors",
+      "fleet": "Flota",
+      "infrastructure": "Infraestructura",
+      "vegetation": "Vegetació",
+      "livestock": "Ramaderia",
+      "water": "Aigua",
+      "weather": "Meteorologia"
     }
   },
   "parcel": {

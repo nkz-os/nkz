@@ -1,5 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import i18n from 'i18next';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { normalizeToAsset } from '../assets';
+
+// Fallback names use the type label of the active language.
+beforeAll(async () => {
+  const common = JSON.parse(readFileSync(resolve(__dirname, '../../../public/locales/es/common.json'), 'utf8'));
+  await i18n.init({ lng: 'es', ns: ['common'], defaultNS: 'common', resources: { es: { common } } });
+});
 
 const PARCEL = 'urn:ngsi-ld:AgriParcel:p1';
 
