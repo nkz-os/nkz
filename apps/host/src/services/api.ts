@@ -548,12 +548,6 @@ class ApiService {
     return response.data;
   }
 
-  async updateRobot(id: string, updates: Partial<Robot>): Promise<void> {
-    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
-      headers: { 'Content-Type': 'application/ld+json' },
-    });
-  }
-
   // =============================================================================
   // Sensor Management Methods - Using new API endpoints
   // =============================================================================
@@ -852,10 +846,9 @@ class ApiService {
     return { instances: entities, total, count: entities.length };
   }
 
+  /** Same merge-patch as mergeSDMEntity: PATCH /attrs would drop attributes the entity lacks. */
   async updateSDMEntity(_entityType: string, entityId: string, updates: any): Promise<void> {
-    await this.client.patch(`/ngsi-ld/v1/entities/${entityId}/attrs`, updates, {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    await this.mergeSDMEntity(entityId, updates);
   }
 
   /** Merge-patch: creates or overwrites the given attributes (PATCH /attrs only updates existing ones). */
@@ -1078,12 +1071,6 @@ class ApiService {
     return this.mapSDMToSensor(result.entity || result);
   }
 
-  async updateSensor(id: string, updates: Partial<Sensor>): Promise<void> {
-    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
-      headers: { 'Content-Type': 'application/ld+json' },
-    });
-  }
-
   async deleteSensor(id: string): Promise<void> {
     try {
       // Try new API endpoint first
@@ -1281,12 +1268,6 @@ class ApiService {
     return response.data;
   }
 
-  async updateMachine(id: string, updates: Partial<AgriculturalMachine>): Promise<void> {
-    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
-      headers: { 'Content-Type': 'application/ld+json' },
-    });
-  }
-
   async deleteMachine(id: string): Promise<void> {
     await this.client.delete(`/ngsi-ld/v1/entities/${id}`);
   }
@@ -1305,12 +1286,6 @@ class ApiService {
     return response.data;
   }
 
-  async updateLivestockAnimal(id: string, updates: Partial<LivestockAnimal>): Promise<void> {
-    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
-      headers: { 'Content-Type': 'application/ld+json' },
-    });
-  }
-
   async deleteLivestockAnimal(id: string): Promise<void> {
     await this.client.delete(`/ngsi-ld/v1/entities/${id}`);
   }
@@ -1327,12 +1302,6 @@ class ApiService {
       },
     });
     return response.data;
-  }
-
-  async updateWeatherStation(id: string, updates: Partial<WeatherStation>): Promise<void> {
-    await this.client.patch(`/ngsi-ld/v1/entities/${id}/attrs`, updates, {
-      headers: { 'Content-Type': 'application/ld+json' },
-    });
   }
 
   async deleteWeatherStation(id: string): Promise<void> {
