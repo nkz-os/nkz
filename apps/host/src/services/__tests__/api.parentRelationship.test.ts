@@ -72,4 +72,15 @@ describe('relationship writes', () => {
 
     expect(del).toHaveBeenCalledWith('/ngsi-ld/v1/entities/urn:ngsi-ld:AgriCrop:c1/attrs/hasAgriParcel');
   });
+
+  it('updates an entity with the same merge-patch, so a new attribute is created', async () => {
+    patch.mockResolvedValue({ status: 204 });
+    const fragment = { description: { type: 'Property', value: 'North gate' } };
+
+    await api.updateSDMEntity('Device', 'urn:ngsi-ld:Device:d1', fragment);
+
+    expect(patch).toHaveBeenCalledWith('/ngsi-ld/v1/entities/urn:ngsi-ld:Device:d1', fragment, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
 });
