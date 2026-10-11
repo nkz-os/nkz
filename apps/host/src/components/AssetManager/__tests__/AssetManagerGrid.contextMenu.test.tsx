@@ -70,6 +70,15 @@ vi.mock('@/context/I18nContext', () => ({
 
 import { AssetManagerGrid } from '../AssetManagerGrid';
 
+describe('AssetManagerGrid view', () => {
+  it('opens on the hierarchy, with each parcel showing what hangs from it', () => {
+    render(<AssetManagerGrid showCategoryNav={false} />);
+
+    expect(screen.getByText('entities.assets.view_tree')).toBeTruthy();
+    expect(screen.getByText('North quadrant')).toBeTruthy();
+  });
+});
+
 describe('AssetManagerGrid context menu', () => {
   it('labels every action through i18n', () => {
     render(<AssetManagerGrid showCategoryNav={false} />);
