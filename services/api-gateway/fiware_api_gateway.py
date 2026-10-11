@@ -27,6 +27,7 @@ import boto3
 import re
 import ipaddress
 from collections import defaultdict, deque
+from urllib.parse import unquote
 
 # Configure logging FIRST
 logging.basicConfig(level=logging.INFO)
@@ -535,6 +536,33 @@ def _validate_oidc_token(token, module_id=""):
     except Exception as e:
         logger.error(f"OIDC: validation error: {e}")
         return False
+
+
+def _has_dot_segment(path: str) -> bool:
+    """True when any '/'-separated segment of the fully decoded path is '.' or '..'.
+
+    Decoding is repeated until stable so a double-encoded sequence (%252E%252E)
+    cannot slip past a single unquote and be collapsed later by the HTTP client.
+    """
+    decoded = path
+    for _ in range(5):
+        nxt = unquote(decoded)
+        if nxt == decoded:
+            break
+        decoded = nxt
+    return any(seg in (".", "..") for seg in decoded.split("/"))
+
+
+# Registered first: Flask runs before_request hooks in registration order, and
+# this must run before any auth, PAT or proxy hook sees the request.
+@app.before_request
+def reject_dot_segments():
+    """Proxies build upstream URLs from <path:> captures; a '.' or '..' segment
+    would be collapsed by the HTTP client and hit a different upstream resource."""
+    if _has_dot_segment(request.path):
+        logger.warning("Rejected path with dot segment: %s", request.path)
+        return jsonify({"error": "Invalid path"}), 400
+    return None
 
 
 @app.before_request
