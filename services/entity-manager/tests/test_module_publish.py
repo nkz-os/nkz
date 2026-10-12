@@ -1,5 +1,6 @@
 """Tests for module publish and versioned deploy routes."""
 
+import json
 import os
 import sys
 from functools import wraps
@@ -378,3 +379,197 @@ def test_bundle_routes_let_platform_admin_reach_validation(client, monkeypatch, 
     r = client.post(path, headers={"Authorization": "Bearer t"}, data={})
     # Past the role gate: an empty body is a validation error, not a 403.
     assert r.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Translated module names and descriptions (label_i18n / description_i18n)
+# ---------------------------------------------------------------------------
+
+
+def _published_metadata(monkeypatch, manifest):
+    """Metadata JSON that a publish of ``manifest`` sends to the upsert."""
+    _, params = _publish_upsert(monkeypatch, {"id": "demo", "version": "1.0.0", **manifest})
+    candidates = [p for p in params if isinstance(p, str) and p.startswith("{")]
+    assert len(candidates) == 1
+    return json.loads(candidates[0])
+
+
+
+def test_publish_without_description_i18n_leaves_the_key_out(monkeypatch):
+    """An absent key keeps the stored translations through the jsonb merge."""
+    metadata = _published_metadata(monkeypatch, {})
+    assert "description_i18n" not in metadata
+
+
+def test_publish_with_empty_description_i18n_leaves_the_key_out(monkeypatch):
+    metadata = _published_metadata(monkeypatch, {"description_i18n": {}})
+    assert "description_i18n" not in metadata
+
+
+def test_publish_with_description_i18n_stores_it(monkeypatch):
+    texts = {"es": "Hola", "en": "Hello"}
+    metadata = _published_metadata(monkeypatch, {"description_i18n": texts})
+    assert metadata["description_i18n"] == texts
+
+
+def test_publish_with_only_unusable_description_i18n_leaves_the_key_out(monkeypatch):
+    """Nothing usable must not replace the stored translations with junk."""
+    metadata = _published_metadata(monkeypatch, {"description_i18n": {"de": "Hallo", "es": " "}})
+    assert "description_i18n" not in metadata
+
+
+def test_publish_ignores_a_non_dict_description_i18n(monkeypatch):
+    metadata = _published_metadata(monkeypatch, {"description_i18n": "Hola"})
+    assert "description_i18n" not in metadata
+
+
+def test_publish_stores_navigation_label_as_label_i18n(monkeypatch):
+    label = {"es": "Planificación", "en": "Planning", "eu": "Plangintza"}
+    metadata = _published_metadata(monkeypatch, {"navigation": {"label": label}})
+    assert metadata["label_i18n"] == label
+
+
+def test_publish_filters_navigation_label(monkeypatch):
+    label = {
+        "es": "  Planificación ",   # trimmed
+        "en": "x" * 80,             # at the limit: kept
+        "fr": "x" * 81,             # too long: dropped
+        "de": "Planung",            # unsupported language: dropped
+        "pt": "",                   # empty: dropped
+        "ca": "   ",                # blank: dropped
+        "eu": 3,                    # not a string: dropped
+    }
+    metadata = _published_metadata(monkeypatch, {"navigation": {"label": label}})
+    assert metadata["label_i18n"] == {"es": "Planificación", "en": "x" * 80}
+
+
+@pytest.mark.parametrize(
+    "navigation",
+    [
+        None,
+        "menu",
+        {},
+        {"section": "tools"},
+        {"label": "Planning"},
+        {"label": {}},
+        {"label": {"de": "Planung"}},
+    ],
+)
+def test_publish_without_usable_label_leaves_label_i18n_out(monkeypatch, navigation):
+    """No usable label: the key is omitted so the stored one survives the merge."""
+    manifest = {} if navigation is None else {"navigation": navigation}
+    metadata = _published_metadata(monkeypatch, manifest)
+    assert "label_i18n" not in metadata
+
+
+def test_publish_metadata_is_merged_not_replaced(monkeypatch):
+    sql, _ = _publish_upsert(monkeypatch, {"id": "demo", "version": "1.0.0"})
+    assert "metadata = COALESCE(marketplace_modules.metadata, '{}'::jsonb) || EXCLUDED.metadata" in sql
+
+
+# -- list endpoints -----------------------------------------------------------
+
+_MODULE_ROW = {
+    "id": "demo",
+    "name": "demo",
+    "display_name": "Demo",
+    "description": "Plain description",
+    "remoteEntry": "/modules/demo/mf-manifest.json",
+    "scope": "demo",
+    "module": "./Module",
+    "version": "1.0.0",
+    "icon_url": None,
+    "route_path": "/demo",
+    "label": "Demo",
+    "is_local": False,
+    "tenant_config": {},
+}
+
+
+def _fake_tenant_connection(rows):
+    cur = MagicMock()
+    cur.fetchall.return_value = rows
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    cm = MagicMock()
+    cm.__enter__.return_value = conn
+    cm.__exit__.return_value = False
+    return cm
+
+
+def _get_my_modules(client, monkeypatch, metadata, accept_language=None):
+    import blueprints.modules as m
+
+    row = {**_MODULE_ROW, "metadata": metadata}
+    monkeypatch.setattr(m, "get_db_connection_with_tenant", lambda _t: _fake_tenant_connection([row]))
+    headers = {"Authorization": "Bearer t"}
+    if accept_language:
+        headers["Accept-Language"] = accept_language
+    r = client.get("/api/modules/me", headers=headers)
+    assert r.status_code == 200
+    return r.get_json()[0]
+
+
+def test_modules_me_returns_label_and_description_maps(client, monkeypatch):
+    metadata = {
+        "label_i18n": {"es": "Demo es", "en": "Demo en"},
+        "description_i18n": {"es": "Descripción", "en": "Description"},
+    }
+    module = _get_my_modules(client, monkeypatch, metadata)
+    assert module["labelI18n"] == metadata["label_i18n"]
+    assert module["descriptionI18n"] == metadata["description_i18n"]
+
+
+def test_modules_me_maps_are_filtered_to_supported_languages_and_strings(client, monkeypatch):
+    metadata = {
+        "label_i18n": {"es": "Demo", "de": "Demo de", "en": 5, "fr": ""},
+        "description_i18n": {"pt": "Descrição", "xx": "x", "ca": ["a"]},
+    }
+    module = _get_my_modules(client, monkeypatch, metadata)
+    assert module["labelI18n"] == {"es": "Demo"}
+    assert module["descriptionI18n"] == {"pt": "Descrição"}
+
+
+@pytest.mark.parametrize("metadata", [{}, {"label_i18n": "x", "description_i18n": ["x"]}])
+def test_modules_me_maps_default_to_empty(client, monkeypatch, metadata):
+    module = _get_my_modules(client, monkeypatch, metadata)
+    assert module["labelI18n"] == {}
+    assert module["descriptionI18n"] == {}
+
+
+def test_modules_me_reads_metadata_given_as_json_text(client, monkeypatch):
+    metadata = json.dumps({"label_i18n": {"es": "Demo"}})
+    module = _get_my_modules(client, monkeypatch, metadata)
+    assert module["labelI18n"] == {"es": "Demo"}
+
+
+def test_modules_me_description_still_follows_accept_language(client, monkeypatch):
+    metadata = {"description_i18n": {"es": "Descripción", "en": "Description"}}
+    module = _get_my_modules(client, monkeypatch, metadata, accept_language="en")
+    assert module["description"] == "Description"
+    assert module["descriptionI18n"] == metadata["description_i18n"]
+
+
+def test_marketplace_returns_label_and_description_maps(client, monkeypatch):
+    import blueprints.modules as m
+
+    metadata = {
+        "label_i18n": {"es": "Demo es", "xx": "ignored"},
+        "description_i18n": {"es": "Descripción", "en": "Description"},
+    }
+    row = {**_MODULE_ROW, "metadata": metadata}
+    cur = MagicMock()
+    cur.fetchall.return_value = [row]
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    monkeypatch.setattr(m, "get_db_connection_simple", lambda: conn)
+    monkeypatch.setattr(m, "return_db_connection", lambda _c: None)
+    r = client.get(
+        "/api/modules/marketplace",
+        headers={"Authorization": "Bearer t", "Accept-Language": "en"},
+    )
+    assert r.status_code == 200
+    module = r.get_json()[0]
+    assert module["description"] == "Description"
+    assert module["labelI18n"] == {"es": "Demo es"}
+    assert module["descriptionI18n"] == metadata["description_i18n"]

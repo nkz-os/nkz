@@ -13,6 +13,8 @@ import { loadRemote } from '@module-federation/runtime';
 import { toNKZRegistration, NKZProvider } from '@nekazari/module-kit';
 import { ModuleDefinition, useModules } from '@/context/ModuleContext';
 import { useAuth } from '@/context/KeycloakAuthContext';
+import { moduleLabel } from '@/utils/moduleI18n';
+import { useI18n } from '@/context/I18nContext';
 import { isLocalAddon, getLocalAddon } from '@/config/localAddons';
 import { logger } from '@/utils/logger';
 
@@ -97,6 +99,7 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
   const [isLocal, setIsLocal] = React.useState<boolean>(false);
   const { aliasFor, applyModuleRegistration } = useModules();
   const { tenantProfile } = useAuth();
+  const { language } = useI18n();
 
   React.useEffect(() => {
     let isMounted = true;
@@ -186,7 +189,7 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
     }
     return (
       <div className="p-4 bg-nkz-danger-soft border border-red-200 rounded-md">
-        <h3 className="text-red-800 font-semibold">Error loading module: {module.displayName}</h3>
+        <h3 className="text-red-800 font-semibold">Error loading module: {moduleLabel(module, language)}</h3>
         <p className="text-nkz-danger-strong text-sm mt-1">{loadError.message}</p>
         {!isLocal && module.remoteEntry && (
           <p className="text-nkz-muted text-xs mt-2">

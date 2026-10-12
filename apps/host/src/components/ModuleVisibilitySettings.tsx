@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useI18n } from '@/context/I18nContext';
+import { moduleDescription, moduleLabel, type I18nMap } from '@/utils/moduleI18n';
 import api from '@/services/api';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@nekazari/ui-kit';
@@ -12,6 +13,8 @@ interface MarketplaceModule {
   display_name: string;
   name: string;
   description?: string;
+  labelI18n?: I18nMap;
+  descriptionI18n?: I18nMap;
   module_type?: string;
   required_plan_type?: string | null;
 }
@@ -20,7 +23,7 @@ const MANAGEABLE_ROLES = ['Farmer', 'TechnicalConsultant'];
 
 export const ModuleVisibilitySettings: React.FC = () => {
   const { hasAnyRole } = useAuth();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   const [modules, setModules] = useState<MarketplaceModule[]>([]);
   const [rules, setRules] = useState<VisibilityRules>({});
@@ -181,15 +184,16 @@ export const ModuleVisibilitySettings: React.FC = () => {
           <tbody>
             {modules.map((mod) => {
               const rule = rules[mod.id] || { hiddenRoles: [] };
+              const description = moduleDescription(mod, language);
               return (
                 <tr key={mod.id} className="border-b border-gray-100 hover:bg-nkz-bg-secondary">
                   <td className="py-2 pr-4">
                     <div className="flex flex-col">
                       <span className="font-medium text-gray-900">
-                        {mod.display_name || mod.name || mod.id}
+                        {moduleLabel(mod, language)}
                       </span>
-                      {mod.description && (
-                        <span className="text-xs text-nkz-muted line-clamp-2">{mod.description}</span>
+                      {description && (
+                        <span className="text-xs text-nkz-muted line-clamp-2">{description}</span>
                       )}
                     </div>
                   </td>

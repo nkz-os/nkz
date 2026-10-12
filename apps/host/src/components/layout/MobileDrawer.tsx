@@ -8,6 +8,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useModules } from '@/context/ModuleContext';
 import { useI18n } from '@/context/I18nContext';
+import { moduleLabel } from '@/utils/moduleI18n';
 import {
   CORE_NAVIGATION_ITEMS,
   ADMIN_NAVIGATION_ITEMS,
@@ -57,7 +58,7 @@ interface MobileDrawerProps {
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const { modules } = useModules();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const location = useLocation();
 
   const userRoles = user?.roles || [];
@@ -199,7 +200,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
                                                 className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-nkz-muted dark:text-nkz-muted'}`}
                                             />
                       )}
-                      {module.label || module.displayName}
+                      {moduleLabel(module, language)}
                     </Link>
                   );
                 })}

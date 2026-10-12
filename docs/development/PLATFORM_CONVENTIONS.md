@@ -498,6 +498,8 @@ Each routable module must expose these keys in metadata:
 
 `api-gateway` keeps a route registry cache (TTL 300s). After publish/metadata updates, invalidate `routes` cache to avoid waiting for TTL.
 
+**Module name and description in the UI language.** `defineModule({ navigation: { label: { es, en, ca, eu, fr, pt } } })` is the translated menu name: a publish stores the supported languages (non-empty, at most 80 characters each) as `metadata.label_i18n`. `metadata.description_i18n` holds the translated description. Both are returned by `/api/modules/me` and `/api/modules/marketplace` as `labelI18n` and `descriptionI18n`, and the host shows the one for the current language (falling back to `label` / `displayName` / `description`). A publish whose manifest does not carry one of these keeps the stored value, so translations set by a migration or an admin survive.
+
 ### Permanent direct-routing exceptions (do not auto-proxy)
 
 | Path | Reason |

@@ -14,6 +14,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { useModules } from '@/context/ModuleContext';
 import { useI18n } from '@/context/I18nContext';
+import { moduleLabel } from '@/utils/moduleI18n';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { useTheme } from '@/context/ThemeContext';
 import {
@@ -50,7 +51,7 @@ const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>>
 export const ViewerHeader: React.FC = () => {
     const { user, logout, hasAnyRole: _hasAnyRole } = useAuth();
     const { modules } = useModules();
-    const { t } = useI18n();
+    const { t, language } = useI18n();
     const { resolvedTheme, toggleTheme } = useTheme();
     const isLight = resolvedTheme === 'light';
     const navigate = useNavigate();
@@ -307,7 +308,7 @@ export const ViewerHeader: React.FC = () => {
                                             <Icon className={`w-5 h-5 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`} />
                                         )}
                                         <span className="font-medium truncate">
-                                            {module.label || module.displayName || module.name}
+                                            {moduleLabel(module, language)}
                                         </span>
                                     </Link>
                                 );

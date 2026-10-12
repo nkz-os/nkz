@@ -13,6 +13,7 @@ import { Button } from '@nekazari/ui-kit';
 import { CheckCircle2, XCircle, Package, RefreshCw } from 'lucide-react';
 import { getConfig } from '@/config/environment';
 import { useToastContext } from '@/context/ToastContext';
+import { moduleDescription, moduleLabel, type I18nMap } from '@/utils/moduleI18n';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl || '/api';
@@ -22,6 +23,8 @@ interface MarketplaceModule {
   name: string;
   display_name: string;
   description?: string;
+  labelI18n?: I18nMap;
+  descriptionI18n?: I18nMap;
   version: string;
   author?: string;
   category?: string;
@@ -41,7 +44,8 @@ interface MarketplaceModule {
 export const Modules: React.FC = () => {
   const { modules: rawInstalledModules, refresh: refreshInstalled } = useModules();
   const { getToken, tenantId, hasRole } = useAuth();
-  const { t } = useTranslation('common');
+  const { t, i18n } = useTranslation('common');
+  const lang = i18n?.resolvedLanguage || i18n?.language;
   const toast = useToastContext();
   const [marketplaceModules, setMarketplaceModules] = useState<MarketplaceModule[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -295,7 +299,7 @@ export const Modules: React.FC = () => {
                       module.icon_url ? (
                         <img
                           src={module.icon_url}
-                          alt={module.displayName}
+                          alt={moduleLabel(module, lang)}
                           className="w-12 h-12 rounded-lg object-cover border border-nkz-border"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
@@ -317,7 +321,7 @@ export const Modules: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <h3 className="font-semibold text-gray-900 text-base leading-tight break-words">
-                        {module.displayName || module.name || module.id}
+                        {moduleLabel(module, lang)}
                       </h3>
                       <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
                     </div>
@@ -344,7 +348,7 @@ export const Modules: React.FC = () => {
                 {/* Description - Clear spacing */}
                 <div className="mb-4">
                   <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
-                    {module.description || t('no_description_available', 'No hay descripción disponible para este módulo.')}
+                    {moduleDescription(module, lang) || t('no_description_available', 'No hay descripción disponible para este módulo.')}
                   </p>
                 </div>
 
@@ -419,7 +423,7 @@ export const Modules: React.FC = () => {
                       {module.icon_url ? (
                         <img
                           src={module.icon_url}
-                          alt={module.display_name}
+                          alt={moduleLabel(module, lang)}
                           className={`w-12 h-12 rounded-lg object-cover border border-nkz-border ${isInactive ? 'grayscale opacity-50' : ''}`}
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
@@ -436,7 +440,7 @@ export const Modules: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <h3 className={`font-semibold text-base leading-tight break-words ${isInactive ? 'text-nkz-muted' : 'text-gray-900'}`}>
-                          {module.display_name || module.name || module.id}
+                          {moduleLabel(module, lang)}
                         </h3>
                         {installed && enabled && (
                           <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
@@ -499,7 +503,7 @@ export const Modules: React.FC = () => {
                   {/* Description - Clear spacing */}
                   <div className="mb-4">
                     <p className={`text-sm leading-relaxed line-clamp-3 ${isInactive ? 'text-nkz-muted' : 'text-gray-600'}`}>
-                      {module.description || 'No hay descripción disponible para este módulo.'}
+                      {moduleDescription(module, lang) || 'No hay descripción disponible para este módulo.'}
                     </p>
                   </div>
 

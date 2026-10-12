@@ -102,6 +102,24 @@ describe('ModuleProvider', () => {
     await waitFor(() => expect(modulesMeCalls.length).toBe(2));
   });
 
+  it('keeps valid label/description translations and drops malformed ones', async () => {
+    modulesMe = async () => [
+      {
+        ...remote('lidar'),
+        labelI18n: { es: 'LiDAR es', en: 'LiDAR en', fr: 3 },
+        descriptionI18n: ['not', 'a', 'map'],
+      },
+      { ...remote('soil'), labelI18n: 'oops' },
+    ];
+    const { result } = renderHook(() => useModules(), { wrapper });
+    await waitFor(() => expect(result.current.modules.length).toBe(2));
+
+    const lidar = result.current.modules.find((m) => m.id === 'lidar')!;
+    expect(lidar.labelI18n).toEqual({ es: 'LiDAR es', en: 'LiDAR en' });
+    expect(lidar.descriptionI18n).toBeUndefined();
+    expect(result.current.modules.find((m) => m.id === 'soil')!.labelI18n).toBeUndefined();
+  });
+
   it('ignores a stale load that resolves after a newer one', async () => {
     let releaseStale: (v: unknown[]) => void = () => {};
     modulesMe = (tenant) =>
