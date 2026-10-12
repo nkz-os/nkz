@@ -453,8 +453,14 @@ def _run_cycle(monkeypatch, parcel=PARCEL_AT_450, openmeteo=GRID_AT_300, downsca
         posts.append({"url": url, "body": json, "headers": headers})
         return _Resp()
 
+    def _get(url, *args, **kwargs):
+        # Lookups not stubbed below (time zone, closed day, elevation) fail fast instead of going out.
+        raise pe.requests.ConnectionError(f"network disabled in tests: {url}")
+
     monkeypatch.setattr(pe.requests, "post", _post)
     monkeypatch.setattr(orion_writer.requests, "post", _post)
+    monkeypatch.setattr(pe.requests, "get", _get)
+    monkeypatch.setattr(orion_writer.requests, "get", _get)
     monkeypatch.setattr(pe.time, "sleep", lambda *a, **k: None)
     monkeypatch.setattr(engine, "_get_active_tenants", lambda: ["t"])
     monkeypatch.setattr(engine, "_fetch_all_parcels", lambda: [dict(parcel, _tenant="t")])
