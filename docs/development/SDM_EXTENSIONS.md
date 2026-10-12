@@ -150,7 +150,6 @@ fails on it.
 | `gndviMin` | atributo | sin-revisar | Not yet reviewed |
 | `gndviStdDev` | atributo | sin-revisar | Not yet reviewed |
 | `harvestDate` | atributo | sin-revisar | Not yet reviewed |
-| `harvestedWeight` | atributo | sin-revisar | Not yet reviewed |
 | `harvestedWeight` | atributo | extension-declarada | Fresh weight harvested by a harvesting operation; SDM AgriParcelOperation only has a generic total quantity |
 | `hasAgriCropDeclaration` | entidad | sin-revisar | Not yet reviewed |
 | `hasAgriFarm` | entidad | sin-revisar | Not yet reviewed |

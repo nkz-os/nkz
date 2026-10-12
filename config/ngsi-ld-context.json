@@ -818,8 +818,7 @@
       "fertilizerType": "https://nkz-os.org/ns/fertilizerType",
       "fertilizerRate": "https://nkz-os.org/ns/fertilizerRate",
       "fertilizerComposition": "https://nkz-os.org/ns/fertilizerComposition",
-      "organicFertilizer": "https://nkz-os.org/ns/organicFertilizer",
-      "harvestedWeight": "https://nkz-os.org/ns/harvestedWeight"
+      "organicFertilizer": "https://nkz-os.org/ns/organicFertilizer"
     }
   ]
 }

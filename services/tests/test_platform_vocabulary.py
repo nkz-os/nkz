@@ -124,6 +124,22 @@ def test_context_file_is_valid_json(ctx):
     assert len(ctx) > 100
 
 
+def test_context_has_no_duplicate_keys():
+    """A repeated key in a JSON object silently overrides the earlier one."""
+    duplicates = []
+
+    def collect(pairs):
+        seen = set()
+        for key, _ in pairs:
+            if key in seen:
+                duplicates.append(key)
+            seen.add(key)
+        return dict(pairs)
+
+    json.loads(CONTEXT_FILE.read_text(), object_pairs_hook=collect)
+    assert not duplicates, f"duplicate keys in the @context: {duplicates}"
+
+
 def test_prefix_points_at_the_platform_namespace(ctx):
     assert ctx["nkz"] == PLATFORM_NS
 
@@ -263,7 +279,10 @@ FIELD_OPERATION_TERMS = [
 
 @pytest.mark.parametrize("term", FIELD_OPERATION_TERMS)
 def test_field_operation_term_is_a_platform_extension(ctx, term):
-    assert _iri(ctx.get(term)) == PLATFORM_NS + term
+    iri = _iri(ctx.get(term))
+    if iri.startswith("nkz:"):
+        iri = PLATFORM_NS + iri[len("nkz:"):]
+    assert iri == PLATFORM_NS + term
 
 
 # --- attributes the writers actually emit -----------------------------------
