@@ -19,6 +19,7 @@ from common.auth_middleware import require_auth, inject_fiware_headers
 from common.api_errors import internal_error
 from common.ngsi_payload_guard import shorthand_null_attributes
 from db_helper import get_db_connection_with_tenant, return_db_connection, get_db_connection_simple
+from helpers.geometry import geometry_area_ha
 
 # Import shared helpers
 from helpers import (
@@ -953,27 +954,6 @@ def _validate_geometry(geometry: dict) -> Optional[str]:
     return None
 
 
-def _geometry_area_approx(geometry: dict) -> float:
-    """Quick area estimate (Shoelace formula, assumes flat degrees — approximate)."""
-    gtype = geometry.get("type")
-    coords = geometry.get("coordinates", [])
-    if gtype == "Polygon" and coords:
-        ring = coords[0]
-    elif gtype == "MultiPolygon" and coords:
-        ring = coords[0][0] if coords[0] else []
-    else:
-        return 0.0
-    if len(ring) < 3:
-        return 0.0
-    area = 0.0
-    n = len(ring)
-    for i in range(n - 1):
-        x1, y1 = ring[i][0], ring[i][1]
-        x2, y2 = ring[i + 1][0], ring[i + 1][1]
-        area += x1 * y2 - x2 * y1
-    return abs(area) / 2.0
-
-
 @entities_bp.route('/entities/parcels', methods=['POST'])
 @require_auth
 def create_parcel():
@@ -1039,9 +1019,11 @@ def create_parcel():
     if cadastral_ref:
         entity["cadastralReference"] = {"type": "Property", "value": cadastral_ref}
 
+    # A client-provided area (official cadastral surface) is kept as given;
+    # otherwise it is computed from the geometry.
     area = data.get("area")
     if area is None and geometry:
-        area = round(_geometry_area_approx(geometry) * 111320 * 111320 / 10000, 4)
+        area = geometry_area_ha(geometry)
     if area:
         entity["area"] = {"type": "Property", "value": area}
 
@@ -1133,6 +1115,13 @@ def update_parcel(parcel_id: str):
     if problem:
         return jsonify({"error": problem[0]}), problem[1]
     attrs.update(attributes)
+
+    # New geometry without an explicit area (flat field or attribute): recompute it.
+    # An explicit area is kept as given.
+    if "location" in attrs and "area" not in attrs and "area" not in remove:
+        new_geometry = attrs["location"].get("value")
+        if isinstance(new_geometry, dict):
+            attrs["area"] = {"type": "Property", "value": geometry_area_ha(new_geometry)}
 
     if not attrs and not remove:
         return jsonify({"error": "No attributes to update"}), 400
