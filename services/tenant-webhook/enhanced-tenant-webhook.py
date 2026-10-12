@@ -4118,21 +4118,21 @@ def _purge_phase_close(tenant_id: str) -> dict:
 
     # Attempt to send email confirmation to the admin
     try:
-        email_service_url = os.getenv("EMAIL_SERVICE_URL", "")
-        if email_service_url:
-            current_user = g.get('current_user', {})
-            admin_email = current_user.get('email', '') if isinstance(current_user, dict) else ''
-            if admin_email:
-                # TODO owner: /send does not exist on email-service
-                _email_post(
-                    "/send",
-                    {
-                        "to": admin_email,
-                        "subject": f"Tenant {tenant_id} purged",
-                        "body": f"Hard purge of tenant '{tenant_id}' completed at {datetime.utcnow().isoformat()}Z.\n\nAll data has been permanently deleted.",
-                    },
-                    timeout=10,
-                )
+        current_user = g.get('current_user', {})
+        admin_email = current_user.get('email', '') if isinstance(current_user, dict) else ''
+        if admin_email:
+            resp = _email_post(
+                "/send/notification",
+                {
+                    "email": admin_email,
+                    "farmer_name": current_user.get('preferred_username') or admin_email.split("@")[0],
+                    "notification_type": f"Tenant {tenant_id} purged",
+                    "message": f"Hard purge of tenant '{tenant_id}' completed at {datetime.utcnow().isoformat()}Z. All data has been permanently deleted.",
+                },
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                logger.warning(f"Purge confirmation email for {tenant_id} failed: {resp.status_code}")
     except Exception as e:
         logger.debug(f"Non-critical infra operation failed for {tenant_id}: {e}")
 
@@ -5477,7 +5477,7 @@ def activate_tenant():  # noqa: C901
         # Send notification email to platform admin and tenant admin about successful registration
         try:
             _email_post(
-                "/send/activation-success",
+                "/email/activation-success",
                 {
                     "user_email": email.lower(),
                     "tenant_id": tenant_id,
