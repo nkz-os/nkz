@@ -804,7 +804,22 @@
         "@id": "https://smartdatamodels.org/dataModel.Weather/WeatherForecast",
         "@type": "@id",
         "_comment": "SDM oficial dataModel.Weather. Lleva los agregados diarios (dayMinimum/dayMaximum) que WeatherObserved no define: el SDM modela WeatherObserved como observación instantánea."
-      }
+      },
+      "WaterQualityObserved": {
+        "@id": "https://smartdatamodels.org/dataModel.WaterQuality/WaterQualityObserved",
+        "@type": "@id",
+        "_comment": "Official SDM dataModel.WaterQuality. Nitrate content of irrigation water, credited in the nutrient plan."
+      },
+      "NO3": "https://smartdatamodels.org/dataModel.WaterQuality/NO3",
+      "nitrogenContent": "https://nkz-os.org/ns/nitrogenContent",
+      "phosphorusPentoxideContent": "https://nkz-os.org/ns/phosphorusPentoxideContent",
+      "potassiumOxideContent": "https://nkz-os.org/ns/potassiumOxideContent",
+      "nitrogenForm": "https://nkz-os.org/ns/nitrogenForm",
+      "fertilizerType": "https://nkz-os.org/ns/fertilizerType",
+      "fertilizerRate": "https://nkz-os.org/ns/fertilizerRate",
+      "fertilizerComposition": "https://nkz-os.org/ns/fertilizerComposition",
+      "organicFertilizer": "https://nkz-os.org/ns/organicFertilizer",
+      "harvestedWeight": "https://nkz-os.org/ns/harvestedWeight"
     }
   ]
 }

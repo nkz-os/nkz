@@ -50,6 +50,8 @@ OFFICIAL = {
     "controlledAsset": "https://smartdatamodels.org/dataModel.Device/controlledAsset",
     "controlledProperty": "https://smartdatamodels.org/dataModel.Device/controlledProperty",
     "measurementType": "https://smartdatamodels.org/dataModel.Device/measurementType",
+    "WaterQualityObserved": "https://smartdatamodels.org/dataModel.WaterQuality/WaterQualityObserved",
+    "NO3": "https://smartdatamodels.org/dataModel.WaterQuality/NO3",
 }
 
 # Deprecated ref<Type> spellings kept as aliases during the migration window. Each must
@@ -86,7 +88,7 @@ WRITTEN_TYPES = [
     "DataProcessingJob", "DeviceProfile", "DeviceCommand", "AgriSensor",
     "WaterStorage", "OpenChannelFlow", "AgriCropDeclaration", "SigpacEnclosure",
     "AgriPest", "AgriFertilize", "Alert",
-    "Device", "DeviceMeasurement", "ManufacturingMachine",
+    "Device", "DeviceMeasurement", "ManufacturingMachine", "WaterQualityObserved",
 ]
 
 
@@ -246,6 +248,22 @@ def test_unit_is_not_repurposed_as_a_measurement_unit(ctx):
     `unit` cambiaría el significado de un término ya en uso.
     """
     assert _iri(ctx["unit"]) == "saref:Unit"
+
+
+# Field-operations attributes a nutrient plan reads. No SDM property carries a
+# product's nutrient content: AgriParcelOperation has none, and AgriFertilize only
+# nests it in an opaque subtype array. Defined before any operation was written,
+# so no stored attribute changed IRI.
+FIELD_OPERATION_TERMS = [
+    "nitrogenContent", "phosphorusPentoxideContent", "potassiumOxideContent", "nitrogenForm",
+    "fertilizerType", "fertilizerRate", "fertilizerComposition", "organicFertilizer",
+    "harvestedWeight",
+]
+
+
+@pytest.mark.parametrize("term", FIELD_OPERATION_TERMS)
+def test_field_operation_term_is_a_platform_extension(ctx, term):
+    assert _iri(ctx.get(term)) == PLATFORM_NS + term
 
 
 # --- attributes the writers actually emit -----------------------------------
