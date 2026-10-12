@@ -37,6 +37,9 @@ jobs:
 
       - name: Start stack
         run: |
+          # Gateway and entity-manager share an HMAC secret; entity-manager rejects
+          # signed routes when it is unset. A fresh value per run, never stored.
+          export HMAC_SECRET="$(openssl rand -hex 32)"
           docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
           # Wait for frontend + API (--wait fails on run-once init containers)
           echo "Waiting for services to become healthy..."
