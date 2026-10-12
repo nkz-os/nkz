@@ -14,6 +14,9 @@ Provides:
   `{hexdigest}:{timestamp}`), the single source of truth used internally by
   require_auth() and available for services that need to produce/verify the
   same signature format (e.g. api-gateway → module backend HMAC).
+- notification_token / verify_notification / receiver_host_from_url: derived
+  per-tenant, per-receiver tokens for Orion-LD notifications (notify_auth), so
+  no subscription stores the master secret.
 
 License: Apache-2.0 — modules using this SDK may use any license.
 """
@@ -29,6 +32,11 @@ from nkz_platform_sdk.activation import ModuleActivation
 from nkz_platform_sdk.ngsi_headers import inject_fiware_headers
 from nkz_platform_sdk.constants import SensorFidelity
 from nkz_platform_sdk.crypto import generate_hmac_signature, verify_hmac_signature
+from nkz_platform_sdk.notify_auth import (
+    notification_token,
+    receiver_host_from_url,
+    verify_notification,
+)
 from nkz_platform_sdk.agronomy import (
     AgronomicValue,
     Source,
@@ -68,4 +76,7 @@ __all__ = [
     "SensorFidelity",
     "generate_hmac_signature",
     "verify_hmac_signature",
+    "notification_token",
+    "receiver_host_from_url",
+    "verify_notification",
 ]
