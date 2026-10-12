@@ -12,15 +12,6 @@ RUN apt-get update && apt-get install -y \
     bash \
     && rm -rf /var/lib/apt/lists/*
 
-# Install kubectl with pinned version and checksum verification
-RUN KUBECTL_VERSION="v1.28.2" && \
-    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" && \
-    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256" && \
-    echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check && \
-    chmod +x kubectl && \
-    mv kubectl /usr/local/bin/ && \
-    rm kubectl.sha256
-
 # Copy requirements and install Python dependencies
 COPY services/tenant-webhook/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -35,13 +26,6 @@ COPY services/common /app/common
 
 # Copy NKZ Platform SDK (SyncOrionClient)
 COPY services/nkz-platform-sdk/nkz_platform_sdk /app/nkz_platform_sdk
-
-# Copy tenant creation scripts (build context is root, so scripts/ is available)
-COPY services/tenant-webhook/scripts/create-tenant.sh /app/scripts/create-tenant.sh
-COPY services/tenant-webhook/scripts/create-tenant-ros2.sh /app/scripts/create-tenant-ros2.sh
-
-# Make scripts executable
-RUN chmod +x /app/scripts/create-tenant.sh /app/scripts/create-tenant-ros2.sh
 
 # Create non-root user
 RUN useradd -m -u 1000 webhook && chown -R webhook:webhook /app
