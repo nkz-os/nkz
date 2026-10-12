@@ -3,7 +3,6 @@ Notifications Blueprint — Device/ManufacturingMachine → DeviceMeasurement pi
 """
 
 import asyncio
-import hmac
 import json
 import logging
 import os
@@ -15,6 +14,11 @@ from flask import Blueprint, jsonify, request
 from psycopg2.extras import RealDictCursor
 
 from nkz_platform_sdk import SubscriptionRegistrar, SyncOrionClient
+from nkz_platform_sdk.notify_auth import (
+    accept_master_from_env,
+    derived_tokens_from_env,
+    verify_notification,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +30,9 @@ SERVICE_HOST = os.getenv('SERVICE_HOST', 'entity-manager-service')
 SERVICE_PORT = os.getenv('SERVICE_PORT', '5000')
 # Device/ManufacturingMachine -> DeviceMeasurement pipeline (see
 # ensure_device_measurement_subscriptions below). The SDK's SubscriptionRegistrar
-# supports notification_headers (receiverInfo), so the subscription targeting this
-# route carries X-Internal-Service-Secret and the route is flag-gated like the
-# other receivers (NOTIFY_REQUIRE_INTERNAL_SECRET).
+# carries the receiver auth header in receiverInfo (master secret, or the derived
+# per-tenant token behind NKZ_NOTIFY_DERIVED_TOKENS), and the route is flag-gated
+# like the other receivers (NOTIFY_REQUIRE_INTERNAL_SECRET).
 DEVICE_MEASUREMENT_NOTIFICATION_URL = (
     f'http://{SERVICE_HOST}:{SERVICE_PORT}/api/internal/notify/measurements'
 )
@@ -79,6 +83,21 @@ DEVICE_MEASUREMENT_SUBSCRIPTIONS = [
 ]
 
 
+def registrar_auth_kwargs() -> dict:
+    """Receiver-auth kwargs for the SDK registrar (shared by every creator here).
+
+    With a master secret the registrar emits it as the legacy header or, when
+    NKZ_NOTIFY_DERIVED_TOKENS is on, a token bound to the tenant and the receiver
+    host, so the broker never stores the master. No secret: no auth header.
+    """
+    if not INTERNAL_SERVICE_SECRET:
+        return {}
+    return {
+        'internal_secret': INTERNAL_SERVICE_SECRET,
+        'derived_tokens': derived_tokens_from_env(),
+    }
+
+
 def ensure_device_measurement_subscriptions():
     """Ensure the Device/ManufacturingMachine subscriptions exist for every active tenant."""
     tenants = _get_active_tenants()
@@ -87,22 +106,12 @@ def ensure_device_measurement_subscriptions():
         notification_url=DEVICE_MEASUREMENT_NOTIFICATION_URL,
         subscriptions=DEVICE_MEASUREMENT_SUBSCRIPTIONS,
         module_name='entity-manager-measurements',
-        notification_headers=(
-            {'X-Internal-Service-Secret': INTERNAL_SERVICE_SECRET}
-            if INTERNAL_SERVICE_SECRET else None
-        ),
+        **registrar_auth_kwargs(),
     )
     result = asyncio.run(registrar.ensure_all(tenants))
     logger.info(
         'Device measurement subscription heal: created=%d skipped=%d errors=%d',
         result['created'], result['skipped'], len(result['errors']),
-    )
-
-
-def _secret_matches(provided):
-    """Constant-time check of the internal service secret."""
-    return bool(INTERNAL_SERVICE_SECRET) and hmac.compare_digest(
-        provided or '', INTERNAL_SERVICE_SECRET
     )
 
 
@@ -117,7 +126,13 @@ def _notify_unauthorized() -> bool:
     )
     if not require:
         return False
-    return not _secret_matches(request.headers.get('X-Internal-Service-Secret', ''))
+    # Derived per-tenant token (nkz_platform_sdk.notify_auth) or, until
+    # NKZ_NOTIFY_ACCEPT_MASTER is false, the master secret itself.
+    return not verify_notification(
+        request.headers,
+        secret=INTERNAL_SERVICE_SECRET,
+        accept_master=accept_master_from_env(),
+    )
 
 
 def _get_sensor_profile_by_code(tenant_id: str, profile_code: str) -> Optional[dict]:
@@ -232,12 +247,11 @@ def _handle_device_measurement_notification(tenant_id: str, entity: dict) -> boo
 def handle_device_measurement_notification():
     """Receive Device/ManufacturingMachine notifications, write DeviceMeasurement entities.
 
-    Flag-gated on X-Internal-Service-Secret (NOTIFY_REQUIRE_INTERNAL_SECRET): the
-    SDK subscription targeting this route now carries receiverInfo, so the gate can
-    close once the two-phase rollout flips it on.
+    Flag-gated (NOTIFY_REQUIRE_INTERNAL_SECRET): the SDK subscription targeting this
+    route carries receiverInfo, so the gate can close once the rollout flips it on.
     """
     if _notify_unauthorized():
-        logger.warning('Invalid X-Internal-Service-Secret on /notify/measurements')
+        logger.warning('Invalid notification credentials on /notify/measurements')
         return jsonify({'error': 'Unauthorized'}), 401
 
     tenant_id = (

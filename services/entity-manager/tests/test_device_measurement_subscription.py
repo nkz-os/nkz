@@ -218,3 +218,49 @@ class TestHandleDeviceMeasurementNotification:
             headers={"X-Internal-Service-Secret": "test-secret"},
         )
         assert resp.status_code == 200
+
+
+# --- derived notification tokens -------------------------------------------
+#
+# A subscription may carry X-Notification-Token (bound to tenant + receiver host)
+# instead of the master secret. Werkzeug's test client sends Host: localhost, so
+# that is the host the token binds to here.
+
+from nkz_platform_sdk.notify_auth import TOKEN_HEADER, notification_token  # noqa: E402
+
+_DERIVED = notification_token("test-secret", "tenant-a", "localhost")
+_NOTIFY = "/api/internal/notify/measurements"
+
+
+def test_measurements_accept_a_derived_token_once_master_is_refused(client, monkeypatch):
+    monkeypatch.setenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "true")
+    monkeypatch.setenv("NKZ_NOTIFY_ACCEPT_MASTER", "false")
+    ok = client.post(_NOTIFY, json={"data": []},
+                     headers={"NGSILD-Tenant": "tenant-a", TOKEN_HEADER: _DERIVED})
+    assert ok.status_code == 200
+    master = client.post(_NOTIFY, json={"data": []},
+                         headers={"NGSILD-Tenant": "tenant-a",
+                                  "X-Internal-Service-Secret": "test-secret"})
+    assert master.status_code == 401
+
+
+def test_measurements_refuse_the_token_of_another_tenant(client, monkeypatch):
+    monkeypatch.setenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "true")
+    resp = client.post(_NOTIFY, json={"data": []},
+                       headers={"NGSILD-Tenant": "tenant-b", TOKEN_HEADER: _DERIVED})
+    assert resp.status_code == 401
+
+
+def test_measurement_registrar_gets_the_master_and_the_derived_flag(monkeypatch):
+    import blueprints.notifications as notif
+
+    monkeypatch.setenv("NKZ_NOTIFY_DERIVED_TOKENS", "true")
+    with patch.object(notif, "SubscriptionRegistrar") as reg, \
+         patch.object(notif, "_get_active_tenants", return_value=["tenant-a"]), \
+         patch.object(notif.asyncio, "run",
+                      return_value={"created": 0, "skipped": 0, "errors": []}):
+        notif.ensure_device_measurement_subscriptions()
+    kwargs = reg.call_args.kwargs
+    assert kwargs["internal_secret"] == "test-secret"
+    assert kwargs["derived_tokens"] is True
+    assert kwargs.get("notification_headers") is None

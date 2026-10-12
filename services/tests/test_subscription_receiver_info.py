@@ -85,3 +85,35 @@ def test_stale_subscription_is_replaced_with_authd_copy(path, monkeypatch):
     assert created["notification"]["endpoint"]["receiverInfo"] == [
         {"key": "X-Internal-Service-Secret", "value": "s3cret"}
     ]
+
+
+# --- derived notification tokens -------------------------------------------
+
+
+@pytest.mark.parametrize("path", MANAGERS, ids=service_id)
+def test_derived_tokens_replace_the_master_in_the_body(path, monkeypatch):
+    import json
+
+    from nkz_platform_sdk.notify_auth import (
+        TOKEN_HEADER,
+        notification_token,
+        receiver_host_from_url,
+    )
+
+    module = load(path)
+    monkeypatch.setattr(module, "INTERNAL_SERVICE_SECRET", "s3cret")
+    monkeypatch.setenv("NKZ_NOTIFY_DERIVED_TOKENS", "true")
+    body = module._subscription_body(module.SUBSCRIPTIONS[0], "tenant-a")
+    host = receiver_host_from_url(module.NOTIFICATION_URL)
+    assert body["notification"]["endpoint"]["receiverInfo"] == [
+        {"key": TOKEN_HEADER, "value": notification_token("s3cret", "tenant-a", host)}
+    ]
+    assert "s3cret" not in json.dumps(body)
+
+
+@pytest.mark.parametrize("path", MANAGERS, ids=service_id)
+def test_master_bearing_subscription_is_stale_in_derived_mode(path, monkeypatch):
+    module = load(path)
+    monkeypatch.setattr(module, "INTERNAL_SERVICE_SECRET", "s3cret")
+    monkeypatch.setenv("NKZ_NOTIFY_DERIVED_TOKENS", "true")
+    assert module._matches_are_stale([_existing_sub(module, receiver_info=True)], "tenant-a") is True

@@ -5,13 +5,13 @@ Receives NGSI-LD entity updates and persists to TimescaleDB
 after applying Processing Profiles (throttle, filter, delta).
 """
 
-import hmac
 import logging
 import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Request, BackgroundTasks, Header, HTTPException
+from nkz_platform_sdk.notify_auth import accept_master_from_env, verify_notification
 
 from .config import Settings
 from .event_sink import EventSink, TelemetryEvent
@@ -25,20 +25,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _reject_unauthenticated_notify(x_internal_secret: Optional[str]) -> Optional[HTTPException]:
-    """401 unless the notification carries the internal secret (flag-gated).
+def _reject_unauthenticated_notify(headers) -> Optional[HTTPException]:
+    """401 unless the notification authenticates (flag-gated).
 
     Two-phase rollout: NOTIFY_REQUIRE_INTERNAL_SECRET stays off until subscription
     creators have converged to carry receiverInfo, then flips on with no code deploy.
+    Accepts the token bound to this tenant and host (nkz_platform_sdk.notify_auth)
+    and, until NKZ_NOTIFY_ACCEPT_MASTER is false, the master secret itself.
     """
     require = os.getenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "").lower() in (
         "1", "true", "yes", "on"
     )
     if not require:
         return None
-    secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
-    if not secret or not hmac.compare_digest(x_internal_secret or "", secret):
-        return HTTPException(status_code=401, detail="missing or invalid internal secret")
+    if not verify_notification(
+        headers,
+        secret=os.getenv("INTERNAL_SERVICE_SECRET", ""),
+        accept_master=accept_master_from_env(),
+    ):
+        return HTTPException(status_code=401, detail="missing or invalid notification credentials")
     return None
 
 # Global instances (set via init_handler)
@@ -376,7 +381,6 @@ async def receive_notification(
     background_tasks: BackgroundTasks,
     ngsild_tenant: Optional[str] = Header(None, alias="NGSILD-Tenant"),
     fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
-    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Service-Secret"),
 ):
     """
     Endpoint for Orion-LD notifications.
@@ -391,7 +395,7 @@ async def receive_notification(
     the header lower-cased, so any other success status is counted as a failed
     notification and deactivates the subscription after 3 consecutive hits.
     """
-    reject = _reject_unauthenticated_notify(x_internal_secret)
+    reject = _reject_unauthenticated_notify(request.headers)
     if reject:
         raise reject
 
@@ -426,7 +430,6 @@ async def receive_notification_v2(
     request: Request,
     background_tasks: BackgroundTasks,
     fiware_service: Optional[str] = Header(None, alias="Fiware-Service"),
-    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Service-Secret"),
 ):
     """
     Alternative endpoint for v2 format notifications.
@@ -437,5 +440,4 @@ async def receive_notification_v2(
         background_tasks,
         ngsild_tenant=None,
         fiware_service=fiware_service,
-        x_internal_secret=x_internal_secret,
     )

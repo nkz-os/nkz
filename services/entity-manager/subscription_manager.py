@@ -16,6 +16,13 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 from common.ngsi_headers import inject_fiware_headers
 from common.subscription_health import reactivate_if_paused
+from nkz_platform_sdk.notify_auth import (
+    MASTER_HEADER,
+    TOKEN_HEADER,
+    derived_tokens_from_env,
+    notification_token,
+    receiver_host_from_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -111,35 +118,56 @@ def _subscription_id(sub_def: dict) -> str:
     return f"urn:ngsi-ld:Subscription:{_SUB_ID_PREFIX}:{_slugify(suffix)}"
 
 
-def _subscription_body(sub_def: dict) -> dict:
+RECEIVER_HOST = receiver_host_from_url(NOTIFICATION_URL)
+
+
+def _auth_header(tenant_id):
+    """The header Orion must inject into every delivery, or None without a secret.
+
+    Legacy: the master secret itself. With NKZ_NOTIFY_DERIVED_TOKENS on, a token
+    bound to this tenant and this receiver (see nkz_platform_sdk.notify_auth), so
+    the broker never stores the master.
+    """
+    if not INTERNAL_SERVICE_SECRET:
+        return None
+    if derived_tokens_from_env():
+        if not tenant_id:
+            raise ValueError("derived notification tokens need the tenant to bind to")
+        return TOKEN_HEADER, notification_token(INTERNAL_SERVICE_SECRET, tenant_id, RECEIVER_HOST)
+    return MASTER_HEADER, INTERNAL_SERVICE_SECRET
+
+
+def _subscription_body(sub_def: dict, tenant_id=None) -> dict:
+    """Subscription body with a deterministic id and the receiverInfo auth header
+    (tenant-dependent in derived-token mode)."""
     body = {**sub_def, "id": _subscription_id(sub_def)}
-    if INTERNAL_SERVICE_SECRET:
+    auth = _auth_header(tenant_id)
+    if auth:
         endpoint = {
             **sub_def["notification"]["endpoint"],
-            "receiverInfo": [
-                {"key": "X-Internal-Service-Secret", "value": INTERNAL_SERVICE_SECRET}
-            ],
+            "receiverInfo": [{"key": auth[0], "value": auth[1]}],
         }
         body["notification"] = {**sub_def["notification"], "endpoint": endpoint}
     return body
 
 
-def _matches_are_stale(matches: list) -> bool:
+def _matches_are_stale(matches: list, tenant_id=None) -> bool:
+    """Replace existing subscription(s) when they are duplicates (pre-deterministic-id
+    creates), lack the auth header the receiver now expects, carry a stale value
+    (after a rotation), or still carry the master once tokens are derived."""
     if not matches:
         return False
     if len(matches) > 1:
         return True
-    if not INTERNAL_SERVICE_SECRET:
+    auth = _auth_header(tenant_id)
+    if auth is None:
         return False
+    key, value = auth
     endpoint = matches[0].get("notification", {}).get("endpoint", {})
-    info = endpoint.get("receiverInfo") or []
-    current = next(
-        (h.get("value") for h in info if h.get("key") == "X-Internal-Service-Secret"),
-        None,
-    )
-    # Stale when the header is missing or carries a value other than the
-    # configured secret (i.e. after a rotation): the caller recreates it.
-    return current != INTERNAL_SERVICE_SECRET
+    present = {h.get("key"): h.get("value") for h in endpoint.get("receiverInfo") or []}
+    if present.get(key) != value:
+        return True
+    return key != MASTER_HEADER and MASTER_HEADER in present
 
 
 def _delete_subscription(headers: dict, sub_id: str) -> None:
@@ -163,7 +191,7 @@ def _replace_subscription(headers: dict, sub_def: dict, tenant_id: str, sub_id: 
     to close, so a failed patch is reported and the old subscription is left
     alone rather than removed.
     """
-    body = {k: v for k, v in _subscription_body(sub_def).items() if k != "id"}
+    body = {k: v for k, v in _subscription_body(sub_def, tenant_id).items() if k != "id"}
     try:
         res = requests.patch(
             f"{ORION_URL}/ngsi-ld/v1/subscriptions/{sub_id}",
@@ -185,7 +213,7 @@ def _replace_subscription(headers: dict, sub_def: dict, tenant_id: str, sub_id: 
 def _create_subscription(headers: dict, sub_def: dict, tenant_id: str) -> None:
     res = requests.post(
         f"{ORION_URL}/ngsi-ld/v1/subscriptions",
-        json=_subscription_body(sub_def),
+        json=_subscription_body(sub_def, tenant_id),
         headers=headers,
         timeout=30,
     )
@@ -277,7 +305,7 @@ def _ensure_tenant_subscriptions(tenant_id: str):
                 # 409 means a concurrent reconciler created it first, which is
                 # the intended arbitration, not an error.
                 _create_subscription(headers, sub_def, tenant_id)
-            elif _matches_are_stale([canonical]):
+            elif _matches_are_stale([canonical], tenant_id):
                 logger.info(
                     "Refreshing subscription '%s' for %s",
                     sub_def["description"], tenant_id,
