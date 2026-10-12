@@ -150,3 +150,35 @@ def test_notify_accepts_with_secret_when_flag_on(service, monkeypatch):
 
     assert response.status_code == 204
     assert response.content == b""
+
+
+@pytest.mark.parametrize("path", ["/notify", "/v2/notify"])
+def test_notify_accepts_a_derived_token_once_master_is_refused(path, monkeypatch):
+    """A delivery carrying the token bound to this tenant and host is accepted even
+    after the receiver stops accepting the master; the master and a token of another
+    tenant are not."""
+    from nkz_platform_sdk.notify_auth import TOKEN_HEADER, notification_token
+
+    monkeypatch.setenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "true")
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "test-secret")
+    monkeypatch.setenv("NKZ_NOTIFY_ACCEPT_MASTER", "false")
+    client = _client_for("telemetry-worker", monkeypatch)
+    # Starlette's TestClient sends Host: testserver; the token binds to that host.
+    token = notification_token("test-secret", "contract-test", "testserver")
+
+    ok = client.post(path, json=EMPTY_NOTIFICATION, headers={**NOTIFY_HEADERS, TOKEN_HEADER: token})
+    assert ok.status_code == 204 and ok.content == b""
+
+    master = client.post(
+        path,
+        json=EMPTY_NOTIFICATION,
+        headers={**NOTIFY_HEADERS, "X-Internal-Service-Secret": "test-secret"},
+    )
+    assert master.status_code == 401
+
+    other = client.post(
+        path,
+        json=EMPTY_NOTIFICATION,
+        headers={"NGSILD-Tenant": "other", "Fiware-Service": "other", TOKEN_HEADER: token},
+    )
+    assert other.status_code == 401

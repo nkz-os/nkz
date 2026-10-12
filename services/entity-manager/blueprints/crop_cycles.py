@@ -130,7 +130,7 @@ def notify_crop_cycles():
     # Same flag-gated receiver auth as the other notification endpoints.
     from blueprints.notifications import _notify_unauthorized
     if _notify_unauthorized():
-        logger.warning('Invalid X-Internal-Service-Secret on /notify/crop-cycles')
+        logger.warning('Invalid notification credentials on /notify/crop-cycles')
         return jsonify({'error': 'Unauthorized'}), 401
     tenant_id = request.headers.get('NGSILD-Tenant') or request.headers.get('Fiware-Service')
     body = request.get_json(force=True, silent=True) or {}
@@ -176,14 +176,13 @@ def reconcile_all():
 
 
 def ensure_crop_cycle_subscriptions(tenants=None):
-    from blueprints.notifications import _get_active_tenants
+    from blueprints.notifications import _get_active_tenants, registrar_auth_kwargs
     registrar = SubscriptionRegistrar(
         orion_url=svc.ORION_URL,
         notification_url=NOTIFICATION_URL,
         subscriptions=CROP_CYCLE_SUBSCRIPTIONS,
         module_name='entity-manager-crop-cycles',
-        notification_headers=({'X-Internal-Service-Secret': INTERNAL_SERVICE_SECRET}
-                              if INTERNAL_SERVICE_SECRET else None),
+        **registrar_auth_kwargs(),
     )
     result = asyncio.run(registrar.ensure_all(tenants if tenants is not None else _get_active_tenants()))
     log = logger.warning if result['errors'] else logger.info

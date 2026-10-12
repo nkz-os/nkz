@@ -181,3 +181,31 @@ def test_route_without_at_lets_the_service_use_the_parcel_day():
     with patch.object(svc, 'timeline', return_value={'ok': 1}) as tl:
         assert client.get('/api/entities/parcels/p1/crop-cycles').status_code == 200
     assert tl.call_args.args[2] is None
+
+
+def test_notify_accepts_a_derived_token_once_master_is_refused(monkeypatch):
+    from nkz_platform_sdk.notify_auth import TOKEN_HEADER, notification_token
+
+    monkeypatch.setenv('NOTIFY_REQUIRE_INTERNAL_SECRET', 'true')
+    monkeypatch.setenv('NKZ_NOTIFY_ACCEPT_MASTER', 'false')
+    body = {'data': [{'type': 'AgriCrop', 'hasAgriParcel': 'urn:ngsi-ld:AgriParcel:p1'}]}
+    # Werkzeug's test client sends Host: localhost; the token binds to that host.
+    token = notification_token('test-secret', 't', 'localhost')
+    with patch.object(svc, 'reconcile_parcel', return_value=[]) as rec, patch.object(bp, '_ensure_worker'):
+        r = client.post('/api/internal/notify/crop-cycles', json=body,
+                        headers={'NGSILD-Tenant': 't', TOKEN_HEADER: token})
+        bp.drain_pending()
+        assert r.status_code == 204 and rec.call_count == 1
+        r = client.post('/api/internal/notify/crop-cycles', json=body, headers={'NGSILD-Tenant': 't', **H})
+        bp.drain_pending()
+        assert r.status_code == 401 and rec.call_count == 1
+
+
+def test_crop_cycle_registrar_gets_the_master_and_the_derived_flag(monkeypatch):
+    monkeypatch.setenv('NKZ_NOTIFY_DERIVED_TOKENS', 'true')
+    with patch.object(bp, 'SubscriptionRegistrar') as reg, \
+         patch.object(bp.asyncio, 'run', return_value={'created': 0, 'skipped': 0, 'errors': []}):
+        bp.ensure_crop_cycle_subscriptions(tenants=['t'])
+    assert reg.call_args.kwargs['internal_secret'] == 'test-secret'
+    assert reg.call_args.kwargs['derived_tokens'] is True
+    assert reg.call_args.kwargs.get('notification_headers') is None

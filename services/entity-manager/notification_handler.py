@@ -7,7 +7,6 @@ and persists to the appropriate database tables:
   - DeviceCommand -> commands table
 """
 
-import hmac
 import json
 import logging
 import os
@@ -19,6 +18,7 @@ import psycopg2
 from flask import Blueprint, request, jsonify
 
 from common.api_errors import internal_error
+from nkz_platform_sdk.notify_auth import accept_master_from_env, verify_notification
 
 logger = logging.getLogger(__name__)
 
@@ -43,15 +43,21 @@ notify_bp = Blueprint("sensor_notifications", __name__)
 
 
 def _notify_unauthorized() -> bool:
-    """Flag-gated auth for notification receivers (two-phase rollout)."""
+    """Flag-gated auth for notification receivers (two-phase rollout).
+
+    Accepts the token bound to this tenant and host (nkz_platform_sdk.notify_auth)
+    and, until NKZ_NOTIFY_ACCEPT_MASTER is false, the master secret itself.
+    """
     require = os.getenv("NOTIFY_REQUIRE_INTERNAL_SECRET", "").lower() in (
         "1", "true", "yes", "on"
     )
     if not require:
         return False
-    secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
-    provided = request.headers.get("X-Internal-Service-Secret", "")
-    return not (secret and hmac.compare_digest(provided, secret))
+    return not verify_notification(
+        request.headers,
+        secret=os.getenv("INTERNAL_SERVICE_SECRET", ""),
+        accept_master=accept_master_from_env(),
+    )
 
 POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 
