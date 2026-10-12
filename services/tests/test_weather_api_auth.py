@@ -1,7 +1,8 @@
 """Tests for weather-api auth dependencies (gateway-header contract)."""
 
-import sys
 import os
+import sys
+from types import SimpleNamespace
 
 import pytest
 try:
@@ -26,35 +27,51 @@ class FakeRequest:
     def __init__(self, headers=None, cookies=None):
         self.headers = headers or {}
         self.cookies = cookies or {}
+        self.scope = {}
+        self.url = SimpleNamespace(path="/api/weather/test")
+        self.client = None
+
+
+@pytest.fixture(autouse=True)
+def _unsigned_mode(monkeypatch):
+    # These cases cover unsigned requests while signatures are not enforced;
+    # signed and enforced requests are tested in weather-api/tests.
+    monkeypatch.setenv("REQUIRE_HMAC_SIGNATURE", "false")
+    monkeypatch.delenv("HMAC_SECRET", raising=False)
+
+
+def _dep(fn, authorization, x_tenant_id):
+    return fn(FakeRequest(), authorization=authorization, x_tenant_id=x_tenant_id,
+              x_auth_signature=None)
 
 
 class TestRequireAuth:
     def test_x_tenant_id_header_wins(self, mock_jwt_token):
         token = mock_jwt_token(claims={"tenant_id": "jwt-tenant"})
         assert (
-            require_auth(authorization=f"Bearer {token}", x_tenant_id="header-tenant")
+            _dep(require_auth, authorization=f"Bearer {token}", x_tenant_id="header-tenant")
             == "header-tenant"
         )
 
     def test_jwt_fallback_tenant_id_claim(self, mock_jwt_token):
         token = mock_jwt_token(claims={"tenant_id": "farm-a"})
-        assert require_auth(authorization=f"Bearer {token}", x_tenant_id=None) == "farm-a"
+        assert _dep(require_auth, authorization=f"Bearer {token}", x_tenant_id=None) == "farm-a"
 
     def test_jwt_fallback_legacy_tenant_claim(self, mock_jwt_token):
         token = mock_jwt_token(claims={"tenant": "farm-legacy"})
         assert (
-            require_auth(authorization=f"Bearer {token}", x_tenant_id=None)
+            _dep(require_auth, authorization=f"Bearer {token}", x_tenant_id=None)
             == "farm-legacy"
         )
 
     def test_401_without_credentials(self):
         with pytest.raises(HTTPException) as exc:
-            require_auth(authorization=None, x_tenant_id=None)
+            _dep(require_auth, authorization=None, x_tenant_id=None)
         assert exc.value.status_code == 401
 
     def test_401_with_blank_header_and_no_token(self):
         with pytest.raises(HTTPException) as exc:
-            require_auth(authorization=None, x_tenant_id="   ")
+            _dep(require_auth, authorization=None, x_tenant_id="   ")
         assert exc.value.status_code == 401
 
     def test_401_when_token_has_no_tenant(self, mock_jwt_token):
@@ -62,15 +79,15 @@ class TestRequireAuth:
         # only reads tenant_id/tenant, so this must 401.
         token = mock_jwt_token()
         with pytest.raises(HTTPException):
-            require_auth(authorization=f"Bearer {token}", x_tenant_id=None)
+            _dep(require_auth, authorization=f"Bearer {token}", x_tenant_id=None)
 
 
 class TestRequireAuthOptional:
     def test_returns_none_without_credentials(self):
-        assert require_auth_optional(authorization=None, x_tenant_id=None) is None
+        assert _dep(require_auth_optional, authorization=None, x_tenant_id=None) is None
 
     def test_returns_tenant_from_header(self):
-        assert require_auth_optional(authorization=None, x_tenant_id="t1") == "t1"
+        assert _dep(require_auth_optional, authorization=None, x_tenant_id="t1") == "t1"
 
 
 class TestDecodeJwtTenant:
