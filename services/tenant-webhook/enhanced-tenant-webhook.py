@@ -158,7 +158,7 @@ try:
         default_limits=["1000 per hour"],
         storage_options={"socket_connect_timeout": 5},
     )
-    logger.info(f"Rate limiter initialized with Redis: {REDIS_URL.split('@')[0]}@***")
+    logger.info(f"Rate limiter initialized with Redis at {redis_host}")
 except Exception as e:
     logger.warning(f"Redis unavailable for rate limiting ({e}), using in-memory fallback")
     limiter = Limiter(
@@ -6510,10 +6510,7 @@ def request_registration_otp():
         
         # 3. Store OTP in Redis with 15-min TTL
         import redis
-        redis_client = redis.Redis.from_url(
-            f"redis://{redis_host}/0", 
-            decode_responses=True
-        )
+        redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
         redis_key = f"registro:otp:{email}"
         redis_client.setex(redis_key, 900, otp)  # 900 seconds = 15 minutes
         
@@ -6568,7 +6565,7 @@ def register_tenant():
 
         # 0. Verify OTP before proceeding
         import redis
-        redis_client = redis.Redis.from_url(f"redis://{redis_host}/0", decode_responses=True)
+        redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
         redis_key = f"registro:otp:{email}"
         stored_otp = redis_client.get(redis_key)
 
