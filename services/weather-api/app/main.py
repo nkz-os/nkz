@@ -25,6 +25,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.auth import check_auth_config
 from app.config import settings
 from app.routers import (
     alerts,
@@ -43,6 +44,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+check_auth_config()
 
 app = FastAPI(
     title="Weather API",
