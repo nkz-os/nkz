@@ -205,6 +205,68 @@ def test_publish_ok_with_secret(client, monkeypatch):
     assert r.get_json()["version_hash"] == "abc1234"
 
 
+def test_publish_rejects_version_hash_that_is_not_the_token_commit(client, monkeypatch):
+    import blueprints.modules as m
+
+    upload = MagicMock()
+    monkeypatch.setattr(m, "_upload_dist_and_activate", upload)
+    r = client.post(
+        "/api/internal/modules/demo/publish",
+        headers={"X-Internal-Service-Secret": "test-secret", "X-OIDC-Sha": "d" * 40},
+        data=_dist_form(),
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 400
+    assert "commit of the OIDC token" in r.get_json()["error"]
+    upload.assert_not_called()
+
+
+def test_publish_records_who_published_what(client, monkeypatch):
+    import blueprints.modules as m
+
+    monkeypatch.setattr(
+        m,
+        "_upload_dist_and_activate",
+        lambda mid, files, manifest, vh: (201, {"success": True, "version_hash": vh}),
+    )
+    recorded = {}
+    monkeypatch.setattr(
+        m,
+        "_record_publish_provenance",
+        lambda mid, repo, sha: recorded.update(module=mid, repo=repo, sha=sha),
+    )
+    r = client.post(
+        "/api/internal/modules/demo/publish",
+        headers={
+            "X-Internal-Service-Secret": "test-secret",
+            "X-OIDC-Repository": "nkz-os/demo",
+            "X-OIDC-Sha": "abc1234",
+        },
+        data=_dist_form(),
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 201
+    assert recorded == {"module": "demo", "repo": "nkz-os/demo", "sha": "abc1234"}
+
+
+def test_failed_upload_records_nothing(client, monkeypatch):
+    import blueprints.modules as m
+
+    monkeypatch.setattr(
+        m, "_upload_dist_and_activate", lambda mid, files, manifest, vh: (500, {"error": "s3"})
+    )
+    record = MagicMock()
+    monkeypatch.setattr(m, "_record_publish_provenance", record)
+    r = client.post(
+        "/api/internal/modules/demo/publish",
+        headers={"X-Internal-Service-Secret": "test-secret", "X-OIDC-Sha": "abc1234"},
+        data=_dist_form(),
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 500
+    record.assert_not_called()
+
+
 def test_invalidate_gateway_route_cache_posts_routes_key(monkeypatch):
     import blueprints.modules as m
 
