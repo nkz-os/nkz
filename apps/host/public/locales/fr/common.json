@@ -2101,16 +2101,6 @@
       "livestock": "Élevage",
       "water": "Eau",
       "weather": "Météo"
-    },
-    "management": {
-      "properties": "Propriétés",
-      "no_properties": "Aucune propriété supplémentaire",
-      "yes": "Oui",
-      "no": "Non",
-      "delete_entity": "Supprimer l'entité",
-      "confirm_title": "Voulez-vous vraiment continuer ?",
-      "confirm_delete": "Cette action supprimera définitivement <strong>{{name}}</strong>. Elle est irréversible.",
-      "delete_error": "Erreur lors de la suppression"
     }
   },
   "parcel": {

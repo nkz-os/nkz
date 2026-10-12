@@ -16,6 +16,7 @@ Características:
 - Health checks
 """
 
+import hmac
 import os
 import sys
 import smtplib
@@ -44,6 +45,32 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 _cors_origins = [o.strip() for o in os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',') if o.strip()]
 CORS(app, origins=_cors_origins, supports_credentials=True)
+
+# Internal callers only. Two-phase rollout: the flag stays off until every
+# caller sends the header, then it is flipped in the deployment config.
+EMAIL_REQUIRE_INTERNAL_SECRET = os.getenv("EMAIL_REQUIRE_INTERNAL_SECRET", "false").lower() == "true"
+INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
+_PUBLIC_PATHS = {"/health"}
+if EMAIL_REQUIRE_INTERNAL_SECRET and not INTERNAL_SERVICE_SECRET:
+    logger.critical("EMAIL_REQUIRE_INTERNAL_SECRET is on but INTERNAL_SERVICE_SECRET is unset: all send routes will answer 401")
+
+
+@app.before_request
+def _require_internal_secret():
+    if request.method == "OPTIONS" or request.path in _PUBLIC_PATHS:
+        return None
+    if not EMAIL_REQUIRE_INTERNAL_SECRET:
+        return None
+    provided = request.headers.get("X-Internal-Service-Secret", "")
+    # Compare bytes: compare_digest raises TypeError on non-ASCII str, which
+    # an unauthenticated caller could trigger to get a 500 instead of a 401.
+    if not INTERNAL_SERVICE_SECRET or not hmac.compare_digest(
+        provided.encode("utf-8"), INTERNAL_SERVICE_SECRET.encode("utf-8")
+    ):
+        logger.warning("Rejected unauthenticated call to %s", request.path)
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
+
 
 class EmailConfig:
     """Configuración del servicio de email desde variables de entorno"""

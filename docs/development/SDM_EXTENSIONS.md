@@ -84,7 +84,7 @@ fails on it.
 | `sowingWindowEnd` | atributo | extension-declarada | End of the planned sowing window of a crop cycle; not modelled in SDM |
 | `sowingWindowStart` | atributo | extension-declarada | Start of the planned sowing window of a crop cycle; not modelled in SDM |
 | `terminationDate` | atributo | extension-declarada | Declared end of a crop cycle when a plan segment is closed; not modelled in SDM |
-| `terminationMethod` | atributo | extension-declarada | How a crop cycle ends (harvest, roller crimper, incorporation, grazing); not modelled in SDM |
+| `terminationMethod` | atributo | extension-declarada | How a crop cycle ends (harvest, roller crimper, mowing, incorporation, grazing); not modelled in SDM |
 | `VegetationIndex` | entidad | propuesta-sdm | SDM-005 |
 | `WaterStorage` | entidad | sin-revisar | Not yet reviewed |
 | `affectedVariables` | atributo | extension-declarada | Platform extension — variables the Alert affects; SDM Alert has no such field |
