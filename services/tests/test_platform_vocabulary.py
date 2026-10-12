@@ -268,8 +268,7 @@ def test_unit_is_not_repurposed_as_a_measurement_unit(ctx):
 
 # Field-operations attributes a nutrient plan reads. No SDM property carries a
 # product's nutrient content: AgriParcelOperation has none, and AgriFertilize only
-# nests it in an opaque subtype array. Defined before any operation was written,
-# so no stored attribute changed IRI.
+# nests it in an opaque subtype array.
 FIELD_OPERATION_TERMS = [
     "nitrogenContent", "phosphorusPentoxideContent", "potassiumOxideContent", "nitrogenForm",
     "fertilizerType", "fertilizerRate", "fertilizerComposition", "organicFertilizer",
