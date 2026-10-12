@@ -1702,6 +1702,32 @@ def _fiware_publish_gate(module_id: str):
         return None
 
 
+def _record_publish_provenance(module_id: str, repository: str, sha: str) -> None:
+    """Keep who published what, for audit. Never fails the publish."""
+    repository = (repository or '').strip().lower()
+    sha = (sha or '').strip().lower()
+    if not repository and not sha:
+        return
+    try:
+        conn = get_db_connection_simple()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE marketplace_modules SET metadata = COALESCE(metadata, '{}'::jsonb) || "
+                "jsonb_build_object('last_publish', jsonb_build_object("
+                "'repository', %s::text, 'sha', %s::text, "
+                "'at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'))) "
+                "WHERE id = %s",
+                (repository, sha, module_id),
+            )
+            conn.commit()
+            cur.close()
+        finally:
+            return_db_connection(conn)
+    except Exception as e:
+        logger.error("Could not record publish provenance for %s: %s", module_id, e)
+
+
 @modules_bp.route('/api/internal/modules/<module_id>/publish', methods=['POST'])
 def publish_module_internal(module_id):
     """CI publish: upload dist/ to modules/<id>/<version_hash>/ + activate pointer.
@@ -1736,6 +1762,11 @@ def publish_module_internal(module_id):
     version_hash = request.form.get('version_hash', '').strip()
     if not re.match(r'^[a-f0-9]{7,40}$', version_hash):
         return jsonify({'error': 'version_hash required (7-40 hex chars).'}), 400
+    # The gateway forwards the commit the OIDC token was minted for: the
+    # published artifact must be that commit, not an arbitrary version label.
+    oidc_sha = request.headers.get('X-OIDC-Sha', '').strip().lower()
+    if oidc_sha and version_hash != oidc_sha:
+        return jsonify({'error': 'version_hash must be the commit of the OIDC token.'}), 400
 
     if manifest.get('id') and manifest['id'] != module_id:
         return jsonify({
@@ -1743,6 +1774,10 @@ def publish_module_internal(module_id):
         }), 400
 
     status, payload = _upload_dist_and_activate(module_id, files, manifest, version_hash)
+    if 200 <= status < 300:
+        _record_publish_provenance(
+            module_id, request.headers.get('X-OIDC-Repository', ''), oidc_sha
+        )
     return jsonify(payload), status
 
 

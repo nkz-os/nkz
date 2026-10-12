@@ -464,6 +464,18 @@ def _is_github_actions_ip(client_ip: str) -> bool:
 _GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com"
 _GITHUB_OIDC_JWKS_URL = f"{_GITHUB_OIDC_ISSUER}/.well-known/jwks"
 _GITHUB_OIDC_AUDIENCE = "nkz-publish"
+# Owner of the repositories allowed to publish, set by the deployment. There is
+# no default on purpose: an empty value refuses every publish, loudly.
+_GITHUB_OIDC_ALLOWED_OWNER = os.getenv("OIDC_ALLOWED_REPO_OWNER", "").strip().lower()
+if not _GITHUB_OIDC_ALLOWED_OWNER:
+    logger.critical(
+        "OIDC_ALLOWED_REPO_OWNER is not set: every module publish will be refused"
+    )
+# Secret the gateway presents to entity-manager once it has authenticated the
+# publisher by OIDC. CI never carries it.
+_PUBLISH_FORWARD_SECRET = os.getenv("NKZ_PUBLISH_SECRET") or os.getenv(
+    "INTERNAL_SERVICE_SECRET", ""
+)
 _OIDC_JWKS_CLIENT = None
 _OIDC_JWKS_LAST_FETCH = 0.0
 _OIDC_JWKS_TTL = 3600.0
@@ -488,10 +500,12 @@ def _get_oidc_signing_key(token_headers):
 def _validate_oidc_token(token, module_id=""):
     """
     Validate a GitHub Actions OIDC JWT.
-    Returns True if the token is valid and the workflow is authorized.
+    Returns the claims the publish decision rests on (repository, ref, sha)
+    when the token is valid and comes from the allowed owner on a release
+    ref, else None.
     """
     if not token:
-        return False
+        return None
     try:
         # Log token length for debugging
         logger.info(
@@ -500,7 +514,7 @@ def _validate_oidc_token(token, module_id=""):
         headers = jwt.get_unverified_header(token)
         signing_key = _get_oidc_signing_key(headers)
         if signing_key is None:
-            return False
+            return None
 
         payload = jwt.decode(
             token,
@@ -515,27 +529,80 @@ def _validate_oidc_token(token, module_id=""):
         repo_owner = payload.get("repository_owner", "")
         ref = payload.get("ref", "")
 
-        if repo_owner != "nkz-os":
+        if not _GITHUB_OIDC_ALLOWED_OWNER:
+            logger.error("OIDC: OIDC_ALLOWED_REPO_OWNER unset, refusing publish")
+            return None
+        if (repo_owner or "").lower() != _GITHUB_OIDC_ALLOWED_OWNER:
             logger.warning(f"OIDC: rejected repo_owner={repo_owner}")
-            return False
+            return None
 
         # Accept default branch pushes (main/master) and tags
         if ref not in ("refs/heads/main", "refs/heads/master") and not ref.startswith("refs/tags/"):
             logger.warning(f"OIDC: rejected ref={ref}")
-            return False
+            return None
 
         logger.info(f"OIDC: validated repo={repo} ref={ref} module={module_id}")
-        return True
+        return {
+            "repository": repo,
+            "repository_owner": repo_owner,
+            "ref": ref,
+            "sha": payload.get("sha", "") or "",
+        }
 
     except jwt.ExpiredSignatureError:
         logger.warning("OIDC: token expired")
-        return False
+        return None
     except jwt.InvalidTokenError as e:
         logger.warning(f"OIDC: invalid token: {e}")
-        return False
+        return None
     except Exception as e:
         logger.error(f"OIDC: validation error: {e}")
+        return None
+
+
+def _module_source_repo(module_id):
+    """The repository registered as the owner of ``module_id`` (lowercase), or None."""
+    if not POSTGRES_URL:
+        return None
+    try:
+        conn = psycopg2.connect(POSTGRES_URL, connect_timeout=3)
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT metadata->>'source_repo' FROM marketplace_modules WHERE id = %s",
+                (module_id,),
+            )
+            row = cur.fetchone()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error(f"OIDC: cannot read source_repo for module={module_id}: {e}")
+        return None
+    value = row[0] if row else None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip().lower()
+
+
+def _oidc_repo_owns_module(claims, module_id):
+    """Only the repository registered for the module may publish it.
+
+    A module without ``source_repo`` cannot be published until a platform
+    admin registers its repository: the binding is the whole point.
+    """
+    source_repo = _module_source_repo(module_id)
+    if not source_repo:
+        logger.warning(
+            f"OIDC: module={module_id} has no source_repo registered; refusing publish"
+        )
         return False
+    repo = (claims.get("repository") or "").strip().lower()
+    if repo != source_repo:
+        logger.warning(
+            f"OIDC: rejected repo={repo} for module={module_id} (registered: {source_repo})"
+        )
+        return False
+    return True
 
 
 def _has_dot_segment(path: str) -> bool:
@@ -5296,30 +5363,35 @@ def _check_publish_rate_limit():
 def internal_module_ci(module_id, action):
     """
     Proxy internal module CI endpoints (publish, resolve-url) to entity-manager.
-    POST (publish) requires a valid GitHub Actions OIDC JWT.
+    POST (publish) requires a valid GitHub Actions OIDC JWT from the repository
+    registered as the module's source_repo. The gateway then presents its own
+    secret to entity-manager and forwards the validated claims; a secret sent
+    by the client is never relayed.
     GET (resolve-url) is public (returns non-sensitive manifest URL).
-    entity-manager validates X-Internal-Service-Secret as defense-in-depth.
     """
     if action not in _INTERNAL_CI_ACTIONS:
         return jsonify({"error": "Not found"}), 404
 
-    # POST publish requires GitHub OIDC JWT + rate limiting
+    # POST publish requires GitHub OIDC JWT bound to the module + rate limiting
+    oidc_claims = None
     if request.method == "POST" and action == "publish":
         oidc_token = request.headers.get("X-OIDC-Token", "")
-        if not _validate_oidc_token(oidc_token, module_id):
+        oidc_claims = _validate_oidc_token(oidc_token, module_id)
+        if not oidc_claims or not _oidc_repo_owns_module(oidc_claims, module_id):
             return jsonify({"error": "Forbidden"}), 403
         if not _check_publish_rate_limit():
             logger.warning(f"Rate limit exceeded for publish/{module_id}")
             return jsonify({"error": "Too many requests"}), 429
 
-    # Forward to entity-manager — pass through the internal secret header
+    # Forward to entity-manager with the gateway's own credentials
     target = f"{ENTITY_MANAGER_URL}/api/internal/modules/{module_id}/{action}"
     fwd_headers = {
         "Content-Type": request.headers.get("Content-Type", ""),
     }
-    secret = request.headers.get("X-Internal-Service-Secret", "")
-    if secret:
-        fwd_headers["X-Internal-Service-Secret"] = secret
+    if oidc_claims:
+        fwd_headers["X-Internal-Service-Secret"] = _PUBLISH_FORWARD_SECRET
+        fwd_headers["X-OIDC-Repository"] = oidc_claims["repository"]
+        fwd_headers["X-OIDC-Sha"] = oidc_claims["sha"]
     fiware = request.headers.get("X-FIWARE-Compliant", "")
     if fiware:
         fwd_headers["X-FIWARE-Compliant"] = fiware
