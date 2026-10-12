@@ -138,6 +138,9 @@ fails on it.
 | `eviMin` | atributo | sin-revisar | Not yet reviewed |
 | `eviStdDev` | atributo | sin-revisar | Not yet reviewed |
 | `executedAt` | atributo | sin-revisar | Not yet reviewed |
+| `fertilizerComposition` | atributo | extension-declarada | Free-text N-P-K grade of the applied fertilizer as written in the field notebook; no SDM equivalent on AgriParcelOperation |
+| `fertilizerRate` | atributo | extension-declarada | Applied product rate per hectare on a fertilization operation; SDM AgriParcelOperation only has a total quantity |
+| `fertilizerType` | atributo | extension-declarada | Product or type name on a fertilization operation; SDM links a product entity instead (hasAgriProductType) |
 | `fieldCapacity` | atributo | sin-revisar | Not yet reviewed |
 | `forecast7d` | atributo | sin-revisar | Not yet reviewed |
 | `fuelLevel` | atributo | sin-revisar | Not yet reviewed |
@@ -147,7 +150,7 @@ fails on it.
 | `gndviMin` | atributo | sin-revisar | Not yet reviewed |
 | `gndviStdDev` | atributo | sin-revisar | Not yet reviewed |
 | `harvestDate` | atributo | sin-revisar | Not yet reviewed |
-| `harvestedWeight` | atributo | sin-revisar | Not yet reviewed |
+| `harvestedWeight` | atributo | extension-declarada | Fresh weight harvested by a harvesting operation; SDM AgriParcelOperation only has a generic total quantity |
 | `hasAgriCropDeclaration` | entidad | sin-revisar | Not yet reviewed |
 | `hasAgriFarm` | entidad | sin-revisar | Not yet reviewed |
 | `hasArticleSource` | atributo | sin-revisar | Not yet reviewed |
@@ -194,11 +197,15 @@ fails on it.
 | `ndwiMean` | atributo | sin-revisar | Not yet reviewed |
 | `ndwiMin` | atributo | sin-revisar | Not yet reviewed |
 | `ndwiStdDev` | atributo | sin-revisar | Not yet reviewed |
+| `nitrogenContent` | atributo | extension-declarada | N content of the applied product, % of product; SDM AgriParcelOperation has none and AgriFertilize nests it in an opaque subtype array |
+| `nitrogenForm` | atributo | extension-declarada | Form of the applied N (ureic, ammoniacal, nitric, organic, mixed), which fertilization rules depend on; not modelled in SDM |
 | `observes` | atributo | sin-revisar | Not yet reviewed |
 | `operationType` | atributo | sin-revisar | Not yet reviewed |
+| `organicFertilizer` | atributo | extension-declarada | Whether the applied fertilizer is organic; not modelled in SDM AgriParcelOperation |
 | `parcelVersionId` | atributo | sin-revisar | Not yet reviewed |
 | `parentId` | atributo | sin-revisar | Not yet reviewed |
 | `payload` | atributo | sin-revisar | Not yet reviewed |
+| `phosphorusPentoxideContent` | atributo | extension-declarada | P2O5 content of the applied product, % of product; same gap as nitrogenContent |
 | `phSuelo` | atributo | sin-revisar | Not yet reviewed |
 | `ph` | atributo | sin-revisar | Not yet reviewed |
 | `pitch` | atributo | sin-revisar | Not yet reviewed |
@@ -206,6 +213,7 @@ fails on it.
 | `plagaObjeto` | atributo | sin-revisar | Not yet reviewed |
 | `plantingDate` | atributo | sin-revisar | Not yet reviewed |
 | `pointCount` | atributo | sin-revisar | Not yet reviewed |
+| `potassiumOxideContent` | atributo | extension-declarada | K2O content of the applied product, % of product; same gap as nitrogenContent |
 | `probabilityScore` | atributo | sin-revisar | Not yet reviewed |
 | `produccionCosecha` | atributo | sin-revisar | Not yet reviewed |
 | `productoROPORef` | atributo | sin-revisar | Not yet reviewed |

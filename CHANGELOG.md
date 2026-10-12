@@ -19,6 +19,13 @@
   `terminationMethod`, `cropSeason`, and others). Entities written before this
   release keep those attributes under the default vocabulary; re-write them
   with the new context if your installation already holds crop plans.
+- New `@context` terms for field operations: `fertilizerType`, `fertilizerRate`,
+  `fertilizerComposition` and `organicFertilizer` (attributes field-operations
+  already writes), plus `nitrogenContent`, `phosphorusPentoxideContent`,
+  `potassiumOxideContent`, `nitrogenForm`, `WaterQualityObserved` and `NO3`.
+  Operations written before this release keep the first four under the default
+  vocabulary; re-write them with the new context if your installation already
+  holds fertilization operations.
 
 ## v1.2.0
 

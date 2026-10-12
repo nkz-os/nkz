@@ -50,6 +50,8 @@ OFFICIAL = {
     "controlledAsset": "https://smartdatamodels.org/dataModel.Device/controlledAsset",
     "controlledProperty": "https://smartdatamodels.org/dataModel.Device/controlledProperty",
     "measurementType": "https://smartdatamodels.org/dataModel.Device/measurementType",
+    "WaterQualityObserved": "https://smartdatamodels.org/dataModel.WaterQuality/WaterQualityObserved",
+    "NO3": "https://smartdatamodels.org/dataModel.WaterQuality/NO3",
 }
 
 # Deprecated ref<Type> spellings kept as aliases during the migration window. Each must
@@ -86,7 +88,7 @@ WRITTEN_TYPES = [
     "DataProcessingJob", "DeviceProfile", "DeviceCommand", "AgriSensor",
     "WaterStorage", "OpenChannelFlow", "AgriCropDeclaration", "SigpacEnclosure",
     "AgriPest", "AgriFertilize", "Alert",
-    "Device", "DeviceMeasurement", "ManufacturingMachine",
+    "Device", "DeviceMeasurement", "ManufacturingMachine", "WaterQualityObserved",
 ]
 
 
@@ -120,6 +122,22 @@ def _iri(v):
 
 def test_context_file_is_valid_json(ctx):
     assert len(ctx) > 100
+
+
+def test_context_has_no_duplicate_keys():
+    """A repeated key in a JSON object silently overrides the earlier one."""
+    duplicates = []
+
+    def collect(pairs):
+        seen = set()
+        for key, _ in pairs:
+            if key in seen:
+                duplicates.append(key)
+            seen.add(key)
+        return dict(pairs)
+
+    json.loads(CONTEXT_FILE.read_text(), object_pairs_hook=collect)
+    assert not duplicates, f"duplicate keys in the @context: {duplicates}"
 
 
 def test_prefix_points_at_the_platform_namespace(ctx):
@@ -246,6 +264,24 @@ def test_unit_is_not_repurposed_as_a_measurement_unit(ctx):
     `unit` cambiaría el significado de un término ya en uso.
     """
     assert _iri(ctx["unit"]) == "saref:Unit"
+
+
+# Field-operations attributes a nutrient plan reads. No SDM property carries a
+# product's nutrient content: AgriParcelOperation has none, and AgriFertilize only
+# nests it in an opaque subtype array.
+FIELD_OPERATION_TERMS = [
+    "nitrogenContent", "phosphorusPentoxideContent", "potassiumOxideContent", "nitrogenForm",
+    "fertilizerType", "fertilizerRate", "fertilizerComposition", "organicFertilizer",
+    "harvestedWeight",
+]
+
+
+@pytest.mark.parametrize("term", FIELD_OPERATION_TERMS)
+def test_field_operation_term_is_a_platform_extension(ctx, term):
+    iri = _iri(ctx.get(term))
+    if iri.startswith("nkz:"):
+        iri = PLATFORM_NS + iri[len("nkz:"):]
+    assert iri == PLATFORM_NS + term
 
 
 # --- attributes the writers actually emit -----------------------------------
