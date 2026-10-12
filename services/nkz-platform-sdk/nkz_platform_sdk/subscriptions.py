@@ -23,6 +23,12 @@ from dataclasses import dataclass
 
 import httpx
 
+from nkz_platform_sdk.notify_auth import (
+    MASTER_HEADER,
+    TOKEN_HEADER,
+    notification_token,
+    receiver_host_from_url,
+)
 from nkz_platform_sdk.orion import OrionClient
 
 logger = logging.getLogger(__name__)
@@ -72,9 +78,19 @@ class SubscriptionRegistrar:
             notification_url="http://crop-health-api-service:8000/api/crop-health/webhooks/orion",
             subscriptions=[{"type": "EOProduct", "throttling": 30}],
             module_name="crop-health",
+            internal_secret=os.environ["INTERNAL_SERVICE_SECRET"],
+            derived_tokens=derived_tokens_from_env(),
         )
         await registrar.ensure_all(["tenant-a", "tenant-b"])
         asyncio.create_task(registrar.periodic_heal(get_tenants, interval_minutes=60))
+
+    Receiver auth (``notification.endpoint.receiverInfo``): with ``internal_secret``
+    the registrar owns the auth header. ``derived_tokens=False`` sends the master
+    secret as ``X-Internal-Service-Secret`` (legacy); ``True`` sends
+    ``X-Notification-Token``, a token bound to the tenant and the receiver host
+    (see ``notify_auth``), so the broker never stores the master secret and the
+    subscription body becomes tenant-dependent. Any master entry in
+    ``notification_headers`` is dropped in both modes; other headers pass through.
     """
 
     def __init__(
@@ -85,12 +101,26 @@ class SubscriptionRegistrar:
         module_name: str,
         context_url: str | None = None,
         notification_headers: dict[str, str] | None = None,
+        internal_secret: str | None = None,
+        derived_tokens: bool = False,
     ):
         self.orion_url = orion_url.rstrip("/")
         self.notification_url = notification_url
         self.context_url = context_url
         self.module_name = module_name
         self.notification_headers = notification_headers or {}
+        self.internal_secret = internal_secret or ""
+        self.derived_tokens = bool(derived_tokens)
+        if self.derived_tokens and not self.internal_secret:
+            raise ValueError(
+                f"{module_name}: derived_tokens=True requires internal_secret "
+                "(the master secret the token is derived from)"
+            )
+        # Resolved once: a notification URL without a host is a declaration bug,
+        # and in derived mode it would make every token unverifiable.
+        self.receiver_host = (
+            receiver_host_from_url(notification_url) if self.derived_tokens else None
+        )
         self._subs: list[SubscriptionDef] = [
             SubscriptionDef(**s) if isinstance(s, dict) else s for s in subscriptions
         ]
@@ -111,13 +141,34 @@ class SubscriptionRegistrar:
         sub_type = _sanitize_urn_segment(sub.type)
         return f"urn:ngsi-ld:Subscription:{module}:{sub_type}"
 
-    def _body(self, sub: SubscriptionDef) -> dict:
+    def _receiver_info(self, tenant_id: str | None) -> list[dict]:
+        """Headers Orion injects into every delivery of this subscription.
+
+        With ``internal_secret`` the auth header is the registrar's to emit, so a
+        master entry in ``notification_headers`` is dropped rather than sent twice
+        or next to the derived token.
+        """
+        headers = dict(self.notification_headers)
+        if self.internal_secret:
+            headers = {k: v for k, v in headers.items() if k.lower() != MASTER_HEADER.lower()}
+            if self.derived_tokens:
+                if not tenant_id:
+                    raise ValueError(
+                        f"{self.module_name}: derived tokens need the tenant to bind to"
+                    )
+                headers[TOKEN_HEADER] = notification_token(
+                    self.internal_secret, tenant_id, self.receiver_host
+                )
+            else:
+                headers[MASTER_HEADER] = self.internal_secret
+        return [{"key": key, "value": value} for key, value in headers.items()]
+
+    def _body(self, sub: SubscriptionDef, tenant_id: str | None = None) -> dict:
+        """The declared subscription for ``tenant_id`` (needed only in derived-token mode)."""
         endpoint = {"uri": self.notification_url, "accept": "application/json"}
-        if self.notification_headers:
-            endpoint["receiverInfo"] = [
-                {"key": key, "value": value}
-                for key, value in self.notification_headers.items()
-            ]
+        receiver_info = self._receiver_info(tenant_id)
+        if receiver_info:
+            endpoint["receiverInfo"] = receiver_info
         body = {
             "id": self._subscription_id(sub),
             "type": "Subscription",
@@ -137,14 +188,16 @@ class SubscriptionRegistrar:
             body["condition"] = sub.condition
         return body
 
-    def _fragment(self, sub: SubscriptionDef) -> dict:
+    def _fragment(self, sub: SubscriptionDef, tenant_id: str | None = None) -> dict:
         """The declared subscription as an update fragment: the body minus its id.
 
         Orion-LD rejects the id inside a PATCH. Carrying `isActive: True` is
         what re-arms a subscription Orion paused after 3 consecutive
         notification failures (verified live: 204, `paused` -> `active`).
+        The whole `notification` member travels, so a receiverInfo that still
+        carries the master secret is replaced by the declared one.
         """
-        return {k: v for k, v in self._body(sub).items() if k != "id"}
+        return {k: v for k, v in self._body(sub, tenant_id).items() if k != "id"}
 
     async def _converge_existing(
         self,
@@ -169,7 +222,7 @@ class SubscriptionRegistrar:
         watchedAttributes) are not removed by a PATCH.
         """
         try:
-            await client.update_subscription(sub_id, self._fragment(sub))
+            await client.update_subscription(sub_id, self._fragment(sub, tenant_id))
         except httpx.HTTPStatusError as e:
             status = e.response.status_code if e.response is not None else None
             if status == 404:
@@ -295,7 +348,7 @@ class SubscriptionRegistrar:
         message is already appended to `errors` and logged).
         """
         try:
-            await client.create_subscription(self._body(sub))
+            await client.create_subscription(self._body(sub, tenant_id))
         except httpx.HTTPStatusError as e:
             retry_status = e.response.status_code if e.response is not None else None
             if retry_status == 409:
@@ -373,7 +426,7 @@ class SubscriptionRegistrar:
                 for sub in self._subs:
                     sub_id = self._subscription_id(sub)
                     try:
-                        await client.create_subscription(self._body(sub))
+                        await client.create_subscription(self._body(sub, tenant_id))
                     except httpx.HTTPStatusError as e:
                         status = e.response.status_code if e.response is not None else None
                         if status == 409:

@@ -534,3 +534,134 @@ async def test_converge_patch_leaves_out_none_throttling():
 
     assert result["converged"] == 1 and result["errors"] == []
     assert "throttling" not in json.loads(patch.calls[0].request.content)
+
+
+# --- derived notification tokens --------------------------------------------
+#
+# With `internal_secret` the registrar owns the auth header of the subscription:
+# legacy mode sends the master secret itself, derived mode sends a token bound to
+# the tenant and the receiver host, so the broker never stores the master.
+
+from nkz_platform_sdk.notify_auth import MASTER_HEADER, TOKEN_HEADER, notification_token  # noqa: E402
+
+NOTIFY_HOST = "crop-health-api-service"
+
+
+def _derived_registrar(**kwargs) -> SubscriptionRegistrar:
+    return SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "EOProduct", "throttling": 30}],
+        module_name="crop-health",
+        internal_secret="s3cret",
+        derived_tokens=True,
+        **kwargs,
+    )
+
+
+def _receiver_info(registrar: SubscriptionRegistrar, tenant: str) -> list:
+    return registrar._body(registrar._subs[0], tenant)["notification"]["endpoint"]["receiverInfo"]
+
+
+def test_derived_body_carries_a_per_tenant_token_and_no_master():
+    registrar = _derived_registrar()
+    info_a = _receiver_info(registrar, "tenant-a")
+    info_b = _receiver_info(registrar, "tenant-b")
+    assert info_a == [
+        {"key": TOKEN_HEADER, "value": notification_token("s3cret", "tenant-a", NOTIFY_HOST)}
+    ]
+    assert info_b != info_a
+    assert all(h["key"] != MASTER_HEADER for h in info_a + info_b)
+
+
+def test_derived_mode_keeps_other_headers_and_drops_a_master_entry():
+    registrar = _derived_registrar(
+        notification_headers={"X-Extra": "1", MASTER_HEADER: "s3cret"}
+    )
+    info = _receiver_info(registrar, "tenant-a")
+    assert {h["key"] for h in info} == {"X-Extra", TOKEN_HEADER}
+
+
+def test_internal_secret_without_derived_mode_emits_the_master_header():
+    registrar = SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "EOProduct", "throttling": 30}],
+        module_name="crop-health",
+        internal_secret="s3cret",
+        notification_headers={MASTER_HEADER: "stale-copy"},
+    )
+    assert _receiver_info(registrar, "tenant-a") == [{"key": MASTER_HEADER, "value": "s3cret"}]
+
+
+def test_derived_mode_requires_a_secret():
+    for secret in (None, ""):
+        with pytest.raises(ValueError):
+            SubscriptionRegistrar(
+                orion_url=ORION,
+                notification_url=NOTIFY,
+                subscriptions=[{"type": "EOProduct"}],
+                module_name="crop-health",
+                internal_secret=secret,
+                derived_tokens=True,
+            )
+
+
+def test_derived_mode_rejects_a_hostless_notification_url():
+    with pytest.raises(ValueError):
+        SubscriptionRegistrar(
+            orion_url=ORION,
+            notification_url="/notify",
+            subscriptions=[{"type": "EOProduct"}],
+            module_name="crop-health",
+            internal_secret="s3cret",
+            derived_tokens=True,
+        )
+
+
+def test_derived_body_requires_a_tenant():
+    registrar = _derived_registrar()
+    with pytest.raises(ValueError):
+        registrar._body(registrar._subs[0])
+    with pytest.raises(ValueError):
+        registrar._fragment(registrar._subs[0])
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_409_converges_onto_the_derived_token():
+    """A subscription still carrying the master secret is PATCHed onto the token."""
+    patch = respx.patch(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct"
+    ).mock(return_value=Response(204))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+
+    result = await _derived_registrar().ensure_all(["tenant-a"])
+
+    assert result["converged"] == 1 and result["errors"] == []
+    body = json.loads(patch.calls[0].request.content)
+    assert "id" not in body
+    assert body["notification"]["endpoint"]["receiverInfo"] == [
+        {"key": TOKEN_HEADER, "value": notification_token("s3cret", "tenant-a", NOTIFY_HOST)}
+    ]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_create_posts_a_different_token_per_tenant():
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(return_value=Response(200, json=[]))
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+
+    result = await _derived_registrar().ensure_all(["tenant-a", "tenant-b"])
+
+    assert result["created"] == 2
+    tokens = {
+        json.loads(c.request.content)["notification"]["endpoint"]["receiverInfo"][0]["value"]
+        for c in post.calls
+    }
+    assert len(tokens) == 2
+    assert "s3cret" not in {json.dumps(json.loads(c.request.content)) for c in post.calls}
