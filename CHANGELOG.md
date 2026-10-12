@@ -4,6 +4,12 @@
 
 ### Features
 
+- **Derived notification tokens** — `nkz_platform_sdk.notify_auth` (SDK 0.10.0):
+  Orion-LD subscriptions can carry a token bound to the tenant and the receiver
+  host (`X-Notification-Token`) instead of the platform master secret, which the
+  receiver recomputes and never stores. `SubscriptionRegistrar` gains
+  `internal_secret` / `derived_tokens`; flags `NKZ_NOTIFY_DERIVED_TOKENS`
+  (creators) and `NKZ_NOTIFY_ACCEPT_MASTER` (receivers) drive the rollout.
 - **Crop cycles and campaigns** — one resolution of a parcel's crop cycles,
   campaign (calendar year, labelled by harvest year) and degree-day
   accumulation start: `nkz_platform_sdk.crop_cycles` (SDK 0.9.0), served by
