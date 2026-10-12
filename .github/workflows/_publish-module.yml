@@ -8,9 +8,10 @@ on:
       working_dir:        { required: false, type: string, default: "." }
       package_json_file:  { required: false, type: string, default: "package.json" }
     secrets:
-      # Defense-in-depth header validated by entity-manager.
-      # Primary auth: GitHub OIDC JWT (validated by api-gateway).
-      INTERNAL_SERVICE_SECRET: { required: true }
+      # Unused since the gateway authenticates the publisher by OIDC and presents
+      # its own credentials downstream. Kept optional so existing callers that
+      # still pass it do not break; they can drop it at any time.
+      INTERNAL_SERVICE_SECRET: { required: false }
 
 jobs:
   # FIWARE compliance gate — publish CANNOT run unless this passes. Conservative:
@@ -118,7 +119,6 @@ jobs:
       - name: Publish to entity-manager (immutable <sha>/ + activate)
         working-directory: ${{ inputs.working_dir }}
         env:
-          SECRET: ${{ secrets.INTERNAL_SERVICE_SECRET }}
           DIST: ${{ inputs.dist_dir }}
         run: |
           set -euo pipefail
@@ -129,7 +129,6 @@ jobs:
           # `publish needs: compliance` passed. entity-manager stamps the module
           # fiware_compliance=compliant on receipt (replaces the manual-SQL stamp).
           code=$(cd "$DIST" && curl -sS -o /tmp/pub.json -w '%{http_code}' \
-                 -H "X-Internal-Service-Secret: $SECRET" \
                  -H "X-OIDC-Token: $OIDC_TOKEN" \
                  -H "X-FIWARE-Compliant: 1" \
                  -F "version_hash=$SHA" $args \
