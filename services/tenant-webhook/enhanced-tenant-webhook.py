@@ -10,13 +10,14 @@ import hmac
 import json
 import logging
 import os
+import threading
 import re
 import secrets
 import signal
-import subprocess
 import sys
 import time
 from contextlib import suppress
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import Any
@@ -442,8 +443,6 @@ KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET", "")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 WOOCOMMERCE_WEBHOOK_SECRET = os.getenv("WOOCOMMERCE_WEBHOOK_SECRET", "")
 POSTGRES_URL = os.getenv("POSTGRES_URL", "")
-CREATE_TENANT_SCRIPT = os.getenv("CREATE_TENANT_SCRIPT", "/app/scripts/create-tenant.sh")
-CREATE_ROS2_SCRIPT = os.getenv("CREATE_ROS2_SCRIPT", "/app/scripts/create-tenant-ros2.sh")
 TENANT_NAMESPACE_PREFIX = os.getenv("TENANT_NAMESPACE_PREFIX", "nekazari-tenant-")
 N8N_NKZ_SERVICE_URL = os.getenv("N8N_NKZ_SERVICE_URL", "http://n8n-nkz-api-service:8000")
 K8S_API_TIMEOUT = int(os.getenv("K8S_API_TIMEOUT", "15"))
@@ -459,6 +458,44 @@ def _email_post(path: str, payload: dict, timeout: int = 10):
         headers=internal_service_headers("tenant-webhook email"),
         timeout=timeout,
     )
+
+
+def _send_email_async(path: str, payload: dict, *, purpose: str) -> threading.Thread:
+    """Send a transactional email without holding the HTTP response.
+
+    email-service delivers through SMTP synchronously, so a slow relay would
+    otherwise keep a registration or activation request open past the
+    client's timeout. The outcome is logged under `purpose`; the caller never
+    fails because of an email.
+    """
+
+    def _run() -> None:
+        try:
+            resp = _email_post(path, payload, timeout=10)
+            if resp.status_code == 200:
+                logger.info(f"Email sent ({purpose}) via {path}")
+            else:
+                logger.warning(f"Email not sent ({purpose}) via {path}: {resp.status_code}")
+        except Exception as e:
+            logger.error(f"Email error ({purpose}) via {path}: {e}")
+
+    thread = threading.Thread(target=_run, name=f"email-{purpose}", daemon=True)
+    thread.start()
+    return thread
+
+
+@dataclass(frozen=True)
+class TenantProvisioning:
+    """Outcome of provisioning a tenant's storage. Immutable."""
+
+    tenant_id: str
+    orion_db: bool
+    api_key: str | None
+    errors: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return self.orion_db and self.api_key is not None
 
 
 # Import config manager for URL construction
@@ -843,37 +880,6 @@ class EnhancedTenantWebhookService:
             logger.error(f"Failed to initialise Kubernetes client: {e}")
             self.k8s_core_v1 = None
             self.k8s_apps_v1 = None
-            return False
-
-    def _ensure_namespace_exists(self, namespace: str, tenant_id: str) -> bool:
-        """Ensure tenant namespace exists before creating secrets"""
-        if not self._ensure_kubernetes_client() or not self.k8s_core_v1:
-            return False
-
-        try:
-            self.k8s_core_v1.read_namespace(name=namespace, _request_timeout=K8S_API_TIMEOUT)
-            return True
-        except ApiException as e:
-            if getattr(e, "status", None) != 404:
-                logger.error(f"Failed to read namespace {namespace}: {e}")
-                return False
-
-        # Namespace missing → create it
-        metadata = k8s_client.V1ObjectMeta(
-            name=namespace,
-            labels={"tenant-id": tenant_id, "app.kubernetes.io/managed-by": "tenant-webhook"},
-        )
-        namespace_body = k8s_client.V1Namespace(metadata=metadata)
-
-        try:
-            self.k8s_core_v1.create_namespace(body=namespace_body, _request_timeout=K8S_API_TIMEOUT)
-            logger.info(f"Created namespace {namespace} for tenant {tenant_id}")
-            return True
-        except ApiException as e:
-            if getattr(e, "status", None) == 409:
-                logger.info(f"Namespace {namespace} already exists (race condition)")
-                return True
-            logger.error(f"Failed to create namespace {namespace}: {e}")
             return False
 
     def get_keycloak_token(self) -> str | None:
@@ -1529,163 +1535,49 @@ class EnhancedTenantWebhookService:
             logger.error(f"Failed to drop Orion-LD DB for tenant {tenant_id}: {e}")
             return False
 
-    def _delete_tenant_namespace(self, tenant_id: str) -> bool:
-        """Best-effort deletion of the K8s namespace for tenant_id.
+    def provision_tenant_core(
+        self, tenant_id: str, plan_info: dict[str, Any]
+    ) -> TenantProvisioning:
+        """Provision what a tenant needs to operate: its Orion-LD database and an API key.
 
-        Used during rollback of partial provisioning. Idempotent.
+        Idempotent: re-running for an existing tenant keeps the database and
+        rotates the API key row in place. Nothing is created in Kubernetes;
+        the platform is single-namespace and isolates tenants through Orion-LD
+        tenants and row-level security. Each step records its own failure so
+        every caller decides what is fatal for its flow.
         """
-        namespace = get_tenant_namespace(tenant_id)
+        errors: list[str] = []
+        logger.info(f"Provisioning tenant {tenant_id} (plan: {plan_info.get('plan')})")
+
+        orion_db = self._ensure_orion_tenant_db(tenant_id)
+        if not orion_db:
+            errors.append("orion-ld database could not be ensured")
+
+        api_key: str | None = None
         try:
-            result = subprocess.run(
-                ["kubectl", "delete", "namespace", namespace,
-                 "--ignore-not-found=true", "--wait=false"],
-                capture_output=True, text=True, timeout=30,
-            )
-            logger.info(
-                f"Rollback delete namespace {namespace}: rc={result.returncode}"
-            )
-            return result.returncode == 0
+            api_key = self.generate_api_key(tenant_id)
         except Exception as e:
-            logger.error(f"Failed to delete namespace {namespace}: {e}")
-            return False
+            logger.error(f"API key generation raised for {tenant_id}: {e}")
+        if api_key is None:
+            errors.append("api key could not be stored")
 
-    def create_tenant_resources(self, tenant_id: str, plan_info: dict[str, Any]) -> bool:
-        """Create Kubernetes resources for the tenant with plan limits
-
-        CRITICAL: This must succeed for tenant activation to complete.
-        Raises exception on failure to prevent incomplete tenant creation.
-        """
-        try:
-            logger.info(
-                f"Creating resources for tenant: {tenant_id} with plan: {plan_info['plan']}"
-            )  # noqa: E501
-
-            # Verify script exists
-            if not os.path.exists(CREATE_TENANT_SCRIPT):
-                error_msg = f"CRITICAL: Tenant creation script not found: {CREATE_TENANT_SCRIPT}"
-                logger.error(error_msg)
-                raise FileNotFoundError(error_msg)
-
-            # Ensure Orion-LD MongoDB database exists BEFORE K8s provisioning
-            self._ensure_orion_tenant_db(tenant_id)
-
-            # Build a per-call environment for the subprocess. Previously this
-            # mutated the parent process os.environ, which leaked tenant-scoped
-            # values across concurrent requests under multi-worker Flask.
-            proc_env = {
-                **os.environ,
-                "TENANT_ID": tenant_id,
-                "PLAN_TYPE": plan_info["plan"],
-                "MAX_USERS": str(plan_info["max_users"]),
-                "MAX_ROBOTS": str(plan_info["max_robots"]),
-                "MAX_SENSORS": str(plan_info["max_sensors"]),
-                "ACTIVATION_CODE": plan_info["code"],
-            }
-
-            # Run the tenant creation script with an isolated env per call
-            result = subprocess.run(
-                [CREATE_TENANT_SCRIPT, tenant_id],
-                capture_output=True,
-                text=True,
-                timeout=600,  # 10 minutes timeout (increased for slow servers)
-                env=proc_env,
-            )
-
-            if result.returncode == 0:
-                logger.info(f"Successfully created tenant resources for: {tenant_id}")
-                logger.info(f"Script output: {result.stdout}")
-                return True
-            else:
-                error_msg = (
-                    f"CRITICAL: Failed to create tenant resources for {tenant_id}: {result.stderr}"  # noqa: E501
-                )
-                logger.error(error_msg)
-                logger.error(f"Script stdout: {result.stdout}")
-                raise RuntimeError(error_msg)
-
-        except subprocess.TimeoutExpired:
-            error_msg = f"CRITICAL: Tenant creation script timed out for: {tenant_id}"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg)  # noqa: B904
-        except FileNotFoundError:
-            # Re-raise FileNotFoundError as-is
-            raise
-        except Exception as e:
-            error_msg = f"CRITICAL: Error creating tenant resources for {tenant_id}: {e}"
-            logger.error(error_msg)
-            raise RuntimeError(error_msg) from e
-
-    def create_ros2_resources(self, tenant_id: str) -> bool:
-        """Create ROS2 resources for the tenant
-
-        NOTE: This is now OPTIONAL - tenant creation will succeed even if ROS2 fails.
-        ROS2 resources can be created/retried later if needed.
-        Returns True on success, False on failure (no exceptions raised).
-        """
-        try:
-            logger.info(f"Creating ROS2 resources for tenant: {tenant_id}")
-
-            # Verify script exists
-            if not os.path.exists(CREATE_ROS2_SCRIPT):
-                logger.warning(
-                    f"⚠️  ROS2 creation script not found: {CREATE_ROS2_SCRIPT} "
-                    "- skipping ROS2 setup"
-                )
-                logger.warning(
-                    f"Tenant {tenant_id} will be created without ROS2 resources. "
-                    "They can be added later."
-                )
-                return False
-
-            # Run the ROS2 creation script
-            result = subprocess.run(
-                [CREATE_ROS2_SCRIPT, tenant_id],
-                capture_output=True,
-                text=True,
-                timeout=180,  # 3 minutes timeout
-            )
-
-            if result.returncode == 0:
-                logger.info(f"✅ Successfully created ROS2 resources for: {tenant_id}")
-                logger.info(f"Script output: {result.stdout}")
-                return True
-            else:
-                logger.warning(
-                    f"⚠️  Failed to create ROS2 resources for {tenant_id}: {result.stderr}"
-                )  # noqa: E501
-                logger.warning(f"Script stdout: {result.stdout}")
-                logger.warning(
-                    f"Tenant {tenant_id} will be created without ROS2 resources. "
-                    "They can be retried later."
-                )
-                return False
-
-        except subprocess.TimeoutExpired:
-            logger.warning(f"⚠️  ROS2 creation script timed out for: {tenant_id}")
-            logger.warning(
-                f"Tenant {tenant_id} will be created without ROS2 resources. "
-                "ROS2 setup can be retried later."
-            )
-            return False
-        except FileNotFoundError as e:
-            logger.warning(f"⚠️  ROS2 creation script not found: {e}")
-            logger.warning(f"Tenant {tenant_id} will be created without ROS2 resources.")
-            return False
-        except Exception as e:
-            logger.warning(f"⚠️  Error creating ROS2 resources for {tenant_id}: {e}")
-            logger.warning(
-                f"Tenant {tenant_id} will be created without ROS2 resources. "
-                "ROS2 setup can be retried later."
-            )
-            return False
+        logger.info(
+            f"Tenant {tenant_id} provisioning: orion_db={orion_db} "
+            f"api_key={'ok' if api_key else 'failed'}"
+        )
+        return TenantProvisioning(
+            tenant_id=tenant_id, orion_db=orion_db, api_key=api_key, errors=tuple(errors)
+        )
 
     def generate_api_key(self, tenant_id: str) -> str | None:  # noqa: C901
-        """Generate API key for the tenant and store in both Kubernetes Secret and PostgreSQL"""
+        """Generate an API key for the tenant and store its digest in PostgreSQL.
+
+        Idempotent per tenant: an existing active key row is rotated in place.
+        """
         try:
             # Generate a secure API key (32 bytes hex)
             api_key = secrets.token_hex(32)
             api_key_hash = api_key_digest(api_key)
-            namespace = get_tenant_namespace(tenant_id)
 
             # 1. Store in PostgreSQL api_keys table
             db_success = False
@@ -1765,70 +1657,11 @@ class EnhancedTenantWebhookService:
                     logger.error(f"Failed to store API key in database for {tenant_id}: {db_err}")
                     db_success = False
 
-            # 2. Store in Kubernetes Secret (optional, don't fail if this doesn't work)
-            k8s_success = False
-            if not self._ensure_namespace_exists(namespace, tenant_id):
-                logger.warning(
-                    f"Skipping API key secret creation – namespace {namespace} not available"
-                )  # noqa: E501
-            elif not self.k8s_core_v1:
-                logger.warning("Kubernetes client unavailable, unable to store API key secret")
-            else:
-                try:
-                    metadata = k8s_client.V1ObjectMeta(
-                        name=f"{tenant_id}-api-key",
-                        namespace=namespace,
-                        labels={
-                            "tenant-id": tenant_id,
-                            "app.kubernetes.io/managed-by": "tenant-webhook",
-                            "type": "api-key",
-                        },
-                    )
-                    secret_body = k8s_client.V1Secret(
-                        metadata=metadata,
-                        string_data={
-                            "api_key": api_key,
-                            "tenant_id": tenant_id,
-                            "created_at": datetime.utcnow().isoformat(),
-                        },
-                        type="Opaque",
-                    )
-
-                    try:
-                        self.k8s_core_v1.create_namespaced_secret(
-                            namespace=namespace, body=secret_body, _request_timeout=K8S_API_TIMEOUT
-                        )
-                        k8s_success = True
-                        logger.info(f"Created API key secret in Kubernetes for tenant: {tenant_id}")
-                    except ApiException as e:
-                        if getattr(e, "status", None) == 409:
-                            logger.info(f"API key secret already exists for {tenant_id}, updating")
-                            self.k8s_core_v1.patch_namespaced_secret(
-                                name=f"{tenant_id}-api-key",
-                                namespace=namespace,
-                                body=secret_body,
-                                _request_timeout=K8S_API_TIMEOUT,
-                            )
-                            k8s_success = True
-                        else:
-                            logger.warning(
-                                f"Kubernetes API error creating secret for {tenant_id}: {e}"
-                            )  # noqa: E501
-                except Exception as k8s_err:
-                    logger.warning(f"Failed to create Kubernetes secret for {tenant_id}: {k8s_err}")
-
-            # Return API key if at least one storage succeeded
-            if db_success or k8s_success:
-                logger.info(
-                    f"Successfully generated API key for tenant: {tenant_id} "
-                    f"(DB: {db_success}, K8s: {k8s_success})"
-                )
+            if db_success:
+                logger.info(f"Successfully generated API key for tenant: {tenant_id}")
                 return api_key
-            else:
-                logger.error(
-                    f"Failed to store API key in both database and Kubernetes for {tenant_id}"
-                )  # noqa: E501
-                return None
+            logger.error(f"Failed to store API key in database for {tenant_id}")
+            return None
 
         except Exception as e:
             logger.error(f"Error generating API key for {tenant_id}: {e}")
@@ -3646,11 +3479,10 @@ def create_tenant_directly():
       1. Validate input.
       2. Normalize tenant_id (canonical).
       3. Reject duplicates (DB lookup).
-      4. Create K8s resources (most likely to fail — runs first so we don't
-         leave half-baked state).
-      5. Create Orion-LD MongoDB DB.
-      6. Create Postgres tenant record + tier_quotas row.
-      7. Create Keycloak owner user.
+      4. Provision tenant storage: Orion-LD MongoDB database + API key
+         (runs first so a failure leaves nothing half-baked).
+      5. Create Postgres tenant record + tier_quotas row.
+      6. Create Keycloak owner user.
     On any failure after step 4 we roll back in reverse order.
     """
     data = request.get_json(silent=True) or {}
@@ -3705,36 +3537,28 @@ def create_tenant_directly():
         finally:
             dup_conn.close()
 
-    # --- 4. K8s + Orion-LD Mongo provisioning ---------------------------
-    # create_tenant_resources both ensures the Mongo DB and runs the K8s
-    # script (the Mongo call lives inside create_tenant_resources so that
-    # the activation-code, billing-driven and admin flows all stay in
-    # sync). If the script fails AFTER the internal Mongo creation we
-    # still need to drop Mongo to avoid orphans.
+    # --- 4. Tenant storage: Orion-LD Mongo database + API key -----------
+    # The same provisioning step serves the activation-code and self-service
+    # flows. A partial result is rolled back here so no orphan database stays.
     logger.info(f"Creating tenant {tenant_id} directly by admin")
-    try:
-        webhook_service.create_tenant_resources(tenant_id, plan_info)
-    except Exception as e:
+    provisioning = webhook_service.provision_tenant_core(tenant_id, plan_info)
+    if not provisioning.orion_db:
         webhook_service._drop_orion_tenant_db(tenant_id)
         return _internal_error(
-            e, "create_tenant_directly.k8s",
-            user_message="Failed to provision Kubernetes resources",
-            error_code="K8S_PROVISION_FAILED",
+            RuntimeError("; ".join(provisioning.errors)), "create_tenant_directly.provision",
+            user_message="Failed to provision tenant storage",
+            error_code="PROVISION_FAILED",
         )
-
-    # --- 5. API key (K8s Secret + Postgres api_keys row) ----------------
-    try:
-        api_key = webhook_service.generate_api_key(tenant_id)
-    except Exception as e:
+    api_key = provisioning.api_key
+    if api_key is None:
         webhook_service._drop_orion_tenant_db(tenant_id)
-        webhook_service._delete_tenant_namespace(tenant_id)
         return _internal_error(
-            e, "create_tenant_directly.api_key",
+            RuntimeError("; ".join(provisioning.errors)), "create_tenant_directly.api_key",
             user_message="Failed to generate API key",
             error_code="API_KEY_FAILED",
         )
 
-    # --- 6. Postgres tenant record --------------------------------------
+    # --- 5. Postgres tenant record --------------------------------------
     conn = webhook_service.get_db_connection()
     tenant_record_id = None
     if conn:
@@ -3749,7 +3573,6 @@ def create_tenant_directly():
             )
         except Exception as e:
             webhook_service._drop_orion_tenant_db(tenant_id)
-            webhook_service._delete_tenant_namespace(tenant_id)
             return _internal_error(
                 e, "create_tenant_directly.db",
                 user_message="Failed to persist tenant record",
@@ -3761,7 +3584,7 @@ def create_tenant_directly():
             except Exception as e:
                 logger.warning(f"PAT validation failed: {e}")
 
-    # --- 7. Keycloak owner user (best-effort; logged as warning) --------
+    # --- 6. Keycloak owner user (best-effort; logged as warning) --------
     user_result = webhook_service.create_keycloak_user(
         email, tenant_id, plan_info, password, is_owner=True
     )
@@ -5229,15 +5052,12 @@ def activate_tenant():  # noqa: C901
             fallback = email.split("@")[0].split(".")[0] or "tenant"
             tenant_id = normalize_tenant_id(fallback)
 
-        # Create tenant resources (CRITICAL - must succeed)
-        logger.info(f"Creating complete tenant infrastructure for: {tenant_id}")
-        try:
-            tenant_resources_success = webhook_service.create_tenant_resources(tenant_id, plan_info)
-            if not tenant_resources_success:
-                raise RuntimeError(f"Tenant resources creation returned False for {tenant_id}")
-            logger.info(f"✅ Tenant Kubernetes resources created successfully for: {tenant_id}")
-        except Exception as e:
-            error_reason = f"Failed to create tenant Kubernetes resources: {str(e)}"
+        # Provision tenant storage (CRITICAL - must succeed)
+        logger.info(f"Provisioning tenant storage for: {tenant_id}")
+        provisioning = webhook_service.provision_tenant_core(tenant_id, plan_info)
+        if not provisioning.orion_db:
+            e = RuntimeError("; ".join(provisioning.errors) or "unknown error")
+            error_reason = f"Failed to provision tenant storage: {e}"
             logger.error(f"❌ CRITICAL: {error_reason}")
 
             # Send notification email about failure
@@ -5286,24 +5106,9 @@ def activate_tenant():  # noqa: C901
                 },
             )
 
-        # ROS2 and VPN are now OPTIONAL - not created during registration
-        # They can be activated later by tenant-admin from Settings panel
-        logger.info(
-            f"ℹ️  ROS2 and VPN resources skipped during registration for tenant: {tenant_id}"
-        )  # noqa: E501
-        logger.info("Tenant-admin can activate these services later from Settings panel")
-
-        # Generate API key (optional - don't fail if it doesn't work)
-        try:
-            api_key = webhook_service.generate_api_key(tenant_id)
-            if not api_key:
-                logger.warning(
-                    f"Failed to generate API key for tenant: {tenant_id} - continuing anyway"
-                )  # noqa: E501
-        except Exception as e:
-            logger.warning(
-                f"Error generating API key for tenant: {tenant_id}: {e} - continuing anyway"
-            )  # noqa: E501
+        api_key = provisioning.api_key
+        if not api_key:
+            logger.warning(f"API key not generated for tenant: {tenant_id} - continuing anyway")
 
         # Create tenant record in database (if not exists)
         conn = webhook_service.get_db_connection()
@@ -5452,46 +5257,33 @@ def activate_tenant():  # noqa: C901
         if not code_success:
             logger.warning(f"Failed to mark activation code as used for tenant: {tenant_id}")
 
-        # Send welcome email to user
+        # Welcome email to the user and notification to the platform admin,
+        # delivered without holding the response.
         if user_success and api_key:
-            try:
-                welcome_response = _email_post(
-                    "/send/welcome",
-                    {
-                        "email": email.lower(),
-                        "farmer_name": tenant_name or email.split("@")[0],
-                        "farm_name": tenant_name,
-                        "tenant_id": tenant_id,
-                        "api_key": api_key,
-                    },
-                    timeout=10,
-                )
-                if welcome_response.status_code == 200:
-                    logger.info(f"Welcome email sent to {email}")
-                else:
-                    logger.warning(f"Failed to send welcome email: {welcome_response.status_code}")
-            except Exception as e:
-                logger.error(f"Error sending welcome email: {e}")
-                # Don't fail the request if email fails, just log it
-
-        # Send notification email to platform admin and tenant admin about successful registration
-        try:
-            _email_post(
-                "/email/activation-success",
+            _send_email_async(
+                "/send/welcome",
                 {
-                    "user_email": email.lower(),
+                    "email": email.lower(),
+                    "farmer_name": tenant_name or email.split("@")[0],
+                    "farm_name": tenant_name,
                     "tenant_id": tenant_id,
-                    "tenant_name": tenant_name,
-                    "plan": plan_info["plan"],
-                    "activation_code": code,
-                    "platform_email": PLATFORM_EMAIL,
-                    "tenant_admin_email": email.lower(),  # El primer usuario es el admin del tenant
+                    "api_key": api_key,
                 },
-                timeout=10,
+                purpose="welcome",
             )
-        except Exception as e:
-            logger.error(f"Error sending activation success notification: {e}")
-            # Don't fail the request if notification email fails
+        _send_email_async(
+            "/email/activation-success",
+            {
+                "user_email": email.lower(),
+                "tenant_id": tenant_id,
+                "tenant_name": tenant_name,
+                "plan": plan_info["plan"],
+                "activation_code": code,
+                "platform_email": PLATFORM_EMAIL,
+                "tenant_admin_email": email.lower(),  # the first user is the tenant admin
+            },
+            purpose="activation-success",
+        )
 
         logger.info(f"Successfully activated tenant: {tenant_id} with code: {code}")
         audit_log(
@@ -5506,7 +5298,6 @@ def activate_tenant():  # noqa: C901
             {
                 "success": True,
                 "tenant_id": tenant_id,
-                "namespace": get_tenant_namespace(tenant_id),
                 "api_key": api_key,
                 "plan": plan_info["plan"],
                 "limits": {
@@ -5543,19 +5334,11 @@ def handle_tenant_created(tenant_id: str, payload: dict[str, Any]) -> tuple:
             "code": "KEYCLOAK-DIRECT",
         }
 
-        # Create tenant resources
-        success = webhook_service.create_tenant_resources(tenant_id, plan_info)
-        if not success:
-            logger.error(f"Failed to create tenant resources for: {tenant_id}")
-            return jsonify({"error": "Failed to create tenant resources"}), 500
-
-        # Create ROS2 resources
-        ros2_success = webhook_service.create_ros2_resources(tenant_id)
-        if not ros2_success:
-            logger.warning(f"Failed to create ROS2 resources for: {tenant_id}")
-
-        # Generate API key
-        api_key = webhook_service.generate_api_key(tenant_id)
+        provisioning = webhook_service.provision_tenant_core(tenant_id, plan_info)
+        if not provisioning.orion_db:
+            logger.error(f"Failed to provision tenant storage for: {tenant_id}")
+            return jsonify({"error": "Failed to provision tenant storage"}), 500
+        api_key = provisioning.api_key
         if not api_key:
             logger.warning(f"Failed to generate API key for: {tenant_id}")
 
@@ -5578,9 +5361,7 @@ def handle_tenant_created(tenant_id: str, payload: dict[str, Any]) -> tuple:
             {
                 "message": "Tenant created successfully",
                 "tenant_id": tenant_id,
-                "namespace": get_tenant_namespace(tenant_id),
                 "api_key": api_key,
-                "ros2_configured": ros2_success,
                 "grafana_configured": grafana_success,
             }
         ), 200
@@ -5595,42 +5376,6 @@ def handle_tenant_updated(tenant_id: str, payload: dict[str, Any]) -> tuple:
     logger.info(f"Processing tenant update for: {tenant_id}")
     # TODO: Implement tenant update logic
     return jsonify({"message": "Tenant update processed"}), 200
-
-
-@app.route("/api/tenant/services/ros2/activate", methods=["POST"])
-@require_keycloak_auth
-def activate_ros2_service():
-    """Activate ROS2 service for a tenant (called from Settings panel)"""
-    try:
-        tenant_id = g.tenant_id
-        if not tenant_id:
-            return jsonify({"error": "Tenant ID not found"}), 400
-
-        logger.info(f"Activating ROS2 service for tenant: {tenant_id}")
-
-        # Create ROS2 resources
-        ros2_success = webhook_service.create_ros2_resources(tenant_id)
-
-        if ros2_success:
-            return jsonify(
-                {
-                    "success": True,
-                    "message": "ROS2 service activated successfully",
-                    "tenant_id": tenant_id,
-                }
-            ), 200
-        else:
-            return jsonify(
-                {
-                    "success": False,
-                    "message": "Failed to activate ROS2 service. Please check logs and try again.",
-                    "tenant_id": tenant_id,
-                }
-            ), 500
-
-    except Exception as e:
-        logger.error(f"Error activating ROS2 service: {e}")
-        return _internal_error(e, "activate_ros2_service", user_message="Failed to activate ROS2 service")  # noqa: E501
 
 
 @app.route("/api/tenant/services/ros2/status", methods=["GET"])
@@ -6665,74 +6410,49 @@ def register_tenant():
             conn.commit()
             cursor.close()
 
-            # 6. Provision K8s resources (namespace, network policies, etc.)
-            #    and ensure Orion-LD MongoDB database exists
-            logger.info(f"Provisioning infrastructure for self-service tenant: {tenant_id}")
-            try:
-                webhook_service.create_tenant_resources(tenant_id, plan_info)
-                logger.info(f"Infrastructure provisioned for tenant: {tenant_id}")
-            except Exception as resource_err:
-                # K8s provisioning failed — log but don't block login.
-                # Tenant admin can retry from Settings or platform admin can fix.
+            # 6. Tenant storage: Orion-LD database + API key. The user can
+            #    already log in, so a failure is logged for the platform admin
+            #    to re-provision instead of blocking the registration.
+            provisioning = webhook_service.provision_tenant_core(tenant_id, plan_info)
+            if not provisioning.ok:
                 logger.error(
-                    f"K8s provisioning failed for tenant {tenant_id}: {resource_err}. "
-                    "Tenant can log in but Orion-LD/K8s resources may be missing."
+                    f"Tenant {tenant_id} provisioned with errors: "
+                    f"{'; '.join(provisioning.errors)}"
                 )
+            api_key = provisioning.api_key
 
-            # 7. Generate API key (best-effort, don't block registration)
-            try:
-                api_key = webhook_service.generate_api_key(tenant_id)
-                if api_key:
-                    logger.info(f"API key generated for tenant: {tenant_id}")
-            except Exception as api_key_err:
-                logger.warning(f"API key generation failed for {tenant_id}: {api_key_err}")
-
-            # 8. Send welcome email to user (best-effort, don't block registration)
+            # 7. Welcome email and admin notification, without holding the response
             if api_key:
-                try:
-                    welcome_response = _email_post(
-                        "/send/welcome",
-                        {
-                            "email": email.lower(),
-                            "farmer_name": (
-                                data.get("first_name")
-                                or data.get("firstName")
-                                or email.split("@")[0]
-                            ),
-                            "farm_name": organization_name,
-                            "tenant_id": tenant_id,
-                            "api_key": api_key,
-                        },
-                        timeout=10,
-                    )
-                    if welcome_response.status_code == 200:
-                        logger.info(f"Welcome email sent to {email}")
-                    else:
-                        logger.warning(
-                            f"Failed to send welcome email: {welcome_response.status_code}"
-                        )
-                except Exception as email_err:
-                    logger.error(f"Error sending welcome email: {email_err}")
-
-            # 9. Send admin notification about new registration (best-effort)
-            try:
-                _email_post(
-                    "/email/activation-success",
+                _send_email_async(
+                    "/send/welcome",
                     {
-                        "user_email": email.lower(),
-                        "tenant_id": tenant_id,
-                        "tenant_name": organization_name,
-                        "plan": plan_lower,
-                        "activation_code": plan_info.get(
-                            "code", f"TRIAL-{secrets.token_hex(4).upper()}"
+                        "email": email.lower(),
+                        "farmer_name": (
+                            data.get("first_name")
+                            or data.get("firstName")
+                            or email.split("@")[0]
                         ),
-                        "platform_email": PLATFORM_EMAIL,
-                        "tenant_admin_email": email.lower(),
+                        "farm_name": organization_name,
+                        "tenant_id": tenant_id,
+                        "api_key": api_key,
                     },
-                    timeout=10,
+                    purpose="welcome",
                 )
-            except Exception as notify_err:
-                logger.error(f"Error sending activation success notification: {notify_err}")
+            _send_email_async(
+                "/email/activation-success",
+                {
+                    "user_email": email.lower(),
+                    "tenant_id": tenant_id,
+                    "tenant_name": organization_name,
+                    "plan": plan_lower,
+                    "activation_code": plan_info.get(
+                        "code", f"TRIAL-{secrets.token_hex(4).upper()}"
+                    ),
+                    "platform_email": PLATFORM_EMAIL,
+                    "tenant_admin_email": email.lower(),
+                },
+                purpose="activation-success",
+            )
 
             logger.info(f"Onboarding successful: Tenant {tenant_id} created for {email}")
 
@@ -6765,31 +6485,10 @@ def handle_tenant_deleted(tenant_id: str, payload: dict[str, Any]) -> tuple:
             logger.warning(f"Refusing tenant deletion with invalid tenant_id: {tenant_id!r}")
             return jsonify({"error": "Invalid tenant_id format"}), 400
 
-        logger.info(f"Processing tenant deletion for: {tenant_id}")
-
-        # Delete tenant namespace via kubectl argv list (no shell, no dynamic script path).
-        namespace = get_tenant_namespace(tenant_id)
-        result = subprocess.run(
-            ["kubectl", "delete", "namespace", namespace, "--ignore-not-found=true"],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
-        if result.returncode == 0:
-            logger.info(f"Successfully cleaned up tenant namespace: {namespace}")
-        else:
-            logger.error(f"Failed to cleanup tenant {tenant_id}: {result.stderr}")
-
-        # Best-effort removal of legacy per-tenant cleanup scripts (never execute them).
-        # The path passed to os.remove() comes from the directory listing, never
-        # from user input; tenant_id only appears in an equality comparison, so
-        # there is no path-injection flow by construction.
-        with suppress(OSError):
-            for entry in os.scandir("/app/scripts"):
-                if entry.name == f"cleanup-tenant-{tenant_id}.sh" and entry.is_file():
-                    os.remove(entry.path)
-
+        # Tenants own no cluster resources any more, so there is nothing to
+        # remove here. Tenant data in PostgreSQL and Orion-LD is handled by
+        # the platform-admin deletion flow, not by this identity event.
+        logger.info(f"Tenant deletion acknowledged for: {tenant_id}")
         return jsonify({"message": "Tenant deletion processed"}), 200
 
     except Exception as e:
