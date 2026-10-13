@@ -16,7 +16,8 @@ from typing import Any
 ASSIGN_TOLERANCE_DAYS = 60
 _CLOSED = {"harvested", "terminated"}
 _EXCLUDED = {"cancelled"}
-_FACTS = ("actual", "declared")  # a sowing that happened (field op) or a person stated
+_FACTS = ("actual", "declared")
+_AUTUMN_SOWING_MONTH = 8  # annual sown from August on: harvested the next year  # a sowing that happened (field op) or a person stated
 _TERMINATING_TILLAGE = frozenset({"roller_crimper", "mowing"})  # field-operations tillageType values that end a cover
 _TERMINABLE_ROLES = frozenset({"cover_crop", "catch_crop"})
 _PERENNIAL, _ANNUAL = "perennial", "annual"
@@ -78,9 +79,16 @@ class CropCycle:
 
     @property
     def campaign_label(self) -> int | None:
+        """Harvest year (PAC). Without an end, estimated from the sowing: an annual
+        sown from August on is harvested the next year (the August rule planning
+        uses); a perennial keeps its planting year."""
         if self.end.date:
             return self.end.date.year
-        return self.start.date.year if self.start.date else None
+        if not self.start.date:
+            return None
+        if self.lifecycle != _PERENNIAL and self.start.date.month >= _AUTUMN_SOWING_MONTH:
+            return self.start.date.year + 1
+        return self.start.date.year
 
     def to_dict(self) -> dict:
         return {
