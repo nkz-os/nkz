@@ -13,7 +13,7 @@ const DEFAULT_FUTURE_DAYS = 30;
 const DEFAULT_SEASON_DAYS = 180;
 const MAX_PAST_DAYS = 365;
 const MAX_FUTURE_DAYS = 365;
-const CLOSED = new Set(['planned', 'harvested', 'terminated']);
+const CLOSED = new Set(['planned', 'harvested', 'terminated', 'cancelled']);
 const FINISHED = new Set(['harvested', 'terminated', 'cancelled']);
 const END_ATTRS = ['harvestDate', 'expectedTerminationDate', 'terminationDate'] as const;
 
@@ -22,6 +22,17 @@ function unwrap(attr: unknown): unknown {
   if (v && typeof v === 'object' && 'value' in (v as object)) v = (v as { value: unknown }).value;
   if (v && typeof v === 'object' && '@value' in (v as object)) v = (v as { '@value': unknown })['@value'];
   return v;
+}
+
+/** Activation scaffolding, never a real crop. */
+function isPlaceholder(c: unknown): boolean {
+  return unwrap((c as Record<string, unknown>).provenance) === 'placeholder';
+}
+
+/** A crop whose end was recorded in the field (harvest, termination) is over. */
+function endedBy(rec: Record<string, unknown>, now: number): boolean {
+  const end = dateAttr(rec.actualTerminationDate);
+  return Number.isFinite(end) && end <= now;
 }
 
 function dateAttr(attr: unknown): number {
@@ -34,12 +45,15 @@ export function resolveTimelineRange(
 ): { range: TimeRange; source: 'campaign' | 'default' } {
   const candidates = crops
     .filter(c => isRelatedToParcel(c, parcelId))
+    .filter(c => !isPlaceholder(c))
     .map(c => {
       const rec = c as Record<string, unknown>;
       const status = unwrap(rec.status);
-      return { rec, status: typeof status === 'string' ? status : null, start: dateAttr(rec.plantingDate) };
+      // The actual sowing (stamped from field operations) wins over the planned date.
+      const actual = dateAttr(rec.actualPlantingDate);
+      return { rec, status: typeof status === 'string' ? status : null, start: Number.isFinite(actual) ? actual : dateAttr(rec.plantingDate) };
     })
-    .filter(c => Number.isFinite(c.start) && c.start <= now && !(c.status && CLOSED.has(c.status)));
+    .filter(c => Number.isFinite(c.start) && c.start <= now && !(c.status && CLOSED.has(c.status)) && !endedBy(c.rec, now));
 
   const active = candidates.filter(c => c.status === 'active');
   const pool = active.length > 0 ? active : candidates;
@@ -69,14 +83,14 @@ export function resolveTimelineRange(
 /** The recent past plus the parcel's next planned crop, so the present and the coming campaign show together. */
 function rangeOfNextCrop(crops: unknown[], parcelId: string, now: number): { range: TimeRange; source: 'campaign' } | null {
   const upcoming = crops
-    .filter(c => isRelatedToParcel(c, parcelId))
+    .filter(c => isRelatedToParcel(c, parcelId) && !isPlaceholder(c))
     .map(c => {
       const rec = c as Record<string, unknown>;
       const status = unwrap(rec.status);
       const planting = dateAttr(rec.plantingDate);
       return { rec, status, start: Number.isFinite(planting) ? planting : dateAttr(rec.sowingWindowStart) };
     })
-    .filter(c => Number.isFinite(c.start) && c.start > now && !(typeof c.status === 'string' && FINISHED.has(c.status)));
+    .filter(c => Number.isFinite(c.start) && c.start > now && !(typeof c.status === 'string' && FINISHED.has(c.status)) && !endedBy(c.rec, now));
   const next = upcoming.reduce<(typeof upcoming)[number] | null>((a, c) => (!a || c.start < a.start ? c : a), null);
   if (!next) return null;
   const declared = END_ATTRS.map(k => dateAttr(next.rec[k])).find(t => Number.isFinite(t) && t > next.start);

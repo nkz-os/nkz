@@ -104,3 +104,26 @@ describe('resolveTimelineRange — next planned crop', () => {
     expect(r).toEqual({ source: 'campaign', range: { start: D('2026-03-01'), end: D('2026-11-30') } });
   });
 });
+
+describe('resolveTimelineRange — facts written by field operations', () => {
+  it('a recorded harvest closes the crop, so the next planned crop shows', () => {
+    const r = resolveTimelineRange([
+      crop({ status: 'active', plantingDate: '2026-03-01', actualTerminationDate: typed('2026-07-20') }),
+      crop({ status: 'planned', plantingDate: '2026-10-20', harvestDate: '2027-07-01' }),
+    ], P, NOW);
+    expect(r).toEqual({ source: 'campaign', range: { start: NOW - 90 * DAY, end: D('2027-07-01') } });
+  });
+  it('the window starts at the actual sowing when it is known', () => {
+    const r = resolveTimelineRange([
+      crop({ status: 'active', plantingDate: '2026-03-01', actualPlantingDate: typed('2026-03-12'), harvestDate: '2026-11-30' }),
+    ], P, NOW);
+    expect(r.range.start).toBe(D('2026-03-12'));
+  });
+  it('placeholder and cancelled crops never set the window', () => {
+    expect(resolveTimelineRange([
+      crop({ provenance: 'placeholder', plantingDate: '2026-11-01', harvestDate: '2027-06-01' }),
+      crop({ status: 'cancelled', plantingDate: '2026-03-01', harvestDate: '2026-11-30' }),
+      crop({ status: 'cancelled', plantingDate: '2026-11-01', harvestDate: '2027-06-01' }),
+    ], P, NOW)).toEqual(DEFAULT);
+  });
+});
