@@ -4743,8 +4743,6 @@ def _scope_n8n_cookie(value: str, tenant: str) -> str:
     and a Domain attribute would widen it to every host of the site. The Path
     is rewritten under /<tenant>/ (added when absent) and Domain is dropped.
     """
-    import re
-
     prefix = f"/{tenant}"
     parts = [p.strip() for p in value.split(";")]
     out = [parts[0]]
@@ -4765,7 +4763,7 @@ def _scope_n8n_cookie(value: str, tenant: str) -> str:
                 path = prefix + (path if path.startswith("/") else "/" + path)
             out.append(f"{name.strip()}={path}")
             continue
-        out.append(re.sub(r"\s*=\s*", "=", attr, count=1) if "=" in attr else attr)
+        out.append(f"{name.strip()}={val.strip()}" if "=" in attr else attr)
     if not seen_path:
         out.append(f"Path={prefix}/")
     return "; ".join(out)
