@@ -117,12 +117,16 @@ def test_retire_removes_only_the_entity_manager_crop_cycle_subscriptions():
             self.kw = kw
 
         async def remove_all(self, tenants):
-            return {'removed': len(tenants), 'absent': 0, 'errors': [], 'tenants': tenants}
+            return {'removed': len(tenants), 'absent': 0, 'errors': [], 'tenants': tenants, 'registrar': self}
 
     with patch.object(bp, 'SubscriptionRegistrar', FakeRegistrar), \
             patch('blueprints.notifications.registrar_auth_kwargs', return_value={}, create=True):
         result = bp.retire_crop_cycle_subscriptions(['a', 'b'])
     assert result['tenants'] == ['a', 'b']
+    # Only this service's own subscriptions: its module name and its two types.
+    reg = result['registrar']
+    assert reg.kw['module_name'] == 'entity-manager-crop-cycles'
+    assert {s['type'] for s in reg.kw['subscriptions']} == {'AgriCrop', 'AgriParcelOperation'}
 
 
 def test_no_writer_left_in_the_service():
