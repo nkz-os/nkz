@@ -60,6 +60,10 @@ logging.getLogger().addFilter(PatSanitizingFilter())
 _cors_env = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
 ALLOWED_ORIGINS = {o.strip() for o in _cors_env.split(",") if o.strip()}
 _cors_origins = list(ALLOWED_ORIGINS)
+if not ALLOWED_ORIGINS:
+    logger.critical(
+        "CORS_ORIGINS is empty: every cookie-authenticated browser mutation will be rejected"
+    )
 
 # Add common directory to path for keycloak_auth and tenant_utils
 # Try both relative path (for local dev) and absolute path (for Docker)
@@ -648,6 +652,37 @@ def reject_dot_segments():
 def record_request_start_time():
     """Record start time for request duration logging."""
     g.start_time = time.time()
+
+
+_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+@app.before_request
+def reject_cross_site_cookie_auth():
+    """Same-site CSRF guard for mutations authenticated by the cookie alone.
+
+    ``SameSite=Strict`` keeps the session cookie off cross-site requests, but
+    sibling subdomains of the same registrable domain are same-site, and some
+    of them run tenant-controlled code. Browsers stamp every mutating request
+    with its ``Origin`` and scripts cannot forge it, so a mutation that relies
+    on the cookie must come from an origin this installation serves its UI
+    from. Bearer-authenticated requests are not ambient and are left alone;
+    requests without ``Origin`` are not browser-initiated.
+    """
+    if request.method not in _MUTATING_METHODS:
+        return None
+    if request.headers.get("Authorization"):
+        return None
+    if SESSION_COOKIE not in request.cookies:
+        return None
+    origin = request.headers.get("Origin")
+    if origin is None or origin in ALLOWED_ORIGINS:
+        return None
+    logger.warning(
+        "Cross-site cookie-authenticated %s %s rejected (origin=%s)",
+        request.method, request.path, origin,
+    )
+    return jsonify({"error": "Cross-site request rejected"}), 403
 
 
 @app.before_request
