@@ -171,3 +171,17 @@ def test_orphan_install_rows_are_logged(monkeypatch, caplog):
     with caplog.at_level(logging.WARNING):
         m._module_tenant_states("risk")
     assert any("2 install rows" in r.getMessage() for r in caplog.records)
+
+
+def test_inactive_tenants_are_left_out(monkeypatch):
+    """Suspended or cancelled tenants are frozen: absent from the answer, so a module
+    neither creates nor removes anything there and a revived tenant finds it intact."""
+    import blueprints.modules as m
+
+    conn, cur = _fake_conn({"?column?": 1}, [])
+    monkeypatch.setattr(m, "get_db_connection_simple", lambda: conn)
+    monkeypatch.setattr(m, "return_db_connection", lambda c: None)
+    m._module_tenant_states("risk")
+    tenants_sql = next(c.args[0] for c in cur.execute.call_args_list if "FROM tenants t" in c.args[0])
+    assert "t.status = 'active'" in tenants_sql
+    assert "t.deleted_at IS NULL" in tenants_sql
