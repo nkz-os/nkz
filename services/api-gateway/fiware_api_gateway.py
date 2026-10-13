@@ -4735,32 +4735,6 @@ def _n8n_tenant_from_referer(referer: str) -> str:
     return segment if re.fullmatch(r"[a-z0-9-]{1,63}", segment) else ""
 
 
-@app.route(
-    "/n8n/<tenant_id>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-    strict_slashes=False,
-)
-@app.route(
-    "/n8n/<tenant_id>/<path:subpath>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-)
-@app.route(
-    "/<tenant_id>/<path:subpath>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-)
-@app.route(
-    "/<tenant_id>",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-    strict_slashes=False,
-)
-@app.route(
-    "/assets/<path:subpath>",
-    methods=["GET", "HEAD", "OPTIONS"],
-)
-@app.route(
-    "/static/<path:subpath>",
-    methods=["GET", "HEAD", "OPTIONS"],
-)
 def _scope_n8n_cookie(value: str, tenant: str) -> str:
     """Keep an upstream n8n Set-Cookie under this tenant's path prefix.
 
@@ -4797,6 +4771,32 @@ def _scope_n8n_cookie(value: str, tenant: str) -> str:
     return "; ".join(out)
 
 
+@app.route(
+    "/n8n/<tenant_id>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+    strict_slashes=False,
+)
+@app.route(
+    "/n8n/<tenant_id>/<path:subpath>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+)
+@app.route(
+    "/<tenant_id>/<path:subpath>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+)
+@app.route(
+    "/<tenant_id>",
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+    strict_slashes=False,
+)
+@app.route(
+    "/assets/<path:subpath>",
+    methods=["GET", "HEAD", "OPTIONS"],
+)
+@app.route(
+    "/static/<path:subpath>",
+    methods=["GET", "HEAD", "OPTIONS"],
+)
 def n8n_tenant_proxy(tenant_id=None, subpath=""):
     """Proxy per-tenant n8n instances via path-based routing.
 
