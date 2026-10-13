@@ -51,6 +51,14 @@ from nkz_platform_sdk.agronomy import (
     confidence_from_match,
     confidence_from_fidelity,
 )
+from nkz_platform_sdk.crop_timeline import (
+    CropDataUnavailable,
+    ParcelNotFound,
+    fetch_crop_timeline,
+    load_crop_data,
+    local_today,
+    normalize_parcel_urn,
+)
 from nkz_platform_sdk.crop_cycles import (
     Boundary,
     CropCycle,
@@ -81,6 +89,12 @@ __all__ = [
     "confidence_from_match",
     "confidence_from_fidelity",
     "resolve_crop_cycles",
+    "fetch_crop_timeline",
+    "load_crop_data",
+    "local_today",
+    "normalize_parcel_urn",
+    "CropDataUnavailable",
+    "ParcelNotFound",
     "CropCycleTimeline",
     "CropCycle",
     "Boundary",
