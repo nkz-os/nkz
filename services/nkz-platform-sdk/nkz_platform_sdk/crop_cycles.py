@@ -9,13 +9,14 @@ campaign of the year it ends in. Pure function: no I/O, deterministic.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from typing import Any
 
 ASSIGN_TOLERANCE_DAYS = 60
 _CLOSED = {"harvested", "terminated"}
 _EXCLUDED = {"cancelled"}
+_FACTS = ("actual", "declared")  # a sowing that happened (field op) or a person stated
 _TERMINATING_TILLAGE = frozenset({"roller_crimper", "mowing"})  # field-operations tillageType values that end a cover
 _TERMINABLE_ROLES = frozenset({"cover_crop", "catch_crop"})
 _PERENNIAL, _ANNUAL = "perennial", "annual"
@@ -71,6 +72,9 @@ class CropCycle:
     end: Boundary
     planned_start: date | None = None
     planned_end: date | None = None
+    # Planned start already past, nothing sown or declared, not closed: the plan
+    # is not the field. Never current, never previous; asks for the sowing.
+    pending: bool = False
 
     @property
     def campaign_label(self) -> int | None:
@@ -83,7 +87,9 @@ class CropCycle:
             "crop_id": self.crop_id, "role": self.role, "species": self.species,
             "status": self.status, "lifecycle": self.lifecycle,
             "start": self.start.to_dict(), "end": self.end.to_dict(),
-            "campaign_label": self.campaign_label,
+            "campaign_label": self.campaign_label, "pending": self.pending,
+            "planned_start": self.planned_start.isoformat() if self.planned_start else None,
+            "planned_end": self.planned_end.isoformat() if self.planned_end else None,
         }
 
 
@@ -101,6 +107,7 @@ class CropCycleTimeline:
     cycles: tuple = ()
     unassigned: tuple = ()
     hints: tuple = ()
+    pending: CropCycle | None = None
 
     def to_dict(self) -> dict:
         def c(x):
@@ -111,6 +118,7 @@ class CropCycleTimeline:
             "campaign": {"label": self.campaign_end.year, "start": self.campaign_start.isoformat(),
                          "end": self.campaign_end.isoformat()},
             "current": c(self.current), "previous": c(self.previous), "next": c(self.next),
+            "pending": c(self.pending),
             "accumulation": {"start": self.accumulation_start.isoformat(), "basis": self.accumulation_basis},
             "cycles": [cy.to_dict() for cy in sorted(self.cycles, key=lambda cy: cy.start.date or date.min)],
             "unassigned_operations": list(self.unassigned), "hints": list(self.hints),
@@ -253,7 +261,17 @@ def resolve_crop_cycles(
             start=start, end=end, planned_start=r["ps"], planned_end=r["pe"],
         ))
 
+    def is_pending(cy: CropCycle) -> bool:
+        return (cy.start.provenance == "planned" and cy.start.date is not None
+                and cy.start.date <= at and cy.status not in _CLOSED)
+
+    cycles = [replace(cy, pending=True) if is_pending(cy) else cy for cy in cycles]
+
     def is_current(cy: CropCycle) -> bool:
+        # Only a sowing that happened or was declared puts a crop in the field;
+        # a plan whose date has passed is pending, not current.
+        if cy.start.provenance not in _FACTS:
+            return False
         if cy.start.date is None or cy.start.date > at or cy.status in _CLOSED:
             return False
         if cy.end.date is None or at <= cy.end.date:
@@ -263,11 +281,14 @@ def resolve_crop_cycles(
 
     current_c = [cy for cy in cycles if is_current(cy)]
     current = max(current_c, key=_current_rank) if current_c else None
-    past = [cy for cy in cycles if cy is not current and cy.start.date and cy.start.date <= at
+    past = [cy for cy in cycles if cy is not current and not cy.pending
+            and cy.start.date and cy.start.date <= at
             and (cy.status in _CLOSED or (cy.end.date and cy.end.date < at))]
     previous = max(past, key=lambda cy: cy.end.date or cy.start.date) if past else None
     future = [cy for cy in cycles if cy.start.date and cy.start.date > at]
     nxt = min(future, key=lambda cy: cy.start.date) if future else None
+    pending_c = [cy for cy in cycles if cy.pending]
+    pending = max(pending_c, key=lambda cy: cy.start.date) if pending_c else None
 
     c_start, c_end = _campaign_bounds(at, campaign_start)
     if current is None:
@@ -282,4 +303,5 @@ def resolve_crop_cycles(
         current=current, previous=previous, next=nxt,
         accumulation_start=acc, accumulation_basis=basis,
         cycles=tuple(cycles), unassigned=tuple(unassigned), hints=tuple(hints),
+        pending=pending,
     )
