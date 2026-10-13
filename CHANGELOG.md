@@ -29,8 +29,7 @@
 
 - **A planned crop is not a crop in the field** (SDK 0.12.0): a crop cycle is
   current only when its sowing happened (field operation) or was declared (a
-  planting date entered by hand, or a crop marked active); a plan whose date has
-  passed is now `pending` (on the timeline and as a flag on
+  planting date entered by hand); a plan whose date has passed is now `pending` (on the timeline and as a flag on
   each cycle, with `planned_start` / `planned_end`) and is never `previous`.
   The entity-manager reconciler links `hasAgriCrop` only to such a crop and
   removes a link that points to a crop that is still just a plan. SDK clients

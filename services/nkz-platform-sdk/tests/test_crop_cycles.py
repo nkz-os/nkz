@@ -30,7 +30,7 @@ def test_future_planting_is_next_not_current():
     t = tl([crop("a", status="active", plantingDate={"@type": "Date", "@value": "2026-10-15"},
                  harvestDate={"@type": "Date", "@value": "2027-06-30"})])
     assert t["current"] is None
-    assert t["next"]["start"] == {"date": "2026-10-15", "provenance": "declared"}
+    assert t["next"]["start"] == {"date": "2026-10-15", "provenance": "planned"}
     assert t["next"]["campaign_label"] == 2027
     assert t["campaign"] == {"label": 2026, "start": "2026-01-01", "end": "2026-12-31"}
     assert t["accumulation"]["basis"] == "calendar_year"
@@ -226,9 +226,9 @@ def test_closed_planned_cycle_is_not_pending():
     assert t["pending"] is None
 
 
-def test_active_crop_with_planting_date_is_declared():
-    """Marking a crop active with its planting date is a person saying it is in the
-    field; only plans (status planned, sowing windows) wait for a sowing."""
-    t = tl([crop("a", status="active", plantingDate="2026-03-01")])
-    assert t["current"]["start"] == {"date": "2026-03-01", "provenance": "declared"}
-    assert t["pending"] is None
+def test_active_status_alone_is_not_a_sowing():
+    """The retired crop-assignment flow wrote status active plus a season-start
+    plantingDate with nothing sown: without a source or a sowing it is a plan."""
+    t = tl([crop("a", status="active", plantingDate="2026-03-01", harvestDate="2027-06-30")])
+    assert t["current"] is None
+    assert t["pending"]["start"] == {"date": "2026-03-01", "provenance": "planned"}

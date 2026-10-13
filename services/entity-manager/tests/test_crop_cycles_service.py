@@ -248,8 +248,9 @@ def test_timeline_without_at_uses_the_parcel_day(monkeypatch):
     assert seen["at"] == date(2026, 10, 10)
 
 
-def test_reconcile_keeps_an_active_crop_marked_by_a_person():
-    """status active + planting date (no manual flag) is a declaration: stays linked."""
+def test_reconcile_removes_a_link_to_an_assigned_but_unsown_crop():
+    """The retired crop-assignment shape (status active + plantingDate, no source,
+    no sowing) is a plan, so its parcel link goes."""
     fake = FakeOrion(parcel={"id": P, "type": "AgriParcel", "hasAgriCrop": CROP["id"]}, crops=[dict(CROP)])
     svc.reconcile_parcel("t", P, AT, client=fake)
-    assert fake.deletes == []
+    assert fake.deletes == [(P, "hasAgriCrop")]
