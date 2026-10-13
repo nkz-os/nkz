@@ -232,3 +232,33 @@ def test_active_status_alone_is_not_a_sowing():
     t = tl([crop("a", status="active", plantingDate="2026-03-01", harvestDate="2027-06-30")])
     assert t["current"] is None
     assert t["pending"]["start"] == {"date": "2026-03-01", "provenance": "planned"}
+
+
+# ── Campaign label without an end: the harvest year is estimated from the sowing ──
+
+def test_autumn_sowing_without_end_is_labelled_with_the_next_year():
+    t = tl([crop("w", status="planned", sowingWindowStart="2026-10-20", cropLifecycle="annual")])
+    assert t["cycles"][0]["campaign_label"] == 2027
+
+
+def test_spring_sowing_without_end_keeps_its_year():
+    t = tl([crop("m", status="planned", sowingWindowStart="2026-04-15")])
+    assert t["cycles"][0]["campaign_label"] == 2026
+
+
+def test_end_year_wins_when_known():
+    t = tl([crop("w", status="planned", sowingWindowStart="2026-10-20", harvestDate="2027-07-05")])
+    assert t["cycles"][0]["campaign_label"] == 2027
+    t = tl([crop("c", status="planned", sowingWindowStart="2026-08-01", harvestDate="2026-11-30")])
+    assert t["cycles"][0]["campaign_label"] == 2026
+
+
+def test_perennial_without_end_keeps_its_planting_year():
+    t = tl([crop("v", status="active", plantingDate="2015-10-01", plantingDateSource="manual",
+                 cropLifecycle="perennial")])
+    assert t["cycles"][0]["campaign_label"] == 2015
+
+
+def test_catch_crop_sown_in_august_keeps_its_year():
+    t = tl([crop("k", status="planned", cropRole="catch_crop", sowingWindowStart="2026-08-10")])
+    assert t["cycles"][0]["campaign_label"] == 2026
