@@ -8,11 +8,15 @@ on:
     branches: ["main"]
     paths:
       - "config/timescaledb/migrations/**"
+      - "config/timescaledb/rls_forced_tables.txt"
+      - ".github/scripts/check_rls_ratchet.py"
       - ".github/workflows/db-migrations.yml"
   pull_request:
     branches: ["main"]
     paths:
       - "config/timescaledb/migrations/**"
+      - "config/timescaledb/rls_forced_tables.txt"
+      - ".github/scripts/check_rls_ratchet.py"
       - ".github/workflows/db-migrations.yml"
 
 permissions:
@@ -37,3 +41,28 @@ jobs:
 
       - name: List last migrations (version sort)
         run: ls -1 config/timescaledb/migrations/*.sql | sort -V | tail -8
+
+  rls-ratchet:
+    name: RLS ratchet (owners, policies, forced list only grows)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve base ref
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run the ratchet check
+        run: python3 .github/scripts/check_rls_ratchet.py --base "${{ steps.base.outputs.ref }}"
+
+      - name: Unit tests of the check
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest .github/scripts/tests/test_check_rls_ratchet.py -q
