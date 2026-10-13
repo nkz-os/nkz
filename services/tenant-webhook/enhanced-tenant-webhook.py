@@ -34,6 +34,7 @@ from flask_limiter.util import get_remote_address
 from psycopg2 import errors as psycopg2_errors
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Configure logging first
 logging.basicConfig(
@@ -127,6 +128,10 @@ except ImportError:
     K8S_ENABLED = False
 
 app = Flask(__name__)
+# Public routes arrive straight from Traefik, which replaces any client-sent
+# X-Forwarded-For with the real peer. Trust exactly that one hop so the
+# per-IP limits below key on the client, not on the proxy pod shared by all.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 
 # Rate limiting setup (SOTA Layer 3: Backend Security)
 # Using Redis for persistence across pod restarts
