@@ -46,13 +46,21 @@ def db():
                 time.sleep(1)
         else:
             raise RuntimeError("postgres did not come up")
-        with psycopg2.connect(admin) as c:
-            c.autocommit = True
-            c.cursor().execute("CREATE DATABASE nekazari")
+        c = psycopg2.connect(admin)
+        c.autocommit = True
+        c.cursor().execute("CREATE DATABASE nekazari")
+        c.close()
         _psql(cid, DUMP, stop_on_error=False)
         yield cid, f"postgresql://postgres:t@127.0.0.1:{PORT}/nekazari"
     finally:
         subprocess.call(["docker", "stop", cid], stdout=subprocess.DEVNULL)
+
+
+def _exec(dsn, sql):
+    c = psycopg2.connect(dsn)
+    c.autocommit = True
+    c.cursor().execute(sql)
+    c.close()
 
 
 def _q(dsn, sql, *args):
@@ -88,18 +96,14 @@ def test_hypertable_owner_transferred(db):
 
 def test_owner_reads_enable_table_without_tenant(db):
     _, dsn = db
-    with psycopg2.connect(dsn) as c:
-        c.autocommit = True
-        c.cursor().execute("ALTER ROLE nkz_core PASSWORD 'c'")
+    _exec(dsn, "ALTER ROLE nkz_core PASSWORD 'c'")
     # users has ENABLE policies; the owner is not filtered and sees no error
     assert _q(_as(dsn, "nkz_core", "c"), "select count(*) from users") == [(0,)]
 
 
 def test_module_role_cannot_read_platform_tables(db):
     _, dsn = db
-    with psycopg2.connect(dsn) as c:
-        c.autocommit = True
-        c.cursor().execute("ALTER ROLE nkz_module_cue PASSWORD 'm'")
+    _exec(dsn, "ALTER ROLE nkz_module_cue PASSWORD 'm'")
     mdsn = _as(dsn, "nkz_module_cue", "m")
     for table in ("tenants", "api_keys", "users", "activation_codes"):
         with pytest.raises(psycopg2.errors.InsufficientPrivilege):
@@ -110,8 +114,6 @@ def test_module_role_cannot_read_platform_tables(db):
 
 def test_public_cannot_connect(db):
     _, dsn = db
-    with psycopg2.connect(dsn) as c:
-        c.autocommit = True
-        c.cursor().execute("CREATE ROLE nobody_role LOGIN PASSWORD 'n'")
+    _exec(dsn, "CREATE ROLE nobody_role LOGIN PASSWORD 'n'")
     with pytest.raises(psycopg2.OperationalError):
         psycopg2.connect(_as(dsn, "nobody_role", "n"))

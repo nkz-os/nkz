@@ -32,7 +32,7 @@ TEMP_RE = re.compile(r"CREATE\s+(?:TEMP|TEMPORARY)\s+TABLE", re.IGNORECASE)
 
 
 def _git(*args: str) -> str:
-    return subprocess.check_output(["git", *args], text=True)
+    return subprocess.check_output(["git", *args], text=True, stderr=subprocess.DEVNULL)
 
 
 def _bare(name: str) -> str:
