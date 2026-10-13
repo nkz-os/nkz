@@ -227,10 +227,10 @@ REQUESTS_PER_MINUTE = int(
     os.getenv("REQUESTS_PER_MINUTE", "120")
 )  # Default: 60 req/min per tenant
 ALLOW_JWT_FALLBACK = os.getenv("ALLOW_JWT_FALLBACK", "false").lower() == "true"
-# Empty means a host-only cookie, which is the correct default: a cookie
-# scoped to a domain the installation does not own is silently rejected by
-# the browser, and auth fails with nothing to show for it.
-COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", "")
+# The session cookie is host-only on purpose. A ``Domain`` attribute would hand
+# it to every sibling subdomain of the installation, some of which run
+# tenant-controlled code; there is deliberately no knob to widen it.
+SESSION_COOKIE = "nkz_token"
 
 # Default timeout for proxied backend calls: a hung backend must never
 # exhaust the gunicorn worker pool
@@ -1200,12 +1200,11 @@ def create_session():
 
     resp = make_response(jsonify({"ok": True}))
     resp.set_cookie(
-        "nkz_token",
+        SESSION_COOKIE,
         token,
         httponly=True,
         secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
         samesite="Strict",  # Standard SOTA for BFF session cookies
-        domain=COOKIE_DOMAIN or None,
         path="/",
         max_age=max_age,
     )
@@ -1216,7 +1215,7 @@ def create_session():
 def delete_session():
     """Clear httpOnly session cookie"""
     resp = make_response(jsonify({"ok": True}))
-    resp.delete_cookie("nkz_token", domain=COOKIE_DOMAIN or None, path="/")
+    resp.delete_cookie(SESSION_COOKIE, path="/")
     return set_cors_headers(resp)
 
 
