@@ -46,12 +46,13 @@ class FakeOrion:
 
 CROP = {"id": "urn:ngsi-ld:AgriCrop:t:a", "type": "AgriCrop", "refAgriParcel": P, "status": "active",
         "plantingDate": "2026-03-01", "harvestDate": "2026-11-30"}
+DECLARED = {**CROP, "plantingDateSource": "manual"}
 SOW = {"id": "urn:ngsi-ld:AgriParcelOperation:s1", "type": "AgriParcelOperation", "hasAgriParcel": P,
        "operationType": "sowing", "status": "completed", "endedAt": "2026-03-12T09:00:00Z"}
 
 
 def test_timeline_shape():
-    t = svc.timeline("t", P, AT, client=FakeOrion(crops=[dict(CROP)]))
+    t = svc.timeline("t", P, AT, client=FakeOrion(crops=[dict(DECLARED)]))
     assert t["current"]["crop_id"] == CROP["id"] and t["accumulation"]["basis"] == "cycle_start"
 
 
@@ -80,10 +81,10 @@ def test_reconcile_is_idempotent():
     assert svc.reconcile_parcel("t", P, AT, client=fake) == []
 
 
-def test_reconcile_planned_start_does_not_set_last_planted():
+def test_reconcile_planned_start_links_nothing():
+    """SDK >= 0.12.0: a plan whose date has passed is not a crop in the field."""
     fake = FakeOrion(crops=[dict(CROP)])
-    written = svc.reconcile_parcel("t", P, AT, client=fake)
-    assert (P, "lastPlantedAt") not in written and (P, "hasAgriCrop") in written
+    assert svc.reconcile_parcel("t", P, AT, client=fake) == []
 
 
 def test_reconcile_orion_down_writes_nothing():
