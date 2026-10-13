@@ -232,6 +232,16 @@ ALLOW_JWT_FALLBACK = os.getenv("ALLOW_JWT_FALLBACK", "false").lower() == "true"
 # tenant-controlled code; there is deliberately no knob to widen it.
 SESSION_COOKIE = "nkz_token"
 
+
+def _cookies_for_upstream() -> dict:
+    """Browser cookies an upstream may see.
+
+    Identity reaches upstreams as ``Authorization`` + ``X-Auth-Signature``;
+    the session cookie itself never does. A tenant-controlled upstream (an
+    automation workflow echoing request headers) must not be able to read it.
+    """
+    return {k: v for k, v in request.cookies.items() if k != SESSION_COOKIE}
+
 # Default timeout for proxied backend calls: a hung backend must never
 # exhaust the gunicorn worker pool
 PROXY_TIMEOUT = int(os.getenv("PROXY_TIMEOUT_SECONDS", "30"))
@@ -4501,7 +4511,7 @@ def _proxy_authenticated_request(target_url: str, *, requires_auth: bool = True)
             headers=headers,
             params=request.args,
             data=request.get_data(),
-            cookies=request.cookies,
+            cookies=_cookies_for_upstream(),
             allow_redirects=False,
             timeout=PROXY_TIMEOUT,
         )
