@@ -8,6 +8,8 @@ Provides:
 - SyncOrionClient: Synchronous NGSI-LD client (for sync codebases)
 - TimescaleClient: Typed timeseries reader, tenant headers auto-injected
 - ModuleLifecycle: Base class for install/uninstall/enable/disable hooks
+- installed_tenants / lifecycle_hint_router: where this module is installed
+  (entity-manager internal API) and the receiver for its enable/disable hint
 - ModuleConfig: Per-tenant encrypted configuration storage
 - generate_hmac_signature / verify_hmac_signature: canonical platform HMAC
   primitive (payload `{data}|{tenant_id}|{timestamp}`, output
@@ -25,7 +27,12 @@ from nkz_platform_sdk.auth import require_auth, AuthContext
 from nkz_platform_sdk.module_app import ModuleApp
 from nkz_platform_sdk.orion import OrionClient, SyncOrionClient
 from nkz_platform_sdk.timescale import TimescaleClient
-from nkz_platform_sdk.lifecycle import ModuleLifecycle, LifecycleResult
+from nkz_platform_sdk.lifecycle import ModuleLifecycle, LifecycleResult, lifecycle_hint_router
+from nkz_platform_sdk.installations import (
+    InstalledTenantsUnavailable,
+    TenantInstallations,
+    installed_tenants,
+)
 from nkz_platform_sdk.config import ModuleConfig
 from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
 from nkz_platform_sdk.activation import ModuleActivation
@@ -60,6 +67,10 @@ __all__ = [
     "TimescaleClient",
     "ModuleLifecycle",
     "LifecycleResult",
+    "lifecycle_hint_router",
+    "installed_tenants",
+    "TenantInstallations",
+    "InstalledTenantsUnavailable",
     "ModuleConfig",
     "SubscriptionRegistrar",
     "ModuleActivation",
