@@ -25,6 +25,12 @@
   (`actualPlantingDate`, `actualTerminationDate`, `hasAgriCrop`,
   `lastPlantedAt`).
 
+### Fixes
+
+- **Lifecycle hint latency** (SDK 0.11.1): a hint that arrived while the
+  previous one waited for its follow-up pass was only handled when that pass
+  ran, up to 90 s later; it now runs at once.
+
 ### Upgrade notes
 
 - New `@context` terms for crop plans (`expectedTerminationDate`,
