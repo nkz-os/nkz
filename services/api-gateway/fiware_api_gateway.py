@@ -4761,6 +4761,42 @@ def _n8n_tenant_from_referer(referer: str) -> str:
     "/static/<path:subpath>",
     methods=["GET", "HEAD", "OPTIONS"],
 )
+def _scope_n8n_cookie(value: str, tenant: str) -> str:
+    """Keep an upstream n8n Set-Cookie under this tenant's path prefix.
+
+    Every tenant n8n shares one host, so a cookie whose Path points at "/" or
+    at another tenant's prefix would be planted on the other tenant's pages,
+    and a Domain attribute would widen it to every host of the site. The Path
+    is rewritten under /<tenant>/ (added when absent) and Domain is dropped.
+    """
+    import re
+
+    prefix = f"/{tenant}"
+    parts = [p.strip() for p in value.split(";")]
+    out = [parts[0]]
+    seen_path = False
+    for attr in parts[1:]:
+        if not attr:
+            continue
+        name, _, val = attr.partition("=")
+        key = name.strip().lower()
+        if key == "domain":
+            continue
+        if key == "path":
+            seen_path = True
+            path = val.strip() or "/"
+            if path == "/":
+                path = prefix + "/"
+            elif path != prefix and not path.startswith(prefix + "/"):
+                path = prefix + (path if path.startswith("/") else "/" + path)
+            out.append(f"{name.strip()}={path}")
+            continue
+        out.append(re.sub(r"\s*=\s*", "=", attr, count=1) if "=" in attr else attr)
+    if not seen_path:
+        out.append(f"Path={prefix}/")
+    return "; ".join(out)
+
+
 def n8n_tenant_proxy(tenant_id=None, subpath=""):
     """Proxy per-tenant n8n instances via path-based routing.
 
@@ -4842,15 +4878,7 @@ def n8n_tenant_proxy(tenant_id=None, subpath=""):
         else:
             joined = resp.headers.get("Set-Cookie")
             set_cookies = re.split(r",\s*(?=[^;,\s]+=)", joined) if joined else []
-        scoped_path = f"/{tenant_id}/"
-        set_cookies = [
-            re.sub(
-                r"(?i)(;\s*path\s*=\s*)/(?=\s*(?:;|$))",
-                lambda m: m.group(1) + scoped_path,
-                value,
-            )
-            for value in set_cookies
-        ]
+        set_cookies = [_scope_n8n_cookie(value, tenant_id) for value in set_cookies]
         resp_headers.pop("Content-Encoding", None)
         resp_headers.pop("Transfer-Encoding", None)
         resp_headers.pop("Content-Security-Policy", None)

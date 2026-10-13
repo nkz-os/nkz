@@ -54,12 +54,50 @@ def test_n8n_proxy_scopes_set_cookie_to_tenant_path(client, monkeypatch):
     ]
 
 
-def test_n8n_proxy_keeps_narrower_cookie_path_unchanged(client, monkeypatch):
+def test_n8n_proxy_prefixes_narrower_cookie_path_with_the_tenant(client, monkeypatch):
+    # n8n answers from "/" upstream; a narrower path only reaches the browser
+    # under the tenant prefix, and must never land under another tenant's
     monkeypatch.setattr(gw, "N8N_PROXY_HOST", "n8n.test")
-    upstream = _upstream(["n8n-y=1; Path=/rest; HttpOnly"])
+    upstream = _upstream(["n8n-y=1; Path=/rest; HttpOnly", "n8n-z=1; Path=/other/; HttpOnly"])
     with patch.object(gw.requests, "request", return_value=upstream):
         resp = client.get("/acme/", base_url="http://n8n.test")
-    assert resp.headers.getlist("Set-Cookie") == ["n8n-y=1; Path=/rest; HttpOnly"]
+    assert resp.headers.getlist("Set-Cookie") == [
+        "n8n-y=1; Path=/acme/rest; HttpOnly",
+        "n8n-z=1; Path=/acme/other/; HttpOnly",
+    ]
+
+
+def test_n8n_proxy_adds_a_tenant_path_when_upstream_sets_none(client, monkeypatch):
+    monkeypatch.setattr(gw, "N8N_PROXY_HOST", "n8n.test")
+    upstream = _upstream(["n8n-q=1; HttpOnly"])
+    with patch.object(gw.requests, "request", return_value=upstream):
+        resp = client.get("/acme/", base_url="http://n8n.test")
+    assert resp.headers.getlist("Set-Cookie") == ["n8n-q=1; HttpOnly; Path=/acme/"]
+
+
+def test_n8n_proxy_drops_domain_attributes(client, monkeypatch):
+    # a Domain attribute would widen a tenant cookie to every host of the site
+    monkeypatch.setattr(gw, "N8N_PROXY_HOST", "n8n.test")
+    upstream = _upstream(["n8n-d=1; Domain=n8n.test; Path=/; Secure"])
+    with patch.object(gw.requests, "request", return_value=upstream):
+        resp = client.get("/acme/", base_url="http://n8n.test")
+    assert resp.headers.getlist("Set-Cookie") == ["n8n-d=1; Path=/acme/; Secure"]
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("a=1; Path=/", "a=1; Path=/acme/"),
+        ("a=1; path=/acme/", "a=1; path=/acme/"),
+        ("a=1; Path=/acme", "a=1; Path=/acme"),
+        ("a=1; Path=/acmeX/", "a=1; Path=/acme/acmeX/"),
+        ("a=1; Path=rest", "a=1; Path=/acme/rest"),
+        ("a=1", "a=1; Path=/acme/"),
+        ("a=1; Domain=.n8n.test; Path=/", "a=1; Path=/acme/"),
+    ],
+)
+def test_scope_n8n_cookie_keeps_every_path_under_the_tenant(value, expected):
+    assert gw._scope_n8n_cookie(value, "acme") == expected
 
 
 @pytest.mark.parametrize(
