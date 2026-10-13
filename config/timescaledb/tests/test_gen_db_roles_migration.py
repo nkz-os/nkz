@@ -3,10 +3,8 @@
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from gen_db_roles_migration import generate  # noqa: E402
+from gen_db_roles_migration import generate
 
 SAMPLE = {
     "roles": {
@@ -59,3 +57,19 @@ def test_module_role_never_gets_platform_tables():
     sql = generate(SAMPLE)
     assert "ON public.tenants TO nkz_module_cue" not in sql
     assert "ON public.api_keys" not in sql
+
+
+def test_continuous_aggregates_pick_the_statement_at_run_time():
+    sql = generate(SAMPLE | {"roles": {"nkz_core": {"owns": ["public.telemetry_1h"], "reads": [], "writes": []}}})
+    assert "timescaledb_information.continuous_aggregates" in sql
+    assert "ALTER MATERIALIZED VIEW public.telemetry_1h OWNER TO nkz_core" in sql
+    assert "ALTER VIEW IF EXISTS public.telemetry_1h OWNER TO nkz_core" in sql
+
+
+def test_provisioner_keeps_its_attributes_when_it_also_has_grants():
+    sample = SAMPLE | {"roles": SAMPLE["roles"] | {"nkz_provisioner": {"owns": [], "reads": ["public.module_tenant_plan"], "writes": ["admin_platform.tenant_module_config"]}}}
+    sql = generate(sample)
+    assert sql.count("CREATE ROLE nkz_provisioner ") == 1
+    assert "CREATE ROLE nkz_provisioner LOGIN NOSUPERUSER NOBYPASSRLS CREATEDB CREATEROLE NOINHERIT" in sql
+    assert "GRANT CONNECT ON DATABASE nekazari TO nkz_core, nkz_module_cue, nkz_provisioner;" in sql
+    assert "GRANT SELECT, INSERT, UPDATE, DELETE ON admin_platform.tenant_module_config TO nkz_provisioner;" in sql

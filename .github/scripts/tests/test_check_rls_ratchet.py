@@ -1,6 +1,5 @@
 """The RLS ratchet: new tables declare an owner and a tenant policy; the forced list only grows."""
 
-import os
 import subprocess
 import sys
 import textwrap
@@ -33,7 +32,7 @@ def repo(tmp_path):
 
 def _run(repo):
     _git(repo, "add", "-A")
-    return subprocess.run([sys.executable, str(SCRIPT), "--base", "main"], cwd=repo, capture_output=True, text=True)
+    return subprocess.run([sys.executable, str(SCRIPT), "--base", "main"], cwd=repo, capture_output=True, text=True, check=False)
 
 
 def test_compliant_migration_passes(repo):

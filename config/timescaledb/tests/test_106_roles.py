@@ -38,12 +38,18 @@ def db():
     ).decode().strip()
     admin = f"postgresql://postgres:t@127.0.0.1:{PORT}/postgres"
     try:
-        for _ in range(90):
+        # the image restarts the server once after initdb: wait for three
+        # consecutive successful connections, not the first one
+        ok = 0
+        for _ in range(180):
             try:
                 psycopg2.connect(admin).close()
-                break
-            except Exception:
-                time.sleep(1)
+                ok += 1
+                if ok >= 3:
+                    break
+            except psycopg2.OperationalError:
+                ok = 0
+            time.sleep(1)
         else:
             raise RuntimeError("postgres did not come up")
         c = psycopg2.connect(admin)
@@ -97,15 +103,15 @@ def test_hypertable_owner_transferred(db):
 def test_owner_reads_enable_table_without_tenant(db):
     _, dsn = db
     _exec(dsn, "ALTER ROLE nkz_core PASSWORD 'c'")
-    # users has ENABLE policies; the owner is not filtered and sees no error
-    assert _q(_as(dsn, "nkz_core", "c"), "select count(*) from users") == [(0,)]
+    # farmers has ENABLE policies; the owner is not filtered and sees no error
+    assert _q(_as(dsn, "nkz_core", "c"), "select count(*) from farmers") == [(0,)]
 
 
 def test_module_role_cannot_read_platform_tables(db):
     _, dsn = db
     _exec(dsn, "ALTER ROLE nkz_module_cue PASSWORD 'm'")
     mdsn = _as(dsn, "nkz_module_cue", "m")
-    for table in ("tenants", "api_keys", "users", "activation_codes"):
+    for table in ("tenants", "api_keys", "farmers", "activation_codes"):
         with pytest.raises(psycopg2.errors.InsufficientPrivilege):
             _q(mdsn, f"select 1 from {table} limit 1")
     assert _q(mdsn, "select count(*) from module_tenant_plan") == [(0,)]
