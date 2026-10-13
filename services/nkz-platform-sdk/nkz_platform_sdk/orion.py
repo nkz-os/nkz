@@ -9,7 +9,7 @@ Rules enforced at library level (impossible to forget):
 
 import os
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 import httpx
 
@@ -261,6 +261,16 @@ class OrionClient:
         )
         resp.raise_for_status()
 
+    async def delete_entity_attr(self, entity_id: str, attr: str) -> None:
+        """Delete one attribute. The name is resolved through the platform @context
+        (Link header), so a short term and its context aliases are the same attribute.
+        Raises on 404 (attribute absent) like any other error."""
+        resp = await self._client.delete(
+            self._url(f"/ngsi-ld/v1/entities/{entity_id}/attrs/{quote(attr, safe='')}"),
+            headers=self._headers("application/json"),
+        )
+        resp.raise_for_status()
+
     async def query_subscriptions(self, limit: int = 100) -> list[dict[str, Any]]:
         """List NGSI-LD subscriptions for this tenant."""
         resp = await self._client.get(
@@ -446,6 +456,15 @@ class SyncOrionClient:
         resp = self._session.delete(
             self._url(f"/ngsi-ld/v1/entities/{entity_id}"),
             headers=self._headers(),
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+
+    def delete_entity_attr(self, entity_id: str, attr: str) -> None:
+        """Delete one attribute (see OrionClient.delete_entity_attr)."""
+        resp = self._session.delete(
+            self._url(f"/ngsi-ld/v1/entities/{entity_id}/attrs/{quote(attr, safe='')}"),
+            headers=self._headers("application/json"),
             timeout=self.timeout,
         )
         resp.raise_for_status()
