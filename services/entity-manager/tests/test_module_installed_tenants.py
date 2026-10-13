@@ -42,9 +42,9 @@ def test_db_failure_is_503_never_empty(client, monkeypatch):  # noqa: F811
     assert "tenants" not in r.get_json()
 
 
-def _fake_conn(module_row, rows):
+def _fake_conn(module_row, rows, orphans=0):
     cur = MagicMock()
-    cur.fetchone.return_value = module_row
+    cur.fetchone.side_effect = [module_row, {"orphans": orphans}]
     cur.fetchall.return_value = rows
     conn = MagicMock()
     conn.cursor.return_value = cur
@@ -119,7 +119,7 @@ def test_dispatch_sends_verifiable_token(monkeypatch):
         m.requests, "post",
         lambda url, data, headers, timeout: sent.update(headers) or MagicMock(status_code=202),
     )
-    m._dispatch_module_lifecycle_webhook_if_configured("risk", "Montiko", True)
+    m._dispatch_module_lifecycle_webhook_if_configured("risk", "Tenant-A", True)
     delivered = {**sent, "Host": "risk-api-service:8000"}
     assert verify_notification(delivered, secret="test-secret", accept_master=False)
 
@@ -145,3 +145,29 @@ def test_upload_hints_after_commit():
     src = inspect.getsource(m._upload_dist_and_activate)
     assert "_hint_auto_install(" in src
     assert src.index("conn.commit()") < src.index("_hint_auto_install(")
+
+
+def test_rls_cannot_hide_rows(monkeypatch):
+    """Row security must raise (→ 503), never filter install rows into "not_installed"."""
+    import blueprints.modules as m
+
+    conn, cur = _fake_conn({"?column?": 1}, [])
+    monkeypatch.setattr(m, "get_db_connection_simple", lambda: conn)
+    monkeypatch.setattr(m, "return_db_connection", lambda c: None)
+    m._module_tenant_states("risk")
+    first_sql = cur.execute.call_args_list[0].args[0]
+    assert first_sql.strip() == "SET LOCAL row_security = off"
+    conn.rollback.assert_called()
+
+
+def test_orphan_install_rows_are_logged(monkeypatch, caplog):
+    import logging
+
+    import blueprints.modules as m
+
+    conn, _ = _fake_conn({"?column?": 1}, [], orphans=2)
+    monkeypatch.setattr(m, "get_db_connection_simple", lambda: conn)
+    monkeypatch.setattr(m, "return_db_connection", lambda c: None)
+    with caplog.at_level(logging.WARNING):
+        m._module_tenant_states("risk")
+    assert any("2 install rows" in r.getMessage() for r in caplog.records)

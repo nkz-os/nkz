@@ -581,8 +581,9 @@ class SubscriptionRegistrar:
         Asks entity-manager (`installed_tenants`). When it cannot answer,
         nothing is touched. Otherwise ensure_all(enabled) and
         remove_all(disabled + not_installed). Serialized per registrar, and
-        the snapshot is taken inside the lock, so a stale heal cannot undo a
-        fresher lifecycle hint.
+        the snapshot is taken inside the lock, so within one process a stale
+        heal cannot undo a fresher lifecycle hint. Across replicas it can;
+        ``lifecycle_hint_router``'s delayed follow-up pass repairs that.
         """
         async with self._reconcile_lock:
             try:

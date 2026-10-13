@@ -1537,10 +1537,17 @@ def _module_tenant_states(module_id):
 
     None when the module is not registered. Raises on any DB error: the
     route must never turn a failure into "installed nowhere".
+
+    tenant_installed_modules has row-level security. Under a role the
+    policy applies to, filtered rows would read as "not_installed" and
+    modules would delete their subscriptions; with row_security off
+    Postgres raises instead (→ 503). No effect for a role that bypasses
+    RLS. SET LOCAL ends with the transaction, rolled back below.
     """
     conn = get_db_connection_simple()
     try:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SET LOCAL row_security = off")
         cur.execute("SELECT 1 FROM marketplace_modules WHERE id = %s", (module_id,))
         if cur.fetchone() is None:
             cur.close()
@@ -1556,9 +1563,22 @@ def _module_tenant_states(module_id):
             ORDER BY t.tenant_id
         """, (module_id,))
         rows = cur.fetchall()
+        cur.execute("""
+            SELECT count(*) AS orphans FROM tenant_installed_modules tim
+            WHERE tim.module_id = %s AND NOT EXISTS (
+                SELECT 1 FROM tenants t
+                WHERE t.tenant_id = tim.tenant_id AND t.deleted_at IS NULL)
+        """, (module_id,))
+        orphans = (cur.fetchone() or {}).get('orphans') or 0
         cur.close()
     finally:
+        conn.rollback()
         return_db_connection(conn)
+    if orphans:
+        # Not reported to the module: neither ensured nor removed.
+        logger.warning(
+            "installed-tenants: %s install rows for %s have no live tenant", orphans, module_id
+        )
     return {
         r['tenant_id']: ('enabled' if r['enabled'] else 'disabled') if r['installed'] else 'not_installed'
         for r in rows

@@ -47,8 +47,8 @@ async def test_remove_all_deletes_deterministic_id_and_counts_404():
     delete = respx.delete(f"{SUBS_URL}/{PHENOLOGY_ID}").mock(
         side_effect=[Response(204), Response(404)]
     )
-    first = await reg.remove_all(["montiko"])
-    second = await reg.remove_all(["montiko"])
+    first = await reg.remove_all(["tenant-a"])
+    second = await reg.remove_all(["tenant-a"])
     assert first == {"removed": 1, "absent": 0, "errors": []}
     assert second == {"removed": 0, "absent": 1, "errors": []}
     assert delete.call_count == 2
@@ -68,7 +68,7 @@ async def test_remove_all_leaves_other_registrar_and_other_module_alone():
         ("urn:hand-edited", own, [{"type": "AgriParcel"}]),
     ])))
     delete = respx.delete(url__startswith=f"{SUBS_URL}/").mock(return_value=Response(204))
-    result = await reg.remove_all(["montiko"])
+    result = await reg.remove_all(["tenant-a"])
     assert sorted(_deleted_ids(delete)) == sorted([PHENOLOGY_ID, "urn:legacy:1"])
     assert result["errors"] == []
 
@@ -84,7 +84,7 @@ async def test_legacy_match_survives_unwrapped_and_expanded_type():
          [{"type": "https://uri.etsi.org/ngsi-ld/default-context/CropHealthAssessment"}]),
     ])))
     delete = respx.delete(url__startswith=f"{SUBS_URL}/").mock(return_value=Response(204))
-    await reg.remove_all(["montiko"])
+    await reg.remove_all(["tenant-a"])
     assert {"urn:legacy:obj", "urn:legacy:uri"} <= set(_deleted_ids(delete))
 
 
@@ -94,7 +94,7 @@ async def test_listing_failure_still_removes_deterministic_id():
     reg = phenology()
     respx.get(SUBS_URL).mock(return_value=Response(500))
     delete = respx.delete(url__startswith=f"{SUBS_URL}/").mock(return_value=Response(204))
-    result = await reg.remove_all(["montiko"])
+    result = await reg.remove_all(["tenant-a"])
     assert _deleted_ids(delete) == [PHENOLOGY_ID]
     assert result["removed"] == 1 and len(result["errors"]) == 1
 
@@ -122,14 +122,14 @@ async def test_reconcile_unavailable_touches_nothing():
 @pytest.mark.asyncio
 @respx.mock
 async def test_reconcile_ensures_enabled_and_removes_the_rest():
-    _em({"montiko": "enabled", "intiasa": "disabled", "gutxi": "not_installed"})
+    _em({"tenant-a": "enabled", "tenant-b": "disabled", "tenant-c": "not_installed"})
     post = respx.post(SUBS_URL).mock(return_value=Response(201, headers={"Location": "/x"}))
     respx.get(SUBS_URL).mock(return_value=Response(200, json=[]))
     delete = respx.delete(url__startswith=f"{SUBS_URL}/").mock(return_value=Response(204))
     result = await phenology().reconcile_installations(
         "bioorchestrator", base_url=EM, internal_secret="s3")
-    assert [c.request.headers["NGSILD-Tenant"] for c in post.calls] == ["montiko"]
-    assert sorted(c.request.headers["NGSILD-Tenant"] for c in delete.calls) == ["gutxi", "intiasa"]
+    assert [c.request.headers["NGSILD-Tenant"] for c in post.calls] == ["tenant-a"]
+    assert sorted(c.request.headers["NGSILD-Tenant"] for c in delete.calls) == ["tenant-b", "tenant-c"]
     assert result["ensured"]["created"] == 1 and result["removed"]["removed"] == 2
 
 
