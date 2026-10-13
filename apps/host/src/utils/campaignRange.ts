@@ -1,6 +1,7 @@
 /**
  * Default window of the viewer timeline for a parcel: its active campaign
- * (AgriCrop planting → expected end), else the last 90 days plus 30 ahead.
+ * (AgriCrop planting → expected end); without one, the recent past plus the
+ * next planned crop; else the last 90 days plus 30 ahead.
  * AgriCrop comes from two writers: assign-crop (harvestDate) and crop-plan
  * segments (status lifecycle, expectedTerminationDate / terminationDate).
  */
@@ -13,6 +14,7 @@ const DEFAULT_SEASON_DAYS = 180;
 const MAX_PAST_DAYS = 365;
 const MAX_FUTURE_DAYS = 365;
 const CLOSED = new Set(['planned', 'harvested', 'terminated']);
+const FINISHED = new Set(['harvested', 'terminated', 'cancelled']);
 const END_ATTRS = ['harvestDate', 'expectedTerminationDate', 'terminationDate'] as const;
 
 function unwrap(attr: unknown): unknown {
@@ -56,40 +58,29 @@ export function resolveTimelineRange(
       return { range: { start: cappedStart, end: cappedEnd }, source: 'campaign' };
     }
   }
+  const next = rangeOfNextCrop(crops, parcelId, now);
+  if (next) return next;
   return {
     range: { start: now - DEFAULT_PAST_DAYS * DAY_MS, end: now + DEFAULT_FUTURE_DAYS * DAY_MS },
     source: 'default',
   };
 }
 
-export interface CycleDto { start: { date: string | null }; end: { date: string | null } }
-export interface CropCycles { current: CycleDto | null; next: CycleDto | null }
-
-/** Window of the parcel's current crop cycle as resolved by the platform; without one,
- * the recent past plus the next cycle, so the present and the coming campaign show together. */
-export function rangeFromCropCycles(
-  cycles: CropCycles | null, now: number,
-): { range: TimeRange; source: 'campaign' } | null {
-  const cur = cycles?.current;
-  if (!cur) return rangeOfNextCycle(cycles?.next ?? null, now);
-  const start = cur.start.date ? isoToUtcMs(cur.start.date) : NaN;
-  if (!Number.isFinite(start)) return null;
-  const declared = cur?.end.date ? isoToUtcMs(cur.end.date) : NaN;
-  const end = Number.isFinite(declared) && declared >= now ? declared : now + DEFAULT_FUTURE_DAYS * DAY_MS;
-  return {
-    range: {
-      start: Math.max(start, now - MAX_PAST_DAYS * DAY_MS),
-      end: Math.min(end, now + MAX_FUTURE_DAYS * DAY_MS),
-    },
-    source: 'campaign',
-  };
-}
-
-function rangeOfNextCycle(next: CycleDto | null, now: number): { range: TimeRange; source: 'campaign' } | null {
-  const start = next?.start.date ? isoToUtcMs(next.start.date) : NaN;
-  if (!Number.isFinite(start)) return null;
-  const declared = next?.end.date ? isoToUtcMs(next.end.date) : NaN;
-  const end = Number.isFinite(declared) && declared > start ? declared : start + DEFAULT_SEASON_DAYS * DAY_MS;
+/** The recent past plus the parcel's next planned crop, so the present and the coming campaign show together. */
+function rangeOfNextCrop(crops: unknown[], parcelId: string, now: number): { range: TimeRange; source: 'campaign' } | null {
+  const upcoming = crops
+    .filter(c => isRelatedToParcel(c, parcelId))
+    .map(c => {
+      const rec = c as Record<string, unknown>;
+      const status = unwrap(rec.status);
+      const planting = dateAttr(rec.plantingDate);
+      return { rec, status, start: Number.isFinite(planting) ? planting : dateAttr(rec.sowingWindowStart) };
+    })
+    .filter(c => Number.isFinite(c.start) && c.start > now && !(typeof c.status === 'string' && FINISHED.has(c.status)));
+  const next = upcoming.reduce<(typeof upcoming)[number] | null>((a, c) => (!a || c.start < a.start ? c : a), null);
+  if (!next) return null;
+  const declared = END_ATTRS.map(k => dateAttr(next.rec[k])).find(t => Number.isFinite(t) && t > next.start);
+  const end = declared ?? next.start + DEFAULT_SEASON_DAYS * DAY_MS;
   return {
     range: { start: now - DEFAULT_PAST_DAYS * DAY_MS, end: Math.min(end, now + MAX_FUTURE_DAYS * DAY_MS) },
     source: 'campaign',

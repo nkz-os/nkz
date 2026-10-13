@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rangeFromCropCycles, resolveTimelineRange } from '../campaignRange';
+import { resolveTimelineRange } from '../campaignRange';
 
 const P = 'urn:ngsi-ld:AgriParcel:p1';
 const NOW = Date.UTC(2026, 9, 9);
@@ -60,7 +60,6 @@ describe('resolveTimelineRange', () => {
   it('falls back to the default window without a usable campaign', () => {
     expect(resolveTimelineRange([], P, NOW)).toEqual(DEFAULT);
     expect(resolveTimelineRange([crop({ plantingDate: { type: 'Property', value: {} } })], P, NOW)).toEqual(DEFAULT);
-    expect(resolveTimelineRange([crop({ plantingDate: '2027-01-01' })], P, NOW)).toEqual(DEFAULT);                         // not sown yet
     expect(resolveTimelineRange([crop({ plantingDate: '2025-01-01', harvestDate: '2025-08-01' })], P, NOW)).toEqual(DEFAULT); // finished, no status
   });
 
@@ -77,31 +76,31 @@ describe('resolveTimelineRange', () => {
   });
 });
 
-describe('rangeFromCropCycles', () => {
-  const cyc = (s: string | null, e: string | null) => ({ start: { date: s }, end: { date: e } });
-  it('uses the current cycle', () => {
-    expect(rangeFromCropCycles({ current: cyc('2026-03-12', '2026-11-30'), next: null }, NOW))
-      .toEqual({ source: 'campaign', range: { start: D('2026-03-12'), end: D('2026-11-30') } });
-  });
-  it('open-ended current cycle ends 30 days ahead', () => {
-    expect(rangeFromCropCycles({ current: cyc('2026-03-12', null), next: null }, NOW)!.range.end).toBe(NOW + 30 * DAY);
-  });
-  it('caps the window at 365 days back', () => {
-    expect(rangeFromCropCycles({ current: cyc('2015-02-01', null), next: null }, NOW)!.range.start).toBe(NOW - 365 * DAY);
-  });
-  it('without a current cycle, spans the recent past and the next cycle', () => {
-    expect(rangeFromCropCycles({ current: null, next: cyc('2026-10-15', '2027-06-30') }, NOW))
+describe('resolveTimelineRange — next planned crop', () => {
+  it('without a crop in progress, spans the recent past and the next planned crop', () => {
+    expect(resolveTimelineRange([crop({ status: 'planned', plantingDate: typed('2026-10-15'), harvestDate: typed('2027-06-30') })], P, NOW))
       .toEqual({ source: 'campaign', range: { start: NOW - 90 * DAY, end: D('2027-06-30') } });
   });
-  it('next cycle without an end: its start plus a default season, capped at 365 days ahead', () => {
-    expect(rangeFromCropCycles({ current: null, next: cyc('2026-10-15', null) }, NOW)!.range.end)
+  it('next crop without an end: its start plus a default season, capped at 365 days ahead', () => {
+    expect(resolveTimelineRange([crop({ sowingWindowStart: '2026-10-15', status: 'planned' })], P, NOW).range.end)
       .toBe(D('2026-10-15') + 180 * DAY);
-    expect(rangeFromCropCycles({ current: null, next: cyc('2026-10-15', '2040-01-01') }, NOW)!.range.end)
+    expect(resolveTimelineRange([crop({ plantingDate: '2026-10-15', harvestDate: '2040-01-01' })], P, NOW).range.end)
       .toBe(NOW + 365 * DAY);
   });
-  it('no current and no usable next cycle → null (caller falls back)', () => {
-    expect(rangeFromCropCycles({ current: null, next: null }, NOW)).toBeNull();
-    expect(rangeFromCropCycles({ current: null, next: cyc(null, null) }, NOW)).toBeNull();
-    expect(rangeFromCropCycles(null, NOW)).toBeNull();
+  it('the earliest next crop of this parcel wins; other parcels and closed crops are ignored', () => {
+    const r = resolveTimelineRange([
+      crop({ plantingDate: '2027-03-01', harvestDate: '2027-09-01' }),
+      crop({ plantingDate: '2026-11-01', harvestDate: '2027-07-01' }),
+      crop({ plantingDate: '2026-10-20', harvestDate: '2027-01-01' }, 'urn:ngsi-ld:AgriParcel:other'),
+      crop({ plantingDate: '2026-10-25', status: 'terminated' }),
+    ], P, NOW);
+    expect(r.range.end).toBe(D('2027-07-01'));
+  });
+  it('a crop in progress still wins over a next crop', () => {
+    const r = resolveTimelineRange([
+      crop({ plantingDate: '2026-03-01', harvestDate: '2026-11-30', status: 'active' }),
+      crop({ plantingDate: '2026-12-01', harvestDate: '2027-07-01' }),
+    ], P, NOW);
+    expect(r).toEqual({ source: 'campaign', range: { start: D('2026-03-01'), end: D('2026-11-30') } });
   });
 });

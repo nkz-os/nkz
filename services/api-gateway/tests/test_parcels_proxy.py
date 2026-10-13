@@ -57,29 +57,14 @@ def test_module_proxy_requires_auth(monkeypatch):
     assert resp.status_code == 401
 
 
-def test_crop_cycles_read_forwards_to_entity_manager(monkeypatch):
-    import fiware_api_gateway as gw
-    captured = {}
-
-    def fake_request(method, url, headers=None, params=None, data=None, timeout=None):
-        captured.update(method=method, url=url, headers=headers, params=dict(params or {}))
-        return _Resp()
-
-    _patch_auth(monkeypatch, gw)
-    monkeypatch.setattr(gw.requests, "request", fake_request)
-    sub = "urn:ngsi-ld:AgriParcel:x/crop-cycles"
-    with gw.app.test_request_context(f"/api/entities/parcels/{sub}?at=2026-10-09", method="GET"):
-        resp = gw.proxy_parcel_modules(sub)
-    assert resp.status_code == 200
-    assert captured["url"] == f"{gw.ENTITY_MANAGER_URL}/api/entities/parcels/{sub}"
-    assert captured["params"] == {"at": "2026-10-09"}
-    assert captured["headers"]["X-Auth-Signature"] == "sig123"
-
-
-def test_crop_cycles_is_read_only(monkeypatch):
+def test_crop_cycles_is_no_longer_proxied(monkeypatch):
+    """Crop cycles left the core: modules read them from the broker through the SDK."""
     import fiware_api_gateway as gw
     _patch_auth(monkeypatch, gw)
+    called = []
+    monkeypatch.setattr(gw.requests, "request", lambda *a, **k: called.append(a) or _Resp())
     sub = "urn:ngsi-ld:AgriParcel:x/crop-cycles"
-    with gw.app.test_request_context(f"/api/entities/parcels/{sub}", method="POST", json={}):
+    with gw.app.test_request_context(f"/api/entities/parcels/{sub}", method="GET"):
         resp = gw.proxy_parcel_modules(sub)
-    assert resp.status_code == 404
+    status = resp[1] if isinstance(resp, tuple) else resp.status_code
+    assert status == 404 and called == []
