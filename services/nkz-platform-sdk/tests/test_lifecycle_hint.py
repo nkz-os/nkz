@@ -122,3 +122,25 @@ def test_package_exports():
     for name in ("installed_tenants", "TenantInstallations",
                  "InstalledTenantsUnavailable", "lifecycle_hint_router"):
         assert hasattr(sdk, name) and name in sdk.__all__
+
+
+@pytest.mark.asyncio
+async def test_hint_during_followup_wait_runs_promptly():
+    """A new hint must not wait for the previous hint's follow-up pass."""
+    loop = asyncio.get_running_loop()
+    times = []
+
+    async def reconcile():
+        times.append(loop.time())
+
+    hints = _HintCoalescer(reconcile, followup_seconds=5)
+    hints.poke()
+    await asyncio.sleep(0.05)          # first pass done, now waiting for the follow-up
+    poked_at = loop.time()
+    hints.poke()
+    for _ in range(50):
+        if len(times) >= 2:
+            break
+        await asyncio.sleep(0.01)
+    assert len(times) >= 2 and times[1] - poked_at < 0.5
+    hints._task.cancel()

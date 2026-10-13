@@ -80,17 +80,21 @@ class _HintCoalescer:
     A burst of hints costs one extra pass, not one per hint. The follow-up
     pass after ``followup_seconds`` covers what one process cannot see: a
     heal on another replica that acted on an older snapshot, and Orion's
-    eventually consistent subscription reads right after a change.
+    eventually consistent subscription reads right after a change. A hint
+    that arrives while waiting for the follow-up is run at once; the
+    follow-up then counts from it.
     """
 
     def __init__(self, reconcile: Callable[[], Awaitable[object]], followup_seconds: float):
         self._reconcile = reconcile
         self._followup = followup_seconds
         self._dirty = False
+        self._wake = asyncio.Event()
         self._task: asyncio.Task | None = None
 
     def poke(self) -> None:
         self._dirty = True
+        self._wake.set()
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._drain())
 
@@ -98,10 +102,15 @@ class _HintCoalescer:
         while True:
             while self._dirty:
                 self._dirty = False
+                self._wake.clear()
                 await _run_reconcile(self._reconcile)
             if self._followup <= 0:
                 return
-            await asyncio.sleep(self._followup)
+            try:
+                await asyncio.wait_for(self._wake.wait(), self._followup)
+                continue  # a new hint arrived during the wait: run it now
+            except asyncio.TimeoutError:
+                pass
             await _run_reconcile(self._reconcile)
             if not self._dirty:
                 return
