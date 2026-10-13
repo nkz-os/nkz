@@ -33,6 +33,11 @@ class ParcelNotFound(CropDataUnavailable):
     """The parcel does not exist in this tenant."""
 
 
+class CropDataRejected(CropDataUnavailable):
+    """The broker answered but refused the request (4xx other than 404/408/429):
+    a request bug, not an outage."""
+
+
 def normalize_parcel_urn(parcel_id: str) -> str:
     return parcel_id if parcel_id.startswith("urn:") else f"urn:ngsi-ld:AgriParcel:{parcel_id}"
 
@@ -72,11 +77,17 @@ async def load_crop_data(client: OrionClient, parcel_urn: str) -> tuple[dict, li
         crops = await _query_all(client, "AgriCrop", q)
         ops = await _query_all(client, "AgriParcelOperation", f"{q};{_BOUNDARY_OPERATIONS}")
     except httpx.HTTPStatusError as e:
-        if e.response is not None and e.response.status_code == 404:
+        status = e.response.status_code if e.response is not None else None
+        if status == 404:
             raise ParcelNotFound(parcel_urn) from e
-        raise CropDataUnavailable(f"{e.response.status_code if e.response is not None else '?'}: {e}") from e
+        # 408/429 are the broker being slow or busy, not a bad request.
+        if status is not None and 400 <= status < 500 and status not in (408, 429):
+            raise CropDataRejected(f"{status}: {e}") from e
+        raise CropDataUnavailable(f"{status}: {e}") from e
     except httpx.HTTPError as e:
         raise CropDataUnavailable(str(e)) from e
+    except ValueError as e:  # a 200 that is not JSON (proxy page, truncated body)
+        raise CropDataUnavailable(f"unreadable answer: {e}") from e
     return parcel, crops, ops
 
 
@@ -93,6 +104,9 @@ async def fetch_crop_timeline(
     client = OrionClient(tenant_id, base_url=base_url, context_url=context_url)
     try:
         parcel, crops, ops = await load_crop_data(client, urn)
+    except CropDataRejected as e:
+        logger.error("crop timeline: broker rejected the request tenant=%s parcel=%s: %s", tenant_id, urn, e)
+        return None
     except CropDataUnavailable as e:
         logger.warning("crop timeline unavailable tenant=%s parcel=%s: %s", tenant_id, urn, e)
         return None

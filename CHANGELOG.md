@@ -7,9 +7,10 @@
 - **Crop timeline from the broker** (SDK 0.13.0): `fetch_crop_timeline` loads a
   parcel's crops and boundary operations and resolves its crop cycles in the
   calling module, so module backends no longer depend on a core endpoint;
-  `None` when the broker cannot answer. A cycle without an end is now labelled
-  with its estimated harvest year (an annual sown from August on belongs to the
-  next campaign) instead of its sowing year.
+  `None` when the broker cannot answer.
+- **Campaign label of an open cycle** (SDK 0.13.0): a crop cycle without an end
+  is labelled with its estimated harvest year (an annual sown from August on,
+  except a catch crop, belongs to the next campaign) instead of its sowing year.
 - **Install-driven subscriptions** — entity-manager serves
   `GET /api/internal/modules/<id>/tenants` (one state per tenant, 503 on
   failure). SDK 0.11.0: `installed_tenants`, `SubscriptionRegistrar.remove_all`,

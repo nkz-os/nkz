@@ -52,6 +52,7 @@ from nkz_platform_sdk.agronomy import (
     confidence_from_fidelity,
 )
 from nkz_platform_sdk.crop_timeline import (
+    CropDataRejected,
     CropDataUnavailable,
     ParcelNotFound,
     fetch_crop_timeline,
@@ -94,6 +95,7 @@ __all__ = [
     "local_today",
     "normalize_parcel_urn",
     "CropDataUnavailable",
+    "CropDataRejected",
     "ParcelNotFound",
     "CropCycleTimeline",
     "CropCycle",

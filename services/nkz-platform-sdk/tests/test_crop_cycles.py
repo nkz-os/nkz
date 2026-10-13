@@ -257,3 +257,8 @@ def test_perennial_without_end_keeps_its_planting_year():
     t = tl([crop("v", status="active", plantingDate="2015-10-01", plantingDateSource="manual",
                  cropLifecycle="perennial")])
     assert t["cycles"][0]["campaign_label"] == 2015
+
+
+def test_catch_crop_sown_in_august_keeps_its_year():
+    t = tl([crop("k", status="planned", cropRole="catch_crop", sowingWindowStart="2026-08-10")])
+    assert t["cycles"][0]["campaign_label"] == 2026
