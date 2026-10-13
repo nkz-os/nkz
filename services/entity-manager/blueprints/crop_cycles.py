@@ -1,13 +1,14 @@
-"""Crop cycle endpoints and the reconciler wiring.
+"""Crop cycle read endpoints, and retirement of the old writer's subscriptions.
 
 Read: GET .../crop-cycles (user via gateway, modules via the internal route).
-Write: AgriCrop / AgriParcelOperation notifications -> reconcile the parcel.
+Write: moved to field-operations, which records sowings and harvests. This
+module only removes the crop-cycle subscriptions it used to own, at start-up
+and on every sweep call, so nothing keeps delivering here.
 """
 import asyncio
 import hmac
 import logging
 import os
-import threading
 from datetime import date
 
 from flask import Blueprint, g, jsonify, request
@@ -31,46 +32,6 @@ CROP_CYCLE_SUBSCRIPTIONS = [
     {'type': 'AgriCrop', 'throttling': None},
     {'type': 'AgriParcelOperation', 'throttling': None},
 ]
-
-
-# Notified parcels wait here, deduplicated, and are reconciled off the request thread:
-# without throttling a burst of edits arrives as many notifications, and answering each
-# inline would hold the workers and make Orion time out and pause the subscription.
-_pending: set = set()
-_pending_lock = threading.Lock()
-_wake = threading.Event()
-_worker = None
-
-
-def _ensure_worker():
-    # Started lazily inside each gunicorn worker (a thread does not survive the fork).
-    global _worker
-    with _pending_lock:
-        if _worker is None or not _worker.is_alive():
-            _worker = threading.Thread(target=_worker_loop, name='crop-cycle-reconcile', daemon=True)
-            _worker.start()
-
-
-def _worker_loop():
-    while True:
-        _wake.wait()
-        _wake.clear()
-        drain_pending()
-
-
-def drain_pending():
-    """Reconcile every queued (tenant, parcel) once; a parcel queued again meanwhile runs again."""
-    while True:
-        with _pending_lock:
-            if not _pending:
-                return
-            batch = sorted(_pending)
-            _pending.clear()
-        for tenant_id, parcel in batch:
-            try:
-                svc.reconcile_parcel(tenant_id, parcel)
-            except Exception as e:  # noqa: BLE001 — one parcel must not drop the batch
-                logger.warning('crop-cycle reconcile failed tenant=%s parcel=%s: %s', tenant_id, parcel, e)
 
 
 def _secret_ok() -> bool:
@@ -127,55 +88,23 @@ def get_crop_cycles_internal(parcel_id):
 
 @crop_cycles_bp.route('/api/internal/notify/crop-cycles', methods=['POST'])
 def notify_crop_cycles():
-    # Same flag-gated receiver auth as the other notification endpoints.
-    from blueprints.notifications import _notify_unauthorized
-    if _notify_unauthorized():
-        logger.warning('Invalid notification credentials on /notify/crop-cycles')
-        return jsonify({'error': 'Unauthorized'}), 401
-    tenant_id = request.headers.get('NGSILD-Tenant') or request.headers.get('Fiware-Service')
-    body = request.get_json(force=True, silent=True) or {}
-    parcels = svc.parcels_in_notification(body.get('data', [])) if tenant_id else set()
-    if parcels:
-        with _pending_lock:
-            _pending.update((tenant_id, p) for p in parcels)
-        _ensure_worker()
-        _wake.set()
+    # The writer moved to field-operations; deliveries that still arrive before
+    # the subscriptions are retired are acknowledged and dropped.
     return '', 204
 
 
 @crop_cycles_bp.route('/api/internal/crop-cycles/reconcile-all', methods=['POST'])
 def reconcile_all():
+    """Kept for the sweep CronJob until it is removed: retires the old subscriptions."""
     if not _secret_ok():
         return jsonify({'error': 'Unauthorized'}), 401
     from blueprints.notifications import _get_active_tenants
-    stats = {'tenants': 0, 'parcels': 0, 'written': 0, 'errors': 0}
-    tenants = _get_active_tenants()
-    # A tenant created after start-up gets its subscriptions here (idempotent).
-    try:
-        result = ensure_crop_cycle_subscriptions(tenants)
-        stats['errors'] += len((result or {}).get('errors') or [])
-    except Exception as e:  # noqa: BLE001 — the sweep itself still runs
-        logger.warning('reconcile-all: crop-cycle subscriptions not ensured: %s', e)
-        stats['errors'] += 1
-    for tenant_id in tenants:
-        stats['tenants'] += 1
-        try:
-            parcels = svc.list_parcels(tenant_id)
-        except Exception as e:  # noqa: BLE001
-            logger.warning('reconcile-all: parcels unreadable tenant=%s: %s', tenant_id, e)
-            stats['errors'] += 1
-            continue
-        for parcel in parcels:
-            stats['parcels'] += 1
-            try:
-                stats['written'] += len(svc.reconcile_parcel(tenant_id, parcel))
-            except Exception as e:  # noqa: BLE001
-                logger.warning('reconcile-all failed tenant=%s parcel=%s: %s', tenant_id, parcel, e)
-                stats['errors'] += 1
-    return jsonify(stats), 200
+    result = retire_crop_cycle_subscriptions(_get_active_tenants())
+    return jsonify({k: v for k, v in result.items() if k != 'errors'} | {'errors': len(result.get('errors') or [])}), 200
 
 
-def ensure_crop_cycle_subscriptions(tenants=None):
+def retire_crop_cycle_subscriptions(tenants=None):
+    """Remove the crop-cycle subscriptions this service owned (only those) in every tenant."""
     from blueprints.notifications import _get_active_tenants, registrar_auth_kwargs
     registrar = SubscriptionRegistrar(
         orion_url=svc.ORION_URL,
@@ -184,16 +113,16 @@ def ensure_crop_cycle_subscriptions(tenants=None):
         module_name='entity-manager-crop-cycles',
         **registrar_auth_kwargs(),
     )
-    result = asyncio.run(registrar.ensure_all(tenants if tenants is not None else _get_active_tenants()))
-    log = logger.warning if result['errors'] else logger.info
-    log('crop-cycle subscriptions: created=%d skipped=%d errors=%d %s',
-        result['created'], result['skipped'], len(result['errors']), result['errors'][:5])
+    result = asyncio.run(registrar.remove_all(tenants if tenants is not None else _get_active_tenants()))
+    log = logger.warning if result.get('errors') else logger.info
+    log('crop-cycle subscriptions retired: removed=%d absent=%d errors=%d',
+        result.get('removed', 0), result.get('absent', 0), len(result.get('errors') or []))
     return result
 
 
 def init_crop_cycles(app):
     app.register_blueprint(crop_cycles_bp)
     try:
-        ensure_crop_cycle_subscriptions()
+        retire_crop_cycle_subscriptions()
     except Exception as e:  # noqa: BLE001 — never block startup on the broker
-        logger.error('crop-cycle subscription bootstrap failed (non-fatal): %s', e, exc_info=True)
+        logger.error('crop-cycle subscription retirement failed (non-fatal): %s', e, exc_info=True)

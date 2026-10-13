@@ -77,104 +77,13 @@ def _notify(body):
         return client.post('/api/internal/notify/crop-cycles', json=body, headers={'NGSILD-Tenant': 't'})
 
 
-def test_notify_returns_204_and_queues_the_parcel():
-    body = {'data': [{'type': 'AgriCrop', 'hasAgriParcel': {'type': 'Relationship', 'object': 'urn:ngsi-ld:AgriParcel:p1'}}]}
-    with patch.object(svc, 'reconcile_parcel', return_value=[]) as rec:
-        r = _notify(body)
-        assert r.status_code == 204 and r.data == b''
-        rec.assert_not_called()  # the request never waits for the broker
-        bp.drain_pending()
-    rec.assert_called_once_with('t', 'urn:ngsi-ld:AgriParcel:p1')
-
-
-def test_a_burst_reconciles_each_parcel_once():
-    one = {'data': [{'type': 'AgriParcelOperation', 'hasAgriParcel': 'urn:ngsi-ld:AgriParcel:p1'}]}
-    two = {'data': [{'type': 'AgriCrop', 'hasAgriParcel': 'urn:ngsi-ld:AgriParcel:p2'}]}
-    with patch.object(svc, 'reconcile_parcel', return_value=[]) as rec:
-        for body in (one, one, two, one):
-            assert _notify(body).status_code == 204
-        bp.drain_pending()
-    assert sorted(c.args for c in rec.call_args_list) == [('t', 'urn:ngsi-ld:AgriParcel:p1'),
-                                                          ('t', 'urn:ngsi-ld:AgriParcel:p2')]
-
-
-def test_notify_survives_reconcile_errors():
-    body = {'data': [{'type': 'AgriCrop', 'hasAgriParcel': 'urn:ngsi-ld:AgriParcel:p1'}]}
-    with patch.object(svc, 'reconcile_parcel', side_effect=svc.OrionUnavailable('x')):
-        assert _notify(body).status_code == 204
-        bp.drain_pending()  # logged, not raised
-
-
-def test_subscription_spec():
-    types_ = {s['type'] for s in bp.CROP_CYCLE_SUBSCRIPTIONS}
-    assert types_ == {'AgriCrop', 'AgriParcelOperation'}
-
-
-def test_reconcile_all_walks_every_parcel_of_every_tenant():
-    import blueprints.notifications as notif
-    with patch.object(notif, '_get_active_tenants', return_value=['a', 'b']), \
-         patch.object(svc, 'list_parcels', side_effect=lambda t: [f'urn:ngsi-ld:AgriParcel:{t}1', f'urn:ngsi-ld:AgriParcel:{t}2']), \
-         patch.object(svc, 'reconcile_parcel', return_value=[('x', 'y')]) as rec, \
-         patch.object(bp, 'ensure_crop_cycle_subscriptions'):
-        r = client.post('/api/internal/crop-cycles/reconcile-all', headers=H)
-    assert r.status_code == 200
-    assert r.json == {'tenants': 2, 'parcels': 4, 'written': 4, 'errors': 0}
-    assert rec.call_count == 4
-
-
 def test_reconcile_all_requires_secret():
     assert client.post('/api/internal/crop-cycles/reconcile-all').status_code == 401
-
-
-def test_notify_is_gated_when_the_flag_is_on(monkeypatch):
-    monkeypatch.setenv('NOTIFY_REQUIRE_INTERNAL_SECRET', 'true')
-    body = {'data': [{'type': 'AgriCrop', 'hasAgriParcel': 'urn:ngsi-ld:AgriParcel:p1'}]}
-    with patch.object(svc, 'reconcile_parcel', return_value=[]) as rec, patch.object(bp, '_ensure_worker'):
-        r = client.post('/api/internal/notify/crop-cycles', json=body, headers={'NGSILD-Tenant': 't'})
-        bp.drain_pending()
-        assert r.status_code == 401 and rec.call_count == 0
-        r = client.post('/api/internal/notify/crop-cycles', json=body, headers={'NGSILD-Tenant': 't', **H})
-        bp.drain_pending()
-        assert r.status_code == 204 and rec.call_count == 1
 
 
 def test_broker_rejection_is_502():
     with patch.object(svc, 'timeline', side_effect=svc.BrokerRejected('400 bad request')):
         assert client.get('/api/entities/parcels/p1/crop-cycles').status_code == 502
-
-
-def test_subscriptions_are_not_throttled():
-    # Orion drops notifications inside a throttling window: a burst of edits would only
-    # reach the reconciler through the daily sweep. Orion-LD rejects a throttling of 0,
-    # so no throttling means sending none.
-    from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
-    registrar = SubscriptionRegistrar(
-        orion_url='http://orion:1026',
-        notification_url='http://entity-manager/notify',
-        subscriptions=bp.CROP_CYCLE_SUBSCRIPTIONS,
-        module_name='entity-manager-crop-cycles',
-    )
-    assert all('throttling' not in registrar._body(s) for s in registrar._subs)
-
-
-def test_reconcile_all_ensures_every_tenant_subscriptions():
-    import blueprints.notifications as notif
-    with patch.object(notif, '_get_active_tenants', return_value=['a', 'b']), \
-         patch.object(svc, 'list_parcels', return_value=[]), \
-         patch.object(bp, 'ensure_crop_cycle_subscriptions') as ensure:
-        r = client.post('/api/internal/crop-cycles/reconcile-all', headers=H)
-    assert r.status_code == 200
-    ensure.assert_called_once_with(['a', 'b'])
-
-
-def test_reconcile_all_counts_subscription_errors():
-    import blueprints.notifications as notif
-    with patch.object(notif, '_get_active_tenants', return_value=['a']), \
-         patch.object(svc, 'list_parcels', return_value=[]), \
-         patch.object(bp, 'ensure_crop_cycle_subscriptions',
-                      return_value={'created': 0, 'skipped': 0, 'errors': ['a/AgriCrop: 400', 'a/AgriParcelOperation: 400']}):
-        r = client.post('/api/internal/crop-cycles/reconcile-all', headers=H)
-    assert r.json['errors'] == 2
 
 
 def test_route_without_at_lets_the_service_use_the_parcel_day():
@@ -183,29 +92,38 @@ def test_route_without_at_lets_the_service_use_the_parcel_day():
     assert tl.call_args.args[2] is None
 
 
-def test_notify_accepts_a_derived_token_once_master_is_refused(monkeypatch):
-    from nkz_platform_sdk.notify_auth import TOKEN_HEADER, notification_token
+# ── The writer moved to field-operations: entity-manager only retires its subscriptions ──
 
-    monkeypatch.setenv('NOTIFY_REQUIRE_INTERNAL_SECRET', 'true')
-    monkeypatch.setenv('NKZ_NOTIFY_ACCEPT_MASTER', 'false')
-    body = {'data': [{'type': 'AgriCrop', 'hasAgriParcel': 'urn:ngsi-ld:AgriParcel:p1'}]}
-    # Werkzeug's test client sends Host: localhost; the token binds to that host.
-    token = notification_token('test-secret', 't', 'localhost')
-    with patch.object(svc, 'reconcile_parcel', return_value=[]) as rec, patch.object(bp, '_ensure_worker'):
-        r = client.post('/api/internal/notify/crop-cycles', json=body,
-                        headers={'NGSILD-Tenant': 't', TOKEN_HEADER: token})
-        bp.drain_pending()
-        assert r.status_code == 204 and rec.call_count == 1
-        r = client.post('/api/internal/notify/crop-cycles', json=body, headers={'NGSILD-Tenant': 't', **H})
-        bp.drain_pending()
-        assert r.status_code == 401 and rec.call_count == 1
+def test_notify_is_accepted_and_does_nothing():
+    with patch.object(svc, 'timeline') as tl:
+        r = client.post('/api/internal/notify/crop-cycles', headers={**H, 'NGSILD-Tenant': 't'},
+                        json={'data': [{'type': 'AgriCrop', 'hasAgriParcel': 'urn:ngsi-ld:AgriParcel:p1'}]})
+    assert r.status_code == 204 and r.data == b''
+    tl.assert_not_called()
+    assert not hasattr(bp, 'drain_pending') and not hasattr(bp, '_pending')  # no worker, no queue
 
 
-def test_crop_cycle_registrar_gets_the_master_and_the_derived_flag(monkeypatch):
-    monkeypatch.setenv('NKZ_NOTIFY_DERIVED_TOKENS', 'true')
-    with patch.object(bp, 'SubscriptionRegistrar') as reg, \
-         patch.object(bp.asyncio, 'run', return_value={'created': 0, 'skipped': 0, 'errors': []}):
-        bp.ensure_crop_cycle_subscriptions(tenants=['t'])
-    assert reg.call_args.kwargs['internal_secret'] == 'test-secret'
-    assert reg.call_args.kwargs['derived_tokens'] is True
-    assert reg.call_args.kwargs.get('notification_headers') is None
+def test_reconcile_all_retires_the_crop_cycle_subscriptions():
+    with patch('blueprints.notifications._get_active_tenants', return_value=['a', 'b'], create=True), \
+            patch.object(bp, 'retire_crop_cycle_subscriptions', return_value={'removed': 4, 'absent': 0, 'errors': []}) as retire:
+        r = client.post('/api/internal/crop-cycles/reconcile-all', headers=H)
+    assert r.status_code == 200 and r.json['removed'] == 4
+    retire.assert_called_once_with(['a', 'b'])
+
+
+def test_retire_removes_only_the_entity_manager_crop_cycle_subscriptions():
+    class FakeRegistrar:
+        def __init__(self, **kw):
+            self.kw = kw
+
+        async def remove_all(self, tenants):
+            return {'removed': len(tenants), 'absent': 0, 'errors': [], 'tenants': tenants}
+
+    with patch.object(bp, 'SubscriptionRegistrar', FakeRegistrar), \
+            patch('blueprints.notifications.registrar_auth_kwargs', return_value={}, create=True):
+        result = bp.retire_crop_cycle_subscriptions(['a', 'b'])
+    assert result['tenants'] == ['a', 'b']
+
+
+def test_no_writer_left_in_the_service():
+    assert not hasattr(svc, 'reconcile_parcel') and not hasattr(svc, 'list_parcels')

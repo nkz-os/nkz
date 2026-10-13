@@ -1,8 +1,7 @@
-"""Crop cycles for a parcel: read the broker, resolve with the SDK, reconcile back.
+"""Crop cycles for a parcel: read the broker, resolve with the SDK.
 
-The rules live in nkz_platform_sdk.crop_cycles; this module only does the I/O.
-The reconciler writes facts (field-operation dates, the current crop link,
-lastPlantedAt) and only when they change, so its own notifications settle.
+The rules live in nkz_platform_sdk.crop_cycles; this module only does the read.
+Writing the facts (sowing dates, the current crop link) moved to field-operations.
 """
 from __future__ import annotations
 
@@ -103,63 +102,3 @@ def _val(attr):
     if isinstance(attr, dict):
         return attr.get('@value') or attr.get('object') or _val(attr.get('value'))
     return attr
-
-
-def _date_prop(d: date) -> dict:
-    return {'type': 'Property', 'value': {'@type': 'Date', '@value': d.isoformat()}}
-
-
-def reconcile_parcel(tenant_id: str, parcel_urn: str, at: date | None = None, client=None) -> list:
-    client = client or _client(tenant_id)
-    parcel, crops, ops = _load(client, parcel_urn)
-    tl = resolve_crop_cycles(parcel_urn, crops, ops, at or local_today(parcel))
-    by_id = {c.get('id'): c for c in crops}
-    written = []
-    for cy in tl.cycles:
-        crop = by_id.get(cy.crop_id, {})
-        for boundary, attr in ((cy.start, 'actualPlantingDate'), (cy.end, 'actualTerminationDate')):
-            if boundary.provenance == 'actual' and str(_val(crop.get(attr)) or '')[:10] != boundary.date.isoformat():
-                client.append_entity_attrs(cy.crop_id, {attr: _date_prop(boundary.date)})
-                written.append((cy.crop_id, attr))
-    cur = tl.current
-    if cur:
-        linked = _val(parcel.get('hasAgriCrop')) or _val(parcel.get('refAgriCrop'))
-        if linked != cur.crop_id:
-            client.append_entity_attrs(parcel_urn, {'hasAgriCrop': {'type': 'Relationship', 'object': cur.crop_id}})
-            written.append((parcel_urn, 'hasAgriCrop'))
-        if cur.start.provenance in ('actual', 'declared'):
-            stamp = f'{cur.start.date.isoformat()}T00:00:00Z'
-            if str(_val(parcel.get('lastPlantedAt')) or '') != stamp:
-                client.append_entity_attrs(parcel_urn, {'lastPlantedAt': {
-                    'type': 'Property', 'value': {'@type': 'DateTime', '@value': stamp}}})
-                written.append((parcel_urn, 'lastPlantedAt'))
-    if written:
-        logger.info('crop-cycle reconcile tenant=%s parcel=%s wrote=%s', tenant_id, parcel_urn, written)
-    return written
-
-
-def list_parcels(tenant_id: str, client=None) -> list:
-    """Every AgriParcel id of a tenant, paged. No attrs filter: attrs selects
-    entities that HAVE those attributes, and 'id' is not an attribute."""
-    client = client or _client(tenant_id)
-    ids, offset = [], 0
-    try:
-        while True:
-            page = client.query_entities(type='AgriParcel', limit=_PAGE, offset=offset, options='keyValues')
-            ids.extend(e['id'] for e in page or [] if e.get('id'))
-            if not page or len(page) < _PAGE:
-                return ids
-            offset += _PAGE
-    except requests.RequestException as e:
-        raise OrionUnavailable(str(e)) from e
-
-
-def parcels_in_notification(entities: list) -> set:
-    out = set()
-    for e in entities or []:
-        if e.get('type') not in ('AgriCrop', 'AgriParcelOperation'):
-            continue
-        p = _val(e.get('hasAgriParcel')) or _val(e.get('refAgriParcel'))
-        if isinstance(p, str) and p:
-            out.add(p)
-    return out
