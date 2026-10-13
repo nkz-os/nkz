@@ -60,6 +60,10 @@ logging.getLogger().addFilter(PatSanitizingFilter())
 _cors_env = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
 ALLOWED_ORIGINS = {o.strip() for o in _cors_env.split(",") if o.strip()}
 _cors_origins = list(ALLOWED_ORIGINS)
+if not ALLOWED_ORIGINS:
+    logger.critical(
+        "CORS_ORIGINS is empty: every cookie-authenticated browser mutation will be rejected"
+    )
 
 # Add common directory to path for keycloak_auth and tenant_utils
 # Try both relative path (for local dev) and absolute path (for Docker)
@@ -227,10 +231,20 @@ REQUESTS_PER_MINUTE = int(
     os.getenv("REQUESTS_PER_MINUTE", "120")
 )  # Default: 60 req/min per tenant
 ALLOW_JWT_FALLBACK = os.getenv("ALLOW_JWT_FALLBACK", "false").lower() == "true"
-# Empty means a host-only cookie, which is the correct default: a cookie
-# scoped to a domain the installation does not own is silently rejected by
-# the browser, and auth fails with nothing to show for it.
-COOKIE_DOMAIN = os.getenv("COOKIE_DOMAIN", "")
+# The session cookie is host-only on purpose. A ``Domain`` attribute would hand
+# it to every sibling subdomain of the installation, some of which run
+# tenant-controlled code; there is deliberately no knob to widen it.
+SESSION_COOKIE = "nkz_token"
+
+
+def _cookies_for_upstream() -> dict:
+    """Browser cookies an upstream may see.
+
+    Identity reaches upstreams as ``Authorization`` + ``X-Auth-Signature``;
+    the session cookie itself never does. A tenant-controlled upstream (an
+    automation workflow echoing request headers) must not be able to read it.
+    """
+    return {k: v for k, v in request.cookies.items() if k != SESSION_COOKIE}
 
 # Default timeout for proxied backend calls: a hung backend must never
 # exhaust the gunicorn worker pool
@@ -638,6 +652,37 @@ def reject_dot_segments():
 def record_request_start_time():
     """Record start time for request duration logging."""
     g.start_time = time.time()
+
+
+_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+@app.before_request
+def reject_cross_site_cookie_auth():
+    """Same-site CSRF guard for mutations authenticated by the cookie alone.
+
+    ``SameSite=Strict`` keeps the session cookie off cross-site requests, but
+    sibling subdomains of the same registrable domain are same-site, and some
+    of them run tenant-controlled code. Browsers stamp every mutating request
+    with its ``Origin`` and scripts cannot forge it, so a mutation that relies
+    on the cookie must come from an origin this installation serves its UI
+    from. Bearer-authenticated requests are not ambient and are left alone;
+    requests without ``Origin`` are not browser-initiated.
+    """
+    if request.method not in _MUTATING_METHODS:
+        return None
+    if request.headers.get("Authorization"):
+        return None
+    if SESSION_COOKIE not in request.cookies:
+        return None
+    origin = request.headers.get("Origin")
+    if origin is None or origin in ALLOWED_ORIGINS:
+        return None
+    logger.warning(
+        "Cross-site cookie-authenticated %s %s rejected (origin=%s)",
+        request.method, request.path, origin,
+    )
+    return jsonify({"error": "Cross-site request rejected"}), 403
 
 
 @app.before_request
@@ -1200,12 +1245,11 @@ def create_session():
 
     resp = make_response(jsonify({"ok": True}))
     resp.set_cookie(
-        "nkz_token",
+        SESSION_COOKIE,
         token,
         httponly=True,
         secure=os.getenv("COOKIE_SECURE", "true").lower() == "true",
         samesite="Strict",  # Standard SOTA for BFF session cookies
-        domain=COOKIE_DOMAIN or None,
         path="/",
         max_age=max_age,
     )
@@ -1216,7 +1260,7 @@ def create_session():
 def delete_session():
     """Clear httpOnly session cookie"""
     resp = make_response(jsonify({"ok": True}))
-    resp.delete_cookie("nkz_token", domain=COOKIE_DOMAIN or None, path="/")
+    resp.delete_cookie(SESSION_COOKIE, path="/")
     return set_cors_headers(resp)
 
 
@@ -4502,7 +4546,7 @@ def _proxy_authenticated_request(target_url: str, *, requires_auth: bool = True)
             headers=headers,
             params=request.args,
             data=request.get_data(),
-            cookies=request.cookies,
+            cookies=_cookies_for_upstream(),
             allow_redirects=False,
             timeout=PROXY_TIMEOUT,
         )

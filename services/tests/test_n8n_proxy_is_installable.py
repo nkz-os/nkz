@@ -47,7 +47,7 @@ def test_no_default_names_a_deployment(gw):
     """Every knob here must be empty until an operator sets it."""
     assert gw.N8N_PROXY_HOST == "automation.example.com"   # from the fixture
     assert gw.N8N_DEFAULT_TENANT == ""
-    assert gw.COOKIE_DOMAIN == "", "a cookie scoped to someone else's domain is dropped"
+    assert not hasattr(gw, "COOKIE_DOMAIN"), "the session cookie is host-only by construction"
     assert gw.ZULIP_HOST == ""
 
 
