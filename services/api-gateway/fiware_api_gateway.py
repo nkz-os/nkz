@@ -57,7 +57,13 @@ logging.getLogger().addFilter(PatSanitizingFilter())
 
 
 # CORS configuration
-_cors_env = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173")
+_cors_env_raw = os.getenv("CORS_ORIGINS")
+if _cors_env_raw is None:
+    logger.critical(
+        "CORS_ORIGINS is not set: using local-development origins only, so every "
+        "cookie-authenticated browser mutation from another origin will be rejected"
+    )
+_cors_env = _cors_env_raw or "http://localhost:3000,http://localhost:5173"
 ALLOWED_ORIGINS = {o.strip() for o in _cors_env.split(",") if o.strip()}
 _cors_origins = list(ALLOWED_ORIGINS)
 if not ALLOWED_ORIGINS:

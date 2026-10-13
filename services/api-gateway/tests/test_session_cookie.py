@@ -10,9 +10,9 @@ from typing import ClassVar
 
 
 def _patch_session_auth(monkeypatch, gw):
-    payload = {"tenant_id": "montiko", "sub": "user-1", "exp": time.time() + 300}
+    payload = {"tenant_id": "tenant-a", "sub": "user-1", "exp": time.time() + 300}
     monkeypatch.setattr(gw, "validate_jwt_token", lambda t, **kw: payload)
-    monkeypatch.setattr(gw, "extract_tenant_id", lambda p: "montiko")
+    monkeypatch.setattr(gw, "extract_tenant_id", lambda p: "tenant-a")
     monkeypatch.setattr(gw, "_is_tenant_suspended", lambda t: False)
 
 
@@ -73,8 +73,8 @@ def test_upstream_cookies_drop_the_session_cookie(app):
 def test_module_proxy_never_forwards_the_session_cookie(app, monkeypatch):
     captured = _capture_requests(monkeypatch, app)
     monkeypatch.setattr(app, "get_request_token", lambda: "tok")
-    monkeypatch.setattr(app, "validate_jwt_token", lambda t, **kw: {"tenant_id": "montiko", "sub": "u"})
-    monkeypatch.setattr(app, "extract_tenant_id", lambda p: "montiko")
+    monkeypatch.setattr(app, "validate_jwt_token", lambda t, **kw: {"tenant_id": "tenant-a", "sub": "u"})
+    monkeypatch.setattr(app, "extract_tenant_id", lambda p: "tenant-a")
     monkeypatch.setattr(app, "rate_limit", lambda t: True)
     monkeypatch.setattr(app, "has_role", lambda r, p: False)
     monkeypatch.setattr(app, "generate_hmac_signature", lambda t, ten: "sig")
