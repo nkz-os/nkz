@@ -286,3 +286,11 @@ fails on it.
 | `windGusts` | atributo | sin-revisar | Not yet reviewed |
 | `windSpeedMax` | atributo | sin-revisar | Not yet reviewed |
 | `windSpeed` | atributo | sin-revisar | Not yet reviewed |
+
+## Value vocabularies
+
+Closed value sets of declared extensions, for any module that reads them.
+
+- **`irrigationRegime`** (AgriParcel and AgriCrop): `rainfed` | `irrigated`. Writers before
+  2026-10-13 stored the Spanish words `secano` / `regadío`; readers should still map those to the
+  two values above. Translated labels are a UI concern, never stored.
