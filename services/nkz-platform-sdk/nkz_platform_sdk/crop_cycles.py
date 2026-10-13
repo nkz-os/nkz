@@ -232,7 +232,10 @@ def resolve_crop_cycles(
             start = Boundary(max(d for d, _o in r["starts"]), "actual")
         elif _as_date(c.get("actualPlantingDate")):
             start = Boundary(_as_date(c.get("actualPlantingDate")), "actual")
-        elif r["manual"] and r["planting"]:
+        elif r["planting"] and (r["manual"] or r["status"] == "active"):
+            # A planting date typed in by hand, or a crop a person marked active
+            # (in the field), is a declaration. Plans (status planned, sowing
+            # windows) wait for a sowing.
             start = Boundary(r["planting"], "declared")
         elif r["ps"]:
             start = Boundary(r["ps"], "planned")

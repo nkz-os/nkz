@@ -122,8 +122,22 @@ def reconcile_parcel(tenant_id: str, parcel_urn: str, at: date | None = None, cl
                 client.append_entity_attrs(cy.crop_id, {attr: _date_prop(boundary.date)})
                 written.append((cy.crop_id, attr))
     cur = tl.current
+    link_key = 'hasAgriCrop' if parcel.get('hasAgriCrop') is not None else (
+        'refAgriCrop' if parcel.get('refAgriCrop') is not None else None)
+    linked = _val(parcel.get(link_key)) if link_key else None
+    if cur is None and linked:
+        # Only a sown or declared crop is in the field. A link to a crop that is
+        # still just a plan (not closed) was never true: remove it. A link to a
+        # crop this parcel's cycles do not include is left alone.
+        target = next((cy for cy in tl.cycles if cy.crop_id == linked), None)
+        if target and target.start.provenance == 'planned' and target.status not in ('harvested', 'terminated'):
+            try:
+                client.delete_entity_attr(parcel_urn, link_key)
+                written.append((parcel_urn, f'-{link_key}'))
+            except requests.HTTPError as e:
+                if getattr(e.response, 'status_code', None) != 404:
+                    raise
     if cur:
-        linked = _val(parcel.get('hasAgriCrop')) or _val(parcel.get('refAgriCrop'))
         if linked != cur.crop_id:
             client.append_entity_attrs(parcel_urn, {'hasAgriCrop': {'type': 'Relationship', 'object': cur.crop_id}})
             written.append((parcel_urn, 'hasAgriCrop'))

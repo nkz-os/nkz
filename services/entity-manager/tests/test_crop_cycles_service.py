@@ -22,6 +22,7 @@ class FakeOrion:
         self.parcel = parcel if parcel is not None else {"id": P, "type": "AgriParcel"}
         self.crops, self.ops, self.fail = list(crops), list(ops), fail
         self.writes = []
+        self.deletes = []
 
     def get_entity(self, eid, options=None):
         if self.fail:
@@ -43,15 +44,25 @@ class FakeOrion:
         for k, v in attrs.items():
             target[k] = v.get("object") or v.get("value")
 
+    def delete_entity_attr(self, eid, attr):
+        self.deletes.append((eid, attr))
+        target = self.parcel if eid == P else next(c for c in self.crops if c["id"] == eid)
+        if attr not in target:
+            r = requests.Response(); r.status_code = 404
+            raise requests.HTTPError(response=r)
+        del target[attr]
+
 
 CROP = {"id": "urn:ngsi-ld:AgriCrop:t:a", "type": "AgriCrop", "refAgriParcel": P, "status": "active",
         "plantingDate": "2026-03-01", "harvestDate": "2026-11-30"}
+DECLARED = {**CROP, "plantingDateSource": "manual"}
+PLANNED = {**CROP, "status": "planned"}
 SOW = {"id": "urn:ngsi-ld:AgriParcelOperation:s1", "type": "AgriParcelOperation", "hasAgriParcel": P,
        "operationType": "sowing", "status": "completed", "endedAt": "2026-03-12T09:00:00Z"}
 
 
 def test_timeline_shape():
-    t = svc.timeline("t", P, AT, client=FakeOrion(crops=[dict(CROP)]))
+    t = svc.timeline("t", P, AT, client=FakeOrion(crops=[dict(DECLARED)]))
     assert t["current"]["crop_id"] == CROP["id"] and t["accumulation"]["basis"] == "cycle_start"
 
 
@@ -80,10 +91,43 @@ def test_reconcile_is_idempotent():
     assert svc.reconcile_parcel("t", P, AT, client=fake) == []
 
 
-def test_reconcile_planned_start_does_not_set_last_planted():
-    fake = FakeOrion(crops=[dict(CROP)])
+def test_reconcile_planned_start_links_nothing():
+    """A plan whose date has passed is not a crop in the field: no link, no planting stamp."""
+    fake = FakeOrion(crops=[dict(PLANNED)])
+    assert svc.reconcile_parcel("t", P, AT, client=fake) == []
+
+
+def test_reconcile_removes_a_link_to_a_planned_only_crop():
+    fake = FakeOrion(parcel={"id": P, "type": "AgriParcel", "hasAgriCrop": CROP["id"]}, crops=[dict(PLANNED)])
     written = svc.reconcile_parcel("t", P, AT, client=fake)
-    assert (P, "lastPlantedAt") not in written and (P, "hasAgriCrop") in written
+    assert fake.deletes == [(P, "hasAgriCrop")] and (P, "-hasAgriCrop") in written
+    assert svc.reconcile_parcel("t", P, AT, client=fake) == []
+
+
+def test_reconcile_removes_the_alias_key_orion_returned():
+    fake = FakeOrion(parcel={"id": P, "type": "AgriParcel", "refAgriCrop": CROP["id"]}, crops=[dict(PLANNED)])
+    svc.reconcile_parcel("t", P, AT, client=fake)
+    assert fake.deletes == [(P, "refAgriCrop")]
+
+
+def test_reconcile_keeps_a_link_it_cannot_judge():
+    other = "urn:ngsi-ld:AgriCrop:t:elsewhere"
+    fake = FakeOrion(parcel={"id": P, "type": "AgriParcel", "hasAgriCrop": other}, crops=[dict(PLANNED)])
+    svc.reconcile_parcel("t", P, AT, client=fake)
+    assert fake.deletes == []
+
+
+def test_reconcile_keeps_a_link_to_a_closed_crop():
+    harvested = {**CROP, "status": "harvested"}
+    fake = FakeOrion(parcel={"id": P, "type": "AgriParcel", "hasAgriCrop": CROP["id"]}, crops=[harvested])
+    svc.reconcile_parcel("t", P, AT, client=fake)
+    assert fake.deletes == []
+
+
+def test_reconcile_declared_sowing_links_and_stamps():
+    fake = FakeOrion(crops=[dict(DECLARED)])
+    written = svc.reconcile_parcel("t", P, AT, client=fake)
+    assert (P, "hasAgriCrop") in written and (P, "lastPlantedAt") in written
 
 
 def test_reconcile_orion_down_writes_nothing():
@@ -202,3 +246,10 @@ def test_timeline_without_at_uses_the_parcel_day(monkeypatch):
     monkeypatch.setattr(svc, "local_today", lambda parcel, now=None: date(2026, 10, 10))
     svc.timeline("t", P, None, client=FakeOrion(parcel={"id": P, "type": "AgriParcel", "timeZone": "Europe/Madrid"}))
     assert seen["at"] == date(2026, 10, 10)
+
+
+def test_reconcile_keeps_an_active_crop_marked_by_a_person():
+    """status active + planting date (no manual flag) is a declaration: stays linked."""
+    fake = FakeOrion(parcel={"id": P, "type": "AgriParcel", "hasAgriCrop": CROP["id"]}, crops=[dict(CROP)])
+    svc.reconcile_parcel("t", P, AT, client=fake)
+    assert fake.deletes == []

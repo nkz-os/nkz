@@ -27,12 +27,23 @@
 
 ### Fixes
 
+- **A planned crop is not a crop in the field** (SDK 0.12.0): a crop cycle is
+  current only when its sowing happened (field operation) or was declared (a
+  planting date entered by hand, or a crop marked active); a plan whose date has
+  passed is now `pending` (on the timeline and as a flag on
+  each cycle, with `planned_start` / `planned_end`) and is never `previous`.
+  The entity-manager reconciler links `hasAgriCrop` only to such a crop and
+  removes a link that points to a crop that is still just a plan. SDK clients
+  gain `delete_entity_attr`.
 - **Lifecycle hint latency** (SDK 0.11.1): a hint that arrived while the
   previous one waited for its follow-up pass was only handled when that pass
   ran, up to 90 s later; it now runs at once.
 
 ### Upgrade notes
 
+- Crop cycles: readers of `current` / `previous` no longer see planned crops;
+  a parcel with only an overdue plan has `current: null` and a `pending` cycle.
+  Readers of `cycles` keep every cycle and can filter on `pending`.
 - New `@context` terms for crop plans (`expectedTerminationDate`,
   `terminationDate`, `sowingWindowStart`, `sowingWindowEnd`,
   `terminationMethod`, `cropSeason`, and others). Entities written before this

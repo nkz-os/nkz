@@ -30,7 +30,7 @@ def test_future_planting_is_next_not_current():
     t = tl([crop("a", status="active", plantingDate={"@type": "Date", "@value": "2026-10-15"},
                  harvestDate={"@type": "Date", "@value": "2027-06-30"})])
     assert t["current"] is None
-    assert t["next"]["start"] == {"date": "2026-10-15", "provenance": "planned"}
+    assert t["next"]["start"] == {"date": "2026-10-15", "provenance": "declared"}
     assert t["next"]["campaign_label"] == 2027
     assert t["campaign"] == {"label": 2026, "start": "2026-01-01", "end": "2026-12-31"}
     assert t["accumulation"]["basis"] == "calendar_year"
@@ -113,14 +113,14 @@ def test_cross_year_label_is_harvest_year():
 
 
 def test_operation_outside_tolerance_is_unassigned():
-    c = crop("a", status="active", plantingDate="2026-03-01", harvestDate="2026-07-01")
+    c = crop("a", status="planned", plantingDate="2026-03-01", harvestDate="2026-07-01")
     t = tl([c], [op("s9", "sowing", "2025-11-01")])
     assert t["current"] is None and t["pending"]["start"]["provenance"] == "planned"
     assert len(t["unassigned_operations"]) == 1
 
 
 def test_suggested_operation_is_hint_only():
-    c = crop("a", status="active", plantingDate="2026-03-01")
+    c = crop("a", status="planned", plantingDate="2026-03-01")
     t = tl([c], [op("g1", "sowing", "2026-03-04", status="suggested")])
     assert t["current"] is None and t["pending"]["start"]["provenance"] == "planned"
     assert t["hints"][0]["source"] == "suggested"
@@ -190,7 +190,7 @@ def test_cycle_is_current_on_its_end_day_and_not_after():
 # ── Only a sowing that is a fact makes a cycle current (owner decision A) ──
 
 def test_planned_start_in_the_past_is_pending_not_current():
-    c = crop("a", status="active", plantingDate="2026-10-01", harvestDate="2027-06-30")
+    c = crop("a", status="planned", plantingDate="2026-10-01", harvestDate="2027-06-30")
     t = tl([c])
     assert t["current"] is None
     assert t["pending"]["crop_id"].endswith(":a")
@@ -223,4 +223,12 @@ def test_declared_sowing_is_current_and_clears_pending():
 def test_closed_planned_cycle_is_not_pending():
     c = crop("a", status="harvested", sowingWindowStart="2026-03-01")
     t = tl([c])
+    assert t["pending"] is None
+
+
+def test_active_crop_with_planting_date_is_declared():
+    """Marking a crop active with its planting date is a person saying it is in the
+    field; only plans (status planned, sowing windows) wait for a sowing."""
+    t = tl([crop("a", status="active", plantingDate="2026-03-01")])
+    assert t["current"]["start"] == {"date": "2026-03-01", "provenance": "declared"}
     assert t["pending"] is None
