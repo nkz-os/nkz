@@ -92,3 +92,56 @@ def test_connection_is_returned_on_db_error(monkeypatch):
     else:
         raise AssertionError("must raise, not return")
     assert returned == [conn]
+
+
+def _webhook_conn(url):
+    cur = MagicMock()
+    cur.fetchone.return_value = {"webhook_url": url}
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    ctx = MagicMock()
+    ctx.__enter__.return_value = conn
+    ctx.__exit__.return_value = False
+    return ctx
+
+
+def test_dispatch_sends_verifiable_token(monkeypatch):
+    import blueprints.modules as m
+    from nkz_platform_sdk.notify_auth import verify_notification
+
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "test-secret")
+    monkeypatch.setattr(
+        m, "get_db_connection_with_tenant",
+        lambda t: _webhook_conn("http://risk-api-service:8000/api/risk/internal/lifecycle"),
+    )
+    sent = {}
+    monkeypatch.setattr(
+        m.requests, "post",
+        lambda url, data, headers, timeout: sent.update(headers) or MagicMock(status_code=202),
+    )
+    m._dispatch_module_lifecycle_webhook_if_configured("risk", "Montiko", True)
+    delivered = {**sent, "Host": "risk-api-service:8000"}
+    assert verify_notification(delivered, secret="test-secret", accept_master=False)
+
+
+def test_auto_install_hint_only_with_a_tenant(monkeypatch):
+    import blueprints.modules as m
+
+    hinted = []
+    monkeypatch.setattr(m, "_dispatch_module_lifecycle_webhook_if_configured",
+                        lambda **kw: hinted.append(kw))
+    m._hint_auto_install("demo", "", "ci")
+    m._hint_auto_install("demo", "test-tenant", "")
+    assert hinted == [{"module_id": "demo", "tenant_id": "test-tenant",
+                       "enabled": True, "user_email": None}]
+
+
+def test_upload_hints_after_commit():
+    """The hint fires only once the install row is committed (source-order guard)."""
+    import inspect
+
+    import blueprints.modules as m
+
+    src = inspect.getsource(m._upload_dist_and_activate)
+    assert "_hint_auto_install(" in src
+    assert src.index("conn.commit()") < src.index("_hint_auto_install(")

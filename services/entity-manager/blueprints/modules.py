@@ -22,6 +22,7 @@ from botocore.exceptions import ClientError
 from common.auth_middleware import require_auth, inject_fiware_headers
 from common.api_errors import internal_error
 from common.internal_auth import internal_service_headers
+from nkz_platform_sdk.notify_auth import TOKEN_HEADER, notification_token, receiver_host_from_url
 from db_helper import get_db_connection_with_tenant, get_db_connection_simple, return_db_connection
 
 # Import shared helpers
@@ -434,12 +435,30 @@ def _dispatch_module_lifecycle_webhook_if_configured(module_id, tenant_id, enabl
         if secret:
             sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
             headers['X-Nekazari-Signature'] = f'sha256={sig}'
+        # Derived token bound to tenant + receiver host (notify_auth): the
+        # module verifies it with the secret it already holds. The event is
+        # only a hint — the module re-reads where it is installed.
+        internal_secret = os.environ.get('INTERNAL_SERVICE_SECRET', '')
+        if internal_secret:
+            headers[TOKEN_HEADER] = notification_token(
+                internal_secret, tenant_id, receiver_host_from_url(url)
+            )
+            headers['NGSILD-Tenant'] = tenant_id
 
         resp = requests.post(url, data=payload, headers=headers, timeout=10)
         logger.info(f"[lifecycle_webhook] POST {url} for module={module_id} tenant={tenant_id} -> {resp.status_code}")
 
     except Exception as exc:
         logger.warning(f"[lifecycle_webhook] Failed for module={module_id} tenant={tenant_id}: {exc}")
+
+
+def _hint_auto_install(module_id, tenant_id, username):
+    """Upload auto-installs for the uploading tenant: hint the module like toggle does."""
+    if tenant_id:
+        _dispatch_module_lifecycle_webhook_if_configured(
+            module_id=module_id, tenant_id=tenant_id, enabled=True,
+            user_email=username or None,
+        )
 
 
 @modules_bp.route('/api/modules/<module_id>/toggle', methods=['POST'])
@@ -1180,6 +1199,7 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
         conn.commit()
         cur.close()
         _invalidate_gateway_route_cache()
+        _hint_auto_install(module_id, tenant_id, username)
 
         return 201, {
             'message': 'Module deployed successfully.',
