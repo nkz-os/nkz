@@ -29,6 +29,7 @@ from nkz_platform_sdk.notify_auth import (
     notification_token,
     receiver_host_from_url,
 )
+from nkz_platform_sdk.installations import InstalledTenantsUnavailable, installed_tenants
 from nkz_platform_sdk.orion import OrionClient
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,12 @@ def _sanitize_urn_segment(value: str) -> str:
     makes the derived subscription id stable across runs and processes.
     """
     return _URN_UNSAFE_CHARS.sub("-", value)
+
+
+def _short_type(value: object) -> str:
+    """Entity type as declared: Orion may echo it expanded to a URI."""
+    text = value if isinstance(value, str) else ""
+    return text.rsplit("#", 1)[-1].rsplit("/", 1)[-1]
 
 
 @dataclass
@@ -124,6 +131,7 @@ class SubscriptionRegistrar:
         self._subs: list[SubscriptionDef] = [
             SubscriptionDef(**s) if isinstance(s, dict) else s for s in subscriptions
         ]
+        self._reconcile_lock = asyncio.Lock()
 
     def _description(self, sub: SubscriptionDef) -> str:
         return f"{DESCRIPTION_PREFIX}: {sub.type} -> {self.module_name}"
@@ -508,3 +516,93 @@ class SubscriptionRegistrar:
                 )
             except Exception as e:
                 logger.warning("Subscription heal cycle failed: %s", e)
+
+    def _is_own_legacy(self, existing: dict, sub: SubscriptionDef) -> bool:
+        """A copy of `sub` under a non-deterministic id, made by this module.
+
+        Exact description (it already names type and module) AND the same
+        entity type. Another registrar of the same module with other types,
+        or another module watching the same type, never matches.
+        """
+        if existing.get("description") != self._description(sub):
+            return False
+        entities = existing.get("entities") or []
+        if isinstance(entities, dict):  # Orion unwraps one-element arrays
+            entities = [entities]
+        types = {_short_type(e.get("type")) for e in entities if isinstance(e, dict)}
+        return types == {sub.type}
+
+    async def remove_all(self, tenant_ids: list[str]) -> dict:
+        """Delete this registrar's subscriptions in each tenant. Idempotent, never raises.
+
+        Per declared subscription: its deterministic id and legacy copies
+        (`_is_own_legacy`). 404 counts as already absent. Nothing else is
+        touched. A failed listing only skips the legacy sweep.
+        """
+        removed, absent, errors = 0, 0, []
+        for tenant_id in tenant_ids:
+            client = OrionClient(
+                tenant_id, base_url=self.orion_url, context_url=self.context_url
+            )
+            try:
+                try:
+                    existing = await client.query_all_subscriptions()
+                except Exception as e:
+                    existing = None
+                    errors.append(f"{tenant_id} remove list: {e}")
+                for sub in self._subs:
+                    targets = [self._subscription_id(sub)]
+                    for s in existing or []:
+                        sid = s.get("id")
+                        if sid and sid not in targets and self._is_own_legacy(s, sub):
+                            targets.append(sid)
+                    for sid in targets:
+                        try:
+                            await client.delete_subscription(sid)
+                            removed += 1
+                            logger.info(
+                                "Subscription removed: %s (tenant=%s, id=%s)",
+                                self._description(sub), tenant_id, sid,
+                            )
+                        except httpx.HTTPStatusError as e:
+                            if e.response is not None and e.response.status_code == 404:
+                                absent += 1
+                            else:
+                                errors.append(f"{tenant_id}/{sub.type} remove {sid}: {e}")
+                        except Exception as e:
+                            errors.append(f"{tenant_id}/{sub.type} remove {sid}: {e}")
+            finally:
+                await client.close()
+        return {"removed": removed, "absent": absent, "errors": errors}
+
+    async def reconcile_installations(self, module_id: str, **installed_kwargs) -> dict:
+        """Converge on where `module_id` is installed; an outage never deletes.
+
+        Asks entity-manager (`installed_tenants`). When it cannot answer,
+        nothing is touched. Otherwise ensure_all(enabled) and
+        remove_all(disabled + not_installed). Serialized per registrar, and
+        the snapshot is taken inside the lock, so within one process a stale
+        heal cannot undo a fresher lifecycle hint. Across replicas it can;
+        ``lifecycle_hint_router``'s delayed follow-up pass repairs that.
+        """
+        async with self._reconcile_lock:
+            try:
+                inst = await installed_tenants(module_id, **installed_kwargs)
+            except InstalledTenantsUnavailable as e:
+                logger.warning("Subscription reconcile skipped for %s: %s", module_id, e)
+                return {"skipped": "unavailable", "reason": str(e)}
+            ensured = await self.ensure_all(list(inst.enabled))
+            removed = await self.remove_all(list(inst.disabled + inst.not_installed))
+            return {"ensured": ensured, "removed": removed}
+
+    async def periodic_reconcile(
+        self, module_id: str, interval_minutes: int = 60, **installed_kwargs
+    ) -> None:
+        """`reconcile_installations` every `interval_minutes`. Never exits, never raises."""
+        while True:
+            await asyncio.sleep(interval_minutes * 60)
+            try:
+                result = await self.reconcile_installations(module_id, **installed_kwargs)
+                logger.info("Subscription reconcile for %s: %s", module_id, result)
+            except Exception as e:
+                logger.warning("Subscription reconcile cycle failed for %s: %s", module_id, e)

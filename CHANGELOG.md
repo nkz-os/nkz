@@ -4,6 +4,13 @@
 
 ### Features
 
+- **Install-driven subscriptions** — entity-manager serves
+  `GET /api/internal/modules/<id>/tenants` (one state per tenant, 503 on
+  failure). SDK 0.11.0: `installed_tenants`, `SubscriptionRegistrar.remove_all`,
+  `reconcile_installations` / `periodic_reconcile` (never deletes on error, only
+  what the registrar declares) and `lifecycle_hint_router`. The lifecycle
+  webhook now carries a derived notification token. Modules no longer need a
+  database credential to know where they are installed.
 - **Derived notification tokens** — `nkz_platform_sdk.notify_auth` (SDK 0.10.0):
   Orion-LD subscriptions can carry a token bound to the tenant and the receiver
   host (`X-Notification-Token`) instead of the platform master secret, which the
