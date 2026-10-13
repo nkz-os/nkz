@@ -63,4 +63,6 @@ jobs:
         run: python3 .github/scripts/check_rls_ratchet.py --base "${{ steps.base.outputs.ref }}"
 
       - name: Unit tests of the check
-        run: python3 -m pytest .github/scripts/tests/test_check_rls_ratchet.py -q
+        run: |
+          python3 -m pip install --quiet pytest
+          python3 -m pytest .github/scripts/tests/test_check_rls_ratchet.py -q
