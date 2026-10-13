@@ -1512,6 +1512,64 @@ def resolve_module_manifest_url(module_id):
             return_db_connection(conn)
 
 
+def _module_tenant_states(module_id):
+    """Installation state of `module_id` in every non-deleted tenant.
+
+    None when the module is not registered. Raises on any DB error: the
+    route must never turn a failure into "installed nowhere".
+    """
+    conn = get_db_connection_simple()
+    try:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT 1 FROM marketplace_modules WHERE id = %s", (module_id,))
+        if cur.fetchone() is None:
+            cur.close()
+            return None
+        cur.execute("""
+            SELECT t.tenant_id,
+                   tim.module_id IS NOT NULL AS installed,
+                   COALESCE(tim.is_enabled, false) AS enabled
+            FROM tenants t
+            LEFT JOIN tenant_installed_modules tim
+              ON tim.tenant_id = t.tenant_id AND tim.module_id = %s
+            WHERE t.deleted_at IS NULL
+            ORDER BY t.tenant_id
+        """, (module_id,))
+        rows = cur.fetchall()
+        cur.close()
+    finally:
+        return_db_connection(conn)
+    return {
+        r['tenant_id']: ('enabled' if r['enabled'] else 'disabled') if r['installed'] else 'not_installed'
+        for r in rows
+    }
+
+
+@modules_bp.route('/api/internal/modules/<module_id>/tenants', methods=['GET'])
+def module_installed_tenants(module_id):
+    """Where `module_id` is installed: one state per non-deleted tenant.
+
+    Modules ask this instead of reading tenant_installed_modules, so they
+    hold no database credential and do not depend on the core schema.
+    Any failure is a 503, never a 200 with an empty or partial map: a
+    module removes subscriptions only on a positive answer.
+
+    Auth: X-Internal-Service-Secret.
+    """
+    expected = os.getenv('INTERNAL_SERVICE_SECRET', '')
+    provided = request.headers.get('X-Internal-Service-Secret', '')
+    if not expected or not hmac.compare_digest(provided, expected):
+        return jsonify({'error': 'Unauthorized'}), 401
+    try:
+        states = _module_tenant_states(module_id)
+    except Exception as e:
+        logger.error("installed-tenants lookup failed for %s: %s", module_id, e)
+        return jsonify({'error': 'unavailable'}), 503
+    if states is None:
+        return jsonify({'error': 'module not found'}), 404
+    return jsonify({'module_id': module_id, 'tenants': states})
+
+
 # =============================================================================
 # Module Health Check Endpoints
 # =============================================================================
