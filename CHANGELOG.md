@@ -26,11 +26,11 @@
   (creators) and `NKZ_NOTIFY_ACCEPT_MASTER` (receivers) drive the rollout.
 - **Crop cycles and campaigns** — one resolution of a parcel's crop cycles,
   campaign (calendar year, labelled by harvest year) and degree-day
-  accumulation start: `nkz_platform_sdk.crop_cycles` (SDK 0.9.0), served by
-  entity-manager at `GET /api/entities/parcels/{id}/crop-cycles` and
-  reconciled into the broker from completed field operations
+  accumulation start: `nkz_platform_sdk.crop_cycles` (SDK 0.9.0). Module
+  backends resolve it from the broker with `fetch_crop_timeline` (SDK 0.13.0);
+  the field operations module reconciles the facts into the broker
   (`actualPlantingDate`, `actualTerminationDate`, `hasAgriCrop`,
-  `lastPlantedAt`).
+  `lastPlantedAt`). The core no longer serves or writes crop cycles.
 
 ### Fixes
 
