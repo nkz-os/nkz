@@ -1,4 +1,4 @@
-"""crop_cycles_service: Orion reads -> SDK resolver; reconciler writes only on change."""
+"""crop_cycles_service: Orion reads -> SDK resolver (the writer moved to field-operations)."""
 import os
 import sys
 from datetime import date
@@ -64,67 +64,6 @@ def test_timeline_unknown_parcel():
 def test_timeline_orion_down_raises():
     with pytest.raises(svc.OrionUnavailable):
         svc.timeline("t", P, AT, client=FakeOrion(fail=True))
-
-
-def test_reconcile_writes_actuals_and_parcel_facts():
-    fake = FakeOrion(crops=[dict(CROP)], ops=[dict(SOW)])
-    written = svc.reconcile_parcel("t", P, AT, client=fake)
-    assert (CROP["id"], "actualPlantingDate") in written
-    assert (P, "hasAgriCrop") in written and (P, "lastPlantedAt") in written
-    crop_attrs = dict(fake.writes)[CROP["id"]]
-    assert crop_attrs["actualPlantingDate"]["value"] == {"@type": "Date", "@value": "2026-03-12"}
-
-
-def test_reconcile_is_idempotent():
-    fake = FakeOrion(crops=[dict(CROP)], ops=[dict(SOW)])
-    svc.reconcile_parcel("t", P, AT, client=fake)
-    assert svc.reconcile_parcel("t", P, AT, client=fake) == []
-
-
-def test_reconcile_planned_start_links_nothing():
-    """SDK >= 0.12.0: a plan whose date has passed is not a crop in the field."""
-    fake = FakeOrion(crops=[dict(CROP)])
-    assert svc.reconcile_parcel("t", P, AT, client=fake) == []
-
-
-def test_reconcile_orion_down_writes_nothing():
-    fake = FakeOrion(crops=[dict(CROP)], fail=True)
-    with pytest.raises(svc.OrionUnavailable):
-        svc.reconcile_parcel("t", P, AT, client=fake)
-    assert fake.writes == []
-
-
-def test_parcels_in_notification():
-    ents = [{"type": "AgriCrop", "hasAgriParcel": {"type": "Relationship", "object": P}},
-            {"type": "AgriParcelOperation", "refAgriParcel": {"type": "Relationship", "object": "urn:ngsi-ld:AgriParcel:p2"}},
-            {"type": "Other"}]
-    assert svc.parcels_in_notification(ents) == {P, "urn:ngsi-ld:AgriParcel:p2"}
-
-
-class PagedOrion(FakeOrion):
-    def __init__(self, n):
-        super().__init__()
-        self.parcels = [{"id": f"urn:ngsi-ld:AgriParcel:p{i}", "type": "AgriParcel"} for i in range(n)]
-        self.calls = []
-
-    def query_entities(self, type=None, q=None, limit=100, offset=0, attrs=None, options=None):
-        self.calls.append({"type": type, "limit": limit, "offset": offset, "attrs": attrs})
-        if type == "AgriParcel":
-            return self.parcels[offset:offset + limit]
-        return super().query_entities(type=type, q=q, limit=limit, offset=offset, attrs=attrs, options=options)
-
-
-def test_list_parcels_pages_and_never_filters_by_attrs():
-    fake = PagedOrion(1203)
-    ids = svc.list_parcels("t", client=fake)
-    assert len(ids) == 1203 and ids[0] == "urn:ngsi-ld:AgriParcel:p0"
-    assert all(c["attrs"] is None for c in fake.calls)
-    assert [c["offset"] for c in fake.calls] == [0, 500, 1000]
-
-
-def test_list_parcels_orion_down_raises():
-    with pytest.raises(svc.OrionUnavailable):
-        svc.list_parcels("t", client=FakeOrion(fail=True))
 
 
 class OpsPagingOrion(FakeOrion):
