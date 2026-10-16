@@ -24,4 +24,4 @@ httpx>=0.28.1
 
 # Development
 black>=26.5.1
-ruff>=0.15.17
+ruff>=0.16.9
