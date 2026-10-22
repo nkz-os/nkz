@@ -1,0 +1,493 @@
+import os
+import logging
+import re
+import requests
+
+from prometheus_client import Counter
+from tenacity import retry, stop_after_attempt, wait_fixed
+from common.ngsi_headers import inject_fiware_headers
+from common.subscription_health import reactivate_if_paused
+from nkz_platform_sdk.notify_auth import (
+    MASTER_HEADER,
+    TOKEN_HEADER,
+    derived_tokens_from_env,
+    notification_token,
+    receiver_host_from_url,
+)
+
+logger = logging.getLogger(__name__)
+
+# Incremented whenever creating an Orion-LD subscription fails (non-2xx response
+# or an exception). Ops can alert on a non-zero rate — a persistent failure
+# means a tenant stops receiving telemetry notifications silently.
+SUBSCRIPTION_CREATION_FAILED = Counter(
+    "telemetry_subscription_creation_failed_total",
+    "Orion-LD subscription creations that failed",
+    ["tenant_id", "reason"],
+)
+
+ORION_URL = os.getenv("ORION_URL", "http://orion-ld-service:1026")
+SERVICE_HOST = os.getenv("SERVICE_HOST", "telemetry-worker-service")
+SERVICE_PORT = os.getenv("SERVICE_PORT", "80")
+NOTIFICATION_URL = f"http://{SERVICE_HOST}:{SERVICE_PORT}/notify"
+POSTGRES_URL = os.getenv("POSTGRES_URL", "")
+DEFAULT_TENANT = os.getenv("DEFAULT_TENANT", "platform")
+
+# NGSI-LD subscriptions — no watchedAttributes = trigger on ANY attribute change
+SUBSCRIPTIONS = [
+    {
+        "description": "Telemetry Worker - AgriSensor updates",
+        "type": "Subscription",
+        "entities": [{"type": "AgriSensor"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 30,
+        "isActive": True,
+    },
+    {
+        # Hardware provisioned through DaTaK is created as "AgriDevice", not "Device" —
+        # this subscription exists for that provisioning path. "Device" itself IS a term
+        # of the platform @context (has been since an earlier plan) and is what
+        # DeviceMeasurement.refDevice points at; the subscription below covers it.
+        "description": "Telemetry Worker - AgriDevice updates",
+        "type": "Subscription",
+        "entities": [{"type": "AgriDevice"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 30,
+        "isActive": True,
+    },
+    {
+        # DeviceMeasurement is what entity-manager writes from Device/ManufacturingMachine
+        # attribute updates (one entity per device+controlledProperty, overwritten in
+        # place — see entity-manager/blueprints/measurements.py). This is the canonical
+        # route a sensor reading takes to reach TimescaleDB; notification_handler.py has a
+        # dedicated branch to read its inverted shape (device id in refDevice, measurement
+        # name in controlledProperty, value in numValue/textValue, instant in dateObserved).
+        "description": "Telemetry Worker - DeviceMeasurement readings",
+        "type": "Subscription",
+        "entities": [{"type": "DeviceMeasurement"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 30,
+        "isActive": True,
+    },
+    {
+        "description": "Telemetry Worker - AgriParcel updates",
+        "type": "Subscription",
+        "entities": [{"type": "AgriParcel"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 30,
+        "isActive": True,
+    },
+    {
+        "description": "Telemetry Worker - VegetationIndex analysis results",
+        "type": "Subscription",
+        "entities": [{"type": "VegetationIndex"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 5,
+        "isActive": True,
+    },
+    {
+        "description": "Telemetry Worker - CropHealthAssessment updates",
+        "type": "Subscription",
+        "entities": [{"type": "CropHealthAssessment"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 5,
+        "isActive": True,
+    },
+    {
+        "description": "Telemetry Worker - WeatherObserved virtual stations",
+        "type": "Subscription",
+        "entities": [{"type": "WeatherObserved"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        # throttle=1: the weather-worker creates one WeatherObserved per parcel
+        # in a ~40s burst per cycle (~2.5s apart). A 30s throttle dropped most
+        # of those notifications, leaving most parcels without telemetry in
+        # timeseries (new tenants only, which lack the legacy weather_observations).
+        "throttling": 1,
+        "isActive": True,
+    },
+    {
+        "description": "Telemetry Worker - WeatherForecast daily aggregates",
+        "type": "Subscription",
+        "entities": [{"type": "WeatherForecast"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 1,
+        "isActive": True,
+    },
+    {
+        "description": "Telemetry Worker - WeatherAlert updates",
+        "type": "Subscription",
+        "entities": [{"type": "WeatherAlert"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "throttling": 10,
+        "isActive": True,
+    },
+    {
+        "description": "Telemetry Worker - AgriSoil water budget attributes",
+        "type": "Subscription",
+        "entities": [{"type": "AgriSoil"}],
+        "watchedAttributes": ["currentMoisture", "deficitMm", "fieldCapacity", "awc"],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+            "attributes": [
+                "currentMoisture",
+                "deficitMm",
+                "fieldCapacity",
+                "awc",
+                "wiltingPoint",
+                "forecast7d",
+                "lastComputed"
+            ],
+        },
+        "throttling": 5,
+        "isActive": True,
+    },
+    {
+        "description": "Telemetry Worker - Weather zonal stats (AgriParcelRecord)",
+        "type": "Subscription",
+        "entities": [{"type": "AgriParcelRecord"}],
+        "watchedAttributes": ["eto", "solarRadiation", "soilMoistureVwc"],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+            "attributes": [
+                "eto",
+                "solarRadiation",
+                "soilMoistureVwc",
+                "waterBalance",
+                "frostRisk",
+                "airTemperatureAvg",
+                "airTemperatureMin",
+                "soilTemperature",
+                "relativeHumidity",
+            ],
+        },
+        "throttling": 5,
+        "isActive": True,
+    },
+]
+
+
+INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
+_SUB_ID_PREFIX = "telemetry-worker"
+
+
+def _slugify(text: str) -> str:
+    """'AgriSensor updates' -> 'agrisensor-updates' (deterministic subscription id)."""
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+
+
+def _subscription_id(sub_def: dict) -> str:
+    suffix = sub_def.get("description", "").split(" - ", 1)[-1]
+    return f"urn:ngsi-ld:Subscription:{_SUB_ID_PREFIX}:{_slugify(suffix)}"
+
+
+RECEIVER_HOST = receiver_host_from_url(NOTIFICATION_URL)
+
+
+def _auth_header(tenant_id):
+    """The header Orion must inject into every delivery, or None without a secret.
+
+    Legacy: the master secret itself. With NKZ_NOTIFY_DERIVED_TOKENS on, a token
+    bound to this tenant and this receiver (see nkz_platform_sdk.notify_auth), so
+    the broker never stores the master.
+    """
+    if not INTERNAL_SERVICE_SECRET:
+        return None
+    if derived_tokens_from_env():
+        if not tenant_id:
+            raise ValueError("derived notification tokens need the tenant to bind to")
+        return TOKEN_HEADER, notification_token(INTERNAL_SERVICE_SECRET, tenant_id, RECEIVER_HOST)
+    return MASTER_HEADER, INTERNAL_SERVICE_SECRET
+
+
+def _subscription_body(sub_def: dict, tenant_id=None) -> dict:
+    """Subscription body with a deterministic id and the receiverInfo auth header
+    (tenant-dependent in derived-token mode)."""
+    body = {**sub_def, "id": _subscription_id(sub_def)}
+    auth = _auth_header(tenant_id)
+    if auth:
+        endpoint = {
+            **sub_def["notification"]["endpoint"],
+            "receiverInfo": [{"key": auth[0], "value": auth[1]}],
+        }
+        body["notification"] = {**sub_def["notification"], "endpoint": endpoint}
+    return body
+
+
+def _matches_are_stale(matches: list, tenant_id=None) -> bool:
+    """Replace existing subscription(s) when they are duplicates (pre-deterministic-id
+    creates), lack the auth header the receiver now expects, carry a stale value
+    (after a rotation), or still carry the master once tokens are derived."""
+    if not matches:
+        return False
+    if len(matches) > 1:
+        return True
+    auth = _auth_header(tenant_id)
+    if auth is None:
+        return False
+    key, value = auth
+    endpoint = matches[0].get("notification", {}).get("endpoint", {})
+    present = {h.get("key"): h.get("value") for h in endpoint.get("receiverInfo") or []}
+    if present.get(key) != value:
+        return True
+    return key != MASTER_HEADER and MASTER_HEADER in present
+
+
+def _delete_subscription(headers: dict, sub_id: str) -> None:
+    if not sub_id:
+        return
+    try:
+        res = requests.delete(
+            f"{ORION_URL}/ngsi-ld/v1/subscriptions/{sub_id}", headers=headers, timeout=30
+        )
+        if res.status_code not in (200, 204, 404):
+            logger.warning("Delete subscription %s: HTTP %s", sub_id, res.status_code)
+    except requests.RequestException as e:
+        logger.warning("Delete subscription %s failed: %s", sub_id, e)
+
+
+def _replace_subscription(headers: dict, sub_def: dict, tenant_id: str, sub_id: str) -> None:
+    """Update a subscription in place, so it is never briefly absent.
+
+    PATCH carries the body minus the id, which Orion-LD rejects inside an
+    update. Falling back to delete-then-create would reopen the gap this closes,
+    so a failed patch is reported and the old subscription left alone.
+    """
+    body = {k: v for k, v in _subscription_body(sub_def, tenant_id).items() if k != "id"}
+    try:
+        res = requests.patch(
+            f"{ORION_URL}/ngsi-ld/v1/subscriptions/{sub_id}",
+            json=body,
+            headers=headers,
+            timeout=30,
+        )
+        if res.status_code in (200, 204):
+            logger.info("Subscription '%s' refreshed for %s", sub_def["description"], tenant_id)
+            return
+        logger.error(
+            "Refresh failed: %s for %s: %s %s",
+            sub_def["description"], tenant_id, res.status_code, res.text[:200],
+        )
+    except requests.RequestException as e:
+        logger.error("Refresh failed: %s for %s: %s", sub_def["description"], tenant_id, e)
+
+
+def _create_subscription(headers: dict, sub_def: dict, tenant_id: str) -> None:
+    res = requests.post(
+        f"{ORION_URL}/ngsi-ld/v1/subscriptions",
+        json=_subscription_body(sub_def, tenant_id),
+        headers=headers,
+        timeout=30,
+    )
+    if res.status_code in (200, 201, 409):  # 409 = concurrent create won
+        logger.info("Subscription '%s' ensured for %s", sub_def["description"], tenant_id)
+    else:
+        SUBSCRIPTION_CREATION_FAILED.labels(
+            tenant_id=tenant_id, reason=f"http_{res.status_code}"
+        ).inc()
+        logger.error(
+            "Failed: %s for %s: %s %s",
+            sub_def["description"], tenant_id, res.status_code, res.text[:200],
+        )
+
+
+def _make_headers(tenant_id: str) -> dict:
+    """Build Orion-LD headers — tenant sent AS-IS (canonical is hyphenated)."""
+    return inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False)
+
+
+def _get_active_tenants() -> list:
+    """Query PostgreSQL for all active tenant IDs."""
+    if not POSTGRES_URL:
+        logger.warning("POSTGRES_URL not set, cannot query tenants")
+        return []
+    try:
+        import psycopg2
+
+        conn = psycopg2.connect(POSTGRES_URL)
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT DISTINCT tenant_id FROM tenants WHERE tenant_id IS NOT NULL"
+            )
+            rows = cur.fetchall()
+            cur.close()
+            return [r[0] for r in rows]
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.error(f"Error querying active tenants: {e}")
+        return []
+
+
+# Orion-LD serves subscription listings one page at a time and falls back to a
+# page of 20 when no limit is given. A dedup built on a single unpaginated page
+# stops recognising its own subscriptions once a tenant holds more than a page
+# of them, and recreates them on every run.
+ORION_PAGE_SIZE = 1000
+
+
+def _fetch_all_subscriptions(headers: dict) -> list:
+    """Return every subscription of a tenant, following Orion's pagination."""
+    subs: list = []
+    offset = 0
+    while True:
+        response = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/subscriptions",
+            headers=headers,
+            params={"limit": ORION_PAGE_SIZE, "offset": offset},
+            timeout=30,
+        )
+        response.raise_for_status()
+        page = response.json() or []
+        subs.extend(page)
+        if len(page) < ORION_PAGE_SIZE:
+            return subs
+        offset += ORION_PAGE_SIZE
+
+
+def _cleanup_broken_subscriptions(tenant_id: str):
+    """Delete subscriptions with wrong port (legacy bug)."""
+    headers = _make_headers(tenant_id)
+    try:
+        for sub in _fetch_all_subscriptions(headers):
+            uri = sub.get("notification", {}).get("endpoint", {}).get("uri", "")
+            if ":8080" in uri and "telemetry-worker" in uri:
+                sub_id = sub.get("id")
+                requests.delete(
+                    f"{ORION_URL}/ngsi-ld/v1/subscriptions/{sub_id}",
+                    headers=headers,
+                    timeout=30,
+                )
+                logger.info(f"Deleted broken subscription {sub_id} (port 8080)")
+    except Exception as e:
+        logger.warning(f"Error cleaning broken subscriptions for {tenant_id}: {e}")
+
+
+def _ensure_tenant_subscriptions(tenant_id: str):
+    """Reconcile this tenant's subscriptions against their deterministic ids."""
+    headers = _make_headers(tenant_id)
+    headers["Content-Type"] = "application/json"  # needed for POST below
+    try:
+        existing_subs = _fetch_all_subscriptions(headers) or []
+        by_id = {s.get("id"): s for s in existing_subs if s.get("id")}
+        by_description: dict = {}
+        for existing in existing_subs:
+            by_description.setdefault(existing.get("description"), []).append(existing)
+
+        for sub in SUBSCRIPTIONS:
+            sub_id = _subscription_id(sub)
+            canonical = by_id.get(sub_id)
+            # The id is the identity; the description is only a label. Keying on
+            # the description made editing one mint a new id and abandon the old
+            # subscription, still registered and reconciled by nobody.
+            leftovers = [
+                s for s in by_description.get(sub["description"], [])
+                if s.get("id") and s.get("id") != sub_id
+            ]
+
+            if canonical is None:
+                _create_subscription(headers, sub, tenant_id)
+            elif _matches_are_stale([canonical], tenant_id):
+                logger.info(
+                    "Refreshing subscription '%s' for %s", sub["description"], tenant_id
+                )
+                _replace_subscription(headers, sub, tenant_id, sub_id)
+            else:
+                # Existing is not the same as firing: Orion pauses a subscription
+                # after 3 consecutive notification failures and never resumes it.
+                reactivate_if_paused(ORION_URL, headers, canonical, logger)
+
+            # Only once the canonical one is accounted for: deleting first left a
+            # window with no subscription, and notifications raised in it are lost.
+            for leftover in leftovers:
+                logger.info(
+                    "Removing leftover subscription %s for %s (canonical is %s)",
+                    leftover.get("id"), tenant_id, sub_id,
+                )
+                _delete_subscription(headers, leftover.get("id"))
+    except Exception as e:
+        SUBSCRIPTION_CREATION_FAILED.labels(
+            tenant_id=tenant_id, reason="exception"
+        ).inc()
+        logger.error(f"Error managing subscriptions for {tenant_id}: {e}")
+
+
+@retry(stop=stop_after_attempt(5), wait=wait_fixed(5))
+def ensure_subscriptions_for_all_tenants():
+    """Create NGSI-LD subscriptions for all active tenants."""
+    tenants = _get_active_tenants()
+    if not tenants:
+        tenants = [DEFAULT_TENANT]
+        logger.info(f"No tenants from DB, using default: {DEFAULT_TENANT}")
+
+    logger.info(f"Ensuring subscriptions for {len(tenants)} tenants: {tenants}")
+
+    for tenant_id in tenants:
+        _cleanup_broken_subscriptions(tenant_id)
+        _ensure_tenant_subscriptions(tenant_id)
+
+
+# Backwards compat alias for app.py import
+check_or_create_subscription = ensure_subscriptions_for_all_tenants

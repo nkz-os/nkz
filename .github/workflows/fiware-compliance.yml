@@ -1,0 +1,69 @@
+name: FIWARE Compliance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  compliance:
+    name: Check Direct DB Writes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Run FIWARE compliance check (full scan)
+        run: bash scripts/check-fiware-compliance.sh --all
+        continue-on-error: true
+
+      - name: Check new lines in PR for direct DB writes
+        run: |
+          echo "Checking added lines in this PR (excluding allowed paths)..."
+          EXEMPT='notification_handler\.py|event_sink\.py|subscription_manager\.py|db_helper\.py|audit_logger\.py|/locations\.py|parcel_activation\.py|parcel_reconcile\.py|/ingest/|/tests/|/migrations/|/docker/'
+
+          # Get list of changed Python files, exclude allowed paths
+          changed=$(git diff --name-only origin/main...HEAD -- '*.py' | grep -vE "$EXEMPT" || true)
+
+          if [ -z "$changed" ]; then
+            echo "No non-exempt Python files changed."
+            exit 0
+          fi
+
+          echo "Checking these files:"
+          echo "$changed"
+          echo ""
+
+          violations=0
+          ADMIN_TABLES='calibration_periods|tenant_limits|tenants|sensor_profiles|marketplace_modules|notification_config'
+          for f in $changed; do
+            # Get only added lines from this file
+            added=$(git diff origin/main...HEAD -- "$f" | grep '^+' | grep -v '^+++' || true)
+            while IFS= read -r line; do
+              # Skip writes to admin/metadata tables
+              if echo "$line" | grep -qiE "INTO[[:space:]]+($ADMIN_TABLES)([[:space:](]|$)"; then
+                continue
+              fi
+              if echo "$line" | grep -qE 'INSERT[[:space:]]+INTO'; then
+                echo "FAIL: $f -- direct DB write in added lines:"
+                echo "$line"
+                echo ""
+                violations=$((violations + 1))
+              fi
+            done <<< "$added"
+          done
+
+          if [ "$violations" -gt 0 ]; then
+            echo "FAIL: Found $violations file(s) with direct DB writes."
+            echo "Allowed exceptions: notification_handler.py, event_sink.py, subscription_manager.py, ingest/, migrations/"
+            echo "Admin metadata tables (allowed): calibration_periods, tenant_limits, tenants, sensor_profiles, marketplace_modules, notification_config"
+            echo "See AGENTS.md for the architecture rules."
+            exit 1
+          fi
+
+          echo "PASS: No direct DB writes in new non-exempt lines."

@@ -1,0 +1,787 @@
+"""TestClient suite for weather-api routers — Orion-LD, DB and Open-Meteo mocked.
+
+Covers: /health, parcel agro-status (auth, 404, 400, happy path, fail-safe
+degradation, Orion WeatherObserved fallback), sensor cross-validation,
+location resolution, observations endpoints + telemetry fallback, alerts,
+coordinates forecast, and NGSI-LD compliance of the agroStatus persist call.
+"""
+
+import sys
+import os
+import json
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
+
+import pytest
+try:
+    from fastapi.testclient import TestClient
+except ImportError:
+    TestClient = None  # type: ignore
+
+if TestClient is None:
+    pytest.skip("fastapi not installed", allow_module_level=True)
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "weather-api"))
+
+# inject_fiware_headers only emits the @context Link when CONTEXT_URL is set, and
+# without that header every q filter expands to the default vocabulary and matches
+# nothing. Production sets it; the tests must too, or they exercise a code path
+# that silently returns no results.
+os.environ.setdefault("CONTEXT_URL", "http://api-gateway-service:5000/ngsi-ld-context.json")
+
+from app.main import app  # noqa: E402
+from app.routers.parcels import (  # noqa: E402
+    _cross_validate_sensors,
+    _persist_agro_status_to_orion,
+    _resolve_parcel_location,
+)
+
+client = TestClient(app)
+
+AUTH = {"X-Tenant-ID": "test-tenant"}
+PARCEL_ID = "urn:ngsi-ld:AgriParcel:test-tenant:p1"
+NOW = datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc)
+
+PARCEL_ENTITY = {
+    "id": PARCEL_ID,
+    "type": "AgriParcel",
+    "name": {"type": "Property", "value": "Olivar Sur"},
+    "location": {
+        "type": "GeoProperty",
+        "value": {"type": "Point", "coordinates": [-1.64, 42.49]},
+    },
+    "elevation": {"type": "Property", "value": 450.0},
+}
+
+LIVE_ROW = {
+    "observed_at": NOW,
+    "measurements": {
+        "airTemperature": 22.0, "relativeHumidity": 55.0, "precipitation": 0.0,
+        "windSpeed": 3.0, "windGusts": 4.0, "windDirection": 180,
+        "atmosphericPressure": 1013.0, "et0": 4.0,
+    },
+}
+
+LATEST_OBS_ROW = {
+    "observed_at": NOW,
+    "temp_avg": 22.0, "temp_min": 14.0, "temp_max": 27.0,
+    "humidity_avg": 55.0, "precip_mm": 0.0, "precip_probability": 10,
+    "wind_speed_ms": 3.0, "wind_gusts_ms": 4.0, "wind_direction_deg": 180,
+    "pressure_hpa": 1013.0,
+    "solar_rad_w_m2": None, "solar_rad_ghi_w_m2": None, "solar_rad_dni_w_m2": None,
+    "eto_mm": 4.0, "soil_moisture_0_10cm": None, "soil_moisture_10_40cm": None,
+    "gdd_accumulated": None, "delta_t": None,
+    "source": "OPEN-METEO", "data_type": "HISTORY", "metadata": {},
+}
+
+
+# ---------------------------------------------------------------------------
+# Test doubles
+# ---------------------------------------------------------------------------
+class FakeCursor:
+    """Scripted cursor: one result per execute(), consumed in call order."""
+
+    def __init__(self, script):
+        self._script = script
+        self._current = None
+
+    def execute(self, query, params=None):
+        self._current = self._script.pop(0) if self._script else None
+
+    def fetchone(self):
+        return self._current
+
+    def fetchall(self):
+        return self._current or []
+
+    def close(self):
+        pass
+
+
+class FakeConn:
+    def __init__(self, script):
+        self._script = script
+
+    def cursor(self, cursor_factory=None):
+        return FakeCursor(self._script)
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def fake_db(script):
+    """get_db_connection replacement; the script is shared across connections."""
+    shared = list(script)
+    return lambda tenant_id="shared": FakeConn(shared)
+
+
+def db_down(tenant_id="shared"):
+    raise RuntimeError("db down")
+
+
+def orion_response(status=200, payload=None):
+    resp = MagicMock()
+    resp.status_code = status
+    resp.json.return_value = payload if payload is not None else {}
+    resp.text = json.dumps(payload or {})
+    return resp
+
+
+# Attribute names Orion-LD actually returns for a WeatherObserved entity written
+# by the ParcelWeatherEngine, compacted with the platform @context. Captured from
+# the live broker. The context is NOT injective — `temperature`/`airTemperature`
+# share an IRI, as do `relativeHumidity`/`humidity` and `locatedAt`/`refParcel` —
+# and compaction returns the alias the writer did not use. A fixture using the
+# writer-side names passes while production reads None from every field.
+REAL_WEATHER_OBSERVED = {
+    "id": "urn:ngsi-ld:WeatherObserved:test-tenant:parcel-p1",
+    "type": "WeatherObserved",
+    "dateObserved": {
+        "type": "Property",
+        "value": {"@type": "DateTime", "@value": "2026-06-11T11:00:00Z"},
+    },
+    "refParcel": {"type": "Relationship", "object": PARCEL_ID},
+    "airTemperature": {"type": "Property", "value": 21.0, "unitCode": "CEL"},
+    "humidity": {"type": "Property", "value": 60.0, "unitCode": "P1"},
+    "windSpeed": {"type": "Property", "value": 2.5, "unitCode": "MTS"},
+    "windGusts": {"type": "Property", "value": 4.1, "unitCode": "MTS"},
+    "precipitation": {"type": "Property", "value": 0.0, "unitCode": "MMT"},
+    "et0": {"type": "Property", "value": 3.0, "unitCode": "MMT"},
+    "deltaT": {"type": "Property", "value": 4.2, "unitCode": "CEL"},
+    "soilMoistureTop": {"type": "Property", "value": 0.11, "unitCode": "M3"},
+}
+
+
+def orion_router(parcel=None, soil=None, weather_observed=None):
+    """Side effect for app.routers.parcels.requests.get, dispatching by URL.
+
+    Mirrors two real Orion-LD behaviours the previous mock ignored, each of which
+    hid a production bug for months:
+
+    * a query sent WITHOUT the platform @context Link header expands the attribute
+      names in the q filter to the default vocabulary, matches nothing, and returns
+      an empty list instead of an error (FALSE-ZERO);
+    * an unquoted URN on the right-hand side of a q filter breaks Orion's parser
+      and returns HTTP 400, not an empty result.
+    """
+
+    def _get(url, **kwargs):
+        params = kwargs.get("params") or {}
+        headers = kwargs.get("headers") or {}
+        if url.endswith(f"/entities/{PARCEL_ID}"):
+            if parcel is None:
+                return orion_response(404, {"title": "Not Found"})
+            return orion_response(200, parcel)
+
+        q = params.get("q", "")
+        if q:
+            value = q.split("==", 1)[1] if "==" in q else ""
+            if value and not value.startswith('"'):
+                return orion_response(
+                    400, {"title": "Invalid Q-Filter", "detail": "Variable"}
+                )
+            if "Link" not in headers:
+                return orion_response(200, [])
+            if q.startswith("hasAgriParcel"):
+                # Everything linked to the parcel matches the q filter (jobs,
+                # assessments, EO products...); only `type` narrows it, and
+                # `limit` cuts the list in Orion's order.
+                linked = soil if soil is not None else []
+                if params.get("type"):
+                    wanted = params["type"].split(",")
+                    linked = [e for e in linked if e.get("type") in wanted]
+                return orion_response(200, linked[: int(params.get("limit", 20))])
+            if q.startswith(("locatedAt", "refParcel")):
+                return orion_response(
+                    200, weather_observed if weather_observed is not None else []
+                )
+        return orion_response(404, {})
+
+    return _get
+
+
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
+def test_health_liveness():
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "healthy", "service": "weather-api"}
+
+
+# ---------------------------------------------------------------------------
+# Agro-status endpoint
+# ---------------------------------------------------------------------------
+class TestAgroStatusEndpoint:
+    URL = f"/api/weather/parcel/{PARCEL_ID}/agro-status"
+
+    def test_requires_auth(self):
+        assert client.get(self.URL).status_code == 401
+
+    def test_parcel_not_found_in_orion(self):
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=None)):
+            r = client.get(self.URL, headers=AUTH)
+        assert r.status_code == 404
+
+    def test_parcel_without_geometry_is_400(self):
+        bare = {k: v for k, v in PARCEL_ENTITY.items() if k != "location"}
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=bare)):
+            r = client.get(self.URL, headers=AUTH)
+        assert r.status_code == 400
+
+    def test_happy_path_with_db_weather(self):
+        script = [
+            [],  # sensors near parcel → none
+            LIVE_ROW,  # latest live WeatherObserved row of the parcel
+            [{"measurements": {"precipitation": 2.0, "et0": 1.0},
+              "observed_at": NOW}],  # closed-day rows
+        ]
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY)), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)) as persist, \
+             patch("app.routers.parcels.get_db_connection", fake_db(script)):
+            r = client.get(self.URL, headers=AUTH)
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["parcel_id"] == PARCEL_ID
+        assert set(body["semaphores"]) == {"spraying", "workability", "irrigation"}
+        assert body["semaphores"]["spraying"] != "unknown"
+        assert body["weather"]["temperature"] == 22.0
+        assert body["source_confidence"] == "WEATHER-OBS"
+        persist.assert_called_once()  # agroStatus written back to Orion
+
+    def test_db_down_degrades_gracefully_never_500(self):
+        """Fail-safe mandate: DB outage must degrade, not 500."""
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY)), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection", db_down):
+            r = client.get(self.URL, headers=AUTH)
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["source_confidence"] == "UNAVAILABLE"
+        assert body["semaphores"] == {
+            "spraying": "unknown", "workability": "unknown", "irrigation": "unknown"
+        }
+        assert "no_data_reason" in body
+
+    def test_orion_weatherobserved_fallback_when_db_down(self):
+        wo = REAL_WEATHER_OBSERVED
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY,
+                                            weather_observed=[wo])), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection", db_down):
+            r = client.get(self.URL, headers=AUTH)
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["weather"]["temperature"] == 21.0
+        assert body["source_confidence"] == "WEATHER-OBS"
+        assert body["semaphores"]["spraying"] != "unknown"
+
+
+# ---------------------------------------------------------------------------
+# Regressions for the four bugs that left the agronomic semaphores blank
+# ---------------------------------------------------------------------------
+class TestParcelWeatherShortId:
+    """get_parcel_weather must accept a bare id, not just the full URN."""
+
+    def test_bare_parcel_id_is_normalized_to_urn(self):
+        bare = "test-tenant:p1"  # PARCEL_ID without the urn:ngsi-ld:AgriParcel: prefix
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY,
+                                            weather_observed=[REAL_WEATHER_OBSERVED])):
+            r = client.get(f"/api/weather/parcel/{bare}", headers=AUTH)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["source"] == "orion-cache"
+        # soilMoistureTop=0.11 -> percent. The bare id used to 404 and fall
+        # back to the legacy municipality weather, which has no soil moisture.
+        assert body["observations"][0]["soil_moisture_0_10cm"] == pytest.approx(11.0)
+class TestOrionQueryRegressions:
+    """Each test here pins one bug that silently returned no data in production."""
+
+    URL = f"/api/weather/parcel/{PARCEL_ID}/agro-status"
+
+    def test_query_headers_carry_the_platform_context(self):
+        """Dropping the Link header turns every q filter into a FALSE ZERO.
+
+        Entities are stored with the platform expansion; without the context the
+        term expands to the default vocabulary, matches nothing, and Orion answers
+        200 with an empty list rather than an error.
+        """
+        from app.routers.parcels import _orion_query_headers
+
+        headers = _orion_query_headers("test-tenant")
+        assert "Link" in headers, (
+            "Orion READ queries must carry the platform @context Link. Without it "
+            "the q filter matches nothing and the endpoint degrades silently."
+        )
+        assert "ngsi-ld-context.json" in headers["Link"]
+
+    def test_soil_lookup_quotes_the_urn(self):
+        """An unquoted URN breaks Orion's q parser: 400, not an empty result.
+
+        The 400 was swallowed at debug level, so soil texture was never found and
+        workability silently fell back to generic thresholds.
+        """
+        soil = [{
+            "id": "urn:ngsi-ld:AgriSoilExtended:p1",
+            "type": "AgriSoilExtended",
+            "horizons": {"type": "Property", "value": [
+                {"sand": 40.0, "clay": 30.0, "organicCarbon": 1.2,
+                 "wetTillageLimit": 0.35, "dryTillageLimit": 0.15,
+                 "hydrologicGroup": "C"},
+            ]},
+        }]
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY, soil=soil,
+                                            weather_observed=[REAL_WEATHER_OBSERVED])), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection", db_down):
+            r = client.get(self.URL, headers=AUTH)
+
+        assert r.status_code == 200
+        soil_out = r.json().get("soil") or {}
+        assert soil_out.get("texture_applied") is True, (
+            f"soil texture was not applied: {soil_out}. The q filter value must be "
+            "quoted or Orion answers 400 Invalid Q-Filter."
+        )
+        # The tempero limits are the soil module's, read from the horizon.
+        assert r.json()["metrics"]["wet_tillage_limit"] == 0.35
+        assert soil_out["hydrologic_group"] == "C"
+
+    def test_soil_is_found_among_other_entities_of_the_parcel(self):
+        """The parcel's first linked entity is often not its soil.
+
+        Live 2026-10-09: the q filter alone with limit=1 returned a
+        DataProcessingJob, so the soil (and its tempero limits) was never read.
+        """
+        linked = [
+            {"id": "urn:ngsi-ld:DataProcessingJob:j1", "type": "DataProcessingJob"},
+            {"id": "urn:ngsi-ld:AgriSoilExtended:p1", "type": "AgriSoilExtended",
+             "horizons": {"type": "Property", "value": [
+                 {"sand": 40.0, "clay": 20.0, "organicCarbon": 1.0,
+                  "wetTillageLimit": 0.35, "dryTillageLimit": 0.13}]}},
+        ]
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY, soil=linked,
+                                            weather_observed=[REAL_WEATHER_OBSERVED])), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection", db_down):
+            r = client.get(self.URL, headers=AUTH)
+
+        assert r.status_code == 200
+        assert r.json()["metrics"]["wet_tillage_limit"] == 0.35
+
+    def test_context_aliases_are_read_from_the_names_orion_returns(self):
+        """The @context is not injective; compaction returns the writer's alias.
+
+        The engine writes `temperature`/`relativeHumidity`; Orion hands back
+        `airTemperature`/`humidity`. Reading only the writer-side names yields None
+        for every field while the request still answers 200.
+        """
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY,
+                                            weather_observed=[REAL_WEATHER_OBSERVED])), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection", db_down):
+            r = client.get(self.URL, headers=AUTH)
+
+        w = r.json()["weather"]
+        assert w["temperature"] == 21.0, "airTemperature alias not read"
+        assert w["humidity"] == 60.0, "humidity alias not read"
+
+    def test_no_lapse_correction_when_station_elevation_is_absent(self):
+        """A real WeatherObserved carries no stationElevation.
+
+        Open-Meteo is fetched at the parcel centroid, so the reading is already
+        local. Treating the missing attribute as sea level applied a full
+        lapse-rate correction on top — about 3 degC too cold for a parcel at 450 m.
+        """
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY,
+                                            weather_observed=[REAL_WEATHER_OBSERVED])), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection", db_down):
+            r = client.get(self.URL, headers=AUTH)
+
+        assert r.json()["weather"]["temperature"] == 21.0, (
+            "temperature was altitude-corrected against sea level"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Sensor cross-validation (pure)
+# ---------------------------------------------------------------------------
+class TestCrossValidateSensors:
+    @staticmethod
+    def _sensor(sid, dist, payload):
+        return {
+            "external_id": sid, "name": sid, "distance_m": dist,
+            "observed_at": "2026-06-11T10:00:00Z", "payload": dict(payload),
+        }
+
+    def test_median_fusion(self):
+        sensors = [
+            self._sensor("a", 100, {"temperature": 20.0}),
+            self._sensor("b", 200, {"temperature": 22.0}),
+            self._sensor("c", 300, {"temperature": 21.0}),
+        ]
+        out = _cross_validate_sensors(sensors)
+        assert out["validation"]["status"] == "cross_validated"
+        assert out["validation"]["unreliable_ids"] == []
+        assert out["payload"]["temperature"] == 21.0  # median of 20/21/22
+
+    def test_outlier_over_30pct_from_median_is_excluded(self):
+        sensors = [
+            self._sensor("a", 100, {"temperature": 20.0}),
+            self._sensor("b", 200, {"temperature": 21.0}),
+            self._sensor("c", 300, {"temperature": 80.0}),  # broken sensor
+        ]
+        out = _cross_validate_sensors(sensors)
+        assert out["validation"]["unreliable_ids"] == ["c"]
+        assert out["validation"]["reliable_sensors"] == 2
+        assert out["payload"]["temperature"] == 20.5  # median of survivors
+
+    def test_single_sensor_passthrough(self):
+        s = self._sensor("solo", 50, {"temperature": 19.0})
+        assert _cross_validate_sensors([s]) is s
+
+
+# ---------------------------------------------------------------------------
+# Parcel location resolution (pure)
+# ---------------------------------------------------------------------------
+class TestResolveParcelLocation:
+    def test_point(self):
+        assert _resolve_parcel_location(PARCEL_ENTITY) == (-1.64, 42.49)
+
+    def test_polygon_centroid(self):
+        entity = {
+            "location": {
+                "type": "GeoProperty",
+                "value": {
+                    "type": "Polygon",
+                    "coordinates": [[[0.0, 0.0], [2.0, 0.0], [2.0, 2.0], [0.0, 2.0]]],
+                },
+            }
+        }
+        assert _resolve_parcel_location(entity) == (1.0, 1.0)
+
+    def test_unwrapped_geojson_value(self):
+        entity = {"location": {"type": "Point", "coordinates": [-1.5, 42.0]}}
+        assert _resolve_parcel_location(entity) == (-1.5, 42.0)
+
+    def test_missing_location_returns_none(self):
+        assert _resolve_parcel_location({"id": "urn:x"}) is None
+
+
+# ---------------------------------------------------------------------------
+# Observations endpoints
+# ---------------------------------------------------------------------------
+class TestObservationsEndpoints:
+    def test_latest_reads_telemetry_events(self):
+        telemetry_row = {
+            "entity_id": "urn:ngsi-ld:WeatherObserved:test-tenant:parcel-p1",
+            "observed_at": NOW,
+            "measurements_raw": {"airTemperature": 19.0, "municipalityCode": "31201"},
+            "location_raw": {
+                "type": "GeoProperty",
+                "value": {"type": "Point", "coordinates": [-1.6, 42.5]},
+            },
+        }
+        with patch("app.routers.observations.get_db_connection",
+                   fake_db([[telemetry_row]])):
+            r = client.get("/api/weather/observations/latest", headers=AUTH)
+        assert r.status_code == 200
+        obs = r.json()["observations"]
+        assert obs[0]["temp_avg"] == 19.0  # NGSI-LD attr mapped to response field
+        assert "precip_mm" not in obs[0]  # absent stays absent, never 0
+        assert obs[0]["longitude"] == -1.6
+        assert obs[0]["latitude"] == 42.5
+
+    def test_latest_empty_when_no_telemetry(self):
+        with patch("app.routers.observations.get_db_connection", fake_db([[]])):
+            r = client.get("/api/weather/observations/latest", headers=AUTH)
+        assert r.status_code == 200
+        assert r.json() == {"observations": []}
+
+    def test_observations_with_filters(self):
+        rows = [
+            {"entity_id": "e1", "observed_at": NOW,
+             "measurements_raw": {"temperature": 22.0}, "location_raw": None},
+            {"entity_id": "e1", "observed_at": NOW,
+             "measurements_raw": {"temperature": 20.0}, "location_raw": None},
+        ]
+        with patch("app.routers.observations.get_db_connection", fake_db([rows])):
+            r = client.get(
+                "/api/weather/observations",
+                params={"municipality_code": "31201", "data_type": "HISTORY"},
+                headers=AUTH,
+            )
+        assert r.status_code == 200
+        assert r.json()["count"] == 2
+
+    def test_db_error_returns_500(self):
+        with patch("app.routers.observations.get_db_connection", db_down):
+            r = client.get("/api/weather/observations", headers=AUTH)
+        assert r.status_code == 500
+        assert r.json() == {"error": "Database error"}
+
+
+# ---------------------------------------------------------------------------
+# Alerts endpoint
+# ---------------------------------------------------------------------------
+class TestAlertsEndpoint:
+    def test_requires_auth(self):
+        assert client.get("/api/weather/alerts").status_code == 401
+
+    def test_returns_alerts_sorted_by_severity(self):
+        alerts = [
+            {"id": "urn:ngsi-ld:WeatherAlert:1", "type": "WeatherAlert",
+             "severity": {"type": "Property", "value": "minor"}},
+            {"id": "urn:ngsi-ld:WeatherAlert:2", "type": "WeatherAlert",
+             "severity": {"type": "Property", "value": "severe"}},
+        ]
+        with patch("app.routers.alerts.requests.get",
+                   return_value=orion_response(200, alerts)) as orion_get:
+            r = client.get("/api/weather/alerts", headers=AUTH)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["count"] == 2
+        assert body["alerts"][0]["id"].endswith(":2")  # severe first
+        # Alerts are geographic → always queried in the 'shared' tenant
+        headers = orion_get.call_args.kwargs["headers"]
+        assert headers["NGSILD-Tenant"] == "shared"
+
+    def test_orion_error_returns_empty_list(self):
+        with patch("app.routers.alerts.requests.get",
+                   return_value=orion_response(500, {"title": "boom"})):
+            r = client.get("/api/weather/alerts", headers=AUTH)
+        assert r.status_code == 200
+        assert r.json() == {"alerts": [], "count": 0, "source": "orion-ld"}
+
+
+# ---------------------------------------------------------------------------
+# Coordinates forecast endpoint
+# ---------------------------------------------------------------------------
+class TestCoordinatesEndpoint:
+    def test_maps_openmeteo_daily_arrays(self):
+        daily = {
+            "time": ["2026-06-11", "2026-06-12"],
+            "temperature_2m_max": [25.0, 26.0],
+            "temperature_2m_min": [12.0, None],
+            "weather_code": [1, 2],
+            "precipitation_sum": [0.0, 4.2],
+            "precipitation_probability_max": [5, 60],
+            "wind_speed_10m_max": [3.2, 5.0],
+            "wind_direction_10m_dominant": [180, 200],
+            "et0_fao_evapotranspiration": [4.1, 3.0],
+            "shortwave_radiation_sum": [25.92, None],
+        }
+        payload = {"daily": daily, "elevation": 420.0}
+        with patch("app.routers.coordinates.requests.get",
+                   return_value=orion_response(200, payload)):
+            r = client.get("/api/weather/coordinates",
+                           params={"lat": 42.5, "lon": -1.6, "days": 2})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["elevation_m"] == 420.0
+        assert len(body["forecast"]) == 2
+        # MJ/m²/day → W/m² conversion (÷ 0.0864)
+        assert body["forecast"][0]["solar_rad_w_m2"] == 300.0
+        assert body["forecast"][1]["temp_min"] is None  # None survives mapping
+
+    def test_upstream_error_returns_502(self):
+        with patch("app.routers.coordinates.requests.get",
+                   return_value=orion_response(500)):
+            r = client.get("/api/weather/coordinates",
+                           params={"lat": 42.5, "lon": -1.6})
+        assert r.status_code == 502
+
+    def test_invalid_latitude_is_422(self):
+        r = client.get("/api/weather/coordinates", params={"lat": 999, "lon": -1.6})
+        assert r.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# agroStatus persist — NGSI-LD compliance (platform mandate)
+# ---------------------------------------------------------------------------
+class TestPersistAgroStatus:
+    RESULT = {
+        "semaphores": {"spraying": "optimal", "workability": "optimal",
+                       "irrigation": "satisfied"},
+        "soil": {"texture_applied": True, "texture_class": "loam",
+                 "field_capacity": 0.32, "wilting_point": 0.12},
+        "metrics": {"delta_t": 5.0, "water_balance": 6.0, "spraying_reason": None},
+        "timestamp": "2026-06-11T12:00:00+00:00",
+        "source_confidence": "WEATHER-OBS",
+        "downscaling": "applied",
+    }
+
+    def test_attrs_patch_is_ngsild_compliant(self, monkeypatch):
+        from app.config import settings
+
+        monkeypatch.setattr(settings, "context_url",
+                            "http://context-test/ngsi-context.jsonld")
+        monkeypatch.setenv("CONTEXT_URL",
+                           "http://context-test/ngsi-context.jsonld")
+        with patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)) as mock_patch:
+            _persist_agro_status_to_orion("test-tenant", PARCEL_ID, self.RESULT)
+
+        assert mock_patch.call_count == 1
+        url = mock_patch.call_args.args[0]
+        assert url.endswith(f"/entities/{PARCEL_ID}/attrs")
+        headers = mock_patch.call_args.kwargs["headers"]
+        # Attribute fragments MUST go as application/json + Link (CLAUDE.md §3)
+        assert headers["Content-Type"] == "application/json"
+        assert "ngsi-context.jsonld" in headers.get("Link", "")
+        assert headers["NGSILD-Tenant"] == "test-tenant"
+        assert headers["Fiware-Service"] == "test-tenant"
+        body = mock_patch.call_args.kwargs["json"]
+        assert "@context" not in body
+        assert body["agroStatus"]["type"] == "Property"
+        value = body["agroStatus"]["value"]
+        assert value["spraying"] == "optimal"
+        assert value["downscalingApplied"] is True
+        assert value["soilTexture"] == "loam"
+        assert value["deltaT"] == 5.0
+
+    def test_persist_failure_is_swallowed(self):
+        with patch("app.routers.parcels.requests.patch",
+                   side_effect=RuntimeError("orion down")):
+            _persist_agro_status_to_orion("t", PARCEL_ID, {})  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# telemetry_events as the only weather source (weather_observations retired)
+# ---------------------------------------------------------------------------
+def recording_db(script, executed):
+    """Like fake_db, but records every (query, params) executed."""
+    shared = list(script)
+
+    class _Cur(FakeCursor):
+        def execute(self, query, params=None):
+            executed.append((query, params))
+            super().execute(query, params)
+
+    class _Conn(FakeConn):
+        def cursor(self, cursor_factory=None):
+            return _Cur(self._script)
+
+    return lambda tenant_id="shared": _Conn(shared)
+
+
+class TestAgroStatusTelemetrySource:
+    URL = f"/api/weather/parcel/{PARCEL_ID}/agro-status"
+
+    def _get(self, script, executed):
+        with patch("app.routers.parcels.requests.get",
+                   side_effect=orion_router(parcel=PARCEL_ENTITY)), \
+             patch("app.routers.parcels.requests.patch",
+                   return_value=orion_response(204)), \
+             patch("app.routers.parcels.get_db_connection",
+                   recording_db(script, executed)):
+            return client.get(self.URL, headers=AUTH)
+
+    def test_queries_only_parcel_own_telemetry_series(self):
+        executed = []
+        r = self._get([[], LIVE_ROW, []], executed)
+        assert r.status_code == 200
+        sql = " ".join(q for q, _ in executed)
+        assert "weather_observations" not in sql
+        live_q, live_p = executed[1]
+        daily_q, daily_p = executed[2]
+        assert "telemetry_events" in live_q and "telemetry_events" in daily_q
+        assert live_p[0] == "test-tenant"
+        assert "https://saref.etsi.org/saref4agri/WeatherObserved" in live_p
+        assert live_p[-1] == "%:parcel-p1"
+        assert daily_p[-3] == "%:parcel-p1-daily"
+        assert daily_p[-1] - daily_p[-2] == timedelta(days=3)
+
+    def test_live_and_daily_patterns_never_overlap(self):
+        # SQL LIKE semantics: the live pattern has no trailing wildcard, so it
+        # cannot match the closed-day entity; each day is counted once.
+        import re as _re
+
+        def like(pattern, value):
+            rx = "".join(".*" if c == "%" else "." if c == "_" else _re.escape(c) for c in pattern)
+            return _re.fullmatch(rx, value) is not None
+
+        executed = []
+        self._get([[], LIVE_ROW, []], executed)
+        live_pat, daily_pat = executed[1][1][-1], executed[2][1][-3]
+        live_id = "urn:ngsi-ld:WeatherObserved:test-tenant:parcel-p1"
+        assert like(live_pat, live_id) and not like(live_pat, live_id + "-daily")
+        assert like(daily_pat, live_id + "-daily") and not like(daily_pat, live_id)
+
+    def test_missing_daily_rows_are_not_filled_with_zero(self):
+        r = self._get([[], LIVE_ROW, []], [])
+        w = r.json()["weather"]
+        assert w["temperature"] == 22.0
+        assert w["eto_3d"] is None
+        assert w["water_balance"] is None
+
+    def test_partial_daily_rows_report_what_exists(self):
+        daily = [
+            {"observed_at": NOW, "measurements": {"precipitation": 3.0, "et0": 2.0}},
+            {"observed_at": NOW - timedelta(days=1), "measurements": {"precipitation": 1.0}},
+        ]
+        r = self._get([[], LIVE_ROW, daily], [])
+        w = r.json()["weather"]
+        assert w["precipitation_3d"] == 4.0
+        assert w["eto_3d"] == 2.0  # only the day that has et0
+
+    def test_live_row_without_measurement_stays_none(self):
+        row = {"observed_at": NOW, "measurements": {"airTemperature": 18.0}}
+        r = self._get([[], row, []], [])
+        w = r.json()["weather"]
+        assert w["temperature"] == 18.0
+        assert w["humidity"] is None
+        assert w["wind_speed"] is None
+
+
+class TestMunicipalityNear:
+    URL = "/api/weather/municipality/near"
+
+    def test_uses_catalog_only(self):
+        executed = []
+        row = {"ine_code": "31201", "name": "X", "province": "P",
+               "autonomous_community": "C", "latitude": 42.5,
+               "longitude": -1.6, "distance_km": 1.2}
+        with patch("app.routers.locations.get_db_connection",
+                   recording_db([row], executed)):
+            r = client.get(self.URL, params={"latitude": 42.49, "longitude": -1.64},
+                           headers=AUTH)
+        assert r.status_code == 200
+        assert r.json()["municipality"]["ine_code"] == "31201"
+        assert len(executed) == 1
+        assert "weather_observations" not in executed[0][0]
+        assert "catalog_municipalities" in executed[0][0]
+
+    def test_empty_catalog_is_404(self):
+        with patch("app.routers.locations.get_db_connection",
+                   recording_db([None], [])):
+            r = client.get(self.URL, params={"latitude": 42.49, "longitude": -1.64},
+                           headers=AUTH)
+        assert r.status_code == 404

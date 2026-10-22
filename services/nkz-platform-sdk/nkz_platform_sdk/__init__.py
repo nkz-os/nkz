@@ -1,0 +1,109 @@
+"""
+Nekazari Platform SDK — Backend module development kit.
+
+Provides:
+- ModuleApp: FastAPI subclass pre-wired with CORS, /health, JSON logs, auth helpers
+- require_auth: FastAPI dependency for authenticated routes
+- OrionClient: Typed NGSI-LD async client with automatic tenant header injection
+- SyncOrionClient: Synchronous NGSI-LD client (for sync codebases)
+- TimescaleClient: Typed timeseries reader, tenant headers auto-injected
+- ModuleLifecycle: Base class for install/uninstall/enable/disable hooks
+- installed_tenants / lifecycle_hint_router: where this module is installed
+  (entity-manager internal API) and the receiver for its enable/disable hint
+- ModuleConfig: Per-tenant encrypted configuration storage
+- generate_hmac_signature / verify_hmac_signature: canonical platform HMAC
+  primitive (payload `{data}|{tenant_id}|{timestamp}`, output
+  `{hexdigest}:{timestamp}`), the single source of truth used internally by
+  require_auth() and available for services that need to produce/verify the
+  same signature format (e.g. api-gateway → module backend HMAC).
+- notification_token / verify_notification / receiver_host_from_url: derived
+  per-tenant, per-receiver tokens for Orion-LD notifications (notify_auth), so
+  no subscription stores the master secret.
+
+License: Apache-2.0 — modules using this SDK may use any license.
+"""
+
+from nkz_platform_sdk.auth import require_auth, AuthContext
+from nkz_platform_sdk.module_app import ModuleApp
+from nkz_platform_sdk.orion import OrionClient, SyncOrionClient
+from nkz_platform_sdk.timescale import TimescaleClient
+from nkz_platform_sdk.lifecycle import ModuleLifecycle, LifecycleResult, lifecycle_hint_router
+from nkz_platform_sdk.installations import (
+    InstalledTenantsUnavailable,
+    TenantInstallations,
+    installed_tenants,
+)
+from nkz_platform_sdk.config import ModuleConfig
+from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
+from nkz_platform_sdk.activation import ModuleActivation
+from nkz_platform_sdk.ngsi_headers import inject_fiware_headers
+from nkz_platform_sdk.constants import SensorFidelity
+from nkz_platform_sdk.crypto import generate_hmac_signature, verify_hmac_signature
+from nkz_platform_sdk.notify_auth import (
+    notification_token,
+    receiver_host_from_url,
+    verify_notification,
+)
+from nkz_platform_sdk.agronomy import (
+    AgronomicValue,
+    Source,
+    combine_confidence,
+    confidence_from_match,
+    confidence_from_fidelity,
+)
+from nkz_platform_sdk.crop_timeline import (
+    CropDataRejected,
+    CropDataUnavailable,
+    ParcelNotFound,
+    fetch_crop_timeline,
+    load_crop_data,
+    local_today,
+    normalize_parcel_urn,
+)
+from nkz_platform_sdk.crop_cycles import (
+    Boundary,
+    CropCycle,
+    CropCycleTimeline,
+    resolve_crop_cycles,
+)
+
+__all__ = [
+    "ModuleApp",
+    "require_auth",
+    "AuthContext",
+    "OrionClient",
+    "SyncOrionClient",
+    "TimescaleClient",
+    "ModuleLifecycle",
+    "LifecycleResult",
+    "lifecycle_hint_router",
+    "installed_tenants",
+    "TenantInstallations",
+    "InstalledTenantsUnavailable",
+    "ModuleConfig",
+    "SubscriptionRegistrar",
+    "ModuleActivation",
+    "inject_fiware_headers",
+    "AgronomicValue",
+    "Source",
+    "combine_confidence",
+    "confidence_from_match",
+    "confidence_from_fidelity",
+    "resolve_crop_cycles",
+    "fetch_crop_timeline",
+    "load_crop_data",
+    "local_today",
+    "normalize_parcel_urn",
+    "CropDataUnavailable",
+    "CropDataRejected",
+    "ParcelNotFound",
+    "CropCycleTimeline",
+    "CropCycle",
+    "Boundary",
+    "SensorFidelity",
+    "generate_hmac_signature",
+    "verify_hmac_signature",
+    "notification_token",
+    "receiver_host_from_url",
+    "verify_notification",
+]

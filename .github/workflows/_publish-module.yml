@@ -1,0 +1,169 @@
+name: Publish Module (reusable)
+on:
+  workflow_call:
+    inputs:
+      module_id:          { required: true, type: string }
+      build_cmd:          { required: false, type: string, default: "pnpm run build:module" }
+      dist_dir:           { required: false, type: string, default: "dist" }
+      working_dir:        { required: false, type: string, default: "." }
+      package_json_file:  { required: false, type: string, default: "package.json" }
+    secrets:
+      # Unused since the gateway authenticates the publisher by OIDC and presents
+      # its own credentials downstream. Kept optional so existing callers that
+      # still pass it do not break; they can drop it at any time.
+      INTERNAL_SERVICE_SECRET: { required: false }
+
+jobs:
+  # FIWARE compliance gate — publish CANNOT run unless this passes. Conservative:
+  # blocks unambiguous violations (verify=False, direct INSERT into timeseries
+  # tables); warns on raw Orion calls. Tighten over time as module criteria firm up.
+  compliance:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: FIWARE compliance check (module Python)
+        working-directory: ${{ inputs.working_dir }}
+        run: |
+          set -uo pipefail
+          PYFILES=$(find . -name '*.py' \
+            -not -path '*/node_modules/*' -not -path '*/.venv/*' -not -path '*/venv/*' \
+            -not -path '*/tests/*' -not -path '*/migrations/*' 2>/dev/null || true)
+          if [ -z "$PYFILES" ]; then echo "No Python files; nothing to check."; exit 0; fi
+          fail=0
+          # Drop full-line comment matches (":<lineno>:<spaces>#…") to avoid
+          # false positives on code that only MENTIONS a pattern in a comment.
+          NOCOMMENT='grep -vE :[0-9]+:[[:space:]]*#'
+          # 1) SSL bypass — always forbidden
+          vf=$(echo "$PYFILES" | xargs grep -nE 'verify[[:space:]]*=[[:space:]]*False' 2>/dev/null | $NOCOMMENT || true)
+          if [ -n "$vf" ]; then echo "$vf"; echo "::error::verify=False (SSL bypass) is forbidden"; fail=1; fi
+          # 2) Direct writes to observational/timeseries tables — must flow via Orion-LD
+          TS='telemetry|telemetry_events|weather_observations|risk_daily_states|device_measurements'
+          ins=$(echo "$PYFILES" | xargs grep -nEi "INSERT[[:space:]]+INTO[[:space:]]+($TS)" 2>/dev/null | $NOCOMMENT || true)
+          if [ -n "$ins" ]; then echo "$ins"; echo "::error::Direct INSERT into a timeseries/observational table — route via Orion-LD subscription"; fail=1; fi
+          # 3) Raw Orion-LD without the canonical header layer — warning
+          for f in $PYFILES; do
+            if grep -qE 'ORION_URL|orion-ld-service|/ngsi-ld/v1' "$f" 2>/dev/null \
+               && ! grep -qE 'inject_fiware_headers|OrionClient|SyncOrionClient|ngsi_headers' "$f" 2>/dev/null; then
+              echo "::warning::$f calls Orion-LD without inject_fiware_headers/OrionClient"
+            fi
+          done
+          [ "$fail" -eq 0 ] || { echo "FIWARE compliance gate FAILED"; exit 1; }
+          echo "FIWARE compliance gate passed"
+
+  publish:
+    # GitHub-hosted runner. Auth: OIDC JWT from token.actions.githubusercontent.com
+    # validated by api-gateway against GitHub's JWKS.
+    needs: compliance
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    env:
+      # Deployment endpoints are organisation variables, never values in this
+      # file: the repo is public and installable. NKZ_API_URL is the public API
+      # origin (api-gateway validates the OIDC JWT before forwarding) and
+      # NKZ_STATIC_URL the origin that serves /modules/.
+      EM: ${{ vars.NKZ_API_URL }}
+      STATIC: ${{ vars.NKZ_STATIC_URL }}
+      MODULE: ${{ inputs.module_id }}
+      # Required by @nekazari/module-builder manifest-emit step (replaces import.meta.env.VITE_API_URL)
+      VITE_API_URL: ${{ vars.NKZ_API_URL }}
+      # pnpm v11+ blocks build scripts by default; esbuild is required by Vite
+      PNPM_ONLY_BUILT_DEPENDENCIES: esbuild
+    steps:
+      - name: Check publish configuration
+        run: |
+          if [ -z "$EM" ] || [ -z "$STATIC" ]; then
+            echo "::error title=Publish not configured::Set the organisation variables NKZ_API_URL and NKZ_STATIC_URL."
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: "22" }
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: ${{ inputs.package_json_file }}
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+        working-directory: ${{ inputs.working_dir }}
+      - name: Build module
+        run: ${{ inputs.build_cmd }}
+        working-directory: ${{ inputs.working_dir }}
+        env:
+          NKZ_VERSION_HASH: ${{ github.sha }}
+      - name: Pin publicPath to immutable version
+        working-directory: ${{ inputs.working_dir }}
+        env:
+          DIST: ${{ inputs.dist_dir }}
+        run: |
+          set -euo pipefail
+          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
+          MF="$DIST/mf-manifest.json"
+          if [ -f "$MF" ]; then
+            node -e "
+              const fs=require('fs');
+              const mf=JSON.parse(fs.readFileSync('$MF','utf8'));
+              const pub=mf.metaData?.publicPath||'';
+              if(!pub) throw new Error('mf-manifest.json missing metaData.publicPath');
+              const unversioned=/^(\/modules\/[^/]+)\/$/;
+              const match=pub.match(unversioned);
+              if(match){
+                const next=match[1]+'/$SHA/';
+                mf.metaData.publicPath=next;
+                fs.writeFileSync('$MF',JSON.stringify(mf));
+                console.log('publicPath:',pub,'→',next);
+              } else {
+                console.log('publicPath already versioned:',pub);
+              }
+            "
+          fi
+      - name: Get GitHub OIDC token
+        run: |
+          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=nkz-publish" | jq -r .value)
+          echo "OIDC_TOKEN=${OIDC_TOKEN}" >> $GITHUB_ENV
+      - name: Publish to entity-manager (immutable <sha>/ + activate)
+        working-directory: ${{ inputs.working_dir }}
+        env:
+          DIST: ${{ inputs.dist_dir }}
+        run: |
+          set -euo pipefail
+          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
+          args=$(cd "$DIST" && find . -type f -printf '-F file=@%p;filename=%P ')
+          # shellcheck disable=SC2086
+          # X-FIWARE-Compliant is sent ONLY here — and this step runs only because
+          # `publish needs: compliance` passed. entity-manager stamps the module
+          # fiware_compliance=compliant on receipt (replaces the manual-SQL stamp).
+          code=$(cd "$DIST" && curl -sS -o /tmp/pub.json -w '%{http_code}' \
+                 -H "X-OIDC-Token: $OIDC_TOKEN" \
+                 -H "X-FIWARE-Compliant: 1" \
+                 -F "version_hash=$SHA" $args \
+                 "$EM/api/internal/modules/$MODULE/publish")
+          echo "publish HTTP $code"; cat /tmp/pub.json; echo
+          case "$code" in 200|201) ;; *) echo "::error::publish failed (HTTP $code)"; exit 1;; esac
+      - name: Verify pointer flipped + manifest served
+        run: |
+          set -euo pipefail
+          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
+          # 1) Pointer flip: resolve-url returns the active deployed_version.
+          #    The flip can briefly 500 right after publish (transient race);
+          #    poll up to 6x (sleep 5 between) before declaring failure.
+          active=""
+          for attempt in 1 2 3 4 5 6; do
+            curl -sS -o /tmp/resolve.json -w 'resolve HTTP %{http_code}\n' \
+                 "$EM/api/internal/modules/$MODULE/resolve-url" || true
+            cat /tmp/resolve.json; echo
+            active=$(node -e "try{console.log(require('/tmp/resolve.json').version||'')}catch(e){console.log('')}")
+            [ "$active" = "$SHA" ] && break
+            echo "resolve-url attempt $attempt/6: active=$active, expected=$SHA"
+            if [ "$attempt" -lt 6 ]; then sleep 5; fi
+          done
+          [ "$active" = "$SHA" ] || { echo "::error::pointer not flipped (active=$active, expected=$SHA)"; exit 1; }
+          # 2) Bytes served from the immutable <sha>/ path (public).
+          murl="$STATIC/modules/$MODULE/$SHA/mf-manifest.json"
+          code=$(curl -sS -o /tmp/mf.json -w '%{http_code}' "$murl")
+          bytes=$(wc -c < /tmp/mf.json)
+          echo "served manifest $murl -> HTTP $code, $bytes bytes"
+          [ "$code" = "200" ] && [ "$bytes" -gt 0 ] || { echo "::error::manifest not served"; exit 1; }

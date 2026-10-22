@@ -1,0 +1,82 @@
+# Dependabot configuration — Nekazari platform
+# Security updates are enabled at the repository level (Settings → Code security).
+# Version updates below are grouped and rate-limited to keep PR noise manageable.
+version: 2
+updates:
+  # JavaScript/TypeScript — pnpm workspace (host app + packages)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    # Major bumps of Module Federation shared singletons and the build
+    # toolchain are deliberate platform migrations, not routine updates.
+    # NOTE: `ignore` also suppresses Dependabot security PRs for these
+    # majors — security advisories still surface as alerts and must be
+    # handled manually for these packages.
+    ignore:
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-router"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-router-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "i18next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      # @vitest/coverage-v8 major bumps require vitest v4+. Bump both together.
+      - dependency-name: "@vitest/coverage-v8"
+        update-types: ["version-update:semver-major"]
+      # postcss: toolchain dependency for TailwindCSS+Vite (postcss.config.js).
+      # Not imported in JS/TS → Dependabot static analysis incorrectly flags as
+      # unused and creates removal PRs that break frozen-lockfile builds.
+      - dependency-name: "postcss"
+      # @module-federation/vite: pinned to 1.16.8. 1.16.9 statically inlines the
+      # React loadShare proxy, creating a circular react<->design-tokens cycle
+      # (createContext at module-eval → TDZ → landing never bootstraps). Even
+      # patch bumps must be deliberate + smoke-tested. Bump manually only.
+      - dependency-name: "@module-federation/vite"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+
+
+  # Python backend services (one manifest per service)
+  - package-ecosystem: "pip"
+    directories:
+      - "/services"
+      - "/services/*"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      pip-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      actions-all:
+        patterns:
+          - "*"

@@ -1,0 +1,179 @@
+import React, { useState, useRef } from 'react';
+import { Upload, X, Image as ImageIcon, Check, Loader2 } from 'lucide-react';
+import { uploadToMinIO, isValidIconFile, getMaxFileSizeMB, UploadProgress } from '@/utils/minioAssets';
+import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
+
+interface IconUploaderProps {
+  currentIconUrl?: string;
+  defaultIconPath?: string;
+  onUpload: (url: string) => void;
+  onRemove?: () => void;
+  disabled?: boolean;
+}
+
+export const IconUploader: React.FC<IconUploaderProps> = ({
+  currentIconUrl,
+  defaultIconPath,
+  onUpload,
+  onRemove,
+  disabled = false
+}) => {
+  const { t } = useI18n();
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(currentIconUrl || defaultIconPath || null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    setUploadProgress(0);
+
+    // Validate file type
+    if (!isValidIconFile(file)) {
+      setError(t('wizard.upload.invalid_type_icon'));
+      return;
+    }
+
+    // Validate file size
+    const maxSizeMB = getMaxFileSizeMB('icon');
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > maxSizeMB) {
+      setError(t('wizard.upload.file_too_large', { max: maxSizeMB }));
+      return;
+    }
+
+    // Show preview immediately
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload to MinIO
+    setUploading(true);
+    try {
+      const url = await uploadToMinIO(file, 'icon', {
+        onProgress: (progress: UploadProgress) => {
+          setUploadProgress(progress.percentage);
+        }
+      });
+      onUpload(url);
+      setPreview(url);
+    } catch (err: any) {
+      setError(err.message || t('wizard.upload.icon_failed'));
+      setPreview(null);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemove = () => {
+    setPreview(defaultIconPath || null);
+    if (onRemove) {
+      onRemove();
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <label className="block text-sm font-medium text-nkz-text-primary">
+        {t('wizard.upload.icon_2d')}
+      </label>
+
+      <div className="flex items-start gap-4">
+        {/* Preview */}
+        <div className="flex-shrink-0">
+          <div className="w-24 h-24 border-2 border-nkz-border rounded-lg overflow-hidden bg-nkz-bg-secondary flex items-center justify-center">
+            {preview ? (
+              <img
+                src={preview}
+                alt={t('wizard.upload.icon_preview')}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <ImageIcon className="w-8 h-8 text-nkz-muted" />
+            )}
+          </div>
+        </div>
+
+        {/* Upload controls */}
+        <div className="flex-1 space-y-2">
+          <div className="flex gap-2">
+            <label
+              className={`flex items-center gap-2 px-4 py-2 border border-nkz-border rounded-lg cursor-pointer hover:bg-nkz-bg-secondary transition ${
+                disabled || uploading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {uploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
+              <span className="text-sm font-medium">
+                {uploading ? t('wizard.upload.uploading', { progress: uploadProgress }) : t('wizard.upload.upload_icon')}
+              </span>
+              <Input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                onChange={handleFileSelect}
+                disabled={disabled || uploading}
+                className="hidden"
+              />
+            </label>
+
+            {preview && preview !== defaultIconPath && !uploading && (
+              <Button variant="ghost"
+                type="button"
+                onClick={handleRemove}
+                disabled={disabled}
+                className="px-4 py-2 border border-nkz-danger/30 text-nkz-danger-strong rounded-lg hover:bg-nkz-danger-soft transition disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+
+          {/* Upload Progress Bar */}
+          {uploading && uploadProgress > 0 && (
+            <div className="w-full bg-nkz-surface-sunken rounded-full h-1.5">
+              <div 
+                className="bg-nkz-success h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          )}
+
+          <p className="text-xs text-nkz-muted">
+            {t('wizard.upload.formats_icon', { max: getMaxFileSizeMB('icon') })}
+          </p>
+
+          {error && (
+            <div className="text-xs text-nkz-danger-strong bg-nkz-danger-soft border border-nkz-danger/30 rounded px-2 py-1">
+              {error}
+            </div>
+          )}
+
+          {currentIconUrl && currentIconUrl !== preview && (
+            <div className="flex items-center gap-1 text-xs text-nkz-success-strong">
+              <Check className="w-3 h-3" />
+              <span>{t('wizard.upload.icon_success')}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

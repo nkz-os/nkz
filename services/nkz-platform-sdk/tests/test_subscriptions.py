@@ -1,0 +1,667 @@
+# tests/test_subscriptions.py
+"""Unit tests for SubscriptionRegistrar — delegates to OrionClient."""
+
+import asyncio
+import json
+
+import pytest
+import respx
+from httpx import Response
+
+from nkz_platform_sdk.subscriptions import SubscriptionDef, SubscriptionRegistrar
+
+ORION = "http://orion-ld-service:1026"
+NOTIFY = "http://crop-health-api-service:8000/api/crop-health/webhooks/orion"
+
+SUBS = [
+    {"type": "EOProduct", "throttling": 30},
+    {"type": "WeatherObserved", "throttling": 60},
+]
+
+
+def make_registrar() -> SubscriptionRegistrar:
+    return SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=SUBS,
+        module_name="crop-health",
+    )
+
+
+def _one_sub_registrar() -> SubscriptionRegistrar:
+    return SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "EOProduct", "throttling": 30}],
+        module_name="crop-health",
+    )
+
+
+def test_body_includes_receiver_info_when_headers_given():
+    """receiverInfo carries per-notification auth headers (X-Internal-Service-Secret)
+    so Orion injects them into each delivery — closing the unauth'd notify receivers."""
+    registrar = SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "EOProduct", "throttling": 30}],
+        module_name="crop-health",
+        notification_headers={"X-Internal-Service-Secret": "s3cret"},
+    )
+    body = registrar._body(registrar._subs[0])
+    endpoint = body["notification"]["endpoint"]
+    assert endpoint["receiverInfo"] == [
+        {"key": "X-Internal-Service-Secret", "value": "s3cret"}
+    ]
+
+
+def test_body_omits_receiver_info_without_headers():
+    """Backwards compatible: no notification_headers -> no receiverInfo key."""
+    registrar = _one_sub_registrar()
+    body = registrar._body(registrar._subs[0])
+    assert "receiverInfo" not in body["notification"]["endpoint"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_creates_missing_subscriptions_with_deterministic_id():
+    get_route = respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=[])
+    )
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/ngsi-ld/v1/subscriptions/urn:x"})
+    )
+    result = await make_registrar().ensure_all(["acmefarm"])
+    assert result == {"created": 2, "skipped": 0, "converged": 0, "errors": []}
+    assert len(post.calls) == 2
+
+    ids = {json.loads(c.request.content)["id"] for c in post.calls}
+    assert ids == {
+        "urn:ngsi-ld:Subscription:crop-health:EOProduct",
+        "urn:ngsi-ld:Subscription:crop-health:WeatherObserved",
+    }
+    # a 201 triggers the legacy-duplicate sweep
+    assert get_route.calls
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_counts_409_as_skipped_without_error():
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"type": "AlreadyExists", "title": "duplicate"})
+    )
+    result = await _one_sub_registrar().ensure_all(["acmefarm"])
+    assert result == {"created": 0, "skipped": 1, "converged": 1, "errors": []}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_run_twice_creates_once_then_skips():
+    """Same registrar, two runs: first process wins (201), second collides (409)."""
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(return_value=Response(200, json=[]))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        side_effect=[
+            Response(201, headers={"Location": "/x"}),
+            Response(409, json={"title": "duplicate"}),
+        ]
+    )
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
+    registrar = _one_sub_registrar()
+    first = await registrar.ensure_all(["acmefarm"])
+    second = await registrar.ensure_all(["acmefarm"])
+    assert first == {"created": 1, "skipped": 0, "converged": 0, "errors": []}
+    assert second == {"created": 0, "skipped": 1, "converged": 1, "errors": []}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_purges_legacy_duplicate_after_create():
+    legacy = [{
+        "id": "urn:ngsi-ld:Subscription:legacy-random-uuid",
+        "type": "Subscription",
+        "description": "nkz-module: EOProduct -> crop-health",
+    }]
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=legacy)
+    )
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+    delete_route = respx.delete(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:legacy-random-uuid"
+    ).mock(return_value=Response(204))
+
+    result = await _one_sub_registrar().ensure_all(["acmefarm"])
+
+    assert result == {"created": 1, "skipped": 0, "converged": 0, "errors": []}
+    assert len(delete_route.calls) == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_409_does_not_list_or_delete():
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
+    get_route = respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=[])
+    )
+    delete_route = respx.delete(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:legacy"
+    ).mock(return_value=Response(204))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+
+    result = await _one_sub_registrar().ensure_all(["acmefarm"])
+
+    assert result == {"created": 0, "skipped": 1, "converged": 1, "errors": []}
+    assert not get_route.calls, "409 must not trigger the legacy-duplicate listing"
+    assert not delete_route.calls, "409 must not trigger any delete"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_collects_errors_without_raising():
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        side_effect=[Response(500, text="boom"), Response(500, text="boom again")]
+    )
+    result = await _one_sub_registrar().ensure_all(["acmefarm"])
+    assert result["created"] == 0
+    assert result["skipped"] == 0
+    assert len(result["errors"]) == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_reconciles_500_then_409_as_skip():
+    """Verified against the live broker: under real concurrency Orion
+    intermittently answers 500 (not 409) when it loses the create race --
+    the "exactly one 201" invariant held every round regardless. Reads are
+    eventually consistent on this platform (60s subscription-cache
+    interval; measured 404 at 0s/2s, 200 only at 10s/30s after a real
+    create), so a status GET cannot resolve the ambiguity. The create
+    itself is strongly consistent, so retrying it is what does: retry
+    lands on 409 -> someone else already holds the id -> skipped, then
+    converged like any other 409.
+    """
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        side_effect=[Response(500, text="boom"), Response(409, json={"title": "duplicate"})]
+    )
+
+    result = await _one_sub_registrar().ensure_all(["acmefarm"])
+
+    assert result == {"created": 0, "skipped": 1, "converged": 1, "errors": []}
+    assert len(post.calls) == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_reconciles_500_then_201_as_created():
+    """The retry can also land the create outright -- counted as created,
+    and the legacy-duplicate sweep still runs, same as any other 201.
+    """
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        side_effect=[
+            Response(500, text="boom"),
+            Response(201, headers={"Location": "/x"}),
+        ]
+    )
+    get_route = respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=[])
+    )
+
+    result = await _one_sub_registrar().ensure_all(["acmefarm"])
+
+    assert result == {"created": 1, "skipped": 0, "converged": 0, "errors": []}
+    assert len(post.calls) == 2
+    assert get_route.calls, "a 201 (even on retry) must still run the legacy-duplicate sweep"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_500_then_500_is_a_real_error_naming_both_statuses():
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        side_effect=[Response(500, text="boom"), Response(500, text="boom again")]
+    )
+
+    result = await _one_sub_registrar().ensure_all(["acmefarm"])
+
+    assert result["created"] == 0
+    assert result["skipped"] == 0
+    assert len(result["errors"]) == 1
+    assert "status=500" in result["errors"][0]
+    assert "retry_status=500" in result["errors"][0]
+    assert len(post.calls) == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_ensure_all_409_does_not_retry_the_create():
+    """A 409 is unambiguous -- no create retry; only the converging PATCH follows."""
+    patch = respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+
+    result = await _one_sub_registrar().ensure_all(["acmefarm"])
+
+    assert result == {"created": 0, "skipped": 1, "converged": 1, "errors": []}
+    assert len(post.calls) == 1
+    assert len(patch.calls) == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_409_patches_existing_onto_declaration_and_rearms_it():
+    """A subscription created before a declaration change (legacy auth header)
+    and paused by Orion must be converged: same id, declared endpoint with the
+    current receiverInfo, isActive true. Without this it stays wrong forever."""
+    patch = respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+    registrar = SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "EOProduct", "throttling": 30, "watched_attributes": ["hasAgriCrop"]}],
+        module_name="crop-health",
+        notification_headers={"X-Internal-Service-Secret": "s3cret"},
+    )
+
+    result = await registrar.ensure_all(["tenant-a"])
+
+    assert result["converged"] == 1 and result["errors"] == []
+    req = patch.calls[0].request
+    body = json.loads(req.content)
+    assert "id" not in body, "Orion-LD rejects the id inside an update"
+    assert body["isActive"] is True
+    assert body["watchedAttributes"] == ["hasAgriCrop"]
+    assert body["notification"]["endpoint"] == {
+        "uri": NOTIFY,
+        "accept": "application/json",
+        "receiverInfo": [{"key": "X-Internal-Service-Secret", "value": "s3cret"}],
+    }
+    assert req.headers["NGSILD-Tenant"] == "tenant-a"
+    assert req.headers["Content-Type"] == "application/json"
+    assert "Link" in req.headers
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_converge_404_is_not_an_error():
+    """409 then 404 on the PATCH: the create that won is still settling in the
+    subscription cache, and it carried this same body."""
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(404, json={"title": "not found"}))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+
+    result = await _one_sub_registrar().ensure_all(["tenant-a"])
+
+    assert result == {"created": 0, "skipped": 1, "converged": 0, "errors": []}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_converge_failure_is_reported_without_raising():
+    respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(400, json={"title": "bad"}))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+
+    result = await _one_sub_registrar().ensure_all(["tenant-a"])
+
+    assert result["skipped"] == 1 and result["converged"] == 0
+    assert len(result["errors"]) == 1
+    assert "update urn:ngsi-ld:Subscription:crop-health:EOProduct" in result["errors"][0]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_201_does_not_patch():
+    """A create that succeeded already carries the declaration."""
+    patch = respx.patch(f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct").mock(return_value=Response(204))
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(return_value=Response(200, json=[]))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+
+    await _one_sub_registrar().ensure_all(["tenant-a"])
+
+    assert not patch.calls
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_subscription_body_and_headers_are_ngsild_compliant():
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=[])
+    )
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+    await _one_sub_registrar().ensure_all(["acmefarm"])
+
+    req = post.calls[0].request
+    # Legal NGSI-LD combination: application/json + Link, no @context in body
+    assert req.headers["Content-Type"] == "application/json"
+    assert "Link" in req.headers
+    assert req.headers["NGSILD-Tenant"] == "acmefarm"
+    body = json.loads(req.content)
+    assert "@context" not in body
+    assert body["id"] == "urn:ngsi-ld:Subscription:crop-health:EOProduct"
+    assert body["description"] == "nkz-module: EOProduct -> crop-health"
+    assert body["entities"] == [{"type": "EOProduct"}]
+    assert body["throttling"] == 30
+    assert body["notification"]["endpoint"]["uri"] == NOTIFY
+
+
+def _registrar():
+    return SubscriptionRegistrar(
+        orion_url="http://orion:1026",
+        notification_url="http://svc/notify",
+        subscriptions=[],
+        module_name="bioorchestrator",
+    )
+
+
+def test_body_omits_watched_and_condition_when_unset():
+    body = _registrar()._body(SubscriptionDef(type="AgriCrop"))
+    assert "watchedAttributes" not in body
+    assert "condition" not in body
+
+
+def test_body_includes_watched_and_condition_when_set():
+    sub = SubscriptionDef(
+        type="CropHealthAssessment",
+        watched_attributes=["phenologyStage"],
+        condition={"attrs": ["phenologyStage"]},
+    )
+    body = _registrar()._body(sub)
+    assert body["watchedAttributes"] == ["phenologyStage"]
+    assert body["condition"] == {"attrs": ["phenologyStage"]}
+    assert body["entities"] == [{"type": "CropHealthAssessment"}]
+
+
+def test_subscription_id_is_deterministic_and_stable():
+    reg = _registrar()
+    sub = SubscriptionDef(type="AgriCrop")
+    assert reg._subscription_id(sub) == "urn:ngsi-ld:Subscription:bioorchestrator:AgriCrop"
+    # same input -> same id, every time
+    assert reg._subscription_id(sub) == reg._subscription_id(sub)
+
+
+def test_subscription_id_sanitises_invalid_urn_characters():
+    reg = SubscriptionRegistrar(
+        orion_url="http://orion:1026",
+        notification_url="http://svc/notify",
+        subscriptions=[],
+        module_name="weird module/name!",
+    )
+    sub_id = reg._subscription_id(SubscriptionDef(type="Some Type#With/Slashes"))
+    assert sub_id == "urn:ngsi-ld:Subscription:weird-module-name-:Some-Type-With-Slashes"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_legacy_purge_finds_duplicate_beyond_the_first_page():
+    """The legacy-duplicate sweep must use the paginating listing, not a
+    single-page read, or a legacy duplicate sitting past page 1 survives
+    convergence forever.
+    """
+    from nkz_platform_sdk.orion import ORION_PAGE_SIZE
+
+    filler = [
+        {"id": f"urn:ngsi-ld:Subscription:filler-{i}", "description": f"unrelated-{i}"}
+        for i in range(ORION_PAGE_SIZE)
+    ]
+    legacy = {
+        "id": "urn:ngsi-ld:Subscription:legacy-random-uuid",
+        "description": "nkz-module: EOProduct -> crop-health",
+    }
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        side_effect=[
+            Response(200, json=filler),    # page 1, full page
+            Response(200, json=[legacy]),  # page 2, short page, stop
+        ]
+    )
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+    delete_route = respx.delete(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:legacy-random-uuid"
+    ).mock(return_value=Response(204))
+
+    result = await _one_sub_registrar().ensure_all(["acmefarm"])
+
+    assert result == {"created": 1, "skipped": 0, "converged": 0, "errors": []}
+    assert len(delete_route.calls) == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_legacy_purge_ignores_404_on_delete():
+    """A 404 on the legacy delete means someone else already removed it —
+    not an error."""
+    legacy = [{
+        "id": "urn:ngsi-ld:Subscription:legacy-random-uuid",
+        "description": "nkz-module: EOProduct -> crop-health",
+    }]
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(200, json=legacy)
+    )
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+    respx.delete(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:legacy-random-uuid"
+    ).mock(return_value=Response(404, json={"title": "not found"}))
+
+    result = await _one_sub_registrar().ensure_all(["acmefarm"])
+
+    assert result == {"created": 1, "skipped": 0, "converged": 0, "errors": []}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_periodic_heal_never_raises_on_heal_cycle_failure(monkeypatch):
+    """A failing ensure_all cycle (Orion returning errors) must not kill the loop."""
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(500, text="boom")
+    )
+    sleep_calls = 0
+
+    async def fake_sleep(_seconds):
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if sleep_calls >= 2:
+            raise asyncio.CancelledError()
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    registrar = _one_sub_registrar()
+    with pytest.raises(asyncio.CancelledError):
+        await registrar.periodic_heal(["acmefarm"], interval_minutes=60)
+    assert sleep_calls == 2
+
+
+# --- throttling ---------------------------------------------------------------
+# Orion-LD answers 400 ("Negative Number not allowed in this position") to a
+# throttling of 0, on create and on update; a subscription without the member
+# is not throttled at all.
+
+
+def test_none_throttling_is_left_out_so_orion_does_not_throttle():
+    body = _registrar()._body(SubscriptionDef(type="AgriCrop", throttling=None))
+    assert "throttling" not in body
+
+
+def test_default_throttling_stays_thirty_seconds():
+    assert _registrar()._body(SubscriptionDef(type="AgriCrop"))["throttling"] == 30
+
+
+@pytest.mark.parametrize("throttling", [0, -1])
+def test_non_positive_throttling_is_rejected_when_declared(throttling):
+    with pytest.raises(ValueError, match="throttling"):
+        SubscriptionDef(type="AgriCrop", throttling=throttling)
+
+
+def test_non_positive_throttling_is_rejected_in_a_registrar_declaration():
+    with pytest.raises(ValueError, match="throttling"):
+        SubscriptionRegistrar(
+            orion_url=ORION,
+            notification_url=NOTIFY,
+            subscriptions=[{"type": "AgriCrop", "throttling": 0}],
+            module_name="entity-manager-crop-cycles",
+        )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_converge_patch_leaves_out_none_throttling():
+    patch = respx.patch(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:entity-manager-crop-cycles:AgriCrop"
+    ).mock(return_value=Response(204))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(return_value=Response(409, json={"title": "duplicate"}))
+    registrar = SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "AgriCrop", "throttling": None}],
+        module_name="entity-manager-crop-cycles",
+    )
+
+    result = await registrar.ensure_all(["tenant-a"])
+
+    assert result["converged"] == 1 and result["errors"] == []
+    assert "throttling" not in json.loads(patch.calls[0].request.content)
+
+
+# --- derived notification tokens --------------------------------------------
+#
+# With `internal_secret` the registrar owns the auth header of the subscription:
+# legacy mode sends the master secret itself, derived mode sends a token bound to
+# the tenant and the receiver host, so the broker never stores the master.
+
+from nkz_platform_sdk.notify_auth import MASTER_HEADER, TOKEN_HEADER, notification_token  # noqa: E402
+
+NOTIFY_HOST = "crop-health-api-service"
+
+
+def _derived_registrar(**kwargs) -> SubscriptionRegistrar:
+    return SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "EOProduct", "throttling": 30}],
+        module_name="crop-health",
+        internal_secret="s3cret",
+        derived_tokens=True,
+        **kwargs,
+    )
+
+
+def _receiver_info(registrar: SubscriptionRegistrar, tenant: str) -> list:
+    return registrar._body(registrar._subs[0], tenant)["notification"]["endpoint"]["receiverInfo"]
+
+
+def test_derived_body_carries_a_per_tenant_token_and_no_master():
+    registrar = _derived_registrar()
+    info_a = _receiver_info(registrar, "tenant-a")
+    info_b = _receiver_info(registrar, "tenant-b")
+    assert info_a == [
+        {"key": TOKEN_HEADER, "value": notification_token("s3cret", "tenant-a", NOTIFY_HOST)}
+    ]
+    assert info_b != info_a
+    assert all(h["key"] != MASTER_HEADER for h in info_a + info_b)
+
+
+def test_derived_mode_keeps_other_headers_and_drops_a_master_entry():
+    registrar = _derived_registrar(
+        notification_headers={"X-Extra": "1", MASTER_HEADER: "s3cret"}
+    )
+    info = _receiver_info(registrar, "tenant-a")
+    assert {h["key"] for h in info} == {"X-Extra", TOKEN_HEADER}
+
+
+def test_internal_secret_without_derived_mode_emits_the_master_header():
+    registrar = SubscriptionRegistrar(
+        orion_url=ORION,
+        notification_url=NOTIFY,
+        subscriptions=[{"type": "EOProduct", "throttling": 30}],
+        module_name="crop-health",
+        internal_secret="s3cret",
+        notification_headers={MASTER_HEADER: "stale-copy"},
+    )
+    assert _receiver_info(registrar, "tenant-a") == [{"key": MASTER_HEADER, "value": "s3cret"}]
+
+
+def test_derived_mode_requires_a_secret():
+    for secret in (None, ""):
+        with pytest.raises(ValueError):
+            SubscriptionRegistrar(
+                orion_url=ORION,
+                notification_url=NOTIFY,
+                subscriptions=[{"type": "EOProduct"}],
+                module_name="crop-health",
+                internal_secret=secret,
+                derived_tokens=True,
+            )
+
+
+def test_derived_mode_rejects_a_hostless_notification_url():
+    with pytest.raises(ValueError):
+        SubscriptionRegistrar(
+            orion_url=ORION,
+            notification_url="/notify",
+            subscriptions=[{"type": "EOProduct"}],
+            module_name="crop-health",
+            internal_secret="s3cret",
+            derived_tokens=True,
+        )
+
+
+def test_derived_body_requires_a_tenant():
+    registrar = _derived_registrar()
+    with pytest.raises(ValueError):
+        registrar._body(registrar._subs[0])
+    with pytest.raises(ValueError):
+        registrar._fragment(registrar._subs[0])
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_409_converges_onto_the_derived_token():
+    """A subscription still carrying the master secret is PATCHed onto the token."""
+    patch = respx.patch(
+        f"{ORION}/ngsi-ld/v1/subscriptions/urn:ngsi-ld:Subscription:crop-health:EOProduct"
+    ).mock(return_value=Response(204))
+    respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(409, json={"title": "duplicate"})
+    )
+
+    result = await _derived_registrar().ensure_all(["tenant-a"])
+
+    assert result["converged"] == 1 and result["errors"] == []
+    body = json.loads(patch.calls[0].request.content)
+    assert "id" not in body
+    assert body["notification"]["endpoint"]["receiverInfo"] == [
+        {"key": TOKEN_HEADER, "value": notification_token("s3cret", "tenant-a", NOTIFY_HOST)}
+    ]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_create_posts_a_different_token_per_tenant():
+    respx.get(f"{ORION}/ngsi-ld/v1/subscriptions").mock(return_value=Response(200, json=[]))
+    post = respx.post(f"{ORION}/ngsi-ld/v1/subscriptions").mock(
+        return_value=Response(201, headers={"Location": "/x"})
+    )
+
+    result = await _derived_registrar().ensure_all(["tenant-a", "tenant-b"])
+
+    assert result["created"] == 2
+    tokens = {
+        json.loads(c.request.content)["notification"]["endpoint"]["receiverInfo"][0]["value"]
+        for c in post.calls
+    }
+    assert len(tokens) == 2
+    assert "s3cret" not in {json.dumps(json.loads(c.request.content)) for c in post.calls}

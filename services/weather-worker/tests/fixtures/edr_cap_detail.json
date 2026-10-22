@@ -1,0 +1,248 @@
+{
+  "code": [
+    "id:2.49.0.0.276.0.DWD.PVW.1785534120000.f36bdd05-6578-4f03-8c26-b7d73714e0b8",
+    "MCP:v2.0"
+  ],
+  "identifier": "2.49.0.0.276.0.DWD.PVW.1785534120000.f36bdd05-6578-4f03-8c26-b7d73714e0b8.MUL",
+  "incidents": "Alert",
+  "info": [
+    {
+      "area": [
+        {
+          "altitude": 0.0,
+          "areaDesc": "Kreis Mittelsachsen - Tiefland",
+          "ceiling": 9842.5197,
+          "geocode": [
+            {
+              "value": "DE094",
+              "valueName": "EMMA_ID"
+            },
+            {
+              "value": "914522001",
+              "valueName": "WARNCELLID"
+            }
+          ]
+        },
+        {
+          "altitude": 0.0,
+          "areaDesc": "Kreis S\u00e4chsische Schweiz-Osterzgebirge - Tiefland",
+          "ceiling": 9842.5197,
+          "geocode": [
+            {
+              "value": "DE038",
+              "valueName": "EMMA_ID"
+            },
+            {
+              "value": "914628001",
+              "valueName": "WARNCELLID"
+            }
+          ]
+        },
+        {
+          "altitude": 0.0,
+          "areaDesc": "Kreis Mei\u00dfen",
+          "ceiling": 9842.5197,
+          "geocode": [
+            {
+              "value": "DE416",
+              "valueName": "EMMA_ID"
+            },
+            {
+              "value": "114627000",
+              "valueName": "WARNCELLID"
+            }
+          ]
+        }
+      ],
+      "category": [
+        "Met"
+      ],
+      "certainty": "Likely",
+      "contact": "Deutscher Wetterdienst",
+      "description": "Es treten Gewitter auf. Dabei gibt es Windb\u00f6en mit Geschwindigkeiten bis 55 km/h (15 m/s, 30 kn, Bft 7).",
+      "event": "GEWITTER",
+      "eventCode": [
+        {
+          "value": "2.1.14",
+          "valueName": "PROFILE_VERSION"
+        },
+        {
+          "value": "\u00a9 GeoBasis-DE / BKG 2021 (Daten modifiziert)",
+          "valueName": "LICENSE"
+        },
+        {
+          "value": "31",
+          "valueName": "II"
+        },
+        {
+          "value": "THUNDERSTORM",
+          "valueName": "GROUP"
+        },
+        {
+          "value": "WIND",
+          "valueName": "GROUP"
+        },
+        {
+          "value": "255 235 59",
+          "valueName": "AREA_COLOR"
+        }
+      ],
+      "expires": "2026-08-01T00:30:00+02:00",
+      "headline": "Amtliche WARNUNG vor GEWITTER",
+      "instruction": "Hinweis auf: Blitzschlag (Lebensgefahr!); umherfliegende leichte Gegenst\u00e4nde. \nHandlungsempfehlungen: \nAufenthalt im Freien vermeiden oder Schutz suchen (z.B. in Geb\u00e4uden); Gew\u00e4sser meiden; lose Gegenst\u00e4nde sichern; z.B. Zelte und Abdeckungen befestigen",
+      "language": "de-DE",
+      "onset": "2026-07-31T23:42:00+02:00",
+      "parameter": [
+        {
+          "value": "<55 [km/h]",
+          "valueName": "gusts"
+        },
+        {
+          "value": "Blitzschlag (Lebensgefahr!)",
+          "valueName": "impacts"
+        },
+        {
+          "value": "umherfliegende leichte Gegenst\u00e4nde",
+          "valueName": "impacts"
+        },
+        {
+          "value": "2; yellow; Moderate",
+          "valueName": "awareness_level"
+        },
+        {
+          "value": "3; Thunderstorm",
+          "valueName": "awareness_type"
+        }
+      ],
+      "responseType": [
+        "Prepare"
+      ],
+      "senderName": "Deutscher Wetterdienst",
+      "severity": "Minor",
+      "urgency": "Immediate",
+      "web": "https://dwd.de/warnungen"
+    },
+    {
+      "area": [
+        {
+          "altitude": 0.0,
+          "areaDesc": "Kreis Mittelsachsen - Tiefland",
+          "ceiling": 9842.5197,
+          "geocode": [
+            {
+              "value": "DE094",
+              "valueName": "EMMA_ID"
+            },
+            {
+              "value": "914522001",
+              "valueName": "WARNCELLID"
+            }
+          ]
+        },
+        {
+          "altitude": 0.0,
+          "areaDesc": "Kreis S\u00e4chsische Schweiz-Osterzgebirge - Tiefland",
+          "ceiling": 9842.5197,
+          "geocode": [
+            {
+              "value": "DE038",
+              "valueName": "EMMA_ID"
+            },
+            {
+              "value": "914628001",
+              "valueName": "WARNCELLID"
+            }
+          ]
+        },
+        {
+          "altitude": 0.0,
+          "areaDesc": "Kreis Mei\u00dfen",
+          "ceiling": 9842.5197,
+          "geocode": [
+            {
+              "value": "DE416",
+              "valueName": "EMMA_ID"
+            },
+            {
+              "value": "114627000",
+              "valueName": "WARNCELLID"
+            }
+          ]
+        }
+      ],
+      "category": [
+        "Met"
+      ],
+      "certainty": "Likely",
+      "contact": "Deutscher Wetterdienst",
+      "description": "There is a risk of thunderstorms, possibly with wind gusts (level 1 of 4).\nMax. gusts: < 55 km/h",
+      "event": "thunderstorms, possibly with wind gusts",
+      "eventCode": [
+        {
+          "value": "2.1.14",
+          "valueName": "PROFILE_VERSION"
+        },
+        {
+          "value": "\u00a9 GeoBasis-DE / BKG 2021 (Daten modifiziert)",
+          "valueName": "LICENSE"
+        },
+        {
+          "value": "31",
+          "valueName": "II"
+        },
+        {
+          "value": "THUNDERSTORM",
+          "valueName": "GROUP"
+        },
+        {
+          "value": "WIND",
+          "valueName": "GROUP"
+        },
+        {
+          "value": "255 235 59",
+          "valueName": "AREA_COLOR"
+        }
+      ],
+      "expires": "2026-08-01T00:30:00+02:00",
+      "headline": "Official WARNING of THUNDERSTORMS",
+      "instruction": "Hazard(s) to expect: lightning (danger to life!); light objects flying through the air. \nRecommendations for what to do: \nAvoid staying outdoors and seek shelter (e.g. in buildings). Avoid being near lakes and rivers Secure loose objects. For example, fasten tents and coverings.",
+      "language": "en",
+      "onset": "2026-07-31T23:42:00+02:00",
+      "parameter": [
+        {
+          "value": "<55 [km/h]",
+          "valueName": "gusts"
+        },
+        {
+          "value": "lightning (danger to life!)",
+          "valueName": "impacts"
+        },
+        {
+          "value": "light objects flying through the air",
+          "valueName": "impacts"
+        },
+        {
+          "value": "2; yellow; Moderate",
+          "valueName": "awareness_level"
+        },
+        {
+          "value": "3; Thunderstorm",
+          "valueName": "awareness_type"
+        }
+      ],
+      "responseType": [
+        "Prepare"
+      ],
+      "senderName": "Deutscher Wetterdienst",
+      "severity": "Minor",
+      "urgency": "Immediate",
+      "web": "https://dwd.de/warnungen"
+    }
+  ],
+  "msgType": "Alert",
+  "scope": "Public",
+  "sender": "opendata@dwd.de",
+  "sent": "2026-07-31T23:42:00+02:00",
+  "source": "PVW",
+  "status": "Actual"
+}

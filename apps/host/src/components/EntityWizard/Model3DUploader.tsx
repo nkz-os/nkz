@@ -1,0 +1,239 @@
+import React, { useState, useRef } from 'react';
+import { Upload, X, Check, Loader2 } from 'lucide-react';
+import { uploadToMinIO, isValid3DModelFile, getMaxFileSizeMB, UploadProgress } from '@/utils/minioAssets';
+import { Button, Input } from '@nekazari/ui-kit';
+import { useI18n } from '@/context/I18nContext';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+interface Model3DUploaderProps {
+  currentModelUrl?: string;
+  modelScale?: number;
+  modelRotation?: [number, number, number];
+  onUpload: (url: string) => void;
+  onScaleChange: (scale: number) => void;
+  onRotationChange: (rotation: [number, number, number]) => void;
+  onRemove?: () => void;
+  disabled?: boolean;
+}
+
+export const Model3DUploader: React.FC<Model3DUploaderProps> = ({
+  currentModelUrl,
+  modelScale = 1.0,
+  modelRotation = [0, 0, 0],
+  onUpload,
+  onScaleChange,
+  onRotationChange,
+  onRemove,
+  disabled = false
+}) => {
+  const { t } = useI18n();
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+    setUploadProgress(0);
+
+    // Validate file type
+    if (!isValid3DModelFile(file)) {
+      setError(t('wizard.upload.invalid_type_model'));
+      return;
+    }
+
+    // Validate file size
+    const maxSizeMB = getMaxFileSizeMB('model');
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > maxSizeMB) {
+      setError(t('wizard.upload.file_too_large', { max: maxSizeMB }));
+      return;
+    }
+
+    // Upload to MinIO
+    setUploading(true);
+    try {
+      const url = await uploadToMinIO(file, 'model', {
+        onProgress: (progress: UploadProgress) => {
+          setUploadProgress(progress.percentage);
+        }
+      });
+      onUpload(url);
+    } catch (err: any) {
+      setError(err.message || t('wizard.upload.model_failed'));
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemove = () => {
+    if (onRemove) {
+      onRemove();
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <label className="block text-sm font-medium text-nkz-text-primary">
+        {t('wizard.upload.model_3d_optional')}
+      </label>
+
+      <div className="space-y-4">
+        {/* Upload */}
+        <div className="flex items-center gap-2">
+          <label
+            className={`flex items-center gap-2 px-4 py-2 border border-nkz-border rounded-lg cursor-pointer hover:bg-nkz-bg-secondary transition ${
+              disabled || uploading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {uploading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4" />
+            )}
+            <span className="text-sm font-medium">
+              {uploading ? t('wizard.upload.uploading', { progress: uploadProgress }) : t('wizard.upload.upload_model')}
+            </span>
+            <Input
+              ref={fileInputRef}
+              type="file"
+              accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+              onChange={handleFileSelect}
+              disabled={disabled || uploading}
+              className="hidden"
+            />
+          </label>
+
+          {currentModelUrl && !uploading && (
+            <Button variant="ghost"
+              type="button"
+              onClick={handleRemove}
+              disabled={disabled}
+              className="px-4 py-2 border border-nkz-danger/30 text-nkz-danger-strong rounded-lg hover:bg-nkz-danger-soft transition disabled:opacity-50"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* Upload Progress Bar */}
+        {uploading && uploadProgress > 0 && (
+          <div className="w-full bg-nkz-surface-sunken rounded-full h-2">
+            <div 
+              className="bg-nkz-success h-2 rounded-full transition-all duration-300"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        )}
+
+        <p className="text-xs text-nkz-muted">
+          {t('wizard.upload.formats_model', { max: getMaxFileSizeMB('model') })}
+        </p>
+
+        {error && (
+          <div className="text-xs text-nkz-danger-strong bg-nkz-danger-soft border border-nkz-danger/30 rounded px-2 py-1">
+            {error}
+          </div>
+        )}
+
+        {currentModelUrl && (
+          <div className="flex items-center gap-1 text-xs text-nkz-success-strong">
+            <Check className="w-3 h-3" />
+            <span>{t('wizard.upload.model_success')}</span>
+          </div>
+        )}
+
+        {/* Scale and Rotation controls */}
+        {currentModelUrl && (
+          <div className="space-y-3 p-4 bg-nkz-bg-secondary rounded-lg border border-nkz-border">
+            <div>
+              <label className="block text-xs font-medium text-nkz-text-primary mb-1">
+                {t('wizard.upload.scale', { value: modelScale.toFixed(2) })}
+              </label>
+              <Input
+                type="range"
+                min="0.1"
+                max="5.0"
+                step="0.1"
+                value={modelScale}
+                onChange={(e: any) => onScaleChange(parseFloat(e.target.value))}
+                disabled={disabled}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-nkz-muted mt-1">
+                <span>0.1x</span>
+                <span>5.0x</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-nkz-text-primary mb-2">
+                {t('wizard.upload.rotation_degrees')}
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs text-nkz-text-secondary mb-1">X</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="360"
+                    value={modelRotation[0]}
+                    onChange={(e: any) => onRotationChange([
+                      parseInt(e.target.value) || 0,
+                      modelRotation[1],
+                      modelRotation[2]
+                    ])}
+                    disabled={disabled}
+                    className="w-full px-2 py-1 text-sm border border-nkz-border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-nkz-text-secondary mb-1">Y</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="360"
+                    value={modelRotation[1]}
+                    onChange={(e: any) => onRotationChange([
+                      modelRotation[0],
+                      parseInt(e.target.value) || 0,
+                      modelRotation[2]
+                    ])}
+                    disabled={disabled}
+                    className="w-full px-2 py-1 text-sm border border-nkz-border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-nkz-text-secondary mb-1">Z</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="360"
+                    value={modelRotation[2]}
+                    onChange={(e: any) => onRotationChange([
+                      modelRotation[0],
+                      modelRotation[1],
+                      parseInt(e.target.value) || 0
+                    ])}
+                    disabled={disabled}
+                    className="w-full px-2 py-1 text-sm border border-nkz-border rounded"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

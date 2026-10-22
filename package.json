@@ -1,0 +1,36 @@
+{
+  "name": "nekazari-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "license": "AGPL-3.0-or-later",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "validate:i18n": "./scripts/validate-i18n-json.sh",
+    "test:e2e": "pnpm --filter nekazari-frontend run test:e2e",
+    "prepare": "git config core.hooksPath .githooks || true"
+  },
+  "devDependencies": {
+    "lint-staged": "^17.5.1",
+    "turbo": "^2.10.13"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix"
+    ],
+    "*.py": [
+      "ruff check --fix",
+      "ruff format"
+    ]
+  },
+  "pnpm": {
+    "overrides": {
+      "@module-federation/dts-plugin>undici": "^7.29.0",
+      "@module-federation/dts-plugin>adm-zip": "^0.6.0",
+      "rollup": "^4.59.0",
+      "@babel/core": "^7.29.6"
+    }
+  }
+}

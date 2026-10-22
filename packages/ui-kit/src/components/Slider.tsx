@@ -1,0 +1,72 @@
+/**
+ * Copyright 2025 NKZ Platform (Nekazari)
+ * Licensed under Apache-2.0
+ */
+
+import * as RadixSlider from '@radix-ui/react-slider';
+import { cn } from '../utils/cn';
+
+interface SliderProps {
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  label?: string;
+  unit?: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+export function Slider({
+  value,
+  onChange,
+  min = 0,
+  max = 100,
+  step = 1,
+  label,
+  unit,
+  disabled,
+  className,
+}: SliderProps) {
+  return (
+    <div className={cn('flex flex-col gap-nkz-tight', className)}>
+      {(label || unit) && (
+        <div className="flex justify-between text-nkz-xs">
+          {label && <span className="text-nkz-text-secondary">{label}</span>}
+          {unit && (
+            <span className="text-nkz-text-muted">
+              {value}
+              {unit}
+            </span>
+          )}
+        </div>
+      )}
+      <RadixSlider.Root
+        value={[value]}
+        onValueChange={([v]) => onChange(v)}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        className="relative flex items-center w-full h-5 cursor-pointer touch-none"
+      >
+        <RadixSlider.Track className="relative w-full h-1 rounded-full bg-nkz-border">
+          <RadixSlider.Range className="absolute h-full rounded-full bg-nkz-accent-base" />
+        </RadixSlider.Track>
+        <RadixSlider.Thumb
+          // Knob deliberately does NOT follow bg-nkz-surface: in dark
+          // profiles that token is dark, so the knob would blend into its
+          // own (also dark) track — fails 1.4.11 in every profile we
+          // measured. Its boundary is carried by elevation (shadow-nkz-sm)
+          // instead of color, per WCAG 1.4.11's own allowance.
+          className={cn(
+            'block w-4 h-4 bg-white rounded-full shadow-nkz-sm border border-nkz-border-strong',
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-nkz-accent-base',
+            'disabled:opacity-50 disabled:cursor-not-allowed'
+          )}
+        />
+      </RadixSlider.Root>
+    </div>
+  );
+}

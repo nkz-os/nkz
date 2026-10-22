@@ -1,0 +1,76 @@
+{
+  "id": "99a3a7cc-80f1-4046-8800-333ef18c7b36",
+  "links": [
+    {
+      "type": "application/xml",
+      "rel": "canonical",
+      "href": "https://meteo.fra1.digitaloceanspaces.com/api/archive/warnings/754ab08b-d340-4281-aab1-e88d5c1a50fe.xml?..."
+    },
+    {
+      "type": "application/json",
+      "rel": "json",
+      "href": "https://meteo.fra1.digitaloceanspaces.com/api/archive/warnings/754ab08b-d340-4281-aab1-e88d5c1a50fe.json?..."
+    },
+    {
+      "type": "application/xml",
+      "rel": "xml",
+      "href": "https://meteo.fra1.digitaloceanspaces.com/api/archive/warnings/754ab08b-d340-4281-aab1-e88d5c1a50fe.xml?..."
+    },
+    {
+      "type": "application/geo+json",
+      "rel": "geometry",
+      "href": "https://meteo.fra1.digitaloceanspaces.com/api/archive/features/99a3a7cc-80f1-4046-8800-333ef18c7b36.geojson?..."
+    }
+  ],
+  "type": "Feature",
+  "properties": {
+    "supersededByAlertId": null,
+    "supersededAt": null,
+    "supersedeType": null,
+    "geometryDescription": "geometry is bbox only, link (member of the feature's links array) with type application/geo+json points to geojson describing the exact shape",
+    "geometryType": "bbox",
+    "OBJECTID": "99a3a7cc-80f1-4046-8800-333ef18c7b36",
+    "alertId": "754ab08b-d340-4281-aab1-e88d5c1a50fe",
+    "countryCode": "DE",
+    "featureType": "geocode",
+    "hubLanguage": "tr",
+    "indexArea": 2,
+    "indexFeature": 0,
+    "indexInfo": 6,
+    "hubTime": "2026-07-31T21:42:37Z",
+    "hubLink": "https://meteo.fra1.digitaloceanspaces.com/api/archive/warnings/754ab08b-d340-4281-aab1-e88d5c1a50fe.xml?..."
+  },
+  "geometry": {
+    "coordinates": [
+      [
+        [
+          13.197358362485984,
+          51.04094310940448
+        ],
+        [
+          13.197358362485984,
+          51.444597891352814
+        ],
+        [
+          13.828902128721055,
+          51.444597891352814
+        ],
+        [
+          13.828902128721055,
+          51.04094310940448
+        ],
+        [
+          13.197358362485984,
+          51.04094310940448
+        ]
+      ]
+    ],
+    "crs": {
+      "properties": {
+        "name": "EPSG:4326"
+      },
+      "type": "name"
+    },
+    "type": "Polygon"
+  }
+}

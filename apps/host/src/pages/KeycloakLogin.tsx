@@ -1,0 +1,133 @@
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/context/KeycloakAuthContext';
+import { Lock } from 'lucide-react';
+import { logger } from '@/utils/logger';
+import { Button } from '@nekazari/ui-kit';
+
+const KeycloakLogin: React.FC = () => {
+  logger.debug('[KeycloakLogin] Component mounted/re-rendered');
+  const { t } = useTranslation();
+  const { login, isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sessionExpired = searchParams.get('session_expired') === '1';
+  const [status, setStatus] = useState<string>(
+    sessionExpired ? t('auth.session_expired_message') : t('auth.redirecting_to_keycloak')
+  );
+  const loginInitiatedRef = React.useRef(false);
+  const sessionExpiredShownRef = React.useRef(sessionExpired);
+
+  useEffect(() => {
+    if (sessionExpired) {
+      sessionExpiredShownRef.current = true;
+      setStatus(t('auth.session_expired_message'));
+    }
+  }, [sessionExpired, t]);
+
+  useEffect(() => {
+    logger.debug('[KeycloakLogin] useEffect executing');
+    
+    // Si ya está autenticado, ir al dashboard
+    if (isAuthenticated) {
+      logger.debug('[KeycloakLogin] Already authenticated, redirecting to dashboard');
+      navigate('/dashboard');
+      return;
+    }
+
+    // NO procesar errores aquí - AuthProvider ya lo hace
+    // Solo mostrar estado si hay un callback o error
+    if (typeof window !== 'undefined') {
+      const hasError = window.location.hash.includes('error=login_required') || 
+                       window.location.search.includes('error=login_required');
+      const hasCode = window.location.hash.includes('code=') ||
+                     window.location.search.includes('code=');
+
+      if (hasError) {
+        logger.debug('[KeycloakLogin] Error detectado - AuthProvider lo manejará');
+        setStatus(t('auth.authentication_error_redirecting'));
+        return; // Dejar que AuthProvider maneje el error
+      }
+
+      if (hasCode) {
+        logger.debug('[KeycloakLogin] Callback detected, waiting for AuthProvider to process...');
+        setStatus(t('auth.processing_keycloak_response'));
+        return;
+      }
+    }
+
+    // Si ya iniciamos el login, no hacer nada más
+    if (loginInitiatedRef.current) {
+      logger.debug('[KeycloakLogin] Login already initiated, waiting...');
+      return;
+    }
+
+    // Si venimos por sesión expirada, no auto-redirigir; mostrar mensaje y esperar clic
+    if (sessionExpiredShownRef.current) {
+      logger.debug('[KeycloakLogin] Session expired - waiting for user to click login');
+      return;
+    }
+
+    // Si no hay callback ni error, simplemente iniciar login - REDIRIGIR A KEYCLOAK
+    logger.debug('[KeycloakLogin] No callback, starting login - redirecting to Keycloak');
+    loginInitiatedRef.current = true;
+    setStatus(t('auth.redirecting_to_keycloak'));
+    login().catch(err => {
+      logger.error('[KeycloakLogin] Login error', err);
+      setStatus(t('auth.login_error_retry'));
+      loginInitiatedRef.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, isLoading]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-green-100">
+      <div className="bg-white rounded-xl shadow-xl p-8 text-center max-w-lg w-full mx-4">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600 rounded-full mb-4">
+          <Lock className="w-8 h-8 text-white" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          {sessionExpired ? t('auth.session_expired_title') : t('auth.connecting_to_keycloak')}
+        </h1>
+        <p className="text-gray-600 mb-6">{status}</p>
+        <div className="flex items-center justify-center mb-6">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600"></div>
+        </div>
+        <div className="flex flex-col items-center gap-3">
+          <Button
+            onClick={async () => {
+              loginInitiatedRef.current = false; // Reset flag para permitir reintentar
+              setStatus(t('auth.retrying_login'));
+              try {
+                await login();
+              } catch (e) {
+                logger.error('Login error', e);
+                setStatus(t('auth.login_error_retry_again'));
+              }
+            }}
+            className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+          >
+            {t('auth.retry_login_button')}
+          </Button>
+          <Link
+            to="/forgot-password"
+            className="text-sm text-gray-600 hover:text-gray-900 transition underline"
+          >
+            {t('auth.forgot_password_link')}
+          </Link>
+          <div className="border-t border-nkz-border pt-3 mt-2 w-full">
+            <Link
+              to="/register"
+              className="w-full block px-6 py-3 bg-white border-2 border-green-600 text-nkz-success-strong rounded-lg hover:bg-nkz-success-soft transition font-medium text-center"
+            >
+              {t('auth.create_free_account')}
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default KeycloakLogin;

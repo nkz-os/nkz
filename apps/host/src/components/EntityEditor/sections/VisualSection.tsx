@@ -1,0 +1,30 @@
+import React from 'react';
+import { useI18n } from '@/context/I18nContext';
+import { useEntityEditor } from '../EntityEditorContext';
+import { AttributeField } from '../AttributeField';
+import { getSchemasForType } from '../attributeSchemas';
+
+export const VisualSection: React.FC = () => {
+  const { t } = useI18n();
+  const { formState, setField, entityType } = useEntityEditor();
+  const schemas = getSchemasForType(entityType).filter(s => s.section === 'visual');
+  if (schemas.length === 0) return null;
+
+  return (
+    <details className="border border-nkz-border rounded-lg">
+      <summary className="px-4 py-3 bg-nkz-bg-secondary cursor-pointer text-sm font-semibold text-gray-700 hover:bg-nkz-bg-secondary rounded-lg">
+        {t('editor.section.visual') || 'Visualización'}
+      </summary>
+      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {schemas.map(schema => (
+          <AttributeField
+            key={schema.key}
+            schema={schema}
+            value={formState.attributes[schema.key]}
+            onChange={attr => setField(schema.key, attr)}
+          />
+        ))}
+      </div>
+    </details>
+  );
+};

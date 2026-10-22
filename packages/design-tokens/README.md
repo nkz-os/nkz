@@ -1,0 +1,54 @@
+# @nekazari/design-tokens
+
+Canonical design tokens for the Nekazari platform (CSS custom properties, Tailwind
+preset, and native/RN values), generated from `src/tokens.config.ts`. Do not hand-edit
+generated output (`dist/`, `.css`) — edit `tokens.config.ts` and rebuild.
+
+## Semantic color usage (fill vs foreground)
+
+Each semantic color (`success`, `warning`, `danger`, `info`) ships three variants.
+They are not interchangeable — pick by role, not by "which one looks right":
+
+| Variant | Tailwind class | Role |
+|---|---|---|
+| base | `bg-nkz-success`, `text-nkz-success` | **Fills and large accents.** Solid button backgrounds, large icons/graphics, colored chart marks. Bright and saturated by design — **not guaranteed AA-compliant as text on a light surface.** |
+| `-strong` | `text-nkz-success-strong`, `border-nkz-success-strong` | **Text and meaning-bearing icons/borders on light surfaces.** Darkened to meet WCAG AA (4.5:1) as foreground on white/`nkz-surface`/tinted (`-soft`) backgrounds. Use for: paragraph/label text conveying status, standalone status icons (no adjacent text stating the same status), badge text, link text. |
+| `-soft` | `bg-nkz-success-soft` | **Tinted backgrounds** — badges, callout panels, subtle highlight fills. Pair with `-strong` for the text/icon inside it, never with base. |
+
+Rule of thumb: **if a human has to read it as text (or as the sole color-coded
+signal with no text label nearby), use `-strong`. If it's a fill — a button, a large
+icon, a background tint — base (or `-soft` for tints) is correct.**
+
+An icon sitting directly next to a text label that already states the same status
+(e.g. a green `CheckCircle` next to the word "Success") is decorative/redundant —
+base color is fine there; the text carries the AA requirement, not the icon.
+
+`info` base (`#2563EB`) was already darkened during token design and is AA-safe as
+text; `success`/`warning`/`danger` bases are not — hence the `-strong` variants.
+See `src/tokens.config.ts` (`semanticColors` — inline comment documents the exact
+contrast fixes) for the source values per profile (page/field/HMI/dark).
+
+## Inverse surface (deliberate contrast — tooltips, toasts, snackbars)
+
+`surfaceInverse` / `textOnInverse` (`bg-nkz-surface-inverse`, `text-nkz-text-on-inverse`)
+are for elements that deliberately contrast with the page instead of blending into
+it — tooltips, toasts, snackbars. They are **not** a dark-mode shortcut and must
+never be assumed dark.
+
+**They invert per profile: dark in light profiles, light in dark profiles.** A
+fixed dark tooltip pinned to `#1E293B` would be invisible on an already-dark
+profile (`page-dark`/`viewer`) — the same class of bug as a component that sets
+a background token without its matching foreground (see D20 in `Surface`/
+`SidebarShell`). Always use the token pair together; never hardcode one side.
+
+`textOnInverse` on `surfaceInverse` is held to WCAG AA (4.5:1) by
+`src/__tests__/contrast.test.ts` in every profile, the same way `textOnAccent`/
+`accentBase` is.
+
+### `-light` is a compatibility alias, not the canonical suffix
+
+Existing `apps/host` code uses `bg-nkz-{accent,success,warning,danger,info}-light`
+/ `text-nkz-*-light`. `src/build-tailwind.ts` emits these as aliases of `-soft`
+(same CSS variable) so that code keeps resolving. **`-soft` is canonical — use it
+in new code.** Prefer `-soft` when writing or updating classes; `-light` exists
+only for backward compatibility with pre-existing usage.

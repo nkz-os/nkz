@@ -1,0 +1,98 @@
+-- =============================================================================
+-- Migration 078: Backfill description_i18n into marketplace_modules metadata
+-- =============================================================================
+-- Adds i18n descriptions for all modules that have them defined in manifest.json.
+-- Uses jsonb || operator to merge without overwriting existing metadata keys.
+-- Uses dollar-quoting ($$...$$) to avoid escaping issues with apostrophes.
+--
+-- Dependencies: 024_module_federation_registry.sql
+-- =============================================================================
+
+BEGIN;
+
+-- Module: agrienergy
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Orquestación energética y control de seguidores solares — Módulo de la Plataforma Nekazari", "en": "Energy orchestration and solar tracker control — Nekazari Platform Module", "eu": "Energia orkestrazioa eta eguzki-segatzaileen kontrola — Nekazari Plataformaren Modulua", "fr": "Orchestration énergétique et contrôle des trackers solaires — Module de la Plateforme Nekazari", "pt": "Orquestração energética e controle de seguidores solares — Módulo da Plataforma Nekazari", "ca": "Orquestració energètica i control de seguidors solars — Mòdul de la Plataforma Nekazari"}}$$::jsonb
+WHERE id = 'agrienergy';
+
+-- Module: backup
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Solución de backup empresarial con Restic (cifrado, snapshots deduplicados) y Rclone (soporte multi-cloud). Claves de cifrado propiedad del tenant para soberanía total de datos.", "en": "Enterprise-grade backup solution using Restic (encrypted, deduplicated snapshots) and Rclone (multi-cloud support). Tenant-owned encryption keys for full data sovereignty.", "eu": "Enpresako backup soluzioa Resticekin (zifratua, snapshots deduplikatuak) eta Rclonerekin (multi-cloud euskarria). Tenant-en jabetzako zifratze-gakoak datuen subiranotasun osorako.", "fr": "Solution de sauvegarde professionnelle utilisant Restic (chiffrement, snapshots dédupliqués) et Rclone (support multi-cloud). Clés de chiffrement détenues par le tenant pour une souveraineté totale des données.", "pt": "Solução de backup empresarial com Restic (encriptado, snapshots deduplicados) e Rclone (suporte multi-cloud). Chaves de encriptação propriedade do tenant para total soberania de dados.", "ca": "Solució de backup empresarial amb Restic (xifrat, snapshots deduplicats) i Rclone (suport multi-cloud). Claus de xifrat propietat del tenant per a sobirania total de dades."}}$$::jsonb
+WHERE id = 'backup';
+
+-- Module: bioorchestrator
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "BioOrchestrator — Pipeline ETL de biodiversidad multidominio para inteligencia en agricultura regenerativa. Integra 19 fuentes de datos en agricultura, ganadería, silvicultura y agroforestería.", "en": "BioOrchestrator — Multi-domain biodiversity ETL pipeline for regenerative agriculture intelligence. Integrates 19 data sources across agriculture, livestock, forestry, and agroforestry.", "eu": "BioOrchestrator — Domeinu anitzeko biodibertsitate ETL pipeline-a nekazaritza birsortzailerako adimenerako. 19 datu-iturri integratzen ditu nekazaritza, abeltzaintza, basogintza eta agroforesterian.", "fr": "BioOrchestrator — Pipeline ETL de biodiversité multi-domaine pour l'intelligence en agriculture régénératrice. Intègre 19 sources de données dans l'agriculture, l'élevage, la sylviculture et l'agroforesterie.", "pt": "BioOrchestrator — Pipeline ETL de biodiversidade multidomínio para inteligência em agricultura regenerativa. Integra 19 fontes de dados em agricultura, pecuária, silvicultura e agrofloresta.", "ca": "BioOrchestrator — Pipeline ETL de biodiversitat multidomini per a intel·ligència en agricultura regenerativa. Integra 19 fonts de dades en agricultura, ramaderia, silvicultura i agroforesteria."}}$$::jsonb
+WHERE id = 'bioorchestrator';
+
+-- Module: catastro-spain
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Integración con el catastro español para geocodificación inversa y consulta de parcelas", "en": "Spanish cadastre integration for reverse geocoding and parcel lookup", "eu": "Espainiako katastroarekiko integrazioa geokodifikazio alderantzikaturako eta partzelen kontsultarako", "fr": "Intégration avec le cadastre espagnol pour le géocodage inverse et la consultation des parcelles", "pt": "Integração com o cadastro espanhol para geocodificação inversa e consulta de parcelas", "ca": "Integració amb el cadastre espanyol per a geocodificació inversa i consulta de parcel·les"}}$$::jsonb
+WHERE id = 'catastro-spain';
+
+-- Module: carbon
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Análisis de secuestro de carbono y biomasa para parcelas agrícolas. Cálculo de GPP/NPP basado en LUE con integración real de PAR y federación de series temporales DataHub.", "en": "Carbon sequestration and biomass analytics for agricultural parcels. LUE-based GPP/NPP calculation with real PAR integration and DataHub timeseries federation.", "eu": "Karbono bahiketa eta biomasa analisia nekazaritza-parcelentzat. GPP/NPP kalkulua LUEn oinarrituta, PAR integrazio errealarekin eta DataHub denbora-serie federazioarekin.", "fr": "Analyse de séquestration du carbone et de biomasse pour les parcelles agricoles. Calcul GPP/NPP basé sur LUE avec intégration PAR réelle et fédération de séries temporelles DataHub.", "pt": "Análise de sequestro de carbono e biomassa para parcelas agrícolas. Cálculo de GPP/NPP baseado em LUE com integração real de PAR e federação de séries temporais DataHub.", "ca": "Anàlisi de segrest de carboni i biomassa per a parcel·les agrícoles. Càlcul de GPP/NPP basat en LUE amb integració real de PAR i federació de sèries temporals DataHub."}}$$::jsonb
+WHERE id = 'carbon';
+
+-- Module: connectivity
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Gestor de Conectividad de Dispositivos IoT — Administra Perfiles de Dispositivo y configura la transformación de datos para sensores IoT", "en": "IoT Device Connectivity Manager - Manage Device Profiles and configure data transformation for IoT sensors", "eu": "IoT Gailuen Konektibitate Kudeatzailea — Gailuen Profilak kudeatu eta datu-transformazioa konfiguratu IoT sentsoreentzat", "fr": "Gestionnaire de Connectivité des Dispositifs IoT — Gérez les Profils de Dispositif et configurez la transformation des données pour les capteurs IoT", "pt": "Gestor de Conectividade de Dispositivos IoT — Gerencie Perfis de Dispositivo e configure a transformação de dados para sensores IoT", "ca": "Gestor de Connectivitat de Dispositius IoT — Administra Perfils de Dispositiu i configura la transformació de dades per a sensors IoT"}}$$::jsonb
+WHERE id = 'connectivity';
+
+-- Module: crop-health
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Motor de inferencia biofísica en tiempo real: CWSI, MDS, balance hídrico dinámico desde datos de sensores IoT (IR, dendrómetro, TDR)", "en": "Real-time biophysical inference engine: CWSI, MDS, dynamic water balance from IoT sensor data (IR, dendrometer, TDR)", "eu": "Denbora errealeko inferentzia biofisikoko motorra: CWSI, MDS, ur-balantze dinamikoa IoT sentsoreen datuetatik (IR, dendrometroa, TDR)", "fr": "Moteur d'inférence biophysique en temps réel : CWSI, MDS, bilan hydrique dynamique à partir des données de capteurs IoT (IR, dendromètre, TDR)", "pt": "Motor de inferência biofísica em tempo real: CWSI, MDS, balanço hídrico dinâmico a partir de dados de sensores IoT (IR, dendrômetro, TDR)", "ca": "Motor d'inferència biofísica en temps real: CWSI, MDS, balanç hídric dinàmic des de dades de sensors IoT (IR, dendròmetre, TDR)"}}$$::jsonb
+WHERE id = 'crop-health';
+
+-- Module: cue
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Cuaderno de Explotación Único conforme al SIEX para España (RD 1054/2022)", "en": "SIEX-compliant Unified Farm Logbook for Spain (Royal Decree 1054/2022)", "eu": "SIEX-rekin bat datorren Ustiategi Koaderno Bakarra Espainiarako (1054/2022 Errege Dekretua)", "fr": "Carnet d'Exploitation Unique conforme au SIEX pour l'Espagne (Décret Royal 1054/2022)", "pt": "Caderno de Exploração Único compatível com SIEX para Espanha (Decreto Real 1054/2022)", "ca": "Quadern d'Explotació Únic conforme al SIEX per a Espanya (RD 1054/2022)"}}$$::jsonb
+WHERE id = 'cue';
+
+-- Module: nkz-module-eu-elevation
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Módulo premium de Nekazari para generar y servir datos 3D de terreno y elevación de alta precisión bajo demanda en toda la Unión Europea y Reino Unido mediante Quantized Mesh.", "en": "Premium Nekazari module for generating and serving highly-detailed, on-demand 3D terrain and elevation data across the European Union and the United Kingdom via Quantized Mesh.", "eu": "Nekazariren premium modulua, eskariaren arabera, EB eta Erresuma Batuan zehar 3D lur-elevazio datu oso zehatzak sortu eta zerbitzatzeko Quantized Mesh bidez.", "fr": "Module premium Nekazari pour générer et servir des données 3D de terrain et d'élévation très détaillées à la demande dans toute l'Union Européenne et le Royaume-Uni via Quantized Mesh.", "pt": "Módulo premium da Nekazari para gerar e servir dados 3D de terreno e elevação altamente detalhados sob demanda em toda a União Europeia e Reino Unido via Quantized Mesh.", "ca": "Mòdul premium de Nekazari per generar i servir dades 3D de terreny i elevació d'alta precisió sota demanda a tota la Unió Europea i el Regne Unit mitjançant Quantized Mesh."}}$$::jsonb
+WHERE id = 'nkz-module-eu-elevation';
+
+-- Module: nkz-module-gis-routing
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Asistente interactivo de enrutamiento con vista previa SVG en tiempo real, líneas guía A-B multi-estrategia, mapas de prescripción VRA, pathfinding A-B de mínimo coste sobre Cesium, persistencia de patrones y exportación ISOBUS para tractores autónomos. Incluye traspaso móvil con sincronización offline WatermelonDB.", "en": "Interactive routing wizard with real-time SVG preview, multi-strategy A-B guidance lines, VRA prescription maps, A-B least-cost pathfinding on Cesium, pattern persistence, and ISOBUS export for autonomous tractors. Includes mobile handoff with WatermelonDB offline sync.", "eu": "Bideratze-laguntzaile interaktiboa denbora errealeko SVG aurrebistarekin, A-B gida-lerro multi-estrategia, VRA preskripzio-mapak, A-B kostu minimoko bide-bilaketa Cesium-en, patroi persistentzia eta ISOBUS esportazioa traktore autonomoentzat. Mugikorrerako eskualdatzea WatermelonDB offline sinkronizazioarekin.", "fr": "Assistant interactif de routage avec aperçu SVG en temps réel, lignes de guidage A-B multi-stratégies, cartes de prescription VRA, pathfinding A-B à moindre coût sur Cesium, persistance des motifs et export ISOBUS pour tracteurs autonomes. Inclut le transfert mobile avec synchronisation hors-ligne WatermelonDB.", "pt": "Assistente interativo de roteamento com visualização SVG em tempo real, linhas guia A-B multi-estratégia, mapas de prescrição VRA, pathfinding A-B de menor custo no Cesium, persistência de padrões e exportação ISOBUS para tratores autônomos. Inclui transferência móvel com sincronização offline WatermelonDB.", "ca": "Assistent interactiu d'enrutament amb vista prèvia SVG en temps real, línies guia A-B multi-estratègia, mapes de prescripció VRA, pathfinding A-B de mínim cost sobre Cesium, persistència de patrons i exportació ISOBUS per a tractors autònoms. Inclou traspàs mòbil amb sincronització offline WatermelonDB."}}$$::jsonb
+WHERE id = 'nkz-module-gis-routing';
+
+-- Module: intelligence
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Módulo de Inteligencia AI/ML — Servicio de Análisis y Predicción para la Plataforma Nekazari", "en": "AI/ML Intelligence Module - Analysis and Prediction Service for Nekazari Platform", "eu": "AI/ML Adimen Modulua — Analisi eta Iragarpen Zerbitzua Nekazari Plataformarentzat", "fr": "Module d'Intelligence AI/ML — Service d'Analyse et de Prédiction pour la Plateforme Nekazari", "pt": "Módulo de Inteligência AI/ML — Serviço de Análise e Previsão para a Plataforma Nekazari", "ca": "Mòdul d'Intel·ligència AI/ML — Servei d'Anàlisi i Predicció per a la Plataforma Nekazari"}}$$::jsonb
+WHERE id = 'intelligence';
+
+-- Module: lidar
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Visualiza datos de nubes de puntos LiDAR en el visor unificado CesiumJS. Descarga desde proveedores nacionales LiDAR (PNOA/CNIG) o sube vuelos de dron personalizados. Incluye conversión 3D Tiles, colorización dinámica y detección individual de árboles.", "en": "Visualize LiDAR point cloud data in the unified CesiumJS viewer. Download from national LiDAR providers (PNOA/CNIG) or upload custom drone flights. Includes 3D Tiles conversion, dynamic colorization, and individual tree detection.", "eu": "Bistaratu LiDAR puntu-hodei datuak CesiumJS bisore bateratuan. Deskargatu LiDAR hornitzaile nazionaletatik (PNOA/CNIG) edo igo drone-hegaldi pertsonalizatuak. 3D Tiles bihurketa, koloreztatze dinamikoa eta zuhaitzen banakako detekzioa barne.", "fr": "Visualisez les données de nuages de points LiDAR dans le visualiseur unifié CesiumJS. Téléchargez depuis les fournisseurs nationaux LiDAR (PNOA/CNIG) ou importez des vols de drone personnalisés. Inclut la conversion 3D Tiles, la colorisation dynamique et la détection individuelle des arbres.", "pt": "Visualize dados de nuvens de pontos LiDAR no visualizador unificado CesiumJS. Baixe de provedores nacionais LiDAR (PNOA/CNIG) ou carregue voos de drone personalizados. Inclui conversão 3D Tiles, colorização dinâmica e detecção individual de árvores.", "ca": "Visualitza dades de núvols de punts LiDAR al visor unificat CesiumJS. Descarrega des de proveïdors nacionals LiDAR (PNOA/CNIG) o puja vols de dron personalitzats. Inclou conversió 3D Tiles, colorització dinàmica i detecció individual d'arbres."}}$$::jsonb
+WHERE id = 'lidar';
+
+-- Module: n8n-nkz
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Hub de Orquestación de Flujos de Trabajo — Integra n8n con los servicios de la plataforma Nekazari incluyendo análisis Sentinel/NDVI, predicciones IA, notificaciones, Odoo ERP y robótica ROS2", "en": "Workflow Orchestration Hub - Integrates n8n with Nekazari platform services including Sentinel/NDVI analysis, AI predictions, notifications, Odoo ERP, and ROS2 robotics", "eu": "Lan-fluxuen Orkestrazio Hub-a — n8n Nekazari plataformaren zerbitzuekin integratzen du, Sentinel/NDVI analisia, IA iragarpenak, jakinarazpenak, Odoo ERP eta ROS2 robotika barne", "fr": "Hub d'Orchestration de Flux de Travail — Intègre n8n avec les services de la plateforme Nekazari incluant l'analyse Sentinel/NDVI, les prédictions IA, les notifications, Odoo ERP et la robotique ROS2", "pt": "Hub de Orquestração de Fluxos de Trabalho — Integra o n8n com os serviços da plataforma Nekazari incluindo análise Sentinel/NDVI, previsões IA, notificações, Odoo ERP e robótica ROS2", "ca": "Hub d'Orquestració de Fluxos de Treball — Integra n8n amb els serveis de la plataforma Nekazari incloent anàlisi Sentinel/NDVI, prediccions IA, notificacions, Odoo ERP i robòtica ROS2"}}$$::jsonb
+WHERE id = 'n8n-nkz';
+
+-- Module: odoo-erp
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Integración Odoo ERP multitenant para gestión de fincas y comunidades energéticas. Incluye módulos Som Comunitats para instalaciones solares y proyectos de autoconsumo energético.", "en": "Multitenant Odoo ERP integration for farm and energy community management. Includes Som Comunitats modules for solar installations and energy self-consumption projects.", "eu": "Odoo ERP multi-tenant integrazioa baserri eta energia-komunitateen kudeaketarako. Som Comunitats moduluak barne eguzki-instalazioetarako eta energia-autokontsumo proiektuetarako.", "fr": "Intégration Odoo ERP multi-tenant pour la gestion des fermes et des communautés énergétiques. Inclut les modules Som Comunitats pour les installations solaires et les projets d'autoconsommation énergétique.", "pt": "Integração Odoo ERP multitenant para gestão de fazendas e comunidades energéticas. Inclui módulos Som Comunitats para instalações solares e projetos de autoconsumo energético.", "ca": "Integració Odoo ERP multitenant per a gestió de finques i comunitats energètiques. Inclou mòduls Som Comunitats per a instal·lacions solars i projectes d'autoconsum energètic."}}$$::jsonb
+WHERE id = 'odoo-erp';
+
+-- Module: robotics
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Módulo Avanzado de Robótica para la Plataforma Nekazari (Standard NKZ). Proporcionado por Robotika.", "en": "Advanced Robotics Module for Nekazari Platform (Standard NKZ). Provided by Robotika.", "eu": "Robotika Aurreratuaren Modulua Nekazari Plataformarentzat (Standard NKZ). Robotikak hornitua.", "fr": "Module de Robotique Avancée pour la Plateforme Nekazari (Standard NKZ). Fourni par Robotika.", "pt": "Módulo Avançado de Robótica para a Plataforma Nekazari (Standard NKZ). Fornecido pela Robotika.", "ca": "Mòdul Avançat de Robòtica per a la Plataforma Nekazari (Standard NKZ). Proporcionat per Robotika."}}$$::jsonb
+WHERE id = 'robotics';
+
+-- Module: vegetation-prime
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Suite de inteligencia vegetal de alto rendimiento con cálculo avanzado de índices espectrales, integración Sentinel-2 y predicciones impulsadas por IA para monitorización agrícola.", "en": "High-performance vegetation intelligence suite with advanced spectral index calculation, Sentinel-2 integration, and AI-powered predictions for agricultural monitoring.", "eu": "Errendimendu handiko landaretza adimen suitea, indize espektralen kalkulu aurreratuarekin, Sentinel-2 integrazioarekin eta IA bidezko iragarpenekin nekazaritza monitorizaziorako.", "fr": "Suite d'intelligence végétale haute performance avec calcul avancé d'indices spectraux, intégration Sentinel-2 et prédictions alimentées par l'IA pour la surveillance agricole.", "pt": "Suíte de inteligência vegetal de alto desempenho com cálculo avançado de índices espectrais, integração Sentinel-2 e previsões baseadas em IA para monitoramento agrícola.", "ca": "Suite d'intel·ligència vegetal d'alt rendiment amb càlcul avançat d'índexs espectrals, integració Sentinel-2 i prediccions impulsades per IA per a monitorització agrícola."}}$$::jsonb
+WHERE id = 'vegetation-prime';
+
+-- Module: zulip
+UPDATE marketplace_modules
+SET metadata = metadata || $${"description_i18n": {"es": "Plataforma de mensajería soberana con integración de alertas IoT para colaboración en equipo.", "en": "Sovereign messaging platform with IoT alert integration for team collaboration.", "eu": "Mezu plataforma subiranoa IoT alerten integrazioarekin talde-lankidetzarako.", "fr": "Plateforme de messagerie souveraine avec intégration d'alertes IoT pour la collaboration d'équipe.", "pt": "Plataforma de mensagens soberana com integração de alertas IoT para colaboração em equipe.", "ca": "Plataforma de missatgeria sobirana amb integració d'alertes IoT per a col·laboració en equip."}}$$::jsonb
+WHERE id = 'zulip';
+
+COMMIT;

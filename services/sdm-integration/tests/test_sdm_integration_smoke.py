@@ -1,0 +1,57 @@
+"""Minimal smoke test for sdm-integration."""
+
+import ast
+import importlib
+import os
+import sys
+
+import pytest
+
+# ── Path setup ──────────────────────────────────────────────────────────────
+_TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+_SVC_DIR = os.path.normpath(os.path.join(_TEST_DIR, ".."))
+_SERVICES_DIR = os.path.normpath(os.path.join(_SVC_DIR, ".."))
+_COMMON_DIR = os.path.join(_SERVICES_DIR, "common")
+
+for _p in [_SVC_DIR, _SERVICES_DIR, _COMMON_DIR]:
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.insert(0, _p)
+
+_MAIN_FILE = os.path.join(_SVC_DIR, "sdm_api.py")
+
+
+def test_syntax():
+    """Verify the main module parses without syntax errors."""
+    with open(_MAIN_FILE) as f:
+        source = f.read()
+    try:
+        ast.parse(source)
+    except SyntaxError as e:
+        pytest.fail(f"Syntax error in {_MAIN_FILE}: {e}")
+
+
+def test_import():
+    """Verify the main module can be imported (requires pymongo + ORION_URL)."""
+    try:
+        import pymongo  # noqa: F401 — needed by sdm_api
+    except ImportError:
+        pytest.skip("pymongo not installed — skipping import test")
+    if not os.environ.get("ORION_URL"):
+        pytest.skip("ORION_URL not set — skipping import test")
+    try:
+        importlib.import_module("sdm_api")
+    except (ModuleNotFoundError, ImportError, ValueError) as e:
+        pytest.fail(f"Could not import sdm_api: {e}")
+
+
+def test_device_is_provisioned_in_the_iot_agent():
+    """Device is the canonical sensor type; it must get IoT Agent provisioning."""
+    with open(_MAIN_FILE) as f:
+        tree = ast.parse(f.read())
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            getattr(t, "id", None) == "IOT_ENTITY_TYPES" for t in node.targets
+        ):
+            assert "Device" in ast.literal_eval(node.value)
+            return
+    pytest.fail("IOT_ENTITY_TYPES not found")

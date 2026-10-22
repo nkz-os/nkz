@@ -1,0 +1,13 @@
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+PyYAML==6.0.3
+pydantic==2.13.5
+pydantic-settings==2.15.0
+tenacity==9.1.4
+requests==2.34.2
+psycopg2-binary==2.9.13
+asyncpg==0.31.0
+httpx==0.28.1
+redis==5.0.1
+prometheus-client==0.26.0
+nkz-platform-sdk>=0.10.0
