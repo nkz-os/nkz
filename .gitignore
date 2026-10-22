@@ -355,10 +355,7 @@ test_*.js
 tests/fiware-compliance/
 
 # =============================================================================
-# Internal agent / AI artifacts — NEVER commit (public repo)
-# Workspace policy: plans, specs, handovers and any internal AI-agent comms
-# live OUTSIDE this repo (in /home/g/Documents/nekazari/documents/). These
-# entries are belt-and-suspenders against accidental drift.
+# Internal agent / AI artifacts 
 # =============================================================================
 # Agent / AI instruction files — keep out of the repo
 AGENTS.md
