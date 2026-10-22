@@ -56,7 +56,10 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+            BEFORE="${{ github.event.before }}"
+            # A first push (or a new branch) has no previous commit: nothing to compare.
+            if [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then BEFORE=HEAD; fi
+            echo "ref=$BEFORE" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run the ratchet check
