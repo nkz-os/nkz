@@ -783,7 +783,6 @@
       },
       "controlledAsset": {
         "@id": "https://smartdatamodels.org/dataModel.Device/controlledAsset",
-        "@type": "@id",
         "_comment": "Official SDM Device property. The asset a device monitors — sole canonical device-to-parcel link. Replaces the platform-specific parcelId property."
       },
       "controlledProperty": "https://smartdatamodels.org/dataModel.Device/controlledProperty",

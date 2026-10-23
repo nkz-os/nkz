@@ -257,6 +257,17 @@ def test_iot_attribute_is_defined(ctx, attribute):
     assert iri and not iri.startswith("https://uri.etsi.org/ngsi-ld/default-context/"), iri
 
 
+def test_controlled_asset_is_not_id_typed(ctx):
+    """`controlledAsset` es una Relationship (lista de EntityIdentifierType en SDM).
+
+    Con `"@type": "@id"` Orion-LD solo acepta el atributo como cadena suelta y rechaza con
+    400 `{"type": "Relationship", "object": urn}`. El contexto oficial de SDM Device lo mapea
+    como IRI plano, sin `@type`.
+    """
+    term = ctx["controlledAsset"]
+    assert not (isinstance(term, dict) and "@type" in term), term
+
+
 def test_unit_is_not_repurposed_as_a_measurement_unit(ctx):
     """`unit` está ocupado por saref:Unit, que es una clase, no una unidad de medida.
 
