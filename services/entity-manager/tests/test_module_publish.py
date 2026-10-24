@@ -101,6 +101,10 @@ sys.modules["common.internal_auth"] = _ia_mod
 
 # Heavy / infrastructure dependencies
 sys.modules["db_helper"] = MagicMock()
+
+from tests.real_common import seed_real_common  # noqa: E402
+
+seed_real_common()
 sys.modules["orion_writer"] = MagicMock()
 sys.modules["parcel_sync"] = MagicMock()
 sys.modules["module_metrics"] = MagicMock()

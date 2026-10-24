@@ -67,7 +67,7 @@ def test_attributes_from_profile_measurements():
         {"type": "flag", "sdmAttribute": "flag", "unit": "C62", "valueType": "Boolean"},
     ])
     assert attrs == [
-        {"object_id": "temperature", "name": "temperature", "type": "Number"},
+        {"object_id": "temperature", "name": "airTemperature", "type": "Number"},
         {"object_id": "r3", "name": "moisture", "type": "Number", "expression": "r3 * 0.1"},
         {"object_id": "note", "name": "note", "type": "Text"},
         {"object_id": "flag", "name": "flag", "type": "Boolean"},

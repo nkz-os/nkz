@@ -13,6 +13,8 @@ from typing import Optional
 
 import requests
 
+from common.context_aliases import canonical_attribute
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,7 +100,7 @@ def build_iota_attributes(measurements: list) -> list:
     for m in measurements:
         attr = {
             "object_id": m.get("incomingKey") or m["type"],
-            "name": m["sdmAttribute"],
+            "name": canonical_attribute(m["sdmAttribute"]),
             "type": m.get("valueType") or ("Number" if m.get("unit") else "Text"),
         }
         if m.get("expression"):

@@ -5,6 +5,7 @@ Sensors Blueprint - Extracted from entity_management_api.py
 import os
 import sys
 import json
+import re
 import uuid
 import logging
 import math
@@ -14,7 +15,7 @@ from functools import wraps
 from typing import Optional
 
 from flask import Blueprint, request, jsonify, g
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import Json, RealDictCursor
 import psycopg2
 import requests
 import paho.mqtt.client as mqtt
@@ -27,6 +28,9 @@ from db_helper import get_db_connection_with_tenant, get_db_connection_simple, r
 # Import shared config
 from helpers import ORION_URL, CONTEXT_URL
 import dataloggers
+from common.context_aliases import canonical_attribute
+from common.jexl_expressions import validate_jexl_expression
+from common.unit_codes import to_unit_code
 
 logger = logging.getLogger(__name__)
 
@@ -467,6 +471,136 @@ def delete_sensor_device(device_urn):
 # =============================================================================
 # Sensor Profiles
 # =============================================================================
+
+
+_PROFILE_CODE = re.compile(r'^[A-Za-z0-9_.-]{1,64}$')
+_VALUE_TYPES = ('Number', 'Text')
+
+
+def _validated_profile(data: dict) -> tuple:
+    """(name, description, mapping) of a profile body, with `sdmAttribute` canonicalized."""
+    name = data.get('name')
+    if not isinstance(name, str) or not name.strip():
+        raise dataloggers.ApiError(400, 'name is required')
+    description = data.get('description')
+    if description is not None and not isinstance(description, str):
+        raise dataloggers.ApiError(400, 'description must be text')
+    if data.get('sdm_entity_type', 'Device') != 'Device':
+        raise dataloggers.ApiError(400, 'sdm_entity_type must be Device')
+    mapping = data.get('mapping')
+    raw = mapping.get('measurements') if isinstance(mapping, dict) else None
+    if not isinstance(raw, list) or not raw:
+        raise dataloggers.ApiError(400, 'mapping.measurements must be a non-empty list')
+    measurements, seen = [], set()
+    for m in raw:
+        if not isinstance(m, dict):
+            raise dataloggers.ApiError(400, 'Each measurement must be an object')
+        for field in ('type', 'sdmAttribute'):
+            if not isinstance(m.get(field), str) or not m[field].strip():
+                raise dataloggers.ApiError(400, f'Measurement {field} is required')
+        unit = m.get('unit', '')
+        if not isinstance(unit, str):
+            raise dataloggers.ApiError(400, 'Measurement unit must be text')
+        try:
+            to_unit_code(unit)
+        except ValueError:
+            raise dataloggers.ApiError(400, f'Unknown unit "{unit}"')
+        if m.get('valueType') is not None and m['valueType'] not in _VALUE_TYPES:
+            raise dataloggers.ApiError(400, 'valueType must be Number or Text')
+        for field in ('incomingKey', 'expression'):
+            if m.get(field) is not None and not isinstance(m[field], str):
+                raise dataloggers.ApiError(400, f'Measurement {field} must be text')
+        if m.get('expression'):
+            ok, why = validate_jexl_expression(m['expression'])
+            if not ok:
+                raise dataloggers.ApiError(400, f'Invalid expression: {why}')
+        attribute = canonical_attribute(m['sdmAttribute'].strip())
+        if attribute in seen:
+            raise dataloggers.ApiError(400, f'Duplicate sdmAttribute "{attribute}"')
+        seen.add(attribute)
+        clean = {'type': m['type'].strip(), 'sdmAttribute': attribute, 'unit': unit}
+        for field in ('incomingKey', 'valueType', 'expression'):
+            if m.get(field):
+                clean[field] = m[field]
+        measurements.append(clean)
+    return name.strip(), description, {**mapping, 'measurements': measurements}
+
+
+@dataloggers.in_step('db', 'Database error')
+def _profile_visible(tenant_id: str, code: str):
+    with get_db_connection_with_tenant(tenant_id) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT tenant_id FROM sensor_profiles
+            WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
+            ORDER BY tenant_id NULLS LAST
+            LIMIT 1
+        """, (code, tenant_id))
+        row = cur.fetchone()
+        cur.close()
+    return row
+
+
+@sensors_bp.route('/api/sensors/profiles', methods=['POST'])
+@require_auth
+@_guard
+def create_sensor_profile():
+    tenant = _tenant()
+    data = _body()
+    code = data.get('code')
+    if not isinstance(code, str) or not _PROFILE_CODE.match(code):
+        raise dataloggers.ApiError(400, 'Invalid code')
+    name, description, mapping = _validated_profile(data)
+    if _profile_visible(tenant, code):
+        raise dataloggers.ApiError(409, 'Profile code already exists')
+    try:
+        with get_db_connection_with_tenant(tenant) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO sensor_profiles (tenant_id, code, name, description, sdm_entity_type, mapping)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (tenant, code, name, description, 'Device', Json(mapping)))
+            conn.commit()
+            cur.close()
+    except psycopg2.errors.UniqueViolation:
+        raise dataloggers.ApiError(409, 'Profile code already exists')
+    except Exception as exc:
+        logger.error("profile insert failed: %s", type(exc).__name__)
+        raise dataloggers.ApiError(502, 'Database error', 'db')
+    return jsonify({'code': code, 'name': name, 'sdm_entity_type': 'Device',
+                    'mapping': mapping}), 201
+
+
+@sensors_bp.route('/api/sensors/profiles/<code>', methods=['PUT'])
+@require_auth
+@_guard
+def update_sensor_profile(code):
+    tenant = _tenant()
+    data = _body()
+    if data.get('code', code) != code:
+        raise dataloggers.ApiError(400, 'code in body does not match the URL')
+    name, description, mapping = _validated_profile(data)
+    row = _profile_visible(tenant, code)
+    if not row:
+        raise dataloggers.ApiError(404, 'Profile not found')
+    if row.get('tenant_id') is None:
+        raise dataloggers.ApiError(403, 'Global profiles are read-only')
+    try:
+        with get_db_connection_with_tenant(tenant) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE sensor_profiles SET name = %s, description = %s, mapping = %s
+                WHERE code = %s AND tenant_id = %s
+            """, (name, description, Json(mapping), code, tenant))
+            updated = cur.rowcount
+            conn.commit()
+            cur.close()
+    except Exception as exc:
+        logger.error("profile update failed: %s", type(exc).__name__)
+        raise dataloggers.ApiError(502, 'Database error', 'db')
+    if not updated:
+        raise dataloggers.ApiError(404, 'Profile not found')
+    return jsonify({'code': code, 'name': name, 'mapping': mapping}), 200
 
 
 @sensors_bp.route('/api/sensors/profiles', methods=['GET'])

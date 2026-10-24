@@ -19,6 +19,7 @@ import requests
 from psycopg2.extras import RealDictCursor
 
 from common import iot_agent, mqtt_dynsec, mqtt_endpoint
+from common.context_aliases import canonical_attribute
 from common.ngsi_headers import inject_fiware_headers
 from db_helper import get_db_connection_with_tenant
 from helpers import ORION_URL
@@ -297,7 +298,7 @@ def get_datalogger_config(tenant: str, dl_id: str) -> dict:
             'name': _prop(ent, 'name') or d['external_id'],
             'topic': topic_for(apikey, d['external_id']),
             'measurements': [{'key': m.get('incomingKey') or m.get('type'),
-                              'sdmAttribute': m.get('sdmAttribute'),
+                              'sdmAttribute': (canonical_attribute(m['sdmAttribute']) if m.get('sdmAttribute') else None),
                               'unit': m.get('unit')} for m in ms],
         })
     ep = mqtt_endpoint_for_devices()

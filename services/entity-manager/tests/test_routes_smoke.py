@@ -105,6 +105,10 @@ assert _ia_spec.loader is not None
 _ia_spec.loader.exec_module(_ia_mod)
 sys.modules["common.internal_auth"] = _ia_mod
 
+from tests.real_common import seed_real_common  # noqa: E402
+
+seed_real_common()
+
 # Heavy / infrastructure dependencies
 sys.modules["db_helper"] = MagicMock()
 sys.modules["orion_writer"] = MagicMock()

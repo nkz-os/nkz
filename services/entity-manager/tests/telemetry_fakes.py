@@ -21,6 +21,11 @@ class FakeState:
         self.role_topics = {}
         self.fail = {}
 
+    @staticmethod
+    def unique_violation():
+        import psycopg2.errors
+        return psycopg2.errors.UniqueViolation("duplicate")
+
 
 class _Cursor:
     def __init__(self, conn):
@@ -113,6 +118,25 @@ class _Cursor:
                     r["datalogger_id"] = str(params[0])
                     self._rowcount += 1
             log.append(("db", "move"))
+        elif sql.startswith("INSERT INTO sensor_profiles"):
+            tenant, code, name, description, etype, mapping = params
+            if self.conn.state.fail.get("profile_unique"):
+                raise self.conn.state.unique_violation()
+            self.conn.state.profiles[code] = {
+                "tenant_id": tenant, "code": code, "name": name, "description": description,
+                "sdm_entity_type": etype, "mapping": getattr(mapping, "adapted", mapping)}
+            self._rows = [{"code": code}]
+            self._rowcount = 1
+        elif sql.startswith("UPDATE sensor_profiles"):
+            name, description, mapping, code, tenant = params
+            row = self.conn.state.profiles.get(code)
+            if row and row.get("tenant_id") == tenant:
+                row.update(name=name, description=description,
+                           mapping=getattr(mapping, "adapted", mapping))
+                self._rowcount = 1
+        elif "FROM sensor_profiles" in sql and "SELECT tenant_id" in sql:
+            p = self.conn.state.profiles.get(params[0])
+            self._rows = [{"tenant_id": p.get("tenant_id")}] if p else []
         elif "FROM sensor_profiles" in sql:
             if "ANY(%s)" in sql:
                 self._rows = [{"code": c, **self.conn.state.profiles[c]}
@@ -282,6 +306,9 @@ _common_mock.inject_fiware_headers = lambda h, **kw: dict(h)
 _common_mock.internal_error = lambda *a, **kw: ({"error": "internal"}, 500)
 # Every common.* module the blueprints import at module level must exist when this file
 # is the first to load them (a MagicMock `common` is not a package).
+from tests.real_common import seed_real_common  # noqa: E402
+
+seed_real_common()
 for _mod in ("common", "common.auth_middleware", "common.api_errors", "common.ngsi_headers",
              "common.ngsi_payload_guard", "common.tenant_utils", "common.config_manager",
              "common.tier_quotas", "common.iot_agent", "common.mqtt_dynsec",

@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from common.context_aliases import canonical_attribute
 from common.unit_codes import to_unit_code
 
 # Attributes that are never measurements, regardless of what the profile declares. Device
@@ -54,7 +55,7 @@ def _measurement_defs_by_attr(profile: Dict[str, Any]) -> Dict[str, Dict[str, An
     mapping = profile.get("mapping") or {}
     measurements = mapping.get("measurements") or []
     return {
-        m["sdmAttribute"]: m
+        canonical_attribute(m["sdmAttribute"]): m
         for m in measurements
         if isinstance(m, dict) and m.get("sdmAttribute")
     }
@@ -107,7 +108,7 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
     for attr_name, attr_value in entity.items():
         if attr_name in _NON_MEASUREMENT_KEYS:
             continue
-        measurement_def = measurement_defs.get(attr_name)
+        measurement_def = measurement_defs.get(canonical_attribute(attr_name))
         if measurement_def is None:
             continue
         if not isinstance(attr_value, dict) or attr_value.get("type") != "Property":
