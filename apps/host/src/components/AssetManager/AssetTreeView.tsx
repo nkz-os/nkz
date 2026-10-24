@@ -170,6 +170,11 @@ const TreeNodeRow: React.FC<TreeNodeRowProps> = memo(({
                 {childCount}
               </span>
             )}
+            {asset.extraParentCount ? (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 flex-shrink-0">
+                {t('entities.assets.extra_parcels', { count: asset.extraParentCount })}
+              </span>
+            ) : null}
           </div>
           <p className="text-xs text-slate-500 truncate">
             {assetTypeLabel(asset.type, t)}

@@ -17,6 +17,10 @@ export interface ParentEntity {
 interface ParentEntitySelectorProps {
   selectedParentId?: string;
   onSelect: (parent: ParentEntity | null) => void;
+  /** Multi-select mode: toggles parents and reports them via `onSelectMany`, in selection order. */
+  multiple?: boolean;
+  selectedParentIds?: string[];
+  onSelectMany?: (parents: ParentEntity[]) => void;
   entityType?: string; // Optional filter by entity type
   disabled?: boolean;
 }
@@ -24,6 +28,9 @@ interface ParentEntitySelectorProps {
 export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
   selectedParentId,
   onSelect,
+  multiple = false,
+  selectedParentIds = [],
+  onSelectMany,
   entityType,
   disabled = false
 }) => {
@@ -56,6 +63,20 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
   );
 
   const selectedParent = parents.find(p => p.id === selectedParentId);
+  const selectedMany = selectedParentIds
+    .map(id => parents.find(p => p.id === id))
+    .filter((p): p is ParentEntity => !!p);
+
+  const toggleParent = (parent: ParentEntity) => {
+    const ids = selectedParentIds.includes(parent.id)
+      ? selectedParentIds.filter(id => id !== parent.id)
+      : [...selectedParentIds, parent.id];
+    onSelectMany?.(
+      ids
+        .map(id => parents.find(p => p.id === id))
+        .filter((p): p is ParentEntity => !!p),
+    );
+  };
 
   const getEntityIcon = (type: string) => {
     if (type.includes('Parcel') || type.includes('Vineyard') || type.includes('Olive')) {
@@ -70,7 +91,7 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-nkz-text-primary">
-        {t('wizard.parent.create_as_subdivision')}
+        {multiple ? t('wizard.parent.select_parcels') : t('wizard.parent.create_as_subdivision')}
       </label>
       
       <div className="relative">
@@ -80,10 +101,16 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
           disabled={disabled}
           className={`w-full px-4 py-2 text-left border rounded-lg bg-nkz-surface flex items-center justify-between ${
             disabled ? 'bg-nkz-bg-secondary cursor-not-allowed' : 'hover:border-green-500'
-          } ${selectedParent ? 'border-green-500' : 'border-nkz-border'}`}
+          } ${(multiple ? selectedMany.length > 0 : selectedParent) ? 'border-green-500' : 'border-nkz-border'}`}
         >
           <span className="flex items-center gap-2">
-            {selectedParent ? (
+            {multiple ? (
+              selectedMany.length > 0 ? (
+                <span className="font-medium">{t('wizard.parent.selected_count', { count: selectedMany.length })}</span>
+              ) : (
+                <span className="text-nkz-muted">{t('wizard.parent.select_parcels_placeholder')}</span>
+              )
+            ) : selectedParent ? (
               <>
                 {getEntityIcon(selectedParent.type)}
                 <span className="font-medium">{selectedParent.name}</span>
@@ -112,21 +139,23 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
               </div>
             </div>
             
-            <div className="p-1">
-              <Button variant="ghost"
-                type="button"
-                onClick={() => {
-                  onSelect(null);
-                  setIsOpen(false);
-                  setSearchTerm('');
-                }}
-                className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-nkz-bg-secondary ${
-                  !selectedParentId ? 'bg-nkz-success-soft text-nkz-success-strong' : ''
-                }`}
-              >
-                <span className="font-medium">{t('wizard.parent.none')}</span>
-              </Button>
-            </div>
+            {!multiple && (
+              <div className="p-1">
+                <Button variant="ghost"
+                  type="button"
+                  onClick={() => {
+                    onSelect(null);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                  className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-nkz-bg-secondary ${
+                    !selectedParentId ? 'bg-nkz-success-soft text-nkz-success-strong' : ''
+                  }`}
+                >
+                  <span className="font-medium">{t('wizard.parent.none')}</span>
+                </Button>
+              </div>
+            )}
 
             {loading ? (
               <div className="p-4 text-center text-sm text-nkz-muted">{t('wizard.parent.loading')}</div>
@@ -140,12 +169,16 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
                   key={parent.id}
                   type="button"
                   onClick={() => {
+                    if (multiple) {
+                      toggleParent(parent);
+                      return;
+                    }
                     onSelect(parent);
                     setIsOpen(false);
                     setSearchTerm('');
                   }}
                   className={`w-full px-3 py-2 text-left text-sm rounded hover:bg-nkz-bg-secondary flex items-center gap-2 ${
-                    selectedParentId === parent.id ? 'bg-nkz-success-soft text-nkz-success-strong' : ''
+                    (multiple ? selectedParentIds.includes(parent.id) : selectedParentId === parent.id) ? 'bg-nkz-success-soft text-nkz-success-strong' : ''
                   }`}
                 >
                   {getEntityIcon(parent.type)}
@@ -160,7 +193,15 @@ export const ParentEntitySelector: React.FC<ParentEntitySelectorProps> = ({
         )}
       </div>
 
-      {selectedParent && (
+      {multiple && selectedMany.length > 0 && (
+        <ul className="text-xs text-nkz-muted list-disc pl-5">
+          {selectedMany.map((p, i) => (
+            <li key={p.id}>{p.name}{i === 0 ? ` (${t('wizard.parent.primary')})` : ''}</li>
+          ))}
+        </ul>
+      )}
+
+      {!multiple && selectedParent && (
         <p className="text-xs text-nkz-muted">
           {t('wizard.parent.subdivision_note', { name: selectedParent.name })}{' '}
           {t('wizard.parent.subdivision_geometry_note')}

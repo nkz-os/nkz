@@ -808,8 +808,10 @@
       "type_required": "Hautatu entitate mota bat",
       "name_required": "Izena derrigorrezkoa da",
       "device_profile_required": "Gailu-profila derrigorrezkoa da IoT sentsoreentzat",
+      "parcel_required": "Gailu batek gutxienez lursail bat behar du",
       "stamp_required": "Margotu gutxienez instantzia bat",
-      "array_required": "Konfiguratu aingura-puntua eta saretaren parametroak"
+      "array_required": "Konfiguratu aingura-puntua eta saretaren parametroak",
+      "point_required": "Gailu batek kokapena (puntua) behar du"
     },
     "errors": {
       "incomplete_state": "Laguntzailearen egoera osatu gabe dago",
@@ -945,7 +947,10 @@
       "select_array_asset": "Hautatu ezarri beharreko aktiboa",
       "model_required": "Hautatu 3D eredu bat jarraitzeko.",
       "geometry_type": "Geometria mota",
-      "inside_parent_hint": "Geometriak erabat gurasoaren mugen barruan egon behar du."
+      "inside_parent_hint": "Geometriak erabat gurasoaren mugen barruan egon behar du.",
+      "latitude": "Latitudea",
+      "longitude": "Longitudea",
+      "coordinates_invalid": "Sartu baliozko latitudea (-90 eta 90 artean) eta longitudea (-180 eta 180 artean)"
     },
     "asset": {
       "title": "Aktiboaren datuak",
@@ -993,6 +998,10 @@
       "import_json": "Inportatu JSON",
       "mqtt_on_finish": "MQTT kredentzialak amaitzean",
       "profile_required_hint": "* Gailu-profila derrigorrezkoa da. Datalogger-aren datuak SDM atributu estandarretara nola itzultzen diren zehazten du. Egokirik aurkitzen ez baduzu, inportatu bat edo sortu berri bat «Ikusi txantiloiak» aukeran.",
+      "parcels_hint": "Lehen lursaila nagusia da. Sentsoreak hautatzen dituzun lursail guztiak neurtzen ditu.",
+      "owner_label": "Sentsorearen jabea",
+      "owner_parcel": "Lursaila (zelai irekia)",
+      "owner_park": "Instalazio solarra (panelen azpian)",
       "health_title": "Fidagarritasun- eta kalibrazio-konfigurazioa (osasun-arauak)",
       "health_hint": "Zehaztu sentsorearen aldagaien balidazio- eta kalibrazio-arauak. Balio hauek irakurketa anomaloak detektatzeko eta seinale gordinak eraldatzeko erabiltzen dira.",
       "comm_timeout": "Komunikaziorik gabeko gehieneko denbora (orduak)",
@@ -1019,7 +1028,11 @@
       "no_matches": "Ez da bat datorren entitaterik aurkitu",
       "none_available": "Ez dago guraso-entitaterik eskuragarri",
       "subdivision_note": "Entitate berria «{{name}}» entitatearen azpibanaketa gisa sortuko da.",
-      "subdivision_geometry_note": "Bere geometriak erabat guraso-entitatearen mugen barruan egon behar du."
+      "subdivision_geometry_note": "Bere geometriak erabat guraso-entitatearen mugen barruan egon behar du.",
+      "select_parcels": "Sentsoreak neurtzen dituen lursailak",
+      "select_parcels_placeholder": "Hautatu lursailak",
+      "selected_count": "Hautatutako lursailak: {{count}}",
+      "primary": "nagusia"
     },
     "robot_credentials": {
       "copy": "Kopiatu arbelera",
@@ -1863,6 +1876,8 @@
       "delete_success": "{{count}} entitate ondo ezabatu d(ir)a",
       "delete_error": "Errorea entitateak ezabatzean",
       "export_empty": "Ez dago esportatzeko asset-ik",
+      "extra_parcels_one": "+{{count}} lursail",
+      "extra_parcels_other": "+{{count}} lursail",
       "tree": {
         "unassigned": "{{count}} esleitu gabe",
         "expand_all": "Zabaldu",
@@ -1878,6 +1893,8 @@
         "located_in": "Lursail honetan kokatuta",
         "updated": "Erlazioa eguneratu da",
         "will_remove": "Uneko esleipena kenduko da",
+        "primary": "Nagusia",
+        "last_parcel": "Sentsore batek gutxienez lur-sail bat izan behar du",
         "cancel": "Utzi",
         "save": "Gorde",
         "saved": "Gordeta",
@@ -1904,6 +1921,7 @@
         "IrrigationSystem": "Ureztatze-sistema",
         "AgriEnergyTracker": "Eguzki-jarraitzailea",
         "PhotovoltaicInstallation": "Instalazio fotovoltaikoa",
+        "AgriSolarPark": "Instalazio solarra",
         "AgriCrop": "Laborea",
         "AgriTree": "Zuhaitza",
         "OliveTree": "Olibondoa",

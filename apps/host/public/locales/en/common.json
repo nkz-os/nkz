@@ -807,8 +807,10 @@
       "type_required": "Please select an entity type",
       "name_required": "Name is required",
       "device_profile_required": "A device profile is required for IoT sensors",
+      "parcel_required": "At least one parcel is required for a device",
       "stamp_required": "Place at least one instance",
-      "array_required": "Set the anchor point and the grid parameters"
+      "array_required": "Set the anchor point and the grid parameters",
+      "point_required": "A device requires a location (point)"
     },
     "errors": {
       "incomplete_state": "Incomplete wizard state",
@@ -944,7 +946,10 @@
       "select_array_asset": "Select the asset to place",
       "model_required": "Select a 3D model to continue.",
       "geometry_type": "Geometry type",
-      "inside_parent_hint": "The geometry must lie entirely within the parent boundaries."
+      "inside_parent_hint": "The geometry must lie entirely within the parent boundaries.",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "coordinates_invalid": "Enter a valid latitude (-90 to 90) and longitude (-180 to 180)"
     },
     "asset": {
       "title": "Asset details",
@@ -992,6 +997,10 @@
       "import_json": "Import JSON",
       "mqtt_on_finish": "MQTT credentials when finished",
       "profile_required_hint": "* A device profile is required. It defines how datalogger data is translated into standard SDM attributes. If no profile fits, import one or create a new one from \"View templates\".",
+      "parcels_hint": "The first parcel is the primary one. The sensor measures all the parcels you select.",
+      "owner_label": "Sensor owner",
+      "owner_parcel": "Parcel (open field)",
+      "owner_park": "Solar installation (under panel)",
       "health_title": "Reliability and calibration settings (health rules)",
       "health_hint": "Define validation and calibration rules for the sensor variables. These values are used to detect anomalous readings and transform raw signals.",
       "comm_timeout": "Communication timeout (hours)",
@@ -1018,7 +1027,11 @@
       "no_matches": "No matching entities found",
       "none_available": "No parent entities available",
       "subdivision_note": "The new entity will be created as a subdivision of \"{{name}}\".",
-      "subdivision_geometry_note": "Its geometry must be completely within the parent's boundaries."
+      "subdivision_geometry_note": "Its geometry must be completely within the parent's boundaries.",
+      "select_parcels": "Parcels the sensor measures",
+      "select_parcels_placeholder": "Select parcels",
+      "selected_count": "Parcels selected: {{count}}",
+      "primary": "primary"
     },
     "robot_credentials": {
       "copy": "Copy to clipboard",
@@ -1862,6 +1875,8 @@
       "delete_success": "{{count}} entity(ies) deleted successfully",
       "delete_error": "Error deleting entities",
       "export_empty": "There are no assets to export",
+      "extra_parcels_one": "+{{count}} parcel",
+      "extra_parcels_other": "+{{count}} parcels",
       "tree": {
         "unassigned": "{{count}} unassigned",
         "expand_all": "Expand",
@@ -1877,6 +1892,8 @@
         "located_in": "Located in parcel",
         "updated": "Relationship updated",
         "will_remove": "The current assignment will be removed",
+        "primary": "Primary",
+        "last_parcel": "A sensor must keep at least one parcel",
         "cancel": "Cancel",
         "save": "Save",
         "saved": "Saved",
@@ -1903,6 +1920,7 @@
         "IrrigationSystem": "Irrigation system",
         "AgriEnergyTracker": "Solar tracker",
         "PhotovoltaicInstallation": "PV installation",
+        "AgriSolarPark": "Solar installation",
         "AgriCrop": "Crop",
         "AgriTree": "Tree",
         "OliveTree": "Olive tree",

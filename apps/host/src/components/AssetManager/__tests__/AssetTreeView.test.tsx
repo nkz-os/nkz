@@ -67,4 +67,18 @@ describe('AssetTreeView', () => {
     render(<AssetTreeView {...props} assets={[]} />);
     expect(screen.getByText('entities.assets.tree.empty')).toBeTruthy();
   });
+
+  it('marks a sensor with extra parcels and leaves single-parcel sensors unmarked', () => {
+    render(
+      <AssetTreeView
+        {...props}
+        assets={[
+          asset('p1', 'North field', 'parcels', 'AgriParcel'),
+          { ...asset('d1', 'Probe A', 'sensors', 'Device', 'p1'), extraParentCount: 1 },
+          asset('d2', 'Probe B', 'sensors', 'Device', 'p1'),
+        ]}
+      />,
+    );
+    expect(screen.getAllByText('entities.assets.extra_parcels:1')).toHaveLength(1);
+  });
 });

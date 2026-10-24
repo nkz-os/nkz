@@ -139,6 +139,8 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
     return assets.filter(a => a.type === 'AgriParcel');
   }, [assets]);
 
+  const solarParks = useMemo(() => assets.filter(a => a.type === 'AgriSolarPark'), [assets]);
+
   // Close context menu on click outside
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
@@ -627,6 +629,7 @@ export const AssetManagerGrid: React.FC<AssetManagerGridProps> = ({
         <AssetRelationshipModal
           asset={relationshipModal}
           potentialParents={potentialParents}
+          solarParks={solarParks}
           onClose={() => setRelationshipModal(null)}
           onSuccess={() => refresh()}
         />

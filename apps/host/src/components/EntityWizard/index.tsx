@@ -26,6 +26,7 @@ import { StepSummary } from './steps/StepSummary';
 import { RobotCredentialsModal, type RobotCredentials } from './RobotCredentialsModal';
 import { MqttCredentialsModal, type MqttCredentials } from './MqttCredentialsModal';
 import { submitGeoAsset } from './submission/submitGeoAsset';
+import { validateIoTConfig, validateGeometryStep } from './iotValidation';
 import { submitIoTSensor } from './submission/submitIoTSensor';
 import { submitFleet } from './submission/submitFleet';
 import type { EntityWizardProps, GeoAssetFormData, IoTSensorFormData, FleetFormData } from './types';
@@ -144,8 +145,7 @@ function validateStep(
     case 'iot-config': {
       if (!formData?.name.trim()) return 'wizard.validation.name_required';
       const iotData = formData as IoTSensorFormData;
-      if (!iotData.deviceProfileId) return 'wizard.validation.device_profile_required';
-      return null;
+      return validateIoTConfig(entityType, iotData);
     }
 
     case 'geometry':
@@ -155,8 +155,8 @@ function validateStep(
       if (placementState.mode === 'array') {
         return placementState.stampedInstances.length > 0 ? null : 'wizard.validation.array_required';
       }
-      // Point geometry is optional (coordinates may be unknown)
-      return null;
+      // Point geometry is optional except for a Device (fixed sensor)
+      return validateGeometryStep(entityType, formData?.geometry);
 
     default:
       return null;

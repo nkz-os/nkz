@@ -807,8 +807,10 @@
       "type_required": "Por favor selecciona un tipo de entidad",
       "name_required": "El nombre es obligatorio",
       "device_profile_required": "El perfil de dispositivo es obligatorio para sensores IoT",
+      "parcel_required": "Se requiere al menos una parcela para un dispositivo",
       "stamp_required": "Pinta al menos una instancia",
-      "array_required": "Configura el punto de ancla y los parámetros de la grilla"
+      "array_required": "Configura el punto de ancla y los parámetros de la grilla",
+      "point_required": "Un dispositivo requiere una ubicación (punto)"
     },
     "errors": {
       "incomplete_state": "Estado del wizard incompleto",
@@ -944,7 +946,10 @@
       "select_array_asset": "Selecciona el activo a colocar",
       "model_required": "Selecciona un modelo 3D para continuar.",
       "geometry_type": "Tipo de geometría",
-      "inside_parent_hint": "La geometría debe quedar completamente dentro de los límites del padre."
+      "inside_parent_hint": "La geometría debe quedar completamente dentro de los límites del padre.",
+      "latitude": "Latitud",
+      "longitude": "Longitud",
+      "coordinates_invalid": "Introduce una latitud (-90 a 90) y una longitud (-180 a 180) válidas"
     },
     "asset": {
       "title": "Datos del activo",
@@ -992,6 +997,10 @@
       "import_json": "Importar JSON",
       "mqtt_on_finish": "Credenciales MQTT al finalizar",
       "profile_required_hint": "* El perfil de dispositivo es obligatorio. Define cómo se traducen los datos del datalogger a atributos SDM estándar. Si no encuentras un perfil adecuado, importa uno o crea uno nuevo desde \"Ver plantillas\".",
+      "parcels_hint": "La primera parcela es la principal. El sensor mide todas las parcelas que selecciones.",
+      "owner_label": "Propietario del sensor",
+      "owner_parcel": "Parcela (campo abierto)",
+      "owner_park": "Instalación solar (bajo panel)",
       "health_title": "Configuración de fiabilidad y calibración (reglas de salud)",
       "health_hint": "Define reglas de validación y calibración para las variables del sensor. Estos valores se usan para detectar lecturas anómalas y transformar señales en bruto.",
       "comm_timeout": "Tiempo máximo sin comunicación (horas)",
@@ -1018,7 +1027,11 @@
       "no_matches": "No se han encontrado entidades que coincidan",
       "none_available": "No hay entidades padre disponibles",
       "subdivision_note": "La nueva entidad se creará como subdivisión de «{{name}}».",
-      "subdivision_geometry_note": "Su geometría debe quedar completamente dentro de los límites de la entidad padre."
+      "subdivision_geometry_note": "Su geometría debe quedar completamente dentro de los límites de la entidad padre.",
+      "select_parcels": "Parcelas que mide el sensor",
+      "select_parcels_placeholder": "Selecciona parcelas",
+      "selected_count": "Parcelas seleccionadas: {{count}}",
+      "primary": "principal"
     },
     "robot_credentials": {
       "copy": "Copiar al portapapeles",
@@ -1862,6 +1875,8 @@
       "delete_success": "{{count}} entidad(es) eliminada(s) correctamente",
       "delete_error": "Error al eliminar entidades",
       "export_empty": "No hay assets para exportar",
+      "extra_parcels_one": "+{{count}} parcela",
+      "extra_parcels_other": "+{{count}} parcelas",
       "tree": {
         "unassigned": "{{count}} sin asignar",
         "expand_all": "Expandir",
@@ -1877,6 +1892,8 @@
         "located_in": "Ubicado en parcela",
         "updated": "Relación actualizada",
         "will_remove": "Se eliminará la asignación actual",
+        "primary": "Principal",
+        "last_parcel": "Una sonda debe mantener al menos una parcela",
         "cancel": "Cancelar",
         "save": "Guardar",
         "saved": "Guardado",
@@ -1903,6 +1920,7 @@
         "IrrigationSystem": "Sistema de Riego",
         "AgriEnergyTracker": "Seguidor Solar",
         "PhotovoltaicInstallation": "Instalación FV",
+        "AgriSolarPark": "Instalación solar",
         "AgriCrop": "Cultivo",
         "AgriTree": "Árbol",
         "OliveTree": "Olivo",
