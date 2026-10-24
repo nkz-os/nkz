@@ -1872,6 +1872,8 @@
       "delete_success": "{{count}} entity(ies) deleted successfully",
       "delete_error": "Error deleting entities",
       "export_empty": "There are no assets to export",
+      "extra_parcels_one": "+{{count}} parcel",
+      "extra_parcels_other": "+{{count}} parcels",
       "tree": {
         "unassigned": "{{count}} unassigned",
         "expand_all": "Expand",

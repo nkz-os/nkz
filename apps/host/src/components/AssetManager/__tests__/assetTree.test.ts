@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AssetCategory, UnifiedAsset } from '@/types/assets';
+import { normalizeToAsset } from '@/types/assets';
 import { buildAssetTree, type AssetTreeNode } from '../assetTree';
 
 function asset(id: string, category: AssetCategory, parentId?: string, name = id, type = id): UnifiedAsset {
@@ -59,6 +60,32 @@ describe('buildAssetTree', () => {
     ]);
     expect(shape(tree)).toEqual([
       { parcel: ['zone', 'crop', 'sensor-a', 'sensor-b', 'station', 'tank'] },
+    ]);
+  });
+
+  it('puts a sensor linked to two parcels under the first only, and counts the extra one', () => {
+    const sensor = normalizeToAsset({
+      id: 'urn:ngsi-ld:Device:d1',
+      type: 'Device',
+      controlledAsset: { type: 'Relationship', object: ['urn:ngsi-ld:AgriParcel:a', 'urn:ngsi-ld:AgriParcel:b'] },
+    });
+    const single = normalizeToAsset({
+      id: 'urn:ngsi-ld:Device:d2',
+      type: 'Device',
+      controlledAsset: { type: 'Relationship', object: ['urn:ngsi-ld:AgriParcel:a'] },
+    });
+    expect(sensor.parentId).toBe('urn:ngsi-ld:AgriParcel:a');
+    expect(sensor.extraParentCount).toBe(1);
+    expect(single.extraParentCount).toBeUndefined();
+
+    const tree = buildAssetTree([
+      asset('urn:ngsi-ld:AgriParcel:a', 'parcels'),
+      asset('urn:ngsi-ld:AgriParcel:b', 'parcels'),
+      sensor,
+    ]);
+    expect(shape(tree)).toEqual([
+      { 'urn:ngsi-ld:AgriParcel:a': ['urn:ngsi-ld:Device:d1'] },
+      'urn:ngsi-ld:AgriParcel:b',
     ]);
   });
 });

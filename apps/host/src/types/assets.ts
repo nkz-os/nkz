@@ -6,6 +6,7 @@
 import i18n from 'i18next';
 import { logger } from '@/utils/logger';
 import { resolveParentRelationship } from '@/utils/entityRelations';
+import { readParcelLinks } from '@/utils/parcelLinks';
 
 // =============================================================================
 // Asset Categories
@@ -57,6 +58,8 @@ export interface UnifiedAsset {
   parentId?: string;
   parentName?: string;
   childCount?: number;
+  /** Parcels linked beyond the primary one (the asset sits under the first). */
+  extraParentCount?: number;
   
   // Metadata
   createdAt?: Date;
@@ -535,6 +538,11 @@ function extractStatus(entity: any): AssetStatus {
 /**
  * Convert any NGSI-LD entity to UnifiedAsset
  */
+function extraParcelCount(entity: any): number | undefined {
+  const extra = readParcelLinks(entity).length - 1;
+  return extra > 0 ? extra : undefined;
+}
+
 export function normalizeToAsset(entity: any): UnifiedAsset {
   const typeInfo = ASSET_TYPE_REGISTRY[entity.type] || {
     type: entity.type,
@@ -567,6 +575,7 @@ export function normalizeToAsset(entity: any): UnifiedAsset {
     geometryType: location?.type as any,
     municipality: entity.municipality || entity.address?.municipality,
     parentId: resolveParentRelationship(entity)?.parentId,
+    extraParentCount: extraParcelCount(entity),
     parentName: undefined, // Will be populated by hook if needed
     childCount: entity.children?.length || 0,
     createdAt: entity.dateCreated?.value ? new Date(entity.dateCreated.value) : undefined,

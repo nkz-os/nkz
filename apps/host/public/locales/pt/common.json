@@ -1896,6 +1896,8 @@
       "delete_success": "{{count}} entidade(s) excluída(s) com sucesso",
       "delete_error": "Erro ao excluir entidades",
       "export_empty": "Não há recursos para exportar",
+      "extra_parcels_one": "+{{count}} parcela",
+      "extra_parcels_other": "+{{count}} parcelas",
       "tree": {
         "unassigned": "{{count}} sem atribuição",
         "expand_all": "Expandir",

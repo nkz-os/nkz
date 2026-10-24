@@ -1896,6 +1896,8 @@
       "delete_success": "{{count}} entité(s) supprimée(s) avec succès",
       "delete_error": "Erreur lors de la suppression des entités",
       "export_empty": "Aucune ressource à exporter",
+      "extra_parcels_one": "+{{count}} parcelle",
+      "extra_parcels_other": "+{{count}} parcelles",
       "tree": {
         "unassigned": "{{count}} non assigné(s)",
         "expand_all": "Développer",

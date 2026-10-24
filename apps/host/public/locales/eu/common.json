@@ -1873,6 +1873,8 @@
       "delete_success": "{{count}} entitate ondo ezabatu d(ir)a",
       "delete_error": "Errorea entitateak ezabatzean",
       "export_empty": "Ez dago esportatzeko asset-ik",
+      "extra_parcels_one": "+{{count}} lursail",
+      "extra_parcels_other": "+{{count}} lursail",
       "tree": {
         "unassigned": "{{count}} esleitu gabe",
         "expand_all": "Zabaldu",

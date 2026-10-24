@@ -1872,6 +1872,8 @@
       "delete_success": "{{count}} entidad(es) eliminada(s) correctamente",
       "delete_error": "Error al eliminar entidades",
       "export_empty": "No hay assets para exportar",
+      "extra_parcels_one": "+{{count}} parcela",
+      "extra_parcels_other": "+{{count}} parcelas",
       "tree": {
         "unassigned": "{{count}} sin asignar",
         "expand_all": "Expandir",
