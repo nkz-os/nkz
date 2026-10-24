@@ -7,7 +7,7 @@ the anchored patterns allow nothing but identifiers, numbers and `+ - * / > < ? 
 call, member access or string can get through.
 """
 import re
-from typing import Iterable, Optional
+from typing import Iterable
 
 _VAR = r"[A-Za-z_][A-Za-z0-9_]*"
 _NUM = r"\d+(?:\.\d+)?"
@@ -23,25 +23,23 @@ JEXL_ALLOWED_PATTERNS = [
 ]
 
 
-def validate_jexl_expression(expr: str, variables: Optional[Iterable[str]] = None) -> tuple[bool, str]:
+def validate_jexl_expression(expr: str, variables: Iterable[str]) -> tuple[bool, str]:
     """Return (is_valid, error_message). An empty expression is valid (none).
 
     `variables`: the identifiers the expression may reference (e.g. the incoming keys of a
-    profile). None allows any identifier.
+    profile). Required: an expression may only use keys the caller knows.
     """
+    allowed = set(variables)
     if not expr or expr.strip() == "":
         return True, ""
     expr = expr.strip()
     if "${" in expr:
-        return False, "Expresión no permitida: las formas '${...}' no escriben nada en el IoT Agent"
+        return False, "Expression not allowed: '${...}' forms write nothing in the IoT Agent"
     if not any(re.match(p, expr) for p in JEXL_ALLOWED_PATTERNS):
-        example = sorted(variables)[0] if variables else "val"
-        return (False, f"Expresión JEXL no válida. Usa patrones simples como '{example}', "
+        example = sorted(allowed)[0] if allowed else "val"
+        return (False, f"Invalid JEXL expression. Use simple patterns such as '{example}', "
                        f"'{example} * 0.1', '{example} + 273'")
-    if variables is not None:
-        allowed = set(variables)
-        used = set(re.findall(_VAR, expr))
-        unknown = sorted(used - allowed)
-        if unknown:
-            return False, f"Expresión no permitida: variable desconocida '{unknown[0]}'"
+    unknown = sorted(set(re.findall(_VAR, expr)) - allowed)
+    if unknown:
+        return False, f"Expression not allowed: unknown variable '{unknown[0]}'"
     return True, ""
