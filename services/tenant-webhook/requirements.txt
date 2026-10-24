@@ -9,4 +9,4 @@ PyJWT==2.14.0
 cryptography==50.0.1
 Flask-Limiter==3.5.0
 redis==5.0.1
-pymongo==4.18.1
+pymongo==4.18.2
