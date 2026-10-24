@@ -217,3 +217,14 @@ def test_production_path_order_sends_ld_json_without_link(tmp_path):
     out = subprocess.run([sys.executable, "-c", code], env=env, cwd=tmp_path,
                          capture_output=True, text=True)
     assert out.returncode == 0 and "ok" in out.stdout, out.stderr
+
+
+def test_orion_post_timeout_is_5xx_and_attempts_rollback(sdm, env):
+    client, post, delete, prov = env
+    post.side_effect = sdm.requests.exceptions.Timeout("slow")
+    r = client.post(URL, json=_body())
+    assert r.status_code >= 500
+    assert post.call_args.kwargs["timeout"] == 10
+    assert delete.called
+    assert delete.call_args.args[0].startswith(f"{ORION}/ngsi-ld/v1/entities/")
+    prov.assert_not_called()

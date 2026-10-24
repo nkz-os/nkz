@@ -900,7 +900,14 @@ def create_entity_instance(entity_type):
         logger.debug(f"Entity data: {entity_data}")
         logger.debug(f"Orion URL: {orion_url}")
         
-        response = requests.post(orion_url, json=entity_data, headers=headers)
+        try:
+            response = requests.post(orion_url, json=entity_data, headers=headers, timeout=10)
+        except requests.exceptions.Timeout:
+            # The entity may have been written despite the timeout; a DELETE of a
+            # missing entity is a harmless 404, so compensate for IoT types.
+            if entity_type in IOT_ENTITY_TYPES:
+                _rollback_entity(entity_id, g.tenant)
+            raise
         logger.info(f"Orion response status: {response.status_code}")
         
         if response.status_code in [200, 201]:
