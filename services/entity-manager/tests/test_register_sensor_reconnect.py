@@ -328,3 +328,148 @@ def test_generic_instance_delete_of_a_registered_device_cleans_everything():
     assert resp.status_code == 200
     assert st.devices == [] and w.orion.entities == {}
     assert ("iota", "delete", "S1") in st.log
+
+
+def test_delete_device_retry_after_acl_failure_closes_acl():
+    """A broker failure rolls the link delete back, so the retry still closes the topic."""
+    st = _state()
+    urn = seed_device(st, DL, "S1")
+    st.role_topics[ROLE] = {"/KEY123/S1/attrs"}
+    with wired(st) as w:
+        w.orion.entities[urn] = {"id": urn}
+        st.fail["set_role_topics"] = True
+        first = client().delete(f"/api/sensors/devices/{urn}", headers=AUTH)
+        assert first.status_code == 502 and first.get_json()["step"] == "acl"
+        assert len(st.devices) == 1 and urn in w.orion.entities
+        st.fail.clear()
+        second = client().delete(f"/api/sensors/devices/{urn}", headers=AUTH)
+    assert second.status_code == 204
+    assert st.devices == [] and st.role_topics[ROLE] == set() and w.orion.entities == {}
+
+
+def test_register_orion_connection_error_is_502_with_step():
+    import requests as rq
+    st = _state()
+    with wired(st) as w:
+        def boom(*a, **k):
+            raise rq.ConnectionError("down")
+        w.orion.post = boom
+        r = _register(client())
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_entity"
+    assert st.devices == [] and not any(e[0] in ("iota", "db") for e in st.log)
+
+
+def test_register_orion_read_error_is_502_with_step():
+    import requests as rq
+    st = _state()
+    with wired(st) as w:
+        def boom(*a, **k):
+            raise rq.Timeout("slow")
+        w.orion.get = boom
+        r = _register(client())
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_read"
+
+
+def test_register_db_error_at_the_link_step_is_502_and_undone():
+    st = _state()
+    with wired(st) as w:
+        import dataloggers
+        with patch.object(dataloggers, "link_device",
+                          side_effect=dataloggers.ApiError(502, "x", "link")):
+            r = _register(client())
+        assert r.status_code == 502 and r.get_json()["step"] == "link"
+        assert w.orion.entities == {} and ("iota", "delete", "S1") in st.log
+
+
+def test_register_raw_db_error_at_the_link_insert_becomes_link_step():
+    st = _state()
+    import dataloggers
+    from tests import telemetry_fakes as tf
+    real = tf.fake_db(st)
+    calls = {"n": 0}
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def flaky(tenant):
+        with real(tenant) as conn:
+            orig = conn.cursor
+
+            def cursor(*a, **k):
+                cur = orig(*a, **k)
+                ex = cur.execute
+
+                def execute(sql, params=()):
+                    if "INSERT INTO iot_datalogger_devices" in sql:
+                        raise RuntimeError("fk violation")
+                    return ex(sql, params)
+
+                cur.execute = execute
+                return cur
+
+            conn.cursor = cursor
+            yield conn
+
+    with wired(st) as w, patch.object(dataloggers, "get_db_connection_with_tenant", flaky):
+        r = _register(client())
+    assert r.status_code == 502 and r.get_json()["step"] == "link"
+    assert w.orion.entities == {} and ("iota", "delete", "S1") in st.log
+
+
+@pytest.mark.parametrize("loc", [{"lat": float("nan"), "lon": 0}, {"lat": 91, "lon": 0},
+                                 {"lat": 0, "lon": 181}, {"lat": float("inf"), "lon": 0}])
+def test_register_rejects_non_finite_or_out_of_range_coordinates(loc):
+    st = _state()
+    with wired(st):
+        r = client().post("/api/sensors/register", content_type="application/json",
+                          headers=AUTH, data=json.dumps(dict(BASE, location=loc)))
+    assert r.status_code == 400 and st.log == []
+
+
+def test_tenant_is_normalised_and_invalid_is_400():
+    from flask import Flask, g
+    import importlib.util, os, sys
+    import blueprints.sensors as sensors
+    import tests.telemetry_fakes as tf
+    spec = importlib.util.spec_from_file_location(
+        "_tu", os.path.join(tf._services_dir, "common", "tenant_utils.py"))
+    tu = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tu)
+    app = Flask(__name__)
+    with patch.dict(sys.modules, {"common.tenant_utils": tu}), app.test_request_context():
+        g.tenant = "Acme Farm"
+        assert sensors._tenant() == "acme-farm"
+        g.tenant = "***"
+        with pytest.raises(sensors.dataloggers.ApiError) as e:
+            sensors._tenant()
+        assert e.value.status == 400
+
+
+def test_rotate_of_a_revoked_datalogger_the_broker_lost_stays_disabled():
+    from tests.telemetry_fakes import post_json
+    st = _state(status="revoked")
+    st.missing_clients.add(ROLE)
+    with wired(st):
+        r = post_json(client(), f"/api/sensors/dataloggers/{DL}/rotate")
+    assert r.status_code == 200
+    assert ("dynsec", "disable", ROLE) in st.log
+    assert st.dataloggers[DL]["status"] == "revoked"
+
+
+def test_generic_delete_keeps_old_behaviour_without_a_link_row():
+    import dataloggers
+    st = _state()
+    with wired(st):
+        assert dataloggers.has_datalogger_link(TENANT, f"urn:ngsi-ld:Device:{TENANT}:S9") is False
+
+
+def test_profile_change_logs_critical_when_the_old_profile_is_gone(caplog):
+    st = _state()
+    urn = _profile_setup(st)
+    st.fail["orion_patch"] = True
+    with wired(st) as w:
+        w.orion.entities[urn] = {"id": urn, "type": "Device",
+                                 "profileCode": {"type": "Property", "value": "vanished"}}
+        r = _put_profile(client(), urn)
+    assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
+    assert any(rec.levelname == "CRITICAL" for rec in caplog.records)

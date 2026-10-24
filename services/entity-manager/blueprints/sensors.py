@@ -7,6 +7,7 @@ import sys
 import json
 import uuid
 import logging
+import math
 import secrets
 from datetime import datetime
 from functools import wraps
@@ -136,10 +137,15 @@ def _guard(fn):
 
 
 def _tenant() -> str:
+    """The caller's tenant in canonical form, so URN, RLS value and FIWARE headers agree."""
     tenant = g.tenant
     if not tenant:
         raise dataloggers.ApiError(401, 'Tenant not found in token')
-    return tenant
+    from common.tenant_utils import normalize_tenant_id
+    try:
+        return normalize_tenant_id(tenant)
+    except ValueError:
+        raise dataloggers.ApiError(400, 'Invalid tenant')
 
 
 def _body() -> dict:
@@ -167,9 +173,47 @@ def _coordinate(value, name: str) -> float:
     if value is None or isinstance(value, bool):
         raise dataloggers.ApiError(400, 'Location (lat, lon) is required')
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         raise dataloggers.ApiError(400, f'Invalid {name}')
+    limit = 90 if name == 'lat' else 180
+    if not math.isfinite(number) or abs(number) > limit:
+        raise dataloggers.ApiError(400, f'Invalid {name}')
+    return number
+
+
+@dataloggers.in_step('db', 'Database error')
+def _read_profile(tenant_id: str, profile_code: str):
+    with get_db_connection_with_tenant(tenant_id) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id, sdm_entity_type, sdm_device_category, mapping
+            FROM sensor_profiles
+            WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
+            ORDER BY tenant_id NULLS LAST
+            LIMIT 1
+        """, (profile_code, tenant_id))
+        row = cur.fetchone()
+        cur.close()
+    return row
+
+
+@dataloggers.in_step('orion_read', 'Could not read the context broker')
+def _orion_dedup_check(tenant_id: str, entity_type: str, external_id: str):
+    return requests.get(
+        f"{ORION_URL}/ngsi-ld/v1/entities?type={entity_type}"
+        f'&q=externalId=="{external_id}"',
+        headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
+        timeout=10)
+
+
+@dataloggers.in_step('orion_entity', 'Failed to create sensor entity in context broker')
+def _orion_create(tenant_id: str, entity: dict):
+    return requests.post(
+        f"{ORION_URL}/ngsi-ld/v1/entities", json=entity,
+        headers=inject_fiware_headers({'Content-Type': 'application/ld+json'},
+                                      tenant=tenant_id, has_context_in_body=True),
+        timeout=10)
 
 
 def _ensure_bridge_subscription(tenant: str) -> None:
@@ -228,17 +272,7 @@ def register_sensor():
     # Reads and validations first: nothing is written until all of them pass.
     datalogger = dataloggers.require_usable_datalogger(tenant_id, data['datalogger_id'])
 
-    with get_db_connection_with_tenant(tenant_id) as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT id, sdm_entity_type, sdm_device_category, mapping
-            FROM sensor_profiles
-            WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
-            ORDER BY tenant_id NULLS LAST
-            LIMIT 1
-        """, (profile_code, tenant_id))
-        profile_row = cur.fetchone()
-        cur.close()
+    profile_row = _read_profile(tenant_id, profile_code)
     if not profile_row:
         raise dataloggers.ApiError(404, f'Profile "{profile_code}" not found')
 
@@ -257,11 +291,7 @@ def register_sensor():
     if dataloggers.device_link(tenant_id, orion_entity_id):
         raise dataloggers.ApiError(409, 'Device is already on a datalogger')
 
-    orion_check = requests.get(
-        f"{ORION_URL}/ngsi-ld/v1/entities?type={sdm_entity_type}"
-        f'&q=externalId=="{external_id}"',
-        headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
-        timeout=10)
+    orion_check = _orion_dedup_check(tenant_id, sdm_entity_type, external_id)
     if orion_check.status_code == 200 and orion_check.json():
         existing = orion_check.json()[0]
         return jsonify({
@@ -309,11 +339,7 @@ def register_sensor():
 
     undo = dataloggers.UndoStack()
     try:
-        orion_response = requests.post(
-            f"{ORION_URL}/ngsi-ld/v1/entities", json=orion_entity,
-            headers=inject_fiware_headers({'Content-Type': 'application/ld+json'},
-                                          tenant=tenant_id, has_context_in_body=True),
-            timeout=10)
+        orion_response = _orion_create(tenant_id, orion_entity)
         if orion_response.status_code == 409:
             # Not ours: never compensate (delete) an entity this request did not create.
             raise dataloggers.ApiError(409, f'Sensor "{external_id}" already exists')
@@ -328,7 +354,7 @@ def register_sensor():
         undo.push('iota_device', lambda: dataloggers.delete_iota_device(tenant_id, external_id))
 
         dataloggers.link_device(tenant_id, datalogger['id'], orion_entity_id, external_id)
-        undo.push('link', lambda: dataloggers.unlink_and_reconcile(tenant_id, orion_entity_id))
+        undo.push('link', lambda: dataloggers.undo_link(tenant_id, orion_entity_id))
 
         dataloggers.reconcile_datalogger_acl(tenant_id, datalogger['id'])
     except Exception:

@@ -280,8 +280,15 @@ _common_mock = MagicMock()
 _common_mock.require_auth = _require_auth
 _common_mock.inject_fiware_headers = lambda h, **kw: dict(h)
 _common_mock.internal_error = lambda *a, **kw: ({"error": "internal"}, 500)
-for _mod in ("common", "common.auth_middleware", "common.api_errors", "common.ngsi_headers"):
-    sys.modules.setdefault(_mod, _common_mock)
+# Every common.* module the blueprints import at module level must exist when this file
+# is the first to load them (a MagicMock `common` is not a package).
+for _mod in ("common", "common.auth_middleware", "common.api_errors", "common.ngsi_headers",
+             "common.ngsi_payload_guard", "common.tenant_utils", "common.config_manager",
+             "common.tier_quotas", "common.iot_agent", "common.mqtt_dynsec",
+             "common.mqtt_endpoint"):
+    sys.modules.setdefault(_mod, _common_mock if _mod in (
+        "common", "common.auth_middleware", "common.api_errors", "common.ngsi_headers")
+        else MagicMock())
 
 _spec = importlib.util.spec_from_file_location(
     "_real_mqtt_endpoint", os.path.join(_services_dir, "common", "mqtt_endpoint.py"))
@@ -414,3 +421,8 @@ PROFILE = {"id": 1, "sdm_entity_type": "Device", "sdm_device_category": None,
            "mapping": {"measurements": [
                {"type": "t", "incomingKey": "r1", "sdmAttribute": "airTemperature", "unit": "CEL"},
                {"type": "hum", "sdmAttribute": "relativeHumidity", "unit": "P1"}]}}
+
+
+def post_json(c, path, body=None):
+    import json as _json
+    return c.post(path, content_type="application/json", headers=AUTH, data=_json.dumps(body or {}))

@@ -215,3 +215,11 @@ def test_reconcile_holds_the_row_lock_across_the_broker_call():
         dataloggers.reconcile_datalogger_acl(TENANT, dl)
     order = [e for e in st.log if e in (("sql", "FOR UPDATE"), ("dynsec", "set_role_topics", "dl_aaaaaaaaaaaaaaaa"), ("sql", "commit"))]
     assert order == [("sql", "FOR UPDATE"), ("dynsec", "set_role_topics", "dl_aaaaaaaaaaaaaaaa"), ("sql", "commit")]
+
+
+def test_create_with_a_bad_external_port_writes_nothing():
+    st = FakeState()
+    with wired(st, port="not-a-port"):
+        r = _post(client(), "/api/sensors/dataloggers", {"name": "L", "kind": "datak"})
+    assert r.status_code >= 400
+    assert st.dataloggers == {} and not any(e[:2] == ("dynsec", "create_account") for e in st.log)

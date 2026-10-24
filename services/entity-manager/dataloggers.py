@@ -12,6 +12,7 @@ import os
 import re
 import secrets
 import uuid
+from functools import wraps
 from typing import Callable, List, Optional
 
 import requests
@@ -44,6 +45,22 @@ class ApiError(Exception):
         if self.step:
             out['step'] = self.step
         return out
+
+
+def in_step(step: str, message: str = 'Operation failed'):
+    """Decorator: any non-ApiError exception becomes ApiError(502, message, step)."""
+    def deco(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            try:
+                return fn(*args, **kwargs)
+            except ApiError:
+                raise
+            except Exception as exc:
+                logger.error("step %s failed in %s: %s", step, fn.__name__, type(exc).__name__)
+                raise ApiError(502, message, step) from None
+        return wrapper
+    return deco
 
 
 class UndoStack:
@@ -120,6 +137,15 @@ def parse_device_urn(tenant: str, urn: str) -> str:
     return parts[4]
 
 
+def has_datalogger_link(tenant: str, urn: str) -> bool:
+    """True when the device has a datalogger link row (a lookup failure counts as no)."""
+    try:
+        return device_link(tenant, urn) is not None
+    except Exception as exc:
+        logger.warning("datalogger link lookup failed: %s", type(exc).__name__)
+        return False
+
+
 def is_registered_device_urn(tenant: str, urn: str) -> bool:
     """True for the URN shape register_sensor writes (tenant-scoped externalId)."""
     try:
@@ -167,11 +193,18 @@ def create_datalogger(tenant: str, name: str, kind: str) -> dict:
     username = 'dl_' + secrets.token_hex(8)
     password = secrets.token_urlsafe(24)
     client = _dynsec()
+    # Before any write: a bad MQTT_EXTERNAL_PORT must not leave a row and an account
+    # behind with the one-time password lost.
+    endpoint = mqtt_endpoint_for_devices()
     with get_db_connection_with_tenant(tenant) as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("INSERT INTO iot_dataloggers (tenant_id, name, kind, mqtt_username) "
-                    "VALUES (%s, %s, %s, %s) RETURNING id", (tenant, name, kind, username))
-        dl_id = str(cur.fetchone()['id'])
+        try:
+            cur.execute("INSERT INTO iot_dataloggers (tenant_id, name, kind, mqtt_username) "
+                        "VALUES (%s, %s, %s, %s) RETURNING id", (tenant, name, kind, username))
+            dl_id = str(cur.fetchone()['id'])
+        except Exception as exc:
+            logger.error("datalogger insert failed: error=%s", type(exc).__name__)
+            raise ApiError(502, 'Could not save the datalogger', 'db')
         try:
             mqtt_dynsec.create_account(client, username, password)
         except Exception as exc:
@@ -186,9 +219,10 @@ def create_datalogger(tenant: str, name: str, kind: str) -> dict:
             _run_undo(lambda: mqtt_dynsec.delete_account(client, username), 'delete_account')
             raise ApiError(502, 'Could not save the datalogger', 'db_commit')
     return {'id': dl_id, 'username': username, 'password': password,
-            'mqtt': {**mqtt_endpoint_for_devices(), 'username': username, 'password': password}}
+            'mqtt': {**endpoint, 'username': username, 'password': password}}
 
 
+@in_step('db', 'Database error')
 def list_dataloggers(tenant: str) -> list:
     with get_db_connection_with_tenant(tenant) as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -212,6 +246,7 @@ def list_dataloggers(tenant: str) -> list:
     return out
 
 
+@in_step('orion_read', 'Could not read the devices from the context broker')
 def _orion_devices(tenant: str, urns: list) -> dict:
     found = {}
     headers = inject_fiware_headers({'Accept': 'application/json'}, tenant=tenant,
@@ -234,6 +269,7 @@ def _prop(ent: dict, key: str):
     return v.get('value') if isinstance(v, dict) else v
 
 
+@in_step('db', 'Database error')
 def get_datalogger_config(tenant: str, dl_id: str) -> dict:
     dl_id = _dl_id(dl_id)
     with get_db_connection_with_tenant(tenant) as conn:
@@ -270,11 +306,16 @@ def get_datalogger_config(tenant: str, dl_id: str) -> dict:
     return {'datalogger_id': dl_id, 'name': row['name'], 'mqtt': mqtt, 'devices': out_devices}
 
 
-def reconcile_datalogger_acl(tenant: str, dl_id: str, client=None) -> dict:
+@in_step('acl', 'ACL update failed')
+def reconcile_datalogger_acl(tenant: str, dl_id: str, client=None, mutate=None) -> dict:
     """Make the broker role equal to the device rows. Never creates a client.
 
     The row lock is held from reading the device rows until the broker call is done,
     so two concurrent reconciles of one datalogger cannot interleave.
+
+    `mutate(cur)`, when given, changes the link rows inside that same transaction
+    (after the lock, before the rows are read): a broker failure rolls it back, so a
+    retry still finds the change to make.
     """
     dl_id = _dl_id(dl_id)
     client = client or _dynsec()
@@ -283,6 +324,13 @@ def reconcile_datalogger_acl(tenant: str, dl_id: str, client=None) -> dict:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         row = _row(cur, tenant, dl_id, lock=True)
         username = row['mqtt_username']
+        if mutate is not None:
+            try:
+                mutate(cur)
+            except Exception as exc:
+                conn.rollback()
+                logger.error("link change failed: datalogger=%s error=%s", username, type(exc).__name__)
+                raise ApiError(502, 'Could not update the device link', 'link')
         topics = {topic_for(apikey, d['external_id']) for d in _device_rows(cur, tenant, dl_id)}
         needs_rotation = False
         try:
@@ -305,6 +353,7 @@ def reconcile_datalogger_acl(tenant: str, dl_id: str, client=None) -> dict:
     return {'needs_rotation': needs_rotation, 'topics': topics}
 
 
+@in_step('mqtt_account', 'Could not change the MQTT password')
 def rotate_datalogger(tenant: str, dl_id: str) -> dict:
     dl_id = _dl_id(dl_id)
     client = _dynsec()
@@ -320,7 +369,8 @@ def rotate_datalogger(tenant: str, dl_id: str) -> dict:
                 conn.rollback()
                 logger.error("set_password failed: datalogger=%s error=%s", username, type(exc).__name__)
                 raise ApiError(502, 'Could not change the MQTT password', 'mqtt_account')
-            _recreate_account(cur, conn, tenant, dl_id, username, password, client)
+            _recreate_account(cur, conn, tenant, dl_id, username, password, client,
+                              revoked=row['status'] == 'revoked')
         cur.execute("UPDATE iot_dataloggers SET credentials_rotated_at = now() "
                     "WHERE id = %s AND tenant_id = %s", (dl_id, tenant))
         try:
@@ -331,7 +381,7 @@ def rotate_datalogger(tenant: str, dl_id: str) -> dict:
     return {'password': password}
 
 
-def _recreate_account(cur, conn, tenant, dl_id, username, password, client) -> None:
+def _recreate_account(cur, conn, tenant, dl_id, username, password, client, revoked=False) -> None:
     """The broker lost the client (e.g. a new volume): rebuild it and its role from the rows."""
     try:
         apikey = get_apikey(tenant)
@@ -339,6 +389,8 @@ def _recreate_account(cur, conn, tenant, dl_id, username, password, client) -> N
         mqtt_dynsec.delete_account(client, username)
         mqtt_dynsec.create_account(client, username, password)
         mqtt_dynsec.set_role_topics(client, username, topics)
+        if revoked:
+            mqtt_dynsec.disable(client, username)  # status stays revoked
     except ApiError:
         conn.rollback()
         raise
@@ -348,6 +400,7 @@ def _recreate_account(cur, conn, tenant, dl_id, username, password, client) -> N
         raise ApiError(502, 'Could not rebuild the MQTT account', 'mqtt_account')
 
 
+@in_step('mqtt_account', 'Could not change the MQTT account state')
 def set_datalogger_status(tenant: str, dl_id: str, revoke: bool) -> None:
     dl_id = _dl_id(dl_id)
     client = _dynsec()
@@ -375,6 +428,7 @@ def set_datalogger_status(tenant: str, dl_id: str, revoke: bool) -> None:
             raise ApiError(502, 'Could not save the datalogger', 'db_commit')
 
 
+@in_step('db', 'Database error')
 def delete_datalogger(tenant: str, dl_id: str) -> None:
     dl_id = _dl_id(dl_id)
     client = _dynsec()
@@ -402,6 +456,7 @@ def delete_datalogger(tenant: str, dl_id: str) -> None:
 
 # ── devices ────────────────────────────────────────────────────────────
 
+@in_step('db', 'Database error')
 def require_usable_datalogger(tenant: str, dl_id) -> dict:
     """404 when it is not the tenant's, 409 when revoked."""
     dl_id = _dl_id(dl_id)
@@ -413,11 +468,13 @@ def require_usable_datalogger(tenant: str, dl_id) -> dict:
     return row
 
 
+@in_step('link', 'Database error')
 def device_link(tenant: str, urn: str) -> Optional[dict]:
     with get_db_connection_with_tenant(tenant) as conn:
         return _link_row(conn.cursor(cursor_factory=RealDictCursor), tenant, urn)
 
 
+@in_step('link', 'Could not link the device to the datalogger')
 def link_device(tenant: str, dl_id: str, urn: str, external_id: str) -> None:
     with get_db_connection_with_tenant(tenant) as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -430,6 +487,7 @@ def link_device(tenant: str, dl_id: str, urn: str, external_id: str) -> None:
         conn.commit()
 
 
+@in_step('link', 'Could not unlink the device')
 def unlink_device(tenant: str, urn: str) -> None:
     with get_db_connection_with_tenant(tenant) as conn:
         conn.cursor(cursor_factory=RealDictCursor).execute(
@@ -439,12 +497,37 @@ def unlink_device(tenant: str, urn: str) -> None:
 
 
 def unlink_and_reconcile(tenant: str, urn: str) -> None:
-    """Remove the link row, then close the ACL for it (no-op when it had no link)."""
+    """Remove the link row and close the ACL for it in ONE transaction.
+
+    The DELETE runs under the datalogger lock inside the reconcile, so a broker
+    failure rolls it back and a retry still finds the link to close.
+    No-op when the device had no link.
+    """
     link = device_link(tenant, urn)
     if not link:
         return
+
+    def _delete_link(cur):
+        cur.execute("DELETE FROM iot_datalogger_devices WHERE tenant_id = %s AND device_urn = %s",
+                    (tenant, urn))
+
+    reconcile_datalogger_acl(tenant, str(link['datalogger_id']), mutate=_delete_link)
+
+
+def undo_link(tenant: str, urn: str) -> None:
+    """Compensation for a link made by this request: drop the row first, then rebuild the ACL.
+
+    Unlike a user delete, the row must go even if the broker is down (the request is
+    being abandoned); the next reconcile of that datalogger rebuilds the role from the rows.
+    """
+    link = device_link(tenant, urn)
     unlink_device(tenant, urn)
-    reconcile_datalogger_acl(tenant, str(link['datalogger_id']))
+    if link:
+        try:
+            reconcile_datalogger_acl(tenant, str(link['datalogger_id']))
+        except ApiError:
+            logger.critical("INCONSISTENCY: ACL of datalogger %s not rebuilt after undoing %s; "
+                            "reconcile it", link['datalogger_id'], urn)
 
 
 def provision_iota_device(tenant: str, apikey: str, external_id: str, urn: str,
@@ -469,6 +552,7 @@ def delete_iota_device(tenant: str, external_id: str) -> None:
         raise ApiError(502, 'IoT Agent device removal failed', 'iota_device')
 
 
+@in_step('orion_entity', 'Entity removal failed')
 def delete_orion_entity(tenant: str, urn: str) -> None:
     resp = requests.delete(f"{ORION_URL}/ngsi-ld/v1/entities/{urn}",
                            headers=inject_fiware_headers({}, tenant=tenant, has_context_in_body=False),
@@ -498,9 +582,14 @@ def move_device(tenant: str, urn: str, new_dl_id) -> None:
     old_id = str(link['datalogger_id'])
     if old_id == target['id']:
         return
-    _set_link_datalogger(tenant, urn, target['id'])
+    def _move(cur):
+        cur.execute("UPDATE iot_datalogger_devices SET datalogger_id = %s "
+                    "WHERE tenant_id = %s AND device_urn = %s", (target['id'], tenant, urn))
+
+    # The row moves inside the target's reconcile transaction: if the broker refuses,
+    # nothing was committed.
+    reconcile_datalogger_acl(tenant, target['id'], mutate=_move)
     try:
-        reconcile_datalogger_acl(tenant, target['id'])
         reconcile_datalogger_acl(tenant, old_id)
     except ApiError:
         _set_link_datalogger(tenant, urn, old_id)
@@ -509,6 +598,7 @@ def move_device(tenant: str, urn: str, new_dl_id) -> None:
         raise
 
 
+@in_step('link', 'Database error')
 def _set_link_datalogger(tenant: str, urn: str, dl_id: str) -> None:
     with get_db_connection_with_tenant(tenant) as conn:
         conn.cursor(cursor_factory=RealDictCursor).execute(
@@ -517,6 +607,7 @@ def _set_link_datalogger(tenant: str, urn: str, dl_id: str) -> None:
         conn.commit()
 
 
+@in_step('db', 'Database error')
 def _profile_measurements(tenant: str, code: str) -> Optional[list]:
     with get_db_connection_with_tenant(tenant) as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -549,14 +640,23 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
     except Exception as exc:
         logger.error("IoT Agent update failed: device=%s error=%s", external_id, type(exc).__name__)
         raise ApiError(502, 'IoT Agent device update failed', 'iota_device')
-    resp = requests.patch(
-        f"{ORION_URL}/ngsi-ld/v1/entities/{urn}/attrs",
-        json={'profileCode': {'type': 'Property', 'value': code},
-              'sensorType': {'type': 'Property', 'value': code}},
-        headers=inject_fiware_headers({}, tenant=tenant, has_context_in_body=False), timeout=10)
-    if resp.status_code not in (200, 204):
+    try:
+        resp = requests.patch(
+            f"{ORION_URL}/ngsi-ld/v1/entities/{urn}/attrs",
+            json={'profileCode': {'type': 'Property', 'value': code},
+                  'sensorType': {'type': 'Property', 'value': code}},
+            headers=inject_fiware_headers({}, tenant=tenant, has_context_in_body=False), timeout=10)
+        orion_ok = resp.status_code in (200, 204)
+    except Exception as exc:
+        logger.error("profile patch failed: device=%s error=%s", external_id, type(exc).__name__)
+        orion_ok = False
+    if not orion_ok:
         if old_ms is not None:
             _run_undo(lambda: iot_agent.update_device_attributes(
                 iota_url(), iota_headers(tenant), external_id,
                 iot_agent.build_iota_attributes(old_ms)), 'restore_iota_attributes')
+        else:
+            logger.critical("INCONSISTENCY: device %s keeps IoT Agent attributes of profile %s "
+                            "but the entity still has profile %s (previous profile not readable)",
+                            external_id, code, old_code)
         raise ApiError(502, 'Entity update failed', 'orion_profile')

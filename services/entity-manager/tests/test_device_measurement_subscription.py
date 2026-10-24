@@ -287,3 +287,15 @@ def test_ensure_subscriptions_defaults_to_every_active_tenant():
                       return_value={"created": 0, "skipped": 0, "errors": []}):
         notif.ensure_device_measurement_subscriptions()
     reg.return_value.ensure_all.assert_called_once_with(["tenant-a", "tenant-b"])
+
+
+def test_ensure_subscriptions_with_an_empty_list_does_not_fall_back_to_all():
+    import blueprints.notifications as notif
+
+    with patch.object(notif, "SubscriptionRegistrar") as reg, \
+         patch.object(notif, "_get_active_tenants", return_value=["tenant-a"]) as active, \
+         patch.object(notif.asyncio, "run",
+                      return_value={"created": 0, "skipped": 0, "errors": []}):
+        notif.ensure_device_measurement_subscriptions(tenants=[])
+    reg.return_value.ensure_all.assert_called_once_with([])
+    active.assert_not_called()
