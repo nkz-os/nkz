@@ -68,6 +68,65 @@ def mqtt_endpoint_for_devices() -> dict:
 # Types that require IoT provisioning
 IOT_ENTITY_TYPES = {'Device', 'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'ManufacturingMachine', 'LivestockAnimal', 'AgriculturalMachine'}
 
+
+def _device_profile_id(attrs: dict):
+    """Profile id from hasDeviceProfile (canonical) or refDeviceProfile (legacy).
+
+    Accepts a Relationship ({'object': urn}) or a bare string; returns the last
+    ':' segment of a URN, or the bare id.
+    """
+    for key in ('hasDeviceProfile', 'refDeviceProfile'):
+        ref = attrs.get(key)
+        if isinstance(ref, dict):
+            ref = ref.get('object')
+        if isinstance(ref, str) and ref:
+            return ref.split(':')[-1] if ':' in ref else ref
+    return None
+
+
+def _parcel_links(value) -> list:
+    """Normalize a parcel link to an ordered, de-duplicated list of URNs.
+
+    Accepts a string, {'object': str | list}, or a list of those.
+    """
+    if value is None:
+        return []
+    items = value if isinstance(value, list) else [value]
+    urns = []
+    for item in items:
+        if isinstance(item, dict):
+            urns.extend(_parcel_links(item.get('object')))
+        elif isinstance(item, str) and item and item not in urns:
+            urns.append(item)
+    return list(dict.fromkeys(urns))
+
+
+def _rollback_entity(entity_id: str, tenant: str) -> None:
+    """Delete an entity created in Orion whose IoT provisioning did not complete."""
+    try:
+        del_resp = requests.delete(
+            f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}",
+            headers=inject_fiware_headers({}, tenant),
+            timeout=10
+        )
+        if del_resp.status_code in (200, 204):
+            logger.info(f"Rolled back entity {entity_id} (tenant {tenant}) after failed provisioning")
+        else:
+            logger.critical(f"Rollback of entity {entity_id} (tenant {tenant}) failed: "
+                            f"Orion status {del_resp.status_code}; manual cleanup required")
+    except requests.exceptions.RequestException as del_err:
+        logger.critical(f"Rollback of entity {entity_id} (tenant {tenant}) failed: "
+                        f"{type(del_err).__name__}; manual cleanup required")
+
+
+def _point_location(loc):
+    """GeoJSON Point from a GeoProperty ({'value': Point}) or a bare Point, else None."""
+    if isinstance(loc, dict) and loc.get('type') == 'GeoProperty':
+        loc = loc.get('value')
+    if isinstance(loc, dict) and loc.get('type') == 'Point' and loc.get('coordinates'):
+        return loc
+    return None
+
 # SOTA: Use local unified context from API Gateway
 CONTEXT_URL = os.getenv('CONTEXT_URL', 'http://api-gateway-service:5000/ngsi-ld-context.json')
 PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "http://api-gateway-service:5000").rstrip("/")
@@ -760,6 +819,7 @@ def list_entity_instances(entity_type):
 @require_auth
 def create_entity_instance(entity_type):
     """Create a new entity instance using SDM"""
+    created_id = None  # set once Orion accepted the entity, for rollback on later errors
     try:
         data = request.get_json()
         if not data:
@@ -782,6 +842,24 @@ def create_entity_instance(entity_type):
         if not entity_id.startswith('urn:ngsi-ld:'):
             entity_id = f"urn:ngsi-ld:{entity_type}:{entity_id}"
         
+        # IoT types: validate everything BEFORE writing to Orion, so a rejected
+        # request leaves no orphan entity behind.
+        profile_id = None
+        parcels = []
+        if entity_type in IOT_ENTITY_TYPES:
+            profile_id = _device_profile_id(data)
+            if not profile_id:
+                return jsonify({
+                    'error': f'DeviceProfile is required for IoT entity type {entity_type}. '
+                             'Provide hasDeviceProfile as a Relationship with a valid profile ID.'
+                }), 400
+            if entity_type == 'Device':
+                if not _point_location(data.get('location')):
+                    return jsonify({'error': 'Device requires a Point location.'}), 400
+                parcels = _parcel_links(data.get('controlledAsset'))
+                if not parcels:
+                    return jsonify({'error': 'Device requires at least one parcel in controlledAsset.'}), 400
+
         # Build NGSI-LD compliant entity with unified SOTA context
         entity_data = {
             '@context': SOTA_CONTEXT,
@@ -803,6 +881,17 @@ def create_entity_instance(entity_type):
                     'value': value
                 }
         
+        if entity_type in IOT_ENTITY_TYPES:
+            # Canonical profile link: hasDeviceProfile with a full URN, whatever came in
+            entity_data.pop('refDeviceProfile', None)
+            entity_data['hasDeviceProfile'] = {
+                'type': 'Relationship',
+                'object': f'urn:ngsi-ld:DeviceProfile:{profile_id}'
+            }
+            if entity_type == 'Device':
+                # Canonical parcel link: always a list, even with one parcel
+                entity_data['controlledAsset'] = {'type': 'Relationship', 'object': parcels}
+
         # Send to Orion-LD
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
         headers = inject_fiware_headers({}, g.tenant, body=entity_data)
@@ -811,10 +900,18 @@ def create_entity_instance(entity_type):
         logger.debug(f"Entity data: {entity_data}")
         logger.debug(f"Orion URL: {orion_url}")
         
-        response = requests.post(orion_url, json=entity_data, headers=headers)
+        try:
+            response = requests.post(orion_url, json=entity_data, headers=headers, timeout=10)
+        except requests.exceptions.Timeout:
+            # The entity may have been written despite the timeout; a DELETE of a
+            # missing entity is a harmless 404, so compensate for IoT types.
+            if entity_type in IOT_ENTITY_TYPES:
+                _rollback_entity(entity_id, g.tenant)
+            raise
         logger.info(f"Orion response status: {response.status_code}")
         
         if response.status_code in [200, 201]:
+            created_id = entity_id
             # Log the operation
             log_entity_operation('create', entity_id, entity_type, g.tenant, g.farmer_id, 
                                {'attributes': list(entity_data.keys())})
@@ -848,20 +945,6 @@ def create_entity_instance(entity_type):
                 if isinstance(device_name, dict):
                     device_name = device_name.get('value', entity_id)
 
-                # Extract Profile ID from Relationship (mandatory for IoT types)
-                profile_id = None
-                if 'hasDeviceProfile' in data:
-                    ref = data['hasDeviceProfile']
-                    if isinstance(ref, dict) and 'object' in ref:
-                         ref_obj = ref['object']
-                         profile_id = ref_obj.split(':')[-1] if ':' in ref_obj else ref_obj
-
-                if not profile_id:
-                    return jsonify({
-                        'error': f'DeviceProfile is required for IoT entity type {entity_type}. '
-                                 'Provide hasDeviceProfile as a Relationship with a valid profile ID.'
-                    }), 400
-
                 # Provision in IoT Agent
                 iot_result = provision_iot_device(
                     entity_id=entity_id,
@@ -889,9 +972,13 @@ def create_entity_instance(entity_type):
                     response_data['message'] = 'Entity created and IoT device provisioned successfully'
                     logger.info(f"IoT provisioning successful for {entity_id}")
                 else:
-                    response_data['iot_provisioning']['error'] = iot_result['error']
-                    response_data['message'] = 'Entity created but IoT provisioning failed'
-                    logger.warning(f"IoT provisioning failed for {entity_id}: {iot_result['error']}")
+                    logger.warning(f"IoT provisioning failed for {entity_id} (tenant {g.tenant}): {iot_result['error']}")
+                    # Compensate: do not leave a Device in Orion without IoT Agent provisioning
+                    _rollback_entity(entity_id, g.tenant)
+                    return jsonify({
+                        'error': iot_result['error'] or 'IoT provisioning failed',
+                        'entity_id': entity_id
+                    }), 502
             
             return jsonify(response_data), 201
         else:
@@ -903,6 +990,9 @@ def create_entity_instance(entity_type):
             }), 500
     
     except Exception as e:
+        if created_id and entity_type in IOT_ENTITY_TYPES:
+            # Error after the Orion write: remove the entity, leave no leftovers
+            _rollback_entity(created_id, g.tenant)
         return internal_error(e, 'sdm_create_entity')
 
 @app.route('/sdm/entities/<entity_type>/instances/<entity_id>', methods=['GET'])
@@ -1135,17 +1225,11 @@ def regenerate_iot_key(entity_id):
              val = entity['name']
              device_name = val['value'] if isinstance(val, dict) and 'value' in val else val
 
-        # Extract profile_id from refDeviceProfile Relationship
-        profile_id = None
-        if 'refDeviceProfile' in entity:
-            ref = entity['refDeviceProfile']
-            if isinstance(ref, dict) and 'object' in ref:
-                ref_obj = ref['object']
-                profile_id = ref_obj.split(':')[-1] if ':' in ref_obj else ref_obj
+        profile_id = _device_profile_id(entity)
 
         if not profile_id:
             return jsonify({
-                'error': 'Entity has no refDeviceProfile. Cannot regenerate key without a valid DeviceProfile. '
+                'error': 'Entity has no hasDeviceProfile. Cannot regenerate key without a valid DeviceProfile. '
                          'Re-provision the sensor with a profile first.'
             }), 400
 
