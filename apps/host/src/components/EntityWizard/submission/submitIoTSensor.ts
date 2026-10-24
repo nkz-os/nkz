@@ -1,4 +1,5 @@
-import api from '@/services/api';
+import api, { invalidateEntityCache } from '@/services/api';
+import { deviceLinks, parcelLinksFragment } from '@/utils/parcelLinks';
 import type { IoTSensorFormData } from '../types';
 import type { MqttCredentials } from '../MqttCredentialsModal';
 
@@ -45,17 +46,22 @@ export async function submitIoTSensor(
     };
   }
 
-  // refDeviceProfile as NGSI-LD Relationship (mandatory for IoT sensors)
+  // hasDeviceProfile as NGSI-LD Relationship (mandatory for IoT sensors)
   if (!formData.deviceProfileId) {
     throw new Error('DeviceProfile is required for IoT sensors');
   }
   const profileUrn = formData.deviceProfileId.startsWith('urn:')
     ? formData.deviceProfileId
     : `urn:ngsi-ld:DeviceProfile:${formData.deviceProfileId}`;
-  body.refDeviceProfile = {
+  body.hasDeviceProfile = {
     type: 'Relationship',
     object: profileUrn,
   };
+
+  // Parcel link (Device only): canonical list-valued controlledAsset
+  if (entityType === 'Device') {
+    Object.assign(body, parcelLinksFragment(deviceLinks(formData.ownerParkId ?? null, formData.parcels.map((p) => p.id))));
+  }
 
   if (formData.iconUrl) {
     body.icon2d = formData.iconUrl;
@@ -72,6 +78,9 @@ export async function submitIoTSensor(
 
   // Single call: entity creation + IoT Agent provisioning + MQTT credentials
   const result = await api.createSDMIoTEntity(entityType, body);
+
+  // Drop the cached list so the asset tree shows the new entity
+  invalidateEntityCache(entityType);
 
   // Extract MQTT credentials from SDM Integration response
   let mqttCredentials: MqttCredentials | null = null;

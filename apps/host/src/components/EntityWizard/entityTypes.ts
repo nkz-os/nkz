@@ -36,8 +36,8 @@ export const ENTITY_TYPE_METADATA: Record<string, EntityTypeInfo> = {
   EnergyStorageSystem:      { keywords: ['batería', 'almacenamiento', 'battery', 'storage'],          macroCategory: 'assets',  icon: Zap,        description: 'Sistema de almacenamiento',   color: 'yellow' },
 
   // ── Sensors ──────────────────────────────────────────────────────────────────
-  AgriSensor:               { keywords: ['sensor', 'sonda', 'humedad', 'temperatura', 'probe'],       macroCategory: 'sensors', icon: Gauge,      description: 'Sensor agrícola',             color: 'teal'   },
-  Device:                   { keywords: ['dispositivo', 'device', 'iot'],                             macroCategory: 'sensors', icon: Activity,   description: 'Dispositivo IoT',             color: 'teal'   },
+  AgriSensor:               { keywords: [],       macroCategory: 'sensors', icon: Gauge,      description: 'Sensor agrícola',             color: 'teal'   },
+  Device:                   { keywords: ['dispositivo', 'device', 'iot', 'sensor', 'sonda', 'humedad', 'temperatura', 'probe'],                             macroCategory: 'sensors', icon: Activity,   description: 'Dispositivo IoT',             color: 'teal'   },
   WeatherObserved:          { keywords: ['meteorología', 'clima', 'weather', 'estación', 'station', 'davis'], macroCategory: 'sensors', icon: Sun, description: 'Estación meteorológica',      color: 'blue'   },
   LivestockAnimal:          { keywords: ['animal', 'ganado', 'vaca', 'oveja', 'livestock'],           macroCategory: 'sensors', icon: Activity,   description: 'Animal individual',           color: 'brown'  },
   LivestockGroup:           { keywords: ['rebaño', 'grupo', 'herd', 'flock'],                         macroCategory: 'sensors', icon: Activity,   description: 'Grupo de animales',           color: 'brown'  },
@@ -80,12 +80,38 @@ export const ENTITY_CATEGORIES: Record<string, string[]> = {
   trees:             ['AgriTree', 'OliveTree', 'Vine', 'FruitTree'],
   water:             ['WaterSource', 'Well', 'IrrigationOutlet', 'Spring', 'Pond'],
   robotics:          ['AutonomousMobileRobot', 'ManufacturingMachine'],
-  sensors:           ['AgriSensor', 'Device', 'WeatherObserved'],
+  sensors:           ['Device', 'WeatherObserved'],
   infrastructure:    ['AgriGreenhouse', 'AgriBuilding', 'IrrigationSystem'],
   livestock:         ['LivestockAnimal', 'LivestockGroup', 'LivestockFarm'],
   energy:            ['PhotovoltaicInstallation', 'AgriEnergyTracker', 'EnergyStorageSystem'],
   operations:        ['AgriOperation'],
 };
+
+/**
+ * Types offered for search: only those listed in a category. Entries outside
+ * ENTITY_CATEGORIES (e.g. the deprecated AgriSensor) stay in the metadata so
+ * existing entities render, but are never selectable for creation.
+ */
+export function searchEntityTypes(
+  searchTerm: string,
+  activeMacro: string | null,
+  label: (type: string) => string,
+): string[] {
+  const selectable = new Set(Object.values(ENTITY_CATEGORIES).flat());
+  const s = searchTerm.trim().toLowerCase();
+  return Object.keys(ENTITY_TYPE_METADATA).filter(type => {
+    if (!selectable.has(type)) return false;
+    const meta = ENTITY_TYPE_METADATA[type];
+    if (activeMacro && meta.macroCategory !== activeMacro) return false;
+    if (!s) return true;
+    return (
+      type.toLowerCase().includes(s) ||
+      meta.keywords.some(k => k.toLowerCase().includes(s)) ||
+      meta.description.toLowerCase().includes(s) ||
+      label(type).toLowerCase().includes(s)
+    );
+  });
+}
 
 // ─── Sensor health & calibration types ───────────────────────────────────────
 

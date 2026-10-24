@@ -142,6 +142,7 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
         api.getSDMEntityInstances('Vine').catch(() => []),
         api.getSDMEntityInstances('AgriEnergyTracker').catch(() => []),
         api.getSDMEntityInstances('PhotovoltaicInstallation').catch(() => []),
+        api.getSDMEntityInstances('AgriSolarPark').catch(() => []),
         api.getSDMEntityInstances('AgriParcelZone').catch(() => []),
         api.getSDMEntityInstances('AgriSoil').catch(() => []),
         api.getSDMEntityInstances('AgriSoilExtended').catch(() => []),
@@ -153,7 +154,7 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
         parcelsRes, robotsRes, sensorsRes, machinesRes, livestockRes,
         weatherRes, cropsRes, buildingsRes, devicesRes, waterSourcesRes,
         wellsRes, oliveTreesRes, agriTreesRes, fruitTreesRes, vinesRes,
-        energyTrackersRes, pvInstallationsRes, parcelZonesRes, soilsRes,
+        energyTrackersRes, pvInstallationsRes, solarParksRes, parcelZonesRes, soilsRes,
         extendedSoilsRes, farmsRes, greenhousesRes,
       ] = results;
       
@@ -190,6 +191,7 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
       addEntities(vinesRes, 'Vine');
       addEntities(energyTrackersRes, 'AgriEnergyTracker');
       addEntities(pvInstallationsRes, 'PhotovoltaicInstallation');
+      addEntities(solarParksRes, 'AgriSolarPark');
       addEntities(parcelZonesRes, 'AgriParcelZone');
       addEntities(soilsRes, 'AgriSoil');
       addEntities(extendedSoilsRes, 'AgriSoilExtended');

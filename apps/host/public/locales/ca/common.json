@@ -831,8 +831,10 @@
       "type_required": "Selecciona un tipus d'entitat",
       "name_required": "El nom és obligatori",
       "device_profile_required": "El perfil de dispositiu és obligatori per als sensors IoT",
+      "parcel_required": "Cal almenys una parcel·la per a un dispositiu",
       "stamp_required": "Pinta almenys una instància",
-      "array_required": "Configura el punt d'ancoratge i els paràmetres de la graella"
+      "array_required": "Configura el punt d'ancoratge i els paràmetres de la graella",
+      "point_required": "Un dispositiu requereix una ubicació (punt)"
     },
     "errors": {
       "incomplete_state": "Estat de l'assistent incomplet",
@@ -968,7 +970,10 @@
       "select_array_asset": "Selecciona l'actiu a col·locar",
       "model_required": "Selecciona un model 3D per continuar.",
       "geometry_type": "Tipus de geometria",
-      "inside_parent_hint": "La geometria ha de quedar completament dins dels límits del pare."
+      "inside_parent_hint": "La geometria ha de quedar completament dins dels límits del pare.",
+      "latitude": "Latitud",
+      "longitude": "Longitud",
+      "coordinates_invalid": "Introdueix una latitud (-90 a 90) i una longitud (-180 a 180) vàlides"
     },
     "asset": {
       "title": "Dades de l'actiu",
@@ -1016,6 +1021,10 @@
       "import_json": "Importa JSON",
       "mqtt_on_finish": "Credencials MQTT en acabar",
       "profile_required_hint": "* El perfil de dispositiu és obligatori. Defineix com es tradueixen les dades del datalogger a atributs SDM estàndard. Si no en trobes cap d'adequat, importa'n un o crea'n un de nou des de «Mostra les plantilles».",
+      "parcels_hint": "La primera parcel·la és la principal. El sensor mesura totes les parcel·les que seleccionis.",
+      "owner_label": "Propietari del sensor",
+      "owner_parcel": "Parcel·la (camp obert)",
+      "owner_park": "Instal·lació solar (sota panell)",
       "health_title": "Configuració de fiabilitat i calibratge (regles de salut)",
       "health_hint": "Defineix regles de validació i calibratge per a les variables del sensor. Aquests valors serveixen per detectar lectures anòmales i transformar senyals en brut.",
       "comm_timeout": "Temps màxim sense comunicació (hores)",
@@ -1042,7 +1051,11 @@
       "no_matches": "No s'han trobat entitats coincidents",
       "none_available": "No hi ha entitats pare disponibles",
       "subdivision_note": "L'entitat nova es crearà com a subdivisió de «{{name}}».",
-      "subdivision_geometry_note": "La seva geometria ha de quedar completament dins dels límits de l'entitat pare."
+      "subdivision_geometry_note": "La seva geometria ha de quedar completament dins dels límits de l'entitat pare.",
+      "select_parcels": "Parcel·les que mesura el sensor",
+      "select_parcels_placeholder": "Selecciona parcel·les",
+      "selected_count": "Parcel·les seleccionades: {{count}}",
+      "primary": "principal"
     },
     "robot_credentials": {
       "copy": "Copia al porta-retalls",
@@ -1886,6 +1899,8 @@
       "delete_success": "{{count}} entitat(s) eliminada(es) correctament",
       "delete_error": "Error en eliminar entitats",
       "export_empty": "No hi ha assets per exportar",
+      "extra_parcels_one": "+{{count}} parcel·la",
+      "extra_parcels_other": "+{{count}} parcel·les",
       "tree": {
         "unassigned": "{{count}} sense assignar",
         "expand_all": "Desplega",
@@ -1901,6 +1916,8 @@
         "located_in": "Ubicat a la parcel·la",
         "updated": "Relació actualitzada",
         "will_remove": "S'eliminarà l'assignació actual",
+        "primary": "Principal",
+        "last_parcel": "Un sensor ha de mantenir almenys una parcel·la",
         "cancel": "Cancel·la",
         "save": "Desa",
         "saved": "Desat",
@@ -1927,6 +1944,7 @@
         "IrrigationSystem": "Sistema de reg",
         "AgriEnergyTracker": "Seguidor solar",
         "PhotovoltaicInstallation": "Instal·lació FV",
+        "AgriSolarPark": "Instal·lació solar",
         "AgriCrop": "Cultiu",
         "AgriTree": "Arbre",
         "OliveTree": "Olivera",

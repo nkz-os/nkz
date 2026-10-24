@@ -7,6 +7,10 @@ import { DeviceProfileHelpModal } from '../../DeviceProfileHelpModal';
 import type { IoTSensorFormData } from '../types';
 import { useToastContext } from '@/context/ToastContext';
 import { Button, Input } from '@nekazari/ui-kit';
+import { ParentEntitySelector, type ParentEntity } from '../ParentEntitySelector';
+import { SensorOwnerSelect } from '../SensorOwnerSelect';
+import api from '@/services/api';
+import { parkOptionsFor, toParkOption, type ParkOption } from '@/utils/parcelLinks';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function StepIoTSensorConfig() {
@@ -16,6 +20,20 @@ export function StepIoTSensorConfig() {
   const [deviceProfiles, setDeviceProfiles] = useState<DeviceProfile[]>([]);
   const [showHelp, setShowHelp] = useState(false);
   const [newVariableName, setNewVariableName] = useState('');
+  const [parks, setParks] = useState<ParkOption[]>([]);
+
+  // Solar parks a Device can belong to; filtered by the selected parcels below.
+  useEffect(() => {
+    if (entityType !== 'Device') return;
+    let active = true;
+    api
+      .getSDMEntityInstances('AgriSolarPark')
+      .then((list: any[]) => active && setParks((list ?? []).map(toParkOption)))
+      .catch(() => active && setParks([]));
+    return () => {
+      active = false;
+    };
+  }, [entityType]);
 
   useEffect(() => {
     if (!entityType) return;
@@ -196,6 +214,32 @@ export function StepIoTSensorConfig() {
           rows={2}
         />
       </div>
+
+      {/* Parcels (Device only): first one is the primary parcel */}
+      {entityType === 'Device' && (
+        <div>
+          <ParentEntitySelector
+            entityType="AgriParcel"
+            multiple
+            selectedParentIds={(data.parcels ?? []).map(pa => pa.id)}
+            onSelect={() => undefined}
+            onSelectMany={(parcels: ParentEntity[]) => {
+              const available = parkOptionsFor(parks, parcels.map(pa => pa.id));
+              const keep = available.some(park => park.id === data.ownerParkId);
+              updateFormData({ parcels, ownerParkId: keep ? data.ownerParkId : null });
+            }}
+          />
+          <p className="text-xs text-nkz-muted mt-1">{t('wizard.iot.parcels_hint')}</p>
+          <SensorOwnerSelect
+            parks={parkOptionsFor(parks, (data.parcels ?? []).map(pa => pa.id))}
+            ownerParkId={data.ownerParkId ?? null}
+            onChange={(ownerParkId) => updateFormData({ ownerParkId })}
+            label={t('wizard.iot.owner_label')}
+            parcelLabel={t('wizard.iot.owner_parcel')}
+            parkLabel={t('wizard.iot.owner_park')}
+          />
+        </div>
+      )}
 
       {/* Device profile */}
       <div className="pt-4 border-t bg-nkz-surface-sunken p-4 rounded-xl border border-nkz-info/30">

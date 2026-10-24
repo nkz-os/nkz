@@ -9,6 +9,8 @@
 // DELETE on the attribute, never a null value.
 
 import { resolveParentRelationship } from '@/utils/entityRelations';
+import { parcelLinksFragment, readControlledLinks } from '@/utils/parcelLinks';
+import type { UnifiedAsset } from '@/types/assets';
 
 export type ParentChangeOperation =
   | { kind: 'merge'; fragment: Record<string, unknown> }
@@ -43,4 +45,18 @@ export function planParentChange(entity: unknown, parcelId: string | null): Pare
 export function canRemoveParent(entity: unknown): boolean {
   const current = resolveParentRelationship(entity)?.relationship;
   return current !== undefined && (CANONICAL_NAMES.includes(current) || current === LEGACY_PARENT);
+}
+
+/** A fixed sensor keeps its parcels as a list in `controlledAsset`. */
+export function isParcelLinkedDevice(asset: UnifiedAsset): boolean {
+  return asset.type === 'Device';
+}
+
+/** One merge-patch with the whole list; nothing when unchanged; never empty. */
+export function planParcelLinksChange(entity: unknown, urns: string[]): ParentChangeOperation[] {
+  const fragment = parcelLinksFragment(urns);
+  const next = fragment.controlledAsset.object;
+  const current = readControlledLinks(entity);
+  if (next.length === current.length && next.every((urn, i) => urn === current[i])) return [];
+  return [{ kind: 'merge', fragment }];
 }

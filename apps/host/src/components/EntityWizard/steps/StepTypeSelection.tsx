@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Search, X, Activity, MapPin, ArrowRight } from 'lucide-react';
 import { useWizard } from '../WizardContext';
-import { ENTITY_TYPE_METADATA, MACRO_CATEGORIES, ENTITY_CATEGORIES } from '../entityTypes';
+import { ENTITY_TYPE_METADATA, MACRO_CATEGORIES, ENTITY_CATEGORIES, searchEntityTypes } from '../entityTypes';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { SDMGuideInfo } from '../SDMGuideInfo';
 import { Button, Input } from '@nekazari/ui-kit';
@@ -39,18 +39,7 @@ export function StepTypeSelection() {
   };
 
   const filteredTypes = useMemo(() => {
-    return Object.keys(ENTITY_TYPE_METADATA).filter(type => {
-      const meta = ENTITY_TYPE_METADATA[type];
-      if (activeMacro && meta.macroCategory !== activeMacro) return false;
-      if (!searchTerm.trim()) return true;
-      const s = searchTerm.toLowerCase();
-      return (
-        type.toLowerCase().includes(s) ||
-        meta.keywords.some(k => k.toLowerCase().includes(s)) ||
-        meta.description.toLowerCase().includes(s) ||
-        t(`wizard.types.${type}`).toLowerCase().includes(s)
-      );
-    });
+    return searchEntityTypes(searchTerm, activeMacro, type => t(`wizard.types.${type}`));
   }, [searchTerm, activeMacro, t]);
 
   const groupedTypes = useMemo(() => {
