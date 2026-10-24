@@ -833,7 +833,8 @@
       "device_profile_required": "El perfil de dispositiu és obligatori per als sensors IoT",
       "parcel_required": "Cal almenys una parcel·la per a un dispositiu",
       "stamp_required": "Pinta almenys una instància",
-      "array_required": "Configura el punt d'ancoratge i els paràmetres de la graella"
+      "array_required": "Configura el punt d'ancoratge i els paràmetres de la graella",
+      "point_required": "Un dispositiu requereix una ubicació (punt)"
     },
     "errors": {
       "incomplete_state": "Estat de l'assistent incomplet",
@@ -969,7 +970,10 @@
       "select_array_asset": "Selecciona l'actiu a col·locar",
       "model_required": "Selecciona un model 3D per continuar.",
       "geometry_type": "Tipus de geometria",
-      "inside_parent_hint": "La geometria ha de quedar completament dins dels límits del pare."
+      "inside_parent_hint": "La geometria ha de quedar completament dins dels límits del pare.",
+      "latitude": "Latitud",
+      "longitude": "Longitud",
+      "coordinates_invalid": "Introdueix una latitud (-90 a 90) i una longitud (-180 a 180) vàlides"
     },
     "asset": {
       "title": "Dades de l'actiu",

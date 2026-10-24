@@ -833,7 +833,8 @@
       "device_profile_required": "Le profil d'appareil est obligatoire pour les capteurs IoT",
       "parcel_required": "Au moins une parcelle est requise pour un appareil",
       "stamp_required": "Placez au moins une instance",
-      "array_required": "Configurez le point d'ancrage et les paramètres de la grille"
+      "array_required": "Configurez le point d'ancrage et les paramètres de la grille",
+      "point_required": "Un appareil requiert un emplacement (point)"
     },
     "errors": {
       "incomplete_state": "État de l'assistant incomplet",
@@ -969,7 +970,10 @@
       "select_array_asset": "Sélectionnez l'actif à placer",
       "model_required": "Sélectionnez un modèle 3D pour continuer.",
       "geometry_type": "Type de géométrie",
-      "inside_parent_hint": "La géométrie doit se trouver entièrement dans les limites de l'entité parente."
+      "inside_parent_hint": "La géométrie doit se trouver entièrement dans les limites de l'entité parente.",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "coordinates_invalid": "Saisissez une latitude (-90 à 90) et une longitude (-180 à 180) valides"
     },
     "asset": {
       "title": "Détails de l'actif",

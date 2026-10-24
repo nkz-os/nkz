@@ -833,7 +833,8 @@
       "device_profile_required": "O perfil de dispositivo é obrigatório para sensores IoT",
       "parcel_required": "É necessária pelo menos uma parcela para um dispositivo",
       "stamp_required": "Coloque pelo menos uma instância",
-      "array_required": "Configure o ponto de ancoragem e os parâmetros da grelha"
+      "array_required": "Configure o ponto de ancoragem e os parâmetros da grelha",
+      "point_required": "Um dispositivo requer uma localização (ponto)"
     },
     "errors": {
       "incomplete_state": "Estado do assistente incompleto",
@@ -969,7 +970,10 @@
       "select_array_asset": "Selecione o ativo a colocar",
       "model_required": "Selecione um modelo 3D para continuar.",
       "geometry_type": "Tipo de geometria",
-      "inside_parent_hint": "A geometria deve ficar totalmente dentro dos limites da entidade principal."
+      "inside_parent_hint": "A geometria deve ficar totalmente dentro dos limites da entidade principal.",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "coordinates_invalid": "Introduza uma latitude (-90 a 90) e uma longitude (-180 a 180) válidas"
     },
     "asset": {
       "title": "Dados do ativo",

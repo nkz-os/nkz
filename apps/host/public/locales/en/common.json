@@ -809,7 +809,8 @@
       "device_profile_required": "A device profile is required for IoT sensors",
       "parcel_required": "At least one parcel is required for a device",
       "stamp_required": "Place at least one instance",
-      "array_required": "Set the anchor point and the grid parameters"
+      "array_required": "Set the anchor point and the grid parameters",
+      "point_required": "A device requires a location (point)"
     },
     "errors": {
       "incomplete_state": "Incomplete wizard state",
@@ -945,7 +946,10 @@
       "select_array_asset": "Select the asset to place",
       "model_required": "Select a 3D model to continue.",
       "geometry_type": "Geometry type",
-      "inside_parent_hint": "The geometry must lie entirely within the parent boundaries."
+      "inside_parent_hint": "The geometry must lie entirely within the parent boundaries.",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "coordinates_invalid": "Enter a valid latitude (-90 to 90) and longitude (-180 to 180)"
     },
     "asset": {
       "title": "Asset details",

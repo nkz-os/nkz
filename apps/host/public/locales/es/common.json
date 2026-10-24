@@ -809,7 +809,8 @@
       "device_profile_required": "El perfil de dispositivo es obligatorio para sensores IoT",
       "parcel_required": "Se requiere al menos una parcela para un dispositivo",
       "stamp_required": "Pinta al menos una instancia",
-      "array_required": "Configura el punto de ancla y los parámetros de la grilla"
+      "array_required": "Configura el punto de ancla y los parámetros de la grilla",
+      "point_required": "Un dispositivo requiere una ubicación (punto)"
     },
     "errors": {
       "incomplete_state": "Estado del wizard incompleto",
@@ -945,7 +946,10 @@
       "select_array_asset": "Selecciona el activo a colocar",
       "model_required": "Selecciona un modelo 3D para continuar.",
       "geometry_type": "Tipo de geometría",
-      "inside_parent_hint": "La geometría debe quedar completamente dentro de los límites del padre."
+      "inside_parent_hint": "La geometría debe quedar completamente dentro de los límites del padre.",
+      "latitude": "Latitud",
+      "longitude": "Longitud",
+      "coordinates_invalid": "Introduce una latitud (-90 a 90) y una longitud (-180 a 180) válidas"
     },
     "asset": {
       "title": "Datos del activo",

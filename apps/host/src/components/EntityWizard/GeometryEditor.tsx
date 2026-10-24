@@ -189,6 +189,11 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
     setCurrentGeometry(initialGeometry);
   }, [initialGeometry]);
 
+  // Keep the internal geometry in step when the parent sets it (e.g. typed coordinates).
+  useEffect(() => {
+    setCurrentGeometry(initialGeometry || null);
+  }, [initialGeometry]);
+
   // Drawing logic
   const drawGeometry = (geometry: Geometry) => {
     if (!viewerRef.current) return;

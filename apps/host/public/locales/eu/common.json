@@ -810,7 +810,8 @@
       "device_profile_required": "Gailu-profila derrigorrezkoa da IoT sentsoreentzat",
       "parcel_required": "Gailu batek gutxienez lursail bat behar du",
       "stamp_required": "Margotu gutxienez instantzia bat",
-      "array_required": "Konfiguratu aingura-puntua eta saretaren parametroak"
+      "array_required": "Konfiguratu aingura-puntua eta saretaren parametroak",
+      "point_required": "Gailu batek kokapena (puntua) behar du"
     },
     "errors": {
       "incomplete_state": "Laguntzailearen egoera osatu gabe dago",
@@ -946,7 +947,10 @@
       "select_array_asset": "Hautatu ezarri beharreko aktiboa",
       "model_required": "Hautatu 3D eredu bat jarraitzeko.",
       "geometry_type": "Geometria mota",
-      "inside_parent_hint": "Geometriak erabat gurasoaren mugen barruan egon behar du."
+      "inside_parent_hint": "Geometriak erabat gurasoaren mugen barruan egon behar du.",
+      "latitude": "Latitudea",
+      "longitude": "Longitudea",
+      "coordinates_invalid": "Sartu baliozko latitudea (-90 eta 90 artean) eta longitudea (-180 eta 180 artean)"
     },
     "asset": {
       "title": "Aktiboaren datuak",

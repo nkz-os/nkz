@@ -1,14 +1,15 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { PlacementState, PlacementAction } from '@/machines/placementMachine';
 import { useWizard } from '../WizardContext';
 import { GeometryEditor } from '../GeometryEditor';
+import { PointCoordinateInputs } from '../PointCoordinateInputs';
 import { StampTool } from '../StampTool';
 import { ArrayTool } from '../ArrayTool';
 import { PlacementModeSelector } from '../PlacementModeSelector';
 import { AssetBrowser } from '../AssetBrowser';
 import { validateGeometryWithinParent } from '@/utils/geometryValidation';
 import type { Geometry } from 'geojson';
-import type { GeoAssetFormData } from '../types';
+import type { GeoAssetFormData, IoTSensorFormData } from '../types';
 import { Button } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
 
@@ -28,6 +29,22 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
     dispatchPlacement({ type: 'SET_STAMPED_INSTANCES', payload: instances });
     setValidationError(instances.length === 0 ? t('wizard.geometry.anchor_required') : null);
   }, [dispatchPlacement, setValidationError, t]);
+
+  // Stable identity: GeometryEditor re-validates and redraws whenever this object changes.
+  const subdivisionParent = (formData as GeoAssetFormData | null)?.isSubdivision
+    ? (formData as GeoAssetFormData).parentEntity
+    : null;
+  const devicePrimaryParcel =
+    entityType === 'Device' ? (formData as IoTSensorFormData | null)?.parcels?.[0] : undefined;
+  const parentGeometry = useMemo(() => {
+    if (subdivisionParent) {
+      return { id: subdivisionParent.id, name: subdivisionParent.name, geometry: subdivisionParent.geometry };
+    }
+    if (devicePrimaryParcel?.geometry?.type === 'Polygon') {
+      return { id: devicePrimaryParcel.id, name: devicePrimaryParcel.name, geometry: devicePrimaryParcel.geometry };
+    }
+    return undefined;
+  }, [subdivisionParent, devicePrimaryParcel]);
 
   if (!formData) return null;
 
@@ -54,6 +71,13 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
   };
 
   const geometryType = (formData as GeoAssetFormData).geometryType ?? 'Point';
+
+  const isDevice = entityType === 'Device';
+
+  const handleTypedPoint = (point: Geometry | null) => {
+    setValidationError(null);
+    updateFormData({ geometry: point });
+  };
 
   return (
     <div className="space-y-4">
@@ -151,16 +175,16 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
 
           <GeometryEditor
             geometryType={geometryType}
-            parentGeometry={
-              assetData?.isSubdivision && assetData.parentEntity
-                ? { id: assetData.parentEntity.id, name: assetData.parentEntity.name, geometry: assetData.parentEntity.geometry }
-                : undefined
-            }
+            parentGeometry={parentGeometry}
             initialGeometry={formData.geometry ?? undefined}
             onGeometryChange={handleGeometryChange}
             onValidationChange={(valid, err) => setValidationError(valid ? null : (err ?? null))}
             height="h-96"
           />
+
+          {isDevice && (
+            <PointCoordinateInputs geometry={formData.geometry} onChange={handleTypedPoint} />
+          )}
 
           {assetData?.isSubdivision && assetData.parentEntity && (
             <div className="p-3 bg-nkz-warning-soft border border-nkz-warning/30 rounded-lg text-sm text-nkz-warning-strong">
