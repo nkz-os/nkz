@@ -22,11 +22,13 @@ export function isRelatedToParcel(entity: any, parcelId: string): boolean {
 
 /**
  * Relationships that place an entity under a parent asset, in precedence order.
+ * `controlledAsset` is a Device's parcel list (the first entry is the primary parcel);
  * `hasAgriParcel` is canonical; `refAgriParcel` is the legacy alias of the same
  * attribute; `refParcel`/`locatedAt` carry per-parcel weather; `refParent` is the
  * legacy own attribute.
  */
 export const PARENT_RELATIONSHIPS = [
+  'controlledAsset',
   'hasAgriParcel',
   'refAgriParcel',
   'refParcel',
@@ -52,6 +54,17 @@ function relationshipTarget(value: unknown): string | undefined {
     return relationshipTarget(v.object ?? v.value);
   }
   return undefined;
+}
+
+/** All target ids of a relationship value (single or list), in any NGSI-LD representation. */
+export function relationshipTargets(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(relationshipTargets);
+  if (typeof value === 'string') return [value];
+  if (value && typeof value === 'object') {
+    const v = value as { object?: unknown; value?: unknown };
+    return relationshipTargets(v.object ?? v.value);
+  }
+  return [];
 }
 
 /** First parent relationship that names a target other than the entity itself. */

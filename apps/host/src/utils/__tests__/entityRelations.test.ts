@@ -66,3 +66,15 @@ describe('pickParentRelationships', () => {
     });
   });
 });
+
+describe('resolveParentRelationship controlledAsset', () => {
+  it('prefers controlledAsset and takes the first parcel', () => {
+    expect(
+      resolveParentRelationship({
+        id: 'd',
+        controlledAsset: { object: [P1, P2] },
+        hasAgriParcel: { object: 'x' },
+      }),
+    ).toEqual({ parentId: P1, relationship: 'controlledAsset' });
+  });
+});
