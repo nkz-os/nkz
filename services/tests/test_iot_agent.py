@@ -25,6 +25,14 @@ def test_service_group_reused_when_present():
     post.assert_not_called()
 
 
+def test_service_group_without_apikey_is_a_failure():
+    with patch.object(iot_agent.requests, "get",
+                      return_value=_resp(200, {"services": [{"resource": "/iot/json"}]})), \
+         patch.object(iot_agent.requests, "post") as post:
+        assert iot_agent.get_or_create_service_group("acme", URL, HDR, cbroker=ORION) is None
+    post.assert_not_called()
+
+
 def test_service_group_created_with_generated_key():
     with patch.object(iot_agent.requests, "get", return_value=_resp(200, {"services": []})), \
          patch.object(iot_agent.requests, "post", return_value=_resp(201)) as post:

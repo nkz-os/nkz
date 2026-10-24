@@ -44,6 +44,9 @@ def get_or_create_service_group(tenant: str, iota_url: str, headers: dict,
             services = resp.json().get("services", [])
             if services:
                 existing_apikey = services[0].get("apikey")
+                if not existing_apikey:
+                    logger.error(f"Service group for tenant '{tenant}' has no apikey")
+                    return None
                 logger.debug(f"Service group exists for tenant '{tenant}', apikey=<redacted:{len(existing_apikey)}ch>")
                 return existing_apikey
 

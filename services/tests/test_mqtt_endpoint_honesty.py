@@ -14,10 +14,10 @@ import pathlib
 import pytest
 
 _SRC = (
-    pathlib.Path(__file__).resolve().parents[1] / "mqtt_endpoint.py"
+    pathlib.Path(__file__).resolve().parents[1] / "common" / "mqtt_endpoint.py"
 )
 _SERVICE = (
-    pathlib.Path(__file__).resolve().parents[2] / "sdm-integration" / "sdm_api.py"
+    pathlib.Path(__file__).resolve().parents[1] / "sdm-integration" / "sdm_api.py"
 )
 _spec = importlib.util.spec_from_file_location("mqtt_endpoint", _SRC)
 mqtt_endpoint = importlib.util.module_from_spec(_spec)
