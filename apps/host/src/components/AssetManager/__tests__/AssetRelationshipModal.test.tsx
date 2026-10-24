@@ -126,4 +126,49 @@ describe('AssetRelationshipModal', () => {
     expect(screen.getByText('entities.assets.assign.current')).toBeTruthy();
     expect(screen.queryByText('entities.assets.assign.remove')).toBeNull();
   });
+
+  describe('Device parcels', () => {
+    const device = (urns: string[]): UnifiedAsset => ({
+      ...child({ id: 'urn:ngsi-ld:Device:d1', controlledAsset: rel(urns as never) }, urns[0]),
+      type: 'Device',
+    });
+    const renderDevice = (urns: string[], onSuccess = vi.fn()) =>
+      render(
+        <AssetRelationshipModal asset={device(urns)} potentialParents={parents} onClose={vi.fn()} onSuccess={onSuccess} />,
+      );
+
+    it('shows linked parcels checked, primary first, and saves one merge', async () => {
+      const onSuccess = vi.fn();
+      renderDevice([P1, P2], onSuccess);
+      const boxes = screen.getAllByRole('checkbox');
+      expect(boxes.map(b => b.getAttribute('aria-checked'))).toEqual(['true', 'true']);
+      expect(screen.getAllByText('entities.assets.assign.primary')).toHaveLength(1);
+
+      fireEvent.click(boxes[1]);
+      fireEvent.click(screen.getByText('entities.assets.assign.save'));
+
+      await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+      expect(mergeSDMEntity).toHaveBeenCalledTimes(1);
+      expect(mergeSDMEntity).toHaveBeenCalledWith('urn:ngsi-ld:Device:d1', {
+        controlledAsset: { type: 'Relationship', object: [P1] },
+      });
+      expect(deleteSDMEntityAttribute).not.toHaveBeenCalled();
+    });
+
+    it('blocks unchecking the last parcel', () => {
+      renderDevice([P1]);
+      const boxes = screen.getAllByRole('checkbox');
+      expect(boxes[0].hasAttribute('disabled')).toBe(true);
+      expect(screen.getByText('entities.assets.assign.last_parcel')).toBeTruthy();
+    });
+
+    it('shows an error after a failed save and does not retry', async () => {
+      mergeSDMEntity.mockRejectedValue(new Error('net'));
+      renderDevice([P1]);
+      fireEvent.click(screen.getAllByRole('checkbox')[1]);
+      fireEvent.click(screen.getByText('entities.assets.assign.save'));
+      expect(await screen.findByText('entities.assets.assign.error')).toBeTruthy();
+      expect(mergeSDMEntity).toHaveBeenCalledTimes(1);
+    });
+  });
 });

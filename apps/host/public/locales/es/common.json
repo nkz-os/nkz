@@ -1887,6 +1887,8 @@
         "located_in": "Ubicado en parcela",
         "updated": "Relación actualizada",
         "will_remove": "Se eliminará la asignación actual",
+        "primary": "Principal",
+        "last_parcel": "Una sonda debe mantener al menos una parcela",
         "cancel": "Cancelar",
         "save": "Guardar",
         "saved": "Guardado",

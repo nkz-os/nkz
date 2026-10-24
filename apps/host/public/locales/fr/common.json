@@ -1911,6 +1911,8 @@
         "located_in": "Situé dans la parcelle",
         "updated": "Relation mise à jour",
         "will_remove": "L'assignation actuelle sera supprimée",
+        "primary": "Principale",
+        "last_parcel": "Un capteur doit garder au moins une parcelle",
         "cancel": "Annuler",
         "save": "Enregistrer",
         "saved": "Enregistré",

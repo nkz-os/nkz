@@ -1888,6 +1888,8 @@
         "located_in": "Lursail honetan kokatuta",
         "updated": "Erlazioa eguneratu da",
         "will_remove": "Uneko esleipena kenduko da",
+        "primary": "Nagusia",
+        "last_parcel": "Sentsore batek gutxienez lur-sail bat izan behar du",
         "cancel": "Utzi",
         "save": "Gorde",
         "saved": "Gordeta",

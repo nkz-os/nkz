@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRemoveParent, planParentChange } from '../parentAssignment';
+import { canRemoveParent, isParcelLinkedDevice, planParcelLinksChange, planParentChange } from '../parentAssignment';
 
 const P1 = 'urn:ngsi-ld:AgriParcel:p1';
 const P2 = 'urn:ngsi-ld:AgriParcel:p2';
@@ -56,5 +56,28 @@ describe('canRemoveParent', () => {
   it('does not offer removing a parent the platform derives', () => {
     expect(canRemoveParent({ id: 'w1', refParcel: rel(P1) })).toBe(false);
     expect(canRemoveParent({ id: 'd1' })).toBe(false);
+  });
+});
+
+describe('planParcelLinksChange', () => {
+  const dev = { id: 'd1', controlledAsset: { type: 'Relationship', object: [P1, P2] } };
+
+  it('writes one merge with the remaining list', () => {
+    expect(planParcelLinksChange(dev, [P1])).toEqual([
+      { kind: 'merge', fragment: { controlledAsset: { type: 'Relationship', object: [P1] } } },
+    ]);
+  });
+
+  it('is a no-op when the list equals the current one', () => {
+    expect(planParcelLinksChange(dev, [P1, P2])).toEqual([]);
+  });
+
+  it('throws on an empty list', () => {
+    expect(() => planParcelLinksChange(dev, [])).toThrow();
+  });
+
+  it('identifies Device assets only', () => {
+    expect(isParcelLinkedDevice({ type: 'Device' } as never)).toBe(true);
+    expect(isParcelLinkedDevice({ type: 'WeatherObserved' } as never)).toBe(false);
   });
 });

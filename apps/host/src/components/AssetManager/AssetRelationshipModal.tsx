@@ -19,9 +19,16 @@ import {
 import api from '@/services/api';
 import { UnifiedAsset, assetTypeLabel } from '@/types/assets';
 import { logger } from '@/utils/logger';
-import { Button, Input } from '@nekazari/ui-kit';
+import { Button, Checkbox, Input } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
-import { canRemoveParent, planParentChange, type ParentChangeOperation } from './parentAssignment';
+import { readParcelLinks } from '@/utils/parcelLinks';
+import {
+  canRemoveParent,
+  isParcelLinkedDevice,
+  planParcelLinksChange,
+  planParentChange,
+  type ParentChangeOperation,
+} from './parentAssignment';
 
 // =============================================================================
 // Types
@@ -73,6 +80,18 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const isDevice = isParcelLinkedDevice(asset);
+  const initialLinks = useMemo(() => readParcelLinks(asset.rawEntity), [asset.rawEntity]);
+  const [selectedLinks, setSelectedLinks] = useState<string[]>(initialLinks);
+  const linksChanged =
+    selectedLinks.length !== initialLinks.length || selectedLinks.some((urn, i) => urn !== initialLinks[i]);
+
+  const toggleLink = useCallback((id: string, checked: boolean) => {
+    setSelectedLinks(prev => {
+      if (checked) return prev.includes(id) ? prev : [...prev, id];
+      return prev.length > 1 ? prev.filter(urn => urn !== id) : prev;
+    });
+  }, []);
   
   // Filter parents by search
   const filteredParents = useMemo(() => {
@@ -87,7 +106,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
   
   // Handle save
   const handleSave = useCallback(async () => {
-    if (selectedParentId === (asset.parentId || null)) {
+    if (isDevice ? !linksChanged : selectedParentId === (asset.parentId || null)) {
       // No change
       onClose();
       return;
@@ -97,7 +116,10 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
     setError(null);
     
     try {
-      for (const operation of planParentChange(asset.rawEntity, selectedParentId)) {
+      const operations = isDevice
+        ? planParcelLinksChange(asset.rawEntity, selectedLinks)
+        : planParentChange(asset.rawEntity, selectedParentId);
+      for (const operation of operations) {
         await applyOperation(asset.id, operation);
       }
       
@@ -115,7 +137,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [asset, selectedParentId, onClose, onSuccess, t]);
+  }, [asset, isDevice, linksChanged, selectedLinks, selectedParentId, onClose, onSuccess, t]);
   
   // Handle remove relationship
   const handleRemove = useCallback(() => {
@@ -133,7 +155,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
     return potentialParents.find(p => p.id === selectedParentId);
   }, [selectedParentId, potentialParents]);
   
-  const hasChanges = selectedParentId !== (asset.parentId || null);
+  const hasChanges = isDevice ? linksChanged : selectedParentId !== (asset.parentId || null);
   const removable = canRemoveParent(asset.rawEntity);
   
   return (
@@ -159,7 +181,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
         </div>
         
         {/* Current Assignment */}
-        {currentParent && (
+        {!isDevice && currentParent && (
           <div className="px-6 py-3 bg-slate-50 border-b border-slate-100">
             <p className="text-xs text-slate-500 mb-1">{t('entities.assets.assign.current')}</p>
             <div className="flex items-center justify-between">
@@ -205,6 +227,33 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
             </div>
           ) : (
             filteredParents.map(parent => {
+              if (isDevice) {
+                const checked = selectedLinks.includes(parent.id);
+                return (
+                  <div
+                    key={parent.id}
+                    className="w-full px-6 py-3 flex items-center gap-3 text-left hover:bg-slate-50"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      disabled={checked && selectedLinks.length === 1}
+                      onChange={(value: boolean) => toggleLink(parent.id, value)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-slate-700">{parent.name}</p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {assetTypeLabel(parent.type, t)}
+                        {parent.municipality && ` • ${parent.municipality}`}
+                      </p>
+                    </div>
+                    {checked && selectedLinks[0] === parent.id && (
+                      <span className="text-xs font-medium text-nkz-info">
+                        {t('entities.assets.assign.primary')}
+                      </span>
+                    )}
+                  </div>
+                );
+              }
               const isSelected = selectedParentId === parent.id;
               
               return (
@@ -254,12 +303,15 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
                 {t('entities.assets.assign.updated')}
               </div>
             )}
-            {!error && !success && selectedParent && (
+            {!error && !success && isDevice && selectedLinks.length === 1 && (
+              <span className="text-slate-500">{t('entities.assets.assign.last_parcel')}</span>
+            )}
+            {!error && !success && !isDevice && selectedParent && (
               <span className="text-slate-500">
                 {t('entities.assets.assign.located_in')}: <span className="font-medium text-slate-700">{selectedParent.name}</span>
               </span>
             )}
-            {!error && !success && !selectedParent && asset.parentId && (
+            {!error && !success && !isDevice && !selectedParent && asset.parentId && (
               <span className="text-amber-600">
                 {t('entities.assets.assign.will_remove')}
               </span>

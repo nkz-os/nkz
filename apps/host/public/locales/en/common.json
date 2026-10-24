@@ -1887,6 +1887,8 @@
         "located_in": "Located in parcel",
         "updated": "Relationship updated",
         "will_remove": "The current assignment will be removed",
+        "primary": "Primary",
+        "last_parcel": "A sensor must keep at least one parcel",
         "cancel": "Cancel",
         "save": "Save",
         "saved": "Saved",

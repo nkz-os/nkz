@@ -1911,6 +1911,8 @@
         "located_in": "Ubicat a la parcel·la",
         "updated": "Relació actualitzada",
         "will_remove": "S'eliminarà l'assignació actual",
+        "primary": "Principal",
+        "last_parcel": "Un sensor ha de mantenir almenys una parcel·la",
         "cancel": "Cancel·la",
         "save": "Desa",
         "saved": "Desat",

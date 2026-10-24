@@ -1911,6 +1911,8 @@
         "located_in": "Localizado na parcela",
         "updated": "Relação atualizada",
         "will_remove": "A atribuição atual será removida",
+        "primary": "Principal",
+        "last_parcel": "Um sensor deve manter pelo menos uma parcela",
         "cancel": "Cancelar",
         "save": "Salvar",
         "saved": "Salvo",
