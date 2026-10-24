@@ -1,0 +1,155 @@
+"""IoT Device creation in sdm-integration: validation order and compensation."""
+
+import functools
+import os
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+_TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+_SVC_DIR = os.path.normpath(os.path.join(_TEST_DIR, ".."))
+_SERVICES_DIR = os.path.normpath(os.path.join(_SVC_DIR, ".."))
+_COMMON_DIR = os.path.join(_SERVICES_DIR, "common")
+for _p in [_SVC_DIR, _SERVICES_DIR, _COMMON_DIR]:
+    if os.path.isdir(_p) and _p not in sys.path:
+        sys.path.insert(0, _p)
+
+PARCEL_A = "urn:ngsi-ld:AgriParcel:aaaa"
+POINT = {"type": "Point", "coordinates": [-1.6, 42.8]}
+ORION = "http://orion.invalid:1026"
+
+
+@pytest.fixture(scope="module")
+def sdm():
+    """Import sdm_api with auth stubbed, then restore every global touched."""
+    from flask import g
+
+    mp = pytest.MonkeyPatch()
+    mp.setenv("ORION_URL", ORION)
+    mp.setenv("MONGODB_URL", "mongodb://localhost:1/x")
+    saved = sys.modules.pop("sdm_api", None)
+
+    import auth_middleware
+
+    def fake_auth(f):
+        @functools.wraps(f)
+        def wrapper(*a, **k):
+            g.tenant = "test-tenant"
+            g.farmer_id = "user-1"
+            return f(*a, **k)
+
+        return wrapper
+
+    mp.setattr(auth_middleware, "require_auth", fake_auth)
+    mp.setattr(auth_middleware, "require_entity_ownership", lambda f: f)
+    import sdm_api
+
+    yield sdm_api
+
+    sys.modules.pop("sdm_api", None)
+    if saved is not None:
+        sys.modules["sdm_api"] = saved
+    mp.undo()
+
+
+@pytest.fixture
+def env(sdm):
+    """Patched collaborators; returns the client plus the recording mocks."""
+    ok = MagicMock(status_code=201, text="")
+    with patch.object(sdm.requests, "post", return_value=ok) as post, \
+         patch.object(sdm.requests, "delete", return_value=MagicMock(status_code=204, text="")) as delete, \
+         patch.object(sdm, "provision_iot_device", return_value={
+             "provisioned": True, "mqtt": {"topics": {}}, "api_key": "k", "error": None}) as prov, \
+         patch.object(sdm, "_check_tenant_limits", return_value=True), \
+         patch.object(sdm, "log_entity_operation"):
+        yield sdm.app.test_client(), post, delete, prov
+
+
+def _body(**over):
+    body = {
+        "name": "s1",
+        "hasDeviceProfile": {"type": "Relationship", "object": "urn:ngsi-ld:DeviceProfile:p1"},
+        "location": {"type": "GeoProperty", "value": POINT},
+        "controlledAsset": {"type": "Relationship", "object": [PARCEL_A]},
+    }
+    body.update(over)
+    return {k: v for k, v in body.items() if v is not None}
+
+
+URL = "/sdm/entities/Device/instances"
+
+
+def test_wizard_body_with_has_device_profile_is_provisioned(env):
+    client, post, _, prov = env
+    r = client.post(URL, json=_body())
+    assert r.status_code == 201
+    assert prov.call_args.kwargs["profile_id"] == "p1"
+
+
+def test_legacy_ref_device_profile_is_accepted(env):
+    client, post, _, prov = env
+    body = _body(hasDeviceProfile=None, refDeviceProfile={"type": "Relationship", "object": "p1"})
+    r = client.post(URL, json=body)
+    assert r.status_code == 201
+    assert prov.call_args.kwargs["profile_id"] == "p1"
+    sent = post.call_args.kwargs["json"]
+    assert "hasDeviceProfile" in sent
+    assert "refDeviceProfile" not in sent
+
+
+def test_missing_profile_writes_nothing(env):
+    client, post, _, prov = env
+    r = client.post(URL, json=_body(hasDeviceProfile=None))
+    assert r.status_code == 400
+    post.assert_not_called()
+    prov.assert_not_called()
+
+
+@pytest.mark.parametrize("over", [
+    {"location": None},
+    {"location": {"type": "GeoProperty", "value": {"type": "Polygon", "coordinates": []}}},
+    {"controlledAsset": None},
+    {"controlledAsset": {"type": "Relationship", "object": []}},
+])
+def test_device_without_point_or_parcel_writes_nothing(env, over):
+    client, post, _, prov = env
+    r = client.post(URL, json=_body(**over))
+    assert r.status_code == 400
+    post.assert_not_called()
+
+
+def test_bare_geojson_point_is_accepted(env):
+    client, post, _, _ = env
+    assert client.post(URL, json=_body(location=POINT)).status_code == 201
+
+
+def test_parcel_links_normalization(sdm):
+    f = sdm._parcel_links
+    assert f(PARCEL_A) == [PARCEL_A]
+    assert f({"object": PARCEL_A}) == [PARCEL_A]
+    assert f({"object": [PARCEL_A, "urn:b"]}) == [PARCEL_A, "urn:b"]
+    assert f([{"object": PARCEL_A}, "urn:b", PARCEL_A]) == [PARCEL_A, "urn:b"]
+    assert f(None) == []
+
+
+def test_non_device_iot_type_needs_only_profile(env):
+    client, post, _, prov = env
+    body = _body(location=None, controlledAsset=None)
+    r = client.post("/sdm/entities/WeatherStation/instances", json=body)
+    assert r.status_code == 201
+
+
+def test_regenerate_key_reads_has_device_profile(sdm):
+    entity = {
+        "id": "urn:ngsi-ld:Device:d1", "type": "Device",
+        "hasDeviceProfile": {"type": "Relationship", "object": "urn:ngsi-ld:DeviceProfile:p9"},
+    }
+    got = MagicMock(status_code=200)
+    got.json.return_value = entity
+    with patch.object(sdm.requests, "get", return_value=got), \
+         patch.object(sdm, "provision_iot_device", return_value={
+             "provisioned": True, "api_key": "k", "mqtt": {}, "error": None}) as prov:
+        r = sdm.app.test_client().post("/sdm/entities/urn:ngsi-ld:Device:d1/iot/regenerate-key")
+    assert r.status_code == 200
+    assert prov.call_args.kwargs["profile_id"] == "p9"

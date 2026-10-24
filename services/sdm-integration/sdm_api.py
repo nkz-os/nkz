@@ -68,6 +68,47 @@ def mqtt_endpoint_for_devices() -> dict:
 # Types that require IoT provisioning
 IOT_ENTITY_TYPES = {'Device', 'AgriSensor', 'Sensor', 'Actuator', 'WeatherStation', 'ManufacturingMachine', 'LivestockAnimal', 'AgriculturalMachine'}
 
+
+def _device_profile_id(attrs: dict):
+    """Profile id from hasDeviceProfile (canonical) or refDeviceProfile (legacy).
+
+    Accepts a Relationship ({'object': urn}) or a bare string; returns the last
+    ':' segment of a URN, or the bare id.
+    """
+    for key in ('hasDeviceProfile', 'refDeviceProfile'):
+        ref = attrs.get(key)
+        if isinstance(ref, dict):
+            ref = ref.get('object')
+        if isinstance(ref, str) and ref:
+            return ref.split(':')[-1] if ':' in ref else ref
+    return None
+
+
+def _parcel_links(value) -> list:
+    """Normalize a parcel link to an ordered, de-duplicated list of URNs.
+
+    Accepts a string, {'object': str | list}, or a list of those.
+    """
+    if value is None:
+        return []
+    items = value if isinstance(value, list) else [value]
+    urns = []
+    for item in items:
+        if isinstance(item, dict):
+            urns.extend(_parcel_links(item.get('object')))
+        elif isinstance(item, str) and item and item not in urns:
+            urns.append(item)
+    return list(dict.fromkeys(urns))
+
+
+def _point_location(loc):
+    """GeoJSON Point from a GeoProperty ({'value': Point}) or a bare Point, else None."""
+    if isinstance(loc, dict) and loc.get('type') == 'GeoProperty':
+        loc = loc.get('value')
+    if isinstance(loc, dict) and loc.get('type') == 'Point' and loc.get('coordinates'):
+        return loc
+    return None
+
 # SOTA: Use local unified context from API Gateway
 CONTEXT_URL = os.getenv('CONTEXT_URL', 'http://api-gateway-service:5000/ngsi-ld-context.json')
 PLATFORM_API_URL = os.getenv("PLATFORM_API_URL", "http://api-gateway-service:5000").rstrip("/")
@@ -782,6 +823,24 @@ def create_entity_instance(entity_type):
         if not entity_id.startswith('urn:ngsi-ld:'):
             entity_id = f"urn:ngsi-ld:{entity_type}:{entity_id}"
         
+        # IoT types: validate everything BEFORE writing to Orion, so a rejected
+        # request leaves no orphan entity behind.
+        profile_id = None
+        parcels = []
+        if entity_type in IOT_ENTITY_TYPES:
+            profile_id = _device_profile_id(data)
+            if not profile_id:
+                return jsonify({
+                    'error': f'DeviceProfile is required for IoT entity type {entity_type}. '
+                             'Provide hasDeviceProfile as a Relationship with a valid profile ID.'
+                }), 400
+            if entity_type == 'Device':
+                if not _point_location(data.get('location')):
+                    return jsonify({'error': 'Device requires a Point location.'}), 400
+                parcels = _parcel_links(data.get('controlledAsset'))
+                if not parcels:
+                    return jsonify({'error': 'Device requires at least one parcel in controlledAsset.'}), 400
+
         # Build NGSI-LD compliant entity with unified SOTA context
         entity_data = {
             '@context': SOTA_CONTEXT,
@@ -803,6 +862,18 @@ def create_entity_instance(entity_type):
                     'value': value
                 }
         
+        if entity_type in IOT_ENTITY_TYPES:
+            # Canonical profile link is hasDeviceProfile; drop the legacy name
+            legacy = entity_data.pop('refDeviceProfile', None)
+            if legacy is not None and 'hasDeviceProfile' not in entity_data:
+                entity_data['hasDeviceProfile'] = (
+                    legacy if isinstance(legacy, dict) and legacy.get('type') == 'Relationship'
+                    else {'type': 'Relationship', 'object': profile_id}
+                )
+            if entity_type == 'Device':
+                # Canonical parcel link: always a list, even with one parcel
+                entity_data['controlledAsset'] = {'type': 'Relationship', 'object': parcels}
+
         # Send to Orion-LD
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
         headers = inject_fiware_headers({}, g.tenant, body=entity_data)
@@ -847,20 +918,6 @@ def create_entity_instance(entity_type):
                 device_name = data.get('name', entity_id)
                 if isinstance(device_name, dict):
                     device_name = device_name.get('value', entity_id)
-
-                # Extract Profile ID from Relationship (mandatory for IoT types)
-                profile_id = None
-                if 'hasDeviceProfile' in data:
-                    ref = data['hasDeviceProfile']
-                    if isinstance(ref, dict) and 'object' in ref:
-                         ref_obj = ref['object']
-                         profile_id = ref_obj.split(':')[-1] if ':' in ref_obj else ref_obj
-
-                if not profile_id:
-                    return jsonify({
-                        'error': f'DeviceProfile is required for IoT entity type {entity_type}. '
-                                 'Provide hasDeviceProfile as a Relationship with a valid profile ID.'
-                    }), 400
 
                 # Provision in IoT Agent
                 iot_result = provision_iot_device(
@@ -1135,17 +1192,11 @@ def regenerate_iot_key(entity_id):
              val = entity['name']
              device_name = val['value'] if isinstance(val, dict) and 'value' in val else val
 
-        # Extract profile_id from refDeviceProfile Relationship
-        profile_id = None
-        if 'refDeviceProfile' in entity:
-            ref = entity['refDeviceProfile']
-            if isinstance(ref, dict) and 'object' in ref:
-                ref_obj = ref['object']
-                profile_id = ref_obj.split(':')[-1] if ':' in ref_obj else ref_obj
+        profile_id = _device_profile_id(entity)
 
         if not profile_id:
             return jsonify({
-                'error': 'Entity has no refDeviceProfile. Cannot regenerate key without a valid DeviceProfile. '
+                'error': 'Entity has no hasDeviceProfile. Cannot regenerate key without a valid DeviceProfile. '
                          'Re-provision the sensor with a profile first.'
             }), 400
 
