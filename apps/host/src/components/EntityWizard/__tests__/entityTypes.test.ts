@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ENTITY_TYPE_METADATA, ENTITY_CATEGORIES } from '../entityTypes';
+import { ENTITY_TYPE_METADATA, ENTITY_CATEGORIES, searchEntityTypes } from '../entityTypes';
 
 describe('ENTITY_TYPE_METADATA', () => {
   it('does not offer AgriCrop as a creatable entity type', () => {
@@ -30,5 +30,23 @@ describe('ENTITY_CATEGORIES', () => {
 
   it('keeps AgriSensor metadata so existing entities still render', () => {
     expect(Object.keys(ENTITY_TYPE_METADATA)).toContain('AgriSensor');
+  });
+});
+
+describe('searchEntityTypes', () => {
+  const label = (t: string) => t;
+
+  it.each(['sensor', 'sonda', 'probe', 'humedad'])('"%s" yields Device and never AgriSensor', term => {
+    const r = searchEntityTypes(term, null, label);
+    expect(r).toContain('Device');
+    expect(r).not.toContain('AgriSensor');
+  });
+
+  it('never lists AgriSensor without a search term either', () => {
+    expect(searchEntityTypes('', null, label)).not.toContain('AgriSensor');
+  });
+
+  it('still returns category types', () => {
+    expect(searchEntityTypes('viñedo', null, label)).toContain('Vineyard');
   });
 });

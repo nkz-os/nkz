@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { UnifiedAsset } from '@/types/assets';
 
-const { mergeSDMEntity, deleteSDMEntityAttribute, updateSDMEntity } = vi.hoisted(() => ({
+const { mergeSDMEntity, deleteSDMEntityAttribute, updateSDMEntity, invalidateEntityCache } = vi.hoisted(() => ({
+  invalidateEntityCache: vi.fn(),
   mergeSDMEntity: vi.fn(),
   deleteSDMEntityAttribute: vi.fn(),
   updateSDMEntity: vi.fn(),
@@ -10,6 +11,7 @@ const { mergeSDMEntity, deleteSDMEntityAttribute, updateSDMEntity } = vi.hoisted
 
 vi.mock('@/services/api', () => ({
   default: { mergeSDMEntity, deleteSDMEntityAttribute, updateSDMEntity },
+  invalidateEntityCache,
 }));
 vi.mock('@/context/I18nContext', () => ({
   useI18n: () => ({ t: (key: string) => key }),
@@ -47,9 +49,46 @@ beforeEach(() => {
   mergeSDMEntity.mockReset().mockResolvedValue(undefined);
   deleteSDMEntityAttribute.mockReset().mockResolvedValue(undefined);
   updateSDMEntity.mockReset();
+  invalidateEntityCache.mockReset();
 });
 
 describe('AssetRelationshipModal', () => {
+  it('invalidates the asset type cache after a save, before onSuccess', async () => {
+    const order: string[] = [];
+    invalidateEntityCache.mockImplementation(() => order.push('invalidate'));
+    const onSuccess = vi.fn(() => order.push('onSuccess'));
+    render(
+      <AssetRelationshipModal
+        asset={child({ id: 'urn:ngsi-ld:Device:d1' })}
+        potentialParents={parents}
+        onClose={vi.fn()}
+        onSuccess={onSuccess}
+      />,
+    );
+    fireEvent.click(screen.getByText('South field'));
+    fireEvent.click(screen.getByText('entities.assets.assign.save'));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(invalidateEntityCache).toHaveBeenCalledWith('AgriCrop');
+    expect(order).toEqual(['invalidate', 'onSuccess']);
+  });
+
+  it('does not invalidate when the save fails', async () => {
+    mergeSDMEntity.mockRejectedValue(new Error('boom'));
+    render(
+      <AssetRelationshipModal
+        asset={child({ id: 'urn:ngsi-ld:Device:d1' })}
+        potentialParents={parents}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByText('South field'));
+    fireEvent.click(screen.getByText('entities.assets.assign.save'));
+    await waitFor(() => expect(mergeSDMEntity).toHaveBeenCalled());
+    await new Promise(r => setTimeout(r, 0));
+    expect(invalidateEntityCache).not.toHaveBeenCalled();
+  });
+
   it('assigns a parcel by merging hasAgriParcel into the entity', async () => {
     const onSuccess = vi.fn();
     render(

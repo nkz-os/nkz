@@ -1,4 +1,4 @@
-import api from '@/services/api';
+import api, { invalidateEntityCache } from '@/services/api';
 import { parcelLinksFragment } from '@/utils/parcelLinks';
 import type { IoTSensorFormData } from '../types';
 import type { MqttCredentials } from '../MqttCredentialsModal';
@@ -78,6 +78,9 @@ export async function submitIoTSensor(
 
   // Single call: entity creation + IoT Agent provisioning + MQTT credentials
   const result = await api.createSDMIoTEntity(entityType, body);
+
+  // Drop the cached list so the asset tree shows the new entity
+  invalidateEntityCache(entityType);
 
   // Extract MQTT credentials from SDM Integration response
   let mqttCredentials: MqttCredentials | null = null;

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createSDMIoTEntity } = vi.hoisted(() => ({ createSDMIoTEntity: vi.fn() }));
-vi.mock('@/services/api', () => ({ default: { createSDMIoTEntity } }));
+const { createSDMIoTEntity, invalidateEntityCache } = vi.hoisted(() => ({
+  createSDMIoTEntity: vi.fn(),
+  invalidateEntityCache: vi.fn(),
+}));
+vi.mock('@/services/api', () => ({ default: { createSDMIoTEntity }, invalidateEntityCache }));
 
 import { submitIoTSensor } from '../submission/submitIoTSensor';
 import { parcelLinksFragment } from '@/utils/parcelLinks';
@@ -31,6 +34,7 @@ function form(over: Partial<IoTSensorFormData> = {}): IoTSensorFormData {
 describe('submitIoTSensor', () => {
   beforeEach(() => {
     createSDMIoTEntity.mockReset();
+    invalidateEntityCache.mockReset();
     createSDMIoTEntity.mockResolvedValue({});
   });
 
@@ -47,9 +51,15 @@ describe('submitIoTSensor', () => {
     expect(createSDMIoTEntity.mock.calls[0][1].controlledAsset).toBeUndefined();
   });
 
+  it('invalidates the entity type cache after a successful create', async () => {
+    await submitIoTSensor('Device', form());
+    expect(invalidateEntityCache).toHaveBeenCalledWith('Device');
+  });
+
   it('propagates a provisioning failure (no credentials result)', async () => {
     createSDMIoTEntity.mockRejectedValue(new Error('502'));
     await expect(submitIoTSensor('Device', form())).rejects.toThrow('502');
+    expect(invalidateEntityCache).not.toHaveBeenCalled();
   });
 });
 

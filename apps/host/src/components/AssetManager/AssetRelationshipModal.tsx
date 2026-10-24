@@ -16,7 +16,7 @@ import {
   AlertCircle,
   CheckCircle,
 } from 'lucide-react';
-import api from '@/services/api';
+import api, { invalidateEntityCache } from '@/services/api';
 import { UnifiedAsset, assetTypeLabel } from '@/types/assets';
 import { logger } from '@/utils/logger';
 import { Button, Checkbox, Input } from '@nekazari/ui-kit';
@@ -123,6 +123,9 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
         await applyOperation(asset.id, operation);
       }
       
+      // Drop the cached list so the refresh after onSuccess reads fresh data
+      invalidateEntityCache(asset.type);
+
       setSuccess(true);
       
       // Close after short delay to show success
