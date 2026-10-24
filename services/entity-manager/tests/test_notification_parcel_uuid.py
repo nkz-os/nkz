@@ -69,3 +69,18 @@ def test_parcel_ref_legacy_parcel_id_fallback():
     assert nh._parcel_ref({"parcelId": {"value": A}}) == A
     assert nh._parcel_ref({"controlledAsset": {"object": []}, "parcelId": B}) == B
     assert nh._parcel_ref({}) is None
+
+
+PARK = "urn:ngsi-ld:AgriSolarPark:p1"
+
+
+def test_parcel_ref_skips_park_owner_and_takes_first_parcel():
+    assert nh._parcel_ref(
+        {"controlledAsset": {"type": "Relationship", "object": [PARK, A]}}
+    ) == A
+
+
+def test_parcel_ref_park_only_falls_back_to_legacy_parcel_id():
+    park_only = {"type": "Relationship", "object": [PARK]}
+    assert nh._parcel_ref({"controlledAsset": park_only}) is None
+    assert nh._parcel_ref({"controlledAsset": park_only, "parcelId": B}) == B

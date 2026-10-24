@@ -86,23 +86,28 @@ def _extract_prop(entity: dict, key: str) -> Any:
     return prop
 
 
-def _first_urn(value: Any) -> Optional[str]:
-    """First usable URN in a string | {object: ...} | list of those."""
+def _first_urn(value: Any, prefix: str = "") -> Optional[str]:
+    """First usable URN (starting with `prefix`) in a string | {object: ...} | list of those."""
     if isinstance(value, str):
-        return value if value and value != "urn:ngsi-ld:null" else None
+        if value and value != "urn:ngsi-ld:null" and value.startswith(prefix):
+            return value
+        return None
     if isinstance(value, dict):
-        return _first_urn(value.get("object"))
+        return _first_urn(value.get("object"), prefix)
     if isinstance(value, list):
         for item in value:
-            urn = _first_urn(item)
+            urn = _first_urn(item, prefix)
             if urn:
                 return urn
     return None
 
 
 def _parcel_ref(entity: dict) -> Optional[str]:
-    """Primary parcel URN of a device: first of `controlledAsset`, else legacy `parcelId`."""
-    return _first_urn(entity.get("controlledAsset")) or _extract_prop(entity, "parcelId") or None
+    """Primary parcel URN of a device: first parcel URN of `controlledAsset`, else legacy `parcelId`.
+
+    The list may start with a non-parcel owner (e.g. a solar park); those are skipped.
+    """
+    return _first_urn(entity.get("controlledAsset"), "urn:ngsi-ld:AgriParcel:") or _extract_prop(entity, "parcelId") or None
 
 
 def _compute_severity(probability_score: float) -> str:
