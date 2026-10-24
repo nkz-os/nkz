@@ -36,3 +36,36 @@ def test_non_uuid_returns_none():
     assert nh._parcel_uuid_from_urn("urn:ngsi-ld:AgriParcel:not-a-uuid") is None
     assert nh._parcel_uuid_from_urn("") is None
     assert nh._parcel_uuid_from_urn(None) is None
+
+
+A = "urn:ngsi-ld:AgriParcel:a"
+B = "urn:ngsi-ld:AgriParcel:b"
+
+
+def test_parcel_ref_list_object_takes_first():
+    assert nh._parcel_ref(
+        {"controlledAsset": {"type": "Relationship", "object": [A, B]}}
+    ) == A
+
+
+def test_parcel_ref_string_object_and_plain_string():
+    assert nh._parcel_ref({"controlledAsset": {"type": "Relationship", "object": A}}) == A
+    assert nh._parcel_ref({"controlledAsset": A}) == A
+
+
+def test_parcel_ref_list_of_objects_takes_first():
+    assert nh._parcel_ref(
+        {"controlledAsset": [{"type": "Relationship", "object": A}, {"object": B}]}
+    ) == A
+
+
+def test_parcel_ref_skips_empty_and_null_entries():
+    assert nh._parcel_ref(
+        {"controlledAsset": {"object": ["", "urn:ngsi-ld:null", B]}}
+    ) == B
+
+
+def test_parcel_ref_legacy_parcel_id_fallback():
+    assert nh._parcel_ref({"parcelId": {"value": A}}) == A
+    assert nh._parcel_ref({"controlledAsset": {"object": []}, "parcelId": B}) == B
+    assert nh._parcel_ref({}) is None

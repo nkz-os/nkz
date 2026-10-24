@@ -86,14 +86,23 @@ def _extract_prop(entity: dict, key: str) -> Any:
     return prop
 
 
+def _first_urn(value: Any) -> Optional[str]:
+    """First usable URN in a string | {object: ...} | list of those."""
+    if isinstance(value, str):
+        return value if value and value != "urn:ngsi-ld:null" else None
+    if isinstance(value, dict):
+        return _first_urn(value.get("object"))
+    if isinstance(value, list):
+        for item in value:
+            urn = _first_urn(item)
+            if urn:
+                return urn
+    return None
+
+
 def _parcel_ref(entity: dict) -> Optional[str]:
-    """Parcel URN of a device: `controlledAsset` (SDM), else legacy `parcelId`."""
-    asset = entity.get("controlledAsset")
-    if isinstance(asset, dict) and asset.get("object"):
-        return asset["object"]
-    if isinstance(asset, str) and asset:
-        return asset
-    return _extract_prop(entity, "parcelId") or None
+    """Primary parcel URN of a device: first of `controlledAsset`, else legacy `parcelId`."""
+    return _first_urn(entity.get("controlledAsset")) or _extract_prop(entity, "parcelId") or None
 
 
 def _compute_severity(probability_score: float) -> str:
