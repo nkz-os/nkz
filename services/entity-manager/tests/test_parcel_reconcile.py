@@ -359,3 +359,64 @@ def test_teardown_failure_marks_error_with_backoff():
     assert merr.call_args.args[3] == "teardown 502"
     drow.assert_not_called()
     assert result["errors"] == 1
+
+
+def test_retry_accepts_202_from_module():
+    """A module that queues the work answers 202: that is a success, as on the first dispatch."""
+    rows = [{"parcel_id": "urn:ngsi-ld:AgriParcel:p1", "module_id": "soil", "enabled": True,
+             "setup_status": "error", "retry_count": 4, "next_retry_at": None}]
+    with patch.object(pr, "get_live_parcel_ids", return_value={"urn:ngsi-ld:AgriParcel:p1"}), \
+         patch.object(pr, "get_rows", return_value=rows), \
+         patch.object(pr, "get_auto_provision_modules", return_value=[]), \
+         patch.object(pr, "dispatch_to_module", return_value=(202, {"status": "accepted"})), \
+         patch.object(pr, "mark_ok") as ok, \
+         patch.object(pr, "mark_error") as merr, \
+         patch.object(pr, "find_backstop_orphans", return_value=[]):
+        result = pr.reconcile_tenant("acmefarm")
+    ok.assert_called_once_with("acmefarm", "urn:ngsi-ld:AgriParcel:p1", "soil")
+    merr.assert_not_called()
+    assert result["retried"] == 1
+
+
+def test_teardown_accepts_202_from_module():
+    rows = [{"parcel_id": "urn:ngsi-ld:AgriParcel:dead", "module_id": "soil", "enabled": True,
+             "setup_status": "ok", "retry_count": 0, "next_retry_at": None}]
+    with patch.object(pr, "get_live_parcel_ids", return_value=set()), \
+         patch.object(pr, "get_rows", return_value=rows), \
+         patch.object(pr, "get_auto_provision_modules", return_value=[]), \
+         patch.object(pr, "dispatch_to_module", return_value=(202, {})), \
+         patch.object(pr, "delete_row") as drow, \
+         patch.object(pr, "mark_error") as merr, \
+         patch.object(pr, "find_backstop_orphans", return_value=[]):
+        pr.reconcile_tenant("acmefarm")
+    drow.assert_called_once_with("acmefarm", "urn:ngsi-ld:AgriParcel:dead", "soil")
+    merr.assert_not_called()
+
+
+def test_retry_of_disabled_row_sends_deactivate():
+    """A failed deactivation is retried as a deactivation, never as an activation."""
+    rows = [{"parcel_id": "urn:ngsi-ld:AgriParcel:p1", "module_id": "carbon", "enabled": False,
+             "setup_status": "error", "retry_count": 1, "next_retry_at": None}]
+    with patch.object(pr, "get_live_parcel_ids", return_value={"urn:ngsi-ld:AgriParcel:p1"}), \
+         patch.object(pr, "get_rows", return_value=rows), \
+         patch.object(pr, "get_auto_provision_modules", return_value=[]), \
+         patch.object(pr, "dispatch_to_module", return_value=(200, {})) as disp, \
+         patch.object(pr, "mark_ok"), \
+         patch.object(pr, "find_backstop_orphans", return_value=[]):
+        pr.reconcile_tenant("acmefarm")
+    assert disp.call_args.kwargs["action"] == "deactivate"
+
+
+def test_get_rows_selects_enabled():
+    cur = MagicMock()
+    cur.description = [("tenant_id",), ("parcel_id",), ("module_id",), ("enabled",),
+                       ("setup_status",), ("retry_count",), ("next_retry_at",)]
+    cur.fetchall.return_value = [
+        ("acmefarm", "urn:ngsi-ld:AgriParcel:aaa", "weather", False, "error", 1, None),
+    ]
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    with patch.object(pr, "_get_db", return_value=conn):
+        rows = pr.get_rows("acmefarm")
+    assert "enabled" in cur.execute.call_args.args[0]
+    assert rows[0]["enabled"] is False

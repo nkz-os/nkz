@@ -190,7 +190,7 @@ def get_rows(tenant_id: str) -> list[dict]:
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT tenant_id, parcel_id, module_id, setup_status,"
+            "SELECT tenant_id, parcel_id, module_id, enabled, setup_status,"
             " retry_count, next_retry_at"
             " FROM tenant_parcel_modules WHERE tenant_id = %s",
             (tenant_id,),
@@ -204,6 +204,10 @@ def get_rows(tenant_id: str) -> list[dict]:
 
 
 _BACKOFF = [30, 120, 600, 3600]
+
+# A module that queues the work answers 202: accepted counts as done, as on
+# the first dispatch in blueprints/modules.py.
+_DISPATCH_OK = (200, 201, 202, 204)
 
 
 def backoff_seconds(retry_count: int) -> int:
@@ -418,7 +422,8 @@ def reconcile_tenant(tenant_id: str) -> dict:
         if r["parcel_id"] not in live:
             continue  # handled by teardown below
         if r["setup_status"] in ("error", "pending") and is_due_for_retry(r, now):
-            _dispatch(tenant_id, r["parcel_id"], r["module_id"], "activate",
+            action = "activate" if r.get("enabled", True) else "deactivate"
+            _dispatch(tenant_id, r["parcel_id"], r["module_id"], action,
                       r.get("retry_count", 0), metrics, "retried")
 
     # 5. TEARDOWN: rows whose parcel is gone. Honors the same backoff as
@@ -442,7 +447,7 @@ def reconcile_tenant(tenant_id: str) -> dict:
             module_id=r["module_id"], tenant_id=tenant_id,
             parcel_id=r["parcel_id"], action="teardown",
         )
-        if status in (200, 201, 204):
+        if status in _DISPATCH_OK:
             delete_row(tenant_id, r["parcel_id"], r["module_id"])
             metrics["torn_down"] += 1
         else:
@@ -463,7 +468,7 @@ def _dispatch(tenant_id, parcel_id, module_id, action, retry_count, metrics, key
     status, result = dispatch_to_module(
         module_id=module_id, tenant_id=tenant_id, parcel_id=parcel_id, action=action,
     )
-    if status in (200, 201, 204):
+    if status in _DISPATCH_OK:
         mark_ok(tenant_id, parcel_id, module_id)
         metrics[key] += 1
     else:
