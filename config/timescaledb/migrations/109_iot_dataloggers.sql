@@ -5,22 +5,24 @@
 
 CREATE TABLE IF NOT EXISTS public.iot_dataloggers (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id               TEXT NOT NULL,
+    tenant_id               TEXT NOT NULL CHECK (tenant_id <> ''),
     name                    TEXT NOT NULL,
     kind                    TEXT NOT NULL CHECK (kind IN ('datak', 'generic_mqtt')),
     mqtt_username           TEXT NOT NULL UNIQUE,
     status                  TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     credentials_rotated_at  TIMESTAMPTZ,
-    revoked_at              TIMESTAMPTZ
+    revoked_at              TIMESTAMPTZ,
+    UNIQUE (id, tenant_id)
 );
 
 CREATE TABLE IF NOT EXISTS public.iot_datalogger_devices (
-    datalogger_id  UUID NOT NULL REFERENCES public.iot_dataloggers (id) ON DELETE RESTRICT,
-    tenant_id      TEXT NOT NULL,
+    datalogger_id  UUID NOT NULL,
+    tenant_id      TEXT NOT NULL CHECK (tenant_id <> ''),
     device_urn     TEXT NOT NULL,
     external_id    TEXT NOT NULL,
     PRIMARY KEY (datalogger_id, device_urn),
+    FOREIGN KEY (datalogger_id, tenant_id) REFERENCES public.iot_dataloggers (id, tenant_id) ON DELETE RESTRICT,
     UNIQUE (tenant_id, device_urn)
 );
 
@@ -29,8 +31,6 @@ ALTER TABLE public.iot_datalogger_devices OWNER TO nkz_core;
 
 CREATE INDEX IF NOT EXISTS idx_iot_dataloggers_tenant
     ON public.iot_dataloggers (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_iot_datalogger_devices_tenant
-    ON public.iot_datalogger_devices (tenant_id);
 
 ALTER TABLE public.iot_dataloggers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.iot_dataloggers FORCE ROW LEVEL SECURITY;
