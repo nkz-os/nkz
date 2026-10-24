@@ -299,3 +299,16 @@ def test_ensure_subscriptions_with_an_empty_list_does_not_fall_back_to_all():
         notif.ensure_device_measurement_subscriptions(tenants=[])
     reg.return_value.ensure_all.assert_called_once_with([])
     active.assert_not_called()
+
+
+def test_ensure_subscriptions_returns_the_registrar_result_and_logs_errors(caplog):
+    import logging
+    import blueprints.notifications as notif
+
+    result = {"created": 0, "skipped": 0, "errors": [{"tenant": "tenant-a", "error": "500"}]}
+    with patch.object(notif, "SubscriptionRegistrar"), \
+         patch.object(notif.asyncio, "run", return_value=result), \
+         caplog.at_level(logging.INFO):
+        out = notif.ensure_device_measurement_subscriptions(tenants=["tenant-a"])
+    assert out is result
+    assert any(r.levelno == logging.ERROR and "errors=1" in r.getMessage() for r in caplog.records)

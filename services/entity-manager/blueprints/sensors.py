@@ -223,14 +223,22 @@ def _orion_create(tenant_id: str, entity: dict):
 def _ensure_bridge_subscription(tenant: str) -> None:
     """Device -> DeviceMeasurement subscription for this tenant.
 
-    A failure is logged and does not fail the registration: the subscription
-    is also ensured for every tenant at startup.
+    Without it the device would register but its telemetry never reaches the
+    timeseries, so a registrar error or exception fails the registration (502).
     """
     try:
         from blueprints.notifications import ensure_device_measurement_subscriptions
-        ensure_device_measurement_subscriptions(tenants=[tenant])
+        result = ensure_device_measurement_subscriptions(tenants=[tenant])
     except Exception as exc:
         logger.error("bridge subscription not ensured for tenant %s: %s", tenant, type(exc).__name__)
+        raise dataloggers.ApiError(502, 'Could not ensure the telemetry subscription',
+                                   'bridge_subscription')
+    errors = (result or {}).get('errors') if isinstance(result, dict) else None
+    if errors:
+        logger.error("bridge subscription not ensured for tenant %s: %d registrar error(s)",
+                     tenant, len(errors))
+        raise dataloggers.ApiError(502, 'Could not ensure the telemetry subscription',
+                                   'bridge_subscription')
 
 
 @sensors_bp.route('/api/sensors/register', methods=['POST'])
@@ -263,15 +271,18 @@ def register_sensor():
     if not external_id or not name or not profile_code or not data.get('datalogger_id'):
         raise dataloggers.ApiError(
             400, 'Missing required fields: external_id, name, profile, datalogger_id')
-    if not isinstance(external_id, str) or not dataloggers.EXTERNAL_ID_RE.match(external_id):
+    if not isinstance(external_id, str) or not dataloggers.EXTERNAL_ID_RE.fullmatch(external_id):
         raise dataloggers.ApiError(400, 'external_id must match [A-Za-z0-9_.-]{1,64}')
 
     location = data.get('location') or {}
     lat = _coordinate(location.get('lat'), 'lat')
     lon = _coordinate(location.get('lon'), 'lon')
     parcels = _parcel_links(data.get('controlledAsset'))
-    if not parcels:
-        raise dataloggers.ApiError(400, 'Device requires at least one parcel in controlledAsset.')
+    if (not parcels
+            or not all(u.startswith('urn:ngsi-ld:') for u in parcels)
+            or not any(u.startswith('urn:ngsi-ld:AgriParcel:') for u in parcels)):
+        raise dataloggers.ApiError(
+            400, 'controlledAsset must hold NGSI-LD URNs and at least one AgriParcel.')
 
     # Reads and validations first: nothing is written until all of them pass.
     datalogger = dataloggers.require_usable_datalogger(tenant_id, data['datalogger_id'])
@@ -360,19 +371,23 @@ def register_sensor():
         dataloggers.link_device(tenant_id, datalogger['id'], orion_entity_id, external_id)
         undo.push('link', lambda: dataloggers.undo_link(tenant_id, orion_entity_id))
 
-        dataloggers.reconcile_datalogger_acl(tenant_id, datalogger['id'])
+        acl = dataloggers.reconcile_datalogger_acl(tenant_id, datalogger['id'])
+
+        _ensure_bridge_subscription(tenant_id)
     except Exception:
         undo.unwind()
         raise
 
-    _ensure_bridge_subscription(tenant_id)
     logger.info("Registered sensor %s for tenant %s on datalogger %s",
                 external_id, tenant_id, datalogger['id'])
-    return jsonify({
+    body = {
         'entity_id': orion_entity_id,
         'topic': dataloggers.topic_for(apikey, external_id),
         'datalogger_id': datalogger['id'],
-    }), 201
+    }
+    if isinstance(acl, dict) and acl.get('needs_rotation'):
+        body['needs_rotation'] = True
+    return jsonify(body), 201
 
 
 # =============================================================================
@@ -445,8 +460,13 @@ def delete_datalogger(datalogger_id):
 @require_auth
 @_guard
 def move_device(device_urn):
-    dataloggers.move_device(_tenant(), device_urn, _body().get('datalogger_id'))
-    return jsonify({'entity_id': device_urn, 'datalogger_id': str(_body().get('datalogger_id'))}), 200
+    raw = _body().get('datalogger_id')
+    try:
+        target = str(uuid.UUID(str(raw)))
+    except (ValueError, AttributeError, TypeError):
+        raise dataloggers.ApiError(400, 'datalogger_id must be a valid id')
+    dataloggers.move_device(_tenant(), device_urn, target)
+    return jsonify({'entity_id': device_urn, 'datalogger_id': target}), 200
 
 
 @sensors_bp.route('/api/sensors/devices/<path:device_urn>/profile', methods=['PUT'])
@@ -473,7 +493,7 @@ def delete_sensor_device(device_urn):
 # =============================================================================
 
 
-_PROFILE_CODE = re.compile(r'^[A-Za-z0-9_.-]{1,64}$')
+_PROFILE_CODE = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 _VALUE_TYPES = ('Number', 'Text')
 
 
@@ -550,7 +570,7 @@ def create_sensor_profile():
     tenant = _tenant()
     data = _body()
     code = data.get('code')
-    if not isinstance(code, str) or not _PROFILE_CODE.match(code):
+    if not isinstance(code, str) or not _PROFILE_CODE.fullmatch(code):
         raise dataloggers.ApiError(400, 'Invalid code')
     name, description, mapping = _validated_profile(data)
     if _profile_visible(tenant, code):
@@ -602,7 +622,16 @@ def update_sensor_profile(code):
         raise dataloggers.ApiError(502, 'Database error', 'db')
     if not updated:
         raise dataloggers.ApiError(404, 'Profile not found')
-    return jsonify({'code': code, 'name': name, 'mapping': mapping}), 200
+    result = {'reprovisioned': [], 'failed': []}
+    try:
+        result = dataloggers.reprovision_profile_devices(
+            tenant, code, mapping.get('measurements') or [])
+    except Exception as exc:
+        # The profile row is saved; the devices keep their old attributes until re-saved.
+        logger.error("profile %s: devices could not be listed for re-provisioning: %s",
+                     code, type(exc).__name__)
+        result['error'] = 'device_listing_failed'
+    return jsonify({'code': code, 'name': name, 'mapping': mapping, **result}), 200
 
 
 @sensors_bp.route('/api/sensors/profiles', methods=['GET'])

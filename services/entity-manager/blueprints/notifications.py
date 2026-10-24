@@ -113,10 +113,12 @@ def ensure_device_measurement_subscriptions(tenants: Optional[List[str]] = None)
         **registrar_auth_kwargs(),
     )
     result = asyncio.run(registrar.ensure_all(tenants))
-    logger.info(
+    log = logger.error if result['errors'] else logger.info
+    log(
         'Device measurement subscription heal: created=%d skipped=%d errors=%d',
         result['created'], result['skipped'], len(result['errors']),
     )
+    return result
 
 
 def _notify_unauthorized() -> bool:

@@ -168,14 +168,76 @@ def test_register_unknown_profile_is_404():
     assert r.status_code == 404 and st.log == []
 
 
-def test_register_survives_a_failed_bridge_subscription():
-    """R8: the subscription heals at startup, so the device is still registered."""
+def test_register_fails_and_unwinds_when_the_bridge_subscription_raises():
+    """R8 (revised): without the subscription the telemetry never flows."""
     st = _state()
     st.fail["bridge"] = True
+    with wired(st) as w:
+        r = _register(client())
+    assert r.status_code == 502
+    assert r.get_json()["step"] == "bridge_subscription"
+    assert st.devices == [] and w.orion.entities == {}
+    assert ("iota", "delete", "S1") in st.log
+    assert st.role_topics[ROLE] == set()
+
+
+def test_register_fails_and_unwinds_when_the_registrar_reports_errors():
+    st = _state()
+    st.fail["bridge_errors"] = True
+    with wired(st) as w:
+        r = _register(client())
+    assert r.status_code == 502
+    assert r.get_json()["step"] == "bridge_subscription"
+    assert st.devices == [] and w.orion.entities == {}
+    assert ("iota", "delete", "S1") in st.log
+
+
+def test_register_reports_needs_rotation_when_the_broker_lost_the_client():
+    st = _state()
+    st.missing_clients.add(ROLE)
     with wired(st):
         r = _register(client())
     assert r.status_code == 201
-    assert len(st.devices) == 1
+    assert r.get_json()["needs_rotation"] is True
+
+
+@pytest.mark.parametrize("assets", [[], ["foo"], ["urn:ngsi-ld:AgriParkFoo:x"],
+                                    ["urn:ngsi-ld:Building:b1"],
+                                    "urn:ngsi-ld:Building:b1", [""]])
+def test_register_requires_urns_with_a_parcel(assets):
+    st = _state()
+    with wired(st) as w:
+        r = _register(client(), controlledAsset=assets)
+    assert r.status_code == 400
+    assert st.log == [] and w.orion.entities == {}
+
+
+def test_register_accepts_a_park_plus_a_parcel():
+    st = _state()
+    park = "urn:ngsi-ld:AgriPark:park1"
+    with wired(st) as w:
+        r = _register(client(), controlledAsset=[park, PARCEL])
+    assert r.status_code == 201, r.get_json()
+    ent = w.orion.entities[f"urn:ngsi-ld:Device:{TENANT}:S1"]
+    assert ent["controlledAsset"]["object"] == [park, PARCEL]
+
+
+def test_register_rejects_an_external_id_with_a_trailing_newline():
+    st = _state()
+    with wired(st):
+        r = _register(client(), external_id="S1\n")
+    assert r.status_code == 400 and st.log == []
+
+
+def test_register_fails_closed_on_an_apikey_that_widens_the_acl():
+    for bad in ("KEY/+", "KE#Y", "KE Y", "A/B"):
+        st = _state()
+        with wired(st) as w:
+            with patch.object(w.iota, "get_or_create_service_group", lambda *a, **k: bad):
+                r = _register(client())
+        assert r.status_code == 502, bad
+        assert r.get_json()["step"] == "service_group"
+        assert st.devices == [] and w.orion.entities == {}
 
 
 def test_mqtt_credentials_manager_is_not_called():
@@ -456,13 +518,6 @@ def test_rotate_of_a_revoked_datalogger_the_broker_lost_stays_disabled():
     assert st.dataloggers[DL]["status"] == "revoked"
 
 
-def test_generic_delete_keeps_old_behaviour_without_a_link_row():
-    import dataloggers
-    st = _state()
-    with wired(st):
-        assert dataloggers.has_datalogger_link(TENANT, f"urn:ngsi-ld:Device:{TENANT}:S9") is False
-
-
 def test_profile_change_logs_critical_when_the_old_profile_is_gone(caplog):
     st = _state()
     urn = _profile_setup(st)
@@ -473,3 +528,60 @@ def test_profile_change_logs_critical_when_the_old_profile_is_gone(caplog):
         r = _put_profile(client(), urn)
     assert r.status_code == 502 and r.get_json()["step"] == "orion_profile"
     assert any(rec.levelname == "CRITICAL" for rec in caplog.records)
+
+
+def _generic_delete(w, urn):
+    from flask import Flask, g
+    import blueprints.entities as entities
+    app = Flask(__name__)
+    view = entities.delete_instance
+    while hasattr(view, "__wrapped__"):
+        view = view.__wrapped__
+    with app.test_request_context(), patch.object(entities, "log_entity_operation"):
+        g.tenant, g.farmer_id = TENANT, "f1"
+        resp = view("Device", urn)
+    return resp[0] if isinstance(resp, tuple) else resp, (resp[1] if isinstance(resp, tuple) else resp.status_code)
+
+
+def test_generic_delete_with_a_failing_link_lookup_is_502_and_deletes_nothing():
+    import dataloggers
+    st = _state()
+    urn = seed_device(st, DL, "S1")
+    with wired(st) as w:
+        w.orion.entities[urn] = {"id": urn}
+        with patch.object(dataloggers, "get_db_connection_with_tenant",
+                          side_effect=RuntimeError("db down")):
+            _, status = _generic_delete(w, urn)
+        assert status == 502
+        assert urn in w.orion.entities
+    assert not any(e[0] == "iota" for e in st.log)
+    assert len(st.devices) == 1
+
+
+def test_generic_delete_retry_after_a_partial_delete_cleans_the_iota_device():
+    st = _state()
+    urn = seed_device(st, DL, "S1")
+    st.fail["iota_delete"] = True
+    with wired(st) as w:
+        w.orion.entities[urn] = {"id": urn}
+        _, status = _generic_delete(w, urn)
+        assert status == 502
+        assert st.devices == [] and urn in w.orion.entities  # link gone, entity kept
+        st.fail["iota_delete"] = False
+        st.log.clear()
+        resp, status = _generic_delete(w, urn)
+        assert status == 200
+        assert ("iota", "delete", "S1") in st.log
+        assert urn not in w.orion.entities
+
+
+def test_move_rejects_an_invalid_datalogger_id():
+    st = _state()
+    urn = seed_device(st, DL, "S1")
+    with wired(st):
+        c = client()
+        for bad in ("not-a-uuid", None, 5, ""):
+            r = c.put(f"/api/sensors/devices/{urn}/datalogger", headers=AUTH,
+                      content_type="application/json", data=json.dumps({"datalogger_id": bad}))
+            assert r.status_code == 400, bad
+    assert st.devices[0]["datalogger_id"] == DL

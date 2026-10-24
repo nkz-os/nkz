@@ -223,3 +223,37 @@ def test_create_with_a_bad_external_port_writes_nothing():
         r = _post(client(), "/api/sensors/dataloggers", {"name": "L", "kind": "datak"})
     assert r.status_code >= 400
     assert st.dataloggers == {} and not any(e[:2] == ("dynsec", "create_account") for e in st.log)
+
+
+def test_revoke_succeeds_when_the_broker_lost_the_client():
+    st = FakeState()
+    dl = seed_datalogger(st)
+    st.missing_clients.add("dl_aaaaaaaaaaaaaaaa")
+    with wired(st):
+        r = _post(client(), f"/api/sensors/dataloggers/{dl}/revoke")
+    assert r.status_code == 200
+    assert st.dataloggers[dl]["status"] == "revoked"
+
+
+def test_topic_for_rejects_an_apikey_that_widens_the_acl():
+    for bad in ("a+b", "a#", "a/b", "a b", "", "a\n"):
+        with pytest.raises(dataloggers.ApiError) as e:
+            dataloggers.topic_for(bad, "S1")
+        assert e.value.status == 502 and e.value.step == "service_group"
+    assert dataloggers.topic_for("KEY123", "S1") == "/KEY123/S1/attrs"
+
+
+def test_external_id_and_device_urn_reject_a_trailing_newline():
+    assert not dataloggers.EXTERNAL_ID_RE.fullmatch("S1\n")
+    with pytest.raises(dataloggers.ApiError):
+        dataloggers.parse_device_urn(TENANT, f"urn:ngsi-ld:Device:{TENANT}:S1\n")
+
+
+def test_missing_dynsec_credentials_are_logged_critical_at_startup(monkeypatch, caplog):
+    monkeypatch.delenv("MQTT_DYNSEC_USERNAME", raising=False)
+    monkeypatch.setenv("MQTT_DYNSEC_PASSWORD", "secret-value")
+    with caplog.at_level(logging.CRITICAL):
+        dataloggers.check_dynsec_config()
+    msgs = [r.getMessage() for r in caplog.records if r.levelno == logging.CRITICAL]
+    assert any("MQTT_DYNSEC_USERNAME" in m for m in msgs)
+    assert not any("secret-value" in m for m in msgs)

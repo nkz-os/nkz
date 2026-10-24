@@ -20,6 +20,7 @@ class FakeState:
         self.missing_clients = set()
         self.role_topics = {}
         self.fail = {}
+        self.iota_update_fail_for = set()
 
     @staticmethod
     def unique_violation():
@@ -223,6 +224,8 @@ def fake_dynsec(state):
 
     def disable(c, name):
         state.log.append(("dynsec", "disable", name))
+        if name in state.missing_clients:
+            raise _DynsecError("disableClient", "Client not found")
 
     def enable(c, name):
         state.log.append(("dynsec", "enable", name))
@@ -252,7 +255,7 @@ def fake_iota(state, apikey="KEY123"):
 
     def update_device_attributes(url, headers, device_id, attributes):
         state.log.append(("iota", "update", device_id))
-        if state.fail.get("iota_update"):
+        if state.fail.get("iota_update") or device_id in state.iota_update_fail_for:
             raise _IotAgentError(500, "boom")
 
     return SimpleNamespace(
@@ -392,6 +395,9 @@ def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
         state.log.append(("bridge", tuple(tenants or ())))
         if state.fail.get("bridge"):
             raise RuntimeError("bridge down")
+        if state.fail.get("bridge_errors"):
+            return {"created": 0, "skipped": 0, "errors": [{"tenant": "t", "error": "orion 500"}]}
+        return {"created": 1, "skipped": 0, "errors": []}
 
     import blueprints.notifications as notifications
 

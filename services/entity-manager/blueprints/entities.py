@@ -552,10 +552,11 @@ def delete_instance(entity_type, entity_id):
     """Delete specific entity instance"""
     try:
         import dataloggers
-        if (dataloggers.is_registered_device_urn(g.tenant, entity_id)
-                and dataloggers.has_datalogger_link(g.tenant, entity_id)):
+        if dataloggers.is_registered_device_urn(g.tenant, entity_id):
             # Sensors registered through /api/sensors/register also own an IoT Agent
             # device, a datalogger link and a broker ACL entry: remove them all.
+            # Every step is idempotent and a failed link lookup is a 502, never an
+            # Orion-only delete that would orphan the rest.
             try:
                 dataloggers.delete_device(g.tenant, entity_id)
             except dataloggers.ApiError as e:

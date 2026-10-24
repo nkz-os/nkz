@@ -110,11 +110,31 @@ def get_apikey(tenant: str) -> str:
         tenant, iota_url(), iota_headers(tenant), cbroker=ORION_URL)
     if not apikey:
         raise ApiError(502, 'IoT Agent service group unavailable', 'service_group')
+    return check_apikey(apikey)
+
+
+_UNSAFE_TOPIC_CHARS = re.compile(r'[+#/\s]')
+
+
+def check_apikey(apikey: str) -> str:
+    """An apikey becomes a topic level of the ACL: wildcards or separators would widen it."""
+    if not isinstance(apikey, str) or not apikey or _UNSAFE_TOPIC_CHARS.search(apikey):
+        logger.error("IoT Agent service key is not usable as a topic level")
+        raise ApiError(502, 'IoT Agent service key is not usable in a topic', 'service_group')
     return apikey
 
 
 def topic_for(apikey: str, external_id: str) -> str:
+    check_apikey(apikey)
     return f'/{apikey}/{external_id}/attrs'
+
+
+def check_dynsec_config() -> None:
+    """Startup check: datalogger routes fail closed per request without broker admin credentials."""
+    missing = [n for n in ('MQTT_DYNSEC_USERNAME', 'MQTT_DYNSEC_PASSWORD') if not os.getenv(n)]
+    if missing:
+        logger.critical("MQTT dynsec credentials missing (%s): datalogger routes will answer 502",
+                        ', '.join(missing))
 
 
 def _dynsec():
@@ -133,18 +153,9 @@ def parse_device_urn(tenant: str, urn: str) -> str:
     """The externalId of `urn:ngsi-ld:<Device|ManufacturingMachine>:<tenant>:<externalId>`."""
     parts = (urn or '').split(':')
     if (len(parts) != 5 or parts[:2] != ['urn', 'ngsi-ld'] or parts[2] not in DEVICE_TYPES
-            or parts[3] != tenant or not EXTERNAL_ID_RE.match(parts[4])):
+            or parts[3] != tenant or not EXTERNAL_ID_RE.fullmatch(parts[4])):
         raise ApiError(404, 'Device not found')
     return parts[4]
-
-
-def has_datalogger_link(tenant: str, urn: str) -> bool:
-    """True when the device has a datalogger link row (a lookup failure counts as no)."""
-    try:
-        return device_link(tenant, urn) is not None
-    except Exception as exc:
-        logger.warning("datalogger link lookup failed: %s", type(exc).__name__)
-        return False
 
 
 def is_registered_device_urn(tenant: str, urn: str) -> bool:
@@ -419,9 +430,13 @@ def set_datalogger_status(tenant: str, dl_id: str, revoke: bool) -> None:
         try:
             do(client, username)
         except Exception as exc:
-            conn.rollback()
-            logger.error("status change failed: datalogger=%s error=%s", username, type(exc).__name__)
-            raise ApiError(502, 'Could not change the MQTT account state', 'mqtt_account')
+            # A client the broker lost cannot connect anyway: revoking it is already true.
+            if revoke and _broker_error(exc) == _CLIENT_NOT_FOUND:
+                logger.warning("revoke: datalogger %s is unknown to the broker", username)
+            else:
+                conn.rollback()
+                logger.error("status change failed: datalogger=%s error=%s", username, type(exc).__name__)
+                raise ApiError(502, 'Could not change the MQTT account state', 'mqtt_account')
         try:
             conn.commit()
         except Exception:
@@ -661,3 +676,36 @@ def change_device_profile(tenant: str, urn: str, code: str) -> None:
                             "but the entity still has profile %s (previous profile not readable)",
                             external_id, code, old_code)
         raise ApiError(502, 'Entity update failed', 'orion_profile')
+
+
+def reprovision_profile_devices(tenant: str, code: str, measurements: list) -> dict:
+    """Push a profile's new attributes to the IoT Agent device of every device on it.
+
+    Source of truth for "device is on this profile": the Orion `profileCode` of the
+    tenant's linked devices (the attribute `change_device_profile` writes), restricted to
+    devices with a datalogger link (those are the ones that own an IoT Agent device).
+    Best effort per device: a failure is logged and listed, never raised.
+    """
+    out = {'reprovisioned': [], 'failed': []}
+    with get_db_connection_with_tenant(tenant) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT datalogger_id, device_urn, external_id FROM iot_datalogger_devices "
+                    "WHERE tenant_id = %s ORDER BY external_id", (tenant,))
+        links = cur.fetchall()
+    if not links:
+        return out
+    entities = _orion_devices(tenant, [d['device_urn'] for d in links])
+    for link in links:
+        urn = link['device_urn']
+        if _prop(entities.get(urn), 'profileCode') != code:
+            continue
+        try:
+            attrs = iot_agent.build_iota_attributes(measurements)
+            iot_agent.update_device_attributes(iota_url(), iota_headers(tenant),
+                                               link['external_id'], attrs)
+            out['reprovisioned'].append(urn)
+        except Exception as exc:
+            logger.error("profile re-provision failed: device=%s profile=%s error=%s",
+                         link['external_id'], code, type(exc).__name__)
+            out['failed'].append(urn)
+    return out

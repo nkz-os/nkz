@@ -168,3 +168,37 @@ def test_expression_may_use_only_the_profile_keys():
                         _body([dict(M_T, incomingKey="r3", expression="foo * 2")], code="b"))
     assert ok.status_code == 201, ok.get_json()
     assert bad.status_code == 400
+
+
+def test_profile_code_with_a_trailing_newline_is_rejected():
+    st = FakeState()
+    with wired(st):
+        r = post_json(client(), "/api/sensors/profiles", _body(code="station-a\n"))
+    assert r.status_code == 400
+    assert st.profiles == {}
+
+
+def test_put_reprovisions_linked_devices_on_that_profile_best_effort(caplog):
+    """R13: source = Orion profileCode of the tenant's linked devices."""
+    import logging
+    from tests.telemetry_fakes import seed_datalogger, seed_device
+    st = FakeState()
+    dl = seed_datalogger(st)
+    u1 = seed_device(st, dl, "S1")
+    u2 = seed_device(st, dl, "S2")
+    u3 = seed_device(st, dl, "S3")
+    st.iota_update_fail_for.add("S2")
+    with wired(st) as w, caplog.at_level(logging.ERROR):
+        c = client()
+        post_json(c, "/api/sensors/profiles", _body())
+        for urn, code in ((u1, "station-a"), (u2, "station-a"), (u3, "other")):
+            w.orion.entities[urn] = {"id": urn, "profileCode": {"type": "Property", "value": code}}
+        r = _put(c, "station-a", _body([M_H], name="Renamed"))
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body["reprovisioned"] == [u1]
+    assert body["failed"] == [u2]
+    assert ("iota", "update", "S1") in st.log and ("iota", "update", "S2") in st.log
+    assert not any(e == ("iota", "update", "S3") for e in st.log)
+    assert any("re-provision failed" in rec.getMessage() and rec.levelno == logging.ERROR
+               for rec in caplog.records)
