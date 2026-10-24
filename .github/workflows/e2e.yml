@@ -20,7 +20,8 @@ permissions:
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    # Pinned: visual baselines are rendered on this image; bump both together.
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
 
     steps:
