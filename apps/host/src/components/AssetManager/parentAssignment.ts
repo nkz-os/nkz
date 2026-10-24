@@ -9,7 +9,7 @@
 // DELETE on the attribute, never a null value.
 
 import { resolveParentRelationship } from '@/utils/entityRelations';
-import { parcelLinksFragment, readParcelLinks } from '@/utils/parcelLinks';
+import { parcelLinksFragment, readControlledLinks } from '@/utils/parcelLinks';
 import type { UnifiedAsset } from '@/types/assets';
 
 export type ParentChangeOperation =
@@ -56,7 +56,7 @@ export function isParcelLinkedDevice(asset: UnifiedAsset): boolean {
 export function planParcelLinksChange(entity: unknown, urns: string[]): ParentChangeOperation[] {
   const fragment = parcelLinksFragment(urns);
   const next = fragment.controlledAsset.object;
-  const current = readParcelLinks(entity);
+  const current = readControlledLinks(entity);
   if (next.length === current.length && next.every((urn, i) => urn === current[i])) return [];
   return [{ kind: 'merge', fragment }];
 }

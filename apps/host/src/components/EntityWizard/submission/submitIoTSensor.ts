@@ -1,5 +1,5 @@
 import api, { invalidateEntityCache } from '@/services/api';
-import { parcelLinksFragment } from '@/utils/parcelLinks';
+import { deviceLinks, parcelLinksFragment } from '@/utils/parcelLinks';
 import type { IoTSensorFormData } from '../types';
 import type { MqttCredentials } from '../MqttCredentialsModal';
 
@@ -60,7 +60,7 @@ export async function submitIoTSensor(
 
   // Parcel link (Device only): canonical list-valued controlledAsset
   if (entityType === 'Device') {
-    Object.assign(body, parcelLinksFragment(formData.parcels.map((p) => p.id)));
+    Object.assign(body, parcelLinksFragment(deviceLinks(formData.ownerParkId ?? null, formData.parcels.map((p) => p.id))));
   }
 
   if (formData.iconUrl) {

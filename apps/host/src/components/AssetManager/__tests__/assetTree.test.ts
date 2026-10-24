@@ -88,4 +88,28 @@ describe('buildAssetTree', () => {
       'urn:ngsi-ld:AgriParcel:b',
     ]);
   });
+
+  it('nests a park under its parcel and its sensor under the park, badge counting parcels only', () => {
+    const park = normalizeToAsset({
+      id: 'urn:ngsi-ld:AgriSolarPark:k',
+      type: 'AgriSolarPark',
+      hasAgriParcel: { type: 'Relationship', object: 'urn:ngsi-ld:AgriParcel:a' },
+    });
+    const sensor = normalizeToAsset({
+      id: 'urn:ngsi-ld:Device:d3',
+      type: 'Device',
+      controlledAsset: {
+        type: 'Relationship',
+        object: ['urn:ngsi-ld:AgriSolarPark:k', 'urn:ngsi-ld:AgriParcel:a'],
+      },
+    });
+    expect(park.parentId).toBe('urn:ngsi-ld:AgriParcel:a');
+    expect(sensor.parentId).toBe('urn:ngsi-ld:AgriSolarPark:k');
+    expect(sensor.extraParentCount).toBeUndefined();
+
+    const tree = buildAssetTree([asset('urn:ngsi-ld:AgriParcel:a', 'parcels'), park, sensor]);
+    expect(shape(tree)).toEqual([
+      { 'urn:ngsi-ld:AgriParcel:a': [{ 'urn:ngsi-ld:AgriSolarPark:k': ['urn:ngsi-ld:Device:d3'] }] },
+    ]);
+  });
 });

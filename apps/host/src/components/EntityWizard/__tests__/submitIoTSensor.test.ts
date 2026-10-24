@@ -46,6 +46,15 @@ describe('submitIoTSensor', () => {
     expect(body.controlledAsset).toEqual(parcelLinksFragment([P1, P2]).controlledAsset);
   });
 
+  it('puts the chosen park first in controlledAsset', async () => {
+    const K = 'urn:ngsi-ld:AgriSolarPark:k';
+    await submitIoTSensor('Device', form({ parcels: [parcel(P1)], ownerParkId: K }));
+    expect(createSDMIoTEntity.mock.calls[0][1].controlledAsset).toEqual({
+      type: 'Relationship',
+      object: [K, P1],
+    });
+  });
+
   it('omits controlledAsset for other sensor types', async () => {
     await submitIoTSensor('WeatherObserved', form({ parcels: [] }));
     expect(createSDMIoTEntity.mock.calls[0][1].controlledAsset).toBeUndefined();

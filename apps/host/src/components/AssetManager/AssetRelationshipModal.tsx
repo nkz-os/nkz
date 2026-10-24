@@ -21,7 +21,15 @@ import { UnifiedAsset, assetTypeLabel } from '@/types/assets';
 import { logger } from '@/utils/logger';
 import { Button, Checkbox, Input } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
-import { readParcelLinks } from '@/utils/parcelLinks';
+import {
+  deviceLinks,
+  parkOptionsFor,
+  readControlledLinks,
+  readLinkOwner,
+  readParcelLinks,
+  toParkOption,
+} from '@/utils/parcelLinks';
+import { SensorOwnerSelect } from '../EntityWizard/SensorOwnerSelect';
 import {
   canRemoveParent,
   isParcelLinkedDevice,
@@ -39,6 +47,8 @@ export interface AssetRelationshipModalProps {
   asset: UnifiedAsset;
   /** Parcels the asset can be placed under */
   potentialParents: UnifiedAsset[];
+  /** Solar parks a sensor can belong to (only used for Devices) */
+  solarParks?: UnifiedAsset[];
   /** Close modal callback */
   onClose: () => void;
   /** Success callback - called after relationship is updated */
@@ -69,6 +79,7 @@ async function applyOperation(entityId: string, operation: ParentChangeOperation
 export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
   asset,
   potentialParents,
+  solarParks = [],
   onClose,
   onSuccess,
 }) => {
@@ -82,16 +93,43 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
   const [success, setSuccess] = useState(false);
   const isDevice = isParcelLinkedDevice(asset);
   const initialLinks = useMemo(() => readParcelLinks(asset.rawEntity), [asset.rawEntity]);
+  const initialControlled = useMemo(() => readControlledLinks(asset.rawEntity), [asset.rawEntity]);
+  const initialOwner = useMemo(() => {
+    const owner = readLinkOwner(asset.rawEntity);
+    return owner?.kind === 'park' ? owner.urn : null;
+  }, [asset.rawEntity]);
   const [selectedLinks, setSelectedLinks] = useState<string[]>(initialLinks);
+  const [ownerParkId, setOwnerParkId] = useState<string | null>(initialOwner);
+
+  const parkOptions = useMemo(() => {
+    const options = parkOptionsFor(
+      solarParks.map(p => toParkOption(p.rawEntity as Record<string, unknown>)),
+      selectedLinks,
+    );
+    // An owner park that was not loaded stays listed, so it is never dropped unseen.
+    if (ownerParkId && !options.some(o => o.id === ownerParkId) && !solarParks.some(p => p.id === ownerParkId)) {
+      options.push({ id: ownerParkId, name: ownerParkId, parcelUrns: [] });
+    }
+    return options;
+  }, [solarParks, selectedLinks, ownerParkId]);
+  const nextLinks = useMemo(
+    () => (selectedLinks.length > 0 ? deviceLinks(ownerParkId, selectedLinks) : []),
+    [ownerParkId, selectedLinks],
+  );
   const linksChanged =
-    selectedLinks.length !== initialLinks.length || selectedLinks.some((urn, i) => urn !== initialLinks[i]);
+    nextLinks.length !== initialControlled.length || nextLinks.some((urn, i) => urn !== initialControlled[i]);
 
   const toggleLink = useCallback((id: string, checked: boolean) => {
-    setSelectedLinks(prev => {
-      if (checked) return prev.includes(id) ? prev : [...prev, id];
-      return prev.length > 1 ? prev.filter(urn => urn !== id) : prev;
-    });
-  }, []);
+    const next = checked
+      ? (selectedLinks.includes(id) ? selectedLinks : [...selectedLinks, id])
+      : (selectedLinks.length > 1 ? selectedLinks.filter(urn => urn !== id) : selectedLinks);
+    setSelectedLinks(next);
+    // A park owner needs one of its parcels to stay checked.
+    const park = ownerParkId ? solarParks.find(p => p.id === ownerParkId) : undefined;
+    if (park && parkOptionsFor([toParkOption(park.rawEntity as Record<string, unknown>)], next).length === 0) {
+      setOwnerParkId(null);
+    }
+  }, [selectedLinks, ownerParkId, solarParks]);
   
   // Filter parents by search
   const filteredParents = useMemo(() => {
@@ -117,7 +155,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
     
     try {
       const operations = isDevice
-        ? planParcelLinksChange(asset.rawEntity, selectedLinks)
+        ? planParcelLinksChange(asset.rawEntity, nextLinks)
         : planParentChange(asset.rawEntity, selectedParentId);
       for (const operation of operations) {
         await applyOperation(asset.id, operation);
@@ -140,7 +178,7 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [asset, isDevice, linksChanged, selectedLinks, selectedParentId, onClose, onSuccess, t]);
+  }, [asset, isDevice, linksChanged, nextLinks, selectedParentId, onClose, onSuccess, t]);
   
   // Handle remove relationship
   const handleRemove = useCallback(() => {
@@ -208,6 +246,19 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
           </div>
         )}
         
+        {isDevice && (
+          <div className="px-6 py-3 border-b border-slate-100">
+            <SensorOwnerSelect
+              parks={parkOptions}
+              ownerParkId={ownerParkId}
+              onChange={setOwnerParkId}
+              label={t('wizard.iot.owner_label')}
+              parcelLabel={t('wizard.iot.owner_parcel')}
+              parkLabel={t('wizard.iot.owner_park')}
+            />
+          </div>
+        )}
+
         {/* Search */}
         <div className="px-6 py-3 border-b border-slate-100">
           <div className="relative">
@@ -249,11 +300,6 @@ export const AssetRelationshipModal: React.FC<AssetRelationshipModalProps> = ({
                         {parent.municipality && ` • ${parent.municipality}`}
                       </p>
                     </div>
-                    {checked && selectedLinks[0] === parent.id && (
-                      <span className="text-xs font-medium text-nkz-info">
-                        {t('entities.assets.assign.primary')}
-                      </span>
-                    )}
                   </div>
                 );
               }

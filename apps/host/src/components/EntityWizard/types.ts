@@ -67,6 +67,8 @@ export interface IoTSensorFormData extends BaseFormData {
   deviceProfileId: string | null;
   /** Parcels the sensor measures (`controlledAsset`); required for `Device`. */
   parcels: ParentEntity[];
+  /** Solar park that owns the sensor (first `controlledAsset` entry); null = the parcel owns it. */
+  ownerParkId?: string | null;
   additionalAttributes: Record<string, string | number>;
 
   // Sensor health monitoring & calibration configuration

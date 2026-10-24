@@ -241,6 +241,15 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
     supportsHierarchy: false,
     supportsTelemetry: true,
   },
+  AgriSolarPark: {
+    type: 'AgriSolarPark',
+    category: 'infrastructure',
+    icon: 'sun',
+    color: 'yellow',
+    supportsLocation: true,
+    supportsHierarchy: true,
+    supportsTelemetry: false,
+  },
   PhotovoltaicInstallation: {
     type: 'PhotovoltaicInstallation',
     category: 'infrastructure',
