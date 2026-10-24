@@ -4,7 +4,13 @@ Protocol: subscribe to ``$CONTROL/dynamic-security/v1/response``, publish
 ``{"commands": [...]}`` to ``$CONTROL/dynamic-security/v1``; the response
 lists one entry per command, in order, with an ``error`` key on failure.
 
-Passwords are never logged and never placed in exceptions.
+Every command carries a per-call ``correlationData`` id that the plugin echoes
+in its response entry; responses with another id (concurrent admins sharing the
+response topic) are ignored.
+
+Assumes the in-cluster plaintext listener (port 1883, no TLS); do not point it
+at an untrusted network. Passwords are never logged and never placed in
+exceptions.
 """
 import json
 import logging
@@ -31,6 +37,10 @@ class DynsecError(Exception):
         self.error = error
 
 
+class DynsecTimeout(DynsecError):
+    """No (matching) response in time: the command may or may not have been applied."""
+
+
 class DynsecClient:
     def __init__(self, host: str, port: int, username: str, password: str,
                  timeout: float = 5, transport: Optional[Transport] = None):
@@ -46,7 +56,9 @@ class DynsecClient:
 
     def run(self, commands: List[dict]) -> List[dict]:
         """Send commands, return responses; raise DynsecError on the first error."""
-        responses = (self._transport or self._mqtt_transport)(commands)
+        cid = uuid.uuid4().hex
+        sent = [dict(cmd, correlationData=cid) for cmd in commands]
+        responses = (self._transport or self._mqtt_transport)(sent)
         if len(responses) != len(commands):
             raise DynsecError(commands[0]["command"] if commands else "", "response count mismatch")
         for cmd, resp in zip(commands, responses):
@@ -57,8 +69,11 @@ class DynsecClient:
     def _mqtt_transport(self, commands: List[dict]) -> List[dict]:
         import paho.mqtt.client as mqtt  # paho-mqtt 1.6.x API
 
-        done = threading.Event()
+        name = commands[0]["command"] if commands else ""
+        cid = commands[0]["correlationData"]
+        ready = threading.Event()  # subscribed, or connect failed
         subscribed = threading.Event()
+        done = threading.Event()
         result: Dict[str, object] = {}
         client = mqtt.Client(client_id=f"nkz-dynsec-{uuid.uuid4().hex[:12]}")
         client.username_pw_set(self._username, self._password)
@@ -66,40 +81,53 @@ class DynsecClient:
         def on_connect(cl, _ud, _flags, rc):
             if rc != 0:
                 result["error"] = f"connect refused rc={rc}"
-                done.set()
+                ready.set()
                 return
             cl.subscribe(RESPONSE_TOPIC, qos=1)
 
         def on_subscribe(_cl, _ud, _mid, _granted):
             subscribed.set()
+            ready.set()
 
         def on_message(_cl, _ud, msg):
             try:
-                result["responses"] = json.loads(msg.payload.decode("utf-8")).get("responses", [])
+                body = json.loads(msg.payload.decode("utf-8"))
+                if not isinstance(body, dict) or not isinstance(body.get("responses"), list):
+                    raise ValueError("not a responses object")
+                entries = body["responses"]
+                if not all(isinstance(e, dict) for e in entries):
+                    raise ValueError("response entry is not an object")
             except (ValueError, UnicodeDecodeError):
                 result["error"] = "invalid response payload"
+                done.set()
+                return
+            if any(e.get("correlationData") != cid for e in entries):
+                return  # someone else's response
+            result["responses"] = entries
             done.set()
 
         client.on_connect = on_connect
         client.on_subscribe = on_subscribe
         client.on_message = on_message
-        name = commands[0]["command"] if commands else ""
         try:
             client.connect(self.host, self.port, keepalive=30)
             client.loop_start()
-            if not subscribed.wait(self.timeout):
-                raise DynsecError(name, result.get("error") or "subscribe timeout")  # type: ignore[arg-type]
+            ready.wait(self.timeout)
+            if "error" in result:
+                raise DynsecError(name, str(result["error"]))
+            if not subscribed.is_set():
+                raise DynsecTimeout(name, "subscribe timeout")
             client.publish(CONTROL_TOPIC, json.dumps({"commands": commands}), qos=1)
             if not done.wait(self.timeout):
-                raise DynsecError(name, "response timeout")
+                raise DynsecTimeout(name, "response timeout")
         except OSError as exc:
             raise DynsecError(name, f"broker unreachable: {type(exc).__name__}") from None
         finally:
-            client.loop_stop()
             try:
                 client.disconnect()
             except Exception:  # noqa: BLE001 - best-effort close
                 pass
+            client.loop_stop()
         if "error" in result:
             raise DynsecError(name, str(result["error"]))
         return result["responses"]  # type: ignore[return-value]
@@ -112,18 +140,35 @@ def dynsec_from_env() -> DynsecClient:
     password = os.getenv("MQTT_DYNSEC_PASSWORD", "")
     if not host or not username or not password:
         raise RuntimeError("MQTT dynsec is not configured (host/credentials missing)")
-    return DynsecClient(host, int(os.getenv("MQTT_PORT", "1883")), username, password)
+    raw_port = os.getenv("MQTT_PORT", "1883")
+    try:
+        port = int(raw_port)
+    except ValueError:
+        raise RuntimeError("MQTT_PORT is not a number") from None
+    return DynsecClient(host, port, username, password)
 
 
 def _is_not_found(exc: DynsecError) -> bool:
-    return "not found" in exc.error.lower()
+    return exc.error in ("Client not found", "Role not found")
 
 
 def create_account(c: DynsecClient, name: str, password: str) -> None:
-    """createClient + createRole + addClientRole; compensate in reverse on failure."""
-    c.run([{"command": "createClient", "username": name, "password": password}])
+    """createClient + createRole + addClientRole; compensate in reverse on failure.
+
+    A timeout means the command may have been applied, so it is cleaned up too.
+    An error reply (e.g. "already exists") means nothing of ours was created.
+    """
     try:
-        c.run([{"command": "createRole", "rolename": name}])
+        c.run([{"command": "createClient", "username": name, "password": password}])
+    except DynsecTimeout:
+        _safe_delete_client(c, name)
+        raise
+    try:
+        try:
+            c.run([{"command": "createRole", "rolename": name}])
+        except DynsecTimeout:
+            _safe_delete_role(c, name)
+            raise
         try:
             c.run([{"command": "addClientRole", "username": name, "rolename": name}])
         except DynsecError:
@@ -138,6 +183,8 @@ def _safe_delete_client(c: DynsecClient, name: str) -> None:
     try:
         c.run([{"command": "deleteClient", "username": name}])
     except DynsecError as exc:
+        if _is_not_found(exc):
+            return
         logger.error("dynsec compensation failed: deleteClient name=%s error=%s", name, exc.error)
 
 
@@ -145,6 +192,8 @@ def _safe_delete_role(c: DynsecClient, name: str) -> None:
     try:
         c.run([{"command": "deleteRole", "rolename": name}])
     except DynsecError as exc:
+        if _is_not_found(exc):
+            return
         logger.error("dynsec compensation failed: deleteRole name=%s error=%s", name, exc.error)
 
 
