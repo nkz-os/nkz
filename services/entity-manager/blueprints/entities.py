@@ -735,6 +735,11 @@ def get_entity_timeseries_location(entity_id):
     return resp, 200
 
 
+# Orion-LD caps `limit` at 1000; its default page is 20
+_ORION_PAGE_SIZE = 1000
+_PARENT_MAX_PAGES = 50
+
+
 # === Lines 2251-2320 from entity_management_api.py ===
 @entities_bp.route('/api/entities/parents', methods=['GET'])
 @require_auth
@@ -762,22 +767,35 @@ def get_parent_entities():
 
         for parent_type in parent_types:
             try:
-                # Query Orion-LD for entities of this type
+                # Query Orion-LD for entities of this type, page by page
+                # (Orion's default page is 20 entities)
                 orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-                params = {'type': parent_type}
 
                 headers = {
                     'Accept': 'application/ld+json'
                 }
                 headers = inject_fiware_headers(headers, tenant)
 
-                response = requests.get(orion_url, params=params, headers=headers, timeout=10)
+                entities = []
+                offset = 0
+                for _page in range(_PARENT_MAX_PAGES):
+                    params = {'type': parent_type, 'limit': _ORION_PAGE_SIZE, 'offset': offset}
+                    response = requests.get(orion_url, params=params, headers=headers, timeout=10)
+                    if response.status_code != 200:
+                        break
+                    page = response.json()
+                    if not isinstance(page, list):
+                        page = [page]
+                    entities.extend(page)
+                    if len(page) < _ORION_PAGE_SIZE:
+                        break
+                    offset += _ORION_PAGE_SIZE
+                else:
+                    logger.warning(
+                        f"Parent listing for {parent_type} truncated at {_PARENT_MAX_PAGES} pages"
+                    )
 
-                if response.status_code == 200:
-                    entities = response.json()
-                    if not isinstance(entities, list):
-                        entities = [entities]
-
+                if entities:
                     # Filter entities that have Polygon/MultiPolygon geometry
                     for entity in entities:
                         location = entity.get('location', {})
