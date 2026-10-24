@@ -831,6 +831,7 @@
       "type_required": "Veuillez sélectionner un type d'entité",
       "name_required": "Le nom est obligatoire",
       "device_profile_required": "Le profil d'appareil est obligatoire pour les capteurs IoT",
+      "parcel_required": "Au moins une parcelle est requise pour un appareil",
       "stamp_required": "Placez au moins une instance",
       "array_required": "Configurez le point d'ancrage et les paramètres de la grille"
     },
@@ -1016,6 +1017,7 @@
       "import_json": "Importer un JSON",
       "mqtt_on_finish": "Identifiants MQTT à la fin",
       "profile_required_hint": "* Le profil d'appareil est obligatoire. Il définit comment les données du datalogger sont traduites en attributs SDM standard. Si aucun profil ne convient, importez-en un ou créez-en un nouveau depuis « Voir les modèles ».",
+      "parcels_hint": "La première parcelle est la principale. Le capteur mesure toutes les parcelles sélectionnées.",
       "health_title": "Paramètres de fiabilité et d'étalonnage (règles de santé)",
       "health_hint": "Définissez des règles de validation et d'étalonnage pour les variables du capteur. Ces valeurs servent à détecter les mesures anormales et à convertir les signaux bruts.",
       "comm_timeout": "Délai maximal sans communication (heures)",
@@ -1042,7 +1044,11 @@
       "no_matches": "Aucune entité correspondante trouvée",
       "none_available": "Aucune entité parente disponible",
       "subdivision_note": "La nouvelle entité sera créée comme subdivision de « {{name}} ».",
-      "subdivision_geometry_note": "Sa géométrie doit se trouver entièrement dans les limites de l'entité parente."
+      "subdivision_geometry_note": "Sa géométrie doit se trouver entièrement dans les limites de l'entité parente.",
+      "select_parcels": "Parcelles mesurées par le capteur",
+      "select_parcels_placeholder": "Sélectionner des parcelles",
+      "selected_count": "Parcelles sélectionnées : {{count}}",
+      "primary": "principale"
     },
     "robot_credentials": {
       "copy": "Copier dans le presse-papiers",

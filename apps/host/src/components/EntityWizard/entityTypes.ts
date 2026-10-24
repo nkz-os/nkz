@@ -80,7 +80,7 @@ export const ENTITY_CATEGORIES: Record<string, string[]> = {
   trees:             ['AgriTree', 'OliveTree', 'Vine', 'FruitTree'],
   water:             ['WaterSource', 'Well', 'IrrigationOutlet', 'Spring', 'Pond'],
   robotics:          ['AutonomousMobileRobot', 'ManufacturingMachine'],
-  sensors:           ['AgriSensor', 'Device', 'WeatherObserved'],
+  sensors:           ['Device', 'WeatherObserved'],
   infrastructure:    ['AgriGreenhouse', 'AgriBuilding', 'IrrigationSystem'],
   livestock:         ['LivestockAnimal', 'LivestockGroup', 'LivestockFarm'],
   energy:            ['PhotovoltaicInstallation', 'AgriEnergyTracker', 'EnergyStorageSystem'],

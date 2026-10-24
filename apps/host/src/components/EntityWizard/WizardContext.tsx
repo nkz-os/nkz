@@ -41,6 +41,7 @@ function makeIoTSensorFormData(): IoTSensorFormData {
     geometry: null,
     geometryType: 'Point',
     deviceProfileId: null,
+    parcels: [],
     additionalAttributes: {},
     modelScale: 1.0,
     modelRotation: [0, 0, 0],

@@ -808,6 +808,7 @@
       "type_required": "Hautatu entitate mota bat",
       "name_required": "Izena derrigorrezkoa da",
       "device_profile_required": "Gailu-profila derrigorrezkoa da IoT sentsoreentzat",
+      "parcel_required": "Gailu batek gutxienez lursail bat behar du",
       "stamp_required": "Margotu gutxienez instantzia bat",
       "array_required": "Konfiguratu aingura-puntua eta saretaren parametroak"
     },
@@ -993,6 +994,7 @@
       "import_json": "Inportatu JSON",
       "mqtt_on_finish": "MQTT kredentzialak amaitzean",
       "profile_required_hint": "* Gailu-profila derrigorrezkoa da. Datalogger-aren datuak SDM atributu estandarretara nola itzultzen diren zehazten du. Egokirik aurkitzen ez baduzu, inportatu bat edo sortu berri bat «Ikusi txantiloiak» aukeran.",
+      "parcels_hint": "Lehen lursaila nagusia da. Sentsoreak hautatzen dituzun lursail guztiak neurtzen ditu.",
       "health_title": "Fidagarritasun- eta kalibrazio-konfigurazioa (osasun-arauak)",
       "health_hint": "Zehaztu sentsorearen aldagaien balidazio- eta kalibrazio-arauak. Balio hauek irakurketa anomaloak detektatzeko eta seinale gordinak eraldatzeko erabiltzen dira.",
       "comm_timeout": "Komunikaziorik gabeko gehieneko denbora (orduak)",
@@ -1019,7 +1021,11 @@
       "no_matches": "Ez da bat datorren entitaterik aurkitu",
       "none_available": "Ez dago guraso-entitaterik eskuragarri",
       "subdivision_note": "Entitate berria «{{name}}» entitatearen azpibanaketa gisa sortuko da.",
-      "subdivision_geometry_note": "Bere geometriak erabat guraso-entitatearen mugen barruan egon behar du."
+      "subdivision_geometry_note": "Bere geometriak erabat guraso-entitatearen mugen barruan egon behar du.",
+      "select_parcels": "Sentsoreak neurtzen dituen lursailak",
+      "select_parcels_placeholder": "Hautatu lursailak",
+      "selected_count": "Hautatutako lursailak: {{count}}",
+      "primary": "nagusia"
     },
     "robot_credentials": {
       "copy": "Kopiatu arbelera",

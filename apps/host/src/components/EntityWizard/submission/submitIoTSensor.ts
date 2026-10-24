@@ -1,4 +1,5 @@
 import api from '@/services/api';
+import { parcelLinksFragment } from '@/utils/parcelLinks';
 import type { IoTSensorFormData } from '../types';
 import type { MqttCredentials } from '../MqttCredentialsModal';
 
@@ -45,17 +46,22 @@ export async function submitIoTSensor(
     };
   }
 
-  // refDeviceProfile as NGSI-LD Relationship (mandatory for IoT sensors)
+  // hasDeviceProfile as NGSI-LD Relationship (mandatory for IoT sensors)
   if (!formData.deviceProfileId) {
     throw new Error('DeviceProfile is required for IoT sensors');
   }
   const profileUrn = formData.deviceProfileId.startsWith('urn:')
     ? formData.deviceProfileId
     : `urn:ngsi-ld:DeviceProfile:${formData.deviceProfileId}`;
-  body.refDeviceProfile = {
+  body.hasDeviceProfile = {
     type: 'Relationship',
     object: profileUrn,
   };
+
+  // Parcel link (Device only): canonical list-valued controlledAsset
+  if (entityType === 'Device') {
+    Object.assign(body, parcelLinksFragment(formData.parcels.map((p) => p.id)));
+  }
 
   if (formData.iconUrl) {
     body.icon2d = formData.iconUrl;

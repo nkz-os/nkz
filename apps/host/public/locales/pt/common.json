@@ -831,6 +831,7 @@
       "type_required": "Selecione um tipo de entidade",
       "name_required": "O nome é obrigatório",
       "device_profile_required": "O perfil de dispositivo é obrigatório para sensores IoT",
+      "parcel_required": "É necessária pelo menos uma parcela para um dispositivo",
       "stamp_required": "Coloque pelo menos uma instância",
       "array_required": "Configure o ponto de ancoragem e os parâmetros da grelha"
     },
@@ -1016,6 +1017,7 @@
       "import_json": "Importar JSON",
       "mqtt_on_finish": "Credenciais MQTT no final",
       "profile_required_hint": "* O perfil de dispositivo é obrigatório. Define como os dados do datalogger são traduzidos para atributos SDM padrão. Se não encontrar um perfil adequado, importe um ou crie um novo a partir de \"Ver modelos\".",
+      "parcels_hint": "A primeira parcela é a principal. O sensor mede todas as parcelas selecionadas.",
       "health_title": "Configuração de fiabilidade e calibração (regras de saúde)",
       "health_hint": "Defina regras de validação e calibração para as variáveis do sensor. Estes valores são usados para detetar leituras anómalas e converter sinais em bruto.",
       "comm_timeout": "Tempo máximo sem comunicação (horas)",
@@ -1042,7 +1044,11 @@
       "no_matches": "Não foram encontradas entidades correspondentes",
       "none_available": "Não há entidades principais disponíveis",
       "subdivision_note": "A nova entidade será criada como subdivisão de «{{name}}».",
-      "subdivision_geometry_note": "A sua geometria deve ficar totalmente dentro dos limites da entidade principal."
+      "subdivision_geometry_note": "A sua geometria deve ficar totalmente dentro dos limites da entidade principal.",
+      "select_parcels": "Parcelas medidas pelo sensor",
+      "select_parcels_placeholder": "Selecionar parcelas",
+      "selected_count": "Parcelas selecionadas: {{count}}",
+      "primary": "principal"
     },
     "robot_credentials": {
       "copy": "Copiar para a área de transferência",

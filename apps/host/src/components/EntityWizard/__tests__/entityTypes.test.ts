@@ -23,4 +23,12 @@ describe('ENTITY_CATEGORIES', () => {
   it('keeps the crops category with its other types', () => {
     expect(ENTITY_CATEGORIES.crops).toEqual(['Vineyard', 'OliveGrove', 'AgriParcel']);
   });
+
+  it('offers Device and WeatherObserved, not AgriSensor, under sensors', () => {
+    expect(ENTITY_CATEGORIES.sensors).toEqual(['Device', 'WeatherObserved']);
+  });
+
+  it('keeps AgriSensor metadata so existing entities still render', () => {
+    expect(Object.keys(ENTITY_TYPE_METADATA)).toContain('AgriSensor');
+  });
 });

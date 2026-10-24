@@ -7,6 +7,7 @@ import { DeviceProfileHelpModal } from '../../DeviceProfileHelpModal';
 import type { IoTSensorFormData } from '../types';
 import { useToastContext } from '@/context/ToastContext';
 import { Button, Input } from '@nekazari/ui-kit';
+import { ParentEntitySelector } from '../ParentEntitySelector';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function StepIoTSensorConfig() {
@@ -196,6 +197,20 @@ export function StepIoTSensorConfig() {
           rows={2}
         />
       </div>
+
+      {/* Parcels (Device only): first one is the primary parcel */}
+      {entityType === 'Device' && (
+        <div>
+          <ParentEntitySelector
+            entityType="AgriParcel"
+            multiple
+            selectedParentIds={(data.parcels ?? []).map(pa => pa.id)}
+            onSelect={() => undefined}
+            onSelectMany={(parcels) => updateFormData({ parcels })}
+          />
+          <p className="text-xs text-nkz-muted mt-1">{t('wizard.iot.parcels_hint')}</p>
+        </div>
+      )}
 
       {/* Device profile */}
       <div className="pt-4 border-t bg-nkz-surface-sunken p-4 rounded-xl border border-nkz-info/30">

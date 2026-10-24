@@ -1,4 +1,5 @@
 import type { Geometry, Polygon, MultiPolygon } from 'geojson';
+import type { ParentEntity } from './ParentEntitySelector';
 
 // Re-export from existing sub-components for central access
 export type { ParentEntity } from './ParentEntitySelector';
@@ -64,6 +65,8 @@ export interface IoTSensorFormData extends BaseFormData {
   macroCategory: 'sensors';
   geometryType: 'Point'; // Sensors are always point locations
   deviceProfileId: string | null;
+  /** Parcels the sensor measures (`controlledAsset`); required for `Device`. */
+  parcels: ParentEntity[];
   additionalAttributes: Record<string, string | number>;
 
   // Sensor health monitoring & calibration configuration
