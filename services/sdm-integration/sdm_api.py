@@ -856,9 +856,11 @@ def create_entity_instance(entity_type):
             if entity_type == 'Device':
                 if not _point_location(data.get('location')):
                     return jsonify({'error': 'Device requires a Point location.'}), 400
+                # The list may start with a non-parcel owner (e.g. a solar park),
+                # but it must still carry at least one parcel.
                 parcels = _parcel_links(data.get('controlledAsset'))
-                if not parcels:
-                    return jsonify({'error': 'Device requires at least one parcel in controlledAsset.'}), 400
+                if not any(u.startswith('urn:ngsi-ld:AgriParcel:') for u in parcels):
+                    return jsonify({'error': 'Device requires at least one parcel (urn:ngsi-ld:AgriParcel:...) in controlledAsset.'}), 400
 
         # Build NGSI-LD compliant entity with unified SOTA context
         entity_data = {
