@@ -105,10 +105,18 @@ def build_measurements(entity: Dict[str, Any], profile: Dict[str, Any]) -> List[
     measurement_defs = _measurement_defs_by_attr(profile)
 
     results: List[Dict[str, Any]] = []
-    for attr_name, attr_value in entity.items():
-        if attr_name in _NON_MEASUREMENT_KEYS:
+    # One reading per canonical name: when the entity carries both aliases, the canonical
+    # attribute wins.
+    chosen: Dict[str, Tuple[str, Any]] = {}
+    for raw_name, raw_value in entity.items():
+        if raw_name in _NON_MEASUREMENT_KEYS:
             continue
-        measurement_def = measurement_defs.get(canonical_attribute(attr_name))
+        canon = canonical_attribute(raw_name)
+        if canon not in chosen or raw_name == canon:
+            chosen[canon] = (raw_name, raw_value)
+
+    for attr_name, (_, attr_value) in chosen.items():
+        measurement_def = measurement_defs.get(attr_name)
         if measurement_def is None:
             continue
         if not isinstance(attr_value, dict) or attr_value.get("type") != "Property":

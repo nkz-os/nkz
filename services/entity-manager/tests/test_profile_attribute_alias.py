@@ -28,3 +28,16 @@ def test_canonical_attribute():
     assert canonical_attribute("temperature") == "airTemperature"
     assert canonical_attribute("humidity") == "relativeHumidity"
     assert canonical_attribute("soilMoisture") == "soilMoisture"
+
+
+def test_both_aliases_give_one_measurement_with_canonical_id():
+    entity = {"id": DEVICE, "type": "Device",
+              "temperature": {"type": "Property", "value": 1},
+              "airTemperature": {"type": "Property", "value": 2}}
+    profile = {"mapping": {"measurements": [
+        {"type": "t", "sdmAttribute": "temperature", "unit": "°C"}]}}
+    out = build_measurements(entity, profile)
+    assert len(out) == 1
+    assert out[0]["id"].endswith(":airTemperature")
+    assert out[0]["numValue"]["value"] == 2
+    assert out[0]["controlledProperty"]["value"] == "airTemperature"

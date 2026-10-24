@@ -491,6 +491,8 @@ def _validated_profile(data: dict) -> tuple:
     raw = mapping.get('measurements') if isinstance(mapping, dict) else None
     if not isinstance(raw, list) or not raw:
         raise dataloggers.ApiError(400, 'mapping.measurements must be a non-empty list')
+    keys = {(m.get('incomingKey') or m.get('type')) for m in raw
+            if isinstance(m, dict) and isinstance(m.get('incomingKey') or m.get('type'), str)}
     measurements, seen = [], set()
     for m in raw:
         if not isinstance(m, dict):
@@ -511,7 +513,7 @@ def _validated_profile(data: dict) -> tuple:
             if m.get(field) is not None and not isinstance(m[field], str):
                 raise dataloggers.ApiError(400, f'Measurement {field} must be text')
         if m.get('expression'):
-            ok, why = validate_jexl_expression(m['expression'])
+            ok, why = validate_jexl_expression(m['expression'], variables=keys)
             if not ok:
                 raise dataloggers.ApiError(400, f'Invalid expression: {why}')
         attribute = canonical_attribute(m['sdmAttribute'].strip())

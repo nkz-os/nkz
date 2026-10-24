@@ -156,3 +156,15 @@ def test_put_code_in_body_must_match():
         post_json(c, "/api/sensors/profiles", _body())
         r = _put(c, "station-a", _body(code="other"))
     assert r.status_code == 400
+
+
+def test_expression_may_use_only_the_profile_keys():
+    st = FakeState()
+    with wired(st):
+        c = client()
+        ok = post_json(c, "/api/sensors/profiles",
+                       _body([dict(M_T, incomingKey="r3", expression="r3 * 0.1")]))
+        bad = post_json(c, "/api/sensors/profiles",
+                        _body([dict(M_T, incomingKey="r3", expression="foo * 2")], code="b"))
+    assert ok.status_code == 201, ok.get_json()
+    assert bad.status_code == 400

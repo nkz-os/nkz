@@ -46,7 +46,13 @@ def get_profiles_collection() -> Collection:
 # JEXL Validation
 # =============================================================================
 
-from common.jexl_expressions import JEXL_ALLOWED_PATTERNS, validate_jexl_expression  # noqa: E402,F401
+from common import jexl_expressions  # noqa: E402
+from common.jexl_expressions import JEXL_ALLOWED_PATTERNS  # noqa: E402,F401
+
+
+def validate_jexl_expression(expr: str) -> tuple[bool, str]:
+    """Device-profile transformations see a single variable, `val`."""
+    return jexl_expressions.validate_jexl_expression(expr, variables={"val"})
 
 
 def validate_mapping(mapping: dict, sdm_attributes: dict) -> tuple[bool, str]:
