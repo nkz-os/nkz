@@ -39,6 +39,10 @@ for _p in (_em_dir, _services_dir):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+from tests.real_common import seed_real_common  # noqa: E402
+
+seed_real_common()
+
 # The one submodule `blueprints.measurements` actually needs: load the real file and pin
 # it under its exact dotted name so `from common.unit_codes import to_unit_code` resolves
 # regardless of what `common` itself is stubbed to elsewhere (direct sys.modules hit on
