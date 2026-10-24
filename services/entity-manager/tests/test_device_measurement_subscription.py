@@ -264,3 +264,26 @@ def test_measurement_registrar_gets_the_master_and_the_derived_flag(monkeypatch)
     assert kwargs["internal_secret"] == "test-secret"
     assert kwargs["derived_tokens"] is True
     assert kwargs.get("notification_headers") is None
+
+
+def test_ensure_subscriptions_can_target_given_tenants_only():
+    import blueprints.notifications as notif
+
+    with patch.object(notif, "SubscriptionRegistrar") as reg, \
+         patch.object(notif, "_get_active_tenants", return_value=["tenant-a", "tenant-b"]) as active, \
+         patch.object(notif.asyncio, "run",
+                      return_value={"created": 0, "skipped": 0, "errors": []}):
+        notif.ensure_device_measurement_subscriptions(tenants=["tenant-b"])
+    reg.return_value.ensure_all.assert_called_once_with(["tenant-b"])
+    active.assert_not_called()
+
+
+def test_ensure_subscriptions_defaults_to_every_active_tenant():
+    import blueprints.notifications as notif
+
+    with patch.object(notif, "SubscriptionRegistrar") as reg, \
+         patch.object(notif, "_get_active_tenants", return_value=["tenant-a", "tenant-b"]), \
+         patch.object(notif.asyncio, "run",
+                      return_value={"created": 0, "skipped": 0, "errors": []}):
+        notif.ensure_device_measurement_subscriptions()
+    reg.return_value.ensure_all.assert_called_once_with(["tenant-a", "tenant-b"])

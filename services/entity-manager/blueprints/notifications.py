@@ -98,9 +98,13 @@ def registrar_auth_kwargs() -> dict:
     }
 
 
-def ensure_device_measurement_subscriptions():
-    """Ensure the Device/ManufacturingMachine subscriptions exist for every active tenant."""
-    tenants = _get_active_tenants()
+def ensure_device_measurement_subscriptions(tenants: Optional[List[str]] = None):
+    """Ensure the Device/ManufacturingMachine subscriptions exist.
+
+    Default: every active tenant (startup heal). Pass `tenants` to ensure just those,
+    e.g. right after a sensor is registered.
+    """
+    tenants = list(tenants) if tenants else _get_active_tenants()
     registrar = SubscriptionRegistrar(
         orion_url=ORION_URL,
         notification_url=DEVICE_MEASUREMENT_NOTIFICATION_URL,
