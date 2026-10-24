@@ -9,12 +9,12 @@ const wizard = vi.hoisted(() => ({
   updateFormData: vi.fn(),
   setValidationError: vi.fn(),
 }));
-const editor = vi.hoisted(() => ({ props: null as { parentGeometry?: unknown } | null }));
+const editor = vi.hoisted(() => ({ props: null as { parentGeometry?: unknown; outlineGeometry?: unknown } | null }));
 
 vi.mock('../WizardContext', () => ({ useWizard: () => wizard }));
 vi.mock('@/context/I18nContext', () => ({ useI18n: () => ({ t: (k: string) => k }) }));
 vi.mock('../GeometryEditor', () => ({
-  GeometryEditor: (p: { parentGeometry?: unknown }) => { editor.props = p; return <div data-testid="editor" />; },
+  GeometryEditor: (p: { parentGeometry?: unknown; outlineGeometry?: unknown }) => { editor.props = p; return <div data-testid="editor" />; },
 }));
 vi.mock('../StampTool', () => ({ StampTool: () => null }));
 vi.mock('../ArrayTool', () => ({ ArrayTool: () => null }));
@@ -76,14 +76,29 @@ describe('StepGeometry for Device', () => {
     expect(lon().value).toBe('-1.6');
   });
 
-  it('passes the first parcel outline to the editor', () => {
+  it('draws the first parcel as display-only outline, never as containment parent', () => {
     const poly = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] };
     wizard.formData = {
       macroCategory: 'sensors', geometry: null,
       parcels: [{ id: 'urn:p1', type: 'AgriParcel', name: 'P1', geometry: poly }],
     };
     setup();
-    expect(editor.props?.parentGeometry).toEqual({ id: 'urn:p1', name: 'P1', geometry: poly });
+    expect(editor.props?.outlineGeometry).toEqual({ id: 'urn:p1', name: 'P1', geometry: poly });
+    expect(editor.props?.parentGeometry).toBeUndefined();
+  });
+
+  it('a point outside the parcel raises no validation error and passes the step', () => {
+    const poly = { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] };
+    wizard.formData = {
+      macroCategory: 'sensors', geometry: null,
+      parcels: [{ id: 'urn:p1', type: 'AgriParcel', name: 'P1', geometry: poly }],
+    };
+    setup();
+    fireEvent.change(lat(), { target: { value: '40' } });
+    fireEvent.change(lon(), { target: { value: '-3' } });
+    expect(lastGeometry()).toEqual({ type: 'Point', coordinates: [-3, 40] });
+    expect(wizard.setValidationError).not.toHaveBeenCalled();
+    expect(validateGeometryStep('Device', lastGeometry())).toBeNull();
   });
 
   it('does not show coordinate inputs for other types', () => {

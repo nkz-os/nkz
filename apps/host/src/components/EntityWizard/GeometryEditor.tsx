@@ -31,6 +31,8 @@ interface ParentGeometry {
 interface GeometryEditorProps {
   geometryType: 'Point' | 'Polygon' | 'LineString' | 'MultiLineString';
   parentGeometry?: ParentGeometry | null;
+  /** Outline drawn for context only; unlike parentGeometry it is never used for containment validation. */
+  outlineGeometry?: ParentGeometry | null;
   initialGeometry?: Geometry | null;
   onGeometryChange: (geometry: Geometry | null) => void;
   onValidationChange?: (isValid: boolean, error?: string) => void;
@@ -41,6 +43,7 @@ interface GeometryEditorProps {
 export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   geometryType,
   parentGeometry,
+  outlineGeometry,
   initialGeometry,
   onGeometryChange,
   onValidationChange,
@@ -127,8 +130,9 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
   }, [disabled]);
 
   // Draw parent geometry if provided
+  const drawnOutline = parentGeometry ?? outlineGeometry;
   useEffect(() => {
-    if (!viewerRef.current || !parentGeometry) return;
+    if (!viewerRef.current || !drawnOutline) return;
 
     const Cesium = window.Cesium;
     if (!Cesium) return;
@@ -142,7 +146,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
     }
 
     // Draw parent polygon
-    const coordinates = parentGeometry.geometry.coordinates[0];
+    const coordinates = drawnOutline.geometry.coordinates[0];
     const positions = coordinates.map((coord: number[]) =>
       Cesium.Cartesian3.fromDegrees(coord[0], coord[1])
     );
@@ -158,7 +162,7 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
         classificationType: Cesium.ClassificationType.TERRAIN,
       },
       label: {
-        text: parentGeometry.name,
+        text: drawnOutline.name,
         font: '14px sans-serif',
         fillColor: Cesium.Color.GRAY,
         outlineColor: Cesium.Color.WHITE,
@@ -173,25 +177,26 @@ export const GeometryEditor: React.FC<GeometryEditorProps> = ({
     if (!currentGeometry) {
       viewer.zoomTo(parentEntityRef.current);
     }
-  }, [parentGeometry]); // Removed currentGeometry to prevent re-render loop
+  }, [drawnOutline]); // Removed currentGeometry to prevent re-render loop
 
-  // Draw initial geometry if provided
-  useEffect(() => {
-    if (!viewerRef.current || !initialGeometry || currentGeometry) return;
-
-    const Cesium = window.Cesium;
-    if (!Cesium) return;
-
-    const viewer = viewerRef.current;
-    if (viewer.isDestroyed()) return;
-
-    drawGeometry(initialGeometry);
-    setCurrentGeometry(initialGeometry);
-  }, [initialGeometry]);
-
-  // Keep the internal geometry in step when the parent sets it (e.g. typed coordinates).
+  // Follow initialGeometry: redraw when it changes (typed coordinates, map click), clear when null.
   useEffect(() => {
     setCurrentGeometry(initialGeometry || null);
+
+    const viewer = viewerRef.current;
+    const Cesium = window.Cesium;
+    if (!viewer || !Cesium || viewer.isDestroyed()) return;
+
+    if (initialGeometry) {
+      drawGeometry(initialGeometry);
+      return;
+    }
+    if (currentEntityRef.current) {
+      viewer.entities.remove(currentEntityRef.current);
+      currentEntityRef.current = null;
+    }
+    pointsRef.current.forEach(point => viewer.entities.remove(point));
+    pointsRef.current = [];
   }, [initialGeometry]);
 
   // Drawing logic

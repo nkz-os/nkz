@@ -29,8 +29,7 @@ export function PointCoordinateInputs({ geometry, onChange }: PointCoordinateInp
     const [nextLat, nextLon] = toTexts(geometry);
     setLatText(nextLat);
     setLonText(nextLon);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geometry]);
+  }, [geometry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (nextLat: string, nextLon: string) => {
     setLatText(nextLat);

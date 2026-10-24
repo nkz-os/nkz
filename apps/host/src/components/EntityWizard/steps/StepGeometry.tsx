@@ -40,11 +40,16 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
     if (subdivisionParent) {
       return { id: subdivisionParent.id, name: subdivisionParent.name, geometry: subdivisionParent.geometry };
     }
-    if (devicePrimaryParcel?.geometry?.type === 'Polygon') {
-      return { id: devicePrimaryParcel.id, name: devicePrimaryParcel.name, geometry: devicePrimaryParcel.geometry };
-    }
     return undefined;
-  }, [subdivisionParent, devicePrimaryParcel]);
+  }, [subdivisionParent]);
+  // Device: the first parcel is drawn for context only; a station may sit outside the parcels it serves.
+  const outlineGeometry = useMemo(
+    () =>
+      devicePrimaryParcel?.geometry?.type === 'Polygon'
+        ? { id: devicePrimaryParcel.id, name: devicePrimaryParcel.name, geometry: devicePrimaryParcel.geometry }
+        : undefined,
+    [devicePrimaryParcel],
+  );
 
   if (!formData) return null;
 
@@ -75,7 +80,6 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
   const isDevice = entityType === 'Device';
 
   const handleTypedPoint = (point: Geometry | null) => {
-    setValidationError(null);
     updateFormData({ geometry: point });
   };
 
@@ -176,6 +180,7 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
           <GeometryEditor
             geometryType={geometryType}
             parentGeometry={parentGeometry}
+            outlineGeometry={outlineGeometry}
             initialGeometry={formData.geometry ?? undefined}
             onGeometryChange={handleGeometryChange}
             onValidationChange={(valid, err) => setValidationError(valid ? null : (err ?? null))}
