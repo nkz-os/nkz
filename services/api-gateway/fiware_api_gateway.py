@@ -361,7 +361,10 @@ PAT_SCOPE_ROUTES = {
     ],
     "telemetry": [
         ("GET", "/api/devices/"),
-        ("GET", "/api/sensors"),
+        # Exact paths: /api/sensors/dataloggers* and /api/sensors/register expose or
+        # change datalogger credentials and must never be reachable with a read-only PAT.
+        ("GET", "/api/sensors", True),
+        ("GET", "/api/sensors/stats", True),
     ],
 }
 
@@ -724,8 +727,10 @@ def enforce_pat_scopes():
     # Check if any scope allows this (method, path)
     allowed = False
     for scope in scopes:
-        for method, prefix in PAT_SCOPE_ROUTES.get(scope, []):
-            if request.method == method and path.startswith(prefix):
+        for method, prefix, *exact in PAT_SCOPE_ROUTES.get(scope, []):
+            if request.method != method:
+                continue
+            if (path == prefix) if exact else path.startswith(prefix):
                 allowed = True
                 break
         if allowed:
@@ -2912,6 +2917,52 @@ def proxy_entity_catalog():
         return (response.content, response.status_code, response.headers.items())
     except Exception as e:
         logger.error(f"Error proxying entity-catalog request: {e}")
+        return jsonify({"error": "Internal service connection error"}), 502
+
+
+@app.route("/api/sensors/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
+@cross_origin(origins=_cors_origins, supports_credentials=True)
+def proxy_sensor_management(subpath):
+    """Proxy the tenant sensor API (register, dataloggers, devices, profiles) to entity-manager.
+
+    The explicit GET /api/sensors and /api/sensors/stats routes above stay as they are.
+    Forwarded with auth + HMAC like the parcels proxy.
+    """
+    if request.method == "OPTIONS":
+        return "", 204
+
+    token = get_request_token()
+    if not token:
+        return jsonify({"error": "Missing or invalid authorization"}), 401
+    payload = validate_jwt_token(token)
+    if not payload:
+        return jsonify({"error": "Invalid or expired token"}), 401
+    tenant = extract_tenant_id(payload)
+    if not tenant:
+        return jsonify({"error": "Tenant not present in token"}), 401
+    if not rate_limit(tenant):
+        return jsonify({"error": "Rate limit exceeded"}), 429
+
+    target_url = f"{ENTITY_MANAGER_URL}/api/sensors/{subpath}"
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
+    content_type = request.headers.get("Content-Type")
+    if content_type:
+        headers["Content-Type"] = content_type
+    if KEYCLOAK_AUTH_AVAILABLE:
+        try:
+            signature = generate_hmac_signature(token, tenant)
+            if signature:
+                headers["X-Auth-Signature"] = signature
+        except Exception as e:
+            logger.warning(f"Failed to generate HMAC signature for sensors: {e}")
+    try:
+        response = requests.request(
+            request.method, target_url, headers=headers,
+            params=request.args, data=request.get_data(), timeout=30,
+        )
+        return (response.content, response.status_code, response.headers.items())
+    except Exception as e:
+        logger.error(f"Error proxying sensors request: {e}")
         return jsonify({"error": "Internal service connection error"}), 502
 
 
