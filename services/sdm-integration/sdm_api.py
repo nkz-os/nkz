@@ -51,7 +51,8 @@ if not MONGODB_URL:
 
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
-from mqtt_endpoint import endpoint_for_devices, parse_port
+from common.mqtt_endpoint import endpoint_for_devices, parse_port
+from common import iot_agent
 
 # IoT Agent Configuration for device provisioning
 IOT_AGENT_URL = os.getenv('IOT_AGENT_URL', 'http://iot-agent-json-service:4041')
@@ -150,82 +151,11 @@ def get_mongodb_connection():
         return None
 
 
-def _generate_tenant_apikey() -> str:
-    """Generate a random API key for a tenant service group."""
-    return f"nkz_iot_{secrets.token_hex(16)}"
-
-
 def get_or_create_service_group(tenant_id: str) -> str | None:
-    """
-    Get or create the FIWARE IoT Agent service group for a tenant.
-
-    FIWARE standard provisioning flow (IoT Agent multi-tenant mode):
-      1. One service group per tenant — the apikey identifies the tenant
-         in MQTT topics: /<tenant_apikey>/<device_id>/attrs
-      2. All devices within the tenant share this apikey
-      3. The device_id differentiates individual devices
-
-    Returns the tenant's apikey on success, None on failure.
-    """
+    """Tenant service-group apikey (one group per tenant; see common.iot_agent)."""
     headers = inject_fiware_headers({'Content-Type': 'application/json'}, tenant_id)
-
-    try:
-        # Check if a service group already exists for this tenant
-        resp = requests.get(
-            f'{IOT_AGENT_URL}/iot/services',
-            headers=headers,
-            timeout=5
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            services = data.get('services', [])
-            if services:
-                existing_apikey = services[0].get('apikey')
-                logger.debug(f"Service group exists for tenant '{tenant_id}', apikey=<redacted:{len(existing_apikey)}ch>")
-                return existing_apikey
-
-        # Create a new service group with a tenant-level apikey
-        tenant_apikey = _generate_tenant_apikey()
-        service_group = {
-            'services': [{
-                'resource': '/iot/json',
-                'apikey': tenant_apikey,
-                'cbroker': ORION_URL,
-                'entity_type': 'Device',
-                'attributes': [],
-                'lazy': [],
-                'commands': [],
-                'static_attributes': []
-            }]
-        }
-
-        resp = requests.post(
-            f'{IOT_AGENT_URL}/iot/services',
-            json=service_group,
-            headers=headers,
-            timeout=5
-        )
-
-        if resp.status_code in [200, 201]:
-            logger.info(f"Created service group for tenant '{tenant_id}' with apikey=<redacted:{len(tenant_apikey)}ch>")
-            return tenant_apikey
-        elif resp.status_code == 409:
-            # Race condition: another request created it first — retrieve it
-            resp2 = requests.get(f'{IOT_AGENT_URL}/iot/services', headers=headers, timeout=5)
-            if resp2.status_code == 200:
-                services = resp2.json().get('services', [])
-                if services:
-                    return services[0].get('apikey')
-            logger.warning(f"Service group 409 but cannot retrieve for tenant '{tenant_id}'")
-            return None
-        else:
-            logger.error(f"Failed to create service group for tenant '{tenant_id}': "
-                         f"{resp.status_code} - {resp.text[:200]}")
-            return None
-
-    except Exception as e:
-        logger.error(f"Error in get_or_create_service_group for tenant '{tenant_id}': {e}")
-        return None
+    return iot_agent.get_or_create_service_group(
+        tenant_id, IOT_AGENT_URL, headers, cbroker=ORION_URL)
 
 
 def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
@@ -294,43 +224,31 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
             result['error'] = "No valid DeviceProfile with attribute mappings. IoT devices require a profile for SDM-compliant provisioning."
             return result
         
-        device_config = {
-            'devices': [{
-                'device_id': device_id,
-                'entity_name': entity_id,
-                'entity_type': entity_type,
-                'protocol': 'IoTA-JSON',
-                'transport': 'MQTT',
-                'apikey': api_key,
-                'attributes': attributes,
-                'lazy': [],
-                'commands': [],
-                'static_attributes': []
-            }]
-        }
-        
-        # Add location as static attribute if provided
+        # Location as static attribute if provided
+        static_attributes = []
         if location:
-            device_config['devices'][0]['static_attributes'].append({
+            static_attributes.append({
                 'name': 'location',
                 'type': 'GeoProperty',
                 'value': location
             })
-        
+
         # Register device in IoT Agent
         iot_headers = inject_fiware_headers({'Content-Type': 'application/json'}, tenant_id)
-        
+
         logger.info(f"Provisioning device {device_id} in IoT Agent...")
-        logger.debug(f"Device config: {json.dumps(device_config, indent=2)}")
-        
-        iot_response = requests.post(
-            f'{IOT_AGENT_URL}/iot/devices',
-            json=device_config,
-            headers=iot_headers,
-            timeout=10
-        )
-        
-        if iot_response.status_code in [200, 201]:
+
+        try:
+            iot_agent.provision_device(
+                IOT_AGENT_URL, iot_headers,
+                apikey=api_key, device_id=device_id, entity_name=entity_id,
+                entity_type=entity_type, attributes=attributes,
+                static_attributes=static_attributes)
+            iot_error = None
+        except iot_agent.IotAgentError as e:
+            iot_error = str(e)
+
+        if iot_error is None:
             result['provisioned'] = True
             result['api_key'] = api_key
             result['mqtt'] = {
@@ -339,7 +257,6 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
                 'device_id': device_id,
                 'topics': {
                     'publish_data': f'/{api_key}/{device_id}/attrs',
-                    'publish_data_json': f'/json/{api_key}/{device_id}/attrs',
                     'commands': f'/{api_key}/{device_id}/cmd'
                 },
                 'example_payload': {
@@ -351,7 +268,7 @@ def provision_iot_device(entity_id: str, entity_type: str, tenant_id: str,
             }
             logger.info(f"Successfully provisioned device {device_id}")
         else:
-            result['error'] = f"IoT Agent error: {iot_response.status_code} - {iot_response.text[:200]}"
+            result['error'] = iot_error
             logger.warning(f"Failed to provision device: {result['error']}")
             
     except requests.exceptions.Timeout:

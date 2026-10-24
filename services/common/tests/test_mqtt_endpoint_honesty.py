@@ -14,8 +14,10 @@ import pathlib
 import pytest
 
 _SRC = (
-    pathlib.Path(__file__).resolve().parents[1]
-    / "sdm-integration" / "mqtt_endpoint.py"
+    pathlib.Path(__file__).resolve().parents[1] / "mqtt_endpoint.py"
+)
+_SERVICE = (
+    pathlib.Path(__file__).resolve().parents[2] / "sdm-integration" / "sdm_api.py"
 )
 _spec = importlib.util.spec_from_file_location("mqtt_endpoint", _SRC)
 mqtt_endpoint = importlib.util.module_from_spec(_spec)
@@ -60,8 +62,8 @@ def test_the_rule_needs_nothing_installed():
 
 def test_the_service_binds_the_rule_to_its_configuration():
     """Read from source: the caller must not reimplement the decision."""
-    service = (_SRC.parent / "sdm_api.py").read_text()
-    assert "from mqtt_endpoint import endpoint_for_devices" in service
+    service = _SERVICE.read_text()
+    assert "from common.mqtt_endpoint import endpoint_for_devices" in service
     assert "return endpoint_for_devices(MQTT_HOST, MQTT_PORT)" in service
 
 
@@ -77,6 +79,6 @@ def test_parse_port_rejects_garbage():
 
 def test_the_service_parses_the_port_defensively():
     """Blank must not crash the service at import; the footgun is gone for good."""
-    service = (_SRC.parent / "sdm_api.py").read_text()
+    service = _SERVICE.read_text()
     assert "MQTT_PORT = parse_port(" in service
     assert "int(os.getenv('MQTT_EXTERNAL_PORT'" not in service
