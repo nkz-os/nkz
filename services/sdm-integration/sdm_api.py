@@ -101,6 +101,24 @@ def _parcel_links(value) -> list:
     return list(dict.fromkeys(urns))
 
 
+def _rollback_entity(entity_id: str, tenant: str) -> None:
+    """Delete an entity created in Orion whose IoT provisioning did not complete."""
+    try:
+        del_resp = requests.delete(
+            f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}",
+            headers=inject_fiware_headers({}, tenant),
+            timeout=10
+        )
+        if del_resp.status_code in (200, 204):
+            logger.info(f"Rolled back entity {entity_id} (tenant {tenant}) after failed provisioning")
+        else:
+            logger.critical(f"Rollback of entity {entity_id} (tenant {tenant}) failed: "
+                            f"Orion status {del_resp.status_code}; manual cleanup required")
+    except requests.exceptions.RequestException as del_err:
+        logger.critical(f"Rollback of entity {entity_id} (tenant {tenant}) failed: "
+                        f"{type(del_err).__name__}; manual cleanup required")
+
+
 def _point_location(loc):
     """GeoJSON Point from a GeoProperty ({'value': Point}) or a bare Point, else None."""
     if isinstance(loc, dict) and loc.get('type') == 'GeoProperty':
@@ -801,6 +819,7 @@ def list_entity_instances(entity_type):
 @require_auth
 def create_entity_instance(entity_type):
     """Create a new entity instance using SDM"""
+    created_id = None  # set once Orion accepted the entity, for rollback on later errors
     try:
         data = request.get_json()
         if not data:
@@ -863,13 +882,12 @@ def create_entity_instance(entity_type):
                 }
         
         if entity_type in IOT_ENTITY_TYPES:
-            # Canonical profile link is hasDeviceProfile; drop the legacy name
-            legacy = entity_data.pop('refDeviceProfile', None)
-            if legacy is not None and 'hasDeviceProfile' not in entity_data:
-                entity_data['hasDeviceProfile'] = (
-                    legacy if isinstance(legacy, dict) and legacy.get('type') == 'Relationship'
-                    else {'type': 'Relationship', 'object': profile_id}
-                )
+            # Canonical profile link: hasDeviceProfile with a full URN, whatever came in
+            entity_data.pop('refDeviceProfile', None)
+            entity_data['hasDeviceProfile'] = {
+                'type': 'Relationship',
+                'object': f'urn:ngsi-ld:DeviceProfile:{profile_id}'
+            }
             if entity_type == 'Device':
                 # Canonical parcel link: always a list, even with one parcel
                 entity_data['controlledAsset'] = {'type': 'Relationship', 'object': parcels}
@@ -886,6 +904,7 @@ def create_entity_instance(entity_type):
         logger.info(f"Orion response status: {response.status_code}")
         
         if response.status_code in [200, 201]:
+            created_id = entity_id
             # Log the operation
             log_entity_operation('create', entity_id, entity_type, g.tenant, g.farmer_id, 
                                {'attributes': list(entity_data.keys())})
@@ -948,20 +967,7 @@ def create_entity_instance(entity_type):
                 else:
                     logger.warning(f"IoT provisioning failed for {entity_id} (tenant {g.tenant}): {iot_result['error']}")
                     # Compensate: do not leave a Device in Orion without IoT Agent provisioning
-                    try:
-                        del_resp = requests.delete(
-                            f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}",
-                            headers=inject_fiware_headers({}, g.tenant),
-                            timeout=10
-                        )
-                        if del_resp.status_code in (200, 204):
-                            logger.info(f"Rolled back entity {entity_id} (tenant {g.tenant}) after failed provisioning")
-                        else:
-                            logger.critical(f"Rollback of entity {entity_id} (tenant {g.tenant}) failed: "
-                                            f"Orion status {del_resp.status_code}; manual cleanup required")
-                    except requests.exceptions.RequestException as del_err:
-                        logger.critical(f"Rollback of entity {entity_id} (tenant {g.tenant}) failed: "
-                                        f"{type(del_err).__name__}; manual cleanup required")
+                    _rollback_entity(entity_id, g.tenant)
                     return jsonify({
                         'error': iot_result['error'] or 'IoT provisioning failed',
                         'entity_id': entity_id
@@ -977,6 +983,9 @@ def create_entity_instance(entity_type):
             }), 500
     
     except Exception as e:
+        if created_id and entity_type in IOT_ENTITY_TYPES:
+            # Error after the Orion write: remove the entity, leave no leftovers
+            _rollback_entity(created_id, g.tenant)
         return internal_error(e, 'sdm_create_entity')
 
 @app.route('/sdm/entities/<entity_type>/instances/<entity_id>', methods=['GET'])

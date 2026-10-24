@@ -68,19 +68,20 @@ def require_auth(f):
     return decorated
 
 
-def inject_fiware_headers(headers, tenant=None):
+def inject_fiware_headers(headers, tenant=None, body=None):
     """Add NGSI-LD + FIWARE tenant headers for Orion-LD multitenancy.
 
-    Delegates to the canonical implementation in ngsi_headers.py.
-    Preserved for signature compatibility — all sdm-integration callers
-    pass empty headers dict and rely on old default behavior.
+    Delegates to the canonical implementation in ngsi_headers.py. With ``body``
+    the @context delivery mode is derived from the payload (ld+json and no Link
+    when it carries @context); without it, behaviour is unchanged.
     """
     if tenant is None:
         tenant = getattr(g, "tenant", "master")
 
     from ngsi_headers import inject_fiware_headers as _canonical
 
-    return _canonical(headers, tenant=tenant, has_context_in_body=False)
+    has_context = isinstance(body, dict) and "@context" in body
+    return _canonical(headers, tenant=tenant, has_context_in_body=has_context)
 
 
 def log_entity_operation(

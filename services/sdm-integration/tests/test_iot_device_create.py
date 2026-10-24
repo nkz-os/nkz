@@ -96,6 +96,17 @@ def test_legacy_ref_device_profile_is_accepted(env):
     sent = post.call_args.kwargs["json"]
     assert "hasDeviceProfile" in sent
     assert "refDeviceProfile" not in sent
+    assert sent["hasDeviceProfile"] == {
+        "type": "Relationship", "object": "urn:ngsi-ld:DeviceProfile:p1"}
+
+
+def test_bare_string_profile_is_written_as_urn_relationship(env):
+    client, post, _, prov = env
+    r = client.post(URL, json=_body(hasDeviceProfile="p1"))
+    assert r.status_code == 201
+    assert prov.call_args.kwargs["profile_id"] == "p1"
+    assert post.call_args.kwargs["json"]["hasDeviceProfile"] == {
+        "type": "Relationship", "object": "urn:ngsi-ld:DeviceProfile:p1"}
 
 
 def test_missing_profile_writes_nothing(env):
@@ -171,3 +182,38 @@ def test_regenerate_key_reads_has_device_profile(sdm):
         r = sdm.app.test_client().post("/sdm/entities/urn:ngsi-ld:Device:d1/iot/regenerate-key")
     assert r.status_code == 200
     assert prov.call_args.kwargs["profile_id"] == "p9"
+
+
+def test_exception_after_orion_write_removes_the_entity(env):
+    client, post, delete, prov = env
+    prov.side_effect = RuntimeError("agent exploded")
+    r = client.post(URL, json=_body())
+    assert r.status_code >= 500
+    entity_id = post.call_args.kwargs["json"]["id"]
+    assert delete.call_args.args[0] == f"{ORION}/ngsi-ld/v1/entities/{entity_id}"
+
+
+def test_production_path_order_sends_ld_json_without_link(tmp_path):
+    """Image layout: the local auth_middleware shim shadows common's. Run in a
+    fresh interpreter so no module state leaks into other tests."""
+    import subprocess
+    code = (
+        "import sys\n"
+        f"sys.path[:0] = [{_SVC_DIR!r}]\n"
+        "import auth_middleware as am\n"
+        f"assert am.__file__.startswith({_SVC_DIR!r}), am.__file__\n"
+        "from flask import Flask, g\n"
+        "app = Flask('t')\n"
+        "with app.app_context():\n"
+        "    g.tenant = 'test-tenant'\n"
+        "    h = am.inject_fiware_headers({}, 'test-tenant', body={'@context': 'x', 'id': 'i'})\n"
+        "    assert h['Content-Type'] == 'application/ld+json' and 'Link' not in h, h\n"
+        "    h = am.inject_fiware_headers({}, 'test-tenant')\n"
+        "    assert h['Content-Type'] == 'application/json' and 'Link' in h, h\n"
+        "print('ok')\n"
+    )
+    env = dict(os.environ, CONTEXT_URL="http://ctx.invalid/c.jsonld",
+               PYTHONPATH=os.pathsep.join([_SERVICES_DIR, _COMMON_DIR]))
+    out = subprocess.run([sys.executable, "-c", code], env=env, cwd=tmp_path,
+                         capture_output=True, text=True)
+    assert out.returncode == 0 and "ok" in out.stdout, out.stderr
