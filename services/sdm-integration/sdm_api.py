@@ -946,9 +946,26 @@ def create_entity_instance(entity_type):
                     response_data['message'] = 'Entity created and IoT device provisioned successfully'
                     logger.info(f"IoT provisioning successful for {entity_id}")
                 else:
-                    response_data['iot_provisioning']['error'] = iot_result['error']
-                    response_data['message'] = 'Entity created but IoT provisioning failed'
-                    logger.warning(f"IoT provisioning failed for {entity_id}: {iot_result['error']}")
+                    logger.warning(f"IoT provisioning failed for {entity_id} (tenant {g.tenant}): {iot_result['error']}")
+                    # Compensate: do not leave a Device in Orion without IoT Agent provisioning
+                    try:
+                        del_resp = requests.delete(
+                            f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}",
+                            headers=inject_fiware_headers({}, g.tenant),
+                            timeout=10
+                        )
+                        if del_resp.status_code in (200, 204):
+                            logger.info(f"Rolled back entity {entity_id} (tenant {g.tenant}) after failed provisioning")
+                        else:
+                            logger.critical(f"Rollback of entity {entity_id} (tenant {g.tenant}) failed: "
+                                            f"Orion status {del_resp.status_code}; manual cleanup required")
+                    except requests.exceptions.RequestException as del_err:
+                        logger.critical(f"Rollback of entity {entity_id} (tenant {g.tenant}) failed: "
+                                        f"{type(del_err).__name__}; manual cleanup required")
+                    return jsonify({
+                        'error': iot_result['error'] or 'IoT provisioning failed',
+                        'entity_id': entity_id
+                    }), 502
             
             return jsonify(response_data), 201
         else:

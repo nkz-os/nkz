@@ -140,6 +140,24 @@ def test_non_device_iot_type_needs_only_profile(env):
     assert r.status_code == 201
 
 
+def test_failed_provisioning_removes_the_entity(sdm, env):
+    client, post, delete, prov = env
+    prov.return_value = {"provisioned": False, "error": "IoT Agent timeout - device not provisioned", "mqtt": None}
+    r = client.post(URL, json=_body())
+    assert r.status_code == 502
+    assert r.get_json()["error"] == "IoT Agent timeout - device not provisioned"
+    entity_id = post.call_args.kwargs["json"]["id"]
+    assert delete.call_args.args[0] == f"{ORION}/ngsi-ld/v1/entities/{entity_id}"
+    assert delete.call_args.kwargs["headers"]["NGSILD-Tenant"] == "test-tenant"
+
+
+def test_failed_provisioning_and_failed_delete_still_502(sdm, env):
+    client, _, delete, prov = env
+    prov.return_value = {"provisioned": False, "error": "boom", "mqtt": None}
+    delete.side_effect = sdm.requests.exceptions.ConnectionError("down")
+    assert client.post(URL, json=_body()).status_code == 502
+
+
 def test_regenerate_key_reads_has_device_profile(sdm):
     entity = {
         "id": "urn:ngsi-ld:Device:d1", "type": "Device",
