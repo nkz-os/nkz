@@ -130,6 +130,27 @@ def test_device_without_point_or_parcel_writes_nothing(env, over):
     post.assert_not_called()
 
 
+PARK = "urn:ngsi-ld:AgriSolarPark:p1"
+
+
+def test_park_only_device_is_rejected(env):
+    client, post, _, prov = env
+    ca = {"type": "Relationship", "object": [PARK]}
+    r = client.post(URL, json=_body(controlledAsset=ca))
+    assert r.status_code == 400
+    assert "parcel" in r.get_json()["error"].lower()
+    post.assert_not_called()
+    prov.assert_not_called()
+
+
+def test_park_owned_device_keeps_owner_first_and_parcels(env):
+    client, post, _, _ = env
+    ca = {"type": "Relationship", "object": [PARK, PARCEL_A]}
+    assert client.post(URL, json=_body(controlledAsset=ca)).status_code == 201
+    assert post.call_args.kwargs["json"]["controlledAsset"] == {
+        "type": "Relationship", "object": [PARK, PARCEL_A]}
+
+
 def test_bare_geojson_point_is_accepted(env):
     client, post, _, _ = env
     assert client.post(URL, json=_body(location=POINT)).status_code == 201
