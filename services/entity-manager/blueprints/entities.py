@@ -551,6 +551,19 @@ def update_instance(entity_type, entity_id):
 def delete_instance(entity_type, entity_id):
     """Delete specific entity instance"""
     try:
+        import dataloggers
+        if dataloggers.is_registered_device_urn(g.tenant, entity_id):
+            # Sensors registered through /api/sensors/register also own an IoT Agent
+            # device, a datalogger link and a broker ACL entry: remove them all.
+            # Every step is idempotent and a failed link lookup is a 502, never an
+            # Orion-only delete that would orphan the rest.
+            try:
+                dataloggers.delete_device(g.tenant, entity_id)
+            except dataloggers.ApiError as e:
+                return jsonify(e.body()), e.status
+            log_entity_operation('delete', entity_id, entity_type, g.tenant, g.farmer_id)
+            return jsonify({'message': 'Entity deleted successfully',
+                            'entity_id': entity_id, 'tenant': g.tenant})
         orion_url = f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}"
         headers = {}
         headers = inject_fiware_headers(headers, g.tenant)

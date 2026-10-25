@@ -1,3 +1,5 @@
 # Tables under FORCE ROW LEVEL SECURITY (schema.table, one per line).
 # Checked by .github/scripts/check_rls_ratchet.py: this list only grows.
 # A table enters when every role with access sets app.current_tenant per transaction.
+public.iot_dataloggers
+public.iot_datalogger_devices

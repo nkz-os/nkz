@@ -271,6 +271,12 @@ def _bootstrap_subscriptions_at_startup():
         logger.error("Subscription bootstrap failed (non-fatal): %s", e, exc_info=True)
 
 
+
+
+import dataloggers as _dataloggers  # noqa: E402
+
+_dataloggers.check_dynsec_config()
+
 # Start bootstrap in background thread to not block startup
 _bootstrap_t = threading.Thread(
     target=_bootstrap_subscriptions_at_startup,

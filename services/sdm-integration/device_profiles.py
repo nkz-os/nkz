@@ -46,52 +46,13 @@ def get_profiles_collection() -> Collection:
 # JEXL Validation
 # =============================================================================
 
-# Allowed JEXL patterns (simple expressions only)
-JEXL_ALLOWED_PATTERNS = [
-    r"^val$",  # Just the value
-    r"^val\s*[\+\-\*\/]\s*[\d\.]+$",  # val +/-/*// number
-    r"^[\d\.]+\s*[\+\-\*\/]\s*val$",  # number +/-/*// val
-    r"^val\s*[\+\-\*\/]\s*[\d\.]+\s*[\+\-\*\/]\s*[\d\.]+$",  # val op num op num
-    r"^val\s*>\s*[\d\.]+\s*\?\s*[\d\.]+\s*:\s*val$",  # val > n ? n : val (clamp)
-    r"^val\s*<\s*[\d\.]+\s*\?\s*[\d\.]+\s*:\s*val$",  # val < n ? n : val (clamp)
-]
+from common import jexl_expressions  # noqa: E402
+from common.jexl_expressions import JEXL_ALLOWED_PATTERNS  # noqa: E402,F401
 
 
 def validate_jexl_expression(expr: str) -> tuple[bool, str]:
-    """
-    Validate a JEXL expression for safety.
-    Returns (is_valid, error_message).
-    """
-    if not expr or expr.strip() == "":
-        return True, ""
-
-    expr = expr.strip()
-
-    # Check for dangerous patterns
-    dangerous_patterns = [
-        "import",
-        "require",
-        "eval",
-        "exec",
-        "function",
-        "process",
-        "global",
-        "__",
-        "constructor",
-    ]
-    for pattern in dangerous_patterns:
-        if pattern in expr.lower():
-            return False, f"Expresión no permitida: contiene '{pattern}'"
-
-    # Check against allowed patterns
-    for pattern in JEXL_ALLOWED_PATTERNS:
-        if re.match(pattern, expr):
-            return True, ""
-
-    return (
-        False,
-        "Expresión JEXL no válida. Usa patrones simples como 'val', 'val * 0.1', 'val + 273'",
-    )
+    """Device-profile transformations see a single variable, `val`."""
+    return jexl_expressions.validate_jexl_expression(expr, variables={"val"})
 
 
 def validate_mapping(mapping: dict, sdm_attributes: dict) -> tuple[bool, str]:

@@ -113,27 +113,34 @@ def test_read_endpoints_use_the_connection_from_the_context_manager(path, fetcho
 
 
 def test_register_reads_the_profile_and_creates_the_entity():
-    profile = {"id": 1, "sdm_entity_type": "Device", "sdm_device_category": None, "mapping": {}}
-    conn = _conn(profile)
-    with patch("blueprints.sensors.get_db_connection_with_tenant", new=_tenant_helper(conn)), \
-         patch("blueprints.sensors.requests.get", return_value=_orion(200, [])), \
-         patch("blueprints.sensors.requests.post", return_value=_orion(201)) as post:
-        r = _client().post("/api/sensors/register", content_type="application/json",
-                           headers={"Authorization": "Bearer x"},
+    from tests.telemetry_fakes import FakeState, seed_datalogger, wired, client as fclient, AUTH, PARCEL
+    from tests.telemetry_fakes import PROFILE
+
+    dl = "11111111-1111-1111-1111-111111111111"
+    st = FakeState()
+    seed_datalogger(st, dl_id=dl)
+    st.profiles["air_temperature"] = dict(PROFILE)
+    with wired(st) as w:
+        r = fclient().post("/api/sensors/register", content_type="application/json", headers=AUTH,
                            data=json.dumps({"external_id": "S1", "name": "S1",
                                             "profile": "air_temperature",
-                                            "location": {"lat": 42.0, "lon": -2.0}}))
+                                            "location": {"lat": 42.0, "lon": -2.0},
+                                            "controlledAsset": [PARCEL], "datalogger_id": dl}))
     assert r.status_code == 201, r.get_json()
-    assert any("/ngsi-ld/v1/entities" in c.args[0] for c in post.call_args_list)
+    assert w.orion.posted_urls and "/ngsi-ld/v1/entities" in w.orion.posted_urls[0]
 
 
 def test_register_unknown_profile_is_404():
-    conn = _conn(None)
-    with patch("blueprints.sensors.get_db_connection_with_tenant", new=_tenant_helper(conn)):
-        r = _client().post("/api/sensors/register", content_type="application/json",
-                           headers={"Authorization": "Bearer x"},
+    from tests.telemetry_fakes import FakeState, seed_datalogger, wired, client as fclient, AUTH, PARCEL
+
+    dl = "11111111-1111-1111-1111-111111111111"
+    st = FakeState()
+    seed_datalogger(st, dl_id=dl)
+    with wired(st):
+        r = fclient().post("/api/sensors/register", content_type="application/json", headers=AUTH,
                            data=json.dumps({"external_id": "S1", "name": "S1", "profile": "nope",
-                                            "location": {"lat": 42.0, "lon": -2.0}}))
+                                            "location": {"lat": 42.0, "lon": -2.0},
+                                            "controlledAsset": [PARCEL], "datalogger_id": dl}))
     assert r.status_code == 404
 
 

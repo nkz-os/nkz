@@ -5,14 +5,17 @@ Sensors Blueprint - Extracted from entity_management_api.py
 import os
 import sys
 import json
+import re
 import uuid
 import logging
+import math
 import secrets
 from datetime import datetime
+from functools import wraps
 from typing import Optional
 
 from flask import Blueprint, request, jsonify, g
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import Json, RealDictCursor
 import psycopg2
 import requests
 import paho.mqtt.client as mqtt
@@ -24,6 +27,10 @@ from db_helper import get_db_connection_with_tenant, get_db_connection_simple, r
 
 # Import shared config
 from helpers import ORION_URL, CONTEXT_URL
+import dataloggers
+from common.context_aliases import canonical_attribute
+from common.jexl_expressions import validate_jexl_expression
+from common.unit_codes import to_unit_code
 
 logger = logging.getLogger(__name__)
 
@@ -119,11 +126,131 @@ def _extract_health_property(entity: dict, key: str) -> Optional[dict]:
 # =============================================================================
 
 
+def _guard(fn):
+    """Answer dataloggers.ApiError with its status and body; anything else is a 500."""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except dataloggers.ApiError as e:
+            return jsonify(e.body()), e.status
+        except Exception as e:
+            logger.error("Error in %s: %s", fn.__name__, type(e).__name__)
+            return internal_error(e, fn.__name__, user_message='Request failed')
+    return wrapper
+
+
+def _tenant() -> str:
+    """The caller's tenant in canonical form, so URN, RLS value and FIWARE headers agree."""
+    tenant = g.tenant
+    if not tenant:
+        raise dataloggers.ApiError(401, 'Tenant not found in token')
+    from common.tenant_utils import normalize_tenant_id
+    try:
+        return normalize_tenant_id(tenant)
+    except ValueError:
+        raise dataloggers.ApiError(400, 'Invalid tenant')
+
+
+def _body() -> dict:
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        raise dataloggers.ApiError(400, 'No data provided')
+    return data
+
+
+def _parcel_links(value) -> list:
+    """Ordered, de-duplicated parcel URNs from a string, {'object': ...} or a list of those."""
+    if value is None:
+        return []
+    items = value if isinstance(value, list) else [value]
+    urns = []
+    for item in items:
+        if isinstance(item, dict):
+            urns.extend(_parcel_links(item.get('object')))
+        elif isinstance(item, str) and item:
+            urns.append(item)
+    return list(dict.fromkeys(urns))
+
+
+def _coordinate(value, name: str) -> float:
+    if value is None or isinstance(value, bool):
+        raise dataloggers.ApiError(400, 'Location (lat, lon) is required')
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise dataloggers.ApiError(400, f'Invalid {name}')
+    limit = 90 if name == 'lat' else 180
+    if not math.isfinite(number) or abs(number) > limit:
+        raise dataloggers.ApiError(400, f'Invalid {name}')
+    return number
+
+
+@dataloggers.in_step('db', 'Database error')
+def _read_profile(tenant_id: str, profile_code: str):
+    with get_db_connection_with_tenant(tenant_id) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT id, sdm_entity_type, sdm_device_category, mapping
+            FROM sensor_profiles
+            WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
+            ORDER BY tenant_id NULLS LAST
+            LIMIT 1
+        """, (profile_code, tenant_id))
+        row = cur.fetchone()
+        cur.close()
+    return row
+
+
+@dataloggers.in_step('orion_read', 'Could not read the context broker')
+def _orion_dedup_check(tenant_id: str, entity_type: str, external_id: str):
+    return requests.get(
+        f"{ORION_URL}/ngsi-ld/v1/entities?type={entity_type}"
+        f'&q=externalId=="{external_id}"',
+        headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
+        timeout=10)
+
+
+@dataloggers.in_step('orion_entity', 'Failed to create sensor entity in context broker')
+def _orion_create(tenant_id: str, entity: dict):
+    return requests.post(
+        f"{ORION_URL}/ngsi-ld/v1/entities", json=entity,
+        headers=inject_fiware_headers({'Content-Type': 'application/ld+json'},
+                                      tenant=tenant_id, has_context_in_body=True),
+        timeout=10)
+
+
+def _ensure_bridge_subscription(tenant: str) -> None:
+    """Device -> DeviceMeasurement subscription for this tenant.
+
+    Without it the device would register but its telemetry never reaches the
+    timeseries, so a registrar error or exception fails the registration (502).
+    """
+    try:
+        from blueprints.notifications import ensure_device_measurement_subscriptions
+        result = ensure_device_measurement_subscriptions(tenants=[tenant])
+    except Exception as exc:
+        logger.error("bridge subscription not ensured for tenant %s: %s", tenant, type(exc).__name__)
+        raise dataloggers.ApiError(502, 'Could not ensure the telemetry subscription',
+                                   'bridge_subscription')
+    errors = (result or {}).get('errors') if isinstance(result, dict) else None
+    if errors:
+        logger.error("bridge subscription not ensured for tenant %s: %d registrar error(s)",
+                     tenant, len(errors))
+        raise dataloggers.ApiError(502, 'Could not ensure the telemetry subscription',
+                                   'bridge_subscription')
+
+
 @sensors_bp.route('/api/sensors/register', methods=['POST'])
 @require_auth
+@_guard
 def register_sensor():
     """
-    Register a sensor - creates Orion-LD entity first, then records in sensors table
+    Register a sensor on a datalogger.
+
+    Steps, each undone in reverse order if a later one fails (502 with the step):
+    Orion entity, IoT Agent device, datalogger link row, broker ACL, then the
+    Device -> DeviceMeasurement subscription (logged only if it fails).
 
     Request body:
     {
@@ -131,373 +258,380 @@ def register_sensor():
         "name": "BP Vaso PAR 1",
         "profile": "par_photon_flux",
         "location": {"lat": 42.57, "lon": -2.02},
-        "station_id": "BP_Vaso",
-        "is_under_canopy": true
+        "controlledAsset": ["urn:ngsi-ld:AgriParcel:<id>", ...],   # owner first, >= 1 parcel
+        "datalogger_id": "<uuid>"
     }
     """
+    tenant_id = _tenant()
+    data = _body()
+
+    external_id = data.get('external_id')
+    name = data.get('name')
+    profile_code = data.get('profile')
+    if not external_id or not name or not profile_code or not data.get('datalogger_id'):
+        raise dataloggers.ApiError(
+            400, 'Missing required fields: external_id, name, profile, datalogger_id')
+    if not isinstance(external_id, str) or not dataloggers.EXTERNAL_ID_RE.fullmatch(external_id):
+        raise dataloggers.ApiError(400, 'external_id must match [A-Za-z0-9_.-]{1,64}')
+
+    location = data.get('location') or {}
+    lat = _coordinate(location.get('lat'), 'lat')
+    lon = _coordinate(location.get('lon'), 'lon')
+    parcels = _parcel_links(data.get('controlledAsset'))
+    if (not parcels
+            or not all(u.startswith('urn:ngsi-ld:') for u in parcels)
+            or not any(u.startswith('urn:ngsi-ld:AgriParcel:') for u in parcels)):
+        raise dataloggers.ApiError(
+            400, 'controlledAsset must hold NGSI-LD URNs and at least one AgriParcel.')
+
+    # Reads and validations first: nothing is written until all of them pass.
+    datalogger = dataloggers.require_usable_datalogger(tenant_id, data['datalogger_id'])
+
+    profile_row = _read_profile(tenant_id, profile_code)
+    if not profile_row:
+        raise dataloggers.ApiError(404, f'Profile "{profile_code}" not found')
+
+    sdm_entity_type = profile_row.get('sdm_entity_type') or 'Device'
+    # tractor / implement / robot / harvester for machines, NULL for devices: the
+    # one attribute that tells machines of the same type apart.
+    device_category = profile_row.get('sdm_device_category')
+    profile_mapping = profile_row.get('mapping')
+    measurements = (profile_mapping.get('measurements') or []) if isinstance(profile_mapping, dict) else []
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
+        dataloggers.iot_agent.build_iota_attributes(measurements)
+    except (KeyError, TypeError, AttributeError):
+        raise dataloggers.ApiError(400, 'Profile measurements need type and sdmAttribute')
 
-        tenant_id = g.tenant
-        if not tenant_id:
-            return jsonify({'error': 'Tenant not found in token'}), 401
+    orion_entity_id = f"urn:ngsi-ld:{sdm_entity_type}:{tenant_id}:{external_id}"
+    if dataloggers.device_link(tenant_id, orion_entity_id):
+        raise dataloggers.ApiError(409, 'Device is already on a datalogger')
 
-        external_id = data.get('external_id')
-        name = data.get('name')
-        profile_code = data.get('profile')
+    orion_check = _orion_dedup_check(tenant_id, sdm_entity_type, external_id)
+    if orion_check.status_code == 200 and orion_check.json():
+        existing = orion_check.json()[0]
+        return jsonify({
+            'error': f'Sensor with external_id "{external_id}" already exists',
+            'sensor': {'id': existing.get('id'),
+                       'external_id': _extract_prop_value(existing, 'externalId'),
+                       'name': _extract_prop_value(existing, 'name')},
+        }), 409
 
-        if not external_id or not name or not profile_code:
-            return jsonify({
-                'error': 'Missing required fields: external_id, name, profile'
-            }), 400
+    metadata = data.get('metadata', {})
+    if data.get('station_id'):
+        metadata['group'] = data['station_id']
+        metadata['station_id'] = data['station_id']
 
-        location = data.get('location', {})
-        lat = location.get('lat')
-        lon = location.get('lon')
+    orion_entity = {
+        '@context': [CONTEXT_URL],
+        'id': orion_entity_id,
+        'type': sdm_entity_type,
+        'name': {'type': 'Property', 'value': name},
+        'location': {'type': 'GeoProperty',
+                     'value': {'type': 'Point', 'coordinates': [lon, lat]}},
+        'externalId': {'type': 'Property', 'value': external_id},
+        'sensorType': {'type': 'Property', 'value': profile_code},
+        'profileCode': {'type': 'Property', 'value': profile_code},
+        'installedAt': {'type': 'Property', 'value': datetime.utcnow().isoformat()},
+        'status': {'type': 'Property', 'value': 'active'},
+        # controlledAsset is the SDM device->asset relationship; first entry is the owner.
+        'controlledAsset': {'type': 'Relationship', 'object': parcels},
+    }
+    if device_category:
+        orion_entity['category'] = {'type': 'Property', 'value': device_category}
+    if metadata:
+        orion_entity['metadata'] = {'type': 'Property', 'value': metadata}
+    if data.get('is_under_canopy'):
+        orion_entity['isUnderCanopy'] = {'type': 'Property', 'value': True}
+    if data.get('station_id'):
+        orion_entity['stationId'] = {'type': 'Property', 'value': data['station_id']}
+    if data.get('altitude_meters'):
+        orion_entity['altitudeMeters'] = {'type': 'Property', 'value': data['altitude_meters']}
+    for attr in _HEALTH_ATTRIBUTES:
+        if attr in data and data[attr] is not None:
+            orion_entity[attr] = {'type': 'Property', 'value': data[attr]}
 
-        if not lat or not lon:
-            return jsonify({
-                'error': 'Location (lat, lon) is required'
-            }), 400
+    apikey = dataloggers.get_apikey(tenant_id)
 
-        try:
-            with get_db_connection_with_tenant(tenant_id) as conn:
-                cur = conn.cursor(cursor_factory=RealDictCursor)
-                # Check if profile exists and get SDM mapping
-                cur.execute("""
-                    SELECT id, sdm_entity_type, sdm_device_category, mapping
-                    FROM sensor_profiles
-                    WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
-                    ORDER BY tenant_id NULLS LAST
-                    LIMIT 1
-                """, (profile_code, tenant_id))
-                profile_row = cur.fetchone()
-                cur.close()
+    undo = dataloggers.UndoStack()
+    try:
+        orion_response = _orion_create(tenant_id, orion_entity)
+        if orion_response.status_code == 409:
+            # Not ours: never compensate (delete) an entity this request did not create.
+            raise dataloggers.ApiError(409, f'Sensor "{external_id}" already exists')
+        if orion_response.status_code not in (200, 201):
+            logger.error("Orion rejected sensor %s: %s", external_id, orion_response.status_code)
+            raise dataloggers.ApiError(502, 'Failed to create sensor entity in context broker',
+                                       'orion_entity')
+        undo.push('orion_entity', lambda: dataloggers.delete_orion_entity(tenant_id, orion_entity_id))
 
-            if not profile_row:
-                return jsonify({
-                    'error': f'Profile "{profile_code}" not found'
-                }), 404
+        dataloggers.provision_iota_device(tenant_id, apikey, external_id, orion_entity_id,
+                                          sdm_entity_type, measurements)
+        undo.push('iota_device', lambda: dataloggers.delete_iota_device(tenant_id, external_id))
 
-            sdm_entity_type = profile_row.get('sdm_entity_type') or 'Device'
-            # tractor / implement / robot / harvester for machines, NULL for devices: the
-            # one attribute that tells machines of the same type apart.
-            device_category = profile_row.get('sdm_device_category')
-            profile_mapping = profile_row.get('mapping') or {}
+        dataloggers.link_device(tenant_id, datalogger['id'], orion_entity_id, external_id)
+        undo.push('link', lambda: dataloggers.undo_link(tenant_id, orion_entity_id))
 
-            # ── Dedup check via Orion-LD ──────────────────────────────────
-            orion_check_url = (
-                f"{ORION_URL}/ngsi-ld/v1/entities"
-                f"?type={sdm_entity_type}"
-                f'&q=externalId=="{external_id}"'
-            )
-            orion_check = requests.get(
-                orion_check_url,
-                headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
-                timeout=10
-            )
-            if orion_check.status_code == 200:
-                existing_entities = orion_check.json()
-                if existing_entities:
-                    existing_entity = existing_entities[0]
-                    return jsonify({
-                        'error': f'Sensor with external_id "{external_id}" already exists',
-                        'sensor': {
-                            'id': existing_entity.get('id'),
-                            'external_id': _extract_prop_value(
-                                existing_entity, 'externalId'
-                            ),
-                            'name': _extract_prop_value(
-                                existing_entity, 'name'
-                            ),
-                        }
-                    }), 409
+        acl = dataloggers.reconcile_datalogger_acl(tenant_id, datalogger['id'])
 
-            # Prepare metadata
-            metadata = data.get('metadata', {})
-            if data.get('station_id'):
-                metadata['group'] = data['station_id']
-                metadata['station_id'] = data['station_id']
+        _ensure_bridge_subscription(tenant_id)
+    except Exception:
+        undo.unwind()
+        raise
 
-            import json
+    logger.info("Registered sensor %s for tenant %s on datalogger %s",
+                external_id, tenant_id, datalogger['id'])
+    body = {
+        'entity_id': orion_entity_id,
+        'topic': dataloggers.topic_for(apikey, external_id),
+        'datalogger_id': datalogger['id'],
+    }
+    if isinstance(acl, dict) and acl.get('needs_rotation'):
+        body['needs_rotation'] = True
+    return jsonify(body), 201
 
-            # =============================================================================
-            # STEP 1: Create NGSI-LD entity in Orion-LD (sole source of truth)
-            # =============================================================================
-            orion_entity_id = (
-                f"urn:ngsi-ld:{sdm_entity_type}:{tenant_id}:{external_id}"
-            )
 
-            orion_entity = {
-                '@context': [CONTEXT_URL],
-                'id': orion_entity_id,
-                'type': sdm_entity_type,
-                'name': {'type': 'Property', 'value': name},
-                'location': {
-                    'type': 'GeoProperty',
-                    'value': {
-                        'type': 'Point',
-                        'coordinates': [lon, lat],
-                    },
-                },
-                'externalId': {'type': 'Property', 'value': external_id},
-                'sensorType': {'type': 'Property', 'value': profile_code},
-                'profileCode': {'type': 'Property', 'value': profile_code},
-                'installedAt': {
-                    'type': 'Property',
-                    'value': datetime.utcnow().isoformat(),
-                },
-                'status': {'type': 'Property', 'value': 'active'},
-            }
+# =============================================================================
+# Dataloggers
+# =============================================================================
 
-            if device_category:
-                orion_entity['category'] = {'type': 'Property', 'value': device_category}
-            if metadata:
-                orion_entity['metadata'] = {
-                    'type': 'Property',
-                    'value': metadata,
-                }
-            if data.get('is_under_canopy'):
-                orion_entity['isUnderCanopy'] = {
-                    'type': 'Property',
-                    'value': True,
-                }
-            if data.get('station_id'):
-                orion_entity['stationId'] = {
-                    'type': 'Property',
-                    'value': data['station_id'],
-                }
-            if data.get('altitude_meters'):
-                orion_entity['altitudeMeters'] = {
-                    'type': 'Property',
-                    'value': data['altitude_meters'],
-                }
-            if data.get('parcel_id'):
-                # controlledAsset es la relación SDM dispositivo->activo. Sustituye a la
-                # propiedad propia parcelId, que obligaba a probar tres deletreos en orden.
-                parcel_ref = data['parcel_id']
-                if not parcel_ref.startswith('urn:ngsi-ld:'):
-                    parcel_ref = f"urn:ngsi-ld:AgriParcel:{parcel_ref}"
-                orion_entity['controlledAsset'] = {
-                    'type': 'Relationship',
-                    'object': parcel_ref,
-                }
 
-            # Health & calibration config
-            for attr in _HEALTH_ATTRIBUTES:
-                if attr in data and data[attr] is not None:
-                    orion_entity[attr] = {
-                        'type': 'Property',
-                        'value': data[attr],
-                    }
+@sensors_bp.route('/api/sensors/dataloggers', methods=['POST'])
+@require_auth
+@_guard
+def create_datalogger():
+    tenant = _tenant()
+    data = _body()
+    name = data.get('name')
+    kind = data.get('kind')
+    if not isinstance(name, str) or not name.strip() or len(name) > 200:
+        raise dataloggers.ApiError(400, 'name is required')
+    if kind not in dataloggers.KINDS:
+        raise dataloggers.ApiError(400, f'kind must be one of {", ".join(dataloggers.KINDS)}')
+    created = dataloggers.create_datalogger(tenant, name.strip(), kind)
+    return jsonify({'id': created['id'], 'mqtt': created['mqtt'], 'devices': []}), 201
 
-            orion_headers = inject_fiware_headers(
-                {'Content-Type': 'application/ld+json'}, tenant=tenant_id, has_context_in_body=True
-            )
-            orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
 
-            orion_entity_created = False
-            orion_response = requests.post(
-                orion_url,
-                json=orion_entity,
-                headers=orion_headers,
-                timeout=10,
-            )
-            if orion_response.status_code in [200, 201]:
-                orion_entity_created = True
-                logger.info(
-                    "Created Orion-LD entity %s for sensor %s",
-                    orion_entity_id,
-                    external_id,
-                )
-            elif orion_response.status_code == 409:
-                orion_entity_created = True
-                logger.info(
-                    "Orion-LD entity %s already exists for sensor %s",
-                    orion_entity_id,
-                    external_id,
-                )
-            else:
-                logger.error(
-                    "Failed to create Orion-LD entity for sensor %s: %s - %s",
-                    external_id,
-                    orion_response.status_code,
-                    orion_response.text,
-                )
-                return jsonify({
-                    'error': 'Failed to create sensor entity in context broker'
-                }), 502
+@sensors_bp.route('/api/sensors/dataloggers', methods=['GET'])
+@require_auth
+@_guard
+def list_dataloggers():
+    return jsonify(dataloggers.list_dataloggers(_tenant())), 200
 
-            # =============================================================================
-            # STEP 2: Create MQTT credentials for the device
-            # =============================================================================
-            mqtt_credentials = None
-            mqtt_credentials_created = False
-            try:
-                mqtt_service_url = os.getenv('MQTT_CREDENTIALS_SERVICE_URL', 'http://mqtt-credentials-manager-service:5000')
-                mqtt_response = requests.post(
-                    f'{mqtt_service_url}/api/mqtt/credentials/create',
-                    json={
-                        'tenant_id': tenant_id,
-                        'device_id': external_id
-                    },
-                    timeout=10
-                )
 
-                if mqtt_response.status_code == 201:
-                    mqtt_credentials = mqtt_response.json()
-                    mqtt_credentials_created = True
-                    logger.info(f"Created MQTT credentials for device {external_id}")
-                else:
-                    logger.warning(f"Failed to create MQTT credentials: {mqtt_response.status_code} - {mqtt_response.text}")
-            except Exception as mqtt_error:
-                logger.error(f"Error creating MQTT credentials: {mqtt_error}")
-                # Don't fail the whole request, but log it
+@sensors_bp.route('/api/sensors/dataloggers/<datalogger_id>/config', methods=['GET'])
+@require_auth
+@_guard
+def datalogger_config(datalogger_id):
+    return jsonify(dataloggers.get_datalogger_config(_tenant(), datalogger_id)), 200
 
-            # =============================================================================
-            # STEP 3: Configure IoT Agent for this device
-            # =============================================================================
-            iot_agent_configured = False
-            try:
-                if profile_mapping and mqtt_credentials_created:
-                    iot_agent_url = os.getenv('IOT_AGENT_URL', 'http://iot-agent-json-service:4041')
 
-                    # Build IoT Agent device configuration
-                    # Topic pattern: {tenant_id}/{device_id}/data
-                    device_config = {
-                        'devices': [{
-                            'device_id': external_id,
-                            'entity_name': orion_entity_id,
-                            'entity_type': sdm_entity_type,
-                            'protocol': 'MQTT',
-                            'transport': 'MQTT',
-                            'timezone': 'Europe/Madrid',
-                            'attributes': []
-                        }]
-                    }
+@sensors_bp.route('/api/sensors/dataloggers/<datalogger_id>/rotate', methods=['POST'])
+@require_auth
+@_guard
+def rotate_datalogger(datalogger_id):
+    return jsonify(dataloggers.rotate_datalogger(_tenant(), datalogger_id)), 200
 
-                    # Add attributes from profile mapping
-                    mapping_data = profile_mapping if isinstance(profile_mapping, dict) else {}
-                    measurements = mapping_data.get('measurements', [])
 
-                    for measurement in measurements:
-                        attr_config = {
-                            'name': measurement.get('sdmAttribute', measurement.get('type')),
-                            'type': 'Number' if measurement.get('unit') else 'Text'
-                        }
-                        if measurement.get('unit'):
-                            attr_config['unit'] = measurement.get('unit')
-                        device_config['devices'][0]['attributes'].append(attr_config)
+@sensors_bp.route('/api/sensors/dataloggers/<datalogger_id>/revoke', methods=['POST'])
+@require_auth
+@_guard
+def revoke_datalogger(datalogger_id):
+    dataloggers.set_datalogger_status(_tenant(), datalogger_id, revoke=True)
+    return jsonify({'status': 'revoked'}), 200
 
-                    # Register device in IoT Agent
-                    iot_headers = inject_fiware_headers(
-                        {'Content-Type': 'application/json'}, tenant=tenant_id, has_context_in_body=False
-                    )
 
-                    iot_response = requests.post(
-                        f'{iot_agent_url}/iot/devices',
-                        json=device_config,
-                        headers=iot_headers,
-                        timeout=10
-                    )
+@sensors_bp.route('/api/sensors/dataloggers/<datalogger_id>/enable', methods=['POST'])
+@require_auth
+@_guard
+def enable_datalogger(datalogger_id):
+    dataloggers.set_datalogger_status(_tenant(), datalogger_id, revoke=False)
+    return jsonify({'status': 'active'}), 200
 
-                    if iot_response.status_code in [200, 201]:
-                        iot_agent_configured = True
-                        logger.info(f"Configured IoT Agent for device {external_id}")
-                    else:
-                        logger.warning(f"Failed to configure IoT Agent: {iot_response.status_code} - {iot_response.text}")
 
-            except Exception as iot_error:
-                logger.error(f"Error configuring IoT Agent: {iot_error}")
-                # Don't fail the whole request, but log it
+@sensors_bp.route('/api/sensors/dataloggers/<datalogger_id>', methods=['DELETE'])
+@require_auth
+@_guard
+def delete_datalogger(datalogger_id):
+    dataloggers.delete_datalogger(_tenant(), datalogger_id)
+    return '', 204
 
-            logger.info(f"Registered sensor {external_id} for tenant {tenant_id} (Orion-LD: {'created' if orion_entity_created else 'skipped'}, MQTT: {'created' if mqtt_credentials_created else 'skipped'}, IoT Agent: {'configured' if iot_agent_configured else 'skipped'})")
 
-            response_data = {
-                'success': True,
-                'sensor': {
-                    'id': orion_entity_id,
-                    'external_id': external_id,
-                    'name': name,
-                    'profile': profile_code,
-                    'tenant_id': tenant_id,
-                    'created_at': datetime.utcnow().isoformat(),
-                },
-                'message': 'Sensor registered successfully',
-            }
+@sensors_bp.route('/api/sensors/devices/<path:device_urn>/datalogger', methods=['PUT'])
+@require_auth
+@_guard
+def move_device(device_urn):
+    raw = _body().get('datalogger_id')
+    try:
+        target = str(uuid.UUID(str(raw)))
+    except (ValueError, AttributeError, TypeError):
+        raise dataloggers.ApiError(400, 'datalogger_id must be a valid id')
+    dataloggers.move_device(_tenant(), device_urn, target)
+    return jsonify({'entity_id': device_urn, 'datalogger_id': target}), 200
 
-            # Include health & calibration config in response
-            for attr in _HEALTH_ATTRIBUTES:
-                if attr in data and data[attr] is not None:
-                    response_data['sensor'][attr] = data[attr]
 
-            # Add Orion-LD entity info if created
-            if orion_entity_created and orion_entity_id:
-                response_data['orion_entity'] = {
-                    'id': orion_entity_id,
-                    'type': sdm_entity_type,
-                    'created': True
-                }
+@sensors_bp.route('/api/sensors/devices/<path:device_urn>/profile', methods=['PUT'])
+@require_auth
+@_guard
+def change_device_profile(device_urn):
+    code = _body().get('profile')
+    if not isinstance(code, str) or not code:
+        raise dataloggers.ApiError(400, 'profile is required')
+    dataloggers.change_device_profile(_tenant(), device_urn, code)
+    return jsonify({'entity_id': device_urn, 'profile': code}), 200
 
-            # Add MQTT credentials if created (ONLY returned on creation)
-            if mqtt_credentials_created and mqtt_credentials:
-                response_data['mqtt'] = {
-                    'username': mqtt_credentials.get('username'),
-                    'password': mqtt_credentials.get('password'),
-                    'host': mqtt_credentials.get('mqtt_host', os.getenv('MQTT_HOST', 'mosquitto-service')),
-                    'port': mqtt_credentials.get('mqtt_port', 1883),
-                    'topics': mqtt_credentials.get('topics', {
-                        'data': f'{tenant_id}/{external_id}/data',
-                        'commands': f'{tenant_id}/{external_id}/cmd'
-                    }),
-                    'warning': 'Save these credentials securely. Password cannot be retrieved later.'
-                }
 
-            # Add IoT Agent status
-            response_data['iot_agent'] = {
-                'configured': iot_agent_configured,
-                'status': 'ready' if iot_agent_configured else 'pending'
-            }
-
-            return jsonify(response_data), 201
-
-        except Exception as e:
-            logger.error("Error registering sensor: %s", e)
-            # Best-effort cleanup of Orion-LD entity if it was created
-            try:
-                _cleanup_needed = orion_entity_created and orion_entity_id
-            except NameError:
-                _cleanup_needed = False
-            if _cleanup_needed:
-                try:
-                    requests.delete(
-                        f"{ORION_URL}/ngsi-ld/v1/entities/{orion_entity_id}",
-                        headers=inject_fiware_headers({}, tenant=tenant_id, has_context_in_body=False),
-                        timeout=5,
-                    )
-                    logger.info(
-                        "Cleaned up Orion-LD entity %s after failure",
-                        orion_entity_id,
-                    )
-                except Exception as cleanup_error:
-                    logger.critical(
-                        "INCONSISTENCY: Orion-LD entity %s exists but cleanup "
-                        "failed: %s",
-                        orion_entity_id,
-                        cleanup_error,
-                    )
-            return internal_error(e, 'sensors_register', user_message='Registration error')
-
-    except Exception as e:
-        logger.error(f"Error in register_sensor: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+@sensors_bp.route('/api/sensors/devices/<path:device_urn>', methods=['DELETE'])
+@require_auth
+@_guard
+def delete_sensor_device(device_urn):
+    dataloggers.delete_device(_tenant(), device_urn)
+    return '', 204
 
 
 # =============================================================================
 # Sensor Profiles
 # =============================================================================
+
+
+_PROFILE_CODE = re.compile(r'[A-Za-z0-9_.-]{1,64}')
+_VALUE_TYPES = ('Number', 'Text')
+
+
+def _validated_profile(data: dict) -> tuple:
+    """(name, description, mapping) of a profile body, with `sdmAttribute` canonicalized."""
+    name = data.get('name')
+    if not isinstance(name, str) or not name.strip():
+        raise dataloggers.ApiError(400, 'name is required')
+    description = data.get('description')
+    if description is not None and not isinstance(description, str):
+        raise dataloggers.ApiError(400, 'description must be text')
+    if data.get('sdm_entity_type', 'Device') != 'Device':
+        raise dataloggers.ApiError(400, 'sdm_entity_type must be Device')
+    mapping = data.get('mapping')
+    raw = mapping.get('measurements') if isinstance(mapping, dict) else None
+    if not isinstance(raw, list) or not raw:
+        raise dataloggers.ApiError(400, 'mapping.measurements must be a non-empty list')
+    keys = {(m.get('incomingKey') or m.get('type')) for m in raw
+            if isinstance(m, dict) and isinstance(m.get('incomingKey') or m.get('type'), str)}
+    measurements, seen = [], set()
+    for m in raw:
+        if not isinstance(m, dict):
+            raise dataloggers.ApiError(400, 'Each measurement must be an object')
+        for field in ('type', 'sdmAttribute'):
+            if not isinstance(m.get(field), str) or not m[field].strip():
+                raise dataloggers.ApiError(400, f'Measurement {field} is required')
+        unit = m.get('unit', '')
+        if not isinstance(unit, str):
+            raise dataloggers.ApiError(400, 'Measurement unit must be text')
+        try:
+            to_unit_code(unit)
+        except ValueError:
+            raise dataloggers.ApiError(400, f'Unknown unit "{unit}"')
+        if m.get('valueType') is not None and m['valueType'] not in _VALUE_TYPES:
+            raise dataloggers.ApiError(400, 'valueType must be Number or Text')
+        for field in ('incomingKey', 'expression'):
+            if m.get(field) is not None and not isinstance(m[field], str):
+                raise dataloggers.ApiError(400, f'Measurement {field} must be text')
+        if m.get('expression'):
+            ok, why = validate_jexl_expression(m['expression'], variables=keys)
+            if not ok:
+                raise dataloggers.ApiError(400, f'Invalid expression: {why}')
+        attribute = canonical_attribute(m['sdmAttribute'].strip())
+        if attribute in seen:
+            raise dataloggers.ApiError(400, f'Duplicate sdmAttribute "{attribute}"')
+        seen.add(attribute)
+        clean = {'type': m['type'].strip(), 'sdmAttribute': attribute, 'unit': unit}
+        for field in ('incomingKey', 'valueType', 'expression'):
+            if m.get(field):
+                clean[field] = m[field]
+        measurements.append(clean)
+    return name.strip(), description, {**mapping, 'measurements': measurements}
+
+
+@dataloggers.in_step('db', 'Database error')
+def _profile_visible(tenant_id: str, code: str):
+    with get_db_connection_with_tenant(tenant_id) as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            SELECT tenant_id FROM sensor_profiles
+            WHERE code = %s AND (tenant_id IS NULL OR tenant_id = %s)
+            ORDER BY tenant_id NULLS LAST
+            LIMIT 1
+        """, (code, tenant_id))
+        row = cur.fetchone()
+        cur.close()
+    return row
+
+
+@sensors_bp.route('/api/sensors/profiles', methods=['POST'])
+@require_auth
+@_guard
+def create_sensor_profile():
+    tenant = _tenant()
+    data = _body()
+    code = data.get('code')
+    if not isinstance(code, str) or not _PROFILE_CODE.fullmatch(code):
+        raise dataloggers.ApiError(400, 'Invalid code')
+    name, description, mapping = _validated_profile(data)
+    if _profile_visible(tenant, code):
+        raise dataloggers.ApiError(409, 'Profile code already exists')
+    try:
+        with get_db_connection_with_tenant(tenant) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO sensor_profiles (tenant_id, code, name, description, sdm_entity_type, mapping)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (tenant, code, name, description, 'Device', Json(mapping)))
+            conn.commit()
+            cur.close()
+    except psycopg2.errors.UniqueViolation:
+        raise dataloggers.ApiError(409, 'Profile code already exists')
+    except Exception as exc:
+        logger.error("profile insert failed: %s", type(exc).__name__)
+        raise dataloggers.ApiError(502, 'Database error', 'db')
+    return jsonify({'code': code, 'name': name, 'sdm_entity_type': 'Device',
+                    'mapping': mapping}), 201
+
+
+@sensors_bp.route('/api/sensors/profiles/<code>', methods=['PUT'])
+@require_auth
+@_guard
+def update_sensor_profile(code):
+    tenant = _tenant()
+    data = _body()
+    if data.get('code', code) != code:
+        raise dataloggers.ApiError(400, 'code in body does not match the URL')
+    name, description, mapping = _validated_profile(data)
+    row = _profile_visible(tenant, code)
+    if not row:
+        raise dataloggers.ApiError(404, 'Profile not found')
+    if row.get('tenant_id') is None:
+        raise dataloggers.ApiError(403, 'Global profiles are read-only')
+    try:
+        with get_db_connection_with_tenant(tenant) as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE sensor_profiles SET name = %s, description = %s, mapping = %s
+                WHERE code = %s AND tenant_id = %s
+            """, (name, description, Json(mapping), code, tenant))
+            updated = cur.rowcount
+            conn.commit()
+            cur.close()
+    except Exception as exc:
+        logger.error("profile update failed: %s", type(exc).__name__)
+        raise dataloggers.ApiError(502, 'Database error', 'db')
+    if not updated:
+        raise dataloggers.ApiError(404, 'Profile not found')
+    result = {'reprovisioned': [], 'failed': []}
+    try:
+        result = dataloggers.reprovision_profile_devices(
+            tenant, code, mapping.get('measurements') or [])
+    except Exception as exc:
+        # The profile row is saved; the devices keep their old attributes until re-saved.
+        logger.error("profile %s: devices could not be listed for re-provisioning: %s",
+                     code, type(exc).__name__)
+        result['error'] = 'device_listing_failed'
+    return jsonify({'code': code, 'name': name, 'mapping': mapping, **result}), 200
 
 
 @sensors_bp.route('/api/sensors/profiles', methods=['GET'])

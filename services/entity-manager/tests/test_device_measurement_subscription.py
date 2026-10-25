@@ -39,6 +39,10 @@ for _p in (_em_dir, _services_dir):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+from tests.real_common import seed_real_common  # noqa: E402
+
+seed_real_common()
+
 # The one submodule `blueprints.measurements` actually needs: load the real file and pin
 # it under its exact dotted name so `from common.unit_codes import to_unit_code` resolves
 # regardless of what `common` itself is stubbed to elsewhere (direct sys.modules hit on
@@ -264,3 +268,51 @@ def test_measurement_registrar_gets_the_master_and_the_derived_flag(monkeypatch)
     assert kwargs["internal_secret"] == "test-secret"
     assert kwargs["derived_tokens"] is True
     assert kwargs.get("notification_headers") is None
+
+
+def test_ensure_subscriptions_can_target_given_tenants_only():
+    import blueprints.notifications as notif
+
+    with patch.object(notif, "SubscriptionRegistrar") as reg, \
+         patch.object(notif, "_get_active_tenants", return_value=["tenant-a", "tenant-b"]) as active, \
+         patch.object(notif.asyncio, "run",
+                      return_value={"created": 0, "skipped": 0, "errors": []}):
+        notif.ensure_device_measurement_subscriptions(tenants=["tenant-b"])
+    reg.return_value.ensure_all.assert_called_once_with(["tenant-b"])
+    active.assert_not_called()
+
+
+def test_ensure_subscriptions_defaults_to_every_active_tenant():
+    import blueprints.notifications as notif
+
+    with patch.object(notif, "SubscriptionRegistrar") as reg, \
+         patch.object(notif, "_get_active_tenants", return_value=["tenant-a", "tenant-b"]), \
+         patch.object(notif.asyncio, "run",
+                      return_value={"created": 0, "skipped": 0, "errors": []}):
+        notif.ensure_device_measurement_subscriptions()
+    reg.return_value.ensure_all.assert_called_once_with(["tenant-a", "tenant-b"])
+
+
+def test_ensure_subscriptions_with_an_empty_list_does_not_fall_back_to_all():
+    import blueprints.notifications as notif
+
+    with patch.object(notif, "SubscriptionRegistrar") as reg, \
+         patch.object(notif, "_get_active_tenants", return_value=["tenant-a"]) as active, \
+         patch.object(notif.asyncio, "run",
+                      return_value={"created": 0, "skipped": 0, "errors": []}):
+        notif.ensure_device_measurement_subscriptions(tenants=[])
+    reg.return_value.ensure_all.assert_called_once_with([])
+    active.assert_not_called()
+
+
+def test_ensure_subscriptions_returns_the_registrar_result_and_logs_errors(caplog):
+    import logging
+    import blueprints.notifications as notif
+
+    result = {"created": 0, "skipped": 0, "errors": [{"tenant": "tenant-a", "error": "500"}]}
+    with patch.object(notif, "SubscriptionRegistrar"), \
+         patch.object(notif.asyncio, "run", return_value=result), \
+         caplog.at_level(logging.INFO):
+        out = notif.ensure_device_measurement_subscriptions(tenants=["tenant-a"])
+    assert out is result
+    assert any(r.levelno == logging.ERROR and "errors=1" in r.getMessage() for r in caplog.records)
