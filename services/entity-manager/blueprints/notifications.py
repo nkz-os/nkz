@@ -77,9 +77,13 @@ def _get_active_tenants() -> list:
 # the concurrency arbiter) rather than the hand-rolled list-then-create above: this service
 # runs under gunicorn with several worker processes, and a plain listing read is not safe
 # against several of them calling ensure at once.
+#
+# No throttling: Orion applies it per subscription, and each of these covers every entity of
+# its type in a tenant, so any window would drop readings from other devices publishing inside
+# it. `throttling: None` makes the SDK omit the key (an omitted field would mean its default).
 DEVICE_MEASUREMENT_SUBSCRIPTIONS = [
-    {'type': 'Device', 'throttling': 30},
-    {'type': 'ManufacturingMachine', 'throttling': 30},
+    {'type': 'Device', 'throttling': None},
+    {'type': 'ManufacturingMachine', 'throttling': None},
 ]
 
 
