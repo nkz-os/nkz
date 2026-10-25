@@ -199,6 +199,8 @@ _VALID_TELEMETRY_BASE = frozenset(
         "vigorIndex",
         "compositeStressIndex",
         "yieldUtilizationPct",
+        # Irrigation flowmeter (cumulative litres, Device water_meter profile)
+        "waterConsumption",
     }
 )
 
