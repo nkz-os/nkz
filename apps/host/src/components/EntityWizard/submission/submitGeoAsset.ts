@@ -80,10 +80,7 @@ export async function submitGeoAsset(
     entity.tilt      = { type: 'Property', value: tilt };
     entity.azimuth   = { type: 'Property', value: bearing };
     entity.modelRotation = { type: 'Property', value: [bearing, -tilt, 0] };
-    // SDM-aligned panel defaults (overridable via additionalAttributes)
-    if (!formData.additionalAttributes.panelDimension) {
-      entity.panelDimension = { type: 'Property', value: { width: 2.0, length: 4.0, thickness: 0.04 } };
-    }
+    // Panel size is never defaulted: only a user-given panelDimension is stored
     if (!formData.additionalAttributes.NominalPower) {
       entity.NominalPower = { type: 'Property', value: nominalPower };
     }
