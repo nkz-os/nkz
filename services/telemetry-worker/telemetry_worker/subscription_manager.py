@@ -74,6 +74,8 @@ SUBSCRIPTIONS = [
         # route a sensor reading takes to reach TimescaleDB; notification_handler.py has a
         # dedicated branch to read its inverted shape (device id in refDevice, measurement
         # name in controlledProperty, value in numValue/textValue, instant in dateObserved).
+        # No "throttling": Orion applies it per subscription and this one covers every
+        # device in the tenant, so any window would drop readings from the others.
         "description": "Telemetry Worker - DeviceMeasurement readings",
         "type": "Subscription",
         "entities": [{"type": "DeviceMeasurement"}],
@@ -84,7 +86,6 @@ SUBSCRIPTIONS = [
             },
             "format": "normalized",
         },
-        "throttling": 30,
         "isActive": True,
     },
     {

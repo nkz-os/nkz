@@ -126,6 +126,22 @@ class TestSubscriptionListExcludesDeviceMeasurement:
         assert types == {"Device", "ManufacturingMachine"}
 
 
+class TestBridgeSubscriptionsCarryNoThrottling:
+    def test_registrar_bodies_have_no_throttling_key(self):
+        from nkz_platform_sdk.subscriptions import SubscriptionRegistrar
+
+        registrar = SubscriptionRegistrar(
+            orion_url="http://orion:1026",
+            notification_url="http://receiver/notify",
+            subscriptions=DEVICE_MEASUREMENT_SUBSCRIPTIONS,
+            module_name="entity-manager-measurements",
+        )
+        bodies = [registrar._body(sub) for sub in registrar._subs]
+        assert len(bodies) == 2
+        for body in bodies:
+            assert "throttling" not in body
+
+
 class TestMeasurementNotifyRoute:
     @patch("blueprints.notifications._handle_device_measurement_notification")
     def test_dispatches_device_and_manufacturing_machine(self, mock_handle, client):
