@@ -218,6 +218,8 @@ class OrionClient:
         return {"upserted": 0, "errors": [], "entity_ids": []}
 
     async def update_entity_attrs(self, entity_id: str, attrs: dict[str, Any]) -> None:
+        # PATCH /attrs only updates EXISTING attributes; a 207 means some were
+        # not updated (use append_entity_attrs to add new ones).
         # attrs fragments carry no @context, so the legal NGSI-LD combination
         # is application/json + Link header (ld+json without @context is a 400).
         resp = await self._client.patch(
@@ -225,6 +227,13 @@ class OrionClient:
             json=attrs,
             headers=self._headers("application/json"),
         )
+        if resp.status_code == 207:
+            # raise_for_status is a no-op below 400: fail loudly instead.
+            raise httpx.HTTPStatusError(
+                f"Partial update on {entity_id}: {resp.text[:200]}",
+                request=resp.request,
+                response=resp,
+            )
         resp.raise_for_status()
 
     async def append_entity_attrs(
@@ -522,6 +531,8 @@ class SyncOrionClient:
         return self._batch("upsert", entities, "upserted", params={"options": "update"})
 
     def update_entity_attrs(self, entity_id: str, attrs: dict[str, Any]) -> None:
+        # PATCH /attrs only updates EXISTING attributes; a 207 means some were
+        # not updated (use append_entity_attrs to add new ones).
         # attrs fragments carry no @context -> application/json + Link header.
         resp = self._session.patch(
             self._url(f"/ngsi-ld/v1/entities/{entity_id}/attrs"),
@@ -529,6 +540,13 @@ class SyncOrionClient:
             headers=self._headers("application/json"),
             timeout=self.timeout,
         )
+        if resp.status_code == 207:
+            # raise_for_status is a no-op below 400: fail loudly instead.
+            import requests as sync_requests
+
+            raise sync_requests.HTTPError(
+                f"Partial update on {entity_id}: {resp.text[:200]}", response=resp
+            )
         resp.raise_for_status()
 
     def append_entity_attrs(

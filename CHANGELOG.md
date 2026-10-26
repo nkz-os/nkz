@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **SDK 0.13.1**: `update_entity_attrs` raises on a 207 (attributes not updated) in both clients.
+
 ## 2.0.0 — 2026-10-22
 
 Public baseline. From here on: semver, an annotated tag and a changelog entry per release.

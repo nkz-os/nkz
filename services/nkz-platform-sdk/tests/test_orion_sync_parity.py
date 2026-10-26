@@ -103,6 +103,20 @@ class TestAttributeFragments:
         assert h["Content-Type"] == "application/json"
         assert CTX in h["Link"]
 
+    def test_update_attrs_raises_on_207(self):
+        """PATCH /attrs answers 207 when attrs are missing; must not look like success."""
+        import requests
+
+        c = SyncOrionClient("acmefarm", base_url=ORION, context_url=CTX)
+        with patch.object(c._session, "patch", return_value=_resp(207)):
+            with pytest.raises(requests.HTTPError, match="Partial update"):
+                c.update_entity_attrs("urn:ngsi-ld:X:1", {"a": 1})
+
+    def test_update_attrs_204_does_not_raise(self):
+        c = SyncOrionClient("acmefarm", base_url=ORION, context_url=CTX)
+        with patch.object(c._session, "patch", return_value=_resp(204)):
+            c.update_entity_attrs("urn:ngsi-ld:X:1", {"a": 1})
+
     def test_append_attrs_posts_to_attrs(self):
         c = SyncOrionClient("acmefarm", base_url=ORION, context_url=CTX)
         with patch.object(c._session, "post", return_value=_resp(204)) as m:

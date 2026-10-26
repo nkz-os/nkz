@@ -74,3 +74,26 @@ async def test_append_raises_on_207_partial():
             EID, {"tilt": {"type": "Property", "value": 1.0}}, overwrite=False
         )
     await client.close()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_update_attrs_raises_on_207():
+    client = OrionClient("acmefarm", base_url=ORION)
+    respx.patch(f"{ORION}/ngsi-ld/v1/entities/{EID}/attrs").mock(
+        return_value=Response(207, json={"updated": [], "notUpdated": [{"attributeName": "a"}]})
+    )
+    with pytest.raises(httpx.HTTPStatusError, match="Partial update"):
+        await client.update_entity_attrs(EID, {"a": {"type": "Property", "value": 1}})
+    await client.close()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_update_attrs_204_does_not_raise():
+    client = OrionClient("acmefarm", base_url=ORION)
+    respx.patch(f"{ORION}/ngsi-ld/v1/entities/{EID}/attrs").mock(
+        return_value=Response(204)
+    )
+    await client.update_entity_attrs(EID, {"a": {"type": "Property", "value": 1}})
+    await client.close()
