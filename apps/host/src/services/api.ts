@@ -308,7 +308,13 @@ class ApiService {
             if (timeUntilExpiry < 60000) {
               logger.debug('[API] Token expiring soon, refreshing for cookie update...');
               try {
-                await _keycloakRef.updateToken(60);
+                const refreshed = await _keycloakRef.updateToken(60);
+                // The cookie carries the token and expires with it; this refresh
+                // also resets Keycloak's expiry timer, so re-seed it here.
+                if (refreshed && _keycloakRef.token) {
+                  _invalidateTenantCache();
+                  this.setSession(_keycloakRef.token).catch(() => {});
+                }
               } catch (e) {
                 logger.warn('[API] Token refresh failed:', e);
               }
