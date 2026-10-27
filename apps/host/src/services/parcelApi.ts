@@ -142,9 +142,10 @@ class ParcelApiService {
             province: entity.province?.value || '',
             cropType: entity.cropType?.value || '',
             cadastralReference: entity.cadastralReference?.value,
-            // Canonical relationship is `hasAgriParcel` (child→parent); keep `refParent`
+            // Canonical relationship is `hasAgriParcel` (child→parent), which the broker
+            // returns as its alias `refAgriParcel`; keep `refParent`
             // as a fallback for legacy entities written before the core refactor.
-            refParent: entity.hasAgriParcel?.object ?? entity.refParent?.object,
+            refParent: entity.hasAgriParcel?.object ?? entity.refAgriParcel?.object ?? entity.refParent?.object,
             children: entity.children?.object,
             ndviEnabled: entity.ndviEnabled?.value !== false,
             notes: entity.notes?.value,
@@ -200,6 +201,8 @@ class ParcelApiService {
         if (parcel.area != null) payload.area = parcel.area;
         if (parcel.notes) payload.notes = parcel.notes;
         if (parcel.generationMethod) payload.generationMethod = parcel.generationMethod;
+        // A subparcel: the server links it to its parent with hasAgriParcel.
+        if (parcel.refParent) payload.parentId = parcel.refParent;
 
         const resp = await this.client.post('/api/entities/parcels', payload);
         return { ...(parcel as Parcel), id: resp.data.id, category: parcel.category || 'cadastral' };
@@ -226,7 +229,7 @@ class ParcelApiService {
                 province: zone.province || parentParcel.province,
                 cropType: zone.cropType !== undefined ? zone.cropType : (parentParcel.cropType || ''),
                 generationMethod: zone.generationMethod || 'grid',
-                refParent: parentParcel.id,
+                parentId: parentParcel.id,
             };
             const resp = await this.client.post('/api/entities/parcels', payload);
             created.push({ ...(zone as Parcel), id: resp.data.id, category: 'managementZone', refParent: parentParcel.id });

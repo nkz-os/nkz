@@ -26,7 +26,7 @@ from helpers import (
     ORION_URL, CONTEXT_URL, _extract_number,
     get_limits_for_tenant, _count_all_entities, _count_entities_by_type, _count_robots, _is_robot,
     _check_entity_total_limit, _check_parcel_count_limit, _sum_parcel_area,
-    _count_parcels, _is_subparcel,
+    _count_parcels, _is_subparcel, _parent_parcel_id,
     MAX_ROBOTS, MAX_SENSORS, MAX_AREA_HECTARES,
     SENSOR_ENTITY_TYPES, PARCEL_ENTITY_TYPES,
     ROBOT_ENTITY_TYPES, ROBOT_MACHINE_TYPE, ROBOT_MACHINE_CATEGORY,
@@ -989,6 +989,41 @@ def _validate_geometry(geometry: dict) -> Optional[str]:
     return None
 
 
+def _resolve_parent_parcel(tenant: str, raw) -> tuple:
+    """(parent URN, None) for an existing parcel of the tenant, else (None, (message, status)).
+
+    A child is never created unlinked: an unknown parent is refused and an unreadable
+    broker aborts the create.
+    """
+    raw = raw.strip() if isinstance(raw, str) else ""
+    parent_id = _parcel_urn(raw) if _UUID_RE.match(raw) else raw
+    if not parent_id.startswith("urn:ngsi-ld:AgriParcel:"):
+        return None, ("parentId must be an AgriParcel id", 422)
+    try:
+        resp = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/entities/{parent_id}",
+            params={"options": "keyValues"},
+            headers=inject_fiware_headers({"Accept": "application/json"}, tenant),
+            timeout=10,
+        )
+    except requests.RequestException as e:
+        logger.error("Parent parcel lookup failed: tenant=%s parent=%s: %s", tenant, parent_id, e)
+        return None, ("Parent parcel could not be checked", 502)
+    if resp.status_code == 404:
+        return None, ("Parent parcel not found", 422)
+    if resp.status_code != 200:
+        logger.error("Parent parcel lookup failed: tenant=%s parent=%s status=%s",
+                     tenant, parent_id, resp.status_code)
+        return None, ("Parent parcel could not be checked", 502)
+    try:
+        parent_type = resp.json().get("type")
+    except (ValueError, AttributeError):
+        parent_type = None
+    if parent_type != "AgriParcel":
+        return None, ("parentId must be an AgriParcel id", 422)
+    return parent_id, None
+
+
 @entities_bp.route('/entities/parcels', methods=['POST'])
 @require_auth
 def create_parcel():
@@ -1012,22 +1047,31 @@ def create_parcel():
     if err:
         return jsonify({"error": err}), 422
 
-    # Dedup by cadastralReference
+    # A subparcel (irrigation sector, management zone) links to the parcel that contains it.
+    parent_id = None
+    if data.get("parentId") is not None:
+        parent_id, problem = _resolve_parent_parcel(tenant, data.get("parentId"))
+        if problem:
+            return jsonify({"error": problem[0]}), problem[1]
+
+    # Dedup by cadastralReference. A subparcel shares its parent's reference, so it is
+    # never deduplicated, and a reference only matches a parcel that is not a subparcel.
     cadastral_ref = (data.get("cadastralReference") or "").strip()
-    if cadastral_ref:
+    if cadastral_ref and not parent_id:
         headers = inject_fiware_headers({}, tenant)
         q = f'cadastralReference=="{cadastral_ref}"'
         existing = requests.get(
-            f"{ORION_URL}/ngsi-ld/v1/entities?type=AgriParcel&q={q}&limit=2&options=keyValues",
+            f"{ORION_URL}/ngsi-ld/v1/entities?type=AgriParcel&q={q}&limit=100&options=keyValues",
             headers=headers, timeout=10,
         )
         if existing.status_code == 200:
             existing_list = existing.json()
-            if isinstance(existing_list, list) and existing_list:
-                parcel_id = existing_list[0]["id"]
-                uuid_str = parcel_id.split(":")[-1]
-                # Idempotent — update instead
-                return update_parcel(uuid_str)
+            if isinstance(existing_list, list):
+                match = next((e for e in existing_list
+                              if isinstance(e, dict) and not _parent_parcel_id(e)), None)
+                if match:
+                    # Idempotent — update instead
+                    return update_parcel(match["id"].split(":")[-1])
 
     # Generate UUID-based ID
     parcel_uuid = str(uuid.uuid4())
@@ -1053,6 +1097,9 @@ def create_parcel():
 
     if cadastral_ref:
         entity["cadastralReference"] = {"type": "Property", "value": cadastral_ref}
+
+    if parent_id:
+        entity["hasAgriParcel"] = {"type": "Relationship", "object": parent_id}
 
     # A client-provided area (official cadastral surface) is kept as given;
     # otherwise it is computed from the geometry.

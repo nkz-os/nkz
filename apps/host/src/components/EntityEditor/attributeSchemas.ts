@@ -56,7 +56,9 @@ export const KNOWN_SCHEMAS: AttributeSchema[] = [
   // ASSUMPTION: refAgriFarm is the canonical NGSI-LD name. Legacy parcelApi.ts uses refFarm — this is a known bug filed separately.
   { key: 'refAgriFarm', labelKey: 'editor.field.refAgriFarm', type: 'relationship', section: 'relationships', targetType: 'AgriFarm', entityTypes: ['AgriParcel', 'Vineyard', 'OliveGrove', 'AutonomousMobileRobot', 'ManufacturingMachine'] },
   { key: 'refDeviceProfile', labelKey: 'editor.field.refDeviceProfile', type: 'relationship', section: 'relationships', targetType: 'DeviceProfile', entityTypes: ['AgriSensor', 'Device'] },
-  { key: 'refParent', labelKey: 'editor.field.refParent', type: 'relationship', section: 'relationships', entityTypes: ['AgriParcel', 'Vineyard', 'OliveGrove', 'AgriBuilding'] },
+  // A subparcel's link to its parent is hasAgriParcel, which the broker returns under its alias.
+  { key: 'refAgriParcel', labelKey: 'editor.field.refParent', type: 'relationship', section: 'relationships', targetType: 'AgriParcel', entityTypes: ['AgriParcel'] },
+  { key: 'refParent', labelKey: 'editor.field.refParent', type: 'relationship', section: 'relationships', entityTypes: ['Vineyard', 'OliveGrove', 'AgriBuilding'] },
 
   // ── Visual ──
   { key: 'icon2d', labelKey: 'editor.field.icon2d', type: 'text', section: 'visual', entityTypes: ['*'] },
