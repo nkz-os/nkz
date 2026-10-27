@@ -1,5 +1,6 @@
 import type { Geometry, Polygon, MultiPolygon } from 'geojson';
 import type { ParentEntity } from './ParentEntitySelector';
+import type { DataloggerKind } from '@/services/dataloggersApi';
 
 // Re-export from existing sub-components for central access
 export type { ParentEntity } from './ParentEntitySelector';
@@ -71,6 +72,14 @@ export interface IoTSensorFormData extends BaseFormData {
   ownerParkId?: string | null;
   additionalAttributes: Record<string, string | number>;
 
+  // Device only: where the readings arrive from (existing datalogger or a new one)
+  // and the id the datalogger publishes under (`externalId`, part of the MQTT topic).
+  dataloggerMode?: 'existing' | 'new';
+  dataloggerId?: string;
+  newDataloggerName?: string;
+  newDataloggerKind?: DataloggerKind;
+  externalId?: string;
+
   // Sensor health monitoring & calibration configuration
   // (stored in form state for submission to POST /api/sensors)
   healthConfig?: Record<string, unknown> & { communicationTimeoutHours?: number };
@@ -99,6 +108,7 @@ export type StepId =
   | 'type'
   | 'geo-config'
   | 'iot-config'
+  | 'datalogger'
   | 'fleet-config'
   | 'geometry'
   | 'visualization'
@@ -120,6 +130,7 @@ export const STEP_CONFIGS: Record<MacroCategory, StepConfig[]> = {
   sensors: [
     { id: 'type', label: 'wizard.steps.type' },
     { id: 'iot-config', label: 'wizard.steps.data' },
+    { id: 'datalogger', label: 'wizard.steps.datalogger' },
     { id: 'geometry', label: 'wizard.steps.location' },
     { id: 'summary', label: 'wizard.steps.summary' },
   ],

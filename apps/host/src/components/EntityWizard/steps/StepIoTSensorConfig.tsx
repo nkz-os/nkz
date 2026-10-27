@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Cable, Activity, Zap, HelpCircle, Settings, Plus, Trash2 } from 'lucide-react';
 import { useWizard } from '../WizardContext';
 import { listDeviceProfiles, createDeviceProfile, type DeviceProfile } from '@/services/deviceProfilesApi';
+import { listSensorProfiles, type SensorProfile } from '@/services/dataloggersApi';
 import { DeviceProfileHelpModal } from '../../DeviceProfileHelpModal';
 import type { IoTSensorFormData } from '../types';
 import { useToastContext } from '@/context/ToastContext';
@@ -11,6 +12,23 @@ import { ParentEntitySelector, type ParentEntity } from '../ParentEntitySelector
 import { SensorOwnerSelect } from '../SensorOwnerSelect';
 import api from '@/services/api';
 import { parkOptionsFor, toParkOption, type ParkOption } from '@/utils/parcelLinks';
+
+/** A sensors-API profile in the shape this step renders; its `id` is the profile `code`. */
+function fromSensorProfile(p: SensorProfile): DeviceProfile {
+  return {
+    id: p.code,
+    name: p.name,
+    description: p.description,
+    sdm_entity_type: p.sdm_entity_type ?? 'Device',
+    is_public: false,
+    mappings: (p.sdm_attributes ?? []).map(attr => ({
+      incoming_key: attr,
+      target_attribute: attr,
+      type: 'Number' as const,
+    })),
+    health_defaults: p.health_defaults,
+  };
+}
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function StepIoTSensorConfig() {
@@ -37,9 +55,11 @@ export function StepIoTSensorConfig() {
 
   useEffect(() => {
     if (!entityType) return;
-    listDeviceProfiles({ sdm_entity_type: entityType })
-      .then(setDeviceProfiles)
-      .catch(() => setDeviceProfiles([]));
+    // A Device is registered through the sensors API, which takes its profile by code.
+    const load = entityType === 'Device'
+      ? listSensorProfiles().then(list => list.map(fromSensorProfile))
+      : listDeviceProfiles({ sdm_entity_type: entityType });
+    load.then(setDeviceProfiles).catch(() => setDeviceProfiles([]));
   }, [entityType]);
 
   const formDataSafe = formData as IoTSensorFormData | null;
@@ -184,8 +204,10 @@ export function StepIoTSensorConfig() {
     reader.readAsText(file);
   };
 
+  const isDevice = entityType === 'Device';
   const publicProfiles  = deviceProfiles.filter(p => p.is_public);
-  const privateProfiles = deviceProfiles.filter(p => !p.is_public);
+  const privateProfiles = isDevice ? [] : deviceProfiles.filter(p => !p.is_public);
+  const flatProfiles = isDevice ? deviceProfiles : [];
 
   return (
     <div className="space-y-4">
@@ -268,6 +290,7 @@ export function StepIoTSensorConfig() {
                 }`}
               >
                 <option value="">{t('wizard.iot.select_profile')}</option>
+                {flatProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 {publicProfiles.length > 0 && (
                   <optgroup label={`🏛️ ${t('wizard.iot.official_profiles')}`}>
                     {publicProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -299,6 +322,7 @@ export function StepIoTSensorConfig() {
               <Activity className="w-3 h-3" /> {t('wizard.iot.view_templates')}
             </Button>
 
+            {!isDevice && (
             <label className="flex items-center justify-center gap-2 text-xs font-medium text-nkz-info-strong bg-nkz-info-soft hover:bg-nkz-info/20 py-2 rounded-lg border border-nkz-info/30 cursor-pointer">
               <Input
                 type="file"
@@ -315,6 +339,7 @@ export function StepIoTSensorConfig() {
               </svg>
               {t('wizard.iot.import_json')}
             </label>
+            )}
 
             <div className="flex items-center justify-center gap-2 text-xs text-nkz-muted bg-nkz-surface border border-nkz-border py-2 rounded-lg">
               <Zap className="w-3 h-3 text-yellow-500" />

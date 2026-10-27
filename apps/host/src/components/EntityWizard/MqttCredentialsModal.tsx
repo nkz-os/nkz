@@ -18,7 +18,6 @@ export interface MqttCredentials {
   device_id: string;
   topics: {
     publish_data: string;
-    publish_data_json?: string;
     commands: string;
   };
   example_payload?: Record<string, number>;
@@ -69,7 +68,7 @@ export const MqttCredentialsModal: React.FC<MqttCredentialsModalProps> = ({
       created_at: new Date().toISOString(),
       notes: [
         "API Key is required for authentication",
-        "Publish sensor data to the 'publish_data' or 'publish_data_json' topic",
+        "Publish sensor data to the 'publish_data' topic",
         "Listen for commands on the 'commands' topic",
         "Use JSON format for all payloads"
       ]
@@ -101,7 +100,6 @@ Protocol: ${credentials.protocol}
 Topics:
 -------
 Publish Data: ${credentials.topics.publish_data}
-${credentials.topics.publish_data_json ? `Publish JSON: ${credentials.topics.publish_data_json}` : ''}
 Commands: ${credentials.topics.commands}
 
 Example Payload (JSON):
@@ -265,13 +263,6 @@ ${JSON.stringify(credentials.example_payload || { temperature: 22.5, humidity: 6
                   value={credentials.topics.publish_data} 
                   fieldName="topic_data" 
                 />
-                {credentials.topics.publish_data_json && (
-                  <CredentialField 
-                    label={t('wizard.mqtt.topic_publish_json')} 
-                    value={credentials.topics.publish_data_json} 
-                    fieldName="topic_json" 
-                  />
-                )}
                 <CredentialField 
                   label={t('wizard.mqtt.topic_commands')} 
                   value={credentials.topics.commands} 

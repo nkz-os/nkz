@@ -825,7 +825,8 @@
       "geometry": "Geometria",
       "visual": "Visual",
       "summary": "Resum",
-      "location": "Ubicació"
+      "location": "Ubicació",
+      "datalogger": "Datalogger"
     },
     "validation": {
       "type_required": "Selecciona un tipus d'entitat",
@@ -834,7 +835,11 @@
       "parcel_required": "Cal almenys una parcel·la per a un dispositiu",
       "stamp_required": "Pinta almenys una instància",
       "array_required": "Configura el punt d'ancoratge i els paràmetres de la graella",
-      "point_required": "Un dispositiu requereix una ubicació (punt)"
+      "point_required": "Un dispositiu requereix una ubicació (punt)",
+      "datalogger_required": "Tria un datalogger",
+      "datalogger_name_required": "El datalogger nou necessita un nom",
+      "datalogger_kind_required": "Tria el tipus de datalogger",
+      "external_id_invalid": "L'identificador només admet lletres, números, punt, guionet i guionet baix (1-64 caràcters)"
     },
     "errors": {
       "incomplete_state": "Estat de l'assistent incomplet",
@@ -1103,7 +1108,6 @@
       "protocol": "Protocol",
       "topics": "Topics MQTT",
       "topic_publish": "Envia dades (publish)",
-      "topic_publish_json": "Envia dades JSON",
       "topic_commands": "Rep ordres",
       "example_payload": "Exemple de payload JSON",
       "next_steps": "Propers passos:",
@@ -1222,6 +1226,24 @@
       "undo_last_point": "Desfés l'últim punt",
       "clear_geometry": "Esborra la geometria",
       "parent_shown": "{{name}} (es mostra en gris)"
+    },
+    "datalogger": {
+      "title": "Per on arriben les dades?",
+      "hint": "Un sensor publica les lectures a través d'un datalogger amb el seu propi compte MQTT.",
+      "load_failed": "No s'han pogut carregar els dataloggers. En pots crear un de nou.",
+      "use_existing": "Usar-ne un d'existent",
+      "create_new": "Crear-ne un de nou",
+      "select_label": "Datalogger",
+      "select_placeholder": "Tria un datalogger",
+      "existing_hint": "El sensor s'afegeix al compte MQTT d'aquest datalogger.",
+      "name_label": "Nom del datalogger",
+      "name_placeholder": "Ex.: Datalogger parcel·la nord",
+      "kind_label": "Tipus",
+      "new_hint": "En acabar veuràs les credencials MQTT una sola vegada.",
+      "external_id_label": "Identificador al datalogger",
+      "external_id_placeholder": "Ex.: sonda_sol_1",
+      "external_id_hint": "És l'identificador amb què el datalogger publica aquest sensor. Lletres, números, punt, guionet i guionet baix; màxim 64.",
+      "created_retry": "El datalogger ja s'ha creat; pots reintentar-ho amb ell. La contrasenya es pot regenerar a Ajustos."
     }
   },
   "layout": {
@@ -2024,5 +2046,54 @@
     "dark": "Fosc",
     "toggle_aria": "Canvia el tema ({{label}})",
     "current_title": "Tema actual: {{label}}. Fes clic per canviar-lo."
+  },
+  "dataloggers": {
+    "title": "Dataloggers",
+    "description": "Comptes MQTT pels quals publiquen els sensors.",
+    "empty": "Encara no hi ha dataloggers. Es creen en registrar un sensor.",
+    "device_count_one": "{{count}} sensor",
+    "device_count_other": "{{count}} sensors",
+    "kind": {
+      "datak": "DaTaK",
+      "generic_mqtt": "MQTT genèric"
+    },
+    "status": {
+      "active": "Actiu",
+      "revoked": "Revocat"
+    },
+    "revoke": "Revocar",
+    "enable": "Reactivar",
+    "rotate": {
+      "title": "Regenerar la contrasenya",
+      "confirm": "Es generarà una contrasenya nova per a «{{name}}». L'anterior deixarà de funcionar i caldrà actualitzar el datalogger.",
+      "action": "Regenerar la contrasenya"
+    },
+    "delete": {
+      "title": "Eliminar datalogger",
+      "confirm": "Eliminar «{{name}}»? S'esborrarà el seu compte MQTT.",
+      "action": "Eliminar",
+      "blocked": "Elimina o mou-ne abans els sensors"
+    },
+    "errors": {
+      "load_failed": "No s'han pogut carregar els dataloggers",
+      "rotate_failed": "No s'ha pogut regenerar la contrasenya",
+      "status_failed": "No s'ha pogut canviar l'estat",
+      "delete_failed": "No s'ha pogut eliminar el datalogger"
+    },
+    "credentials": {
+      "title": "Credencials del datalogger",
+      "warning_once": "Desa la contrasenya ara. No es podrà tornar a veure.",
+      "host": "Servidor",
+      "port": "Port",
+      "username": "Usuari",
+      "password": "Contrasenya",
+      "topic": "Tòpic del sensor",
+      "not_configured": "Aquesta instal·lació encara no té un servidor MQTT accessible des de fora.",
+      "not_configured_next": "El datalogger s'ha creat. Quan hi hagi servidor, regenera la contrasenya a Ajustos per veure les credencials.",
+      "download": "Descarregar la configuració JSON",
+      "download_hint": "El fitxer no inclou la contrasenya.",
+      "download_failed": "No s'ha pogut descarregar la configuració",
+      "saved": "He desat les credencials"
+    }
   }
 }

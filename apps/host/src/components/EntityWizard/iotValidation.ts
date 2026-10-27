@@ -1,5 +1,7 @@
 import type { Geometry, Point } from 'geojson';
 import type { IoTSensorFormData } from './types';
+import { DATALOGGER_KINDS } from '@/services/dataloggersApi';
+import { EXTERNAL_ID_RE } from '@/utils/deviceIds';
 
 /** i18n key of the first problem in the IoT step, or null. Parcels apply only to `Device`. */
 export function validateIoTConfig(
@@ -10,6 +12,24 @@ export function validateIoTConfig(
   if (entityType === 'Device' && data.parcels.length === 0) {
     return 'wizard.validation.parcel_required';
   }
+  return null;
+}
+
+/** i18n key of the first problem in the datalogger step, or null. Only `Device` has this step. */
+export function validateDataloggerStep(
+  entityType: string | null,
+  data: IoTSensorFormData,
+): string | null {
+  if (entityType !== 'Device') return null;
+  if (data.dataloggerMode === 'new') {
+    if (!data.newDataloggerName?.trim()) return 'wizard.validation.datalogger_name_required';
+    if (!data.newDataloggerKind || !DATALOGGER_KINDS.includes(data.newDataloggerKind)) {
+      return 'wizard.validation.datalogger_kind_required';
+    }
+  } else if (!data.dataloggerId) {
+    return 'wizard.validation.datalogger_required';
+  }
+  if (!EXTERNAL_ID_RE.test(data.externalId ?? '')) return 'wizard.validation.external_id_invalid';
   return null;
 }
 

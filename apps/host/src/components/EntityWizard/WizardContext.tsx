@@ -43,6 +43,11 @@ function makeIoTSensorFormData(): IoTSensorFormData {
     deviceProfileId: null,
     parcels: [],
     ownerParkId: null,
+    dataloggerMode: 'existing',
+    dataloggerId: '',
+    newDataloggerName: '',
+    newDataloggerKind: 'datak',
+    externalId: '',
     additionalAttributes: {},
     modelScale: 1.0,
     modelRotation: [0, 0, 0],
@@ -138,7 +143,12 @@ export function WizardProvider({ children, initialEntityType }: WizardProviderPr
 
   // Derived
   const macroCategory = formData?.macroCategory ?? null;
-  const steps: StepConfig[] = macroCategory ? STEP_CONFIGS[macroCategory] : INITIAL_STEPS;
+  // The datalogger step belongs to Device only; other sensor types keep their flow.
+  const steps: StepConfig[] = useMemo(() => {
+    if (!macroCategory) return INITIAL_STEPS;
+    const all = STEP_CONFIGS[macroCategory];
+    return entityType === 'Device' ? all : all.filter(s => s.id !== 'datalogger');
+  }, [macroCategory, entityType]);
   const totalSteps = steps.length;
   const currentStep = steps[stepIndex] ?? steps[0];
   const isFirstStep = stepIndex === 0;
