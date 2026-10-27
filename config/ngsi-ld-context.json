@@ -817,7 +817,27 @@
       "fertilizerType": "https://nkz-os.org/ns/fertilizerType",
       "fertilizerRate": "https://nkz-os.org/ns/fertilizerRate",
       "fertilizerComposition": "https://nkz-os.org/ns/fertilizerComposition",
-      "organicFertilizer": "https://nkz-os.org/ns/organicFertilizer"
+      "organicFertilizer": "https://nkz-os.org/ns/organicFertilizer",
+      "zoneType": "https://nkz-os.org/ns/zoneType",
+      "zoneVersion": "https://nkz-os.org/ns/zoneVersion",
+      "zoneRank": "https://nkz-os.org/ns/zoneRank",
+      "inputFidelity": "https://nkz-os.org/ns/inputFidelity",
+      "wetFraction": "https://nkz-os.org/ns/wetFraction",
+      "wetnessClass": "https://nkz-os.org/ns/wetnessClass",
+      "validPixelFraction": "https://nkz-os.org/ns/validPixelFraction",
+      "zoningLayers": "https://nkz-os.org/ns/zoningLayers",
+      "solarRadiationWm2": "https://nkz-os.org/ns/solarRadiationWm2",
+      "frostRisk": "https://nkz-os.org/ns/frostRisk",
+      "worstZoneId": "https://nkz-os.org/ns/worstZoneId",
+      "worstZoneRank": "https://nkz-os.org/ns/worstZoneRank",
+      "zoneSpread": "https://nkz-os.org/ns/zoneSpread",
+      "twiP90": "https://nkz-os.org/ns/twiP90",
+      "flowAccumMax": "https://nkz-os.org/ns/flowAccumMax",
+      "zoneId": "https://nkz-os.org/ns/zoneId",
+      "twiMean": "https://nkz-os.org/ns/twiMean",
+      "areaHa": "https://nkz-os.org/ns/areaHa",
+      "centroid": "https://nkz-os.org/ns/centroid",
+      "sensorNearby": "https://nkz-os.org/ns/sensorNearby"
     }
   ]
 }
