@@ -827,33 +827,83 @@ def test_forecast_upsert_asks_for_update_semantics(monkeypatch):
     )
 
 
-def test_terrain_upsert_asks_for_update_semantics(monkeypatch):
-    """Same defect, and silenced harder: this one logs at debug level.
+def _capture_attr_append(monkeypatch):
+    """Record every POST the engine issues as (url, json body, headers)."""
+    seen = []
 
-    `_persist_terrain_attributes` rewrites AgriParcel entities that always
-    already exist, so under replace semantics it fails on every single call.
+    class _Resp:
+        status_code = 204
+        text = ""
+
+    def _post(url, **kwargs):
+        seen.append((url, kwargs.get("json"), kwargs.get("headers") or {}))
+        return _Resp()
+
+    monkeypatch.setattr("weather_worker.parcel_engine.requests.post", _post)
+
+    def _no_get(*a, **k):
+        raise AssertionError("terrain persist must not read the whole AgriParcel")
+
+    monkeypatch.setattr("weather_worker.parcel_engine.requests.get", _no_get)
+    return seen
+
+
+def test_terrain_persist_appends_only_its_own_attributes(monkeypatch):
+    """The worker owns elevation/terrainSlope/terrainAspect and nothing else.
+
+    Rewriting the whole entity (GET + upsert) raced against every other writer
+    of AgriParcel attributes; appending only its own attributes cannot.
     """
     from weather_worker.parcel_engine import ParcelWeatherEngine
 
-    seen = _capture_upsert(monkeypatch)
-
-    class _GetResp:
-        status_code = 200
-
-        @staticmethod
-        def json():
-            return {"id": "urn:ngsi-ld:AgriParcel:t:p1", "type": "AgriParcel"}
-
-    monkeypatch.setattr(
-        "weather_worker.parcel_engine.requests.get", lambda *a, **k: _GetResp()
-    )
-
+    monkeypatch.setenv("CONTEXT_URL", "http://ctx.example/context.json")
+    seen = _capture_attr_append(monkeypatch)
     engine = ParcelWeatherEngine(orion_url="http://orion:1026")
     engine._persist_terrain_attributes(
         {"id": "urn:ngsi-ld:AgriParcel:t:p1", "_tenant": "t"}, 270.0, 15.8, 450.0
     )
 
-    assert seen, "no upsert was issued"
-    assert "options=update" in seen[0], (
-        f"upsert must request update semantics, got {seen[0]!r}"
+    assert len(seen) == 1
+    url, body, headers = seen[0]
+    assert url == "http://orion:1026/ngsi-ld/v1/entities/urn:ngsi-ld:AgriParcel:t:p1/attrs"
+    assert set(body) == {"elevation", "terrainSlope", "terrainAspect"}
+    assert body["elevation"] == {"type": "Property", "value": 450.0, "unitCode": "MTR"}
+    assert body["terrainSlope"] == {"type": "Property", "value": 15.8, "unitCode": "DD"}
+    assert body["terrainAspect"] == {"type": "Property", "value": 270.0, "unitCode": "DD"}
+    assert headers["Content-Type"] == "application/json"
+    assert "ctx.example/context.json" in headers["Link"]
+    assert headers["NGSILD-Tenant"] == "t"
+
+
+def test_terrain_persist_skips_unknown_values_and_empty_payloads(monkeypatch):
+    from weather_worker.parcel_engine import ParcelWeatherEngine
+
+    seen = _capture_attr_append(monkeypatch)
+    engine = ParcelWeatherEngine(orion_url="http://orion:1026")
+    engine._persist_terrain_attributes(
+        {"id": "urn:ngsi-ld:AgriParcel:t:p1", "_tenant": "t"}, -1.0, 2.5, 0.0
     )
+    assert set(seen[0][1]) == {"terrainSlope"}
+
+    seen.clear()
+    engine._persist_terrain_attributes(
+        {"id": "urn:ngsi-ld:AgriParcel:t:p1", "_tenant": "t"}, -1.0, -1.0, 0.0
+    )
+    assert seen == []
+
+
+def test_terrain_persist_logs_broker_rejection(monkeypatch, caplog):
+    import logging
+    from weather_worker.parcel_engine import ParcelWeatherEngine
+
+    class _Resp:
+        status_code = 404
+        text = "Entity Not Found"
+
+    monkeypatch.setattr("weather_worker.parcel_engine.requests.post", lambda url, **k: _Resp())
+    engine = ParcelWeatherEngine(orion_url="http://orion:1026")
+    with caplog.at_level(logging.WARNING, logger="weather_worker.parcel_engine"):
+        engine._persist_terrain_attributes(
+            {"id": "urn:ngsi-ld:AgriParcel:t:p1", "_tenant": "t"}, 270.0, 15.8, 450.0
+        )
+    assert "404" in caplog.text and "urn:ngsi-ld:AgriParcel:t:p1" in caplog.text

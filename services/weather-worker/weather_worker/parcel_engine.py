@@ -462,8 +462,11 @@ class ParcelWeatherEngine:
     ):
         """Persist terrainAspect, terrainSlope, elevation to AgriParcel.
 
-        Uses upsert with merger: fetches existing entity to preserve all
-        attributes (name, location, category, etc.) while adding terrain.
+        Appends ONLY the worker's own attributes (POST /entities/{id}/attrs,
+        overwrite semantics). The previous GET + whole-entity upsert raced with
+        every other writer of AgriParcel attributes: an attribute written by
+        another service between the GET and the upsert was overwritten with the
+        stale copy. Appending touches nothing else.
         """
         parcel_id = parcel.get("id", "")
         tenant_id = parcel.get("_tenant")
@@ -475,57 +478,36 @@ class ParcelWeatherEngine:
             )
             return
 
+        attrs: Dict[str, Any] = {}
+        if altitude > 0:
+            attrs["elevation"] = {
+                "type": "Property", "value": round(altitude, 1), "unitCode": "MTR"
+            }
+        if slope_deg >= 0:
+            attrs["terrainSlope"] = {
+                "type": "Property", "value": slope_deg, "unitCode": "DD"
+            }
+        if aspect_deg >= 0:
+            attrs["terrainAspect"] = {
+                "type": "Property", "value": aspect_deg, "unitCode": "DD"
+            }
+        if not attrs:
+            return
+
         try:
-            hdrs = self._make_headers(tenant_id)
-            hdrs["Content-Type"] = "application/ld+json"
-            hdrs.pop("Link", None)
-
-            # Fetch existing entity to merge with terrain attrs
-            existing = {}
-            try:
-                fetch_hdrs = {k: v for k, v in hdrs.items()
-                              if k != "Content-Type"}
-                fetch_hdrs["Accept"] = "application/ld+json"
-                r = requests.get(
-                    f"{self.orion_url}/ngsi-ld/v1/entities/{parcel_id}",
-                    headers=fetch_hdrs, timeout=5,
-                )
-                if r.status_code == 200:
-                    raw = r.json()
-                    existing = {
-                        k: v for k, v in raw.items()
-                        if k not in ("@context", "id", "type")
-                        and isinstance(v, dict) and "type" in v
-                    }
-            except Exception:
-                pass
-
-            body = existing.copy()
-            body["@context"] = [self.context_url] if self.context_url else []
-            body["id"] = parcel_id
-            body["type"] = "AgriParcel"
-
-            if altitude > 0:
-                body["elevation"] = {
-                    "type": "Property", "value": round(altitude, 1), "unitCode": "MTR"
-                }
-            if slope_deg >= 0:
-                body["terrainSlope"] = {
-                    "type": "Property", "value": slope_deg, "unitCode": "DD"
-                }
-            if aspect_deg >= 0:
-                body["terrainAspect"] = {
-                    "type": "Property", "value": aspect_deg, "unitCode": "DD"
-                }
-
+            # Attribute fragment: no @context in the body -> application/json + Link.
+            hdrs = self._make_headers(tenant_id, body=attrs)
             resp = requests.post(
-                f"{self.orion_url}/ngsi-ld/v1/entityOperations/upsert?options=update",
-                headers=hdrs, json=[body], timeout=5,
+                f"{self.orion_url}/ngsi-ld/v1/entities/{parcel_id}/attrs",
+                headers=hdrs, json=attrs, timeout=5,
             )
             if resp.status_code not in (200, 201, 204):
-                logger.debug(f"Terrain persist: {resp.status_code}")
+                logger.warning(
+                    "Terrain persist rejected for %s: HTTP %s %s",
+                    parcel_id, resp.status_code, (resp.text or "")[:200],
+                )
         except Exception as e:
-            logger.debug(f"Terrain persist failed: {e}")
+            logger.warning("Terrain persist failed for %s: %s", parcel_id, e)
 
     def _haversine_km(
         self, lat1: float, lon1: float, lat2: float, lon2: float
