@@ -31,3 +31,16 @@ def test_other_subscriptions_keep_their_throttling():
     assert _sub("AgriDevice")["throttling"] == 30
     assert _sub("AgriParcel")["throttling"] == 30
     assert _sub("VegetationIndex")["throttling"] == 5
+
+
+def test_zone_subscription_shape_and_no_throttling():
+    zones = [s for s in sm.SUBSCRIPTIONS if s["entities"] == [{"type": "AgriParcelZone"}]]
+    assert len(zones) == 1
+    z = zones[0]
+    assert z["watchedAttributes"] == ["tMin", "tMax", "eto"]
+    assert z["notification"]["attributes"] == [
+        "tMin", "tMax", "eto", "solarRadiationWm2", "frostRisk",
+        "zoneId", "zoneVersion", "zoneType",
+    ]
+    assert z.get("throttling") is None
+    assert "throttling" not in sm._subscription_body(z, "tenant-a")

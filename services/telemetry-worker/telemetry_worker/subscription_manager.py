@@ -226,6 +226,32 @@ SUBSCRIPTIONS = [
         "throttling": 5,
         "isActive": True,
     },
+    {
+        # No "throttling": Orion applies it per subscription and this one covers every
+        # zone of every parcel in the tenant, so any window would drop zones' daily values.
+        "description": "Telemetry Worker - Zone downscaled weather (AgriParcelZone)",
+        "type": "Subscription",
+        "entities": [{"type": "AgriParcelZone"}],
+        "watchedAttributes": ["tMin", "tMax", "eto"],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+            "attributes": [
+                "tMin",
+                "tMax",
+                "eto",
+                "solarRadiationWm2",
+                "frostRisk",
+                "zoneId",
+                "zoneVersion",
+                "zoneType",
+            ],
+        },
+        "isActive": True,
+    },
 ]
 
 
