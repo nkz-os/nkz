@@ -1699,7 +1699,10 @@ def _fetch_telemetry_rows(
     start_dt: datetime,
     end_dt: datetime,
     limit: int,
+    attrs: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
+    """Telemetry rows of the devices in the window; with ``attrs``, only rows carrying
+    one of them, so the limit counts those rows and not every reading of the device."""
     if not device_candidates:
         return []
     candidates = list(dict.fromkeys(device_candidates))  # preserve order, unique
@@ -1714,17 +1717,26 @@ def _fetch_telemetry_rows(
                 f"Failed to set RLS tenant context for {tenant_id}: {e}. "
                 "Row-level security may not be enforced for this query."
             )
+        attr_filter = ""
+        attr_params: tuple = ()
+        if attrs:
+            attr_filter = (
+                "AND (payload->'measurements' ?| %s::text[]"
+                " OR payload->'raw_measurements' ?| %s::text[])"
+            )
+            attr_params = (list(attrs), list(attrs))
         cur.execute(
-            """
+            f"""
             SELECT observed_at, payload, quality_flag
             FROM telemetry_events
             WHERE tenant_id = %s
               AND (device_id = ANY(%s) OR entity_id = ANY(%s))
               AND observed_at >= %s AND observed_at < %s
+              {attr_filter}
             ORDER BY observed_at ASC
             LIMIT %s
             """,
-            (tenant_id, candidates, candidates, start_dt, end_dt, limit),
+            (tenant_id, candidates, candidates, start_dt, end_dt, *attr_params, limit),
         )
         return list(cur.fetchall())
     finally:
@@ -1846,6 +1858,7 @@ def get_v2_entity_timeseries(entity_urn: str):
                 start_dt,
                 end_dt,
                 limit,
+                attrs=attrs_list,
             )
             col = _build_telemetry_columnar(rows, attrs_list)
             if want_arrow:
@@ -1969,7 +1982,8 @@ def get_v2_entity_timeseries(entity_urn: str):
                 telemetry_attrs = list(dict.fromkeys(resolved_attrs))
 
             telemetry_rows = _fetch_telemetry_rows(
-                conn, tenant_id, device_candidates, start_dt, end_dt, limit
+                conn, tenant_id, device_candidates, start_dt, end_dt, limit,
+                attrs=telemetry_attrs,
             )
             col = _build_telemetry_columnar(telemetry_rows, telemetry_attrs)
             # Override series_kind for the response
