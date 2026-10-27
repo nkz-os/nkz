@@ -27,6 +27,8 @@ import { StepSummary } from './steps/StepSummary';
 import { RobotCredentialsModal, type RobotCredentials } from './RobotCredentialsModal';
 import { MqttCredentialsModal, type MqttCredentials } from './MqttCredentialsModal';
 import { DataloggerCredentialsModal } from './DataloggerCredentialsModal';
+import { DataloggerRotationNotice } from './DataloggerRotationNotice';
+import { apiErrorMessage } from '@/services/dataloggersApi';
 import { submitGeoAsset } from './submission/submitGeoAsset';
 import { validateIoTConfig, validateDataloggerStep, validateGeometryStep } from './iotValidation';
 import { submitIoTSensor, type NewDataloggerResult } from './submission/submitIoTSensor';
@@ -192,6 +194,8 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   const [mqttCredentials, setMqttCredentials] = useState<MqttCredentials | null>(null);
   // One-time datalogger account: held only while its modal is open, dropped on close.
   const [newDatalogger, setNewDatalogger] = useState<NewDataloggerResult | null>(null);
+  // The sensor is registered on a datalogger whose broker account must be re-issued.
+  const [needsRotation, setNeedsRotation] = useState(false);
 
   // Side panel mode: when interacting with the map (picking, drawing, stamping)
   // OR when on geometry step with array/stamp placement (always needs map access)
@@ -239,6 +243,9 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
           if (result.newDatalogger) {
             setNewDatalogger(result.newDatalogger);
             // Don't close — wait for user to save the datalogger credentials
+          } else if (result.needsRotation) {
+            setNeedsRotation(true);
+            // Don't close — the user must know the sensor cannot publish yet
           } else if (result.mqttCredentials) {
             setMqttCredentials(result.mqttCredentials);
             // Don't close — wait for user to save credentials
@@ -262,7 +269,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
         }
       }
     } catch (err: any) {
-      let msg = err.response?.data?.error || err.message || t('wizard.errors.create_failed');
+      let msg = apiErrorMessage(err, t('wizard.errors.create_failed'));
       if (err.createdDataloggerId) {
         // The datalogger exists now: retry on it instead of creating a second one.
         // Its password was never kept; it can be regenerated in Settings.
@@ -387,6 +394,16 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
           datalogger={{ id: newDatalogger.id, name: newDatalogger.name }}
           credentials={newDatalogger.mqtt}
           topic={newDatalogger.topic}
+        />
+      )}
+
+      {needsRotation && (
+        <DataloggerRotationNotice
+          onClose={() => {
+            setNeedsRotation(false);
+            if (onSuccess) onSuccess();
+            onClose();
+          }}
         />
       )}
 

@@ -113,6 +113,13 @@ describe('submitIoTSensor — Device registers through the sensors API', () => {
     expect(invalidateEntityCache).not.toHaveBeenCalled();
   });
 
+  it('reports needs_rotation of an existing datalogger', async () => {
+    registerSensor.mockResolvedValue({ entity_id: 'e', topic: 't', datalogger_id: 'dl-1', needs_rotation: true });
+    expect((await submitIoTSensor('Device', form())).needsRotation).toBe(true);
+    registerSensor.mockResolvedValue({ entity_id: 'e', topic: 't', datalogger_id: 'dl-1' });
+    expect((await submitIoTSensor('Device', form())).needsRotation).toBe(false);
+  });
+
   it('invalidates the Device cache after a successful register', async () => {
     await submitIoTSensor('Device', form());
     expect(invalidateEntityCache).toHaveBeenCalledWith('Device');

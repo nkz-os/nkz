@@ -2066,7 +2066,8 @@
     "rotate": {
       "title": "Regenerate password",
       "confirm": "A new password will be generated for \"{{name}}\". The old one stops working and the datalogger must be updated.",
-      "action": "Regenerate password"
+      "action": "Regenerate password",
+      "config_failed": "The host and port could not be read. Save the password and check the datalogger configuration later."
     },
     "delete": {
       "title": "Delete datalogger",
@@ -2094,6 +2095,12 @@
       "download_hint": "The file does not include the password.",
       "download_failed": "The configuration could not be downloaded",
       "saved": "I have saved the credentials"
+    },
+    "needs_rotation": {
+      "title": "Datalogger password needed",
+      "message": "The sensor was registered, but this datalogger's MQTT account does not exist on the broker, so it cannot publish yet. Regenerate its password in Settings → Dataloggers and update the datalogger.",
+      "open_settings": "Open Settings",
+      "understood": "Understood"
     }
   }
 }

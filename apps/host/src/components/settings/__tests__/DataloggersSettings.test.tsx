@@ -73,6 +73,18 @@ describe('DataloggersSettings', () => {
     expect(document.body.innerHTML).not.toContain('pw-new');
   });
 
+  it('still shows the new password when /config fails after the rotation', async () => {
+    api.rotateDatalogger.mockResolvedValue({ password: 'pw-new' });
+    api.getDataloggerConfig.mockRejectedValue(new Error('502'));
+    render(<DataloggersSettings />);
+    const row = await screen.findByTestId('datalogger-dl-1');
+    fireEvent.click(Array.from(row.querySelectorAll('button')).find(b => b.textContent === 'dataloggers.rotate.action')!);
+    expect(await screen.findByLabelText('dataloggers.credentials.password')).toHaveValue('pw-new');
+    expect(screen.getByLabelText('dataloggers.credentials.username')).toHaveValue('dl_a');
+    expect(screen.getByText('dataloggers.rotate.config_failed')).toBeInTheDocument();
+    expect(screen.queryByLabelText('dataloggers.credentials.host')).toBeNull();
+  });
+
   it('does not rotate when the confirmation is declined', async () => {
     confirm.mockResolvedValue(false);
     render(<DataloggersSettings />);

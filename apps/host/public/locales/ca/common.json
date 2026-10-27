@@ -2066,7 +2066,8 @@
     "rotate": {
       "title": "Regenerar la contrasenya",
       "confirm": "Es generarà una contrasenya nova per a «{{name}}». L'anterior deixarà de funcionar i caldrà actualitzar el datalogger.",
-      "action": "Regenerar la contrasenya"
+      "action": "Regenerar la contrasenya",
+      "config_failed": "No s'ha pogut llegir el servidor i el port. Desa la contrasenya i consulta la configuració del datalogger més tard."
     },
     "delete": {
       "title": "Eliminar datalogger",
@@ -2094,6 +2095,12 @@
       "download_hint": "El fitxer no inclou la contrasenya.",
       "download_failed": "No s'ha pogut descarregar la configuració",
       "saved": "He desat les credencials"
+    },
+    "needs_rotation": {
+      "title": "Contrasenya del datalogger pendent",
+      "message": "El sensor s'ha registrat, però el compte MQTT d'aquest datalogger no existeix al servidor i encara no pot publicar. Regenera'n la contrasenya a Ajustos → Dataloggers i actualitza el datalogger.",
+      "open_settings": "Obrir Ajustos",
+      "understood": "Entesos"
     }
   }
 }

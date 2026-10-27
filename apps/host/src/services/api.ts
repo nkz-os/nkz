@@ -730,7 +730,7 @@ class ApiService {
     // A Device registered through the sensors API also owns an IoT Agent device and a
     // broker ACL entry; only that route cleans them up along with the entity.
     if (entityType === 'Device' && isRegisteredDeviceUrn(entityId)) {
-      await this.client.delete(`/api/sensors/devices/${entityId}`);
+      await this.client.delete(`/api/sensors/devices/${encodeURIComponent(entityId)}`);
       return;
     }
     await this.client.delete(`/ngsi-ld/v1/entities/${entityId}`);

@@ -2066,7 +2066,8 @@
     "rotate": {
       "title": "Pasahitza berregin",
       "confirm": "«{{name}}» datalogger-arentzat pasahitz berria sortuko da. Aurrekoak ez du balioko eta datalogger-a eguneratu beharko da.",
-      "action": "Pasahitza berregin"
+      "action": "Pasahitza berregin",
+      "config_failed": "Ezin izan dira zerbitzaria eta ataka irakurri. Gorde pasahitza eta begiratu datalogger-aren konfigurazioa geroago."
     },
     "delete": {
       "title": "Datalogger-a ezabatu",
@@ -2094,6 +2095,12 @@
       "download_hint": "Fitxategiak ez du pasahitza barnean.",
       "download_failed": "Ezin izan da konfigurazioa deskargatu",
       "saved": "Kredentzialak gorde ditut"
+    },
+    "needs_rotation": {
+      "title": "Datalogger-aren pasahitza behar da",
+      "message": "Sentsorea erregistratu da, baina datalogger honen MQTT kontua ez dago zerbitzarian eta oraindik ezin du argitaratu. Berregin bere pasahitza Ezarpenak → Datalogger-ak atalean eta eguneratu datalogger-a.",
+      "open_settings": "Ezarpenak ireki",
+      "understood": "Ulertuta"
     }
   }
 }

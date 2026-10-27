@@ -23,6 +23,8 @@ export interface IoTSubmitResult {
   mqttCredentials: MqttCredentials | null;
   /** Set only when a new datalogger was created for a Device. */
   newDatalogger: NewDataloggerResult | null;
+  /** The datalogger's broker account is missing: its password must be regenerated. */
+  needsRotation: boolean;
 }
 
 /** A registration that failed after its datalogger had been created. */
@@ -95,6 +97,7 @@ async function submitDevice(formData: IoTSensorFormData): Promise<IoTSubmitResul
 
   return {
     mqttCredentials: null,
+    needsRotation: !created && registered.needs_rotation === true,
     newDatalogger: created
       ? {
           id: created.id,
@@ -199,5 +202,5 @@ export async function submitIoTSensor(
     };
   }
 
-  return { mqttCredentials, newDatalogger: null };
+  return { mqttCredentials, newDatalogger: null, needsRotation: false };
 }

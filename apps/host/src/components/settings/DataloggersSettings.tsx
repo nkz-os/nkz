@@ -25,6 +25,7 @@ import {
 interface OneTimeCredentials {
   datalogger: { id: string; name: string };
   credentials: MqttEndpoint;
+  hint?: string;
 }
 
 export function DataloggersSettings() {
@@ -73,7 +74,18 @@ export function DataloggersSettings() {
     if (!ok) return;
     await run(d.id, async () => {
       const { password } = await rotateDatalogger(d.id);
-      const config = await getDataloggerConfig(d.id);
+      let config;
+      try {
+        config = await getDataloggerConfig(d.id);
+      } catch {
+        // The password exists only now: show it even without host and port.
+        setOneTime({
+          datalogger: { id: d.id, name: d.name },
+          credentials: { configured: true, username: d.username, password },
+          hint: t('dataloggers.rotate.config_failed'),
+        });
+        return;
+      }
       // Host and port come from /config (it never carries the password).
       setOneTime({
         datalogger: { id: d.id, name: d.name },
@@ -177,6 +189,7 @@ export function DataloggersSettings() {
           onClose={() => setOneTime(null)}
           datalogger={oneTime.datalogger}
           credentials={oneTime.credentials}
+          hint={oneTime.hint}
         />
       )}
     </div>

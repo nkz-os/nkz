@@ -2066,7 +2066,8 @@
     "rotate": {
       "title": "Regenerar palavra-passe",
       "confirm": "Será gerada uma nova palavra-passe para «{{name}}». A anterior deixará de funcionar e o datalogger terá de ser atualizado.",
-      "action": "Regenerar palavra-passe"
+      "action": "Regenerar palavra-passe",
+      "config_failed": "Não foi possível ler o servidor e a porta. Guarde a palavra-passe e consulte a configuração do datalogger mais tarde."
     },
     "delete": {
       "title": "Eliminar datalogger",
@@ -2094,6 +2095,12 @@
       "download_hint": "O ficheiro não inclui a palavra-passe.",
       "download_failed": "Não foi possível transferir a configuração",
       "saved": "Guardei as credenciais"
+    },
+    "needs_rotation": {
+      "title": "Palavra-passe do datalogger necessária",
+      "message": "O sensor foi registado, mas a conta MQTT deste datalogger não existe no servidor e ainda não pode publicar. Regenere a sua palavra-passe em Definições → Dataloggers e atualize o datalogger.",
+      "open_settings": "Abrir Definições",
+      "understood": "Entendi"
     }
   }
 }

@@ -2066,7 +2066,8 @@
     "rotate": {
       "title": "Régénérer le mot de passe",
       "confirm": "Un nouveau mot de passe sera généré pour « {{name}} ». L'ancien cessera de fonctionner et le datalogger devra être mis à jour.",
-      "action": "Régénérer le mot de passe"
+      "action": "Régénérer le mot de passe",
+      "config_failed": "Le serveur et le port n'ont pas pu être lus. Enregistrez le mot de passe et consultez la configuration du datalogger plus tard."
     },
     "delete": {
       "title": "Supprimer le datalogger",
@@ -2094,6 +2095,12 @@
       "download_hint": "Le fichier ne contient pas le mot de passe.",
       "download_failed": "La configuration n'a pas pu être téléchargée",
       "saved": "J'ai enregistré les identifiants"
+    },
+    "needs_rotation": {
+      "title": "Mot de passe du datalogger requis",
+      "message": "Le capteur est enregistré, mais le compte MQTT de ce datalogger n'existe pas sur le serveur et il ne peut pas encore publier. Régénérez son mot de passe dans Paramètres → Dataloggers et mettez à jour le datalogger.",
+      "open_settings": "Ouvrir les Paramètres",
+      "understood": "Compris"
     }
   }
 }

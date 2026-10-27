@@ -135,6 +135,9 @@ export async function listSensorProfiles(): Promise<SensorProfile[]> {
 export function apiErrorMessage(err: unknown, fallback: string): string {
   const e = err as { response?: { data?: { error?: unknown } }; message?: unknown };
   const serverText = e?.response?.data?.error;
-  if (typeof serverText === 'string' && serverText) return serverText;
+  const step = (e?.response?.data as { step?: unknown } | undefined)?.step;
+  if (typeof serverText === 'string' && serverText) {
+    return typeof step === 'string' && step ? `${serverText} (${step})` : serverText;
+  }
   return typeof e?.message === 'string' && e.message ? e.message : fallback;
 }

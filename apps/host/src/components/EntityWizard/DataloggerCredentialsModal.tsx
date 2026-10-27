@@ -20,6 +20,8 @@ export interface DataloggerCredentialsModalProps {
   credentials: MqttEndpoint;
   /** Topic of the sensor just registered, when the modal follows a registration. */
   topic?: string;
+  /** Extra notice shown above the credentials. */
+  hint?: string;
 }
 
 export function DataloggerCredentialsModal({
@@ -28,6 +30,7 @@ export function DataloggerCredentialsModal({
   datalogger,
   credentials,
   topic,
+  hint,
 }: DataloggerCredentialsModalProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState<string | null>(null);
@@ -102,8 +105,9 @@ export function DataloggerCredentialsModal({
                 <AlertTriangle className="w-5 h-5 text-nkz-warning-strong shrink-0" />
                 <p className="text-sm text-nkz-warning-strong">{t('dataloggers.credentials.warning_once')}</p>
               </div>
-              {field(t('dataloggers.credentials.host'), credentials.host ?? '', 'host')}
-              {field(t('dataloggers.credentials.port'), String(credentials.port ?? ''), 'port')}
+              {hint && <p className="text-sm text-nkz-warning-strong">{hint}</p>}
+              {credentials.host && field(t('dataloggers.credentials.host'), credentials.host, 'host')}
+              {credentials.port !== undefined && field(t('dataloggers.credentials.port'), String(credentials.port), 'port')}
               {field(t('dataloggers.credentials.username'), credentials.username ?? '', 'username')}
               {field(t('dataloggers.credentials.password'), credentials.password ?? '', 'password', true)}
               {topic && field(t('dataloggers.credentials.topic'), topic, 'topic')}
