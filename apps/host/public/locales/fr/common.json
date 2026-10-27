@@ -825,7 +825,8 @@
       "geometry": "Géométrie",
       "visual": "Visuel",
       "summary": "Résumé",
-      "location": "Emplacement"
+      "location": "Emplacement",
+      "datalogger": "Datalogger"
     },
     "validation": {
       "type_required": "Veuillez sélectionner un type d'entité",
@@ -834,7 +835,11 @@
       "parcel_required": "Au moins une parcelle est requise pour un appareil",
       "stamp_required": "Placez au moins une instance",
       "array_required": "Configurez le point d'ancrage et les paramètres de la grille",
-      "point_required": "Un appareil requiert un emplacement (point)"
+      "point_required": "Un appareil requiert un emplacement (point)",
+      "datalogger_required": "Choisissez un datalogger",
+      "datalogger_name_required": "Le nouveau datalogger doit avoir un nom",
+      "datalogger_kind_required": "Choisissez le type de datalogger",
+      "external_id_invalid": "L'identifiant n'accepte que des lettres, chiffres, point, tiret et tiret bas (1 à 64 caractères)"
     },
     "errors": {
       "incomplete_state": "État de l'assistant incomplet",
@@ -1103,7 +1108,6 @@
       "protocol": "Protocole",
       "topics": "Topics MQTT",
       "topic_publish": "Envoyer des données (publish)",
-      "topic_publish_json": "Envoyer des données JSON",
       "topic_commands": "Recevoir des commandes",
       "example_payload": "Exemple de payload JSON",
       "next_steps": "Prochaines étapes :",
@@ -1222,6 +1226,24 @@
       "undo_last_point": "Annuler le dernier point",
       "clear_geometry": "Effacer la géométrie",
       "parent_shown": "{{name}} (affiché en gris)"
+    },
+    "datalogger": {
+      "title": "D'où arrivent les données ?",
+      "hint": "Un capteur publie ses mesures via un datalogger disposant de son propre compte MQTT.",
+      "load_failed": "Les dataloggers n'ont pas pu être chargés. Vous pouvez en créer un nouveau.",
+      "use_existing": "Utiliser un existant",
+      "create_new": "En créer un nouveau",
+      "select_label": "Datalogger",
+      "select_placeholder": "Choisissez un datalogger",
+      "existing_hint": "Le capteur est ajouté au compte MQTT de ce datalogger.",
+      "name_label": "Nom du datalogger",
+      "name_placeholder": "Ex. : Datalogger parcelle nord",
+      "kind_label": "Type",
+      "new_hint": "À la fin, vous verrez les identifiants MQTT une seule fois.",
+      "external_id_label": "Identifiant sur le datalogger",
+      "external_id_placeholder": "Ex. : sonde_sol_1",
+      "external_id_hint": "L'identifiant sous lequel le datalogger publie ce capteur. Lettres, chiffres, point, tiret et tiret bas ; 64 au maximum.",
+      "created_retry": "Le datalogger est déjà créé ; vous pouvez réessayer avec lui. Son mot de passe peut être régénéré dans les Paramètres."
     }
   },
   "layout": {
@@ -2024,5 +2046,61 @@
     "dark": "Sombre",
     "toggle_aria": "Changer de thème ({{label}})",
     "current_title": "Thème actuel : {{label}}. Cliquez pour changer."
+  },
+  "dataloggers": {
+    "title": "Dataloggers",
+    "description": "Comptes MQTT par lesquels les capteurs publient.",
+    "empty": "Aucun datalogger pour l'instant. Ils sont créés lors de l'enregistrement d'un capteur.",
+    "device_count_one": "{{count}} capteur",
+    "device_count_other": "{{count}} capteurs",
+    "kind": {
+      "datak": "DaTaK",
+      "generic_mqtt": "MQTT générique"
+    },
+    "status": {
+      "active": "Actif",
+      "revoked": "Révoqué"
+    },
+    "revoke": "Révoquer",
+    "enable": "Réactiver",
+    "rotate": {
+      "title": "Régénérer le mot de passe",
+      "confirm": "Un nouveau mot de passe sera généré pour « {{name}} ». L'ancien cessera de fonctionner et le datalogger devra être mis à jour.",
+      "action": "Régénérer le mot de passe",
+      "config_failed": "Le serveur et le port n'ont pas pu être lus. Enregistrez le mot de passe et consultez la configuration du datalogger plus tard."
+    },
+    "delete": {
+      "title": "Supprimer le datalogger",
+      "confirm": "Supprimer « {{name}} » ? Son compte MQTT sera supprimé.",
+      "action": "Supprimer",
+      "blocked": "Supprimez ou déplacez d'abord ses capteurs"
+    },
+    "errors": {
+      "load_failed": "Les dataloggers n'ont pas pu être chargés",
+      "rotate_failed": "Le mot de passe n'a pas pu être régénéré",
+      "status_failed": "Le statut n'a pas pu être modifié",
+      "delete_failed": "Le datalogger n'a pas pu être supprimé"
+    },
+    "credentials": {
+      "title": "Identifiants du datalogger",
+      "warning_once": "Enregistrez le mot de passe maintenant. Vous ne pourrez plus le revoir.",
+      "host": "Serveur",
+      "port": "Port",
+      "username": "Utilisateur",
+      "password": "Mot de passe",
+      "topic": "Topic du capteur",
+      "not_configured": "Cette installation n'a pas encore de serveur MQTT accessible depuis l'extérieur.",
+      "not_configured_next": "Le datalogger a été créé. Quand un serveur sera disponible, régénérez le mot de passe dans les Paramètres pour voir les identifiants.",
+      "download": "Télécharger la configuration JSON",
+      "download_hint": "Le fichier ne contient pas le mot de passe.",
+      "download_failed": "La configuration n'a pas pu être téléchargée",
+      "saved": "J'ai enregistré les identifiants"
+    },
+    "needs_rotation": {
+      "title": "Mot de passe du datalogger requis",
+      "message": "Le capteur est enregistré, mais le compte MQTT de ce datalogger n'existe pas sur le serveur et il ne peut pas encore publier. Régénérez son mot de passe dans Paramètres → Dataloggers et mettez à jour le datalogger.",
+      "open_settings": "Ouvrir les Paramètres",
+      "understood": "Compris"
+    }
   }
 }

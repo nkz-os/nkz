@@ -1,14 +1,118 @@
 import api, { invalidateEntityCache } from '@/services/api';
-import { deviceLinks, parcelLinksFragment } from '@/utils/parcelLinks';
+import { deviceLinks } from '@/utils/parcelLinks';
 import type { IoTSensorFormData } from '../types';
+import {
+  createDatalogger,
+  registerSensor,
+  type MqttEndpoint,
+  type RegisterSensorRequest,
+} from '@/services/dataloggersApi';
 import type { MqttCredentials } from '../MqttCredentialsModal';
 
+/** A datalogger created by this submit. Its password is shown once and kept nowhere else. */
+export interface NewDataloggerResult {
+  id: string;
+  name: string;
+  entityId: string;
+  topic: string;
+  mqtt: MqttEndpoint;
+}
+
 export interface IoTSubmitResult {
+  /** Credentials of the legacy (non-Device) flow. */
   mqttCredentials: MqttCredentials | null;
+  /** Set only when a new datalogger was created for a Device. */
+  newDatalogger: NewDataloggerResult | null;
+  /** The datalogger's broker account is missing: its password must be regenerated. */
+  needsRotation: boolean;
+}
+
+/** A registration that failed after its datalogger had been created. */
+export class DataloggerRegistrationError extends Error {
+  readonly createdDataloggerId: string;
+  readonly response?: unknown;
+  constructor(cause: unknown, createdDataloggerId: string) {
+    super(cause instanceof Error ? cause.message : 'Registration failed');
+    this.name = 'DataloggerRegistrationError';
+    this.createdDataloggerId = createdDataloggerId;
+    this.response = (cause as { response?: unknown } | null)?.response;
+  }
+}
+
+/** The endpoint to show: a password only when the broker endpoint is usable. */
+function endpointToShow(mqtt: MqttEndpoint): MqttEndpoint {
+  if (mqtt.configured === false) {
+    return { configured: false, reason: mqtt.reason, username: mqtt.username };
+  }
+  return {
+    configured: true,
+    host: mqtt.host,
+    port: mqtt.port,
+    protocol: mqtt.protocol,
+    username: mqtt.username,
+    password: mqtt.password,
+  };
 }
 
 /**
- * Submit an IoT sensor entity via SDM Integration Service.
+ * Register a Device on a datalogger (existing, or created here) through the
+ * sensors API. The API writes the entity, the IoT Agent device and the broker
+ * ACL, and undoes them if one fails.
+ */
+async function submitDevice(formData: IoTSensorFormData): Promise<IoTSubmitResult> {
+  if (!formData.deviceProfileId) throw new Error('DeviceProfile is required for IoT sensors');
+  if (formData.geometry?.type !== 'Point') throw new Error('A Device requires a point location');
+  const [lon, lat] = formData.geometry.coordinates;
+
+  let dataloggerId = formData.dataloggerId ?? '';
+  let created: { id: string; mqtt: MqttEndpoint } | null = null;
+  if (formData.dataloggerMode === 'new') {
+    created = await createDatalogger(
+      (formData.newDataloggerName ?? '').trim(),
+      formData.newDataloggerKind ?? 'datak',
+    );
+    dataloggerId = created.id;
+  }
+
+  const body: RegisterSensorRequest = {
+    external_id: formData.externalId ?? '',
+    name: formData.name,
+    profile: formData.deviceProfileId,
+    location: { lat, lon },
+    controlledAsset: deviceLinks(formData.ownerParkId ?? null, formData.parcels.map((p) => p.id)),
+    datalogger_id: dataloggerId,
+  };
+  if (formData.healthConfig) body.healthConfig = formData.healthConfig;
+  if (formData.calibrationConfig) body.calibrationConfig = formData.calibrationConfig;
+  if (formData.description) body.metadata = { description: formData.description };
+
+  let registered;
+  try {
+    registered = await registerSensor(body);
+  } catch (err) {
+    if (created) throw new DataloggerRegistrationError(err, created.id);
+    throw err;
+  }
+  invalidateEntityCache('Device');
+
+  return {
+    mqttCredentials: null,
+    needsRotation: !created && registered.needs_rotation === true,
+    newDatalogger: created
+      ? {
+          id: created.id,
+          name: (formData.newDataloggerName ?? '').trim(),
+          entityId: registered.entity_id,
+          topic: registered.topic,
+          mqtt: endpointToShow(created.mqtt),
+        }
+      : null,
+  };
+}
+
+/**
+ * Submit an IoT sensor. A `Device` is registered through the sensors API
+ * (see submitDevice); every other sensor type goes through SDM Integration:
  *
  * SDM Integration handles the full workflow in one call:
  *   1. Creates the NGSI-LD entity in Orion-LD
@@ -21,6 +125,8 @@ export async function submitIoTSensor(
   entityType: string,
   formData: IoTSensorFormData,
 ): Promise<IoTSubmitResult> {
+  if (entityType === 'Device') return submitDevice(formData);
+
   // Build the body for SDM Integration.
   // SDM Integration auto-generates the entity ID and wraps properties in NGSI-LD format.
   const body: Record<string, unknown> = {
@@ -58,11 +164,6 @@ export async function submitIoTSensor(
     object: profileUrn,
   };
 
-  // Parcel link (Device only): canonical list-valued controlledAsset
-  if (entityType === 'Device') {
-    Object.assign(body, parcelLinksFragment(deviceLinks(formData.ownerParkId ?? null, formData.parcels.map((p) => p.id))));
-  }
-
   if (formData.iconUrl) {
     body.icon2d = formData.iconUrl;
   } else if (formData.defaultIconKey) {
@@ -94,7 +195,6 @@ export async function submitIoTSensor(
       device_id: mqtt.device_id ?? '',
       topics: {
         publish_data: mqtt.topics?.publish_data ?? '',
-        publish_data_json: mqtt.topics?.publish_data_json ?? '',
         commands: mqtt.topics?.commands ?? '',
       },
       example_payload: mqtt.example_payload,
@@ -102,5 +202,5 @@ export async function submitIoTSensor(
     };
   }
 
-  return { mqttCredentials };
+  return { mqttCredentials, newDatalogger: null, needsRotation: false };
 }

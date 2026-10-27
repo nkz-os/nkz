@@ -802,7 +802,8 @@
       "geometry": "Geometria",
       "visual": "Ikusizkoa",
       "summary": "Laburpena",
-      "location": "Kokapena"
+      "location": "Kokapena",
+      "datalogger": "Datalogger-a"
     },
     "validation": {
       "type_required": "Hautatu entitate mota bat",
@@ -811,7 +812,11 @@
       "parcel_required": "Gailu batek gutxienez lursail bat behar du",
       "stamp_required": "Margotu gutxienez instantzia bat",
       "array_required": "Konfiguratu aingura-puntua eta saretaren parametroak",
-      "point_required": "Gailu batek kokapena (puntua) behar du"
+      "point_required": "Gailu batek kokapena (puntua) behar du",
+      "datalogger_required": "Aukeratu datalogger bat",
+      "datalogger_name_required": "Datalogger berriak izena behar du",
+      "datalogger_kind_required": "Aukeratu datalogger mota",
+      "external_id_invalid": "Identifikatzaileak letrak, zenbakiak, puntua, gidoia eta azpimarra onartzen ditu soilik (1-64 karaktere)"
     },
     "errors": {
       "incomplete_state": "Laguntzailearen egoera osatu gabe dago",
@@ -1080,7 +1085,6 @@
       "protocol": "Protokoloa",
       "topics": "MQTT topic-ak",
       "topic_publish": "Bidali datuak (publish)",
-      "topic_publish_json": "Bidali JSON datuak",
       "topic_commands": "Jaso komandoak",
       "example_payload": "JSON payload adibidea",
       "next_steps": "Hurrengo urratsak:",
@@ -1199,6 +1203,24 @@
       "undo_last_point": "Desegin azken puntua",
       "clear_geometry": "Garbitu geometria",
       "parent_shown": "{{name}} (grisez erakusten da)"
+    },
+    "datalogger": {
+      "title": "Nondik datoz datuak?",
+      "hint": "Sentsore batek bere irakurketak datalogger baten bidez argitaratzen ditu, MQTT kontu propioarekin.",
+      "load_failed": "Ezin izan dira datalogger-ak kargatu. Berri bat sor dezakezu.",
+      "use_existing": "Lehendik dagoena erabili",
+      "create_new": "Berri bat sortu",
+      "select_label": "Datalogger-a",
+      "select_placeholder": "Aukeratu datalogger bat",
+      "existing_hint": "Sentsorea datalogger honen MQTT kontuari gehitzen zaio.",
+      "name_label": "Datalogger-aren izena",
+      "name_placeholder": "Adib.: Iparraldeko partzelaren datalogger-a",
+      "kind_label": "Mota",
+      "new_hint": "Amaitzean MQTT kredentzialak behin bakarrik ikusiko dituzu.",
+      "external_id_label": "Datalogger-aren identifikatzailea",
+      "external_id_placeholder": "Adib.: lur_sonda_1",
+      "external_id_hint": "Datalogger-ak sentsore hau argitaratzeko erabiltzen duen identifikatzailea. Letrak, zenbakiak, puntua, gidoia eta azpimarra; gehienez 64.",
+      "created_retry": "Datalogger-a sortuta dago jada; berarekin saia zaitezke berriro. Pasahitza Ezarpenetan berregin daiteke."
     }
   },
   "layout": {
@@ -2024,5 +2046,61 @@
     "dark": "Iluna",
     "toggle_aria": "Aldatu gaia ({{label}})",
     "current_title": "Uneko gaia: {{label}}. Egin klik aldatzeko."
+  },
+  "dataloggers": {
+    "title": "Datalogger-ak",
+    "description": "Sentsoreek argitaratzeko erabiltzen dituzten MQTT kontuak.",
+    "empty": "Oraindik ez dago datalogger-ik. Sentsore bat erregistratzean sortzen dira.",
+    "device_count_one": "sentsore {{count}}",
+    "device_count_other": "{{count}} sentsore",
+    "kind": {
+      "datak": "DaTaK",
+      "generic_mqtt": "MQTT generikoa"
+    },
+    "status": {
+      "active": "Aktibo",
+      "revoked": "Ezeztatua"
+    },
+    "revoke": "Ezeztatu",
+    "enable": "Berraktibatu",
+    "rotate": {
+      "title": "Pasahitza berregin",
+      "confirm": "«{{name}}» datalogger-arentzat pasahitz berria sortuko da. Aurrekoak ez du balioko eta datalogger-a eguneratu beharko da.",
+      "action": "Pasahitza berregin",
+      "config_failed": "Ezin izan dira zerbitzaria eta ataka irakurri. Gorde pasahitza eta begiratu datalogger-aren konfigurazioa geroago."
+    },
+    "delete": {
+      "title": "Datalogger-a ezabatu",
+      "confirm": "«{{name}}» ezabatu? Bere MQTT kontua ezabatuko da.",
+      "action": "Ezabatu",
+      "blocked": "Ezabatu edo mugitu lehenik bere sentsoreak"
+    },
+    "errors": {
+      "load_failed": "Ezin izan dira datalogger-ak kargatu",
+      "rotate_failed": "Ezin izan da pasahitza berregin",
+      "status_failed": "Ezin izan da egoera aldatu",
+      "delete_failed": "Ezin izan da datalogger-a ezabatu"
+    },
+    "credentials": {
+      "title": "Datalogger-aren kredentzialak",
+      "warning_once": "Gorde pasahitza orain. Ezin izango da berriro ikusi.",
+      "host": "Zerbitzaria",
+      "port": "Ataka",
+      "username": "Erabiltzailea",
+      "password": "Pasahitza",
+      "topic": "Sentsorearen topikoa",
+      "not_configured": "Instalazio honek ez du oraindik kanpotik eskuragarri dagoen MQTT zerbitzaririk.",
+      "not_configured_next": "Datalogger-a sortu da. Zerbitzaria egonda, berregin pasahitza Ezarpenetan kredentzialak ikusteko.",
+      "download": "Deskargatu JSON konfigurazioa",
+      "download_hint": "Fitxategiak ez du pasahitza barnean.",
+      "download_failed": "Ezin izan da konfigurazioa deskargatu",
+      "saved": "Kredentzialak gorde ditut"
+    },
+    "needs_rotation": {
+      "title": "Datalogger-aren pasahitza behar da",
+      "message": "Sentsorea erregistratu da, baina datalogger honen MQTT kontua ez dago zerbitzarian eta oraindik ezin du argitaratu. Berregin bere pasahitza Ezarpenak → Datalogger-ak atalean eta eguneratu datalogger-a.",
+      "open_settings": "Ezarpenak ireki",
+      "understood": "Ulertuta"
+    }
   }
 }

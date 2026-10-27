@@ -825,7 +825,8 @@
       "geometry": "Geometria",
       "visual": "Visual",
       "summary": "Resumo",
-      "location": "Localização"
+      "location": "Localização",
+      "datalogger": "Datalogger"
     },
     "validation": {
       "type_required": "Selecione um tipo de entidade",
@@ -834,7 +835,11 @@
       "parcel_required": "É necessária pelo menos uma parcela para um dispositivo",
       "stamp_required": "Coloque pelo menos uma instância",
       "array_required": "Configure o ponto de ancoragem e os parâmetros da grelha",
-      "point_required": "Um dispositivo requer uma localização (ponto)"
+      "point_required": "Um dispositivo requer uma localização (ponto)",
+      "datalogger_required": "Escolha um datalogger",
+      "datalogger_name_required": "O novo datalogger precisa de um nome",
+      "datalogger_kind_required": "Escolha o tipo de datalogger",
+      "external_id_invalid": "O identificador só aceita letras, números, ponto, hífen e sublinhado (1 a 64 caracteres)"
     },
     "errors": {
       "incomplete_state": "Estado do assistente incompleto",
@@ -1103,7 +1108,6 @@
       "protocol": "Protocolo",
       "topics": "Topics MQTT",
       "topic_publish": "Enviar dados (publish)",
-      "topic_publish_json": "Enviar dados JSON",
       "topic_commands": "Receber comandos",
       "example_payload": "Exemplo de payload JSON",
       "next_steps": "Próximos passos:",
@@ -1222,6 +1226,24 @@
       "undo_last_point": "Anular o último ponto",
       "clear_geometry": "Limpar geometria",
       "parent_shown": "{{name}} (apresentado a cinzento)"
+    },
+    "datalogger": {
+      "title": "De onde chegam os dados?",
+      "hint": "Um sensor publica as suas leituras através de um datalogger com a sua própria conta MQTT.",
+      "load_failed": "Não foi possível carregar os dataloggers. Pode criar um novo.",
+      "use_existing": "Usar um existente",
+      "create_new": "Criar um novo",
+      "select_label": "Datalogger",
+      "select_placeholder": "Escolha um datalogger",
+      "existing_hint": "O sensor é adicionado à conta MQTT deste datalogger.",
+      "name_label": "Nome do datalogger",
+      "name_placeholder": "Ex.: Datalogger parcela norte",
+      "kind_label": "Tipo",
+      "new_hint": "No fim verá as credenciais MQTT uma única vez.",
+      "external_id_label": "Identificador no datalogger",
+      "external_id_placeholder": "Ex.: sonda_solo_1",
+      "external_id_hint": "O identificador com que o datalogger publica este sensor. Letras, números, ponto, hífen e sublinhado; máximo 64.",
+      "created_retry": "O datalogger já foi criado; pode tentar de novo com ele. A palavra-passe pode ser regenerada em Definições."
     }
   },
   "layout": {
@@ -2024,5 +2046,61 @@
     "dark": "Escuro",
     "toggle_aria": "Mudar tema ({{label}})",
     "current_title": "Tema atual: {{label}}. Clique para mudar."
+  },
+  "dataloggers": {
+    "title": "Dataloggers",
+    "description": "Contas MQTT através das quais os sensores publicam.",
+    "empty": "Ainda não há dataloggers. São criados ao registar um sensor.",
+    "device_count_one": "{{count}} sensor",
+    "device_count_other": "{{count}} sensores",
+    "kind": {
+      "datak": "DaTaK",
+      "generic_mqtt": "MQTT genérico"
+    },
+    "status": {
+      "active": "Ativo",
+      "revoked": "Revogado"
+    },
+    "revoke": "Revogar",
+    "enable": "Reativar",
+    "rotate": {
+      "title": "Regenerar palavra-passe",
+      "confirm": "Será gerada uma nova palavra-passe para «{{name}}». A anterior deixará de funcionar e o datalogger terá de ser atualizado.",
+      "action": "Regenerar palavra-passe",
+      "config_failed": "Não foi possível ler o servidor e a porta. Guarde a palavra-passe e consulte a configuração do datalogger mais tarde."
+    },
+    "delete": {
+      "title": "Eliminar datalogger",
+      "confirm": "Eliminar «{{name}}»? A sua conta MQTT será removida.",
+      "action": "Eliminar",
+      "blocked": "Elimine ou mova primeiro os seus sensores"
+    },
+    "errors": {
+      "load_failed": "Não foi possível carregar os dataloggers",
+      "rotate_failed": "Não foi possível regenerar a palavra-passe",
+      "status_failed": "Não foi possível alterar o estado",
+      "delete_failed": "Não foi possível eliminar o datalogger"
+    },
+    "credentials": {
+      "title": "Credenciais do datalogger",
+      "warning_once": "Guarde a palavra-passe agora. Não poderá voltar a vê-la.",
+      "host": "Servidor",
+      "port": "Porta",
+      "username": "Utilizador",
+      "password": "Palavra-passe",
+      "topic": "Tópico do sensor",
+      "not_configured": "Esta instalação ainda não tem um servidor MQTT acessível a partir do exterior.",
+      "not_configured_next": "O datalogger foi criado. Quando houver servidor, regenere a palavra-passe em Definições para ver as credenciais.",
+      "download": "Transferir configuração JSON",
+      "download_hint": "O ficheiro não inclui a palavra-passe.",
+      "download_failed": "Não foi possível transferir a configuração",
+      "saved": "Guardei as credenciais"
+    },
+    "needs_rotation": {
+      "title": "Palavra-passe do datalogger necessária",
+      "message": "O sensor foi registado, mas a conta MQTT deste datalogger não existe no servidor e ainda não pode publicar. Regenere a sua palavra-passe em Definições → Dataloggers e atualize o datalogger.",
+      "open_settings": "Abrir Definições",
+      "understood": "Entendi"
+    }
   }
 }

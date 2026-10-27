@@ -801,7 +801,8 @@
       "geometry": "Geometry",
       "visual": "Visual",
       "summary": "Summary",
-      "location": "Location"
+      "location": "Location",
+      "datalogger": "Datalogger"
     },
     "validation": {
       "type_required": "Please select an entity type",
@@ -810,7 +811,11 @@
       "parcel_required": "At least one parcel is required for a device",
       "stamp_required": "Place at least one instance",
       "array_required": "Set the anchor point and the grid parameters",
-      "point_required": "A device requires a location (point)"
+      "point_required": "A device requires a location (point)",
+      "datalogger_required": "Choose a datalogger",
+      "datalogger_name_required": "The new datalogger needs a name",
+      "datalogger_kind_required": "Choose the datalogger type",
+      "external_id_invalid": "The identifier accepts only letters, digits, dot, hyphen and underscore (1-64 characters)"
     },
     "errors": {
       "incomplete_state": "Incomplete wizard state",
@@ -1079,7 +1084,6 @@
       "protocol": "Protocol",
       "topics": "MQTT topics",
       "topic_publish": "Send data (publish)",
-      "topic_publish_json": "Send JSON data",
       "topic_commands": "Receive commands",
       "example_payload": "Example JSON payload",
       "next_steps": "Next steps:",
@@ -1198,6 +1202,24 @@
       "undo_last_point": "Undo last point",
       "clear_geometry": "Clear geometry",
       "parent_shown": "{{name}} (shown in gray)"
+    },
+    "datalogger": {
+      "title": "Where does the data arrive from?",
+      "hint": "A sensor publishes its readings through a datalogger with its own MQTT account.",
+      "load_failed": "The dataloggers could not be loaded. You can create a new one.",
+      "use_existing": "Use an existing one",
+      "create_new": "Create a new one",
+      "select_label": "Datalogger",
+      "select_placeholder": "Choose a datalogger",
+      "existing_hint": "The sensor is added to this datalogger's MQTT account.",
+      "name_label": "Datalogger name",
+      "name_placeholder": "E.g.: North plot datalogger",
+      "kind_label": "Type",
+      "new_hint": "When you finish you will see the MQTT credentials once.",
+      "external_id_label": "Identifier on the datalogger",
+      "external_id_placeholder": "E.g.: soil_probe_1",
+      "external_id_hint": "The identifier the datalogger publishes this sensor under. Letters, digits, dot, hyphen and underscore; up to 64.",
+      "created_retry": "The datalogger was already created; you can retry with it. Its password can be regenerated in Settings."
     }
   },
   "layout": {
@@ -2024,5 +2046,61 @@
     "dark": "Dark",
     "toggle_aria": "Change theme ({{label}})",
     "current_title": "Current theme: {{label}}. Click to change."
+  },
+  "dataloggers": {
+    "title": "Dataloggers",
+    "description": "MQTT accounts the sensors publish through.",
+    "empty": "No dataloggers yet. They are created when you register a sensor.",
+    "device_count_one": "{{count}} sensor",
+    "device_count_other": "{{count}} sensors",
+    "kind": {
+      "datak": "DaTaK",
+      "generic_mqtt": "Generic MQTT"
+    },
+    "status": {
+      "active": "Active",
+      "revoked": "Revoked"
+    },
+    "revoke": "Revoke",
+    "enable": "Re-enable",
+    "rotate": {
+      "title": "Regenerate password",
+      "confirm": "A new password will be generated for \"{{name}}\". The old one stops working and the datalogger must be updated.",
+      "action": "Regenerate password",
+      "config_failed": "The host and port could not be read. Save the password and check the datalogger configuration later."
+    },
+    "delete": {
+      "title": "Delete datalogger",
+      "confirm": "Delete \"{{name}}\"? Its MQTT account will be removed.",
+      "action": "Delete",
+      "blocked": "Delete or move its sensors first"
+    },
+    "errors": {
+      "load_failed": "The dataloggers could not be loaded",
+      "rotate_failed": "The password could not be regenerated",
+      "status_failed": "The status could not be changed",
+      "delete_failed": "The datalogger could not be deleted"
+    },
+    "credentials": {
+      "title": "Datalogger credentials",
+      "warning_once": "Save the password now. You will not be able to see it again.",
+      "host": "Host",
+      "port": "Port",
+      "username": "Username",
+      "password": "Password",
+      "topic": "Sensor topic",
+      "not_configured": "This installation has no MQTT server reachable from outside yet.",
+      "not_configured_next": "The datalogger was created. Once a server is available, regenerate the password in Settings to see the credentials.",
+      "download": "Download JSON config",
+      "download_hint": "The file does not include the password.",
+      "download_failed": "The configuration could not be downloaded",
+      "saved": "I have saved the credentials"
+    },
+    "needs_rotation": {
+      "title": "Datalogger password needed",
+      "message": "The sensor was registered, but this datalogger's MQTT account does not exist on the broker, so it cannot publish yet. Regenerate its password in Settings → Dataloggers and update the datalogger.",
+      "open_settings": "Open Settings",
+      "understood": "Understood"
+    }
   }
 }

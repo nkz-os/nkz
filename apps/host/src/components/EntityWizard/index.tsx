@@ -11,7 +11,7 @@
 import { useReducer, useState, useEffect, useCallback } from 'react';
 import {
   X, ArrowRight, ArrowLeft, Check, Loader2,
-  Search, Settings, Radio, Tractor, MapPin, Palette, FileText,
+  Search, Settings, Radio, Tractor, MapPin, Palette, FileText, Database,
 } from 'lucide-react';
 import { useViewer } from '@/context/ViewerContext';
 import { placementReducer, INITIAL_STATE } from '@/machines/placementMachine';
@@ -19,15 +19,19 @@ import { WizardProvider, useWizard } from './WizardContext';
 import { StepTypeSelection } from './steps/StepTypeSelection';
 import { StepGeoAssetConfig } from './steps/StepGeoAssetConfig';
 import { StepIoTSensorConfig } from './steps/StepIoTSensorConfig';
+import { StepDatalogger } from './steps/StepDatalogger';
 import { StepFleetConfig } from './steps/StepFleetConfig';
 import { StepGeometry } from './steps/StepGeometry';
 import { StepVisualization } from './steps/StepVisualization';
 import { StepSummary } from './steps/StepSummary';
 import { RobotCredentialsModal, type RobotCredentials } from './RobotCredentialsModal';
 import { MqttCredentialsModal, type MqttCredentials } from './MqttCredentialsModal';
+import { DataloggerCredentialsModal } from './DataloggerCredentialsModal';
+import { DataloggerRotationNotice } from './DataloggerRotationNotice';
+import { apiErrorMessage } from '@/services/dataloggersApi';
 import { submitGeoAsset } from './submission/submitGeoAsset';
-import { validateIoTConfig, validateGeometryStep } from './iotValidation';
-import { submitIoTSensor } from './submission/submitIoTSensor';
+import { validateIoTConfig, validateDataloggerStep, validateGeometryStep } from './iotValidation';
+import { submitIoTSensor, type NewDataloggerResult } from './submission/submitIoTSensor';
 import { submitFleet } from './submission/submitFleet';
 import type { EntityWizardProps, GeoAssetFormData, IoTSensorFormData, FleetFormData } from './types';
 import type { StepId } from './types';
@@ -40,6 +44,7 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   type: Search,
   'geo-config': Settings,
   'iot-config': Radio,
+  datalogger: Database,
   'fleet-config': Tractor,
   geometry: MapPin,
   visualization: Palette,
@@ -60,6 +65,7 @@ function StepRouter({ stepId, placementState, dispatchPlacement }: StepRouterPro
     case 'type':        return <StepTypeSelection />;
     case 'geo-config':  return <StepGeoAssetConfig />;
     case 'iot-config':  return <StepIoTSensorConfig />;
+    case 'datalogger':  return <StepDatalogger />;
     case 'fleet-config': return <StepFleetConfig />;
     case 'geometry':    return <StepGeometry placementState={placementState} dispatchPlacement={dispatchPlacement} />;
     case 'visualization': return <StepVisualization />;
@@ -148,6 +154,9 @@ function validateStep(
       return validateIoTConfig(entityType, iotData);
     }
 
+    case 'datalogger':
+      return validateDataloggerStep(entityType, formData as IoTSensorFormData);
+
     case 'geometry':
       if (placementState.mode === 'stamp') {
         return placementState.stampedInstances.length > 0 ? null : 'wizard.validation.stamp_required';
@@ -172,7 +181,7 @@ interface InnerWizardProps {
 
 function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   const {
-    entityType, formData, currentStep,
+    entityType, formData, currentStep, updateFormData,
     isFirstStep, isLastStep, goNext, goBack,
     loading, error, validationError,
     setLoading, setError, reset,
@@ -183,6 +192,10 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   const [placementState, dispatchPlacement] = useReducer(placementReducer, INITIAL_STATE);
   const [robotCredentials, setRobotCredentials] = useState<RobotCredentials | null>(null);
   const [mqttCredentials, setMqttCredentials] = useState<MqttCredentials | null>(null);
+  // One-time datalogger account: held only while its modal is open, dropped on close.
+  const [newDatalogger, setNewDatalogger] = useState<NewDataloggerResult | null>(null);
+  // The sensor is registered on a datalogger whose broker account must be re-issued.
+  const [needsRotation, setNeedsRotation] = useState(false);
 
   // Side panel mode: when interacting with the map (picking, drawing, stamping)
   // OR when on geometry step with array/stamp placement (always needs map access)
@@ -227,7 +240,13 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
         }
         case 'sensors': {
           const result = await submitIoTSensor(entityType, formData as IoTSensorFormData);
-          if (result.mqttCredentials) {
+          if (result.newDatalogger) {
+            setNewDatalogger(result.newDatalogger);
+            // Don't close — wait for user to save the datalogger credentials
+          } else if (result.needsRotation) {
+            setNeedsRotation(true);
+            // Don't close — the user must know the sensor cannot publish yet
+          } else if (result.mqttCredentials) {
             setMqttCredentials(result.mqttCredentials);
             // Don't close — wait for user to save credentials
           } else {
@@ -250,7 +269,13 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
         }
       }
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || t('wizard.errors.create_failed');
+      let msg = apiErrorMessage(err, t('wizard.errors.create_failed'));
+      if (err.createdDataloggerId) {
+        // The datalogger exists now: retry on it instead of creating a second one.
+        // Its password was never kept; it can be regenerated in Settings.
+        updateFormData({ dataloggerMode: 'existing', dataloggerId: err.createdDataloggerId });
+        msg = `${msg} ${t('wizard.datalogger.created_retry')}`;
+      }
       setError(msg);
     } finally {
       setLoading(false);
@@ -354,6 +379,31 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
           onClose={() => { setRobotCredentials(null); onClose(); }}
           robotName={formData?.name ?? ''}
           credentials={robotCredentials}
+        />
+      )}
+
+      {/* Datalogger credentials (new datalogger only) */}
+      {newDatalogger && (
+        <DataloggerCredentialsModal
+          isOpen
+          onClose={() => {
+            setNewDatalogger(null);
+            if (onSuccess) onSuccess();
+            onClose();
+          }}
+          datalogger={{ id: newDatalogger.id, name: newDatalogger.name }}
+          credentials={newDatalogger.mqtt}
+          topic={newDatalogger.topic}
+        />
+      )}
+
+      {needsRotation && (
+        <DataloggerRotationNotice
+          onClose={() => {
+            setNeedsRotation(false);
+            if (onSuccess) onSuccess();
+            onClose();
+          }}
         />
       )}
 

@@ -16,6 +16,7 @@ vi.mock('@/services/deviceProfilesApi', () => ({
   listDeviceProfiles: vi.fn().mockResolvedValue([]),
   createDeviceProfile: vi.fn(),
 }));
+vi.mock('@/services/dataloggersApi', () => ({ listSensorProfiles: vi.fn().mockResolvedValue([]) }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 vi.mock('@/context/ToastContext', () => ({ useToastContext: () => ({ success: vi.fn(), error: vi.fn() }) }));
 vi.mock('../../DeviceProfileHelpModal', () => ({ DeviceProfileHelpModal: () => null }));

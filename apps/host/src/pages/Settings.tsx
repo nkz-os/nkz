@@ -14,6 +14,7 @@ import { ModuleVisibilitySettings } from '@/components/ModuleVisibilitySettings'
 import api from '@/services/api';
 import { getConfig } from '@/config/environment';
 import { TenantProfileEditor } from '@/components/settings/TenantProfileEditor';
+import { DataloggersSettings } from '@/components/settings/DataloggersSettings';
 import { Copy, Check, Edit2, Save, X } from 'lucide-react';
 import { useCookieConsent } from '@/context/CookieConsentContext';
 import { logger } from '@/utils/logger';
@@ -317,6 +318,13 @@ export const Settings: React.FC = () => {
         {canModifySettings && (
           <div className="mb-6">
             <CopernicusCredentials />
+          </div>
+        )}
+
+        {/* Dataloggers (MQTT accounts of the sensors) */}
+        {canModifySettings && (
+          <div className="mb-6">
+            <DataloggersSettings />
           </div>
         )}
 

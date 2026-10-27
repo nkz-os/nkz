@@ -42,5 +42,25 @@ describe('deleteSDMEntity', () => {
     await api.deleteSDMEntity('Device', 'urn:ngsi-ld:Device:d1');
 
     expect(del).toHaveBeenCalledWith('/ngsi-ld/v1/entities/urn:ngsi-ld:Device:d1');
+    await api.deleteSDMEntity('WeatherObserved', 'urn:ngsi-ld:WeatherObserved:acme:w1');
+    expect(del).toHaveBeenLastCalledWith('/ngsi-ld/v1/entities/urn:ngsi-ld:WeatherObserved:acme:w1');
+  });
+
+  it('deletes a tenant-scoped Device through the sensors API', async () => {
+    await api.deleteSDMEntity('Device', 'urn:ngsi-ld:Device:tenant-a:probe_1');
+
+    expect(del).toHaveBeenCalledWith('/api/sensors/devices/urn%3Angsi-ld%3ADevice%3Atenant-a%3Aprobe_1');
+  });
+
+  it('keeps a Device whose tenant segment is not canonical on the broker path', async () => {
+    await api.deleteSDMEntity('Device', 'urn:ngsi-ld:Device:Tenant_A:probe_1');
+    expect(del).toHaveBeenLastCalledWith('/ngsi-ld/v1/entities/urn:ngsi-ld:Device:Tenant_A:probe_1');
+    await api.deleteSDMEntity('Device', 'urn:ngsi-ld:Device:-a-:probe_1');
+    expect(del).toHaveBeenLastCalledWith('/ngsi-ld/v1/entities/urn:ngsi-ld:Device:-a-:probe_1');
+  });
+
+  it('routes a multi-hyphen tenant and dotted external id through the sensors API', async () => {
+    await api.deleteSDMEntity('Device', 'urn:ngsi-ld:Device:acme-farm-2:probe.1-b');
+    expect(del).toHaveBeenLastCalledWith('/api/sensors/devices/urn%3Angsi-ld%3ADevice%3Aacme-farm-2%3Aprobe.1-b');
   });
 });
