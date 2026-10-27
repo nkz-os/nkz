@@ -42,5 +42,13 @@ describe('deleteSDMEntity', () => {
     await api.deleteSDMEntity('Device', 'urn:ngsi-ld:Device:d1');
 
     expect(del).toHaveBeenCalledWith('/ngsi-ld/v1/entities/urn:ngsi-ld:Device:d1');
+    await api.deleteSDMEntity('WeatherObserved', 'urn:ngsi-ld:WeatherObserved:acme:w1');
+    expect(del).toHaveBeenLastCalledWith('/ngsi-ld/v1/entities/urn:ngsi-ld:WeatherObserved:acme:w1');
+  });
+
+  it('deletes a tenant-scoped Device through the sensors API', async () => {
+    await api.deleteSDMEntity('Device', 'urn:ngsi-ld:Device:tenant-a:probe_1');
+
+    expect(del).toHaveBeenCalledWith('/api/sensors/devices/urn:ngsi-ld:Device:tenant-a:probe_1');
   });
 });

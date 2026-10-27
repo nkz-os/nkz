@@ -19,6 +19,7 @@ import { logger } from '@/utils/logger';
 import { notifySessionExpired } from './sessionExpiry';
 import { fetchAllPages } from './ngsiPaging';
 import { pickParentRelationships } from '@/utils/entityRelations';
+import { isRegisteredDeviceUrn } from '@/utils/deviceIds';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl;
@@ -724,6 +725,12 @@ class ApiService {
     // Only entity-manager may write parcels; its route also removes the parcel's zones.
     if (entityType === 'AgriParcel') {
       await this.client.delete(`/api/entities/parcels/${encodeURIComponent(entityId)}`);
+      return;
+    }
+    // A Device registered through the sensors API also owns an IoT Agent device and a
+    // broker ACL entry; only that route cleans them up along with the entity.
+    if (entityType === 'Device' && isRegisteredDeviceUrn(entityId)) {
+      await this.client.delete(`/api/sensors/devices/${entityId}`);
       return;
     }
     await this.client.delete(`/ngsi-ld/v1/entities/${entityId}`);
