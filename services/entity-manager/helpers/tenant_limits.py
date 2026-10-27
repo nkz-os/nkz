@@ -213,38 +213,92 @@ def _check_parcel_count_limit(current_count, max_parcels):
     return current_count < int(max_parcels)
 
 
-def _sum_parcel_area(entity_type, tenant):
-    """Sum the area (hectares) of all parcels of a type for a tenant."""
+# A subparcel points at the parcel that contains it. hasAgriParcel reads back as
+# refAgriParcel (same IRI); refParent and hasParent are legacy names outside the
+# @context, so they can arrive as full IRIs.
+_PARENT_LINKS = {'hasAgriParcelParent', 'hasAgriParcel', 'refAgriParcel', 'refParent', 'hasParent'}
+_PARCEL_URN_PREFIX = 'urn:ngsi-ld:AgriParcel:'
+
+
+def _parent_parcel_id(entity) -> Optional[str]:
+    """URN of the parcel this entity sits inside, or None."""
+    for key, value in (entity or {}).items():
+        if key.rsplit('/', 1)[-1].rsplit('#', 1)[-1] not in _PARENT_LINKS:
+            continue
+        for item in value if isinstance(value, list) else [value]:
+            target = item.get('object') if isinstance(item, dict) else item
+            if isinstance(target, list):
+                target = target[0] if target else None
+            if isinstance(target, str) and target.startswith(_PARCEL_URN_PREFIX):
+                return target
+    return None
+
+
+def _list_parcels(entity_type, tenant) -> Optional[list]:
+    """All parcels of a type for a tenant, or None when the broker cannot be read."""
     orion_url = f"{ORION_URL}/ngsi-ld/v1/entities"
-    params = {'type': entity_type, 'limit': 1000}
-    headers = {'Accept': 'application/ld+json'}
-    headers = inject_fiware_headers(headers, tenant)
-    total = 0.0
-    page = 0
+    headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant)
+    parcels = []
+    offset = 0
     while True:
-        p = dict(params)
-        p['offset'] = page * 1000
+        params = {'type': entity_type, 'limit': 1000, 'offset': offset}
         try:
-            resp = requests.get(orion_url, params=p, headers=headers, timeout=_ORION_TIMEOUT_SECONDS)
-        except requests.RequestException as e:
-            logger.error(f"_sum_parcel_area failed for {entity_type}: {e}")
-            break
-        if resp.status_code != 200:
-            break
-        try:
-            items = resp.json()
-        except Exception:
-            break
-        if not items:
-            break
-        for ent in items:
-            area_val = _extract_number(ent.get('area'))
-            if area_val is not None:
-                total += area_val
+            resp = requests.get(orion_url, params=params, headers=headers, timeout=_ORION_TIMEOUT_SECONDS)
+            items = resp.json() if resp.status_code == 200 else None
+        except (requests.RequestException, ValueError) as e:
+            logger.error(f"_list_parcels failed for {entity_type} tenant={tenant}: {e}")
+            return None
+        if not isinstance(items, list):
+            logger.error(f"_list_parcels: Orion returned {resp.status_code} for {entity_type} tenant={tenant}")
+            return None
+        parcels.extend(items)
         if len(items) < 1000:
-            break
-        page += 1
+            return parcels
+        offset += 1000
+
+
+def _top_level_parcels(parcels: list) -> list:
+    """Parcels that are not inside another parcel of the same listing.
+
+    A subparcel's area lies inside its parent and it is a sector of a parcel the
+    plan already covers, so it adds neither area nor a parcel. A link to a parcel
+    that is not listed (deleted, other tenant) leaves the parcel on its own.
+    """
+    ids = {p.get('id') for p in parcels}
+    return [p for p in parcels if _parent_parcel_id(p) not in ids]
+
+
+def _count_parcels(entity_type, tenant) -> Optional[int]:
+    """Top-level parcels of a type for a tenant; None when unknown."""
+    parcels = _list_parcels(entity_type, tenant)
+    return None if parcels is None else len(_top_level_parcels(parcels))
+
+
+def _sum_parcel_area(entity_type, tenant):
+    """Sum the area (hectares) of a tenant's top-level parcels of a type; 0 when unknown."""
+    total = 0.0
+    for ent in _top_level_parcels(_list_parcels(entity_type, tenant) or []):
+        area_val = _extract_number(ent.get('area'))
+        if area_val is not None:
+            total += area_val
     return total
+
+
+def _is_subparcel(entity, tenant) -> bool:
+    """True when the entity points at an existing parcel of the tenant."""
+    parent = _parent_parcel_id(entity)
+    if not parent:
+        return False
+    headers = inject_fiware_headers({'Accept': 'application/json'}, tenant)
+    try:
+        resp = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/entities/{parent}",
+            params={'options': 'keyValues'}, headers=headers, timeout=_ORION_TIMEOUT_SECONDS,
+        )
+        return resp.status_code == 200 and resp.json().get('type') in PARCEL_ENTITY_TYPES
+    except (requests.RequestException, ValueError, AttributeError) as e:
+        logger.error(f"_is_subparcel: parent {parent} of tenant={tenant} not readable: {e}")
+        return False
 
 
 def _gather_usage_for_tenant(tenant: str) -> Dict[str, Any]:
@@ -262,7 +316,7 @@ def _gather_usage_for_tenant(tenant: str) -> Dict[str, Any]:
             sensors_total += count
 
     for entity_type in PARCEL_ENTITY_TYPES:
-        count = _count_entities_by_type(entity_type, tenant)
+        count = _count_parcels(entity_type, tenant)
         if isinstance(count, int) and count > 0:
             parcels_total += count
         area_val = _sum_parcel_area(entity_type, tenant)

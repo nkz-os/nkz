@@ -26,6 +26,7 @@ from helpers import (
     ORION_URL, CONTEXT_URL, _extract_number,
     get_limits_for_tenant, _count_all_entities, _count_entities_by_type, _count_robots, _is_robot,
     _check_entity_total_limit, _check_parcel_count_limit, _sum_parcel_area,
+    _count_parcels, _is_subparcel,
     MAX_ROBOTS, MAX_SENSORS, MAX_AREA_HECTARES,
     SENSOR_ENTITY_TYPES, PARCEL_ENTITY_TYPES,
     ROBOT_ENTITY_TYPES, ROBOT_MACHINE_TYPE, ROBOT_MACHINE_CATEGORY,
@@ -406,11 +407,14 @@ def create_instance(entity_type):
                     sensors_total += count
             if sensors_total >= max_sensors:
                 return jsonify({'error': 'Sensor limit exceeded', 'limit': max_sensors, 'current': sensors_total}), 403
+        # A subparcel lies inside a parcel the plan already covers: no count, no area.
+        is_subparcel = entity_type in PARCEL_ENTITY_TYPES and _is_subparcel(entity_data, tenant)
+
         # Parcel count limit (Task 5: max_parcels limits number of parcels regardless of area)
-        if entity_type in PARCEL_ENTITY_TYPES and max_parcels is not None and int(max_parcels) >= 0:
+        if entity_type in PARCEL_ENTITY_TYPES and not is_subparcel and max_parcels is not None and int(max_parcels) >= 0:
             parcels_total = 0
             for ptype in PARCEL_ENTITY_TYPES:
-                count = _count_entities_by_type(ptype, tenant)
+                count = _count_parcels(ptype, tenant)
                 if count is not None:
                     parcels_total += count
             if not _check_parcel_count_limit(parcels_total, max_parcels):
@@ -422,7 +426,7 @@ def create_instance(entity_type):
                 }), 403
 
         # Límite de superficie (ha) para parcelas
-        if entity_type in PARCEL_ENTITY_TYPES and max_area < 1000000000:
+        if entity_type in PARCEL_ENTITY_TYPES and not is_subparcel and max_area < 1000000000:
             new_area = _extract_number(entity_data.get('area'))
             if new_area is None:
                 new_area = 0.0

@@ -219,3 +219,90 @@ def test_count_without_a_total_header_is_unknown_not_one():
     resp.json.return_value = [{"id": "x"}]
     with patch.object(tenant_limits.requests, "get", return_value=resp):
         assert tenant_limits._count_entities_by_type("AgriParcel", "t") is None
+
+
+def _parcels_response(items):
+    from unittest.mock import MagicMock
+
+    resp = MagicMock(status_code=200)
+    resp.json.return_value = items
+    return resp
+
+
+_PARENT = "urn:ngsi-ld:AgriParcel:p-1"
+_SUBPARCELS = [
+    {"id": _PARENT, "area": {"type": "Property", "value": 10.0}},
+    # hasAgriParcel reads back under its alias; one-element lists come back bare
+    {"id": "urn:ngsi-ld:AgriParcel:p-2", "area": {"type": "Property", "value": 4.0},
+     "refAgriParcel": {"type": "Relationship", "object": _PARENT}},
+    # legacy link outside the @context arrives as a full IRI
+    {"id": "urn:ngsi-ld:AgriParcel:p-3", "area": {"type": "Property", "value": 3.0},
+     "https://nkz-os.org/ns/refParent": {"type": "Relationship", "object": [_PARENT]}},
+    # parent not among the tenant's parcels: it counts as a parcel of its own
+    {"id": "urn:ngsi-ld:AgriParcel:p-4", "area": {"type": "Property", "value": 2.0},
+     "hasAgriParcel": {"type": "Relationship", "object": "urn:ngsi-ld:AgriParcel:gone"}},
+]
+
+
+def test_subparcels_do_not_add_area():
+    from unittest.mock import patch
+
+    from helpers import tenant_limits
+
+    with patch.object(tenant_limits.requests, "get", return_value=_parcels_response(_SUBPARCELS)):
+        assert tenant_limits._sum_parcel_area("AgriParcel", "t") == 12.0
+
+
+def test_subparcels_are_not_counted_as_parcels():
+    from unittest.mock import patch
+
+    import requests
+
+    from helpers import tenant_limits
+
+    with patch.object(tenant_limits.requests, "get", return_value=_parcels_response(_SUBPARCELS)):
+        assert tenant_limits._count_parcels("AgriParcel", "t") == 2
+    with patch.object(tenant_limits.requests, "get", side_effect=requests.Timeout("hung")):
+        assert tenant_limits._count_parcels("AgriParcel", "t") is None
+
+
+def test_usage_counts_only_top_level_parcels():
+    from unittest.mock import patch
+
+    from helpers import tenant_limits
+
+    with patch.object(tenant_limits.requests, "get", return_value=_parcels_response(_SUBPARCELS)), \
+         patch.object(tenant_limits, "_count_robots", return_value=0), \
+         patch.object(tenant_limits, "_count_entities_by_type", return_value=0):
+        usage = tenant_limits._gather_usage_for_tenant("t")
+    assert usage["parcels"] == 2
+    assert usage["areaHectares"] == 12.0
+
+
+def test_parent_parcel_id_reads_every_link_form():
+    from helpers.tenant_limits import _parent_parcel_id
+
+    assert _parent_parcel_id({"hasAgriParcel": "urn:ngsi-ld:AgriParcel:p-1"}) == "urn:ngsi-ld:AgriParcel:p-1"
+    assert _parent_parcel_id({"refParent": {"object": "urn:ngsi-ld:AgriParcel:p-1"}}) == "urn:ngsi-ld:AgriParcel:p-1"
+    assert _parent_parcel_id({"hasParent": {"object": "urn:ngsi-ld:AgriFarm:f-1"}}) is None
+    assert _parent_parcel_id({"name": "x"}) is None
+
+
+def test_is_subparcel_needs_an_existing_parent_parcel():
+    from unittest.mock import MagicMock, patch
+
+    import requests
+
+    from helpers import tenant_limits
+
+    child = {"hasAgriParcel": {"type": "Relationship", "object": _PARENT}}
+    found = MagicMock(status_code=200)
+    found.json.return_value = {"id": _PARENT, "type": "AgriParcel"}
+    with patch.object(tenant_limits.requests, "get", return_value=found) as get:
+        assert tenant_limits._is_subparcel(child, "t") is True
+        assert get.call_args[0][0].endswith(f"/ngsi-ld/v1/entities/{_PARENT}")
+    with patch.object(tenant_limits.requests, "get", return_value=MagicMock(status_code=404)):
+        assert tenant_limits._is_subparcel(child, "t") is False
+    with patch.object(tenant_limits.requests, "get", side_effect=requests.Timeout("hung")):
+        assert tenant_limits._is_subparcel(child, "t") is False
+    assert tenant_limits._is_subparcel({"name": "x"}, "t") is False
