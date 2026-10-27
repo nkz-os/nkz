@@ -286,6 +286,26 @@ fails on it.
 | `windGusts` | atributo | sin-revisar | Not yet reviewed |
 | `windSpeedMax` | atributo | sin-revisar | Not yet reviewed |
 | `windSpeed` | atributo | sin-revisar | Not yet reviewed |
+| `zoneType` | atributo | extension-declarada | AgriParcelZone: kind of management zone (e.g. terrain-derived class); not modelled in SDM |
+| `zoneVersion` | atributo | extension-declarada | AgriParcelZone: version of the zoning that produced the zone; not modelled in SDM |
+| `zoneRank` | atributo | extension-declarada | AgriParcelZone: ordinal rank of the zone within its parcel; not modelled in SDM |
+| `zoneId` | atributo | extension-declarada | AgriParcelZone: identifier of the zone within its parcel; not modelled in SDM |
+| `areaHa` | atributo | extension-declarada | AgriParcelZone: zone area in hectares; not modelled in SDM |
+| `centroid` | atributo | extension-declarada | AgriParcelZone: zone centroid point; not modelled in SDM |
+| `sensorNearby` | atributo | extension-declarada | AgriParcelZone: reference to a sensor close to the zone; not modelled in SDM |
+| `solarRadiationWm2` | atributo | extension-declarada | AgriParcelZone: mean solar radiation over the zone in W/m2; not modelled in SDM |
+| `frostRisk` | atributo | extension-declarada | AgriParcelZone: terrain-derived frost exposure class of the zone; not modelled in SDM |
+| `zoningLayers` | atributo | extension-declarada | AgriParcelZone: input layers used to compute the zoning; not modelled in SDM |
+| `validPixelFraction` | atributo | extension-declarada | EOProduct: fraction of valid pixels in the scene; not modelled in SDM |
+| `inputFidelity` | atributo | extension-declarada | CropHealthZoneAssessment: fidelity level of the inputs used for the zone; not modelled in SDM |
+| `twiMean` | atributo | extension-declarada | CropHealthZoneAssessment: mean topographic wetness index of the zone; not modelled in SDM |
+| `wetFraction` | atributo | extension-declarada | CropHealthZoneAssessment: fraction of the zone classified as wet; not modelled in SDM |
+| `wetnessClass` | atributo | extension-declarada | CropHealthZoneAssessment: wetness class of the zone; not modelled in SDM |
+| `worstZoneId` | atributo | extension-declarada | CropHealthAssessment: identifier of the most stressed zone; not modelled in SDM |
+| `worstZoneRank` | atributo | extension-declarada | CropHealthAssessment: rank of the most stressed zone; not modelled in SDM |
+| `zoneSpread` | atributo | extension-declarada | CropHealthAssessment: spread of the stress indicator across zones; not modelled in SDM |
+| `twiP90` | atributo | extension-declarada | Hydrology zonal stats: 90th percentile of the topographic wetness index; not modelled in SDM |
+| `flowAccumMax` | atributo | extension-declarada | Hydrology zonal stats: maximum flow accumulation in the zone; not modelled in SDM |
 
 ## Value vocabularies
 
