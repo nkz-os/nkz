@@ -20,6 +20,7 @@ export async function submitGeoAsset(
       cropType: formData.cropType ?? '',
       notes: formData.description,
       ndviEnabled: true,
+      refParent: formData.isSubdivision ? formData.parentEntity?.id : undefined,
     });
     return;
   }
