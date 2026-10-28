@@ -9,6 +9,10 @@ vi.mock('@/services/dataloggersApi', async () => {
   return { ...actual, listDataloggers };
 });
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
+const auth = vi.hoisted(() => ({ roles: ['TechnicalConsultant'] as string[] }));
+vi.mock('@/context/KeycloakAuthContext', () => ({
+  useAuth: () => ({ hasAnyRole: (r: string[]) => r.some(x => auth.roles.includes(x)) }),
+}));
 vi.mock('@nekazari/ui-kit', async () => {
   const actual = await vi.importActual<typeof import('@nekazari/ui-kit')>('@nekazari/ui-kit');
   return {
@@ -37,6 +41,7 @@ function Harness() {
 const state = () => JSON.parse(screen.getByTestId('state').textContent!.split('}')[0] + '}');
 
 beforeEach(() => {
+  auth.roles = ['TechnicalConsultant'];
   listDataloggers.mockReset().mockResolvedValue([
     { id: 'dl-1', name: 'Field A', kind: 'datak', username: 'dl_a', status: 'active', devices: [] },
     { id: 'dl-2', name: 'Revoked', kind: 'generic_mqtt', username: 'dl_b', status: 'revoked', devices: [] },
@@ -44,6 +49,13 @@ beforeEach(() => {
 });
 
 describe('StepDatalogger', () => {
+  it('tells a Farmer that an administrator or technical consultant registers the sensor', () => {
+    auth.roles = ['Farmer'];
+    render(<Harness />);
+    expect(screen.getByText('wizard.datalogger.role_required')).toBeTruthy();
+    expect(screen.queryByLabelText('wizard.datalogger.select_placeholder')).toBeNull();
+  });
+
   it('lists only active dataloggers and stores the chosen id', async () => {
     render(<Harness />);
     const select = (await screen.findByLabelText('wizard.datalogger.select_placeholder')) as HTMLSelectElement;

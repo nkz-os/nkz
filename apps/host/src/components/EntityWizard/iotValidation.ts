@@ -19,8 +19,10 @@ export function validateIoTConfig(
 export function validateDataloggerStep(
   entityType: string | null,
   data: IoTSensorFormData,
+  canInstall = true,
 ): string | null {
   if (entityType !== 'Device') return null;
+  if (!canInstall) return 'wizard.validation.datalogger_role_required';
   if (data.dataloggerMode === 'new') {
     if (!data.newDataloggerName?.trim()) return 'wizard.validation.datalogger_name_required';
     if (!data.newDataloggerKind || !DATALOGGER_KINDS.includes(data.newDataloggerKind)) {

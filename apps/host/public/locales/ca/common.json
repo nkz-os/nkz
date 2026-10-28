@@ -837,6 +837,7 @@
       "array_required": "Configura el punt d'ancoratge i els paràmetres de la graella",
       "point_required": "Un dispositiu requereix una ubicació (punt)",
       "datalogger_required": "Tria un datalogger",
+      "datalogger_role_required": "Demana a un administrador o a un consultor tècnic que doni d'alta aquest sensor.",
       "datalogger_name_required": "El datalogger nou necessita un nom",
       "datalogger_kind_required": "Tria el tipus de datalogger",
       "external_id_invalid": "L'identificador només admet lletres, números, punt, guionet i guionet baix (1-64 caràcters)"
@@ -1230,6 +1231,7 @@
     "datalogger": {
       "title": "Per on arriben les dades?",
       "hint": "Un sensor publica les lectures a través d'un datalogger amb el seu propi compte MQTT.",
+      "role_required": "Només un administrador o un consultor tècnic pot donar d'alta sensors en un datalogger.",
       "load_failed": "No s'han pogut carregar els dataloggers. En pots crear un de nou.",
       "use_existing": "Usar-ne un d'existent",
       "create_new": "Crear-ne un de nou",

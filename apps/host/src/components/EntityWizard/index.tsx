@@ -28,7 +28,8 @@ import { RobotCredentialsModal, type RobotCredentials } from './RobotCredentials
 import { MqttCredentialsModal, type MqttCredentials } from './MqttCredentialsModal';
 import { DataloggerCredentialsModal } from './DataloggerCredentialsModal';
 import { DataloggerRotationNotice } from './DataloggerRotationNotice';
-import { apiErrorMessage } from '@/services/dataloggersApi';
+import { apiErrorMessage, DATALOGGER_INSTALLER_ROLES } from '@/services/dataloggersApi';
+import { useAuth } from '@/context/KeycloakAuthContext';
 import { submitGeoAsset } from './submission/submitGeoAsset';
 import { validateIoTConfig, validateDataloggerStep, validateGeometryStep } from './iotValidation';
 import { submitIoTSensor, type NewDataloggerResult } from './submission/submitIoTSensor';
@@ -139,6 +140,7 @@ function validateStep(
   entityType: string | null,
   formData: GeoAssetFormData | IoTSensorFormData | FleetFormData | null,
   placementState: ReturnType<typeof placementReducer>,
+  canInstall: boolean,
 ): string | null {
   switch (stepId) {
     case 'type':
@@ -155,7 +157,7 @@ function validateStep(
     }
 
     case 'datalogger':
-      return validateDataloggerStep(entityType, formData as IoTSensorFormData);
+      return validateDataloggerStep(entityType, formData as IoTSensorFormData, canInstall);
 
     case 'geometry':
       if (placementState.mode === 'stamp') {
@@ -187,6 +189,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
     setLoading, setError, reset,
   } = useWizard();
   const { t } = useI18n();
+  const canInstall = useAuth().hasAnyRole(DATALOGGER_INSTALLER_ROLES);
 
   const { mapMode } = useViewer();
   const [placementState, dispatchPlacement] = useReducer(placementReducer, INITIAL_STATE);
@@ -220,7 +223,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   }, [reset, onClose]);
 
   const handleNext = () => {
-    const err = validateStep(currentStep.id, entityType, formData as any, placementState);
+    const err = validateStep(currentStep.id, entityType, formData as any, placementState, canInstall);
     if (err) { setError(t(err)); return; }
     goNext();
   };

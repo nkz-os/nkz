@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { Button, Input, Select } from '@nekazari/ui-kit';
 import { useWizard } from '../WizardContext';
 import type { IoTSensorFormData } from '../types';
+import { useAuth } from '@/context/KeycloakAuthContext';
 import {
+  DATALOGGER_INSTALLER_ROLES,
   DATALOGGER_KINDS,
   listDataloggers,
   type Datalogger,
@@ -15,6 +17,7 @@ import { EXTERNAL_ID_RE, slugifyExternalId } from '@/utils/deviceIds';
 export function StepDatalogger() {
   const { t } = useTranslation();
   const { formData, updateFormData } = useWizard();
+  const canInstall = useAuth().hasAnyRole(DATALOGGER_INSTALLER_ROLES);
   const [dataloggers, setDataloggers] = useState<Datalogger[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const data = formData?.macroCategory === 'sensors' ? (formData as IoTSensorFormData) : null;
@@ -50,6 +53,14 @@ export function StepDatalogger() {
   }, [name, hasExternalId]);
 
   if (!data) return null;
+  if (!canInstall) {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">{t('wizard.datalogger.title')}</h3>
+        <p className="text-sm text-nkz-text-secondary">{t('wizard.datalogger.role_required')}</p>
+      </div>
+    );
+  }
   const mode = data.dataloggerMode ?? 'existing';
   const externalId = data.externalId ?? '';
   const externalIdInvalid = externalId !== '' && !EXTERNAL_ID_RE.test(externalId);

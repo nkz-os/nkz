@@ -814,6 +814,7 @@
       "array_required": "Konfiguratu aingura-puntua eta saretaren parametroak",
       "point_required": "Gailu batek kokapena (puntua) behar du",
       "datalogger_required": "Aukeratu datalogger bat",
+      "datalogger_role_required": "Eskatu administratzaile bati edo aholkulari tekniko bati sentsore hau erregistratzeko.",
       "datalogger_name_required": "Datalogger berriak izena behar du",
       "datalogger_kind_required": "Aukeratu datalogger mota",
       "external_id_invalid": "Identifikatzaileak letrak, zenbakiak, puntua, gidoia eta azpimarra onartzen ditu soilik (1-64 karaktere)"
@@ -1207,6 +1208,7 @@
     "datalogger": {
       "title": "Nondik datoz datuak?",
       "hint": "Sentsore batek bere irakurketak datalogger baten bidez argitaratzen ditu, MQTT kontu propioarekin.",
+      "role_required": "Administratzaile batek edo aholkulari tekniko batek bakarrik erregistra ditzake sentsoreak datalogger batean.",
       "load_failed": "Ezin izan dira datalogger-ak kargatu. Berri bat sor dezakezu.",
       "use_existing": "Lehendik dagoena erabili",
       "create_new": "Berri bat sortu",

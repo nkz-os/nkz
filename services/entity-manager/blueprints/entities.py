@@ -52,6 +52,16 @@ SDM_ALLOWED_TYPES = {
 entities_bp = Blueprint('entities', __name__)
 
 
+def _get_user_roles():
+    """Get user roles from Flask g (set by auth middleware)"""
+    roles = g.get('roles', [])
+    if not roles:
+        payload = g.get('current_user', {})
+        if payload:
+            roles = payload.get('realm_access', {}).get('roles', [])
+    return roles
+
+
 def get_entity_types():
     """Get available entity types from configuration"""
     default_types = {
@@ -562,6 +572,7 @@ def delete_instance(entity_type, entity_id):
             # Every step is idempotent and a failed link lookup is a 502, never an
             # Orion-only delete that would orphan the rest.
             try:
+                dataloggers.require_installer(_get_user_roles())
                 dataloggers.delete_device(g.tenant, entity_id)
             except dataloggers.ApiError as e:
                 return jsonify(e.body()), e.status

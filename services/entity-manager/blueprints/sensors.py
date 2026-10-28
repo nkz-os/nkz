@@ -152,6 +152,20 @@ def _tenant() -> str:
         raise dataloggers.ApiError(400, 'Invalid tenant')
 
 
+def _get_user_roles():
+    """Get user roles from Flask g (set by auth middleware)"""
+    roles = g.get('roles', [])
+    if not roles:
+        payload = g.get('current_user', {})
+        if payload:
+            roles = payload.get('realm_access', {}).get('roles', [])
+    return roles
+
+
+def _require_installer() -> None:
+    dataloggers.require_installer(_get_user_roles())
+
+
 def _body() -> dict:
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -262,6 +276,7 @@ def register_sensor():
         "datalogger_id": "<uuid>"
     }
     """
+    _require_installer()
     tenant_id = _tenant()
     data = _body()
 
@@ -399,6 +414,7 @@ def register_sensor():
 @require_auth
 @_guard
 def create_datalogger():
+    _require_installer()
     tenant = _tenant()
     data = _body()
     name = data.get('name')
@@ -422,6 +438,7 @@ def list_dataloggers():
 @require_auth
 @_guard
 def datalogger_config(datalogger_id):
+    _require_installer()
     return jsonify(dataloggers.get_datalogger_config(_tenant(), datalogger_id)), 200
 
 
@@ -429,6 +446,7 @@ def datalogger_config(datalogger_id):
 @require_auth
 @_guard
 def rotate_datalogger(datalogger_id):
+    _require_installer()
     return jsonify(dataloggers.rotate_datalogger(_tenant(), datalogger_id)), 200
 
 
@@ -436,6 +454,7 @@ def rotate_datalogger(datalogger_id):
 @require_auth
 @_guard
 def revoke_datalogger(datalogger_id):
+    _require_installer()
     dataloggers.set_datalogger_status(_tenant(), datalogger_id, revoke=True)
     return jsonify({'status': 'revoked'}), 200
 
@@ -444,6 +463,7 @@ def revoke_datalogger(datalogger_id):
 @require_auth
 @_guard
 def enable_datalogger(datalogger_id):
+    _require_installer()
     dataloggers.set_datalogger_status(_tenant(), datalogger_id, revoke=False)
     return jsonify({'status': 'active'}), 200
 
@@ -452,6 +472,7 @@ def enable_datalogger(datalogger_id):
 @require_auth
 @_guard
 def delete_datalogger(datalogger_id):
+    _require_installer()
     dataloggers.delete_datalogger(_tenant(), datalogger_id)
     return '', 204
 
@@ -460,6 +481,7 @@ def delete_datalogger(datalogger_id):
 @require_auth
 @_guard
 def move_device(device_urn):
+    _require_installer()
     raw = _body().get('datalogger_id')
     try:
         target = str(uuid.UUID(str(raw)))
@@ -473,6 +495,7 @@ def move_device(device_urn):
 @require_auth
 @_guard
 def change_device_profile(device_urn):
+    _require_installer()
     code = _body().get('profile')
     if not isinstance(code, str) or not code:
         raise dataloggers.ApiError(400, 'profile is required')
@@ -484,6 +507,7 @@ def change_device_profile(device_urn):
 @require_auth
 @_guard
 def delete_sensor_device(device_urn):
+    _require_installer()
     dataloggers.delete_device(_tenant(), device_urn)
     return '', 204
 
