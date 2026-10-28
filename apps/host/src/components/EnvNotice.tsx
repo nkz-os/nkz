@@ -9,11 +9,13 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { isDevelopmentEnvNotice } from '@/config/environment';
 import { Button } from '@nekazari/ui-kit';
 
+// Per browser session: every new session starts expanded, and the notice
+// only ever collapses to the badge, never disappears.
 const STORAGE_KEY = 'nkz_env_notice_collapsed';
 
 function readCollapsed(): boolean {
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === '1';
+    return window.sessionStorage.getItem(STORAGE_KEY) === '1';
   } catch {
     return false;
   }
@@ -21,7 +23,7 @@ function readCollapsed(): boolean {
 
 function writeCollapsed(value: boolean): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, value ? '1' : '0');
+    window.sessionStorage.setItem(STORAGE_KEY, value ? '1' : '0');
   } catch {
     /* storage unavailable: preference lasts for this page load only */
   }
@@ -59,7 +61,7 @@ export const EnvNotice: React.FC = () => {
   return (
     <div
       role="status"
-      className="fixed top-0 left-0 right-0 z-40 flex items-center justify-center gap-2 border-b border-yellow-200 bg-nkz-warning-soft px-3 py-1 text-xs text-amber-700"
+      className="fixed bottom-2 left-2 z-40 flex max-w-xs items-start gap-2 rounded-lg border border-yellow-200 bg-nkz-warning-soft px-3 py-2 text-xs text-amber-700 shadow"
     >
       <AlertTriangle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
       <span className="min-w-0">{t('layout.env_notice.message')}</span>

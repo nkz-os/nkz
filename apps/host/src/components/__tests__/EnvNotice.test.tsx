@@ -13,7 +13,7 @@ const setFlag = (v?: string) => {
 
 describe('EnvNotice', () => {
   beforeEach(() => {
-    window.localStorage.clear();
+    window.sessionStorage.clear();
     useAuth.mockReturnValue({ isAuthenticated: true });
     setFlag('development');
   });
@@ -51,7 +51,7 @@ describe('EnvNotice', () => {
     fireEvent.click(screen.getByLabelText('layout.env_notice.collapse'));
     expect(screen.getByText('DEV')).toBeTruthy();
     expect(screen.queryByText('layout.env_notice.message')).toBeNull();
-    expect(window.localStorage.getItem('nkz_env_notice_collapsed')).toBe('1');
+    expect(window.sessionStorage.getItem('nkz_env_notice_collapsed')).toBe('1');
     unmount();
 
     render(<EnvNotice />);
