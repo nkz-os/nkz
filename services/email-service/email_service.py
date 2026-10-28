@@ -648,7 +648,7 @@ class EmailService:
 
             text_content = "\n\n---\n\n".join([
                 block(f"Te damos la bienvenida a NKZ.\nGracias por confiar en NKZ. Sabemos que una plataforma con tantas capacidades (sensores, imagen satelital, modelos agronómicos, planificación) puede resultar exigente en los primeros pasos. No tendrás que darlos sin ayuda: nuestro equipo te acompaña en la puesta en marcha y en cualquier duda que surja después. Escríbenos a {support} y te atenderemos con mucho gusto.", 'ES'),
-                block(f"Ongi etorri NKZra.\nEskerrik asko NKZn konfiantza izateagatik. Badakigu hainbeste gaitasun dituen plataforma batek (sentsoreak, satelite-irudiak, eredu agronomikoak, plangintza) hasieran zaila eman dezakeela. Ez zaude bakarrik: gure taldeak lagunduko dizu abian jartzen eta sor daitekeen edozein zalantzatan. Idatzi iezaguzu {support} helbidera eta pozik erantzungo dizugu.", 'EU'),
+                block(f"Ongi etorri NKZra.\nEskerrik asko NKZn konfiantza izateagatik. Badakigu hainbeste gaitasun dituen plataforma batek (sentsoreak, satelite-irudiak, eredu agronomikoak, plangintza...) hasieran zaila eman dezakeela. Ez zaude bakarrik: gure taldeak abian jartzen lagunduko dizu, baita sor daitekeen edozein zalantza argitzen ere. Idatzi iezaguzu {support} helbidera eta pozik erantzungo dizugu.", 'EU'),
                 block(f"Welcome to NKZ.\nThank you for choosing NKZ. A platform with this breadth (sensors, satellite imagery, agronomic models, planning) can feel demanding at first. You don't have to find your way alone: our team will help you get started and with any question along the way. Simply write to {support} and we'll be glad to assist.", 'EN'),
             ])
             subject = "NKZ — Bienvenida · Ongi etorri · Welcome"
