@@ -20,6 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY services/tenant-webhook/enhanced-tenant-webhook.py .
 COPY services/tenant-webhook/grafana_manager.py .
 COPY services/tenant-webhook/expiration_notifier.py .
+COPY services/tenant-webhook/send_support_welcome.py .
 
 # Copy common module for keycloak_auth
 COPY services/common /app/common

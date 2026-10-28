@@ -5276,6 +5276,12 @@ def activate_tenant():  # noqa: C901
                 },
                 purpose="welcome",
             )
+        if user_success:
+            _send_email_async(
+                "/email/support-welcome",
+                {"email": email.lower()},
+                purpose="support-welcome",
+            )
         _send_email_async(
             "/email/activation-success",
             {
@@ -6443,6 +6449,11 @@ def register_tenant():
                     },
                     purpose="welcome",
                 )
+            _send_email_async(
+                "/email/support-welcome",
+                {"email": email.lower()},
+                purpose="support-welcome",
+            )
             _send_email_async(
                 "/email/activation-success",
                 {

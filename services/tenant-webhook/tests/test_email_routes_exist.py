@@ -25,7 +25,7 @@ def _called_paths(src: str) -> set:
     for node in ast.walk(ast.parse(src)):
         if not isinstance(node, ast.Call):
             continue
-        if isinstance(node.func, ast.Name) and node.func.id == "_email_post" and node.args:
+        if isinstance(node.func, ast.Name) and node.func.id in ("_email_post", "_send_email_async") and node.args:
             first = node.args[0]
             if isinstance(first, ast.Constant) and isinstance(first.value, str):
                 paths.add(first.value)
@@ -58,3 +58,18 @@ def test_purge_confirmation_uses_notification_route(webhook_module, monkeypatch)
     assert payload["email"] == "admin@example.org"
     assert {"farmer_name", "notification_type", "message"} <= payload.keys()
     assert "acme" in payload["message"]
+
+
+def test_tenant_creation_sends_support_welcome():
+    """Both tenant-creation flows mail the creating admin the support welcome."""
+    src = (_SERVICES / "tenant-webhook" / "enhanced-tenant-webhook.py").read_text()
+    funcs = {n.name: n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef)}
+    for name in ("activate_tenant", "register_tenant"):
+        paths = {
+            c.args[0].value
+            for c in ast.walk(funcs[name])
+            if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)
+            and c.func.id == "_send_email_async" and c.args
+            and isinstance(c.args[0], ast.Constant)
+        }
+        assert "/email/support-welcome" in paths, name
