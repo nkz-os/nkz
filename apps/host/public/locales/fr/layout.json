@@ -3,5 +3,10 @@
   "logout": "Déconnexion",
   "administrator": "Administrateur",
   "user": "Utilisateur",
-  "cookie_settings": "Paramètres des cookies"
+  "cookie_settings": "Paramètres des cookies",
+  "env_notice": {
+    "message": "Development environment: the platform is updated daily and some features may behave unexpectedly.",
+    "collapse": "Hide notice",
+    "expand": "Show environment notice"
+  }
 }

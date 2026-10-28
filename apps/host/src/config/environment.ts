@@ -246,6 +246,11 @@ export function isCommercialEdition(): boolean {
   return raw === 'commercial';
 }
 
+/** True only when the deployment opts in to the development-environment notice (runtime-first). */
+export function isDevelopmentEnvNotice(): boolean {
+  return getEnvVar('VITE_PLATFORM_ENV_NOTICE', '').trim().toLowerCase() === 'development';
+}
+
 /**
  * Load configuration from environment variables
  */

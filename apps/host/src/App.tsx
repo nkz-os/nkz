@@ -31,6 +31,7 @@ import { AdminRoute, FarmerRoute, ModulesRoute } from '@/components/KeycloakProt
 import { RemoteModuleLoader } from '@/components/RemoteModuleLoader';
 import { Layout } from '@/components/Layout';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
+import { EnvNotice } from '@/components/EnvNotice';
 import { NotFound } from '@/components/error/NotFound';
 const UnifiedViewer = React.lazy(() => import('@/components/UnifiedViewer').then(m => ({ default: m.UnifiedViewer })));
 
@@ -258,6 +259,7 @@ const AppInitializer = () => {
         </div>
       )}
       <AppRoutes />
+      <EnvNotice />
       <EntityEditorModal
         entityId={editorState?.entityId || ''}
         entityType={editorState?.entityType || ''}

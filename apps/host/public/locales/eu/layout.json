@@ -3,5 +3,10 @@
   "logout": "Saioa Itxi",
   "administrator": "Administratzailea",
   "user": "Erabiltzailea",
-  "cookie_settings": "Cookieen ezarpenak"
+  "cookie_settings": "Cookieen ezarpenak",
+  "env_notice": {
+    "message": "Garapen-ingurunea: plataforma egunero eguneratzen da eta funtzio batzuek espero ez bezala joka dezakete.",
+    "collapse": "Ezkutatu oharra",
+    "expand": "Erakutsi ingurunearen oharra"
+  }
 }
