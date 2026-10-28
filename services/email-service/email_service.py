@@ -17,6 +17,7 @@ Características:
 """
 
 import hmac
+import html
 import os
 import sys
 import smtplib
@@ -92,6 +93,12 @@ class EmailConfig:
             # Fallback if config_manager not available
             self.frontend_url = os.getenv('FRONTEND_URL', '').rstrip('/')
         self.keycloak_url = os.getenv('KEYCLOAK_URL', 'http://keycloak-service:8080')
+        # Support address shown in the support welcome email and used as its
+        # Reply-To. Deployment-specific: empty by default, and without it that
+        # email is not sent.
+        self.support_email = os.getenv('SUPPORT_EMAIL', '').strip()
+        # 'development' adds a notice that the deployment is not production.
+        self.platform_env_notice = os.getenv('PLATFORM_ENV_NOTICE', '').strip().lower()
         
         # Validar configuración crítica
         if not self.smtp_username or not self.smtp_password:
@@ -458,7 +465,7 @@ class EmailService:
         self.templates = EmailTemplates()
         self.templates_dir = os.path.join(os.path.dirname(__file__), 'templates')
     
-    def send_email(self, to_email: str, subject: str, html_content: str, text_content: str = None) -> bool:
+    def send_email(self, to_email: str, subject: str, html_content: str, text_content: str = None, reply_to: str = None) -> bool:
         """Envía un email usando SMTP"""
         if not self.config.enabled:
             logger.warning("Email service is disabled. Skipping email send.")
@@ -470,6 +477,8 @@ class EmailService:
             msg['From'] = self.config.from_email
             msg['To'] = to_email
             msg['Subject'] = subject
+            if reply_to:
+                msg['Reply-To'] = reply_to
             
             # Agregar contenido HTML
             html_part = MIMEText(html_content, 'html', 'utf-8')
@@ -598,6 +607,54 @@ class EmailService:
             return self.send_email(email, subject, html_content, text_content)
         except Exception as e:
             logger.error(f"Error sending account-exists email: {e}")
+            return False
+
+    # Development-platform notice, per language (html, plain text).
+    _DEV_NOTICES = {
+        'ES': "Nota importante: este entorno corresponde a la plataforma de desarrollo de NKZ, no a la de producción. Incorporamos mejoras a diario, por lo que algunas funciones pueden comportarse de forma inesperada de manera puntual. Si detectas cualquier incidencia, te agradeceremos que nos la comuniques en esa misma dirección.",
+        'EU': "Ohar garrantzitsua: ingurune hau NKZren garapen-plataforma da, ez produkziokoa. Egunero hobekuntzak sartzen ditugu; beraz, baliteke funtzio batzuek noizean behin espero ez bezala jokatzea. Akatsen bat antzematen baduzu, eskertuko genizuke helbide berera jakinaraztea.",
+        'EN': "Please note: this is the NKZ development platform, not the production environment. We release improvements daily, so some features may occasionally behave unexpectedly. If you notice any issue, we would appreciate it if you let us know at the same address.",
+    }
+
+    def send_support_welcome_email(self, email: str) -> bool:
+        """Send the trilingual (es, eu, en) support welcome email.
+
+        Returns False without sending when SUPPORT_EMAIL is not configured.
+        """
+        support = self.config.support_email
+        if not support:
+            logger.warning("SUPPORT_EMAIL not configured: support welcome email not sent")
+            return False
+        try:
+            with open(os.path.join(self.templates_dir, "support_welcome.html"), "r", encoding='utf-8') as f:
+                template = f.read()
+
+            dev = self.config.platform_env_notice == 'development'
+            notices = {
+                lang: (f'<p class="notice">{html.escape(text)}</p>' if dev else '')
+                for lang, text in self._DEV_NOTICES.items()
+            }
+            html_content = template.format(
+                SUPPORT_EMAIL=html.escape(support),
+                YEAR=datetime.now().year,
+                NKZ_URL=self.config.frontend_url,
+                DEV_NOTICE_ES=notices['ES'],
+                DEV_NOTICE_EU=notices['EU'],
+                DEV_NOTICE_EN=notices['EN'],
+            )
+
+            def block(body: str, lang: str) -> str:
+                return f"{body}\n\n{self._DEV_NOTICES[lang]}" if dev else body
+
+            text_content = "\n\n---\n\n".join([
+                block(f"Te damos la bienvenida a NKZ.\nGracias por confiar en NKZ. Sabemos que una plataforma con tantas capacidades (sensores, imagen satelital, modelos agronómicos, planificación) puede resultar exigente en los primeros pasos. No tendrás que darlos sin ayuda: nuestro equipo te acompaña en la puesta en marcha y en cualquier duda que surja después. Escríbenos a {support} y te atenderemos con mucho gusto.", 'ES'),
+                block(f"Ongi etorri NKZra.\nEskerrik asko NKZn konfiantza izateagatik. Badakigu hainbeste gaitasun dituen plataforma batek (sentsoreak, satelite-irudiak, eredu agronomikoak, plangintza) hasieran zaila eman dezakeela. Ez zaude bakarrik: gure taldeak lagunduko dizu abian jartzen eta sor daitekeen edozein zalantzatan. Idatzi iezaguzu {support} helbidera eta pozik erantzungo dizugu.", 'EU'),
+                block(f"Welcome to NKZ.\nThank you for choosing NKZ. A platform with this breadth (sensors, satellite imagery, agronomic models, planning) can feel demanding at first. You don't have to find your way alone: our team will help you get started and with any question along the way. Simply write to {support} and we'll be glad to assist.", 'EN'),
+            ])
+            subject = "NKZ — Bienvenida · Ongi etorri · Welcome"
+            return self.send_email(email, subject, html_content, text_content, reply_to=support)
+        except Exception as e:
+            logger.error(f"Error sending support welcome email: {e}")
             return False
 
     def send_activation_success_notification(self, user_email: str, tenant_id: str, tenant_name: str, plan: str, activation_code: str, platform_email: str, tenant_admin_email: str) -> bool:
@@ -907,6 +964,25 @@ def send_account_exists():
     except Exception as e:
         logger.error(f"Error in send_account_exists endpoint: {e}")
         return internal_error(e, 'email_send_account_exists')
+
+@app.route('/email/support-welcome', methods=['POST'])
+def send_support_welcome():
+    """Send the trilingual support welcome email to a new user"""
+    data = request.get_json(silent=True) or {}
+    email = data.get('email')
+
+    if not email:
+        return jsonify({'error': 'Email is required'}), 400
+    if not config.support_email:
+        return jsonify({'error': 'Support email not configured'}), 503
+
+    try:
+        if email_service.send_support_welcome_email(email=email):
+            return jsonify({'message': 'Support welcome email sent successfully'}), 200
+        return jsonify({'error': 'Failed to send email'}), 500
+    except Exception as e:
+        logger.error(f"Error in send_support_welcome endpoint: {e}")
+        return internal_error(e, 'email_send_support_welcome')
 
 @app.route('/email/activation-success', methods=['POST'])
 def send_activation_success():
