@@ -415,7 +415,7 @@ def wired(state, monkeypatch=None, host="mqtt.example.org", port="8883"):
         yield SimpleNamespace(orion=orion, dynsec=dyn, iota=iota, state=state)
 
 
-def client():
+def client(roles=("TenantAdmin",)):
     from flask import Flask, g
     import blueprints.sensors as sensors
 
@@ -427,6 +427,7 @@ def client():
     def _seed_identity():
         g.tenant = TENANT
         g.current_user = {"tenant_id": TENANT, "user_id": "u1"}
+        g.roles = list(roles)
 
     app.register_blueprint(sensors.sensors_bp)
     return app.test_client()

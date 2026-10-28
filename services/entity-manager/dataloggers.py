@@ -30,6 +30,8 @@ EXTERNAL_ID_RE = re.compile(r'^[A-Za-z0-9_.-]{1,64}$')
 KINDS = ('datak', 'generic_mqtt')
 DEVICE_TYPES = ('Device', 'ManufacturingMachine')
 _CLIENT_NOT_FOUND = 'Client not found'
+# Roles that may set up dataloggers and the sensors on them; a Farmer may not.
+INSTALLER_ROLES = frozenset({'PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant'})
 
 
 class ApiError(Exception):
@@ -97,6 +99,12 @@ def iota_url() -> str:
 def iota_headers(tenant: str) -> dict:
     # inject_fiware_headers adds NGSILD-Tenant, Fiware-Service and Fiware-ServicePath: /
     return inject_fiware_headers({'Content-Type': 'application/json'}, tenant=tenant)
+
+
+def require_installer(roles) -> None:
+    """403 unless the caller holds one of INSTALLER_ROLES."""
+    if not INSTALLER_ROLES.intersection(roles or ()):
+        raise ApiError(403, 'TenantAdmin, PlatformAdmin or TechnicalConsultant required')
 
 
 def mqtt_endpoint_for_devices() -> dict:

@@ -377,7 +377,7 @@ def test_generic_instance_delete_of_a_registered_device_cleans_everything():
 
     @app.before_request
     def _seed():
-        g.tenant, g.farmer_id = TENANT, "f1"
+        g.tenant, g.farmer_id, g.roles = TENANT, "f1", ["TenantAdmin"]
 
     with wired(st) as w:
         w.orion.entities[urn] = {"id": urn}
@@ -385,7 +385,7 @@ def test_generic_instance_delete_of_a_registered_device_cleans_everything():
         while hasattr(view, "__wrapped__"):
             view = view.__wrapped__
         with app.test_request_context(), patch.object(entities, "log_entity_operation"):
-            g.tenant, g.farmer_id = TENANT, "f1"
+            g.tenant, g.farmer_id, g.roles = TENANT, "f1", ["TenantAdmin"]
             resp = view("Device", urn)
     assert resp.status_code == 200
     assert st.devices == [] and w.orion.entities == {}
@@ -538,7 +538,7 @@ def _generic_delete(w, urn):
     while hasattr(view, "__wrapped__"):
         view = view.__wrapped__
     with app.test_request_context(), patch.object(entities, "log_entity_operation"):
-        g.tenant, g.farmer_id = TENANT, "f1"
+        g.tenant, g.farmer_id, g.roles = TENANT, "f1", ["TenantAdmin"]
         resp = view("Device", urn)
     return resp[0] if isinstance(resp, tuple) else resp, (resp[1] if isinstance(resp, tuple) else resp.status_code)
 
