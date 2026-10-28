@@ -3,5 +3,10 @@
   "logout": "Tancar Sessió",
   "administrator": "Administrador",
   "user": "Usuari",
-  "cookie_settings": "Configuració de galetes"
+  "cookie_settings": "Configuració de galetes",
+  "env_notice": {
+    "message": "Development environment: the platform is updated daily and some features may behave unexpectedly.",
+    "collapse": "Hide notice",
+    "expand": "Show environment notice"
+  }
 }

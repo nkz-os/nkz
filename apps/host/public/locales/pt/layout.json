@@ -3,5 +3,10 @@
   "logout": "Terminar Sessão",
   "administrator": "Administrador",
   "user": "Utilizador",
-  "cookie_settings": "Definições de cookies"
+  "cookie_settings": "Definições de cookies",
+  "env_notice": {
+    "message": "Development environment: the platform is updated daily and some features may behave unexpectedly.",
+    "collapse": "Hide notice",
+    "expand": "Show environment notice"
+  }
 }
