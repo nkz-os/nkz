@@ -215,6 +215,19 @@ def _i18n_fields(metadata):
     }
 
 
+def _is_icon_url(value) -> bool:
+    """Return True only when ``value`` is an image URL, root path, or data URI."""
+    if not isinstance(value, str):
+        return False
+    trimmed = value.strip()
+    return (
+        trimmed.startswith('http://')
+        or trimmed.startswith('https://')
+        or trimmed.startswith('/')
+        or trimmed.startswith('data:image/')
+    )
+
+
 def _publish_metadata(manifest):
     """Metadata a publish merges (``||``) over the stored one.
 
@@ -226,6 +239,11 @@ def _publish_metadata(manifest):
         'deploy_method': 'dist_endpoint',
         'slots': manifest.get('slots', {}),
     }
+    raw_icon = manifest.get('icon')
+    if isinstance(raw_icon, str):
+        raw_icon = raw_icon.strip()
+        if raw_icon and not _is_icon_url(raw_icon):
+            metadata['icon'] = raw_icon
     description_i18n = _i18n_map(manifest.get('description_i18n'))
     if description_i18n:
         metadata['description_i18n'] = description_i18n
@@ -358,8 +376,9 @@ def get_tenant_modules():
                 # Use explicit columns with fallback to metadata for backwards compatibility
                 route_path = row.get('route_path') or metadata.get('routePath') or tenant_config.get('routePath') or f"/{row['name']}"
                 label = row.get('label') or metadata.get('label') or row['display_name']
-                icon = metadata.get('icon') or row.get('icon_url')
-                icon_url = row.get('icon_url') or None
+                raw_icon_url = row.get('icon_url')
+                icon = metadata.get('icon') or (raw_icon_url if raw_icon_url and not _is_icon_url(raw_icon_url) else None)
+                icon_url = raw_icon_url if _is_icon_url(raw_icon_url) else None
 
                 module_data = {
                     'id': row['id'],
@@ -652,8 +671,12 @@ def get_marketplace_modules():
         modules = []
         for m in modules_raw:
             m_dict = dict(m)
+            metadata = _parse_metadata(m)
+            raw_icon_url = m_dict.get('icon_url')
+            m_dict['icon'] = metadata.get('icon') or (raw_icon_url if raw_icon_url and not _is_icon_url(raw_icon_url) else None)
+            m_dict['icon_url'] = raw_icon_url if _is_icon_url(raw_icon_url) else None
             m_dict['description'] = _resolve_description(m, user_lang)
-            m_dict.update(_i18n_fields(_parse_metadata(m)))
+            m_dict.update(_i18n_fields(metadata))
             modules.append(m_dict)
 
         return jsonify(modules), 200
@@ -1091,7 +1114,8 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
     if isinstance(author, dict):
         author = author.get('name', '')
     category = manifest.get('category', '')
-    icon_url = manifest.get('icon', '')
+    raw_icon = manifest.get('icon_url') or manifest.get('icon') or ''
+    icon_url = raw_icon.strip() if _is_icon_url(raw_icon) else None
     route_path = manifest.get('route', manifest.get('route_path', f'/{module_id}'))
     label = manifest.get('label', display_name)
     declared_roles = manifest.get('requiredRoles', manifest.get('required_roles')) or None
@@ -1139,7 +1163,7 @@ def _upload_dist_and_activate(module_id, files, manifest, version_hash) -> tuple
                 version = EXCLUDED.version,
                 author = EXCLUDED.author,
                 category = EXCLUDED.category,
-                icon_url = EXCLUDED.icon_url,
+                icon_url = COALESCE(EXCLUDED.icon_url, marketplace_modules.icon_url),
                 route_path = EXCLUDED.route_path,
                 label = EXCLUDED.label,
                 required_roles = COALESCE(%s::text[], marketplace_modules.required_roles),

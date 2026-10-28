@@ -10,10 +10,11 @@ import { useAuth } from '@/context/KeycloakAuthContext';
 import { NekazariClient, useTranslation } from '@nekazari/sdk';
 import { Card } from '@nekazari/ui-kit';
 import { Button } from '@nekazari/ui-kit';
-import { CheckCircle2, XCircle, Package, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { getConfig } from '@/config/environment';
 import { useToastContext } from '@/context/ToastContext';
 import { moduleDescription, moduleLabel, type I18nMap } from '@/utils/moduleI18n';
+import { ModuleIcon } from '@/components/ModuleIcon';
 
 const config = getConfig();
 const API_BASE_URL = config.api.baseUrl || '/api';
@@ -28,6 +29,7 @@ interface MarketplaceModule {
   version: string;
   author?: string;
   category?: string;
+  icon?: string;
   icon_url?: string;
   company_logo_url?: string;
   developer_organization?: string;
@@ -295,26 +297,11 @@ export const Modules: React.FC = () => {
                 <div className="flex items-start gap-3 mb-4">
                   {/* Module Icon */}
                   <div className="flex-shrink-0">
-                    {(module.icon_url || module.icon) ? (
-                      module.icon_url ? (
-                        <img
-                          src={module.icon_url}
-                          alt={moduleLabel(module, lang)}
-                          className="w-12 h-12 rounded-lg object-cover border border-nkz-border"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-lg bg-nkz-bg-secondary flex items-center justify-center text-xl">
-                          {module.icon}
-                        </div>
-                      )
-                    ) : (
-                      <div className="w-12 h-12 rounded-lg bg-nkz-bg-secondary flex items-center justify-center">
-                        <Package className="w-6 h-6 text-nkz-muted" />
-                      </div>
-                    )}
+                    <ModuleIcon
+                      module={module}
+                      alt={moduleLabel(module, lang)}
+                      variant="card"
+                    />
                   </div>
 
                   {/* Title and Version - Clear separation */}
@@ -420,20 +407,12 @@ export const Modules: React.FC = () => {
                   <div className="flex items-start gap-3 mb-4">
                     {/* Module Icon */}
                     <div className="flex-shrink-0">
-                      {module.icon_url ? (
-                        <img
-                          src={module.icon_url}
-                          alt={moduleLabel(module, lang)}
-                          className={`w-12 h-12 rounded-lg object-cover border border-nkz-border ${isInactive ? 'grayscale opacity-50' : ''}`}
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <div className={`w-12 h-12 rounded-lg bg-nkz-bg-secondary flex items-center justify-center ${isInactive ? 'opacity-50' : ''}`}>
-                          <Package className={`w-6 h-6 ${isInactive ? 'text-gray-300' : 'text-nkz-muted'}`} />
-                        </div>
-                      )}
+                      <ModuleIcon
+                        module={module}
+                        alt={moduleLabel(module, lang)}
+                        variant="card"
+                        inactive={isInactive}
+                      />
                     </div>
 
                     {/* Title, Version, and Badges - Clear separation */}
