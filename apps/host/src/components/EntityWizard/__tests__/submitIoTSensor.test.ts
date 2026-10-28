@@ -183,4 +183,8 @@ describe('validateDataloggerStep', () => {
   it('does not apply to other types', () => {
     expect(validateDataloggerStep('WeatherObserved', form({ dataloggerId: '' }))).toBeNull();
   });
+  it('blocks a caller who may not set up sensors', () => {
+    expect(validateDataloggerStep('Device', form(), false)).toBe('wizard.validation.datalogger_role_required');
+    expect(validateDataloggerStep('WeatherObserved', form(), false)).toBeNull();
+  });
 });

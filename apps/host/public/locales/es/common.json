@@ -813,6 +813,7 @@
       "array_required": "Configura el punto de ancla y los parámetros de la grilla",
       "point_required": "Un dispositivo requiere una ubicación (punto)",
       "datalogger_required": "Elige un datalogger",
+      "datalogger_role_required": "Pide a un administrador o a un consultor técnico que dé de alta este sensor.",
       "datalogger_name_required": "El datalogger nuevo necesita un nombre",
       "datalogger_kind_required": "Elige el tipo de datalogger",
       "external_id_invalid": "El identificador solo admite letras, números, punto, guion y guion bajo (1-64 caracteres)"
@@ -1206,6 +1207,7 @@
     "datalogger": {
       "title": "¿Por dónde llegan los datos?",
       "hint": "Un sensor publica sus lecturas a través de un datalogger con su propia cuenta MQTT.",
+      "role_required": "Solo un administrador o un consultor técnico puede dar de alta sensores en un datalogger.",
       "load_failed": "No se pudieron cargar los dataloggers. Puedes crear uno nuevo.",
       "use_existing": "Usar uno existente",
       "create_new": "Crear uno nuevo",

@@ -813,6 +813,7 @@
       "array_required": "Set the anchor point and the grid parameters",
       "point_required": "A device requires a location (point)",
       "datalogger_required": "Choose a datalogger",
+      "datalogger_role_required": "Ask an administrator or a technical consultant to register this sensor.",
       "datalogger_name_required": "The new datalogger needs a name",
       "datalogger_kind_required": "Choose the datalogger type",
       "external_id_invalid": "The identifier accepts only letters, digits, dot, hyphen and underscore (1-64 characters)"
@@ -1206,6 +1207,7 @@
     "datalogger": {
       "title": "Where does the data arrive from?",
       "hint": "A sensor publishes its readings through a datalogger with its own MQTT account.",
+      "role_required": "Only an administrator or a technical consultant can register sensors on a datalogger.",
       "load_failed": "The dataloggers could not be loaded. You can create a new one.",
       "use_existing": "Use an existing one",
       "create_new": "Create a new one",

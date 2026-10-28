@@ -12,6 +12,9 @@ export type DataloggerStatus = 'active' | 'revoked';
 
 export const DATALOGGER_KINDS: readonly DataloggerKind[] = ['datak', 'generic_mqtt'];
 
+/** Roles the API lets set up dataloggers and the sensors on them (a Farmer gets 403). */
+export const DATALOGGER_INSTALLER_ROLES = ['PlatformAdmin', 'TenantAdmin', 'TechnicalConsultant'];
+
 export interface DataloggerDevice {
   externalId: string;
   deviceUrn: string;

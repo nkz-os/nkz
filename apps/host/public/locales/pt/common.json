@@ -837,6 +837,7 @@
       "array_required": "Configure o ponto de ancoragem e os parâmetros da grelha",
       "point_required": "Um dispositivo requer uma localização (ponto)",
       "datalogger_required": "Escolha um datalogger",
+      "datalogger_role_required": "Peça a um administrador ou a um consultor técnico que registe este sensor.",
       "datalogger_name_required": "O novo datalogger precisa de um nome",
       "datalogger_kind_required": "Escolha o tipo de datalogger",
       "external_id_invalid": "O identificador só aceita letras, números, ponto, hífen e sublinhado (1 a 64 caracteres)"
@@ -1230,6 +1231,7 @@
     "datalogger": {
       "title": "De onde chegam os dados?",
       "hint": "Um sensor publica as suas leituras através de um datalogger com a sua própria conta MQTT.",
+      "role_required": "Apenas um administrador ou um consultor técnico pode registar sensores num datalogger.",
       "load_failed": "Não foi possível carregar os dataloggers. Pode criar um novo.",
       "use_existing": "Usar um existente",
       "create_new": "Criar um novo",
