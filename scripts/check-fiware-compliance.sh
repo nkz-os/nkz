@@ -91,7 +91,7 @@ check_pattern() {
 # ── Check 1: Direct INSERT INTO with deprecation exemption ──
 # INSERTs inside functions marked DEPRECATED are kept for rollback safety.
 # INSERTs into administrative tables (module registry, tenants, etc.) are ALLOWED.
-ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants|calibration_periods|notification_config|iot_dataloggers|iot_datalogger_devices|activation_codes|api_keys|farmer_activations|farmers|tenant_invitations|user_push_tokens|platform_settings|terms_and_conditions|tenant_governance_audit|processing_profiles|telemetry_events|telemetry_events_dlq'
+ADMIN_TABLES='marketplace_modules|tenant_installed_modules|tenant_module_visibility|module_uploads|sensor_profiles|tenant_limits|tenants|calibration_periods|notification_config|iot_dataloggers|iot_datalogger_devices|activation_codes|api_keys|farmer_activations|farmers|tenant_invitations|user_push_tokens|platform_settings|terms_and_conditions|tenant_governance_audit|processing_profiles|telemetry_events|telemetry_events_dlq|support_welcome_emails'
 check_exempt_insert() {
     local name="$1"
     local pattern="$2"

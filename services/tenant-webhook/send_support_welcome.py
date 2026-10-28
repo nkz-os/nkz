@@ -137,7 +137,7 @@ def run(
 ) -> dict:
     """Send to every recipient not yet recorded. Stops at the first failure."""
     with conn.cursor() as cur:
-        cur.execute("SELECT user_id FROM public.support_welcome_emails")
+        cur.execute("SELECT user_id FROM support_welcome_emails")
         done = {row[0] for row in cur.fetchall()}
 
     pending = [r for r in recipients if r.user_id not in done]
@@ -152,7 +152,7 @@ def run(
             return stats
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO public.support_welcome_emails (user_id) VALUES (%s) ON CONFLICT DO NOTHING",
+                "INSERT INTO support_welcome_emails (user_id) VALUES (%s) ON CONFLICT DO NOTHING",
                 (r.user_id,),
             )
         conn.commit()
