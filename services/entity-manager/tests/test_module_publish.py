@@ -533,6 +533,30 @@ def test_publish_metadata_is_merged_not_replaced(monkeypatch):
     assert "metadata = COALESCE(marketplace_modules.metadata, '{}'::jsonb) || EXCLUDED.metadata" in sql
 
 
+def test_publish_with_lucide_icon_stores_in_metadata_and_keeps_icon_url_null(monkeypatch):
+    sql, params = _publish_upsert(monkeypatch, {"id": "demo", "version": "1.0.0", "icon": "sprout"})
+    assert "icon_url = COALESCE(EXCLUDED.icon_url, marketplace_modules.icon_url)" in sql
+    # icon_url is the 8th parameter in the INSERT tuple
+    assert params[7] is None
+    metadata = _published_metadata(monkeypatch, {"icon": "sprout"})
+    assert metadata["icon"] == "sprout"
+
+
+@pytest.mark.parametrize(
+    "url_icon",
+    [
+        "/modules/demo/icon.svg",
+        "https://example.org/module-icons/demo.svg",
+        "data:image/svg+xml;utf8,<svg></svg>",
+    ],
+)
+def test_publish_with_url_icon_stores_in_icon_url_not_metadata(monkeypatch, url_icon):
+    _, params = _publish_upsert(monkeypatch, {"id": "demo", "version": "1.0.0", "icon": url_icon})
+    assert params[7] == url_icon
+    metadata = _published_metadata(monkeypatch, {"icon": url_icon})
+    assert "icon" not in metadata
+
+
 # -- list endpoints -----------------------------------------------------------
 
 _MODULE_ROW = {
@@ -639,3 +663,28 @@ def test_marketplace_returns_label_and_description_maps(client, monkeypatch):
     assert module["description"] == "Description"
     assert module["labelI18n"] == {"es": "Demo es"}
     assert module["descriptionI18n"] == metadata["description_i18n"]
+
+
+def test_modules_me_and_marketplace_normalize_lucide_icon_in_icon_url(client, monkeypatch):
+    import blueprints.modules as m
+
+    row = {**_MODULE_ROW, "icon_url": "tractor", "metadata": {}}
+    monkeypatch.setattr(m, "get_db_connection_with_tenant", lambda _t: _fake_tenant_connection([row]))
+    r_me = client.get("/api/modules/me", headers={"Authorization": "Bearer t"})
+    assert r_me.status_code == 200
+    mod_me = r_me.get_json()[0]
+    assert mod_me["icon"] == "tractor"
+    assert mod_me["icon_url"] is None
+
+    cur = MagicMock()
+    cur.fetchall.return_value = [row]
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    monkeypatch.setattr(m, "get_db_connection_simple", lambda: conn)
+    monkeypatch.setattr(m, "return_db_connection", lambda _c: None)
+    r_mp = client.get("/api/modules/marketplace", headers={"Authorization": "Bearer t"})
+    assert r_mp.status_code == 200
+    mod_mp = r_mp.get_json()[0]
+    assert mod_mp["icon"] == "tractor"
+    assert mod_mp["icon_url"] is None
+

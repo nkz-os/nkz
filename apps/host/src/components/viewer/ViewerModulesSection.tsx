@@ -8,7 +8,7 @@
 // parcel details ("parcel services").
 
 import React, { useEffect, useState } from 'react';
-import { ChevronDown, ChevronRight, Puzzle } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button, Switch } from '@nekazari/ui-kit';
 import { LayerMenuRowEmbeddedContext } from '@nekazari/module-kit';
 import { useModules, type ModuleDefinition } from '@/context/ModuleContext';
@@ -16,6 +16,7 @@ import { useSlotRegistry } from '@/context/SlotRegistry';
 import { useI18n } from '@/context/I18nContext';
 import { moduleLabel } from '@/utils/moduleI18n';
 import { SlotRenderer } from '@/components/SlotRenderer';
+import { ModuleIcon } from '@/components/ModuleIcon';
 
 const OPEN_STORAGE_KEY = 'nkz.viewer.modulesSection.open';
 
@@ -25,14 +26,6 @@ const hasViewerWidgets = (m: ModuleDefinition): boolean =>
 
 const hasLayerOptions = (m: ModuleDefinition): boolean =>
     (m.viewerSlots?.['layer-toggle']?.length ?? 0) > 0;
-
-const ModuleIcon: React.FC<{ module: ModuleDefinition }> = ({ module }) => {
-    const emoji = module.metadata?.icon;
-    if (typeof emoji === 'string' && emoji.length > 0 && emoji.length <= 2) {
-        return <span className="w-4 text-center" aria-hidden="true">{emoji}</span>;
-    }
-    return <Puzzle className="w-4 h-4 text-slate-500" aria-hidden="true" />;
-};
 
 const ModuleRow: React.FC<{ module: ModuleDefinition }> = ({ module }) => {
     const { t, language } = useI18n();
@@ -45,7 +38,7 @@ const ModuleRow: React.FC<{ module: ModuleDefinition }> = ({ module }) => {
     return (
         <div className="rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60">
             <div className="flex items-center gap-2 px-2 py-1.5">
-                <ModuleIcon module={module} />
+                <ModuleIcon module={module} variant="inline" />
                 <div className="flex-1 min-w-0 text-sm text-slate-700 dark:text-slate-200">
                     <Switch
                         checked={active}

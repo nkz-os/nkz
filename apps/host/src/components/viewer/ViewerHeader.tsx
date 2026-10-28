@@ -27,7 +27,6 @@ import {
     ChevronDown,
     ChevronRight,
     LogOut,
-    Puzzle,
     Sun,
     Moon,
     Layers,
@@ -35,17 +34,12 @@ import {
 import { LayersCascadeSubmenu } from '@/components/viewer/LayersCascadeSubmenu';
 import { computeSubmenuSide, type SubmenuSide } from '@/components/viewer/positionFlip';
 import { Button } from '@nekazari/ui-kit';
+import { ModuleIcon } from '@/components/ModuleIcon';
 
 // Glassmorphism styling
 const surfaceStyles = {
     base: 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-lg',
     hover: 'hover:bg-slate-50 dark:hover:bg-slate-800',
-};
-
-// Module icon mapping (same as Sidebar)
-const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-    'puzzle': Puzzle,
-    'default': Puzzle,
 };
 
 export const ViewerHeader: React.FC = () => {
@@ -287,10 +281,7 @@ export const ViewerHeader: React.FC = () => {
                             </div>
                             <div className="max-h-64 overflow-y-auto px-1 pb-1">
                             {safeModules.map((module) => {
-                                const Icon = moduleIconMap[module.icon || 'default'] || Puzzle;
                                 const active = isActive(module.routePath);
-                                const emoji = module.metadata?.icon;
-                                const hasEmoji = emoji && typeof emoji === 'string' && emoji.length <= 2;
 
                                 return (
                                     <Link
@@ -302,11 +293,12 @@ export const ViewerHeader: React.FC = () => {
                                             : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                                             }`}
                                     >
-                                        {hasEmoji ? (
-                                            <span className="w-5 h-5 flex items-center justify-center text-base">{emoji}</span>
-                                        ) : (
-                                            <Icon className={`w-5 h-5 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`} />
-                                        )}
+                                        <ModuleIcon
+                                            module={module}
+                                            alt={moduleLabel(module, language)}
+                                            variant="nav"
+                                            iconClassName={`w-5 h-5 flex-shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}
+                                        />
                                         <span className="font-medium truncate">
                                             {moduleLabel(module, language)}
                                         </span>

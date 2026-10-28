@@ -17,38 +17,7 @@ import {
 } from '@/config/navigation';
 import { X } from 'lucide-react';
 import { Button } from '@nekazari/ui-kit';
-import {
-
-  Puzzle,
-  Bird,
-  Sparkles,
-  Leaf,
-  Cloud,
-  AlertTriangle,
-  BarChart2,
-  LineChart,
-  Brain,
-  Gauge,
-  Bot,
-  Satellite
-} from 'lucide-react';
-
-// Icon mapping for dynamic addon modules
-const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  'bird': Bird,
-  'puzzle': Puzzle,
-  'sparkles': Sparkles,
-  'leaf': Leaf,
-  'cloud': Cloud,
-  'alert': AlertTriangle,
-  'chart': BarChart2,
-  'line-chart': LineChart,
-  'brain': Brain,
-  'gauge': Gauge,
-  'bot': Bot,
-  'satellite': Satellite,
-  'default': Puzzle
-};
+import { ModuleIcon } from '@/components/ModuleIcon';
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -92,13 +61,6 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
       document.body.style.overflow = '';
     };
   }, [isOpen]);
-
-  // Get icon component for a dynamic addon module
-  const getModuleIcon = (module: { icon?: string; metadata?: { icon?: string } }) => {
-    const iconName = module.icon || module.metadata?.icon || 'default';
-    if (iconName.length <= 2) return moduleIconMap['default'];
-    return moduleIconMap[iconName.toLowerCase()] || moduleIconMap['default'];
-  };
 
   // Render a navigation link
   const renderNavLink = (item: typeof CORE_NAVIGATION_ITEMS[0]) => {
@@ -174,11 +136,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
                   </div>
                 </div>
                 {modules.map((module) => {
-                  const Icon = getModuleIcon(module);
                   const isActive = location.pathname === module.routePath || 
                                  location.pathname.startsWith(module.routePath + '/');
-                  const emoji = module.metadata?.icon;
-                  const hasEmoji = emoji && emoji.length <= 2;
 
                   return (
                     <Link
@@ -191,15 +150,13 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
                           : 'text-gray-700 dark:text-gray-300 hover:bg-nkz-bg-secondary dark:hover:bg-gray-800'
                       }`}
                     >
-                      {hasEmoji ? (
-                        <span className="mr-3 flex-shrink-0 h-5 w-5 flex items-center justify-center text-base">
-                          {emoji}
-                        </span>
-                      ) : (
-                                            <Icon
-                                                className={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-nkz-muted dark:text-nkz-muted'}`}
-                                            />
-                      )}
+                      <ModuleIcon
+                        module={module}
+                        alt={moduleLabel(module, language)}
+                        variant="nav"
+                        className="mr-3"
+                        iconClassName={`mr-3 flex-shrink-0 h-5 w-5 ${isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-nkz-muted dark:text-nkz-muted'}`}
+                      />
                       {moduleLabel(module, language)}
                     </Link>
                   );

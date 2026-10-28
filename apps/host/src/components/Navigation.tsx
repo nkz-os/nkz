@@ -30,26 +30,19 @@ import {
 } from '@/config/navigation';
 import { Button } from '@nekazari/ui-kit';
 import {
-
   ChevronDown,
   LogOut,
   Shield,
-  Puzzle,
   ExternalLink,
   Menu
 } from 'lucide-react';
+import { ModuleIcon } from '@/components/ModuleIcon';
 
 // Styling configuration
 const glassStyles = {
   // We use a cleaner white background for the main nav to ensure readability vs transparency
   dropdown: 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl',
   hover: 'hover:bg-slate-50 dark:hover:bg-slate-800',
-};
-
-// Module icon mapping
-const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  'puzzle': Puzzle,
-  'default': Puzzle,
 };
 
 export const Navigation: React.FC = () => {
@@ -211,10 +204,7 @@ export const Navigation: React.FC = () => {
                       </div>
                       <div className="overflow-y-auto overflow-x-hidden py-1 max-h-[min(60vh,320px)]" style={{ minHeight: '80px' }}>
                         {visibleModules.map((module) => {
-                          const Icon = moduleIconMap[module.icon || 'default'] || Puzzle;
                           const active = isActive(module.routePath);
-                          const emoji = module.metadata?.icon;
-                          const hasEmoji = emoji && typeof emoji === 'string' && emoji.length <= 2;
 
                           return (
                             <Link
@@ -226,11 +216,12 @@ export const Navigation: React.FC = () => {
                                 : 'text-gray-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                                 }`}
                             >
-                              {hasEmoji ? (
-                                <span className="w-5 h-5 flex items-center justify-center text-base flex-shrink-0">{emoji}</span>
-                              ) : (
-                                <Icon className={`w-5 h-5 flex-shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-nkz-muted'}`} />
-                              )}
+                              <ModuleIcon
+                                module={module}
+                                alt={moduleLabel(module, language)}
+                                variant="nav"
+                                iconClassName={`w-5 h-5 flex-shrink-0 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-nkz-muted'}`}
+                              />
                               <span className="font-medium truncate">
                                 {moduleLabel(module, language)}
                               </span>
