@@ -8,6 +8,7 @@ import { getConfig } from '@/config/environment';
 import { formatAuthError } from '@/utils/keycloakHelpers';
 import { logger } from '@/utils/logger';
 import { api, setKeycloakRef } from '@/services/api';
+import { createSessionRefresher } from './sessionRefresh';
 
 export interface KeycloakUser {
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -953,17 +954,7 @@ export const AuthProvider: React.FC<KeycloakAuthProviderProps> = ({ children }) 
   React.useEffect(() => {
     if (!keycloak || !isAuthenticated) return;
 
-    const tryRefresh = () => {
-      const kc = keycloak;
-      if (!kc?.tokenParsed?.exp) return;
-      const remaining = kc.tokenParsed.exp - Math.floor(Date.now() / 1000);
-      if (remaining < 120 && remaining > 0) {
-        logger.debug('[Auth] Proactive refresh — token expires in', remaining, 's');
-        kc.updateToken(30).then((refreshed) => {
-          if (refreshed && kc.token) api.setSession(kc.token).catch(() => {});
-        }).catch(() => {});
-      }
-    };
+    const tryRefresh = createSessionRefresher(() => keycloak, api);
 
     const onVisible = () => { if (document.visibilityState === 'visible') tryRefresh(); };
     document.addEventListener('visibilitychange', onVisible);
