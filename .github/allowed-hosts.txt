@@ -19,7 +19,9 @@ creativecommons.org
 deepseek.com
 digitaloceanspaces.com
 docker.io
+doi.org
 dwd.de
+etalab.gouv.fr
 etsi.org
 fiware.org
 fsf.org
