@@ -62,6 +62,7 @@ redhat.com
 schema.org
 sentinel-hub.com
 shields.io
+sigpac-hubcloud.es
 smartdatamodels.org
 tailscale.com
 traefik.io
