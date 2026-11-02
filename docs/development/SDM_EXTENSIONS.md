@@ -78,6 +78,7 @@ fails on it.
 | `RiskAssessment` | entidad | extension-declarada | Platform extension — generic risk evaluation result for batch-evaluated risks (robotic, energy, livestock, agr |
 | `SatelliteImageObservation` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `SigpacEnclosure` | entidad | sin-revisar | Not yet reviewed |
+| `sigpacEnclosures` | atributo | extension-declarada | SIGPAC enclosures a parcel overlaps, looked up from its geometry (national SIGPAC service); SDM AgriParcel has no LPIS reference list |
 | `SoilDerivedRaster` | entidad | propuesta-sdm | SDM-004 |
 | `SoilSamplingPoint` | entidad | propuesta-sdm | SDM-002 |
 | `SoilSurvey` | entidad | propuesta-sdm | SDM-003 |
