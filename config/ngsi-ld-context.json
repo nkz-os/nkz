@@ -698,6 +698,7 @@
       "produccionCosecha": "https://nkz-os.org/ns/produccionCosecha",
       "productoROPORef": "https://nkz-os.org/ns/productoROPORef",
       "regepa": "https://nkz-os.org/ns/regepa",
+      "sigpacEnclosures": "https://nkz-os.org/ns/sigpacEnclosures",
       "sigpacReference": "https://nkz-os.org/ns/sigpacReference",
       "sistemaRiego": "https://nkz-os.org/ns/sistemaRiego",
       "tenantId": "https://nkz-os.org/ns/tenantId",
