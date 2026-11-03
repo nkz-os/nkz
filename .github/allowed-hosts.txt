@@ -23,6 +23,7 @@ doi.org
 dwd.de
 etalab.gouv.fr
 etsi.org
+fao.org
 fiware.org
 fsf.org
 ghcr.io
