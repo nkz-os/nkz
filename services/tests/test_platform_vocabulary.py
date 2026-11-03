@@ -385,8 +385,12 @@ def test_sampling_term_is_defined(ctx, term):
 
 
 @pytest.mark.parametrize("term", SAMPLING_RELATIONSHIPS)
-def test_sampling_relationships_are_id_typed(ctx, term):
-    assert isinstance(ctx[term], dict) and ctx[term].get("@type") == "@id"
+def test_sampling_relationships_are_plain_iris(ctx, term):
+    """Relationship terms must not be "@type": "@id": with it Orion-LD only accepts a bare
+    string and rejects {"type": "Relationship", "object": ...} with 400 (the controlledAsset
+    bug). Official SDM contexts map relationships as plain IRIs."""
+    assert term in ctx
+    assert not (isinstance(ctx[term], dict) and ctx[term].get("@type") == "@id")
 
 
 @pytest.mark.parametrize("term", UNDECLARED_UNTIL_ZONE_MIGRATION)
