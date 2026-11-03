@@ -71,3 +71,19 @@ def test_sync_requires_token(monkeypatch):
         resp = gw.proxy_vector_sync_requests()
     status = resp[1] if isinstance(resp, tuple) else resp.status_code
     assert status == 401
+
+
+def test_sync_requires_tenant(monkeypatch):
+    import fiware_api_gateway as gw
+
+    def boom(*a, **k):
+        raise AssertionError("must not be called")
+
+    _patch_auth(monkeypatch, gw)
+    monkeypatch.setattr(gw, "extract_tenant_id", lambda p: None)
+    monkeypatch.setattr(gw.requests, "get", boom)
+    monkeypatch.setattr(gw.requests, "post", boom)
+    with gw.app.test_request_context("/api/core/sync/vectorial"):
+        resp = gw.proxy_vector_sync_requests()
+    status = resp[1] if isinstance(resp, tuple) else resp.status_code
+    assert status == 401
