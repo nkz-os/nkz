@@ -22,6 +22,7 @@ fails on it.
 
 | Term | Kind | Status | Rationale |
 |---|---|---|---|
+| `activeLime` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `actualPlantingDate` | atributo | extension-declarada | Crop-cycle start recorded by a completed field operation; SDM AgriCrop has no instance-level actual date |
 | `actualTerminationDate` | atributo | extension-declarada | Crop-cycle end recorded by a completed harvest or termination operation; no SDM equivalent |
 | `AgriCropDeclaration` | entidad | sin-revisar | Not yet reviewed |
@@ -36,6 +37,8 @@ fails on it.
 | `AgriIrrigation` | entidad | sin-revisar | Not yet reviewed |
 | `AgriOperation` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `AgriParcelZone` | entidad | sin-revisar | Not yet reviewed |
+| `AgriPlant` | entidad | propuesta-sdm | SDM-006 (smart-data-models/incubated#283) |
+| `AgriPlantSample` | entidad | propuesta-sdm | SDM-007 (smart-data-models/incubated#283) |
 | `AgriRobot` | entidad | extension-declarada | Alias for AgriculturalRobot — both resolve to nkz:AgriculturalRobot |
 | `AgriSensor` | entidad | extension-declarada | Platform extension — SAREF4AGRI has no AgriSensor class (only specific sensor types like Pluviometer, Thermome |
 | `AgriSoilCharacterization` | entidad | sin-revisar | Not yet reviewed |
@@ -44,11 +47,24 @@ fails on it.
 | `AgriculturalMachine` | entidad | extension-declarada | Platform extension — no SDM equivalent |
 | `AgriculturalRobot` | entidad | extension-declarada | Platform extension — no equivalent in SAREF4AGRI or any SDM catalog |
 | `AgriculturalTractor` | entidad | extension-declarada | Platform extension — no SDM type exists for agricultural tractors |
+| `AgriSoilSample` | entidad | propuesta-sdm | SDM-008 (smart-data-models/incubated#283) |
+| `ammoniumN` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `analysisMethod` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `BaselineScenario` | entidad | sin-revisar | Not yet reviewed |
+| `boron` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `bulkDensity` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `calcium` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `canopyDiameter` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `CarbonAssessment` | entidad | sin-revisar | Not yet reviewed |
+| `carbonates` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `CarbonCalculationRun` | entidad | sin-revisar | Not yet reviewed |
 | `CarbonStock` | entidad | extension-declarada | Platform extension — no SDM equivalent |
+| `cec` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `chloride` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `clay` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `coarseFragments` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `CompostRecipe` | entidad | sin-revisar | Not yet reviewed |
+| `copper` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `CropAdvisory` | entidad | sin-revisar | Not yet reviewed |
 | `CropHealthAssessment` | entidad | extension-declarada | Platform extension — no SDM equivalent |
 | `CropHealthZoneAssessment` | entidad | sin-revisar | Not yet reviewed |
@@ -57,35 +73,75 @@ fails on it.
 | `cropSeason` | atributo | extension-declarada | Crop-plan season label grouping planned cycles; not modelled in SDM |
 | `cropSegmentSeq` | atributo | extension-declarada | Order of a planned cycle within its crop-plan season; not modelled in SDM |
 | `DataProcessingJob` | entidad | sin-revisar | Not yet reviewed |
+| `dateAnalysed` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
+| `datePlanted` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
+| `dateSampled` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
+| `dateZoned` | atributo | propuesta-sdm | Attribute of AgriManagementZone (smart-data-models/incubated#283) |
 | `DeviceCommand` | entidad | extension-declarada | Platform extension — MQTT device command tracking |
 | `DeviceProfile` | entidad | sin-revisar | Not yet reviewed |
 | `DigitalAsset` | entidad | extension-declarada | Platform extension — no SDM equivalent |
 | `DiseaseRiskAssessment` | entidad | extension-declarada | Platform extension — no SDM equivalent |
+| `electricalConductivity` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `ElevationSource` | entidad | sin-revisar | Not yet reviewed |
 | `EnergyMeter` | entidad | extension-declarada | Platform extension — no SDM equivalent |
 | `EnergyStorageSystem` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `expectedTerminationDate` | atributo | extension-declarada | Planned end of a crop cycle in a crop plan; SDM has harvesting intervals only for crop types |
+| `hasAgriManagementZone` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
+| `hasAgriPlant` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `hasAgriPlantReplacement` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
+| `height` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
+| `iron` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `irrigationRegime` | atributo | extension-declarada | Rainfed or irrigated regime of one crop cycle; SDM has only the parcel's irrigation equipment type and the crop's watering frequency |
+| `laboratory` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `LivestockAnimal` | entidad | extension-declarada | Platform extension — SAREF4AGRI has no LivestockAnimal class |
 | `LivestockFarm` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `LivestockGroup` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `LivestockProduction` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
+| `magnesium` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `management` | atributo | extension-declarada | Organic or conventional production of one crop cycle; not modelled in SDM AgriCrop |
+| `manganese` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `nitrateN` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `nitrogen` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `numberOfSubsamples` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `OpenChannelFlow` | entidad | sin-revisar | Not yet reviewed |
+| `organicCarbon` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `organicMatter` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `otherResults` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
+| `penetrationResistance` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `phenologicalStage` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `phosphorus` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `phosphorusAvailable` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `phosphorusMethod` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `PhotovoltaicInstallation` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
+| `plantCode` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `plantingDateSource` | atributo | extension-declarada | Provenance of plantingDate (planned or manually declared); not modelled in SDM |
+| `plantStatus` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
+| `plantTissue` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `positionInRow` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
+| `potassium` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `potassiumExchangeable` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `potassiumMethod` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `ProjectScenario` | entidad | sin-revisar | Not yet reviewed |
 | `RiskAssessment` | entidad | extension-declarada | Platform extension — generic risk evaluation result for batch-evaluated risks (robotic, energy, livestock, agr |
+| `rowNumber` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
+| `sampleCode` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
+| `sand` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `SatelliteImageObservation` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `SigpacEnclosure` | entidad | sin-revisar | Not yet reviewed |
 | `sigpacEnclosures` | atributo | extension-declarada | SIGPAC enclosures a parcel overlaps, looked up from its geometry (national SIGPAC service); SDM AgriParcel has no LPIS reference list |
+| `silt` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `sodium` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `SoilDerivedRaster` | entidad | propuesta-sdm | SDM-004 |
 | `SoilSamplingPoint` | entidad | propuesta-sdm | SDM-002 |
 | `SoilSurvey` | entidad | propuesta-sdm | SDM-003 |
 | `sowingWindowEnd` | atributo | extension-declarada | End of the planned sowing window of a crop cycle; not modelled in SDM |
 | `sowingWindowStart` | atributo | extension-declarada | Start of the planned sowing window of a crop cycle; not modelled in SDM |
+| `sulphur` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
 | `terminationDate` | atributo | extension-declarada | Declared end of a crop cycle when a plan segment is closed; not modelled in SDM |
 | `terminationMethod` | atributo | extension-declarada | How a crop cycle ends (harvest, roller crimper, mowing, incorporation, grazing); not modelled in SDM |
+| `totalNitrogen` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
+| `trunkPerimeter` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
+| `trunkPerimeterHeight` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `VegetationIndex` | entidad | propuesta-sdm | SDM-005 |
 | `WaterStorage` | entidad | sin-revisar | Not yet reviewed |
 | `affectedVariables` | atributo | extension-declarada | Platform extension — variables the Alert affects; SDM Alert has no such field |
@@ -287,6 +343,8 @@ fails on it.
 | `windGusts` | atributo | sin-revisar | Not yet reviewed |
 | `windSpeedMax` | atributo | sin-revisar | Not yet reviewed |
 | `windSpeed` | atributo | sin-revisar | Not yet reviewed |
+| `zinc` | atributo | propuesta-sdm | Attribute of AgriPlantSample (smart-data-models/incubated#283) |
+| `zoneLabel` | atributo | propuesta-sdm | Attribute of AgriManagementZone (smart-data-models/incubated#283) |
 | `zoneType` | atributo | extension-declarada | AgriParcelZone: kind of management zone (e.g. terrain-derived class); not modelled in SDM |
 | `zoneVersion` | atributo | extension-declarada | AgriParcelZone: version of the zoning that produced the zone; not modelled in SDM |
 | `zoneRank` | atributo | extension-declarada | AgriParcelZone: ordinal rank of the zone within its parcel; not modelled in SDM |
@@ -307,6 +365,7 @@ fails on it.
 | `zoneSpread` | atributo | extension-declarada | CropHealthAssessment: spread of the stress indicator across zones; not modelled in SDM |
 | `twiP90` | atributo | extension-declarada | Hydrology zonal stats: 90th percentile of the topographic wetness index; not modelled in SDM |
 | `flowAccumMax` | atributo | extension-declarada | Hydrology zonal stats: maximum flow accumulation in the zone; not modelled in SDM |
+| `zoningMethod` | atributo | propuesta-sdm | Attribute of AgriManagementZone (smart-data-models/incubated#283) |
 
 ## Value vocabularies
 

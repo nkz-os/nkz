@@ -89,6 +89,40 @@ SUBSCRIPTIONS = [
         "isActive": True,
     },
     {
+        # Lab results (plant tissue samples). Each result carries observedAt = sampling date, so the
+        # row lands at the sampling instant, not at import time. No "throttling": a
+        # lab import writes hundreds of samples at once and Orion applies the window
+        # per subscription, so any value would drop most of them.
+        "description": "Telemetry Worker - AgriPlantSample results",
+        "type": "Subscription",
+        "entities": [{"type": "AgriPlantSample"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "isActive": True,
+    },
+    {
+        # Lab results (soil samples). Each result carries observedAt = sampling date, so the
+        # row lands at the sampling instant, not at import time. No "throttling": a
+        # lab import writes hundreds of samples at once and Orion applies the window
+        # per subscription, so any value would drop most of them.
+        "description": "Telemetry Worker - AgriSoilSample results",
+        "type": "Subscription",
+        "entities": [{"type": "AgriSoilSample"}],
+        "notification": {
+            "endpoint": {
+                "uri": NOTIFICATION_URL,
+                "accept": "application/json",
+            },
+            "format": "normalized",
+        },
+        "isActive": True,
+    },
+    {
         "description": "Telemetry Worker - AgriParcel updates",
         "type": "Subscription",
         "entities": [{"type": "AgriParcel"}],

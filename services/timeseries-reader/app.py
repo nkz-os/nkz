@@ -79,6 +79,7 @@ try:
         nearest_weather_entity,
         normalize_device_id,
         plan_timeseries_read,
+        plant_sample_ids,
     )
 except ImportError as e:
     # This service is fundamentally broken without URN resolution (every /v2
@@ -94,6 +95,9 @@ except ImportError as e:
         "WeatherObserved",
         "https://saref.etsi.org/saref4agri/WeatherObserved",
     ]
+
+    def plant_sample_ids(tenant_id, entity_type, plant_id):  # type: ignore
+        raise RuntimeError("urn_resolution unavailable")
 
     def normalize_device_id(x):  # type: ignore
         return x.rsplit(":", 1)[-1] if x and ":" in x else (x or "")
@@ -1285,6 +1289,108 @@ def get_timeseries_by_type_and_parcel(entity_type: str, parcel_id: str):
 
     except Exception as e:
         logger.error(f"Error querying timeseries by type/parcel: {e}", exc_info=True)
+        return internal_error(e, "timeseries")
+
+
+# ---------------------------------------------------------------------------
+# Query timeseries of the samples taken from one plant (AgriPlantSample, ...)
+# ---------------------------------------------------------------------------
+PLANT_SERIES_DEFAULT_DAYS = 3650  # samples are yearly: a 30-day window would hide them
+
+
+def _plant_object(payload: dict):
+    rel = ((payload or {}).get("raw") or {}).get("hasAgriPlant")
+    return rel.get("object") if isinstance(rel, dict) else rel
+
+
+@app.route("/api/timeseries/type/<entity_type>/plant/<plant_id>/data", methods=["GET"])
+@require_auth
+def get_timeseries_by_type_and_plant(entity_type: str, plant_id: str):
+    """Series of the entities of ``entity_type`` taken from exactly one plant.
+
+    A sample of several plants (a composite) belongs to its zone or parcel, not to
+    each plant, so it is excluded. When a sample was re-imported with corrected
+    values, only the latest ingested row of each (entity, instant) is returned.
+    """
+    ctx = _resolve_tenant_context()
+    if isinstance(ctx, tuple):
+        return ctx
+    tenant_id = ctx
+
+    attrs_str = request.args.get("attrs")
+    limit = request.args.get("limit", 1000, type=int)
+    now = datetime.utcnow()
+    start_dt = parse_datetime(request.args["from"]) if request.args.get("from") else now - timedelta(days=PLANT_SERIES_DEFAULT_DAYS)
+    end_dt = parse_datetime(request.args["to"]) if request.args.get("to") else now
+    if not start_dt or not end_dt:
+        return jsonify({"error": "Invalid from/to date format"}), 400
+    attr_filter = [a.strip() for a in (attrs_str or "").split(",") if a.strip()]
+
+    # Resolve the plant's samples in Orion first: telemetry_events is compressed and
+    # segmented by (tenant_id, device_id), so filtering on device_id reads only these
+    # samples' rows instead of decompressing all of the tenant's telemetry.
+    try:
+        sample_ids = plant_sample_ids(tenant_id, entity_type, plant_id)
+    except Exception as e:
+        logger.error(f"Cannot resolve samples of plant {plant_id}: {e}")
+        return jsonify({"error": "Plant samples unavailable"}), 502
+    if not sample_ids:
+        return jsonify({"entity_type": entity_type, "plant_id": plant_id, "count": 0, "data": []}), 200
+    device_ids = [i.rsplit(":", 1)[-1] for i in sample_ids]
+
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("SELECT set_config('app.current_tenant', %s, true)", (tenant_id,))
+            except Exception:
+                pass
+            cursor.execute(
+                """
+                SELECT entity_id, entity_type, observed_at, ingested_at, payload
+                FROM telemetry_events
+                WHERE tenant_id = %s
+                  AND entity_type = %s
+                  AND device_id = ANY(%s)
+                  AND entity_id = ANY(%s)
+                  AND payload->'raw'->'hasAgriPlant'->>'object' = %s
+                  AND observed_at >= %s
+                  AND observed_at < %s
+                ORDER BY observed_at, ingested_at
+                """,
+                [tenant_id, entity_type, device_ids, sample_ids, plant_id, start_dt, end_dt],
+            )
+            rows = cursor.fetchall()
+            cursor.close()
+
+        latest: dict = {}
+        for row in rows:
+            if _plant_object(row["payload"]) != plant_id:
+                continue
+            # rows come ordered by ingested_at: the last one of each key is the latest import
+            latest[(row["entity_id"], row["observed_at"])] = row
+
+        data = []
+        for row in sorted(latest.values(), key=lambda r: r["observed_at"])[:limit]:
+            measurements = (row["payload"] or {}).get("measurements", {})
+            point: dict = {
+                "entity_id": row["entity_id"],
+                "observed_at": row["observed_at"].isoformat()
+                if hasattr(row["observed_at"], "isoformat")
+                else str(row["observed_at"]),
+            }
+            if attr_filter:
+                for attr in attr_filter:
+                    if attr in measurements:
+                        point[attr] = measurements[attr]
+            else:
+                point["measurements"] = measurements
+            data.append(point)
+
+        return jsonify({"entity_type": entity_type, "plant_id": plant_id, "count": len(data), "data": data}), 200
+
+    except Exception as e:
+        logger.error(f"Error querying timeseries by type/plant: {e}", exc_info=True)
         return internal_error(e, "timeseries")
 
 
