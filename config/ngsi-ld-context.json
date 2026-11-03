@@ -465,18 +465,9 @@
       "dateSampled": "nkz:dateSampled",
       "dateZoned": "nkz:dateZoned",
       "electricalConductivity": "nkz:electricalConductivity",
-      "hasAgriManagementZone": {
-        "@id": "nkz:hasAgriManagementZone",
-        "@type": "@id"
-      },
-      "hasAgriPlant": {
-        "@id": "nkz:hasAgriPlant",
-        "@type": "@id"
-      },
-      "hasAgriPlantReplacement": {
-        "@id": "nkz:hasAgriPlantReplacement",
-        "@type": "@id"
-      },
+      "hasAgriManagementZone": "nkz:hasAgriManagementZone",
+      "hasAgriPlant": "nkz:hasAgriPlant",
+      "hasAgriPlantReplacement": "nkz:hasAgriPlantReplacement",
       "height": "nkz:height",
       "iron": "nkz:iron",
       "laboratory": "nkz:laboratory",
