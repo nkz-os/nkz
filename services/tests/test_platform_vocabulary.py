@@ -356,8 +356,7 @@ def test_every_emitted_attribute_is_in_the_context(rel_path):
 SAMPLING_TERMS = [
     "activeLime", "ammoniumN", "analysisMethod", "boron", "bulkDensity", "calcium",
     "canopyDiameter", "carbonates", "cec", "chloride", "clay", "coarseFragments",
-    "copper", "dateAnalysed", "datePlanted", "dateSampled", "dateZoned", "depthFrom",
-    "depthTo", "electricalConductivity", "hasAgriManagementZone", "hasAgriPlant", "hasAgriPlantReplacement", "height",
+    "copper", "dateAnalysed", "datePlanted", "dateSampled", "dateZoned", "electricalConductivity", "hasAgriManagementZone", "hasAgriPlant", "hasAgriPlantReplacement", "height",
     "iron", "laboratory", "magnesium", "manganese", "nitrateN", "nitrogen",
     "numberOfSubsamples", "organicCarbon", "organicMatter", "otherResults", "penetrationResistance", "phenologicalStage",
     "phosphorus", "phosphorusAvailable", "phosphorusMethod", "plantCode", "plantStatus", "plantTissue",
@@ -375,6 +374,8 @@ SAMPLING_RELATIONSHIPS = ["hasAgriPlant", "hasAgriPlantReplacement", "hasAgriMan
 # that rewrite, not before.
 UNDECLARED_UNTIL_ZONE_MIGRATION = [
     "AgriManagementZone", "zoneClass", "meanValue", "zoningRunId", "variableAttribute",
+    # soil already writes these on SoilDerivedRaster, also under the default vocabulary
+    "depthFrom", "depthTo",
 ]
 
 

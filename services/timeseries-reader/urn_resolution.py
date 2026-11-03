@@ -42,6 +42,33 @@ def _orion_headers(
     return h
 
 
+def plant_sample_ids(tenant_id: str, entity_type: str, plant_id: str) -> List[str]:
+    """Ids of the ``entity_type`` entities whose hasAgriPlant includes ``plant_id``.
+
+    Raises RuntimeError when Orion cannot answer: the caller must not fall back to
+    scanning the whole tenant's telemetry.
+    """
+    if not ORION_URL:
+        raise RuntimeError("ORION_URL is not configured")
+    ids: List[str] = []
+    page = 1000
+    for offset in range(0, 100 * page, page):
+        r = requests.get(
+            f"{ORION_URL}/ngsi-ld/v1/entities",
+            headers=_orion_headers(tenant_id),
+            params={"type": entity_type, "q": f'hasAgriPlant=="{plant_id}"',
+                    "attrs": "hasAgriPlant", "limit": page, "offset": offset},
+            timeout=10,
+        )
+        if r.status_code != 200:
+            raise RuntimeError(f"Orion answered {r.status_code}")
+        batch = r.json() or []
+        ids.extend(e["id"] for e in batch if isinstance(e, dict) and e.get("id"))
+        if len(batch) < page:
+            break
+    return ids
+
+
 def normalize_device_id(entity_id: Optional[str]) -> str:
     if not entity_id:
         return ""

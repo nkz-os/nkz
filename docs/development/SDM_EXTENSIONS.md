@@ -37,8 +37,8 @@ fails on it.
 | `AgriIrrigation` | entidad | sin-revisar | Not yet reviewed |
 | `AgriOperation` | entidad | extension-declarada | Platform extension — no SAREF4AGRI equivalent |
 | `AgriParcelZone` | entidad | sin-revisar | Not yet reviewed |
-| `AgriPlant` | entidad | propuesta-sdm | SDM-005 (smart-data-models/incubated#283) |
-| `AgriPlantSample` | entidad | propuesta-sdm | SDM-006 (smart-data-models/incubated#283) |
+| `AgriPlant` | entidad | propuesta-sdm | SDM-006 (smart-data-models/incubated#283) |
+| `AgriPlantSample` | entidad | propuesta-sdm | SDM-007 (smart-data-models/incubated#283) |
 | `AgriRobot` | entidad | extension-declarada | Alias for AgriculturalRobot — both resolve to nkz:AgriculturalRobot |
 | `AgriSensor` | entidad | extension-declarada | Platform extension — SAREF4AGRI has no AgriSensor class (only specific sensor types like Pluviometer, Thermome |
 | `AgriSoilCharacterization` | entidad | sin-revisar | Not yet reviewed |
@@ -47,7 +47,7 @@ fails on it.
 | `AgriculturalMachine` | entidad | extension-declarada | Platform extension — no SDM equivalent |
 | `AgriculturalRobot` | entidad | extension-declarada | Platform extension — no equivalent in SAREF4AGRI or any SDM catalog |
 | `AgriculturalTractor` | entidad | extension-declarada | Platform extension — no SDM type exists for agricultural tractors |
-| `AgriSoilSample` | entidad | propuesta-sdm | SDM-007 (smart-data-models/incubated#283) |
+| `AgriSoilSample` | entidad | propuesta-sdm | SDM-008 (smart-data-models/incubated#283) |
 | `ammoniumN` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `analysisMethod` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `BaselineScenario` | entidad | sin-revisar | Not yet reviewed |
@@ -77,8 +77,6 @@ fails on it.
 | `datePlanted` | atributo | propuesta-sdm | Attribute of AgriPlant (smart-data-models/incubated#283) |
 | `dateSampled` | atributo | propuesta-sdm | Attribute of AgriPlantSample, AgriSoilSample (smart-data-models/incubated#283) |
 | `dateZoned` | atributo | propuesta-sdm | Attribute of AgriManagementZone (smart-data-models/incubated#283) |
-| `depthFrom` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
-| `depthTo` | atributo | propuesta-sdm | Attribute of AgriSoilSample (smart-data-models/incubated#283) |
 | `DeviceCommand` | entidad | extension-declarada | Platform extension — MQTT device command tracking |
 | `DeviceProfile` | entidad | sin-revisar | Not yet reviewed |
 | `DigitalAsset` | entidad | extension-declarada | Platform extension — no SDM equivalent |

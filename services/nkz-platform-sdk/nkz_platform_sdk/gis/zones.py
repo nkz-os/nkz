@@ -65,9 +65,11 @@ def group_zonings(entities: list[dict]) -> list[Zoning]:
         method = _get(e, "zoningMethod")
         run_id = _get(e, "zoningRunId") or f"legacy:{method or 'none'}"
         rank = _get(e, "zoneRank")
+        if rank is None and isinstance(_get(e, "zoneId"), (int, float)):
+            rank = int(_get(e, "zoneId")) + 1  # vegetation numbers its clusters from 0
         zone = ZoneRef(
             id=e.get("id", ""),
-            label=_get(e, "zoneLabel"),
+            label=_get(e, "zoneLabel") or _get(e, "zoneName"),
             rank=int(rank) if isinstance(rank, (int, float)) else None,
             geometry=_get(e, "location") or {},
         )

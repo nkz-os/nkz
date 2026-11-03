@@ -104,3 +104,20 @@ def test_feature_limit_raises(monkeypatch):
     monkeypatch.setattr(gf, "MAX_FEATURES", 1)
     with pytest.raises(GeoFileError):
         read_geofile(GPX, "trees.gpx")
+
+
+def test_corrupt_kmz_member_is_a_geofile_error():
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("doc.kml", KML)
+    data = bytearray(buf.getvalue())
+    i = data.find(b"doc.kml") + len(b"doc.kml") + 5
+    data[i] ^= 0xFF  # corrupt the compressed payload
+    with pytest.raises(GeoFileError):
+        read_geofile(bytes(data), "zones.kmz")
+
+
+def test_non_numeric_kml_coordinates_are_a_geofile_error():
+    bad = KML.replace(b"-1.8456,42.6123,0", b"abc,def")
+    with pytest.raises(GeoFileError):
+        read_geofile(bad, "zones.kml")

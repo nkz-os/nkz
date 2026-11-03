@@ -126,3 +126,12 @@ async def test_fetch_zonings_pages_until_short_page():
     assert sum(len(z.zones) for z in zonings) == 103
     params = route.calls[0].request.url.params
     assert params["type"] == "AgriManagementZone" and params["q"] == f'hasAgriParcel=="{PARCEL}"'
+
+
+def test_vegetation_zone_name_and_id_are_label_and_rank_fallbacks():
+    e = _zone("urn:ngsi-ld:AgriManagementZone:p:Z10", "veg-1")
+    e["zoneName"] = {"type": "Property", "value": "Zone 11"}
+    e["zoneId"] = {"type": "Property", "value": 10}
+    (zoning,) = group_zonings([e])
+    assert zoning.zones[0].label == "Zone 11"
+    assert zoning.zones[0].rank == 11

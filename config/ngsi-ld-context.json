@@ -464,8 +464,6 @@
       "datePlanted": "nkz:datePlanted",
       "dateSampled": "nkz:dateSampled",
       "dateZoned": "nkz:dateZoned",
-      "depthFrom": "nkz:depthFrom",
-      "depthTo": "nkz:depthTo",
       "electricalConductivity": "nkz:electricalConductivity",
       "hasAgriManagementZone": {
         "@id": "nkz:hasAgriManagementZone",

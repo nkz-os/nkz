@@ -83,3 +83,12 @@ def test_status_values_are_from_the_closed_set(registry):
     legal = {"propuesta-sdm", "extension-declarada", "sin-revisar"}
     bad = {t: r["status"] for t, r in registry.items() if r["status"] not in legal}
     assert not bad, f"estados fuera del conjunto {sorted(legal)}: {bad}"
+
+
+def test_proposal_numbers_are_unique():
+    numbers = re.findall(
+        r"\|\s*`[^`]+`\s*\|\s*entidad\s*\|\s*propuesta-sdm\s*\|\s*(SDM-\d{3})",
+        REGISTRY_FILE.read_text(encoding="utf-8"),
+    )
+    dupes = sorted({n for n in numbers if numbers.count(n) > 1})
+    assert not dupes, f"SDM proposal numbers used twice: {dupes}"

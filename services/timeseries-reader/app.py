@@ -79,6 +79,7 @@ try:
         nearest_weather_entity,
         normalize_device_id,
         plan_timeseries_read,
+        plant_sample_ids,
     )
 except ImportError as e:
     # This service is fundamentally broken without URN resolution (every /v2
@@ -94,6 +95,9 @@ except ImportError as e:
         "WeatherObserved",
         "https://saref.etsi.org/saref4agri/WeatherObserved",
     ]
+
+    def plant_sample_ids(tenant_id, entity_type, plant_id):  # type: ignore
+        raise RuntimeError("urn_resolution unavailable")
 
     def normalize_device_id(x):  # type: ignore
         return x.rsplit(":", 1)[-1] if x and ":" in x else (x or "")
@@ -1322,6 +1326,18 @@ def get_timeseries_by_type_and_plant(entity_type: str, plant_id: str):
         return jsonify({"error": "Invalid from/to date format"}), 400
     attr_filter = [a.strip() for a in (attrs_str or "").split(",") if a.strip()]
 
+    # Resolve the plant's samples in Orion first: telemetry_events is compressed and
+    # segmented by (tenant_id, device_id), so filtering on device_id reads only these
+    # samples' rows instead of decompressing all of the tenant's telemetry.
+    try:
+        sample_ids = plant_sample_ids(tenant_id, entity_type, plant_id)
+    except Exception as e:
+        logger.error(f"Cannot resolve samples of plant {plant_id}: {e}")
+        return jsonify({"error": "Plant samples unavailable"}), 502
+    if not sample_ids:
+        return jsonify({"entity_type": entity_type, "plant_id": plant_id, "count": 0, "data": []}), 200
+    device_ids = [i.rsplit(":", 1)[-1] for i in sample_ids]
+
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -1335,12 +1351,14 @@ def get_timeseries_by_type_and_plant(entity_type: str, plant_id: str):
                 FROM telemetry_events
                 WHERE tenant_id = %s
                   AND entity_type = %s
+                  AND device_id = ANY(%s)
+                  AND entity_id = ANY(%s)
                   AND payload->'raw'->'hasAgriPlant'->>'object' = %s
                   AND observed_at >= %s
                   AND observed_at < %s
                 ORDER BY observed_at, ingested_at
                 """,
-                [tenant_id, entity_type, plant_id, start_dt, end_dt],
+                [tenant_id, entity_type, device_ids, sample_ids, plant_id, start_dt, end_dt],
             )
             rows = cursor.fetchall()
             cursor.close()

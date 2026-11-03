@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import json
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from xml.etree.ElementTree import Element, ParseError
 
@@ -94,7 +95,10 @@ def _kml_from_kmz(data: bytes) -> bytes:
     kmls.sort(key=lambda i: (i.filename.lower() != "doc.kml", i.filename))
     if kmls[0].file_size > MAX_KMZ_UNCOMPRESSED:
         raise GeoFileError("KMZ content too large")
-    return zf.read(kmls[0])
+    try:
+        return zf.read(kmls[0])
+    except (zipfile.BadZipFile, zlib.error, RuntimeError, NotImplementedError, EOFError, OSError) as exc:
+        raise GeoFileError(f"cannot read KMZ content: {exc.__class__.__name__}") from exc
 
 
 def _coords(text: str | None) -> list[list[float]]:
@@ -103,7 +107,10 @@ def _coords(text: str | None) -> list[list[float]]:
         parts = tup.split(",")
         if len(parts) < 2:
             raise GeoFileError(f"bad KML coordinate: {tup!r}")
-        out.append([float(parts[0]), float(parts[1])])
+        try:
+            out.append([float(parts[0]), float(parts[1])])
+        except ValueError as exc:
+            raise GeoFileError(f"bad KML coordinate: {tup!r}") from exc
     return out
 
 
