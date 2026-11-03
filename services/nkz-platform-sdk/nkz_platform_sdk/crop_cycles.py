@@ -27,6 +27,8 @@ _AUTUMN_SOWING_MONTH = 8  # an annual sown from August on is harvested the next 
 _TERMINATING_TILLAGE = frozenset({"roller_crimper", "mowing"})  # field-operations tillageType values that end a cover
 _TERMINABLE_ROLES = frozenset({"cover_crop", "catch_crop"})
 _PERENNIAL, _ANNUAL = "perennial", "annual"
+# field-operations tillageType that pulls a perennial stand out: the only thing that closes it.
+UPROOTING = "uprooting"
 # Producers write ``nkz:declaredCampaign``; Orion returns the expanded IRI.
 _DECLARED_CAMPAIGN_TERMS = ("https://nkz-os.org/ns/declaredCampaign", "nkz:declaredCampaign", "declaredCampaign")
 
@@ -97,6 +99,8 @@ class CropCycle:
     # Harvest year declared on the AgriCrop; only used as the campaign when the
     # cycle has no dates.
     declared_campaign: int | None = None
+    # Harvests of a perennial (refs, by date): a harvest does not close a perennial.
+    harvests: tuple[dict, ...] = ()
 
     @property
     def declared_only(self) -> bool:
@@ -120,7 +124,7 @@ class CropCycle:
         return self.start.date.year
 
     def to_dict(self) -> dict:
-        return {
+        out = {
             "crop_id": self.crop_id, "role": self.role, "species": self.species,
             "status": self.status, "lifecycle": self.lifecycle,
             "start": self.start.to_dict(), "end": self.end.to_dict(),
@@ -129,6 +133,10 @@ class CropCycle:
             "planned_start": self.planned_start.isoformat() if self.planned_start else None,
             "planned_end": self.planned_end.isoformat() if self.planned_end else None,
         }
+        # Only perennials carry the key: the dict of every other cycle stays as it was.
+        if self.lifecycle == _PERENNIAL:
+            out["harvests"] = [dict(h) for h in self.harvests]
+        return out
 
 
 @dataclass(frozen=True)
@@ -190,6 +198,15 @@ def _window_contains(ps: date | None, pe: date | None, d: date) -> bool:
     return lo <= d <= hi
 
 
+def _perennial_window(start: date | None, pe: date | None, d: date) -> bool:
+    """A perennial lives from its planting on (no fixed season around it): an
+    operation belongs to it from planting minus the tolerance until its planned
+    end plus the tolerance, or without end limit when none is planned."""
+    if start is None or d < start - timedelta(days=ASSIGN_TOLERANCE_DAYS):
+        return False
+    return pe is None or d <= pe + timedelta(days=ASSIGN_TOLERANCE_DAYS)
+
+
 def _distance(r: dict, d: date, is_end: bool) -> int:
     """Days between an operation and the planned boundary it would set.
 
@@ -230,10 +247,14 @@ def resolve_crop_cycles(
         manual = _value(c.get("plantingDateSource")) == "manual"
         planting = _as_date(c.get("plantingDate"))
         ps = None if manual else (planting or _as_date(c.get("sowingWindowStart")))
-        pe = _as_date(c.get("harvestDate")) or _as_date(c.get("expectedTerminationDate"))
+        lc = _value(c.get("cropLifecycle"))
+        lifecycle = lc if lc in (_ANNUAL, _PERENNIAL) else "unknown"
+        # A perennial's harvestDate is the next harvest, not the end of the stand.
+        pe = (_as_date(c.get("expectedTerminationDate")) if lifecycle == _PERENNIAL
+              else _as_date(c.get("harvestDate")) or _as_date(c.get("expectedTerminationDate")))
         raw.append({"c": c, "status": status, "manual": manual, "planting": planting, "ps": ps, "pe": pe,
-                    "role": _first(c, "cropRole", "role") or "main_crop",
-                    "starts": [], "ends": []})
+                    "role": _first(c, "cropRole", "role") or "main_crop", "lifecycle": lifecycle,
+                    "starts": [], "ends": [], "harvests": []})
 
     unassigned, hints = [], []
     for o in operations:
@@ -250,18 +271,42 @@ def resolve_crop_cycles(
             continue
         typ = _value(o.get("operationType"))
         is_start = typ == "sowing"
-        is_end = typ == "harvesting" or (typ == "tillage" and _value(o.get("tillageType")) in _TERMINATING_TILLAGE)
+        tillage_type = _value(o.get("tillageType")) if typ == "tillage" else None
+        is_uprooting = tillage_type == UPROOTING
+        is_harvest = typ == "harvesting"
+        is_end = is_harvest or tillage_type in _TERMINATING_TILLAGE or is_uprooting
         if not (is_start or is_end):
             continue
-        cands = [r for r in raw if _window_contains(r["ps"] or r["planting"], r["pe"], d)]
-        if is_end and typ == "tillage":
+
+        def in_window(r, when=d):
+            if r["lifecycle"] == _PERENNIAL and (is_harvest or is_uprooting):
+                return _perennial_window(r["ps"] or r["planting"], r["pe"], when)
+            return _window_contains(r["ps"] or r["planting"], r["pe"], when)
+
+        cands = [r for r in raw if in_window(r)]
+        if is_uprooting:
+            # Only uprooting closes a perennial; it never closes an annual or a cover.
+            cands = [r for r in cands if r["lifecycle"] == _PERENNIAL]
+        elif is_end and typ == "tillage":
             # Rolling or mowing ends a cover or catch crop; a main crop or a perennial stand is mowed and lives on.
             cands = [r for r in cands if r["role"] in _TERMINABLE_ROLES]
         if not cands:
             unassigned.append(_op_ref(o, d))
             continue
-        best = min(cands, key=lambda r, when=d, end=is_end: _distance(r, when, end))
-        (best["starts"] if is_start else best["ends"]).append((d, o))
+        target = _first(o, "hasAgriCrop", "refAgriCrop")
+        best = next((r for r in cands if target and r["c"].get("id") == target), None)
+        if best is None and (is_harvest or is_uprooting):
+            stands = [r for r in cands if r["lifecycle"] == _PERENNIAL and r["role"] == "main_crop"]
+            if stands:  # a harvest under a cover crop is the olive's, not the cover's
+                best = max(stands, key=lambda r: r["ps"] or r["planting"])
+        if best is None:
+            best = min(cands, key=lambda r, when=d, end=is_end: _distance(r, when, end))
+        if is_start:
+            best["starts"].append((d, o))
+        elif is_harvest and best["lifecycle"] == _PERENNIAL:
+            best["harvests"].append((d, o))
+        else:
+            best["ends"].append((d, o))
 
     cycles = []
     for r in raw:
@@ -292,12 +337,18 @@ def resolve_crop_cycles(
             end = Boundary(r["pe"], "planned")
         else:
             end = Boundary()
-        lc = _value(c.get("cropLifecycle"))
+        harvests = []
+        for h, o in r["harvests"]:
+            if start.date is None or h >= start.date:
+                harvests.append(_op_ref(o, h))
+            else:  # a harvest before the planting cannot be this stand's
+                unassigned.append(_op_ref(o, h))
         cycles.append(CropCycle(
             crop_id=c.get("id"), role=r["role"], species=_value(c.get("species")), status=r["status"],
-            lifecycle=lc if lc in (_ANNUAL, _PERENNIAL) else "unknown",
+            lifecycle=r["lifecycle"],
             start=start, end=end, planned_start=r["ps"], planned_end=r["pe"],
             declared_campaign=_declared_campaign(c),
+            harvests=tuple(sorted(harvests, key=lambda h: (h["date"], h["id"] or ""))),
         ))
 
     def is_pending(cy: CropCycle) -> bool:
