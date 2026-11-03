@@ -4,7 +4,10 @@ A crop cycle is one AgriCrop (main, cover or catch crop) from sowing to harvest 
 termination. Every boundary carries its provenance: what was done in the field
 (``actual``) beats what a person declared (``declared``), which beats a plan
 (``planned``). The campaign is the calendar year; a cycle belongs to the
-campaign of the year it ends in. Pure function: no I/O, deterministic.
+campaign of the year it ends in. A past crop a farmer declared with only its
+campaign (``declaredCampaign``, no dates) is a closed cycle of that campaign:
+it counts as history, never as current, next or pending. Pure function: no
+I/O, deterministic.
 """
 from __future__ import annotations
 
@@ -21,6 +24,8 @@ _AUTUMN_SOWING_MONTH = 8  # an annual sown from August on is harvested the next 
 _TERMINATING_TILLAGE = frozenset({"roller_crimper", "mowing"})  # field-operations tillageType values that end a cover
 _TERMINABLE_ROLES = frozenset({"cover_crop", "catch_crop"})
 _PERENNIAL, _ANNUAL = "perennial", "annual"
+# Producers write ``nkz:declaredCampaign``; Orion returns the expanded IRI.
+_DECLARED_CAMPAIGN_TERMS = ("https://nkz-os.org/ns/declaredCampaign", "nkz:declaredCampaign", "declaredCampaign")
 
 
 def _value(attr: Any) -> Any:
@@ -43,6 +48,16 @@ def _as_date(attr: Any) -> date | None:
         return date.fromisoformat(v[:10])
     except ValueError:
         return None
+
+
+def _declared_campaign(entity: dict) -> int | None:
+    """Harvest year a person declared for a crop without dates; None when absent
+    or not a plain integer (bool, float, string are treated as absent)."""
+    for term in _DECLARED_CAMPAIGN_TERMS:
+        v = _value(entity.get(term))
+        if isinstance(v, int) and not isinstance(v, bool):
+            return v
+    return None
 
 
 def _first(entity: dict, *names: str) -> Any:
@@ -76,6 +91,15 @@ class CropCycle:
     # Planned start already past, nothing sown or declared, not closed: the plan
     # is not the field. Never current, never previous; asks for the sowing.
     pending: bool = False
+    # Harvest year declared on the AgriCrop; only used as the campaign when the
+    # cycle has no dates.
+    declared_campaign: int | None = None
+
+    @property
+    def declared_only(self) -> bool:
+        """A cycle known only by its declared campaign: no dates at all."""
+        return (self.declared_campaign is not None
+                and self.start.date is None and self.end.date is None)
 
     @property
     def campaign_label(self) -> int | None:
@@ -85,7 +109,7 @@ class CropCycle:
         if self.end.date:
             return self.end.date.year
         if not self.start.date:
-            return None
+            return self.declared_campaign
         # A catch crop sown in late summer is normally ended the same autumn.
         if (self.lifecycle != _PERENNIAL and self.role != "catch_crop"
                 and self.start.date.month >= _AUTUMN_SOWING_MONTH):
@@ -98,6 +122,7 @@ class CropCycle:
             "status": self.status, "lifecycle": self.lifecycle,
             "start": self.start.to_dict(), "end": self.end.to_dict(),
             "campaign_label": self.campaign_label, "pending": self.pending,
+            "declared_campaign": self.declared_campaign,
             "planned_start": self.planned_start.isoformat() if self.planned_start else None,
             "planned_end": self.planned_end.isoformat() if self.planned_end else None,
         }
@@ -269,6 +294,7 @@ def resolve_crop_cycles(
             crop_id=c.get("id"), role=r["role"], species=_value(c.get("species")), status=r["status"],
             lifecycle=lc if lc in (_ANNUAL, _PERENNIAL) else "unknown",
             start=start, end=end, planned_start=r["ps"], planned_end=r["pe"],
+            declared_campaign=_declared_campaign(c),
         ))
 
     def is_pending(cy: CropCycle) -> bool:
@@ -294,7 +320,11 @@ def resolve_crop_cycles(
     past = [cy for cy in cycles if cy is not current and not cy.pending
             and cy.start.date and cy.start.date <= at
             and (cy.status in _CLOSED or (cy.end.date and cy.end.date < at))]
-    previous = max(past, key=lambda cy: cy.end.date or cy.start.date) if past else None
+    # A declared-only cycle is history once closed and its campaign is over.
+    past += [cy for cy in cycles if cy.declared_only and cy.status in _CLOSED
+             and cy.declared_campaign < at.year]
+    # Campaign first; within it, a dated cycle (a fact) beats a declared one.
+    previous = max(past, key=lambda cy: (cy.campaign_label, cy.end.date or cy.start.date or date.min)) if past else None
     future = [cy for cy in cycles if cy.start.date and cy.start.date > at]
     nxt = min(future, key=lambda cy: cy.start.date) if future else None
     pending_c = [cy for cy in cycles if cy.pending]
