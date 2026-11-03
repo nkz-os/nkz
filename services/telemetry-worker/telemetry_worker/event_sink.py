@@ -122,6 +122,17 @@ class PostgreSQLSink(EventSink):
         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
     """
 
+    # Chunk of telemetry_events that covers an instant (for late data, see _insert_one).
+    CHUNK_AT_SQL = """
+        SELECT format('%I.%I', chunk_schema, chunk_name)
+        FROM timescaledb_information.chunks
+        WHERE hypertable_name = 'telemetry_events'
+          AND is_compressed
+          AND range_start <= $1 AND range_end > $1
+        LIMIT 1
+    """
+    DECOMPRESS_SQL = "SELECT decompress_chunk($1::regclass, if_compressed => true)"
+
     COLUMNS = [
         "tenant_id",
         "observed_at",
@@ -162,21 +173,44 @@ class PostgreSQLSink(EventSink):
             logger.info("PostgreSQLSink pool closed")
 
     async def write(self, event: TelemetryEvent) -> None:
-        """Persist a single event using a prepared statement."""
+        """Persist a single event; a record that cannot be stored is dead-lettered."""
         if not self._pool:
             raise RuntimeError("PostgreSQLSink not started")
 
+        record = event.as_tuple()
         async with self._pool.acquire() as conn:
-            await conn.execute(
-                self.INSERT_SQL,
-                event.tenant_id,
-                event.observed_at,
-                event.device_id,
-                event.entity_id,
-                event.entity_type,
-                json.dumps(event.payload),
-                event.quality_flag,
+            try:
+                await self._insert_one(conn, record, event)
+            except Exception as insert_err:
+                logger.warning(
+                    "Telemetry record not stored (entity_id=%s, device_id=%s, tenant_id=%s): %s - dead-lettering",
+                    event.entity_id, event.device_id, event.tenant_id, insert_err,
+                )
+                await self._dead_letter(conn, record, str(insert_err), event)
+
+    async def _insert_one(self, conn: asyncpg.Connection, record: tuple, event: TelemetryEvent) -> None:
+        """
+        INSERT one record. Late data (a lab sample dated weeks ago) can fall in a chunk
+        the compression policy already compressed; before TimescaleDB 2.11 inserting
+        there fails on hypertables with a primary key. Then the chunk covering the
+        event time is decompressed and the insert retried once; the compression
+        policy recompresses the chunk on its next run. Anything else raises.
+        """
+        try:
+            await conn.execute(self.INSERT_SQL, *record)
+            return
+        except asyncpg.exceptions.FeatureNotSupportedError as err:
+            if "compressed chunk" not in str(err):
+                raise
+            chunk = await conn.fetchval(self.CHUNK_AT_SQL, event.observed_at)
+            if not chunk:
+                raise
+            logger.warning(
+                "Decompressing chunk %s for late telemetry (entity_id=%s, tenant_id=%s, observed_at=%s)",
+                chunk, event.entity_id, event.tenant_id, event.observed_at.isoformat(),
             )
+            await conn.execute(self.DECOMPRESS_SQL, chunk)
+        await conn.execute(self.INSERT_SQL, *record)
 
     async def write_batch(self, events: List[TelemetryEvent]) -> None:
         """
@@ -210,7 +244,7 @@ class PostgreSQLSink(EventSink):
                 dlq_count = 0
                 for event, record in zip(events, records):
                     try:
-                        await conn.execute(self.INSERT_SQL, *record)
+                        await self._insert_one(conn, record, event)
                     except Exception as insert_err:
                         logger.warning(
                             "Poison telemetry record (entity_id=%s, device_id=%s, "
