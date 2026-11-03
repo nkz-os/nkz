@@ -69,3 +69,5 @@ tailscale.com
 traefik.io
 w3.org
 wmo.int
+opengis.net
+topografix.com
