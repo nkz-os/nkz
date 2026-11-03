@@ -2987,6 +2987,13 @@ def proxy_vector_sync_requests():
 
     target_url = f"{ENTITY_MANAGER_URL}/api/core/sync/vectorial"
     headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
+    if KEYCLOAK_AUTH_AVAILABLE:
+        try:
+            signature = generate_hmac_signature(token, tenant)
+            if signature:
+                headers["X-Auth-Signature"] = signature
+        except Exception as e:
+            logger.warning(f"Failed to generate HMAC signature for vector-sync: {e}")
 
     try:
         if request.method == "GET":
