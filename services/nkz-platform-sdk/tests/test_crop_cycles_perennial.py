@@ -154,3 +154,69 @@ def test_sowing_with_hasAgriCrop_wins_over_nearest_window():
     by = {c["crop_id"]: c for c in t["cycles"]}
     assert by[b["id"]]["start"] == {"date": day, "provenance": "actual"}
     assert by[a["id"]]["start"]["provenance"] == "planned"
+
+
+VINE = crop("v", cropRole="main_crop", cropLifecycle="perennial", status="active",
+            plantingDate="2000-01-01", plantingDateSource="manual", species="VITVI")
+
+
+def _campaigns(ops_, crops=None, at=date(2027, 2, 1)):
+    t = tl(crops or [OLIVE], ops_, at=at)
+    return t, [(c["label"], c["display"], len(c["harvests"])) for c in t["current"]["harvest_campaigns"]]
+
+
+def test_harvest_campaign_crosses_new_year():
+    t, hc = _campaigns([op("a", "harvesting", "2026-12-31"), op("b", "harvesting", "2027-01-02")])
+    assert hc == [(2026, "2026/27", 2)]
+    assert t["current_harvest_campaign"]["label"] == 2026
+
+
+def test_three_harvests_one_winter_one_campaign():
+    _, hc = _campaigns([op("a", "harvesting", "2026-11-10"), op("b", "harvesting", "2026-12-15"),
+                        op("c", "harvesting", "2027-01-20")])
+    assert hc == [(2026, "2026/27", 3)]
+
+
+def test_two_winters_two_campaigns():
+    t, hc = _campaigns([op("a", "harvesting", "2025-11-20"), op("b", "harvesting", "2026-11-20")],
+                       at=date(2026, 12, 1))
+    assert [c[0] for c in hc] == [2025, 2026]
+    assert t["current_harvest_campaign"]["label"] == 2026
+
+
+def test_single_month_campaign_display():
+    _, hc = _campaigns([op("a", "harvesting", "2026-09-15")], crops=[VINE], at=date(2026, 10, 1))
+    assert hc == [(2026, "2026", 1)]
+
+
+def test_in_campaign_perennial_alive_years():
+    cy = resolve_crop_cycles(P, [OLIVE], [], date(2026, 6, 1)).current
+    assert cy.in_campaign(2000) and cy.in_campaign(2026) and not cy.in_campaign(1999)
+
+
+def test_in_campaign_perennial_stops_after_uprooting():
+    cy = resolve_crop_cycles(P, [OLIVE], [op("u", "tillage", "2026-03-01", tillageType="uprooting")], date(2026, 6, 1)).previous
+    assert cy.in_campaign(2026) and not cy.in_campaign(2027)
+
+
+def test_in_campaign_annual_unchanged():
+    wheat = crop("w", status="harvested", plantingDate="2025-10-20", harvestDate="2026-07-01",
+                 plantingDateSource="manual")
+    cy = resolve_crop_cycles(P, [wheat], [], date(2026, 9, 1)).previous
+    assert cy.in_campaign(2026) and not cy.in_campaign(2025)
+
+
+def test_annual_to_dict_has_empty_harvest_campaigns():
+    wheat = crop("w", status="harvested", plantingDate="2025-10-20", harvestDate="2026-07-01",
+                 plantingDateSource="manual")
+    t = tl([wheat], at=date(2026, 9, 1))
+    d = t["previous"]
+    assert d["harvests"] == [] and d["harvest_campaigns"] == []
+    assert t["current_harvest_campaign"] is None
+
+
+def test_declared_campaign_coexists():
+    c = crop("d", cropRole="main_crop", cropLifecycle="perennial", status="active",
+             **{"nkz:declaredCampaign": 2024})
+    cy = resolve_crop_cycles(P, [c], [], AT).to_dict()["cycles"][0]
+    assert cy["campaign_label"] == 2024 and cy["harvest_campaigns"] == []

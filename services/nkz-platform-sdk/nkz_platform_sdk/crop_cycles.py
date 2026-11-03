@@ -6,7 +6,9 @@ termination. Every boundary carries its provenance: what was done in the field
 (``planned``). The campaign is the calendar year; a cycle belongs to the
 campaign of the year it ends in. A past crop a farmer declared with only its
 campaign (``declaredCampaign``, no dates) is a closed cycle of that campaign:
-it counts as history, never as current, next or pending. Pure function: no
+it counts as history, never as current, next or pending. A perennial cycle runs
+from planting to uprooting; its harvests are yearly events grouped into harvest
+campaigns labelled by the year the harvest starts. Pure function: no
 I/O, deterministic.
 """
 from __future__ import annotations
@@ -29,6 +31,8 @@ _TERMINABLE_ROLES = frozenset({"cover_crop", "catch_crop"})
 _PERENNIAL, _ANNUAL = "perennial", "annual"
 # field-operations tillageType that pulls a perennial stand out: the only thing that closes it.
 UPROOTING = "uprooting"
+# A gap longer than this between two harvests of a perennial starts a new campaign.
+HARVEST_CAMPAIGN_GAP_DAYS = 120
 # Producers write ``nkz:declaredCampaign``; Orion returns the expanded IRI.
 _DECLARED_CAMPAIGN_TERMS = ("https://nkz-os.org/ns/declaredCampaign", "nkz:declaredCampaign", "declaredCampaign")
 
@@ -83,6 +87,25 @@ class Boundary:
 
 
 @dataclass(frozen=True)
+class HarvestCampaign:
+    """Harvests of a perennial separated by less than HARVEST_CAMPAIGN_GAP_DAYS."""
+    label: int
+    first: date
+    last: date
+    harvests: tuple = ()
+
+    @property
+    def display(self) -> str:
+        if self.last.year > self.label:
+            return f"{self.label}/{(self.label + 1) % 100:02d}"
+        return str(self.label)
+
+    def to_dict(self) -> dict:
+        return {"label": self.label, "first": self.first.isoformat(), "last": self.last.isoformat(),
+                "display": self.display, "harvests": [dict(h) for h in self.harvests]}
+
+
+@dataclass(frozen=True)
 class CropCycle:
     crop_id: str
     role: str
@@ -123,6 +146,26 @@ class CropCycle:
             return self.start.date.year + 1
         return self.start.date.year
 
+    @property
+    def harvest_campaigns(self) -> tuple[HarvestCampaign, ...]:
+        groups: list[list[tuple[date, dict]]] = []
+        for h in self.harvests:
+            d = date.fromisoformat(h["date"])
+            if groups and (d - groups[-1][-1][0]).days <= HARVEST_CAMPAIGN_GAP_DAYS:
+                groups[-1].append((d, h))
+            else:
+                groups.append([(d, h)])
+        return tuple(HarvestCampaign(label=g[0][0].year, first=g[0][0], last=g[-1][0],
+                                     harvests=tuple(h for _, h in g)) for g in groups)
+
+    def in_campaign(self, year: int) -> bool:
+        """Perennial: alive in that year (planted by it, not uprooted before it).
+        Any other cycle: its campaign label is that year."""
+        if self.lifecycle == _PERENNIAL:
+            s, e = self.start.date, self.end.date
+            return bool(s) and s.year <= year and (e is None or e.year >= year)
+        return self.campaign_label == year
+
     def to_dict(self) -> dict:
         out = {
             "crop_id": self.crop_id, "role": self.role, "species": self.species,
@@ -134,6 +177,7 @@ class CropCycle:
             "planned_end": self.planned_end.isoformat() if self.planned_end else None,
         }
         out["harvests"] = [dict(h) for h in self.harvests]
+        out["harvest_campaigns"] = [c.to_dict() for c in self.harvest_campaigns]
         return out
 
 
@@ -163,6 +207,9 @@ class CropCycleTimeline:
                          "end": self.campaign_end.isoformat()},
             "current": c(self.current), "previous": c(self.previous), "next": c(self.next),
             "pending": c(self.pending),
+            "current_harvest_campaign": (
+                self.current.harvest_campaigns[-1].to_dict()
+                if self.current and self.current.harvest_campaigns else None),
             "accumulation": {"start": self.accumulation_start.isoformat(), "basis": self.accumulation_basis},
             "cycles": [cy.to_dict() for cy in sorted(self.cycles, key=lambda cy: cy.start.date or date.min)],
             "unassigned_operations": list(self.unassigned), "hints": list(self.hints),
