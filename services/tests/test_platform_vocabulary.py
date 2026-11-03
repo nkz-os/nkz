@@ -89,6 +89,7 @@ WRITTEN_TYPES = [
     "WaterStorage", "OpenChannelFlow", "AgriCropDeclaration", "SigpacEnclosure",
     "AgriPest", "AgriFertilize", "Alert",
     "Device", "DeviceMeasurement", "ManufacturingMachine", "WaterQualityObserved",
+    "AgriPlant", "AgriPlantSample", "AgriSoilSample",
 ]
 
 
@@ -348,3 +349,45 @@ def test_every_emitted_attribute_is_in_the_context(rel_path):
         f"{rel_path} writes attributes the platform @context does not define: {missing}. "
         "They land under the default vocabulary and become invisible to context-aware reads."
     )
+
+# --- plant and soil sampling (smart-data-models/incubated#283) ---------------
+# Every attribute the sampling writers emit (plants, soil) must resolve through
+# the platform context.
+SAMPLING_TERMS = [
+    "activeLime", "ammoniumN", "analysisMethod", "boron", "bulkDensity", "calcium",
+    "canopyDiameter", "carbonates", "cec", "chloride", "clay", "coarseFragments",
+    "copper", "dateAnalysed", "datePlanted", "dateSampled", "dateZoned", "depthFrom",
+    "depthTo", "electricalConductivity", "hasAgriManagementZone", "hasAgriPlant", "hasAgriPlantReplacement", "height",
+    "iron", "laboratory", "magnesium", "manganese", "nitrateN", "nitrogen",
+    "numberOfSubsamples", "organicCarbon", "organicMatter", "otherResults", "penetrationResistance", "phenologicalStage",
+    "phosphorus", "phosphorusAvailable", "phosphorusMethod", "plantCode", "plantStatus", "plantTissue",
+    "positionInRow", "potassium", "potassiumExchangeable", "potassiumMethod", "rowNumber", "sampleCode",
+    "sand", "silt", "sodium", "soilPh", "sulphur", "totalNitrogen",
+    "trunkPerimeter", "trunkPerimeterHeight", "zinc", "zoneLabel", "zoningMethod",
+]
+
+SAMPLING_RELATIONSHIPS = ["hasAgriPlant", "hasAgriPlantReplacement", "hasAgriManagementZone"]
+
+# vegetation already stores these under the default vocabulary. Orion never
+# re-expands a stored attribute or type, so declaring them before the zone
+# entities are rewritten would hide existing zones (false zero on type queries)
+# and make these attributes unreadable by name. They are declared together with
+# that rewrite, not before.
+UNDECLARED_UNTIL_ZONE_MIGRATION = [
+    "AgriManagementZone", "zoneClass", "meanValue", "zoningRunId", "variableAttribute",
+]
+
+
+@pytest.mark.parametrize("term", SAMPLING_TERMS)
+def test_sampling_term_is_defined(ctx, term):
+    assert term in ctx
+
+
+@pytest.mark.parametrize("term", SAMPLING_RELATIONSHIPS)
+def test_sampling_relationships_are_id_typed(ctx, term):
+    assert isinstance(ctx[term], dict) and ctx[term].get("@type") == "@id"
+
+
+@pytest.mark.parametrize("term", UNDECLARED_UNTIL_ZONE_MIGRATION)
+def test_legacy_zone_terms_stay_undeclared(ctx, term):
+    assert term not in ctx
