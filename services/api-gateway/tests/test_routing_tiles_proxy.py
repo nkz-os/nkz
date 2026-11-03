@@ -33,6 +33,7 @@ def test_tiles_proxy_targets_module_prefix(monkeypatch):
     assert "nkz-module-gis-routing/tiles" not in captured["url"]
     assert captured["params"]["parcel_id"] == "parcel.pmtiles"
     assert captured["headers"]["X-Tenant-ID"] == "acmefarm"
+    assert captured["headers"]["X-Auth-Signature"] == "sig123"
 
 
 def test_tiles_proxy_rejects_path_traversal(monkeypatch):

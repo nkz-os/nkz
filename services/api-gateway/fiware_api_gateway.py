@@ -3037,6 +3037,13 @@ def proxy_routing_tiles(subpath):
     req_params = dict(request.args)
     req_params["parcel_id"] = subpath
     headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
+    if KEYCLOAK_AUTH_AVAILABLE:
+        try:
+            signature = generate_hmac_signature(token, tenant)
+            if signature:
+                headers["X-Auth-Signature"] = signature
+        except Exception as e:
+            logger.warning(f"Failed to generate HMAC signature for routing-tiles: {e}")
     try:
         response = requests.get(
             target_url, headers=headers, params=req_params, timeout=120
