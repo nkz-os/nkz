@@ -96,3 +96,22 @@ def test_dated_cycle_to_dict_unchanged_but_new_key():
         "campaign_label": 2025, "pending": False, "declared_campaign": None,
         "planned_start": None, "planned_end": "2025-07-10",
     }
+
+
+def test_dated_only_previous_keeps_end_or_start_date_rule():
+    wheat = crop("w", status="harvested", plantingDate="2025-10-20", plantingDateSource="manual")
+    catch = crop("c", status="harvested", cropRole="catch_crop", plantingDate="2025-08-20",
+                 harvestDate="2025-11-10", plantingDateSource="manual")
+    assert wheat and tl([wheat, catch]).previous.crop_id.endswith(":c")
+
+
+def test_declared_later_than_dated_wins():
+    dated = crop("d", status="harvested", plantingDate="2023-10-20", harvestDate="2024-07-10",
+                 plantingDateSource="manual")
+    assert tl([dated, declared("a", 2025)]).previous.crop_id.endswith(":a")
+
+
+def test_dated_same_campaign_as_declared_wins():
+    dated = crop("d", status="harvested", plantingDate="2024-10-20", harvestDate="2025-07-10",
+                 plantingDateSource="manual")
+    assert tl([declared("a", 2025), dated]).previous.crop_id.endswith(":d")

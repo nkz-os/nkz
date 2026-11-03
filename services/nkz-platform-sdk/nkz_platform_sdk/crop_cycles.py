@@ -320,11 +320,20 @@ def resolve_crop_cycles(
     past = [cy for cy in cycles if cy is not current and not cy.pending
             and cy.start.date and cy.start.date <= at
             and (cy.status in _CLOSED or (cy.end.date and cy.end.date < at))]
+    # Dated cycles resolve exactly as before declared campaigns existed.
+    dated_prev = max(past, key=lambda cy: cy.end.date or cy.start.date) if past else None
     # A declared-only cycle is history once closed and its campaign is over.
-    past += [cy for cy in cycles if cy.declared_only and cy.status in _CLOSED
-             and cy.declared_campaign < at.year]
-    # Campaign first; within it, a dated cycle (a fact) beats a declared one.
-    previous = max(past, key=lambda cy: (cy.campaign_label, cy.end.date or cy.start.date or date.min)) if past else None
+    # Same-campaign ties keep the first listed. A dated cycle with its own
+    # declaredCampaign keeps its dates label; a declared-only cycle that is not
+    # closed is never past.
+    declared_past = [cy for cy in cycles if cy.declared_only and cy.status in _CLOSED
+                     and cy.declared_campaign < at.year]
+    declared_prev = max(declared_past, key=lambda cy: cy.declared_campaign) if declared_past else None
+    # Facts beat declarations: a declared campaign wins only if strictly later.
+    if declared_prev and (dated_prev is None or declared_prev.campaign_label > dated_prev.campaign_label):
+        previous = declared_prev
+    else:
+        previous = dated_prev
     future = [cy for cy in cycles if cy.start.date and cy.start.date > at]
     nxt = min(future, key=lambda cy: cy.start.date) if future else None
     pending_c = [cy for cy in cycles if cy.pending]
