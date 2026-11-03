@@ -2987,6 +2987,13 @@ def proxy_vector_sync_requests():
 
     target_url = f"{ENTITY_MANAGER_URL}/api/core/sync/vectorial"
     headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
+    if KEYCLOAK_AUTH_AVAILABLE:
+        try:
+            signature = generate_hmac_signature(token, tenant)
+            if signature:
+                headers["X-Auth-Signature"] = signature
+        except Exception as e:
+            logger.warning(f"Failed to generate HMAC signature for vector-sync: {e}")
 
     try:
         if request.method == "GET":
@@ -3024,12 +3031,19 @@ def proxy_routing_tiles(subpath):
     tenant = extract_tenant_id(payload)
     if not tenant:
         return jsonify({"error": "Tenant not present in token"}), 401
-    target_url = (
-        "http://nkz-module-gis-routing-service:8000/api/nkz-module-gis-routing/tiles"
-    )
+    if not subpath or ".." in subpath or "/" in subpath:
+        return jsonify({"error": "Invalid tile path"}), 400
+    target_url = f"{ROUTING_API_URL}/api/routing/tiles"
     req_params = dict(request.args)
     req_params["parcel_id"] = subpath
     headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant}
+    if KEYCLOAK_AUTH_AVAILABLE:
+        try:
+            signature = generate_hmac_signature(token, tenant)
+            if signature:
+                headers["X-Auth-Signature"] = signature
+        except Exception as e:
+            logger.warning(f"Failed to generate HMAC signature for routing-tiles: {e}")
     try:
         response = requests.get(
             target_url, headers=headers, params=req_params, timeout=120
