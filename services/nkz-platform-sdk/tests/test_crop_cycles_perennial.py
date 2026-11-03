@@ -70,7 +70,7 @@ def test_harvest_under_cover_goes_to_perennial():
     olive = next(c for c in t["cycles"] if c["crop_id"].endswith(":o"))
     cov = next(c for c in t["cycles"] if c["crop_id"].endswith(":c"))
     assert len(olive["harvests"]) == 1 and olive["end"]["date"] is None
-    assert "harvests" not in cov  # only perennials carry the key
+    assert cov["harvests"] == []
     assert cov["end"] == {"date": "2027-03-01", "provenance": "actual"}
 
 
@@ -118,3 +118,11 @@ def test_scouting_and_unknown_ops_ignored():
     t = tl([OLIVE], ops, at=date(2026, 12, 1))
     assert t["current"]["harvests"] == [] and t["current"]["end"]["date"] is None
     assert t["unassigned_operations"] == []
+
+
+def test_annual_cycle_to_dict_has_empty_harvests():
+    wheat = crop("w", cropLifecycle="annual", status="active", plantingDate="2026-03-01",
+                 plantingDateSource="manual", harvestDate="2026-07-01")
+    t = tl([wheat], [op("h1", "harvesting", "2026-07-01")], at=date(2026, 5, 1))
+    assert t["current"]["harvests"] == []
+    assert t["current"]["end"] == {"date": "2026-07-01", "provenance": "actual"}

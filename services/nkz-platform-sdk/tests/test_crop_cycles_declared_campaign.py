@@ -105,7 +105,7 @@ def test_dated_cycle_to_dict_unchanged_but_new_key():
         "start": {"date": "2024-10-20", "provenance": "declared"},
         "end": {"date": "2025-07-10", "provenance": "planned"},
         "campaign_label": 2025, "pending": False, "declared_campaign": None,
-        "planned_start": None, "planned_end": "2025-07-10",
+        "planned_start": None, "planned_end": "2025-07-10", "harvests": [],
     }
 
 

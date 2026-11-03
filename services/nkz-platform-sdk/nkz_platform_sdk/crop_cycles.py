@@ -133,9 +133,7 @@ class CropCycle:
             "planned_start": self.planned_start.isoformat() if self.planned_start else None,
             "planned_end": self.planned_end.isoformat() if self.planned_end else None,
         }
-        # Only perennials carry the key: the dict of every other cycle stays as it was.
-        if self.lifecycle == _PERENNIAL:
-            out["harvests"] = [dict(h) for h in self.harvests]
+        out["harvests"] = [dict(h) for h in self.harvests]
         return out
 
 
