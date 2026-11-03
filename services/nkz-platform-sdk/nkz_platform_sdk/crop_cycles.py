@@ -20,6 +20,9 @@ ASSIGN_TOLERANCE_DAYS = 60
 _CLOSED = {"harvested", "terminated"}
 _EXCLUDED = {"cancelled"}
 _FACTS = ("actual", "declared")  # a sowing that happened (field op) or a person stated
+# A campaign is over from this month of its own year: the same rollover the
+# planning screens use to move on to the next campaign.
+DECLARED_ROLLOVER_MONTH = 7
 _AUTUMN_SOWING_MONTH = 8  # an annual sown from August on is harvested the next year
 _TERMINATING_TILLAGE = frozenset({"roller_crimper", "mowing"})  # field-operations tillageType values that end a cover
 _TERMINABLE_ROLES = frozenset({"cover_crop", "catch_crop"})
@@ -327,7 +330,8 @@ def resolve_crop_cycles(
     # declaredCampaign keeps its dates label; a declared-only cycle that is not
     # closed is never past.
     declared_past = [cy for cy in cycles if cy.declared_only and cy.status in _CLOSED
-                     and cy.declared_campaign < at.year]
+                     and (cy.declared_campaign < at.year
+                          or (cy.declared_campaign == at.year and at.month >= DECLARED_ROLLOVER_MONTH))]
     declared_prev = max(declared_past, key=lambda cy: cy.declared_campaign) if declared_past else None
     # Facts beat declarations: a declared campaign wins only if strictly later.
     if declared_prev and (dated_prev is None or declared_prev.campaign_label > dated_prev.campaign_label):

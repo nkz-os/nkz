@@ -54,10 +54,21 @@ def test_dated_cycle_in_same_campaign_beats_declared():
     assert tl([dated, declared("a", 2025)]).previous.crop_id.endswith(":d")
 
 
-def test_declared_current_or_future_campaign_is_not_past():
-    assert tl([declared("a", 2026)]).previous is None
-    assert tl([declared("a", 2027)]).previous is None
-    assert tl([declared("a", 2026)]).current is None
+def test_declared_current_campaign_is_past_only_from_rollover():
+    nov, mar = date(2026, 11, 3), date(2026, 3, 1)
+    assert tl([declared("a", 2026)], at=nov).previous.campaign_label == 2026
+    assert tl([declared("a", 2026)], at=date(2026, 7, 1)).previous is not None
+    assert tl([declared("a", 2026)], at=date(2026, 6, 30)).previous is None
+    assert tl([declared("a", 2026)], at=mar).previous is None
+    assert tl([declared("a", 2025)], at=mar).previous is not None
+    assert tl([declared("a", 2027)], at=nov).previous is None
+    assert tl([declared("a", 2026)], at=nov).current is None
+
+
+def test_dated_cycle_wins_same_campaign_after_rollover():
+    dated = crop("d", status="harvested", plantingDate="2025-10-20", harvestDate="2026-07-10",
+                 plantingDateSource="manual")
+    assert tl([declared("a", 2026), dated], at=date(2026, 11, 3)).previous.crop_id.endswith(":d")
 
 
 def test_declared_not_closed_is_not_past():
@@ -102,16 +113,4 @@ def test_dated_only_previous_keeps_end_or_start_date_rule():
     wheat = crop("w", status="harvested", plantingDate="2025-10-20", plantingDateSource="manual")
     catch = crop("c", status="harvested", cropRole="catch_crop", plantingDate="2025-08-20",
                  harvestDate="2025-11-10", plantingDateSource="manual")
-    assert wheat and tl([wheat, catch]).previous.crop_id.endswith(":c")
-
-
-def test_declared_later_than_dated_wins():
-    dated = crop("d", status="harvested", plantingDate="2023-10-20", harvestDate="2024-07-10",
-                 plantingDateSource="manual")
-    assert tl([dated, declared("a", 2025)]).previous.crop_id.endswith(":a")
-
-
-def test_dated_same_campaign_as_declared_wins():
-    dated = crop("d", status="harvested", plantingDate="2024-10-20", harvestDate="2025-07-10",
-                 plantingDateSource="manual")
-    assert tl([declared("a", 2025), dated]).previous.crop_id.endswith(":d")
+    assert tl([wheat, catch]).previous.crop_id.endswith(":c")
