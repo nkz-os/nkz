@@ -220,3 +220,44 @@ def test_declared_campaign_coexists():
              **{"nkz:declaredCampaign": 2024})
     cy = resolve_crop_cycles(P, [c], [], AT).to_dict()["cycles"][0]
     assert cy["campaign_label"] == 2024 and cy["harvest_campaigns"] == []
+
+
+def test_annual_harvest_not_taken_by_later_perennial():
+    maize = crop("m", status="harvested", plantingDate="2025-05-01", harvestDate="2025-11-01",
+                 plantingDateSource="manual", species="ZEAMX")
+    olive = crop("o2", cropRole="main_crop", cropLifecycle="perennial", status="active",
+                 plantingDate="2026-01-01", plantingDateSource="manual", species="OLVEU")
+    ops = [op("s", "sowing", "2025-05-01"), op("h", "harvesting", "2025-11-15")]
+    resolved = resolve_crop_cycles(P, [maize, olive], ops, date(2026, 3, 1))
+    m = next(c for c in resolved.cycles if c.crop_id.endswith(":m"))
+    assert m.end.date == date(2025, 11, 15) and m.end.provenance == "actual"
+    assert resolved.unassigned == ()
+
+
+def test_replant_harvest_and_uprooting_go_to_old_stand():
+    o1 = crop("o1", cropRole="main_crop", cropLifecycle="perennial", status="active",
+              plantingDate="2000-01-01", plantingDateSource="manual", species="OLVEU")
+    o2 = crop("o2", cropRole="main_crop", cropLifecycle="perennial", status="active",
+              plantingDate="2027-04-01", plantingDateSource="manual", species="OLVEU")
+    ops = [op("h", "harvesting", "2027-02-20"), op("u", "tillage", "2027-03-10", tillageType="uprooting")]
+    resolved = resolve_crop_cycles(P, [o1, o2], ops, date(2027, 6, 1))
+    old = next(c for c in resolved.cycles if c.crop_id.endswith(":o1"))
+    assert [h["date"] for h in old.harvests] == ["2027-02-20"]
+    assert old.end.date == date(2027, 3, 10) and old.end.provenance == "actual"
+    assert resolved.unassigned == ()
+
+
+def test_campaign_gap_boundary_120_vs_121_days():
+    _, hc = _campaigns([op("a", "harvesting", "2026-11-20"), op("b", "harvesting", "2027-03-20")],
+                       at=date(2027, 4, 1))
+    assert hc == [(2026, "2026/27", 2)]
+    _, hc = _campaigns([op("a", "harvesting", "2026-11-20"), op("b", "harvesting", "2027-03-21")],
+                       at=date(2027, 4, 1))
+    assert [c[0] for c in hc] == [2026, 2027] and len(hc) == 2
+
+
+def test_in_campaign_declared_only_perennial_uses_label():
+    c = crop("d", cropRole="main_crop", cropLifecycle="perennial", status="active",
+             **{"nkz:declaredCampaign": 2024})
+    cy = resolve_crop_cycles(P, [c], [], AT).cycles[0]
+    assert cy.start.date is None and cy.in_campaign(2024) and not cy.in_campaign(2025)

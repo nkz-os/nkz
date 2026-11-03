@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **SDK 0.15.0**: a perennial's harvests are grouped into harvest campaigns (`harvest_campaigns`, `current_harvest_campaign`) and `CropCycle.in_campaign(year)` is added.
+- **SDK 0.15.0**: a perennial's harvests are grouped into harvest campaigns (`harvest_campaigns`, `current_harvest_campaign`) and `CropCycle.in_campaign(year)` is added. Every cycle now carries a `harvests` key; `UPROOTING`, `HARVEST_CAMPAIGN_GAP_DAYS` and `HarvestCampaign` are exported. A perennial's `harvestDate` is no longer a planned end of the stand. A `hasAgriCrop`/`refAgriCrop` on an operation now overrides the window match for annual crops too.
 - **SDK 0.14.0**: a crop declared with only a campaign (`declaredCampaign`, no dates) counts as past history in `resolve_crop_cycles` once closed and its campaign is over (earlier years, or the same year from July).
 - **SDK 0.13.1**: `update_entity_attrs` raises on a 207 (attributes not updated) in both clients.
 

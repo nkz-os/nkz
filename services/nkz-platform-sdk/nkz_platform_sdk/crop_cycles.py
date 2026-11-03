@@ -88,7 +88,7 @@ class Boundary:
 
 @dataclass(frozen=True)
 class HarvestCampaign:
-    """Harvests of a perennial separated by less than HARVEST_CAMPAIGN_GAP_DAYS."""
+    """Harvests of a perennial separated by at most HARVEST_CAMPAIGN_GAP_DAYS (≤ 120 days)."""
     label: int
     first: date
     last: date
@@ -163,6 +163,8 @@ class CropCycle:
         Any other cycle: its campaign label is that year."""
         if self.lifecycle == _PERENNIAL:
             s, e = self.start.date, self.end.date
+            if s is None:  # declared only: matched by its declared campaign
+                return self.campaign_label == year
             return bool(s) and s.year <= year and (e is None or e.year >= year)
         return self.campaign_label == year
 
@@ -243,11 +245,11 @@ def _window_contains(ps: date | None, pe: date | None, d: date) -> bool:
     return lo <= d <= hi
 
 
-def _perennial_window(start: date | None, pe: date | None, d: date) -> bool:
+def _perennial_window(start: date | None, pe: date | None, d: date, tolerance: int = ASSIGN_TOLERANCE_DAYS) -> bool:
     """A perennial lives from its planting on (no fixed season around it): an
     operation belongs to it from planting minus the tolerance until its planned
     end plus the tolerance, or without end limit when none is planned."""
-    if start is None or d < start - timedelta(days=ASSIGN_TOLERANCE_DAYS):
+    if start is None or d < start - timedelta(days=tolerance):
         return False
     return pe is None or d <= pe + timedelta(days=ASSIGN_TOLERANCE_DAYS)
 
@@ -330,7 +332,9 @@ def resolve_crop_cycles(
                 # A stand uprooted before this harvest has no harvest after it.
                 if is_harvest and r["ends"] and when > min(e for e, _o in r["ends"]):
                     return False
-                return _perennial_window(r["ps"] or r["planting"], r["pe"], when)
+                # A harvest never precedes its stand's planting: no negative tolerance.
+                return _perennial_window(r["ps"] or r["planting"], r["pe"], when,
+                                         0 if is_harvest else ASSIGN_TOLERANCE_DAYS)
             return _window_contains(r["ps"] or r["planting"], r["pe"], when)
 
         cands = [r for r in raw if in_window(r)]
@@ -346,7 +350,10 @@ def resolve_crop_cycles(
         target = _first(o, "hasAgriCrop", "refAgriCrop")
         best = next((r for r in cands if target and r["c"].get("id") == target), None)
         if best is None and (is_harvest or is_uprooting):
-            stands = [r for r in cands if r["lifecycle"] == _PERENNIAL and r["role"] == "main_crop"]
+            # Only stands alive that day: planted by then and not uprooted before.
+            stands = [r for r in cands if r["lifecycle"] == _PERENNIAL and r["role"] == "main_crop"
+                      and (r["ps"] or r["planting"]) is not None and (r["ps"] or r["planting"]) <= d
+                      and not (r["ends"] and d > min(e for e, _o in r["ends"]))]
             if stands:  # a harvest under a cover crop is the olive's, not the cover's
                 best = max(stands, key=lambda r: r["ps"] or r["planting"])
         if best is None:
