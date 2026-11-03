@@ -186,7 +186,18 @@ def test_two_winters_two_campaigns():
 
 def test_single_month_campaign_display():
     _, hc = _campaigns([op("a", "harvesting", "2026-09-15")], crops=[VINE], at=date(2026, 10, 1))
-    assert hc == [(2026, "2026", 1)]
+    assert hc == [(2026, "2026/27", 1)]
+
+
+def test_campaign_display_before_any_january_harvest():
+    _, hc = _campaigns([op("a", "harvesting", "2025-11-20"), op("b", "harvesting", "2025-12-10")],
+                       at=date(2025, 12, 20))
+    assert hc == [(2025, "2025/26", 2)]
+
+
+def test_campaign_display_wraps_the_century():
+    _, hc = _campaigns([op("a", "harvesting", "2099-11-20")], at=date(2099, 12, 1))
+    assert hc[0][1] == "2099/00"
 
 
 def test_in_campaign_perennial_alive_years():

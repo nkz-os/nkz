@@ -96,9 +96,8 @@ class HarvestCampaign:
 
     @property
     def display(self) -> str:
-        if self.last.year > self.label:
-            return f"{self.label}/{(self.label + 1) % 100:02d}"
-        return str(self.label)
+        """Always "YYYY/YY": a perennial's campaign spans two years even before any January harvest."""
+        return f"{self.label}/{(self.label + 1) % 100:02d}"
 
     def to_dict(self) -> dict:
         return {"label": self.label, "first": self.first.isoformat(), "last": self.last.isoformat(),
