@@ -126,3 +126,31 @@ def test_annual_cycle_to_dict_has_empty_harvests():
     t = tl([wheat], [op("h1", "harvesting", "2026-07-01")], at=date(2026, 5, 1))
     assert t["current"]["harvests"] == []
     assert t["current"]["end"] == {"date": "2026-07-01", "provenance": "actual"}
+
+
+UPROOT = op("u1", "tillage", "2027-03-10", tillageType="uprooting")
+
+
+def test_harvest_after_uprooting_not_assigned_to_stand():
+    t = tl([OLIVE], [op("h0", "harvesting", "2026-11-20"), UPROOT, op("h1", "harvesting", "2027-11-20")],
+           at=date(2027, 12, 1))
+    assert [h["id"] for h in t["previous"]["harvests"]] == ["urn:ngsi-ld:AgriParcelOperation:h0"]
+    assert [u["id"] for u in t["unassigned_operations"]] == [H1]
+
+
+def test_harvest_after_uprooting_is_order_independent():
+    ops = [op("h1", "harvesting", "2027-11-20"), UPROOT]  # harvest listed before the uprooting
+    t = tl([OLIVE], ops, at=date(2027, 12, 1))
+    assert t["previous"]["harvests"] == []
+    assert t["previous"]["end"] == {"date": "2027-03-10", "provenance": "actual"}
+    assert [u["id"] for u in t["unassigned_operations"]] == [H1]
+
+
+def test_sowing_with_hasAgriCrop_wins_over_nearest_window():
+    a = crop("a", cropLifecycle="annual", status="active", plantingDate="2026-03-01", harvestDate="2026-08-01")
+    b = crop("b", cropLifecycle="annual", status="active", plantingDate="2026-04-20", harvestDate="2026-09-01")
+    day = "2026-03-05"  # nearest to a's planned start, inside both windows
+    t = tl([a, b], [op("s1", "sowing", day, hasAgriCrop=b["id"])], at=date(2026, 6, 1))
+    by = {c["crop_id"]: c for c in t["cycles"]}
+    assert by[b["id"]]["start"] == {"date": day, "provenance": "actual"}
+    assert by[a["id"]]["start"]["provenance"] == "planned"

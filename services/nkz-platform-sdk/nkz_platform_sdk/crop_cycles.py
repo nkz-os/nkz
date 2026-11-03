@@ -255,7 +255,9 @@ def resolve_crop_cycles(
                     "starts": [], "ends": [], "harvests": []})
 
     unassigned, hints = [], []
-    for o in operations:
+    # Harvests are resolved last: whether a stand was already uprooted must not
+    # depend on the order the operations arrive in.
+    for o in sorted(operations, key=lambda x: _value(x.get("operationType")) == "harvesting"):
         if not _belongs(o, parcel_id):
             continue
         d = _as_date(o.get("endedAt")) or _as_date(o.get("startedAt"))
@@ -278,6 +280,9 @@ def resolve_crop_cycles(
 
         def in_window(r, when=d):
             if r["lifecycle"] == _PERENNIAL and (is_harvest or is_uprooting):
+                # A stand uprooted before this harvest has no harvest after it.
+                if is_harvest and r["ends"] and when > min(e for e, _o in r["ends"]):
+                    return False
                 return _perennial_window(r["ps"] or r["planting"], r["pe"], when)
             return _window_contains(r["ps"] or r["planting"], r["pe"], when)
 
