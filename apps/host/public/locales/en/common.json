@@ -1257,7 +1257,13 @@
         "near_boundary": "{{code}}: {{distance}} m outside the parcel (GPS error); kept",
         "too_close": "{{code}}: {{distance}} m from {{other}}",
         "exists": "{{code}} already exists: it will be updated"
-      }
+      },
+      "file_label": "Or import them from a file (GPX, KML, KMZ, GeoJSON or CSV)",
+      "file_hint": "The point name (or the plantCode column) is the plant code. WGS84 coordinates.",
+      "file_unsupported": "Unsupported format: use GPX, KML, KMZ, GeoJSON or CSV.",
+      "import_confirm": "Import",
+      "import_failed": "The plants could not be imported.",
+      "imported": "{{count}} plants saved."
     },
     "line": {
       "title": "Line",

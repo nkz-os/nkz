@@ -1258,7 +1258,13 @@
         "near_boundary": "{{code}}: partzelatik {{distance}} m kanpo (GPS errorea); gordetzen da",
         "too_close": "{{code}}: {{other}}-tik {{distance}} m-ra",
         "exists": "{{code}} badago: eguneratuko da"
-      }
+      },
+      "file_label": "Edo inportatu fitxategi batetik (GPX, KML, KMZ, GeoJSON edo CSV)",
+      "file_hint": "Puntuaren izena (edo plantCode zutabea) da landarearen kodea. WGS84 koordenatuak.",
+      "file_unsupported": "Formatu ez onartua: erabili GPX, KML, KMZ, GeoJSON edo CSV.",
+      "import_confirm": "Inportatu",
+      "import_failed": "Ezin izan dira landareak inportatu.",
+      "imported": "{{count}} landare gordeta."
     },
     "line": {
       "title": "Lerroa",

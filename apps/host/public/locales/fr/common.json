@@ -1281,7 +1281,13 @@
         "near_boundary": "{{code}} : {{distance}} m hors de la parcelle (erreur GPS) ; conservée",
         "too_close": "{{code}} : à {{distance}} m de {{other}}",
         "exists": "{{code}} existe déjà : elle sera mise à jour"
-      }
+      },
+      "file_label": "Ou importez-les depuis un fichier (GPX, KML, KMZ, GeoJSON ou CSV)",
+      "file_hint": "Le nom du point (ou la colonne plantCode) est le code de la plante. Coordonnées WGS84.",
+      "file_unsupported": "Format non pris en charge : utilisez GPX, KML, KMZ, GeoJSON ou CSV.",
+      "import_confirm": "Importer",
+      "import_failed": "Impossible d'importer les plantes.",
+      "imported": "{{count}} plantes enregistrées."
     },
     "line": {
       "title": "Ligne",

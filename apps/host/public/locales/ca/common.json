@@ -1281,7 +1281,13 @@
         "near_boundary": "{{code}}: {{distance}} m fora de la parcel·la (error de GPS); es desa",
         "too_close": "{{code}}: a {{distance}} m de {{other}}",
         "exists": "{{code}} ja existeix: s'actualitzarà"
-      }
+      },
+      "file_label": "O importa-les des d'un fitxer (GPX, KML, KMZ, GeoJSON o CSV)",
+      "file_hint": "El nom del punt (o la columna plantCode) és el codi de la planta. Coordenades WGS84.",
+      "file_unsupported": "Format no admès: fes servir GPX, KML, KMZ, GeoJSON o CSV.",
+      "import_confirm": "Importa",
+      "import_failed": "No s'han pogut importar les plantes.",
+      "imported": "{{count}} plantes desades."
     },
     "line": {
       "title": "Línia",

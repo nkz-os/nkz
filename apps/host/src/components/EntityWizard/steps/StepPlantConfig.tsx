@@ -4,6 +4,7 @@ import api from '@/services/api';
 import type { GeoAssetFormData } from '../types';
 import { Input } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
+import { PlantFileImport } from '../PlantFileImport';
 
 const PLANT_STATUS = ['alive', 'dead', 'removed', 'replaced'] as const;
 
@@ -99,6 +100,9 @@ export function StepPlantConfig() {
         </div>
       </div>
       <p className="text-xs text-nkz-text-secondary">{t('wizard.plants.hint')}</p>
+
+      {/* Alternative to placing them on the map: import a whole file at once */}
+      {data.parentEntity?.type === 'AgriParcel' && <PlantFileImport parcelId={data.parentEntity.id} />}
     </div>
   );
 }
