@@ -11,6 +11,10 @@ interface PlacementModeSelectorProps {
     entityType?: string;
 }
 
+// The wizard is a narrow side panel: one column always, and each card grows with
+// its text (the ui-kit Button's fixed height made the descriptions overlap).
+const CARD = 'h-auto w-full flex-col items-stretch justify-start whitespace-normal p-4 rounded-xl border-2 text-left transition-all relative';
+
 export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mode, onChange, entityType }) => {
     const { t } = useI18n();
 
@@ -18,12 +22,12 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
     const isVegetation = entityType && ['OliveGrove', 'Vineyard', 'AgriPlant', 'AgriTree', 'OliveTree', 'Vine'].includes(entityType);
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-3">
             {/* Single Mode */}
             <Button variant="ghost"
                 type="button"
                 onClick={() => onChange('single')}
-                className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'single'
+                className={`${CARD} ${mode === 'single'
                         ? 'border-blue-500 bg-nkz-surface-sunken shadow-sm'
                         : 'border-nkz-border hover:border-nkz-info/30 hover:bg-nkz-bg-secondary'
                     }`}
@@ -45,7 +49,7 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
             <Button variant="ghost"
                 type="button"
                 onClick={() => onChange('stamp')}
-                className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'stamp'
+                className={`${CARD} ${mode === 'stamp'
                         ? 'border-green-500 bg-nkz-surface-sunken shadow-sm'
                         : 'border-nkz-border hover:border-nkz-success/30 hover:bg-nkz-bg-secondary'
                     }`}
@@ -79,7 +83,7 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
             <Button variant="ghost"
                 type="button"
                 onClick={() => onChange('array')}
-                className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'array'
+                className={`${CARD} ${mode === 'array'
                         ? 'border-purple-500 bg-nkz-surface-sunken shadow-sm'
                         : 'border-nkz-border hover:border-nkz-info/30 hover:bg-nkz-bg-secondary'
                     }`}
@@ -107,7 +111,7 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                 <Button variant="ghost"
                     type="button"
                     onClick={() => onChange('line')}
-                    className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'line'
+                    className={`${CARD} ${mode === 'line'
                             ? 'border-green-500 bg-nkz-surface-sunken shadow-sm'
                             : 'border-nkz-border hover:border-nkz-success/30 hover:bg-nkz-bg-secondary'
                         }`}
