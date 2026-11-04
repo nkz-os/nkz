@@ -4540,8 +4540,8 @@ def bioorchestrator_proxy(path):
     return generic_proxy(BIOORCHESTRATOR_API_URL, path)
 
 
-# Agent module management API: link-tokens/links only. Deliberately NOT a
-# catch-all — the module's Telegram webhook (/api/agent/webhook/telegram)
+# Agent module management API: link-tokens, links, the tenant LLM config and
+# its usage only. Deliberately NOT a catch-all — the module's Telegram webhook (/api/agent/webhook/telegram)
 # has its own dedicated Ingress that bypasses the gateway entirely (the
 # messaging platform cannot authenticate through it), so it must stay
 # unreachable via these routes.
@@ -4561,6 +4561,24 @@ def agent_links_proxy():
 def agent_link_delete_proxy(link_id):
     """Proxy unlinking a messaging channel to the agent module backend."""
     return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/links/{link_id}")
+
+
+@app.route("/api/agent/llm-config", methods=["GET", "PUT", "DELETE"])
+def agent_llm_config_proxy():
+    """Proxy the tenant's LLM provider configuration to the agent module backend."""
+    return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/llm-config")
+
+
+@app.route("/api/agent/llm-config/test", methods=["POST"])
+def agent_llm_config_test_proxy():
+    """Proxy a test call with the tenant's saved LLM configuration."""
+    return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/llm-config/test")
+
+
+@app.route("/api/agent/usage", methods=["GET"])
+def agent_usage_proxy():
+    """Proxy the tenant's assistant usage summary to the agent module backend."""
+    return _proxy_authenticated_request(f"{AGENT_API_URL}/api/agent/usage")
 
 
 def _n8n_tenant_from_referer(referer: str) -> str:
