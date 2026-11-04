@@ -34,6 +34,9 @@ export interface PlacementState {
         height: number;
         scale: number;
         rotation: number;
+        /** 1-based grid row / position along a line (array and line modes) */
+        row?: number;
+        col?: number;
     }>;
 
     // Array Mode Data

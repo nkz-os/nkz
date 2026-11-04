@@ -19,6 +19,7 @@ export const ENTITY_TYPE_METADATA: Record<string, EntityTypeInfo> = {
   AgriParcel:               { keywords: ['parcela', 'terreno', 'finca', 'campo', 'parcel', 'field'],  macroCategory: 'assets',  icon: MapPin,     description: 'Parcela agrícola',            color: 'green'  },
   Vineyard:                 { keywords: ['viñedo', 'viña', 'uva', 'vineyard', 'grape'],               macroCategory: 'assets',  icon: Leaf,       description: 'Viñedo',                      color: 'purple' },
   OliveGrove:               { keywords: ['olivar', 'olivo', 'aceite', 'olive'],                       macroCategory: 'assets',  icon: Trees,      description: 'Olivar',                      color: 'green'  },
+  AgriPlant:                { keywords: ['planta', 'árbol', 'olivo', 'cepa', 'vid', 'frutal', 'plant', 'tree', 'vine', 'muestreo'], macroCategory: 'assets', icon: Trees, description: 'Planta individual (olivo, cepa, frutal…)', color: 'green' },
   AgriTree:                 { keywords: ['árbol', 'frutal', 'tree'],                                  macroCategory: 'assets',  icon: Trees,      description: 'Árbol individual',            color: 'green'  },
   OliveTree:                { keywords: ['olivo', 'olive tree'],                                      macroCategory: 'assets',  icon: Trees,      description: 'Olivo individual',            color: 'green'  },
   Vine:                     { keywords: ['vid', 'cepa', 'vine'],                                      macroCategory: 'assets',  icon: Leaf,       description: 'Cepa de vid',                 color: 'purple' },
@@ -77,7 +78,7 @@ export const MACRO_CATEGORIES = {
 
 export const ENTITY_CATEGORIES: Record<string, string[]> = {
   crops:             ['Vineyard', 'OliveGrove', 'AgriParcel'],
-  trees:             ['AgriTree', 'OliveTree', 'Vine', 'FruitTree'],
+  trees:             ['AgriPlant', 'AgriTree', 'OliveTree', 'Vine', 'FruitTree'],
   water:             ['WaterSource', 'Well', 'IrrigationOutlet', 'Spring', 'Pond'],
   robotics:          ['AutonomousMobileRobot', 'ManufacturingMachine'],
   sensors:           ['Device', 'WeatherObserved'],

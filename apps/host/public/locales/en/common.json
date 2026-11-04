@@ -867,7 +867,8 @@
       "LivestockFarm": "Livestock farm",
       "AutonomousMobileRobot": "Autonomous agricultural robot",
       "ManufacturingMachine": "Agricultural machinery (tractor/implement)",
-      "AgriOperation": "Agricultural operation"
+      "AgriOperation": "Agricultural operation",
+      "AgriPlant": "Individual plant"
     },
     "macro": {
       "assets": {
@@ -1222,6 +1223,41 @@
       "external_id_placeholder": "E.g.: soil_probe_1",
       "external_id_hint": "The identifier the datalogger publishes this sensor under. Letters, digits, dot, hyphen and underscore; up to 64.",
       "created_retry": "The datalogger was already created; you can retry with it. Its password can be regenerated in Settings."
+    },
+    "plants": {
+      "title": "Individual plants",
+      "intro": "Every point you place becomes one plant with its own code, row and position, linked to the parcel.",
+      "parcel": "Parcel",
+      "choose_parcel": "Choose the parcel",
+      "loading": "Loading…",
+      "code": "Code (single plant)",
+      "code_auto": "automatic",
+      "row": "Row number (line mode)",
+      "variety": "Variety",
+      "date_planted": "Planting date",
+      "status": "Status",
+      "status_alive": "Alive",
+      "status_dead": "Dead",
+      "status_removed": "Removed",
+      "status_replaced": "Replaced",
+      "hint": "Without a code one is assigned: row-position in lines and grids, or the next free number.",
+      "parcel_required": "Choose the parcel of the plants",
+      "previewing": "Checking the plants…",
+      "preview_failed": "The plants could not be checked.",
+      "preview_counts": "{{created}} will be created, {{updated}} updated and {{rejected}} left out.",
+      "rejected_item": "{{code}}: {{reason}}",
+      "reasons": {
+        "outside_parcel": "more than 10 m outside the parcel ({{distance}} m)",
+        "duplicate_code": "duplicate code",
+        "invalid_point": "invalid coordinates",
+        "invalid_value": "invalid value in {{field}}",
+        "broker_error": "could not be stored"
+      },
+      "warnings": {
+        "near_boundary": "{{code}}: {{distance}} m outside the parcel (GPS error); kept",
+        "too_close": "{{code}}: {{distance}} m from {{other}}",
+        "exists": "{{code}} already exists: it will be updated"
+      }
     }
   },
   "layout": {

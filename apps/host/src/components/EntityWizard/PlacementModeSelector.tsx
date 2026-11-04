@@ -15,7 +15,7 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
     const { t } = useI18n();
 
     // Stamp mode is only recommended for vegetation
-    const isVegetation = entityType && ['OliveGrove', 'Vineyard', 'AgriTree', 'OliveTree', 'Vine'].includes(entityType);
+    const isVegetation = entityType && ['OliveGrove', 'Vineyard', 'AgriPlant', 'AgriTree', 'OliveTree', 'Vine'].includes(entityType);
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

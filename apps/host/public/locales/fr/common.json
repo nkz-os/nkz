@@ -891,7 +891,8 @@
       "LivestockFarm": "Exploitation d'élevage",
       "AutonomousMobileRobot": "Robot agricole autonome",
       "ManufacturingMachine": "Machine agricole (tracteur/outil)",
-      "AgriOperation": "Opération agricole"
+      "AgriOperation": "Opération agricole",
+      "AgriPlant": "Plante individuelle"
     },
     "macro": {
       "assets": {
@@ -1246,6 +1247,41 @@
       "external_id_placeholder": "Ex. : sonde_sol_1",
       "external_id_hint": "L'identifiant sous lequel le datalogger publie ce capteur. Lettres, chiffres, point, tiret et tiret bas ; 64 au maximum.",
       "created_retry": "Le datalogger est déjà créé ; vous pouvez réessayer avec lui. Son mot de passe peut être régénéré dans les Paramètres."
+    },
+    "plants": {
+      "title": "Plantes individuelles",
+      "intro": "Chaque point placé devient une plante avec son propre code, rang et position, liée à la parcelle.",
+      "parcel": "Parcelle",
+      "choose_parcel": "Choisissez la parcelle",
+      "loading": "Chargement…",
+      "code": "Code (une seule plante)",
+      "code_auto": "automatique",
+      "row": "Numéro de rang (mode ligne)",
+      "variety": "Variété",
+      "date_planted": "Date de plantation",
+      "status": "État",
+      "status_alive": "Vivante",
+      "status_dead": "Morte",
+      "status_removed": "Arrachée",
+      "status_replaced": "Remplacée",
+      "hint": "Sans code, un code est attribué : rang-position en lignes et grilles, ou le prochain numéro libre.",
+      "parcel_required": "Choisissez la parcelle des plantes",
+      "previewing": "Vérification des plantes…",
+      "preview_failed": "Impossible de vérifier les plantes.",
+      "preview_counts": "{{created}} seront créées, {{updated}} mises à jour et {{rejected}} écartées.",
+      "rejected_item": "{{code}} : {{reason}}",
+      "reasons": {
+        "outside_parcel": "à plus de 10 m de la parcelle ({{distance}} m)",
+        "duplicate_code": "code en double",
+        "invalid_point": "coordonnées non valides",
+        "invalid_value": "valeur non valide dans {{field}}",
+        "broker_error": "enregistrement impossible"
+      },
+      "warnings": {
+        "near_boundary": "{{code}} : {{distance}} m hors de la parcelle (erreur GPS) ; conservée",
+        "too_close": "{{code}} : à {{distance}} m de {{other}}",
+        "exists": "{{code}} existe déjà : elle sera mise à jour"
+      }
     }
   },
   "layout": {

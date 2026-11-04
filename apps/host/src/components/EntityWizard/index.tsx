@@ -31,6 +31,7 @@ import { DataloggerRotationNotice } from './DataloggerRotationNotice';
 import { apiErrorMessage, DATALOGGER_INSTALLER_ROLES } from '@/services/dataloggersApi';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { submitGeoAsset } from './submission/submitGeoAsset';
+import { submitPlants } from './submission/plants';
 import { validateIoTConfig, validateDataloggerStep, validateGeometryStep } from './iotValidation';
 import { submitIoTSensor, type NewDataloggerResult } from './submission/submitIoTSensor';
 import { submitFleet } from './submission/submitFleet';
@@ -70,7 +71,7 @@ function StepRouter({ stepId, placementState, dispatchPlacement }: StepRouterPro
     case 'fleet-config': return <StepFleetConfig />;
     case 'geometry':    return <StepGeometry placementState={placementState} dispatchPlacement={dispatchPlacement} />;
     case 'visualization': return <StepVisualization />;
-    case 'summary':     return <StepSummary />;
+    case 'summary':     return <StepSummary placementState={placementState} />;
     default:            return null;
   }
 }
@@ -147,6 +148,12 @@ function validateStep(
       return entityType ? null : 'wizard.validation.type_required';
 
     case 'geo-config':
+      // Individual plants have no name: they need their parcel instead
+      if (entityType === 'AgriPlant') {
+        const parent = (formData as GeoAssetFormData | null)?.parentEntity;
+        return parent?.type === 'AgriParcel' ? null : 'wizard.plants.parcel_required';
+      }
+      return formData?.name.trim() ? null : 'wizard.validation.name_required';
     case 'fleet-config':
       return formData?.name.trim() ? null : 'wizard.validation.name_required';
 
@@ -236,6 +243,13 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
 
       switch (formData.macroCategory) {
         case 'assets': {
+          if (entityType === 'AgriPlant') {
+            // One AgriPlant per placed point, written by entity-manager (ids server-side)
+            await submitPlants(placementState, formData as GeoAssetFormData);
+            if (onSuccess) onSuccess();
+            onClose();
+            break;
+          }
           await submitGeoAsset(entityType, formData as GeoAssetFormData, placementState);
           if (onSuccess) onSuccess();
           onClose();

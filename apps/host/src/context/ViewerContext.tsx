@@ -52,6 +52,9 @@ export interface StampInstance {
     height: number;
     scale: number;
     rotation: number; // heading in degrees
+    /** 1-based grid row / position (array and line placement of individual plants) */
+    row?: number;
+    col?: number;
 }
 
 // Options for stamp mode

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Sprout } from 'lucide-react';
 import { useWizard } from '../WizardContext';
 import { ParentEntitySelector } from '../ParentEntitySelector';
+import { StepPlantConfig } from './StepPlantConfig';
 import api from '@/services/api';
 import type { GeoAssetFormData } from '../types';
 import { Input } from '@nekazari/ui-kit';
@@ -45,6 +46,8 @@ export function StepGeoAssetConfig() {
   }, [needsParcel]);
 
   if (!formData || formData.macroCategory !== 'assets') return null;
+  // Individual plants: their own data step (parcel required, one entity per point)
+  if (entityType === 'AgriPlant') return <StepPlantConfig />;
   const data = formData as GeoAssetFormData;
 
   const canSubdivide = SUBDIVISION_CAPABLE.has(entityType ?? '');

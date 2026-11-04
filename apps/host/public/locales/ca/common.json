@@ -891,7 +891,8 @@
       "LivestockFarm": "Explotació ramadera",
       "AutonomousMobileRobot": "Robot agrícola autònom",
       "ManufacturingMachine": "Maquinària agrícola (tractor/apero)",
-      "AgriOperation": "Operació agrícola"
+      "AgriOperation": "Operació agrícola",
+      "AgriPlant": "Planta individual"
     },
     "macro": {
       "assets": {
@@ -1246,6 +1247,41 @@
       "external_id_placeholder": "Ex.: sonda_sol_1",
       "external_id_hint": "És l'identificador amb què el datalogger publica aquest sensor. Lletres, números, punt, guionet i guionet baix; màxim 64.",
       "created_retry": "El datalogger ja s'ha creat; pots reintentar-ho amb ell. La contrasenya es pot regenerar a Ajustos."
+    },
+    "plants": {
+      "title": "Plantes individuals",
+      "intro": "Cada punt que col·loquis serà una planta amb el seu codi, fila i posició, vinculada a la parcel·la.",
+      "parcel": "Parcel·la",
+      "choose_parcel": "Tria la parcel·la",
+      "loading": "Carregant…",
+      "code": "Codi (una sola planta)",
+      "code_auto": "automàtic",
+      "row": "Número de fila (mode línia)",
+      "variety": "Varietat",
+      "date_planted": "Data de plantació",
+      "status": "Estat",
+      "status_alive": "Viva",
+      "status_dead": "Morta",
+      "status_removed": "Arrencada",
+      "status_replaced": "Reposada",
+      "hint": "Sense codi, se n'assigna un: fila-posició en línies i quadrícules, o el següent número lliure.",
+      "parcel_required": "Tria la parcel·la de les plantes",
+      "previewing": "Comprovant les plantes…",
+      "preview_failed": "No s'han pogut comprovar les plantes.",
+      "preview_counts": "Se'n crearan {{created}}, se n'actualitzaran {{updated}} i se'n descartaran {{rejected}}.",
+      "rejected_item": "{{code}}: {{reason}}",
+      "reasons": {
+        "outside_parcel": "més de 10 m fora de la parcel·la ({{distance}} m)",
+        "duplicate_code": "codi repetit",
+        "invalid_point": "coordenades no vàlides",
+        "invalid_value": "valor no vàlid a {{field}}",
+        "broker_error": "no s'ha pogut desar"
+      },
+      "warnings": {
+        "near_boundary": "{{code}}: {{distance}} m fora de la parcel·la (error de GPS); es desa",
+        "too_close": "{{code}}: a {{distance}} m de {{other}}",
+        "exists": "{{code}} ja existeix: s'actualitzarà"
+      }
     }
   },
   "layout": {

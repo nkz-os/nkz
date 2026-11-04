@@ -27,6 +27,8 @@ export interface GridPoint {
   height: number;
   scale: number;
   rotation: number; // heading = bearing
+  row: number;      // 1-based row (along `bearing`)
+  col: number;      // 1-based column
 }
 
 /**
@@ -73,7 +75,7 @@ export function generateGrid(params: GridParams): GridPoint[] {
         ? Math.floor(rand(idx + 10000) * 360)
         : bearing;
 
-      results.push({ lat, lon, height: 0, scale: instanceScale, rotation: instanceRotation });
+      results.push({ lat, lon, height: 0, scale: instanceScale, rotation: instanceRotation, row: r + 1, col: c + 1 });
     }
   }
 

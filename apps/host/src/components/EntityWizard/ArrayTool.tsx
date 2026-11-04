@@ -77,12 +77,18 @@ export const ArrayTool: React.FC<ArrayToolProps> = ({
   onInstancesChangeRef.current = onInstancesChange;
 
   useEffect(() => {
+    const gridIndex = (inst: unknown) => {
+      const { row, col } = inst as { row?: number; col?: number };
+      return typeof row === 'number' && typeof col === 'number' ? { row, col } : {};
+    };
     const formatted = stampInstances.map(inst => ({
       lat: inst.lat,
       lng: inst.lon,
       height: inst.height,
       scale: inst.scale,
       rotation: inst.rotation,
+      // grid position: individual plants keep their row and position in the row
+      ...gridIndex(inst),
     }));
     onInstancesChangeRef.current(formatted);
   }, [stampInstances]);
