@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer2, Brush, Grid3x3, AlertTriangle } from 'lucide-react';
+import { MousePointer2, Brush, Grid3x3, AlertTriangle, Spline } from 'lucide-react';
 import { Button } from '@nekazari/ui-kit';
 import { useI18n } from '@/context/I18nContext';
 
@@ -101,6 +101,28 @@ export const PlacementModeSelector: React.FC<PlacementModeSelectorProps> = ({ mo
                     </div>
                 </div>
             </Button>
+
+            {/* Line mode: a row of individual plants (vines, olives) */}
+            {entityType === 'AgriPlant' && (
+                <Button variant="ghost"
+                    type="button"
+                    onClick={() => onChange('line')}
+                    className={`p-4 rounded-xl border-2 text-left transition-all relative ${mode === 'line'
+                            ? 'border-green-500 bg-nkz-surface-sunken shadow-sm'
+                            : 'border-nkz-border hover:border-nkz-success/30 hover:bg-nkz-bg-secondary'
+                        }`}
+                >
+                    <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${mode === 'line' ? 'bg-nkz-success-soft text-nkz-success-strong' : 'bg-nkz-bg-secondary text-nkz-muted'}`}>
+                            <Spline className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <div className="font-semibold text-nkz-text-primary">{t('wizard.line.title')}</div>
+                            <p className="text-sm text-nkz-muted mt-1">{t('wizard.line.desc')}</p>
+                        </div>
+                    </div>
+                </Button>
+            )}
         </div>
     );
 };

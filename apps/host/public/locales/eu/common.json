@@ -1259,6 +1259,18 @@
         "too_close": "{{code}}: {{other}}-tik {{distance}} m-ra",
         "exists": "{{code}} badago: eguneratuko da"
       }
+    },
+    "line": {
+      "title": "Lerroa",
+      "desc": "Landare-ilara bat: markatu hasiera eta amaiera, eta landareen arteko tartea.",
+      "intro": "Markatu mapan ilararen hasiera eta amaiera. Landare bat jartzen da hainbat metroan behin.",
+      "pick_start": "Markatu hasiera",
+      "start_set": "Hasiera markatuta",
+      "pick_end": "Markatu amaiera",
+      "end_set": "Amaiera markatuta",
+      "spacing": "Landareen arteko tartea (m)",
+      "summary": "{{count}} landare {{length}} m-tan",
+      "required": "Markatu ilararen hasiera eta amaiera"
     }
   },
   "layout": {

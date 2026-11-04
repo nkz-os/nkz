@@ -1282,6 +1282,18 @@
         "too_close": "{{code}}: a {{distance}} m de {{other}}",
         "exists": "{{code}} ja existeix: s'actualitzarà"
       }
+    },
+    "line": {
+      "title": "Línia",
+      "desc": "Una fila de plantes: marca l'inici i el final, i la separació entre plantes.",
+      "intro": "Marca al mapa l'inici i el final de la fila. Es col·loca una planta cada tants metres.",
+      "pick_start": "Marca l'inici",
+      "start_set": "Inici marcat",
+      "pick_end": "Marca el final",
+      "end_set": "Final marcat",
+      "spacing": "Separació entre plantes (m)",
+      "summary": "{{count}} plantes en {{length}} m",
+      "required": "Marca l'inici i el final de la fila"
     }
   },
   "layout": {

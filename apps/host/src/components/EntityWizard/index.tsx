@@ -173,6 +173,9 @@ function validateStep(
       if (placementState.mode === 'array') {
         return placementState.stampedInstances.length > 0 ? null : 'wizard.validation.array_required';
       }
+      if (placementState.mode === 'line') {
+        return placementState.stampedInstances.length > 0 ? null : 'wizard.line.required';
+      }
       // Point geometry is optional except for a Device (fixed sensor)
       return validateGeometryStep(entityType, formData?.geometry);
 
@@ -210,7 +213,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   // Side panel mode: when interacting with the map (picking, drawing, stamping)
   // OR when on geometry step with array/stamp placement (always needs map access)
   const isGeometryWithPlacement = currentStep.id === 'geometry'
-    && (placementState.mode === 'array' || placementState.mode === 'stamp');
+    && (placementState.mode === 'array' || placementState.mode === 'stamp' || placementState.mode === 'line');
   const isMapInteractMode = isGeometryWithPlacement
     || (mapMode as string) === 'STAMP_INSTANCES'
     || (mapMode as string) === 'PREVIEW_MODEL'

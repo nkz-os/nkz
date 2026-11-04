@@ -1258,6 +1258,18 @@
         "too_close": "{{code}}: {{distance}} m from {{other}}",
         "exists": "{{code}} already exists: it will be updated"
       }
+    },
+    "line": {
+      "title": "Line",
+      "desc": "A row of plants: mark the start and the end, and the spacing between plants.",
+      "intro": "Mark the start and the end of the row on the map. A plant is placed every few metres.",
+      "pick_start": "Mark start",
+      "start_set": "Start marked",
+      "pick_end": "Mark end",
+      "end_set": "End marked",
+      "spacing": "Spacing between plants (m)",
+      "summary": "{{count}} plants over {{length}} m",
+      "required": "Mark the start and the end of the row"
     }
   },
   "layout": {

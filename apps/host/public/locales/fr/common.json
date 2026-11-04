@@ -1282,6 +1282,18 @@
         "too_close": "{{code}} : à {{distance}} m de {{other}}",
         "exists": "{{code}} existe déjà : elle sera mise à jour"
       }
+    },
+    "line": {
+      "title": "Ligne",
+      "desc": "Un rang de plantes : marquez le début, la fin et l'écartement entre plantes.",
+      "intro": "Marquez sur la carte le début et la fin du rang. Une plante est placée tous les quelques mètres.",
+      "pick_start": "Marquer le début",
+      "start_set": "Début marqué",
+      "pick_end": "Marquer la fin",
+      "end_set": "Fin marquée",
+      "spacing": "Écartement entre plantes (m)",
+      "summary": "{{count}} plantes sur {{length}} m",
+      "required": "Marquez le début et la fin du rang"
     }
   },
   "layout": {

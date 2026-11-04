@@ -1282,6 +1282,18 @@
         "too_close": "{{code}}: a {{distance}} m de {{other}}",
         "exists": "{{code}} já existe: será atualizada"
       }
+    },
+    "line": {
+      "title": "Linha",
+      "desc": "Uma linha de plantas: marque o início, o fim e o espaçamento entre plantas.",
+      "intro": "Marque no mapa o início e o fim da linha. É colocada uma planta a cada tantos metros.",
+      "pick_start": "Marcar início",
+      "start_set": "Início marcado",
+      "pick_end": "Marcar fim",
+      "end_set": "Fim marcado",
+      "spacing": "Espaçamento entre plantas (m)",
+      "summary": "{{count}} plantas em {{length}} m",
+      "required": "Marque o início e o fim da linha"
     }
   },
   "layout": {
