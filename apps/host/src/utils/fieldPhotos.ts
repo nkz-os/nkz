@@ -3,8 +3,11 @@ export type PhotoTag = (typeof PHOTO_TAGS)[number];
 
 const CATEGORY_IRI = 'https://smartdatamodels.org/dataModel.Agrifood/category';
 
+// Pre-2a records stored the tag under `tag` (compact or default-context IRI).
+const LEGACY_TAG_IRI = 'https://uri.etsi.org/ngsi-ld/default-context/tag';
+
 function parseTag(e: any): PhotoTag | null {
-  const raw = (e?.category ?? e?.[CATEGORY_IRI])?.value;
+  const raw = (e?.category ?? e?.[CATEGORY_IRI] ?? e?.tag ?? e?.[LEGACY_TAG_IRI])?.value;
   if (raw === undefined || raw === null || raw === '') return null;
   return (PHOTO_TAGS as readonly string[]).includes(raw) ? (raw as PhotoTag) : 'other';
 }
@@ -48,13 +51,13 @@ export function parseFieldPhotos(raw: unknown): FieldPhotoRecord[] {
   return out;
 }
 
-/** Keep photos whose tag is selected. `tags === null` = no filter (all, incl. untagged). */
+/** Keep photos whose tag is selected; untagged (pre-2a) photos count as `other`. `tags === null` = no filter. */
 export function photosByTag(
   photos: FieldPhotoRecord[],
   tags: ReadonlySet<PhotoTag> | null,
 ): FieldPhotoRecord[] {
   if (tags === null) return photos;
-  return photos.filter(p => p.tag !== null && tags.has(p.tag));
+  return photos.filter(p => tags.has(p.tag ?? 'other'));
 }
 
 /**

@@ -95,6 +95,19 @@ describe('photosInWindow', () => {
   });
 });
 
+describe('parseFieldPhotos legacy tag', () => {
+  const base = { imageUrl: { value: '/i.jpg' } };
+  it('reads legacy tag (compact or default-context IRI); category wins', () => {
+    const out = parseFieldPhotos([
+      { id: 'a', ...base, tag: { value: 'pest' } },
+      { id: 'b', ...base, 'https://uri.etsi.org/ngsi-ld/default-context/tag': { value: 'weed' } },
+      { id: 'c', ...base, category: { value: 'soil_water' }, tag: { value: 'pest' } },
+      { id: 'd', ...base, tag: { value: 'bogus' } },
+    ]);
+    expect(out.map(p => p.tag)).toEqual(['pest', 'weed', 'soil_water', 'other']);
+  });
+});
+
 describe('photosByTag', () => {
   const tagged = (id: string, tag: PhotoTag | null): FieldPhotoRecord => ({ ...mk(id, '2026-05-01T00:00:00Z'), tag });
   const photos = [tagged('a', 'pest'), tagged('b', 'weed'), tagged('c', null)];
@@ -103,8 +116,13 @@ describe('photosByTag', () => {
     expect(photosByTag(photos, null).map(p => p.id)).toEqual(['a', 'b', 'c']);
   });
 
-  it('keeps only selected tags (untagged excluded)', () => {
+  it('keeps only selected tags (untagged hidden unless other is selected)', () => {
     expect(photosByTag(photos, new Set<PhotoTag>(['pest', 'soil_water'])).map(p => p.id)).toEqual(['a']);
+  });
+
+  it('treats untagged photos as other', () => {
+    expect(photosByTag(photos, new Set<PhotoTag>(['other'])).map(p => p.id)).toEqual(['c']);
+    expect(photosByTag(photos, new Set<PhotoTag>(['pest', 'other'])).map(p => p.id)).toEqual(['a', 'c']);
   });
 
   it('exposes the vocabulary', () => {
