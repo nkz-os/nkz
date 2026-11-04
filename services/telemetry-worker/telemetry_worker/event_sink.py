@@ -122,14 +122,16 @@ class PostgreSQLSink(EventSink):
         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
     """
 
-    # Chunk of telemetry_events that covers an instant (for late data, see _insert_one).
-    CHUNK_AT_SQL = """
-        SELECT format('%I.%I', chunk_schema, chunk_name)
+    # Compressed chunks that cover an instant (for late data, see _insert_one): the
+    # event's own chunk and the one of telemetry_measurements, which the AFTER INSERT
+    # trigger fills with an ON CONFLICT insert (also unsupported on compressed chunks).
+    CHUNKS_AT_SQL = """
+        SELECT format('%I.%I', chunk_schema, chunk_name) AS chunk
         FROM timescaledb_information.chunks
-        WHERE hypertable_name = 'telemetry_events'
+        WHERE hypertable_name IN ('telemetry_events', 'telemetry_measurements')
           AND is_compressed
           AND range_start <= $1 AND range_end > $1
-        LIMIT 1
+        ORDER BY hypertable_name
     """
     DECOMPRESS_SQL = "SELECT decompress_chunk($1::regclass, if_compressed => true)"
 
@@ -192,9 +194,10 @@ class PostgreSQLSink(EventSink):
         """
         INSERT one record. Late data (a lab sample dated weeks ago) can fall in a chunk
         the compression policy already compressed; before TimescaleDB 2.11 inserting
-        there fails on hypertables with a primary key. Then the chunk covering the
-        event time is decompressed and the insert retried once; the compression
-        policy recompresses the chunk on its next run. Anything else raises.
+        there fails on hypertables with a primary key, and the measurements trigger's
+        ON CONFLICT insert fails the same way. Then the compressed chunks covering the
+        event time are decompressed and the insert retried once; the compression
+        policy recompresses them on its next run. Anything else raises.
         """
         try:
             await conn.execute(self.INSERT_SQL, *record)
@@ -202,14 +205,15 @@ class PostgreSQLSink(EventSink):
         except asyncpg.exceptions.FeatureNotSupportedError as err:
             if "compressed chunk" not in str(err):
                 raise
-            chunk = await conn.fetchval(self.CHUNK_AT_SQL, event.observed_at)
-            if not chunk:
+            chunks = [r["chunk"] for r in await conn.fetch(self.CHUNKS_AT_SQL, event.observed_at)]
+            if not chunks:
                 raise
-            logger.warning(
-                "Decompressing chunk %s for late telemetry (entity_id=%s, tenant_id=%s, observed_at=%s)",
-                chunk, event.entity_id, event.tenant_id, event.observed_at.isoformat(),
-            )
-            await conn.execute(self.DECOMPRESS_SQL, chunk)
+            for chunk in chunks:
+                logger.warning(
+                    "Decompressing chunk %s for late telemetry (entity_id=%s, tenant_id=%s, observed_at=%s)",
+                    chunk, event.entity_id, event.tenant_id, event.observed_at.isoformat(),
+                )
+                await conn.execute(self.DECOMPRESS_SQL, chunk)
         await conn.execute(self.INSERT_SQL, *record)
 
     async def write_batch(self, events: List[TelemetryEvent]) -> None:
