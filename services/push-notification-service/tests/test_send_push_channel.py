@@ -81,3 +81,10 @@ def test_missing_channel_unchanged(client):
         {"to": t, "title": "t", "body": "b", "data": {"x": 1}, "sound": "default", "priority": "high"}
         for t in TOKENS
     ]
+
+
+def test_silent_channel_omits_sound_others_keep_it(client):
+    assert _send(client, channelId="silent").status_code == 200
+    assert all("sound" not in m for m in client.sent[0])
+    assert _send(client, channelId="vibrate").status_code == 200
+    assert all(m["sound"] == "default" for m in client.sent[1])

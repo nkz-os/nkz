@@ -180,6 +180,9 @@ def send_push():
         if channel_id in ALLOWED_CHANNEL_IDS:
             for m in messages:
                 m["channelId"] = channel_id
+                if channel_id == "silent":
+                    # iOS ignores channelId; omit sound so a silent push stays silent
+                    m.pop("sound", None)
 
         # Expo accepts up to 100 messages per request
         results = []
