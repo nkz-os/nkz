@@ -65,43 +65,30 @@
 }
 
 /* =============================================================================
-   CSS Isolation for Remote Modules
+   Remote Module Container
    =============================================================================
-   These styles prevent remote modules from affecting the host application's
-   layout. All remote modules are wrapped in .remote-module-container which
-   isolates their CSS using CSS containment.
+   Remote modules render inside .remote-module-container.
+
+   DO NOT add CSS containment (`contain: layout/paint`) or forced stacking
+   isolation here. Containment turns the container into the containing block
+   for every `position: fixed` descendant, so module overlays sized with
+   `fixed inset-0` shrink to the container box instead of the viewport, and
+   paint containment clips whatever overflows it (a modal taller than the
+   module area is guillotined). Stacking isolation additionally pins module
+   overlays below host chrome. Neither isolates CSS — that is not what
+   containment does — so they only bought this bug class.
+
+   Viewport-level overlays must portal to document.body: use the `Modal`
+   component from @nekazari/ui-kit, which does exactly that.
    ============================================================================= */
 
-/* Isolate remote modules from host layout */
 .remote-module-container {
-  /* CSS Containment: isolate layout and style calculations */
-  contain: layout style paint !important;
-  /* Create new stacking context to prevent z-index conflicts */
-  isolation: isolate !important;
-  /* Prevent remote module CSS from affecting parent */
+  /* Anchor for absolutely positioned module content. No containment. */
   position: relative !important;
-  /* Ensure content doesn't overflow and affect layout */
-  overflow: visible;
   /* Reset any global styles that might leak */
   display: block;
   /* Prevent remote modules from changing box-sizing globally */
   box-sizing: border-box;
-}
-
-/* Prevent remote modules from affecting host elements outside their container */
-/* This selector ensures remote module CSS cannot target host elements */
-.remote-module-container * {
-  /* Containment is inherited, but we ensure it's explicit */
-  contain: style layout;
-}
-
-/* Protect critical host layout elements from remote module CSS */
-.host-layout-protected,
-.host-protected {
-  /* Force layout properties that remote modules cannot override */
-  contain: layout style paint !important;
-  isolation: isolate !important;
-  position: relative !important;
 }
 
 /* Grid protection - Simple and effective */

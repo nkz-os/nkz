@@ -30,6 +30,7 @@ export * from './components/MetricCard';
 export * from './components/MetricGrid';
 export * from './components/ProgressBar';
 export * from './components/FormGrid';
+export * from './components/Modal';
 export * from './components/DataTable';
 export * from './components/SettingsList';
 export * from './components/DetailGrid';
