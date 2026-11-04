@@ -1,4 +1,6 @@
 import io
+
+import requests as app_requests
 from unittest.mock import MagicMock, patch
 
 import fiware_api_gateway as gw
@@ -273,7 +275,11 @@ def test_upload_duplicate_returns_existing(client, app):
         "hasAgriParcel": {"type": "Relationship", "object": PARCEL},
     }
     resp, s3, get_m, post_m, _ = _upload(
-        client, app, {"client_id": CID}, get=lambda url, **kw: _resp(200, existing)
+        client,
+        app,
+        {"client_id": CID},
+        s3=MagicMock(),  # head_object ok: object present
+        get=lambda url, **kw: _resp(200, existing),
     )
     assert resp.status_code == 200
     body = resp.get_json()
@@ -402,3 +408,49 @@ def test_upload_non_v4_uuid_rejected(client, app):
     resp, s3, *_ = _upload(client, app, {"client_id": "3f2504e0-4f89-11d3-9a0c-0305e82c3301"})
     assert resp.status_code == 400
     s3.put_object.assert_not_called()
+
+
+def test_upload_duplicate_with_missing_object_reuploads(client, app):
+    existing = {
+        "id": ENT_ID,
+        "imageUrl": {"type": "Property", "value": f"/api/field-images/field-images/acme/{CID_L}.jpg"},
+        "hasAgriParcel": {"type": "Relationship", "object": PARCEL},
+    }
+    s3 = MagicMock()
+    s3.head_object.side_effect = _not_found()
+    resp, s3, _, post_m, _ = _upload(
+        client,
+        app,
+        {"client_id": CID},
+        s3=s3,
+        get=lambda url, **kw: _resp(200, existing),
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["duplicate"] is False
+    s3.put_object.assert_called_once()
+    assert s3.put_object.call_args.kwargs["Key"] == f"field-images/acme/{CID_L}.jpg"
+    post_m.assert_called_once()
+    assert post_m.call_args.args[0].endswith(
+        "/ngsi-ld/v1/entityOperations/upsert?options=update"
+    )
+
+
+def _raise_timeout(url, **kw):
+    raise app_requests.Timeout("orion timeout")
+
+
+
+def test_upload_broker_timeout_keeps_object_client_id(client, app):
+    resp, s3, *_ = _upload(client, app, {"client_id": CID}, post=_raise_timeout)
+    assert resp.status_code == 502
+    assert resp.get_json() == {"error": "record_not_saved"}
+    s3.put_object.assert_called_once()
+    s3.delete_object.assert_not_called()
+
+
+def test_upload_broker_timeout_keeps_object_legacy(client, app):
+    resp, s3, *_ = _upload(client, app, {}, post=_raise_timeout)
+    assert resp.status_code == 502
+    assert resp.get_json() == {"error": "record_not_saved"}
+    s3.put_object.assert_called_once()
+    s3.delete_object.assert_not_called()

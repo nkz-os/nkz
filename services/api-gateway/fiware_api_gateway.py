@@ -3272,12 +3272,28 @@ def field_image_upload():
     # hardcoding the production domain in source.
     image_url = f"/api/field-images/{minio_key}"
 
+    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio-service:9000")
+    bucket = "nekazari-frontend"
     try:
-        # Idempotency: the ENTITY decides (a file without entity = partial
-        # attempt that must be rewritten).
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=f"http://{MINIO_ENDPOINT}",
+            aws_access_key_id=os.getenv("MINIO_ACCESS_KEY", ""),
+            aws_secret_access_key=os.getenv("MINIO_SECRET_KEY", ""),
+            config=boto3.session.Config(signature_version="s3v4"),
+            region_name="us-east-1",
+        )
+    except Exception as e:
+        logger.error(f"MinIO client init failed: {e}")
+        return jsonify({"error": "Image storage unavailable"}), 502
+
+    try:
+        # Idempotency: the ENTITY decides, but only if its object is still in
+        # storage (entity without object = a write whose cleanup raced; the
+        # retry must restore the object and re-upsert).
         if client_id:
             status, existing = _orion_get(entity_id)
-            if status == 200:
+            if status == 200 and _s3_object_exists(s3, bucket, minio_key):
                 return jsonify(
                     {
                         "success": True,
@@ -3290,7 +3306,7 @@ def field_image_upload():
                         "duplicate": True,
                     }
                 ), 200
-            if status != 404:
+            if status not in (200, 404):
                 logger.error("Orion duplicate check returned %s", status)
                 return jsonify({"error": "record_not_saved"}), 502
         # An explicit parcel (user-confirmed) wins over point-in-polygon.
@@ -3310,18 +3326,8 @@ def field_image_upload():
     if not req_parcel_id:
         parcel_id = resolve_parcel_for_point(tenant, lng, lat, accuracy)
 
-    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio-service:9000")
-    bucket = "nekazari-frontend"
     existed = False
     try:
-        s3 = boto3.client(
-            "s3",
-            endpoint_url=f"http://{MINIO_ENDPOINT}",
-            aws_access_key_id=os.getenv("MINIO_ACCESS_KEY", ""),
-            aws_secret_access_key=os.getenv("MINIO_SECRET_KEY", ""),
-            config=boto3.session.Config(signature_version="s3v4"),
-            region_name="us-east-1",
-        )
         if client_id:
             existed = _s3_object_exists(s3, bucket, minio_key)
         s3.put_object(
@@ -3366,6 +3372,7 @@ def field_image_upload():
     # which combined with the body @context makes Orion-LD reject the entity.
     ngsi_headers = _canonical_headers({}, tenant=tenant, has_context_in_body=True)
     saved = False
+    write_outcome_unknown = False
     try:
         if client_id:
             ngsi_resp = requests.post(
@@ -3389,9 +3396,12 @@ def field_image_upload():
                 (ngsi_resp.text or "")[:200],
             )
     except Exception as e:
+        # Timeout/transport error: Orion may have committed. Keep the object,
+        # a retry finds the entity and (if needed) restores the object.
+        write_outcome_unknown = True
         logger.error("NGSI-LD observation creation failed: %s", e)
     if not saved:
-        if not existed:
+        if not existed and not write_outcome_unknown:
             try:
                 s3.delete_object(Bucket=bucket, Key=minio_key)
             except Exception as e:
