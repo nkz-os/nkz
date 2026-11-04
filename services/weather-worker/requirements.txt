@@ -3,4 +3,4 @@ requests>=2.34.2
 prometheus-client>=0.26.0
 shapely>=2.0.0
 
-paho-mqtt>=2.0,<3
+paho-mqtt>=2.1.0,<3
