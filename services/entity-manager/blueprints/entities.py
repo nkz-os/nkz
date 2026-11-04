@@ -1404,12 +1404,13 @@ def create_plants():
         e = dict(a["entity"])
         e["@context"] = CONTEXT_URL
         entities_out.append(e)
-    headers = inject_fiware_headers({'Content-Type': 'application/ld+json'}, tenant)
     failed: dict = {}
     try:
         for i in range(0, len(entities_out), 100):
+            chunk = entities_out[i:i + 100]
+            headers = inject_fiware_headers({'Content-Type': 'application/ld+json'}, tenant, body=chunk)
             resp = requests.post(f"{ORION_URL}/ngsi-ld/v1/entityOperations/upsert",
-                                 json=entities_out[i:i + 100], params={"options": "update"},
+                                 json=chunk, params={"options": "update"},
                                  headers=headers, timeout=30)
             if resp.status_code == 207:
                 for err in (resp.json() or {}).get("errors", []):
