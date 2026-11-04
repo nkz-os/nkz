@@ -3383,7 +3383,11 @@ def field_image_upload():
             )
         saved = ngsi_resp.status_code in _ORION_WRITE_OK
         if not saved:
-            logger.error("Orion rejected field image record: %s", ngsi_resp.status_code)
+            logger.error(
+                "Orion rejected field image record: %s %s",
+                ngsi_resp.status_code,
+                (ngsi_resp.text or "")[:200],
+            )
     except Exception as e:
         logger.error("NGSI-LD observation creation failed: %s", e)
     if not saved:
