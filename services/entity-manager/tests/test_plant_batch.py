@@ -103,7 +103,7 @@ def test_optional_attributes_and_invalid_values():
     (a,) = out["accepted"]
     e = a["entity"]
     assert e["variety"]["value"] == "Arbequina" and e["height"]["value"] == 3.2
-    assert e["datePlanted"]["value"] == {"@type": "Date", "@value": "2001-03-15"}
+    assert e["datePlanted"]["value"] == "2001-03-15"
     assert {(r["plantCode"], r["reason"], r["field"]) for r in out["rejected"]} == {
         ("B", "invalid_value", "plantStatus"), ("C", "invalid_value", "datePlanted")}
 
@@ -126,3 +126,102 @@ def test_items_from_gpx_and_csv():
     assert items[0] == {"plantCode": "T-1", "lat": lat, "lon": lon, "variety": "Arbequina",
                         "rowNumber": 1, "positionInRow": 2}
     assert rejected and rejected[0]["reason"] == "invalid_point"
+
+
+# ---- final review fixes ---------------------------------------------------------
+
+def _parcel(geom):
+    return {"id": PARCEL_URN, "type": "AgriParcel", "location": {"type": "GeoProperty", "value": geom}}
+
+
+def test_crop_read_under_legacy_names_and_uri_only():
+    crop = {"id": "urn:ngsi-ld:AgriCrop:x", "eppoCode": {"type": "Property", "value": "http://aims.fao.org/aos/agrovoc/c_5386"}}
+    e = prepare_plants("tenant-a", PARCEL, [_item(10, 10, plantCode="A")], {}, crop)["accepted"][0]["entity"]
+    assert e["agroVocConcept"]["value"].endswith("c_5386")
+    crop_eppo = {"id": "urn:ngsi-ld:AgriCrop:x", "agroVocConcept": {"type": "Property", "value": "OLVEU"}}
+    e = prepare_plants("tenant-a", PARCEL, [_item(10, 10, plantCode="A")], {}, crop_eppo)["accepted"][0]["entity"]
+    assert "agroVocConcept" not in e and e["hasAgriCrop"]["object"] == "urn:ngsi-ld:AgriCrop:x"
+
+
+def test_multipolygon_and_hole_distances():
+    ring = PARCEL["location"]["value"]["coordinates"][0]
+    multi = _parcel({"type": "MultiPolygon", "coordinates": [[ring]]})
+    out = prepare_plants("tenant-a", multi, [_item(-6, 50, plantCode="n"), _item(-40, 50, plantCode="f")], {}, None)
+    assert [a["plantCode"] for a in out["accepted"]] == ["n"]
+    hole = [[lon, lat] for lat, lon in (_off(30, 30), _off(70, 30), _off(70, 70), _off(30, 70), _off(30, 30))]
+    holed = _parcel({"type": "Polygon", "coordinates": [ring, hole]})
+    out = prepare_plants("tenant-a", holed, [_item(50, 50, plantCode="h")], {}, None)
+    # distance to the hole's edge (20 m), not to the outer ring
+    assert out["rejected"][0]["reason"] == "outside_parcel" and out["rejected"][0]["distance_m"] == 20
+
+
+def test_parcel_without_area_raises_parcel_error():
+    import pytest
+    from plant_batch import ParcelGeometryError
+    for geom in ({"type": "Point", "coordinates": [-1.6, 42.8]}, None):
+        with pytest.raises(ParcelGeometryError):
+            prepare_plants("tenant-a", _parcel(geom), [_item(10, 10)], {}, None)
+
+
+def test_code_prefix_for_auto_codes():
+    out = prepare_plants("tenant-a", PARCEL, [_item(10, 10, rowNumber=1, positionInRow=2), _item(20, 10)], {}, None,
+                         code_prefix="B")
+    assert [a["plantCode"] for a in out["accepted"]] == ["B1-2", "B1"]
+
+
+def test_update_that_moves_a_plant_warns():
+    lat, lon = _off(10, 10)
+    existing = {"A": {"id": "x", "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [lon, lat]}}}}
+    out = _run([_item(20, 10, plantCode="A")], existing=existing)
+    assert any(w["code"] == "moved" and 9 < w["distance_m"] < 11 for w in out["warnings"])
+
+
+def test_auto_coded_point_on_an_existing_plant_is_rejected():
+    lat, lon = _off(10, 10)
+    existing = {"5": {"id": "x", "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [lon, lat]}}}}
+    out = _run([_item(10.2, 10), _item(30, 10)], existing=existing)
+    assert out["rejected"] == [{"index": 0, "reason": "duplicate_location", "other": "5"}]
+    assert [a["plantCode"] for a in out["accepted"]] == ["6"]
+    coded = _run([_item(10.5, 10, plantCode="Z")], existing=existing)
+    assert any(w["code"] == "too_close" and w["other"] == "5" for w in coded["warnings"])
+
+
+def test_auto_flag_marks_codes_assigned_here():
+    out = _run([_item(10, 10), _item(20, 10, plantCode="A")])
+    assert [a["auto"] for a in out["accepted"]] == [True, False]
+
+
+def test_too_many_plants_raises():
+    import pytest
+    from plant_batch import MAX_PLANTS, TooManyPlants
+    with pytest.raises(TooManyPlants):
+        _run([_item(10, 10)] * (MAX_PLANTS + 1))
+
+
+def test_file_names_are_slugified_into_codes():
+    lat, lon = _off(10, 10)
+    gpx = (f'<?xml version="1.0"?><gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">'
+           f'<wpt lat="{lat}" lon="{lon}"><name>Olivo 2 (viejo)</name></wpt>'
+           f'<wpt lat="{lat}" lon="{lon}"><name>Árbol ñ</name></wpt></gpx>')
+    items, _ = items_from_file("gpx", base64.b64encode(gpx.encode()).decode())
+    assert [i["plantCode"] for i in items] == ["Olivo-2-viejo", "Arbol-n"]
+
+
+def test_spanish_excel_csv():
+    lat, lon = _off(10, 10)
+    csv = f"plantCode;lat;lon;height\nT-1;{str(lat).replace('.', ',')};{str(lon).replace('.', ',')};3,5\n"
+    items, rejected = items_from_file("csv", csv)
+    assert rejected == [] and abs(items[0]["lat"] - lat) < 1e-9 and items[0]["height"] == 3.5
+
+
+def test_csv_requires_plant_code():
+    import pytest
+    from plant_batch import FileError
+    lat, lon = _off(10, 10)
+    with pytest.raises(FileError):
+        items_from_file("csv", f"lat,lon\n{lat},{lon}\n")
+
+
+def test_date_planted_is_a_plain_date():
+    e = _run([_item(10, 10, plantCode="A", datePlanted="2001-03-15")])["accepted"][0]["entity"]
+    assert e["datePlanted"]["value"] == "2001-03-15"

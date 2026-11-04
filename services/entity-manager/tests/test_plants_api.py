@@ -72,8 +72,10 @@ class FakeOrion:
         self.existing: list[dict] = []
         self.parcel = PARCEL
         self.upserts: list[list[dict]] = []
+        self.creates: list[list[dict]] = []
         self.upsert_status = 204
         self.fail_all = False
+        self.taken_by_others: set[str] = set()  # ids another writer created meanwhile
 
     def get(self, url, params=None, headers=None, timeout=None):
         if url.endswith(f"/entities/{PARCEL_URN}"):
@@ -87,6 +89,18 @@ class FakeOrion:
         return _resp(404, {})
 
     def post(self, url, json=None, params=None, headers=None, timeout=None):
+        if url.endswith("/ngsi-ld/v1/entityOperations/create"):
+            self.creates.append(json)
+            clash = [e for e in json if e["id"] in self.taken_by_others]
+            for e in json:
+                if e["id"] not in self.taken_by_others:
+                    code = e["plantCode"]["value"]
+                    self.existing.append({"id": e["id"], "plantCode": {"type": "Property", "value": code}})
+            if clash:
+                return _resp(207, {"success": [e["id"] for e in json if e not in clash], "errors": [
+                    {"entityId": e["id"], "error": {"type": "https://uri.etsi.org/ngsi-ld/errors/AlreadyExists"}}
+                    for e in clash]})
+            return _resp(201, [e["id"] for e in json])
         assert url.endswith("/ngsi-ld/v1/entityOperations/upsert")
         assert (params or {}).get("options") == "update"
         self.upserts.append(json)
@@ -123,7 +137,8 @@ def test_single_plant_gets_next_free_code(orion):
     # tenant segment = the authenticated tenant (other test modules stub auth differently)
     assert set(w) == {"id", "plantCode"} and w["plantCode"] == "42"
     assert re.fullmatch(r"urn:ngsi-ld:AgriPlant:[a-z0-9_-]+:demo-parcel-001:42", w["id"])
-    (batch,) = orion.upserts
+    (batch,) = orion.creates  # auto-coded: created, never upserted over someone else's plant
+    assert orion.upserts == []
     assert batch[0]["agroVocConcept"]["value"].endswith("c_5386")
     assert batch[0]["@context"]
 
@@ -189,3 +204,55 @@ def test_broker_errors_are_reported(orion):
     orion.fail_all = True
     body = _post("/entities/plants", {"parcel_id": PARCEL_URN, "plants": [_item(10, 10, plantCode="A")]}).get_json()
     assert body["written"] == [] and body["rejected"][0]["reason"] == "broker_error"
+
+
+def test_auto_code_taken_meanwhile_is_recomputed(orion):
+    orion.existing = [{"id": "x", "plantCode": {"type": "Property", "value": "41"}}]
+    # another phone creates 42 between our read and our write
+    orion.taken_by_others = {"urn:ngsi-ld:AgriPlant:tenant-a:demo-parcel-001:42",
+                             "urn:ngsi-ld:AgriPlant:test-tenant:demo-parcel-001:42"}
+    orion_existing_after = {"id": "y", "plantCode": {"type": "Property", "value": "42"}}
+
+    real_get = orion.get
+
+    def get(url, params=None, headers=None, timeout=None):
+        if orion.creates and orion_existing_after not in orion.existing:
+            orion.existing.append(orion_existing_after)
+        return real_get(url, params=params, headers=headers, timeout=timeout)
+    with patch.object(entities.requests, "get", get):
+        body = _post("/entities/plants", {"parcel_id": PARCEL_URN, "plants": [_item(10, 10)]}).get_json()
+    assert [w["plantCode"] for w in body["written"]] == ["43"]
+    assert len(orion.creates) == 2
+
+
+def test_crop_under_legacy_relationship_name(orion):
+    orion.parcel = {**PARCEL, "refAgriCrop": PARCEL["hasAgriCrop"]}
+    del orion.parcel["hasAgriCrop"]
+    _post("/entities/plants", {"parcel_id": PARCEL_URN, "plants": [_item(10, 10, plantCode="A")]})
+    assert orion.upserts[0][0]["hasAgriCrop"]["object"] == CROP_URN
+
+
+def test_parcel_without_polygon_is_422(orion):
+    orion.parcel = {**PARCEL, "location": {"type": "GeoProperty", "value": {"type": "Point", "coordinates": [-1.6, 42.8]}}}
+    r = _post("/entities/plants/preview", {"parcel_id": PARCEL_URN, "plants": [_item(10, 10)]})
+    assert r.status_code == 422
+
+
+def test_too_many_plants_is_400(orion):
+    from plant_batch import MAX_PLANTS
+    r = _post("/entities/plants/preview", {"parcel_id": PARCEL_URN, "plants": [_item(10, 10)] * (MAX_PLANTS + 1)})
+    assert r.status_code == 400
+
+
+def test_invalid_parcel_id_is_400(orion):
+    r = _post("/entities/plants/preview", {"parcel_id": "../x?y", "plants": [_item(10, 10)]})
+    assert r.status_code == 400
+
+
+def test_code_prefix_is_used(orion):
+    body = _post("/entities/plants/preview", {"parcel_id": PARCEL_URN, "code_prefix": "B",
+                                              "plants": [_item(10, 10)]}).get_json()
+    assert body["accepted"][0]["plantCode"] == "B1"
+    assert _post("/entities/plants/preview", {"parcel_id": PARCEL_URN, "code_prefix": "a b",
+                                              "plants": [_item(10, 10)]}).status_code == 400
+
