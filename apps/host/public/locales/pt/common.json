@@ -2033,7 +2033,8 @@
         "WaterSource": "Fonte de água",
         "Well": "Poço",
         "Pond": "Lagoa",
-        "WeatherStation": "Estação meteorológica"
+        "WeatherStation": "Estação meteorológica",
+        "AgriPlant": "Planta"
       }
     },
     "filters": {

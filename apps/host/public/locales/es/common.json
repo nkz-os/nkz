@@ -2009,7 +2009,8 @@
         "WaterSource": "Fuente de Agua",
         "Well": "Pozo",
         "Pond": "Estanque",
-        "WeatherStation": "Estación Meteo"
+        "WeatherStation": "Estación Meteo",
+        "AgriPlant": "Planta"
       }
     },
     "filters": {

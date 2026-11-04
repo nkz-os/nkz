@@ -2010,7 +2010,8 @@
         "WaterSource": "Ur-iturria",
         "Well": "Putzua",
         "Pond": "Urmaela",
-        "WeatherStation": "Meteo-estazioa"
+        "WeatherStation": "Meteo-estazioa",
+        "AgriPlant": "Landarea"
       }
     },
     "filters": {

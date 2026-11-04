@@ -2009,7 +2009,8 @@
         "WaterSource": "Water source",
         "Well": "Well",
         "Pond": "Pond",
-        "WeatherStation": "Weather station"
+        "WeatherStation": "Weather station",
+        "AgriPlant": "Plant"
       }
     },
     "filters": {

@@ -2033,7 +2033,8 @@
         "WaterSource": "Font d'aigua",
         "Well": "Pou",
         "Pond": "Bassa",
-        "WeatherStation": "Estació meteo"
+        "WeatherStation": "Estació meteo",
+        "AgriPlant": "Planta"
       }
     },
     "filters": {
