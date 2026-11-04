@@ -8,6 +8,9 @@
 # Endpoints:
 #   POST /register      — mobile app registers device token
 #   POST /send/push     — internal services dispatch push notifications
+#                         (optional body field `channelId`: Android channel,
+#                         one of vibrate|silent|crop-alerts|risk-alerts|system;
+#                         any other value is ignored)
 #   GET  /health        — health check
 # =============================================================================
 
@@ -28,6 +31,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+ALLOWED_CHANNEL_IDS = ("vibrate", "silent", "crop-alerts", "risk-alerts", "system")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
@@ -119,7 +124,9 @@ def send_push():
         "user_ids": ["..."],   // optional, if omitted sends to all tenant devices
         "title": "CWSI Critical",
         "body": "Olivar Sur-03: CWSI 0.72",
-        "data": {"screen": "module/crop-health", "parcelId": "..."}
+        "data": {"screen": "module/crop-health", "parcelId": "..."},
+        "channelId": "vibrate"  // optional Android channel; forwarded to Expo only
+                                // if one of vibrate|silent|crop-alerts|risk-alerts|system
     }
     """
     if request.headers.get("X-Internal-Secret") != INTERNAL_SECRET:
@@ -131,6 +138,7 @@ def send_push():
     title = data.get("title", "Nekazari Alert")
     body = data.get("body", "")
     notification_data = data.get("data", {})
+    channel_id = data.get("channelId")
 
     if not tenant_id or not body:
         return jsonify({"error": "tenant_id and body are required"}), 400
@@ -169,6 +177,12 @@ def send_push():
             }
             for t in tokens
         ]
+        if channel_id in ALLOWED_CHANNEL_IDS:
+            for m in messages:
+                m["channelId"] = channel_id
+                if channel_id == "silent":
+                    # iOS ignores channelId; omit sound so a silent push stays silent
+                    m.pop("sound", None)
 
         # Expo accepts up to 100 messages per request
         results = []
