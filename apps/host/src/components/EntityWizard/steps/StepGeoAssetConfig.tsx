@@ -23,7 +23,7 @@ const PARCEL_ASSOCIATION_TYPES = new Set([
 const IS_AGRI_PARCEL = (type: string) => type === 'AgriParcel';
 const IS_GREENHOUSE = (type: string) => type === 'AgriGreenhouse';
 
-export function StepGeoAssetConfig() {
+export function StepGeoAssetConfig({ onPlantsImported }: { onPlantsImported?: () => void } = {}) {
   const { entityType, formData, updateFormData } = useWizard();
   const { t } = useI18n();
 
@@ -47,7 +47,7 @@ export function StepGeoAssetConfig() {
 
   if (!formData || formData.macroCategory !== 'assets') return null;
   // Individual plants: their own data step (parcel required, one entity per point)
-  if (entityType === 'AgriPlant') return <StepPlantConfig />;
+  if (entityType === 'AgriPlant') return <StepPlantConfig onImported={onPlantsImported} />;
   const data = formData as GeoAssetFormData;
 
   const canSubdivide = SUBDIVISION_CAPABLE.has(entityType ?? '');

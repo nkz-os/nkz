@@ -1275,19 +1275,25 @@
         "duplicate_code": "codi repetit",
         "invalid_point": "coordenades no vàlides",
         "invalid_value": "valor no vàlid a {{field}}",
-        "broker_error": "no s'ha pogut desar"
+        "broker_error": "no s'ha pogut desar",
+        "duplicate_location": "ja hi ha una planta en aquest punt ({{other}})",
+        "code_conflict": "codi ocupat per un altre usuari; torna-ho a provar"
       },
       "warnings": {
         "near_boundary": "{{code}}: {{distance}} m fora de la parcel·la (error de GPS); es desa",
         "too_close": "{{code}}: a {{distance}} m de {{other}}",
-        "exists": "{{code}} ja existeix: s'actualitzarà"
+        "exists": "{{code}} ja existeix: s'actualitzarà",
+        "moved": "{{code}} es mourà {{distance}} m: és la mateixa planta?"
       },
       "file_label": "O importa-les des d'un fitxer (GPX, KML, KMZ, GeoJSON o CSV)",
       "file_hint": "El nom del punt (o la columna plantCode) és el codi de la planta. Coordenades WGS84.",
       "file_unsupported": "Format no admès: fes servir GPX, KML, KMZ, GeoJSON o CSV.",
       "import_confirm": "Importa",
       "import_failed": "No s'han pogut importar les plantes.",
-      "imported": "{{count}} plantes desades."
+      "imported": "{{count}} plantes desades.",
+      "prefix": "Prefix de codi (un altre bloc)",
+      "points_required": "Col·loca almenys una planta al mapa (punt, línia o quadrícula).",
+      "partial": "Desades {{written}}; {{rejected}} no s'han pogut desar."
     },
     "line": {
       "title": "Línia",

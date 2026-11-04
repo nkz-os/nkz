@@ -1251,19 +1251,25 @@
         "duplicate_code": "código repetido",
         "invalid_point": "coordenadas no válidas",
         "invalid_value": "valor no válido en {{field}}",
-        "broker_error": "no se pudo guardar"
+        "broker_error": "no se pudo guardar",
+        "duplicate_location": "ya hay una planta en ese punto ({{other}})",
+        "code_conflict": "código ocupado por otro usuario; vuelve a intentarlo"
       },
       "warnings": {
         "near_boundary": "{{code}}: {{distance}} m fuera de la parcela (error de GPS); se guarda",
         "too_close": "{{code}}: a {{distance}} m de {{other}}",
-        "exists": "{{code}} ya existe: se actualizará"
+        "exists": "{{code}} ya existe: se actualizará",
+        "moved": "{{code}} se moverá {{distance}} m: ¿es la misma planta?"
       },
       "file_label": "O impórtalas desde un fichero (GPX, KML, KMZ, GeoJSON o CSV)",
       "file_hint": "El nombre del punto (o la columna plantCode) es el código de la planta. Coordenadas WGS84.",
       "file_unsupported": "Formato no admitido: usa GPX, KML, KMZ, GeoJSON o CSV.",
       "import_confirm": "Importar",
       "import_failed": "No se pudieron importar las plantas.",
-      "imported": "{{count}} plantas guardadas."
+      "imported": "{{count}} plantas guardadas.",
+      "prefix": "Prefijo de código (otro bloque)",
+      "points_required": "Coloca al menos una planta en el mapa (punto, línea o cuadrícula).",
+      "partial": "Guardadas {{written}}; {{rejected}} no se pudieron guardar."
     },
     "line": {
       "title": "Línea",

@@ -64,3 +64,11 @@ describe('plantsRequest', () => {
     expect(() => plantsRequest(placement('single'), form({ parentEntity: null }))).toThrow();
   });
 });
+
+describe('code prefix', () => {
+  it('is sent when set in the form', () => {
+    const body = plantsRequest(placement('stamp', [{ lat: 42.8, lng: -1.6 }]), form({}, { codePrefix: 'B' }));
+    expect(body.code_prefix).toBe('B');
+  });
+});
+

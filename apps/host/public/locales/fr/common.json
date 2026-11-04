@@ -1275,19 +1275,25 @@
         "duplicate_code": "code en double",
         "invalid_point": "coordonnées non valides",
         "invalid_value": "valeur non valide dans {{field}}",
-        "broker_error": "enregistrement impossible"
+        "broker_error": "enregistrement impossible",
+        "duplicate_location": "une plante existe déjà à cet endroit ({{other}})",
+        "code_conflict": "code pris par un autre utilisateur ; réessayez"
       },
       "warnings": {
         "near_boundary": "{{code}} : {{distance}} m hors de la parcelle (erreur GPS) ; conservée",
         "too_close": "{{code}} : à {{distance}} m de {{other}}",
-        "exists": "{{code}} existe déjà : elle sera mise à jour"
+        "exists": "{{code}} existe déjà : elle sera mise à jour",
+        "moved": "{{code}} sera déplacée de {{distance}} m : est-ce la même plante ?"
       },
       "file_label": "Ou importez-les depuis un fichier (GPX, KML, KMZ, GeoJSON ou CSV)",
       "file_hint": "Le nom du point (ou la colonne plantCode) est le code de la plante. Coordonnées WGS84.",
       "file_unsupported": "Format non pris en charge : utilisez GPX, KML, KMZ, GeoJSON ou CSV.",
       "import_confirm": "Importer",
       "import_failed": "Impossible d'importer les plantes.",
-      "imported": "{{count}} plantes enregistrées."
+      "imported": "{{count}} plantes enregistrées.",
+      "prefix": "Préfixe de code (autre bloc)",
+      "points_required": "Placez au moins une plante sur la carte (point, ligne ou grille).",
+      "partial": "{{written}} enregistrées ; {{rejected}} n'ont pas pu l'être."
     },
     "line": {
       "title": "Ligne",

@@ -58,4 +58,21 @@ describe('PlantFileImport', () => {
     expect(previewPlants).not.toHaveBeenCalled();
     expect(screen.getByRole('alert').textContent).toBe('wizard.plants.file_unsupported');
   });
+
+  it('shows the server reason when the file is refused', async () => {
+    previewPlants.mockRejectedValue({ response: { data: { error: 'CSV needs a plantCode column' } } });
+    render(<PlantFileImport parcelId={PARCEL} />);
+    upload('trees.csv', 'lat,lon\n');
+    expect((await screen.findByRole('alert')).textContent).toContain('CSV needs a plantCode column');
+  });
+
+  it('a clean import finishes the wizard', async () => {
+    const onImported = vi.fn();
+    createPlants.mockResolvedValue({ written: [{ id: 'x', plantCode: 'T-1' }], rejected: [], warnings: [] });
+    render(<PlantFileImport parcelId={PARCEL} onImported={onImported} />);
+    upload('trees.gpx', '<gpx/>');
+    fireEvent.click(await screen.findByText('wizard.plants.import_confirm'));
+    await waitFor(() => expect(onImported).toHaveBeenCalled());
+  });
 });
+

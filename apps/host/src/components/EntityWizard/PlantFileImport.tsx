@@ -22,16 +22,22 @@ async function readAs(file: File, format: Format): Promise<string> {
 }
 
 /** Import plants from a GPX/KML/KMZ/GeoJSON/CSV file: preview, then confirm. */
-export function PlantFileImport({ parcelId }: { parcelId: string }) {
+function serverMessage(e: unknown): string | null {
+  const msg = (e as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
+  return typeof msg === 'string' && msg ? msg : null;
+}
+
+export function PlantFileImport({ parcelId, onImported }: { parcelId: string; onImported?: () => void }) {
   const { t } = useI18n();
   const [source, setSource] = useState<{ format: Format; content: string } | null>(null);
   const [preview, setPreview] = useState<PlantsPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<string | null>(null);
   const [written, setWritten] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
 
   const onFile = async (file: File) => {
-    setError(null); setWritten(null); setPreview(null); setSource(null);
+    setError(null); setDetail(null); setWritten(null); setPreview(null); setSource(null);
     const format = fileFormat(file.name);
     if (!format) { setError('wizard.plants.file_unsupported'); return; }
     setBusy(true);
@@ -39,8 +45,9 @@ export function PlantFileImport({ parcelId }: { parcelId: string }) {
       const file_ = { format, content: await readAs(file, format) };
       setPreview(await api.previewPlants({ parcel_id: parcelId, file: file_ }));
       setSource(file_);
-    } catch {
+    } catch (e) {
       setError('wizard.plants.preview_failed');
+      setDetail(serverMessage(e));
     } finally {
       setBusy(false);
     }
@@ -53,8 +60,10 @@ export function PlantFileImport({ parcelId }: { parcelId: string }) {
       const res = await api.createPlants({ parcel_id: parcelId, file: source });
       setWritten(res.written?.length ?? 0);
       setPreview(null); setSource(null);
-    } catch {
+      if (!res.rejected?.length) onImported?.();
+    } catch (e) {
       setError('wizard.plants.import_failed');
+      setDetail(serverMessage(e));
     } finally {
       setBusy(false);
     }
@@ -69,7 +78,7 @@ export function PlantFileImport({ parcelId }: { parcelId: string }) {
         className="block w-full text-sm"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); e.target.value = ''; }} />
       <p className="text-xs text-nkz-text-secondary">{t('wizard.plants.file_hint')}</p>
-      {error && <p className="text-sm text-nkz-danger" role="alert">{t(error)}</p>}
+      {error && <p className="text-sm text-nkz-danger" role="alert">{t(error)}{detail ? ` (${detail})` : ''}</p>}
       {written !== null && <p className="text-sm text-nkz-success" role="status">{t('wizard.plants.imported', { count: written })}</p>}
       {preview && (
         <div className="space-y-2 text-sm">
@@ -83,7 +92,7 @@ export function PlantFileImport({ parcelId }: { parcelId: string }) {
               {preview.rejected.map((r, i) => (
                 <li key={i}>{t('wizard.plants.rejected_item', {
                   code: r.plantCode ?? (r.index !== null ? `#${r.index + 1}` : '—'),
-                  reason: t(`wizard.plants.reasons.${r.reason}`, { field: r.field ?? '', distance: r.distance_m ?? '' }),
+                  reason: t(`wizard.plants.reasons.${r.reason}`, { field: r.field ?? '', distance: r.distance_m ?? '', other: r.other ?? '' }),
                 })}</li>
               ))}
             </ul>

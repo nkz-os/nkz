@@ -10,7 +10,7 @@ const PLANT_STATUS = ['alive', 'dead', 'removed', 'replaced'] as const;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /** Data step for individual plants (AgriPlant): the parcel is required, the rest is per batch. */
-export function StepPlantConfig() {
+export function StepPlantConfig({ onImported }: { onImported?: () => void } = {}) {
   const { formData, updateFormData } = useWizard();
   const { t } = useI18n();
   const [parcels, setParcels] = useState<{ id: string; name: string }[]>([]);
@@ -67,6 +67,13 @@ export function StepPlantConfig() {
             onChange={(e: any) => setAttr('plantCode', e.target.value)} />
         </div>
         <div>
+          <label htmlFor="plant-prefix" className="block text-sm font-medium text-nkz-text-primary mb-1">
+            {t('wizard.plants.prefix')}
+          </label>
+          <Input id="plant-prefix" maxLength={16} value={String(attrs.codePrefix ?? '')}
+            onChange={(e: any) => setAttr('codePrefix', e.target.value)} />
+        </div>
+        <div>
           <label htmlFor="plant-row" className="block text-sm font-medium text-nkz-text-primary mb-1">
             {t('wizard.plants.row')}
           </label>
@@ -102,7 +109,9 @@ export function StepPlantConfig() {
       <p className="text-xs text-nkz-text-secondary">{t('wizard.plants.hint')}</p>
 
       {/* Alternative to placing them on the map: import a whole file at once */}
-      {data.parentEntity?.type === 'AgriParcel' && <PlantFileImport parcelId={data.parentEntity.id} />}
+      {data.parentEntity?.type === 'AgriParcel' && (
+        <PlantFileImport parcelId={data.parentEntity.id} onImported={onImported} />
+      )}
     </div>
   );
 }

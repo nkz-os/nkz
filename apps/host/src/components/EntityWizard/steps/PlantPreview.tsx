@@ -36,7 +36,7 @@ export function PlantPreview({ placementState, formData }: Props) {
           {preview.rejected.map((r, i) => (
             <li key={i}>{t('wizard.plants.rejected_item', {
               code: r.plantCode ?? (r.index !== null ? `#${r.index + 1}` : '—'),
-              reason: t(`wizard.plants.reasons.${r.reason}`, { field: r.field ?? '', distance: r.distance_m ?? '' }),
+              reason: t(`wizard.plants.reasons.${r.reason}`, { field: r.field ?? '', distance: r.distance_m ?? '', other: r.other ?? '' }),
             })}</li>
           ))}
         </ul>

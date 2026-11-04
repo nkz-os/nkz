@@ -17,12 +17,14 @@ export interface PlantItem {
 export interface PlantsRequest {
   parcel_id: string;
   plants: PlantItem[];
+  /** Prefix of the codes assigned server-side (a second block in the same parcel: "B"). */
+  code_prefix?: string;
 }
 
 export interface PlantsPreview {
   accepted: Array<{ index: number; id: string; plantCode: string; action: 'create' | 'update';
     rowNumber?: number; positionInRow?: number }>;
-  rejected: Array<{ index: number | null; plantCode?: string; reason: string; field?: string; distance_m?: number }>;
+  rejected: Array<{ index: number | null; plantCode?: string; reason: string; field?: string; distance_m?: number; other?: string }>;
   warnings: Array<{ index: number; plantCode: string; code: string; other?: string; distance_m?: number }>;
 }
 
@@ -77,7 +79,8 @@ export function toPlantItems(placement: PlacementState, form: GeoAssetFormData):
 export function plantsRequest(placement: PlacementState, form: GeoAssetFormData): PlantsRequest {
   const parcel = form.parentEntity;
   if (!parcel || parcel.type !== 'AgriParcel') throw new Error('parcel_required');
-  return { parcel_id: parcel.id, plants: toPlantItems(placement, form) };
+  const prefix = text(form.additionalAttributes?.codePrefix);
+  return { parcel_id: parcel.id, plants: toPlantItems(placement, form), ...(prefix ? { code_prefix: prefix } : {}) };
 }
 
 export function previewPlants(placement: PlacementState, form: GeoAssetFormData): Promise<PlantsPreview> {

@@ -1562,7 +1562,9 @@ export const CesiumMap = React.memo<CesiumMapProps>(({
         }
 
         const [lon, lat] = coordinates;
-        const treeName = typeof tree.name === 'string' ? tree.name : tree.name?.value || 'Unknown Tree';
+        // Individual plants (AgriPlant) have no name: their code identifies them
+        const plantCode = typeof tree.plantCode === 'string' ? tree.plantCode : tree.plantCode?.value;
+        const treeName = typeof tree.name === 'string' ? tree.name : tree.name?.value || plantCode || 'Unknown Tree';
         const treeType = tree.type || 'AgriTree';
         const modelUrl = getEntityModelUrl(tree, undefined);
         const modelScale = tree.modelScale?.value || tree.modelScale || 1;
