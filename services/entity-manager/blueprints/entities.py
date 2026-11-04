@@ -1289,3 +1289,146 @@ def delete_parcel(parcel_id: str):
 
     logger.info(f"Deleted AgriParcel {entity_id} for tenant {tenant}")
     return jsonify({"id": entity_id}), 200
+
+
+# ── Individual plants (AgriPlant) ──────────────────────────────────────────────
+# One writer for trees and vines placed in the entity wizard, imported from a file
+# or tapped in the mobile app. Validation and ids live in plant_batch (pure).
+
+_PLANTS_PAGE = 1000
+
+
+def _orion_get_entity(urn: str, tenant: str):
+    headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant)
+    resp = requests.get(f"{ORION_URL}/ngsi-ld/v1/entities/{urn}", headers=headers, timeout=10)
+    if resp.status_code == 404:
+        return None
+    if resp.status_code != 200:
+        raise RuntimeError(f"Orion {resp.status_code} reading {urn}")
+    return resp.json()
+
+
+def _existing_plants(parcel_urn: str, tenant: str) -> dict:
+    headers = inject_fiware_headers({'Accept': 'application/ld+json'}, tenant)
+    out: dict = {}
+    offset = 0
+    while True:
+        resp = requests.get(f"{ORION_URL}/ngsi-ld/v1/entities", headers=headers, timeout=15, params={
+            "type": "AgriPlant", "q": f'hasAgriParcel=="{parcel_urn}"',
+            "limit": _PLANTS_PAGE, "offset": offset})
+        if resp.status_code != 200:
+            raise RuntimeError(f"Orion {resp.status_code} listing plants of {parcel_urn}")
+        batch = resp.json() or []
+        for e in batch:
+            code = e.get("plantCode")
+            code = code.get("value") if isinstance(code, dict) else code
+            if code:
+                out[str(code)] = e
+        if len(batch) < _PLANTS_PAGE:
+            return out
+        offset += _PLANTS_PAGE
+
+
+def _plants_request(tenant: str):
+    """(parcel_urn, prepared result) or a Flask error response."""
+    from plant_batch import FileError, items_from_file, prepare_plants
+
+    data = request.json or {}
+    parcel_id = data.get("parcel_id")
+    plants, file_ = data.get("plants"), data.get("file")
+    if not parcel_id or not isinstance(parcel_id, str):
+        return None, (jsonify({"error": "parcel_id is required"}), 400)
+    if (plants is None) == (file_ is None):
+        return None, (jsonify({"error": "send either plants or file"}), 400)
+    parcel_urn = parcel_id if parcel_id.startswith("urn:") else f"urn:ngsi-ld:AgriParcel:{parcel_id}"
+
+    file_rejected: list = []
+    if file_ is not None:
+        if not isinstance(file_, dict):
+            return None, (jsonify({"error": "file must be {format, content}"}), 400)
+        try:
+            plants, file_rejected = items_from_file(str(file_.get("format", "")).lower(),
+                                                    str(file_.get("content", "")))
+        except FileError as exc:
+            return None, (jsonify({"error": str(exc)}), 400)
+    if not isinstance(plants, list) or not all(isinstance(p, dict) for p in plants):
+        return None, (jsonify({"error": "plants must be a list of objects"}), 400)
+
+    try:
+        parcel = _orion_get_entity(parcel_urn, tenant)
+        if parcel is None or parcel.get("type", "").rsplit("/", 1)[-1] != "AgriParcel":
+            return None, (jsonify({"error": "parcel not found"}), 404)
+        crop_rel = parcel.get("hasAgriCrop")
+        crop_urn = crop_rel.get("object") if isinstance(crop_rel, dict) else None
+        crop = _orion_get_entity(crop_urn, tenant) if isinstance(crop_urn, str) else None
+        existing = _existing_plants(parcel_urn, tenant)
+    except (RuntimeError, requests.RequestException) as exc:
+        logger.error("plants: broker read failed tenant=%s parcel=%s: %s", tenant, parcel_urn, exc)
+        return None, (jsonify({"error": "broker unavailable"}), 502)
+
+    result = prepare_plants(tenant, parcel, plants, existing, crop)
+    result["rejected"] = file_rejected + result["rejected"]
+    return parcel_urn, result
+
+
+def _public(accepted: dict) -> dict:
+    return {k: v for k, v in accepted.items() if k != "entity"}
+
+
+@entities_bp.route('/entities/plants/preview', methods=['POST'])
+@require_auth
+def preview_plants():
+    """What /entities/plants would write: accepted (create|update), rejected, warnings."""
+    _urn, result = _plants_request(g.tenant)
+    if _urn is None:
+        return result
+    return jsonify({"accepted": [_public(a) for a in result["accepted"]],
+                    "rejected": result["rejected"], "warnings": result["warnings"]}), 200
+
+
+@entities_bp.route('/entities/plants', methods=['POST'])
+@require_auth
+def create_plants():
+    """Create or update AgriPlant entities of one parcel (one or many, or a file)."""
+    tenant = g.tenant
+    parcel_urn, result = _plants_request(tenant)
+    if parcel_urn is None:
+        return result
+    accepted = result["accepted"]
+    if not accepted:
+        return jsonify({"error": "no valid plant", "rejected": result["rejected"],
+                        "warnings": result["warnings"]}), 400
+
+    entities_out = []
+    for a in accepted:
+        e = dict(a["entity"])
+        e["@context"] = CONTEXT_URL
+        entities_out.append(e)
+    headers = inject_fiware_headers({'Content-Type': 'application/ld+json'}, tenant)
+    failed: dict = {}
+    try:
+        for i in range(0, len(entities_out), 100):
+            resp = requests.post(f"{ORION_URL}/ngsi-ld/v1/entityOperations/upsert",
+                                 json=entities_out[i:i + 100], params={"options": "update"},
+                                 headers=headers, timeout=30)
+            if resp.status_code == 207:
+                for err in (resp.json() or {}).get("errors", []):
+                    failed[err.get("entityId") or err.get("id")] = err.get("error")
+            elif resp.status_code not in (200, 201, 204):
+                raise RuntimeError(f"Orion upsert {resp.status_code}: {resp.text[:200]}")
+    except (RuntimeError, requests.RequestException) as exc:
+        logger.error("plants: upsert failed tenant=%s parcel=%s: %s", tenant, parcel_urn, exc)
+        return jsonify({"error": "plants could not be stored"}), 502
+
+    written = [_public(a) for a in accepted if a["id"] not in failed]
+    for key in ("index", "action"):
+        for w in written:
+            w.pop(key, None)
+    rejected = result["rejected"] + [
+        {"index": a["index"], "plantCode": a["plantCode"], "reason": "broker_error"}
+        for a in accepted if a["id"] in failed]
+    if failed:
+        logger.error("plants: %d not stored tenant=%s parcel=%s errors=%s",
+                     len(failed), tenant, parcel_urn, failed)
+    logger.info("plants written tenant=%s parcel=%s count=%d", tenant, parcel_urn, len(written))
+    return jsonify({"written": written, "rejected": rejected, "warnings": result["warnings"]}), 200
