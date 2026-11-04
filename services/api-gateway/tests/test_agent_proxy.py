@@ -90,10 +90,73 @@ def test_links_requires_auth(monkeypatch):
 
 def test_webhook_path_is_not_routed_through_gateway_proxies():
     """The Telegram webhook has its own dedicated Ingress that bypasses the
-    gateway. These explicit routes must stay scoped to link-tokens/links so
+    gateway. These explicit routes must stay scoped to the management API so
     they never swallow /api/agent/webhook/telegram."""
     import fiware_api_gateway as gw
 
     client = gw.app.test_client()
     resp = client.post("/api/agent/webhook/telegram")
     assert resp.status_code == 404
+
+
+def _capture(monkeypatch, gw):
+    captured = {}
+
+    def fake_request(method, url, headers=None, params=None, data=None, **kwargs):
+        captured.update(method=method, url=url, headers=headers, data=data)
+        return _Resp()
+
+    _patch_auth(monkeypatch, gw)
+    monkeypatch.setattr(gw.requests, "request", fake_request)
+    return captured
+
+
+def test_llm_config_methods_forward_to_the_agent(monkeypatch):
+    import fiware_api_gateway as gw
+
+    for method in ("GET", "PUT", "DELETE"):
+        captured = _capture(monkeypatch, gw)
+        body = b'{"provider": "provider-a"}' if method == "PUT" else None
+        with gw.app.test_request_context(
+            "/api/agent/llm-config", method=method, data=body,
+            content_type="application/json" if body else None,
+        ):
+            resp = gw.agent_llm_config_proxy()
+        assert resp.status_code == 200
+        assert captured["url"] == f"{gw.AGENT_API_URL}/api/agent/llm-config"
+        assert captured["method"] == method
+        assert captured["headers"]["X-Tenant-ID"] == "acmefarm"
+        assert captured["headers"]["X-Auth-Signature"] == "sig123"
+        if body:
+            assert captured["data"] == body
+
+
+def test_llm_config_test_forwards_post(monkeypatch):
+    import fiware_api_gateway as gw
+
+    captured = _capture(monkeypatch, gw)
+    with gw.app.test_request_context("/api/agent/llm-config/test", method="POST"):
+        resp = gw.agent_llm_config_test_proxy()
+    assert resp.status_code == 200
+    assert captured["url"] == f"{gw.AGENT_API_URL}/api/agent/llm-config/test"
+    assert captured["method"] == "POST"
+
+
+def test_usage_forwards_get(monkeypatch):
+    import fiware_api_gateway as gw
+
+    captured = _capture(monkeypatch, gw)
+    with gw.app.test_request_context("/api/agent/usage", method="GET"):
+        resp = gw.agent_usage_proxy()
+    assert resp.status_code == 200
+    assert captured["url"] == f"{gw.AGENT_API_URL}/api/agent/usage"
+
+
+def test_llm_config_requires_auth(monkeypatch):
+    import fiware_api_gateway as gw
+
+    monkeypatch.setattr(gw, "get_request_token", lambda: None)
+    with gw.app.test_request_context("/api/agent/llm-config", method="GET"):
+        resp = gw.agent_llm_config_proxy()
+    status = resp[1] if isinstance(resp, tuple) else resp.status_code
+    assert status == 401
