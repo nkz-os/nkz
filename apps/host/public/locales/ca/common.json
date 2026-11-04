@@ -1919,7 +1919,18 @@
       "window30": "30 d",
       "window90": "90 d",
       "windowAll": "Tot",
-      "empty": "No hi ha fotos en aquest rang"
+      "empty": "No hi ha fotos en aquest rang",
+      "filterTags": "Etiquetes",
+      "allTags": "Totes",
+      "tag": {
+        "pest": "plaga",
+        "disease": "malaltia",
+        "weed": "mala herba",
+        "damage": "dany",
+        "crop_status": "estat del cultiu",
+        "soil_water": "sòl i aigua",
+        "other": "altre"
+      }
     },
     "mapmode": {
       "draw_parcel": "Dibuixant Parcel·la",

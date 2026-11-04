@@ -22,7 +22,7 @@ import { useI18n } from '@/context/I18nContext';
 import api from '@/services/api';
 import { parcelApi } from '@/services/parcelApi';
 import { cadastralApi } from '@/services/cadastralApi';
-import { parseFieldPhotos, photosInWindow, FieldPhotoRecord } from '@/utils/fieldPhotos';
+import { parseFieldPhotos, photosInWindow, photosByTag, FieldPhotoRecord } from '@/utils/fieldPhotos';
 import { FieldPhotoCarousel } from '@/components/viewer/FieldPhotoCarousel';
 import { CoreTimelineControls } from '@/components/viewer/CoreTimelineControls';
 import { ViewerTimeline } from './viewer/ViewerTimeline';
@@ -89,6 +89,7 @@ const UnifiedViewerInner: React.FC = () => {
         drawingCallback,
         selectEntity,
         photoWindowDays,
+        photoTags,
         focusParcelId,
         isFocusMode,
         setLeftPanelOpen,
@@ -280,8 +281,8 @@ const UnifiedViewerInner: React.FC = () => {
     }, [selectedEntityId, parcels, robots, sensors, machines, weatherStations, livestock]);
 
     const windowedPhotos = useMemo(
-      () => photosInWindow(fieldPhotos, currentDate, photoWindowDays),
-      [fieldPhotos, currentDate, photoWindowDays],
+      () => photosInWindow(photosByTag(fieldPhotos, photoTags), currentDate, photoWindowDays),
+      [fieldPhotos, currentDate, photoWindowDays, photoTags],
     );
 
     // Handle drawing completion (for DRAW_PARCEL mode)

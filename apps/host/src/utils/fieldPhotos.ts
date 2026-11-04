@@ -1,3 +1,14 @@
+export const PHOTO_TAGS = ['pest', 'disease', 'weed', 'damage', 'crop_status', 'soil_water', 'other'] as const;
+export type PhotoTag = (typeof PHOTO_TAGS)[number];
+
+const CATEGORY_IRI = 'https://smartdatamodels.org/dataModel.Agrifood/category';
+
+function parseTag(e: any): PhotoTag | null {
+  const raw = (e?.category ?? e?.[CATEGORY_IRI])?.value;
+  if (raw === undefined || raw === null || raw === '') return null;
+  return (PHOTO_TAGS as readonly string[]).includes(raw) ? (raw as PhotoTag) : 'other';
+}
+
 export interface FieldPhotoRecord {
   id: string;
   /** Relative path /api/field-images/<key>. */
@@ -8,7 +19,9 @@ export interface FieldPhotoRecord {
   dateObserved: string;
   note: string;
   accuracy: number | null;
-  refAgriParcel: string | null;
+  parcelId: string | null;
+  /** null when the record carries no category. */
+  tag: PhotoTag | null;
 }
 
 /** Parse normalized NGSI-LD AgriParcelRecord entities into a flat view model. */
@@ -28,10 +41,20 @@ export function parseFieldPhotos(raw: unknown): FieldPhotoRecord[] {
       dateObserved: e?.dateObserved?.value ?? '',
       note: e?.note?.value ?? '',
       accuracy: typeof e?.accuracy?.value === 'number' ? e.accuracy.value : null,
-      refAgriParcel: e?.refAgriParcel?.object ?? null,
+      parcelId: e?.hasAgriParcel?.object ?? e?.refAgriParcel?.object ?? null,
+      tag: parseTag(e),
     });
   }
   return out;
+}
+
+/** Keep photos whose tag is selected. `tags === null` = no filter (all, incl. untagged). */
+export function photosByTag(
+  photos: FieldPhotoRecord[],
+  tags: ReadonlySet<PhotoTag> | null,
+): FieldPhotoRecord[] {
+  if (tags === null) return photos;
+  return photos.filter(p => p.tag !== null && tags.has(p.tag));
 }
 
 /**

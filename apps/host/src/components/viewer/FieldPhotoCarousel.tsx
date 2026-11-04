@@ -80,6 +80,7 @@ export const FieldPhotoCarousel: React.FC<FieldPhotoCarouselProps> = ({
         <p className="text-nkz-xs opacity-80">
           {hasGps ? `${photo.lat!.toFixed(5)}, ${photo.lng!.toFixed(5)}` : t('viewer.fieldPhotos.noGps')}
           {photo.dateObserved ? ` · ${new Date(photo.dateObserved).toLocaleString()}` : ''}
+          {photo.tag ? ` · ${t(`viewer.fieldPhotos.tag.${photo.tag}`)}` : ''}
         </p>
         <p className="text-nkz-xs opacity-60">{t('viewer.fieldPhotos.counter', { i: index + 1, n: photos.length })}</p>
       </div>

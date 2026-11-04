@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useViewer } from '@/context/ViewerContext';
 import { snapToUtcDay } from '@nekazari/viewer-kit';
 import { Button } from '@nekazari/ui-kit';
+import { PHOTO_TAGS, type PhotoTag } from '@/utils/fieldPhotos';
 
 const WINDOWS: { key: string; days: number | null }[] = [
     { key: 'viewer.fieldPhotos.window7', days: 7 },
@@ -20,7 +21,14 @@ const WINDOWS: { key: string; days: number | null }[] = [
 
 export const CoreTimelineControls: React.FC = () => {
     const { t } = useTranslation();
-    const { setCurrentDate, photoWindowDays, setPhotoWindowDays } = useViewer();
+    const { setCurrentDate, photoWindowDays, setPhotoWindowDays, photoTags, setPhotoTags } = useViewer();
+
+    const toggleTag = (tag: PhotoTag) => {
+        const next = new Set<PhotoTag>(photoTags ?? PHOTO_TAGS);
+        if (next.has(tag)) next.delete(tag); else next.add(tag);
+        // Every tag selected is the same as no filter.
+        setPhotoTags(next.size === PHOTO_TAGS.length ? null : next);
+    };
 
     return (
         <div className="flex items-center gap-4 px-4 w-full text-slate-700 dark:text-slate-200">
@@ -47,6 +55,35 @@ export const CoreTimelineControls: React.FC = () => {
                         }`}
                     >
                         {t(w.key)}
+                    </Button>
+                ))}
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-slate-500 dark:text-slate-400">{t('viewer.fieldPhotos.filterTags')}</span>
+                <Button variant="ghost"
+                    type="button"
+                    aria-pressed={photoTags === null}
+                    onClick={() => setPhotoTags(null)}
+                    className={`px-2 py-1 text-xs rounded-lg transition-all ${
+                            photoTags === null
+                                ? 'bg-nkz-info-soft text-nkz-info border border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
+                        }`}>
+                    {t('viewer.fieldPhotos.allTags')}
+                </Button>
+                {PHOTO_TAGS.map(tag => (
+                    <Button variant="ghost"
+                        key={tag}
+                        type="button"
+                        aria-pressed={photoTags === null || photoTags.has(tag)}
+                        onClick={() => toggleTag(tag)}
+                        className={`px-2 py-1 text-xs rounded-lg transition-all ${
+                            photoTags === null || photoTags.has(tag)
+                                ? 'bg-nkz-info-soft text-nkz-info border border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
+                        }`}>
+                        {t(`viewer.fieldPhotos.tag.${tag}`)}
                     </Button>
                 ))}
             </div>
