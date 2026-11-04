@@ -207,11 +207,13 @@ const UnifiedViewerInner: React.FC = () => {
                 // Field photos (AgriParcelRecord with imageUrl)
                 api.getSDMEntityInstances('AgriParcelRecord').catch(() => []),
                 api.getSDMEntityInstances('AgriFarm').catch(() => []),
+                // Individual plants (AgriPlant): drawn with the other trees
+                api.getSDMEntityInstances('AgriPlant').catch(() => []),
             ]);
 
             const [robotsRes, sensorsRes, machinesRes, livestockRes, weatherRes, parcelsRes, cropsRes, buildingsRes,
                 oliveTreeRes, agriTreeRes, fruitTreeRes, vineRes, agriSensorRes, energyTrackersRes, pvInstallationsRes,
-                agriParcelRecordRes, agriFarmRes] = results;
+                agriParcelRecordRes, agriFarmRes, agriPlantRes] = results;
 
             setRobots(robotsRes.status === 'fulfilled' ? robotsRes.value : []);
             // Combine sensors from PostgreSQL API and NGSI-LD (SDM)
@@ -234,6 +236,7 @@ const UnifiedViewerInner: React.FC = () => {
                 ...(agriTreeRes.status === 'fulfilled' ? agriTreeRes.value : []),
                 ...(fruitTreeRes.status === 'fulfilled' ? fruitTreeRes.value : []),
                 ...(vineRes.status === 'fulfilled' ? vineRes.value : []),
+                ...(agriPlantRes.status === 'fulfilled' ? agriPlantRes.value : []),
             ];
             setTrees(allTrees);
             logger.debug('[UnifiedViewer] Trees loaded:', allTrees.length);

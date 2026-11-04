@@ -31,6 +31,7 @@ import { DataloggerRotationNotice } from './DataloggerRotationNotice';
 import { apiErrorMessage, DATALOGGER_INSTALLER_ROLES } from '@/services/dataloggersApi';
 import { useAuth } from '@/context/KeycloakAuthContext';
 import { submitGeoAsset } from './submission/submitGeoAsset';
+import { submitPlants, toPlantItems } from './submission/plants';
 import { validateIoTConfig, validateDataloggerStep, validateGeometryStep } from './iotValidation';
 import { submitIoTSensor, type NewDataloggerResult } from './submission/submitIoTSensor';
 import { submitFleet } from './submission/submitFleet';
@@ -59,18 +60,20 @@ interface StepRouterProps {
   stepId: StepId;
   placementState: ReturnType<typeof placementReducer>;
   dispatchPlacement: React.Dispatch<Parameters<typeof placementReducer>[1]>;
+  /** Plants imported from a file in the data step: the wizard is done. */
+  onPlantsImported?: () => void;
 }
 
-function StepRouter({ stepId, placementState, dispatchPlacement }: StepRouterProps) {
+function StepRouter({ stepId, placementState, dispatchPlacement, onPlantsImported }: StepRouterProps) {
   switch (stepId) {
     case 'type':        return <StepTypeSelection />;
-    case 'geo-config':  return <StepGeoAssetConfig />;
+    case 'geo-config':  return <StepGeoAssetConfig onPlantsImported={onPlantsImported} />;
     case 'iot-config':  return <StepIoTSensorConfig />;
     case 'datalogger':  return <StepDatalogger />;
     case 'fleet-config': return <StepFleetConfig />;
     case 'geometry':    return <StepGeometry placementState={placementState} dispatchPlacement={dispatchPlacement} />;
     case 'visualization': return <StepVisualization />;
-    case 'summary':     return <StepSummary />;
+    case 'summary':     return <StepSummary placementState={placementState} />;
     default:            return null;
   }
 }
@@ -147,6 +150,12 @@ function validateStep(
       return entityType ? null : 'wizard.validation.type_required';
 
     case 'geo-config':
+      // Individual plants have no name: they need their parcel instead
+      if (entityType === 'AgriPlant') {
+        const parent = (formData as GeoAssetFormData | null)?.parentEntity;
+        return parent?.type === 'AgriParcel' ? null : 'wizard.plants.parcel_required';
+      }
+      return formData?.name.trim() ? null : 'wizard.validation.name_required';
     case 'fleet-config':
       return formData?.name.trim() ? null : 'wizard.validation.name_required';
 
@@ -165,6 +174,14 @@ function validateStep(
       }
       if (placementState.mode === 'array') {
         return placementState.stampedInstances.length > 0 ? null : 'wizard.validation.array_required';
+      }
+      if (placementState.mode === 'line') {
+        return placementState.stampedInstances.length > 0 ? null : 'wizard.line.required';
+      }
+      if (entityType === 'AgriPlant') {
+        // single/multi: a point is required (polygons and lines are not plants)
+        return toPlantItems(placementState, formData as GeoAssetFormData).length > 0
+          ? null : 'wizard.plants.points_required';
       }
       // Point geometry is optional except for a Device (fixed sensor)
       return validateGeometryStep(entityType, formData?.geometry);
@@ -203,17 +220,18 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
   // Side panel mode: when interacting with the map (picking, drawing, stamping)
   // OR when on geometry step with array/stamp placement (always needs map access)
   const isGeometryWithPlacement = currentStep.id === 'geometry'
-    && (placementState.mode === 'array' || placementState.mode === 'stamp');
+    && (placementState.mode === 'array' || placementState.mode === 'stamp' || placementState.mode === 'line');
   const isMapInteractMode = isGeometryWithPlacement
     || (mapMode as string) === 'STAMP_INSTANCES'
     || (mapMode as string) === 'PREVIEW_MODEL'
     || (mapMode as string) === 'DRAW_GEOMETRY'
     || (mapMode as string) === 'PICK_LOCATION';
 
-  // Reset placement state when wizard resets
+  // Reset placement state when wizard resets, and when the type changes (a mode such as
+  // 'line' only exists for some types and must not carry over to another one)
   useEffect(() => {
     dispatchPlacement({ type: 'RESET' });
-  }, []);
+  }, [entityType]);
 
   // useCallback MUST be called before any conditional return (React hooks rule)
   const handleClose = useCallback(() => {
@@ -236,6 +254,18 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
 
       switch (formData.macroCategory) {
         case 'assets': {
+          if (entityType === 'AgriPlant') {
+            // One AgriPlant per placed point, written by entity-manager (ids server-side)
+            const res = await submitPlants(placementState, formData as GeoAssetFormData);
+            if (onSuccess) onSuccess();
+            if (res.rejected?.length) {
+              // some were left out: say so instead of closing as if all were written
+              setError(t('wizard.plants.partial', { written: res.written.length, rejected: res.rejected.length }));
+              break;
+            }
+            onClose();
+            break;
+          }
           await submitGeoAsset(entityType, formData as GeoAssetFormData, placementState);
           if (onSuccess) onSuccess();
           onClose();
@@ -324,6 +354,7 @@ function InnerWizard({ onClose, onSuccess }: InnerWizardProps) {
               stepId={currentStep.id}
               placementState={placementState}
               dispatchPlacement={dispatchPlacement}
+              onPlantsImported={() => { if (onSuccess) onSuccess(); onClose(); }}
             />
           </div>
 

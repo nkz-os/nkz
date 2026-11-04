@@ -867,7 +867,8 @@
       "LivestockFarm": "Explotación ganadera",
       "AutonomousMobileRobot": "Robot agrícola autónomo",
       "ManufacturingMachine": "Maquinaria agrícola (tractor/apero)",
-      "AgriOperation": "Operación agrícola"
+      "AgriOperation": "Operación agrícola",
+      "AgriPlant": "Planta individual"
     },
     "macro": {
       "assets": {
@@ -1222,6 +1223,65 @@
       "external_id_placeholder": "Ej.: sonda_suelo_1",
       "external_id_hint": "Es el identificador con el que el datalogger publica este sensor. Letras, números, punto, guion y guion bajo; máximo 64.",
       "created_retry": "El datalogger ya se ha creado; puedes reintentar con él. Su contraseña se puede regenerar en Ajustes."
+    },
+    "plants": {
+      "title": "Plantas individuales",
+      "intro": "Cada punto que coloques será una planta con su propio código, fila y posición, vinculada a la parcela.",
+      "parcel": "Parcela",
+      "choose_parcel": "Elige la parcela",
+      "loading": "Cargando…",
+      "code": "Código (una sola planta)",
+      "code_auto": "automático",
+      "row": "Número de fila (modo línea)",
+      "variety": "Variedad",
+      "date_planted": "Fecha de plantación",
+      "status": "Estado",
+      "status_alive": "Viva",
+      "status_dead": "Muerta",
+      "status_removed": "Arrancada",
+      "status_replaced": "Repuesta",
+      "hint": "Sin código, se asigna uno: fila-posición en líneas y cuadrículas, o el siguiente número libre.",
+      "parcel_required": "Elige la parcela de las plantas",
+      "previewing": "Comprobando las plantas…",
+      "preview_failed": "No se pudieron comprobar las plantas.",
+      "preview_counts": "Se crearán {{created}}, se actualizarán {{updated}} y se descartarán {{rejected}}.",
+      "rejected_item": "{{code}}: {{reason}}",
+      "reasons": {
+        "outside_parcel": "más de 10 m fuera de la parcela ({{distance}} m)",
+        "duplicate_code": "código repetido",
+        "invalid_point": "coordenadas no válidas",
+        "invalid_value": "valor no válido en {{field}}",
+        "broker_error": "no se pudo guardar",
+        "duplicate_location": "ya hay una planta en ese punto ({{other}})",
+        "code_conflict": "código ocupado por otro usuario; vuelve a intentarlo"
+      },
+      "warnings": {
+        "near_boundary": "{{code}}: {{distance}} m fuera de la parcela (error de GPS); se guarda",
+        "too_close": "{{code}}: a {{distance}} m de {{other}}",
+        "exists": "{{code}} ya existe: se actualizará",
+        "moved": "{{code}} se moverá {{distance}} m: ¿es la misma planta?"
+      },
+      "file_label": "O impórtalas desde un fichero (GPX, KML, KMZ, GeoJSON o CSV)",
+      "file_hint": "El nombre del punto (o la columna plantCode) es el código de la planta. Coordenadas WGS84.",
+      "file_unsupported": "Formato no admitido: usa GPX, KML, KMZ, GeoJSON o CSV.",
+      "import_confirm": "Importar",
+      "import_failed": "No se pudieron importar las plantas.",
+      "imported": "{{count}} plantas guardadas.",
+      "prefix": "Prefijo de código (otro bloque)",
+      "points_required": "Coloca al menos una planta en el mapa (punto, línea o cuadrícula).",
+      "partial": "Guardadas {{written}}; {{rejected}} no se pudieron guardar."
+    },
+    "line": {
+      "title": "Línea",
+      "desc": "Una fila de plantas: marca el inicio y el final, y la separación entre plantas.",
+      "intro": "Marca en el mapa el inicio y el final de la fila. Se coloca una planta cada tantos metros.",
+      "pick_start": "Marcar inicio",
+      "start_set": "Inicio marcado",
+      "pick_end": "Marcar final",
+      "end_set": "Final marcado",
+      "spacing": "Separación entre plantas (m)",
+      "summary": "{{count}} plantas en {{length}} m",
+      "required": "Marca el inicio y el final de la fila"
     }
   },
   "layout": {
@@ -1955,7 +2015,8 @@
         "WaterSource": "Fuente de Agua",
         "Well": "Pozo",
         "Pond": "Estanque",
-        "WeatherStation": "Estación Meteo"
+        "WeatherStation": "Estación Meteo",
+        "AgriPlant": "Planta"
       }
     },
     "filters": {

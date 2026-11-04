@@ -3,8 +3,15 @@ import { useWizard } from '../WizardContext';
 import { ENTITY_TYPE_METADATA } from '../entityTypes';
 import type { GeoAssetFormData } from '../types';
 import { useI18n } from '@/context/I18nContext';
+import type { PlacementState } from '@/machines/placementMachine';
+import { PlantPreview } from './PlantPreview';
 
-export function StepSummary() {
+interface StepSummaryProps {
+  /** Needed for individual plants: the summary previews what will be written. */
+  placementState?: PlacementState;
+}
+
+export function StepSummary({ placementState }: StepSummaryProps = {}) {
   const { entityType, formData } = useWizard();
   const { t } = useI18n();
 
@@ -13,6 +20,15 @@ export function StepSummary() {
   const meta = ENTITY_TYPE_METADATA[entityType];
   const Icon = meta?.icon ?? Activity;
   const assetData = formData.macroCategory === 'assets' ? (formData as GeoAssetFormData) : null;
+
+  if (entityType === 'AgriPlant' && assetData && placementState) {
+    return (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">{t('wizard.steps.summary')}</h3>
+        <PlantPreview placementState={placementState} formData={assetData} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

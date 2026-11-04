@@ -5,6 +5,7 @@ import { GeometryEditor } from '../GeometryEditor';
 import { PointCoordinateInputs } from '../PointCoordinateInputs';
 import { StampTool } from '../StampTool';
 import { ArrayTool } from '../ArrayTool';
+import { LineTool } from '../LineTool';
 import { PlacementModeSelector } from '../PlacementModeSelector';
 import { AssetBrowser } from '../AssetBrowser';
 import { validateGeometryWithinParent } from '@/utils/geometryValidation';
@@ -155,8 +156,13 @@ export function StepGeometry({ placementState, dispatchPlacement }: StepGeometry
         </>
       )}
 
+      {/* Line mode: a row of individual plants */}
+      {placementState.mode === 'line' && (
+        <LineTool onInstancesChange={handleArrayInstancesChange} />
+      )}
+
       {/* Normal geometry editor */}
-      {placementState.mode !== 'stamp' && placementState.mode !== 'array' && (
+      {placementState.mode !== 'stamp' && placementState.mode !== 'array' && placementState.mode !== 'line' && (
         <>
           {/* Geometry type selector (assets only) */}
           {isAsset && (

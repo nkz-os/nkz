@@ -141,6 +141,8 @@
   "POST /api/datahub/timeseries/align": 401,
   "POST /api/entities/parcels": 401,
   "POST /api/entities/parcels/<path:subpath>": 404,
+  "POST /api/entities/plants": 401,
+  "POST /api/entities/plants/<action>": 404,
   "POST /api/field-images/upload": 401,
   "POST /api/gis/<path:path>": 401,
   "POST /api/greenhouse": 401,

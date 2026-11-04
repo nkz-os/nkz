@@ -868,7 +868,8 @@
       "LivestockFarm": "Abeltzaintza-ustiategia",
       "AutonomousMobileRobot": "Nekazaritza-robot autonomoa",
       "ManufacturingMachine": "Nekazaritza-makineria (traktorea/tresna)",
-      "AgriOperation": "Nekazaritza-eragiketa"
+      "AgriOperation": "Nekazaritza-eragiketa",
+      "AgriPlant": "Landare bakarra"
     },
     "macro": {
       "assets": {
@@ -1223,6 +1224,65 @@
       "external_id_placeholder": "Adib.: lur_sonda_1",
       "external_id_hint": "Datalogger-ak sentsore hau argitaratzeko erabiltzen duen identifikatzailea. Letrak, zenbakiak, puntua, gidoia eta azpimarra; gehienez 64.",
       "created_retry": "Datalogger-a sortuta dago jada; berarekin saia zaitezke berriro. Pasahitza Ezarpenetan berregin daiteke."
+    },
+    "plants": {
+      "title": "Landare bakarrak",
+      "intro": "Jartzen duzun puntu bakoitza landare bat izango da, bere kode, ilara eta posizioarekin, partzelari lotuta.",
+      "parcel": "Partzela",
+      "choose_parcel": "Aukeratu partzela",
+      "loading": "Kargatzen…",
+      "code": "Kodea (landare bakarra)",
+      "code_auto": "automatikoa",
+      "row": "Ilara-zenbakia (lerro modua)",
+      "variety": "Barietatea",
+      "date_planted": "Landatze-data",
+      "status": "Egoera",
+      "status_alive": "Bizirik",
+      "status_dead": "Hilda",
+      "status_removed": "Ateratakoa",
+      "status_replaced": "Ordezkatua",
+      "hint": "Koderik gabe, bat esleitzen da: ilara-posizioa lerro eta saretan, edo hurrengo zenbaki librea.",
+      "parcel_required": "Aukeratu landareen partzela",
+      "previewing": "Landareak egiaztatzen…",
+      "preview_failed": "Ezin izan dira landareak egiaztatu.",
+      "preview_counts": "{{created}} sortuko dira, {{updated}} eguneratuko eta {{rejected}} baztertuko.",
+      "rejected_item": "{{code}}: {{reason}}",
+      "reasons": {
+        "outside_parcel": "partzelatik 10 m baino gehiagora ({{distance}} m)",
+        "duplicate_code": "kode errepikatua",
+        "invalid_point": "koordenatu baliogabeak",
+        "invalid_value": "balio baliogabea {{field}} eremuan",
+        "broker_error": "ezin izan da gorde",
+        "duplicate_location": "badago landare bat puntu horretan ({{other}})",
+        "code_conflict": "beste erabiltzaile batek hartutako kodea; saiatu berriro"
+      },
+      "warnings": {
+        "near_boundary": "{{code}}: partzelatik {{distance}} m kanpo (GPS errorea); gordetzen da",
+        "too_close": "{{code}}: {{other}}-tik {{distance}} m-ra",
+        "exists": "{{code}} badago: eguneratuko da",
+        "moved": "{{code}} {{distance}} m mugituko da: landare bera da?"
+      },
+      "file_label": "Edo inportatu fitxategi batetik (GPX, KML, KMZ, GeoJSON edo CSV)",
+      "file_hint": "Puntuaren izena (edo plantCode zutabea) da landarearen kodea. WGS84 koordenatuak.",
+      "file_unsupported": "Formatu ez onartua: erabili GPX, KML, KMZ, GeoJSON edo CSV.",
+      "import_confirm": "Inportatu",
+      "import_failed": "Ezin izan dira landareak inportatu.",
+      "imported": "{{count}} landare gordeta.",
+      "prefix": "Kode-aurrizkia (beste bloke bat)",
+      "points_required": "Jarri gutxienez landare bat mapan (puntua, lerroa edo sareta).",
+      "partial": "{{written}} gordeta; {{rejected}} ezin izan dira gorde."
+    },
+    "line": {
+      "title": "Lerroa",
+      "desc": "Landare-ilara bat: markatu hasiera eta amaiera, eta landareen arteko tartea.",
+      "intro": "Markatu mapan ilararen hasiera eta amaiera. Landare bat jartzen da hainbat metroan behin.",
+      "pick_start": "Markatu hasiera",
+      "start_set": "Hasiera markatuta",
+      "pick_end": "Markatu amaiera",
+      "end_set": "Amaiera markatuta",
+      "spacing": "Landareen arteko tartea (m)",
+      "summary": "{{count}} landare {{length}} m-tan",
+      "required": "Markatu ilararen hasiera eta amaiera"
     }
   },
   "layout": {
@@ -1956,7 +2016,8 @@
         "WaterSource": "Ur-iturria",
         "Well": "Putzua",
         "Pond": "Urmaela",
-        "WeatherStation": "Meteo-estazioa"
+        "WeatherStation": "Meteo-estazioa",
+        "AgriPlant": "Landarea"
       }
     },
     "filters": {

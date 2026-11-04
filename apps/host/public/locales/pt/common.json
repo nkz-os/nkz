@@ -891,7 +891,8 @@
       "LivestockFarm": "Exploração pecuária",
       "AutonomousMobileRobot": "Robô agrícola autónomo",
       "ManufacturingMachine": "Maquinaria agrícola (trator/alfaia)",
-      "AgriOperation": "Operação agrícola"
+      "AgriOperation": "Operação agrícola",
+      "AgriPlant": "Planta individual"
     },
     "macro": {
       "assets": {
@@ -1246,6 +1247,65 @@
       "external_id_placeholder": "Ex.: sonda_solo_1",
       "external_id_hint": "O identificador com que o datalogger publica este sensor. Letras, números, ponto, hífen e sublinhado; máximo 64.",
       "created_retry": "O datalogger já foi criado; pode tentar de novo com ele. A palavra-passe pode ser regenerada em Definições."
+    },
+    "plants": {
+      "title": "Plantas individuais",
+      "intro": "Cada ponto colocado será uma planta com o seu próprio código, linha e posição, ligada à parcela.",
+      "parcel": "Parcela",
+      "choose_parcel": "Escolha a parcela",
+      "loading": "A carregar…",
+      "code": "Código (uma só planta)",
+      "code_auto": "automático",
+      "row": "Número da linha (modo linha)",
+      "variety": "Variedade",
+      "date_planted": "Data de plantação",
+      "status": "Estado",
+      "status_alive": "Viva",
+      "status_dead": "Morta",
+      "status_removed": "Arrancada",
+      "status_replaced": "Reposta",
+      "hint": "Sem código, é atribuído um: linha-posição em linhas e grelhas, ou o próximo número livre.",
+      "parcel_required": "Escolha a parcela das plantas",
+      "previewing": "A verificar as plantas…",
+      "preview_failed": "Não foi possível verificar as plantas.",
+      "preview_counts": "Serão criadas {{created}}, atualizadas {{updated}} e excluídas {{rejected}}.",
+      "rejected_item": "{{code}}: {{reason}}",
+      "reasons": {
+        "outside_parcel": "mais de 10 m fora da parcela ({{distance}} m)",
+        "duplicate_code": "código repetido",
+        "invalid_point": "coordenadas inválidas",
+        "invalid_value": "valor inválido em {{field}}",
+        "broker_error": "não foi possível guardar",
+        "duplicate_location": "já existe uma planta nesse ponto ({{other}})",
+        "code_conflict": "código ocupado por outro utilizador; tente de novo"
+      },
+      "warnings": {
+        "near_boundary": "{{code}}: {{distance}} m fora da parcela (erro de GPS); mantida",
+        "too_close": "{{code}}: a {{distance}} m de {{other}}",
+        "exists": "{{code}} já existe: será atualizada",
+        "moved": "{{code}} vai mover-se {{distance}} m: é a mesma planta?"
+      },
+      "file_label": "Ou importe-as de um ficheiro (GPX, KML, KMZ, GeoJSON ou CSV)",
+      "file_hint": "O nome do ponto (ou a coluna plantCode) é o código da planta. Coordenadas WGS84.",
+      "file_unsupported": "Formato não suportado: use GPX, KML, KMZ, GeoJSON ou CSV.",
+      "import_confirm": "Importar",
+      "import_failed": "Não foi possível importar as plantas.",
+      "imported": "{{count}} plantas guardadas.",
+      "prefix": "Prefixo do código (outro bloco)",
+      "points_required": "Coloque pelo menos uma planta no mapa (ponto, linha ou grelha).",
+      "partial": "{{written}} guardadas; {{rejected}} não foi possível guardar."
+    },
+    "line": {
+      "title": "Linha",
+      "desc": "Uma linha de plantas: marque o início, o fim e o espaçamento entre plantas.",
+      "intro": "Marque no mapa o início e o fim da linha. É colocada uma planta a cada tantos metros.",
+      "pick_start": "Marcar início",
+      "start_set": "Início marcado",
+      "pick_end": "Marcar fim",
+      "end_set": "Fim marcado",
+      "spacing": "Espaçamento entre plantas (m)",
+      "summary": "{{count}} plantas em {{length}} m",
+      "required": "Marque o início e o fim da linha"
     }
   },
   "layout": {
@@ -1979,7 +2039,8 @@
         "WaterSource": "Fonte de água",
         "Well": "Poço",
         "Pond": "Lagoa",
-        "WeatherStation": "Estação meteorológica"
+        "WeatherStation": "Estação meteorológica",
+        "AgriPlant": "Planta"
       }
     },
     "filters": {

@@ -86,4 +86,24 @@ describe('useAssets', () => {
       expect(result.current.assets.find(a => a.id === entity.id)).toMatchObject({ type: entity.type, parentId: PARCEL });
     }
   });
+
+  it('lists individual plants (AgriPlant) as vegetation under their parcel, named by code', async () => {
+    api.getRobots.mockResolvedValue([]);
+    api.getMachines.mockResolvedValue([]);
+    api.getLivestock.mockResolvedValue([]);
+    api.getWeatherStations.mockResolvedValue([]);
+    const plant = {
+      id: 'urn:ngsi-ld:AgriPlant:tenant-a:demo-parcel-001:T-1', type: 'AgriPlant',
+      location: { type: 'GeoProperty', value: { type: 'Point', coordinates: [-1.6, 42.8] } },
+      hasAgriParcel: { type: 'Relationship', object: PARCEL },
+      plantCode: { type: 'Property', value: 'T-1' },
+    };
+    api.getSDMEntityInstances.mockImplementation(async (type: string) => (type === 'AgriPlant' ? [plant] : sdm[type] ?? []));
+
+    const { result } = renderHook(() => useAssets());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const found = result.current.assets.find(a => a.id === plant.id);
+    expect(found).toMatchObject({ type: 'AgriPlant', category: 'vegetation', parentId: PARCEL });
+    expect(found?.name).toContain('T-1');
+  });
 });

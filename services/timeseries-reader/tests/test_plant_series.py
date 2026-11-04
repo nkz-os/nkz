@@ -124,3 +124,15 @@ def test_plant_sample_ids_pages_orion():
     assert len(ids) == 1001 and get.call_count == 2
     params = get.call_args_list[0].kwargs["params"]
     assert params["type"] == "AgriPlantSample" and params["q"] == f'hasAgriPlant=="{PLANT}"'
+
+
+def test_tissue_filter_keeps_only_that_tissue():
+    july = datetime(2026, 7, 15, 12, tzinfo=timezone.utc)
+    leaf, fruit = _row("s1", july, july), _row("s2", july, july, n=0.009)
+    leaf["payload"]["raw"]["plantTissue"] = {"type": "Property", "value": "leaf"}
+    fruit["payload"]["raw"]["plantTissue"] = {"type": "Property", "value": "fruit"}
+    r, _, _ = _call([leaf, fruit], "?attrs=nitrogen&tissue=leaf")
+    data = r.get_json()["data"]
+    assert [(p["entity_id"], p["plantTissue"]) for p in data] == [("s1", "leaf")]
+    r, _, _ = _call([leaf, fruit], "?attrs=nitrogen")
+    assert [p["plantTissue"] for p in r.get_json()["data"]] == ["leaf", "fruit"]

@@ -270,6 +270,15 @@ export const ASSET_TYPE_REGISTRY: Record<string, AssetTypeInfo> = {
     supportsHierarchy: true,
     supportsTelemetry: false,
   },
+  AgriPlant: {
+    type: 'AgriPlant',
+    category: 'vegetation',
+    icon: 'tree-deciduous',
+    color: 'green',
+    supportsLocation: true,
+    supportsHierarchy: true,
+    supportsTelemetry: true,
+  },
   AgriTree: {
     type: 'AgriTree',
     category: 'vegetation',

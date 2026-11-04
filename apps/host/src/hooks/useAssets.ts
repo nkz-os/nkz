@@ -148,6 +148,8 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
         api.getSDMEntityInstances('AgriSoilExtended').catch(() => []),
         api.getSDMEntityInstances('AgriFarm').catch(() => []),
         api.getSDMEntityInstances('AgriGreenhouse').catch(() => []),
+        // Individual plants (trees, vines) created by the entity wizard or a file import
+        api.getSDMEntityInstances('AgriPlant').catch(() => []),
       ]);
 
       const [
@@ -155,7 +157,7 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
         weatherRes, cropsRes, buildingsRes, devicesRes, waterSourcesRes,
         wellsRes, oliveTreesRes, agriTreesRes, fruitTreesRes, vinesRes,
         energyTrackersRes, pvInstallationsRes, solarParksRes, parcelZonesRes, soilsRes,
-        extendedSoilsRes, farmsRes, greenhousesRes,
+        extendedSoilsRes, farmsRes, greenhousesRes, plantsRes,
       ] = results;
       
       // Normalize all entities
@@ -189,6 +191,7 @@ export function useAssets(options: UseAssetsOptions = {}): UseAssetsReturn {
       addEntities(agriTreesRes, 'AgriTree');
       addEntities(fruitTreesRes, 'FruitTree');
       addEntities(vinesRes, 'Vine');
+      addEntities(plantsRes, 'AgriPlant');
       addEntities(energyTrackersRes, 'AgriEnergyTracker');
       addEntities(pvInstallationsRes, 'PhotovoltaicInstallation');
       addEntities(solarParksRes, 'AgriSolarPark');

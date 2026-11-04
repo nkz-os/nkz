@@ -1227,6 +1227,18 @@ class ApiService {
   // Parent Entities (for hierarchy)
   // =============================================================================
 
+  /** Individual plants (AgriPlant): what /api/entities/plants would write. */
+  async previewPlants(body: { parcel_id: string; plants?: unknown[]; file?: { format: string; content: string } }): Promise<any> {
+    const response = await this.client.post('/api/entities/plants/preview', body);
+    return response.data;
+  }
+
+  /** Create or update individual plants of one parcel (ids built server-side). */
+  async createPlants(body: { parcel_id: string; plants?: unknown[]; file?: { format: string; content: string } }): Promise<any> {
+    const response = await this.client.post('/api/entities/plants', body);
+    return response.data;
+  }
+
   async getParentEntities(entityType?: string): Promise<any[]> {
     try {
       const params = entityType ? { type: entityType } : {};
