@@ -1303,6 +1303,11 @@ def _plant_object(payload: dict):
     return rel.get("object") if isinstance(rel, dict) else rel
 
 
+def _plant_tissue(payload: dict):
+    t = ((payload or {}).get("raw") or {}).get("plantTissue")
+    return t.get("value") if isinstance(t, dict) else t
+
+
 @app.route("/api/timeseries/type/<entity_type>/plant/<plant_id>/data", methods=["GET"])
 @require_auth
 def get_timeseries_by_type_and_plant(entity_type: str, plant_id: str):
@@ -1311,6 +1316,8 @@ def get_timeseries_by_type_and_plant(entity_type: str, plant_id: str):
     A sample of several plants (a composite) belongs to its zone or parcel, not to
     each plant, so it is excluded. When a sample was re-imported with corrected
     values, only the latest ingested row of each (entity, instant) is returned.
+    ``tissue`` keeps only samples of that plant tissue (leaf, fruit...); each row
+    carries its ``plantTissue``.
     """
     ctx = _resolve_tenant_context()
     if isinstance(ctx, tuple):
@@ -1318,6 +1325,7 @@ def get_timeseries_by_type_and_plant(entity_type: str, plant_id: str):
     tenant_id = ctx
 
     attrs_str = request.args.get("attrs")
+    tissue = (request.args.get("tissue") or "").strip() or None
     limit = request.args.get("limit", 1000, type=int)
     now = datetime.utcnow()
     start_dt = parse_datetime(request.args["from"]) if request.args.get("from") else now - timedelta(days=PLANT_SERIES_DEFAULT_DAYS)
@@ -1367,6 +1375,8 @@ def get_timeseries_by_type_and_plant(entity_type: str, plant_id: str):
         for row in rows:
             if _plant_object(row["payload"]) != plant_id:
                 continue
+            if tissue and _plant_tissue(row["payload"]) != tissue:
+                continue
             # rows come ordered by ingested_at: the last one of each key is the latest import
             latest[(row["entity_id"], row["observed_at"])] = row
 
@@ -1375,6 +1385,7 @@ def get_timeseries_by_type_and_plant(entity_type: str, plant_id: str):
             measurements = (row["payload"] or {}).get("measurements", {})
             point: dict = {
                 "entity_id": row["entity_id"],
+                "plantTissue": _plant_tissue(row["payload"]),
                 "observed_at": row["observed_at"].isoformat()
                 if hasattr(row["observed_at"], "isoformat")
                 else str(row["observed_at"]),
