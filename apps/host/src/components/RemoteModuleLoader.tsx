@@ -215,8 +215,6 @@ export const RemoteModuleLoader: React.FC<RemoteModuleLoaderProps> = ({
       className="remote-module-container"
       data-module-id={module.id}
       style={{
-        isolation: 'isolate',
-        contain: 'layout style paint',
         position: 'relative',
         display: 'block',
       }}
